@@ -120,6 +120,7 @@ public class DesignerSessionService {
     private final DesignerModelPromptTransport modelPrompts;
     private final AcceptanceCandidateInternalTerminationWorkflow internalTerminations;
     private final AcceptanceCandidateInternalParentSettlement internalParentSettlement;
+    private final StoryBindingService storyBindings;
     public DesignerSessionService(LoopperMapper mapper, LifecycleTransitionService lifecycle,
                                   ProjectService projects, OpenCodeClient openCode,
                                   LoopperProperties defaults, LoopDraftService drafts, ObjectMapper json,
@@ -139,7 +140,8 @@ public class DesignerSessionService {
                                   DesignerPackageCandidateOrchestrator packageDesignCandidates,
                                   WorkPackageRoleService workPackageRoles,
                                   DesignerQuestionSupport questionSupport, RollingPackageService rollingPackages,
-                                  DesignerAttachmentContext attachmentContext) {
+                                  DesignerAttachmentContext attachmentContext,
+                                  StoryBindingService storyBindings) {
         this.mapper = mapper;
         this.lifecycle = lifecycle;
         this.projects = projects;
@@ -179,6 +181,7 @@ public class DesignerSessionService {
         this.attachmentContext = attachmentContext;
         this.modelPrompts = new DesignerModelPromptTransport(openCode, attachmentContext, json);
         this.internalTerminations = internalTerminations; this.internalParentSettlement = internalParentSettlement;
+        this.storyBindings = storyBindings;
         this.acceptanceCandidateWorkflow = new DesignerAcceptanceCandidateWorkflow(acceptanceWorkflow, acceptanceCandidates,
                 acceptanceCandidateProofs, acceptanceLegacyHandoffs, projects, modelPrompts,
                 candidatePromptDispatches, internalLaunchPreparer, internalLaunches, initialPromptFailures);
@@ -194,6 +197,11 @@ public class DesignerSessionService {
         return create(projectId, null, initialMessage);
     }
     public DesignerSessionRow create(String projectId, String loopDraftId, String initialMessage) {
+        return create(projectId, loopDraftId, initialMessage, StoryBindingConfiguration.disabled());
+    }
+    public DesignerSessionRow create(String projectId, String loopDraftId, String initialMessage,
+                                     StoryBindingConfiguration storyBinding) {
+        storyBinding = storyBinding == null ? StoryBindingConfiguration.disabled() : storyBinding.normalized();
         projects.get(projectId);
         if (loopDraftId != null) {
             LoopDraftRow draft = drafts.get(loopDraftId);
@@ -211,6 +219,7 @@ public class DesignerSessionService {
                 () -> mapper.insertDesignerSession(session),
                 () -> new ConflictException("DESIGNER_SESSION_CREATE_CONFLICT",
                         "Designer session could not be created"));
+        storyBindings.attachDesigner(session.id(), storyBinding);
         appendMessage(session.id(), DesignerActor.SYSTEM, "设计会话已创建，需求分析师正在识别任务设置。",
                 DesignerSessionState.PENDING_HANDOFF.name(), null, null);
         if (initialMessage != null && !initialMessage.isBlank()) {
@@ -5234,10 +5243,9 @@ public class DesignerSessionService {
                 ? (content == null ? "" : content)
                 : bounded(content, MAX_MESSAGE_LENGTH);
         DesignerMessageRow message = new DesignerMessageRow(UUID.randomUUID().toString(), sessionId,
-                mapper.nextDesignerMessageOrdinal(sessionId), role, persistedContent,
+                0, role, persistedContent,
                 deliveryState, now(), actor.name(), requirementRevision, workPackageId);
-        mapper.insertDesignerMessage(message);
-        return message;
+        return mapper.appendDesignerMessage(message);
     }
     private void recordNormalization(DesignerSessionRow session, DesignerActor sourceActor,
                                      AiOutputExtractor.ExtractionResult<?> extracted,
@@ -5275,22 +5283,12 @@ public class DesignerSessionService {
     }
 
     private OpenCodeClient.OpenCodeModel configuredModel() {
-        String configured = defaults.getOpenCode().getModel();
-        if (configured == null) return null;
-        String value = configured.trim();
-        int separator = value.indexOf('/');
-        if (separator <= 0 || separator >= value.length() - 1) return null;
-        String provider = value.substring(0, separator).trim();
-        String model = value.substring(separator + 1).trim();
-        return provider.isEmpty() || model.isEmpty() ? null
-                : new OpenCodeClient.OpenCodeModel(provider, model, null);
+        return io.opencode.loopper.runtime.OpenCodeModelSelection.configured(defaults.getOpenCode().getModel());
     }
 
     private OpenCodeClient.OpenCodeModel responseModel(ModelResponseMode mode) {
-        OpenCodeClient.OpenCodeModel configured = configuredModel();
-        return configured == null ? null
-                : new OpenCodeClient.OpenCodeModel(configured.providerId(), configured.modelId(),
-                mode == ModelResponseMode.JSON_SCHEMA ? Boolean.FALSE : configured.thinking());
+        return io.opencode.loopper.runtime.OpenCodeModelSelection.forStructuredResponse(
+                defaults.getOpenCode().getModel(), mode == ModelResponseMode.JSON_SCHEMA);
     }
 
     private ModelResponseMode currentResponseMode(String workflowStep, String planningMode, String finalMode) {

@@ -211,6 +211,14 @@ public interface LoopperDesignerMapper {
     int nextDesignerMessageOrdinal(String sessionId);
     @Insert("INSERT INTO designer_message(id,designer_session_id,ordinal,role,content,delivery_state,created_at,actor,requirement_revision,work_package_id) VALUES(#{id},#{designerSessionId},#{ordinal},#{role},#{content},#{deliveryState},#{createdAt},#{actor},#{requirementRevision},#{workPackageId})")
     int insertDesignerMessage(DesignerMessageRow row);
+    @Select(value = """
+            INSERT INTO designer_message(id,designer_session_id,ordinal,role,content,delivery_state,created_at,actor,requirement_revision,work_package_id)
+            SELECT #{id},#{designerSessionId},COALESCE(MAX(ordinal),0)+1,#{role},#{content},#{deliveryState},#{createdAt},#{actor},#{requirementRevision},#{workPackageId}
+            FROM designer_message WHERE designer_session_id=#{designerSessionId}
+            RETURNING *
+            """, affectData = true)
+    @org.apache.ibatis.annotations.Options(flushCache = org.apache.ibatis.annotations.Options.FlushCachePolicy.TRUE, useCache = false)
+    DesignerMessageRow appendDesignerMessage(DesignerMessageRow row);
     @Select("SELECT * FROM designer_message WHERE designer_session_id=#{sessionId} ORDER BY ordinal")
     List<DesignerMessageRow> listDesignerMessages(String sessionId);
     @Select("SELECT * FROM designer_message WHERE id=#{id}")

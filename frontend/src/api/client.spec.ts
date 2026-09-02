@@ -21,6 +21,18 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 afterEach(() => vi.unstubAllGlobals())
 
 describe('Loopper REST contract adapter', () => {
+  it('preserves story accounting notification identity and string configuration', async () => {
+    const base = { id: 'designer-story', projectId: 'project-1', state: 'REVIEWING', workflowPhase: 'DISCUSSING_REQUIREMENT', activeActor: 'DESIGNER' }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(json({ ...base,
+      storyBinding: { enabled: true, systemCode: 'SYS-001', storyCode: '000123' },
+      messages: [{ id: 'accounting-failure', role: 'SYSTEM', actor: 'SYSTEM', content: '统计超时，任务继续执行', deliveryState: 'STORY_BINDING_FAILED' }],
+    })).mockResolvedValueOnce(json({ ...base, messages: [] })))
+    await expect(api.getDesignerSession('designer-story')).resolves.toMatchObject({
+      storyBinding: { enabled: true, systemCode: 'SYS-001', storyCode: '000123' },
+      messages: [{ id: 'accounting-failure', deliveryState: 'STORY_BINDING_FAILED' }],
+    })
+    await expect(api.getDesignerSession('designer-story')).resolves.toMatchObject({ storyBinding: { enabled: false } })
+  })
   it('rejects unknown Task states from the API', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({
       id: 'task-future', projectId: 'project-1', title: 'Future', status: 'FUTURE_STATE',
@@ -311,6 +323,11 @@ describe('Loopper REST contract adapter', () => {
     expect(FakeEventSource.latest?.url).toBe('/api/designer-sessions/designer%201/events')
     expect(onState).toHaveBeenCalledWith('connected')
     expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'PARTIAL', content: '## streamed', runtimeConnected: true }))
+    FakeEventSource.latest?.onmessage?.({ data: JSON.stringify({
+      sequence: 5, sessionId: 'designer 1', type: 'STORY_BINDING_FAILED', state: 'REVIEWING',
+      runtimeConnected: false, detail: '统计超时，任务继续执行', at: 'later',
+    }) } as MessageEvent<string>)
+    expect(onEvent).toHaveBeenLastCalledWith(expect.objectContaining({ type: 'STORY_BINDING_FAILED' }))
     stream.close()
     expect(FakeEventSource.latest?.close).toHaveBeenCalled()
   })

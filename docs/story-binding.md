@@ -1,0 +1,40 @@
+# 故事绑定与 AI 工作量统计
+
+开始设计时可选“开启故事绑定”。Loopper 先查询当前项目目录所连接 OpenCode 的 `GET /command`；仅注册了 `aicoding` 时允许开启。检测中、命令缺失或连接失败均显示原因并禁用开关，普通设计仍可提交。“重新检测”可在插件安装后刷新。切换项目或运行时代次会重新检测，探测不会创建 Session、调用模型或提交统计。
+
+开启后必填系统编号和故事编号。两者以字符串持久化，保留前导零，最多 128 字符，不允许空白或控制字符。配置只在创建设计时设置，普通提交和附件提交一致；历史设计和旧客户端默认关闭。任务确认、执行重试与 Recovery 沿用同一绑定链。
+
+## 会话行为
+
+- 首个实际派发业务提示的 Session 使用 `aicoding start <系统编号> <故事编号>`，后续新 Session 使用 `continue`。相同 Session 的继续讨论、问题回答和 Provider 重试不重复绑定。
+- 覆盖 Router、需求与工作包设计、规划、Compiler、Implementation、Reviewer、双 Judge 及这些角色的修复/finalizer。未开展工作的 fork 和服务端生成步骤不制造统计调用。
+- 业务结果先落库；只有所属流程已经不再复用该远端 Session，才提交 `complete`。正常结束、失败和取消均适用。远端一次 IDLE、等待用户回答和单独 abort 不是业务结束判据。
+- 统计调用最多等待 30 秒。失败、连接中断和超时只写入统计记录与一次 Loopper 内通知，不消耗业务重试预算，不关闭全自动模式，不回滚业务结果，也不因统计超时中止业务 Session。
+- 每个 Session 的 BEGIN/COMPLETE 各有独立且唯一的调用和消息 ID。网络请求前以短事务持久化，网络操作在事务外。结果未知不自动重发；重启把遗留 PREPARED 标为 UNKNOWN。
+
+通知示例：“AI 工作量统计失败：请求超时（30 秒），任务继续执行。”设计通知保存在系统消息中，任务通知保存在事件记录中。通知和业务消息使用数据库原子追加，避免并发序号冲突。统计通知通过独立 SSE 事件刷新持久化消息；即使设计已停止轮询，也会显示结束调用失败，且不会覆盖业务角色或运行状态。重复刷新或重放不重复追加通知；通知投递异常也不能影响任务。
+
+## OpenCode 接入
+
+使用原生 `POST /session/{id}/command`，命令名固定为 `aicoding`，服务端生成 arguments，不调用 shell。用户在终端里看到的斜杠只是命令入口，HTTP command 字段不带斜杠。
+
+统计命令使用受管运行时自动配置的 `loopper-accounting` Agent（两步，默认拒绝工具，仅允许 aicoding 命名工具）。受管运行时还加载内置消息保护插件，隔离模型上下文，并禁止统计回合调用业务工具；该保护插件不会提供 aicoding 命令。业务提示明确恢复业务 Agent，角色自身权限保持不变。外部 HTTP 模式须在外部 OpenCode 配置同名 Agent 与 `src/main/resources/opencode/loopper-accounting-guard.mjs`；缺失时会产生统计失败通知，主流程继续。插件若依赖其他工具名、指定自己的 Agent 或需要业务写权限，应先现场核对其实现，不能为统计放宽业务角色权限。
+
+OpenCode 自定义命令可能产生普通 user/assistant 模型回合。统计使用 `msg_loopper_aicoding_` 消息身份；所有业务输出、结构化结果、活动与用量读取会排除对应消息及其 assistant 子消息。迟到统计回合的全局 Session 状态不能覆盖已经存在的业务消息结果。统计输出不能作为设计稿、需求快照或评审结论。
+
+V65 保存绑定链、Designer/Task 继承关系、每个远端 Session 的角色与顺序、BEGIN/COMPLETE 调用、消息 ID、返回摘要、错误和插件返回的 runId。SUCCEEDED 表示命令响应成功，不等于独立验证内网平台已入账。平台回执格式、业务错误字段和并行 run 语义需用内网实际插件确认。OpenCode 若仅返回通用错误，通知保留 HTTP 状态和诊断标识，不推断被隐藏的插件内部原因。
+
+## 开发环境与复现
+
+`scripts/aicoding/mock-plugin.mjs` 是测试专用的原生插件，模拟 start/continue/complete/status/sync；`mock-receiver.mjs` 提供独立本地接收端、请求台账、可控延迟/错误/丢失响应以及确定性模型。模拟插件不会默认安装到正式运行环境，也不访问内网平台。
+
+`start-qualification.mjs` 启动独立端口、数据库和 XDG 目录的 Loopper/真实 OpenCode 环境，输出 environment.json 路径。模型只访问 localhost。可传入已构建 JAR：
+
+```bash
+node scripts/aicoding/start-qualification.mjs target/opencode-loopper-0.3.37.jar
+node scripts/aicoding/qualify-workflow.mjs /绝对路径/environment.json
+```
+
+接收端 `POST /control` 支持 `fail`、`delayMs`、`loseResponse` 故障注入；`GET /requests` 回读接收台账和模型请求。终止启动脚本会停止专用 JVM、受管 OpenCode 和接收服务；保留隔离目录的日志用于核验，后续可删除整个目录。原有 OpenCode 配置和 8080 服务不受影响。
+
+自动化测试覆盖配置、前导零、继承、唯一调用、网络事务边界、超时/失败/取消、消息分流、重启未知结果和 UI 探测竞态；真实调用验收记录单独保存。模拟成功证明的是 Loopper 接入与容错能力，不能代替内网插件的现场验证。

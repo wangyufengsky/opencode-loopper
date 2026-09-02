@@ -1438,3 +1438,9 @@ directory requested by Loopper. A missing or mismatched directory fails before
 the implementation prompt is sent. Runtime permissions hard-deny commit and
 Git ref/history/remote mutations in addition to push and destructive commands;
 the Spring publication service remains the only supported commit/push path.
+
+## Optional story accounting (V65)
+
+Creation-only story identity is persisted before the first Router. Designer links and task links reference one immutable binding chain; task insertion inherits its Designer chain and Recovery explicitly copies its parent link. Each worked remote Session has a unique ordinal and independent BEGIN/COMPLETE calls with durable reserved message IDs. The coordinator records intent in a short transaction, performs native command I/O outside it, and records a bounded result. Each phase is submitted at most once; interrupted PREPARED calls become UNKNOWN on startup. Terminal collection follows persisted owner states, not transient OpenCode IDLE. Statistics failures produce a system message/task event and never drive business state, automatic authorization or retry budgets.
+
+SQLite retains WAL and the existing busy timeout and now begins transactions with IMMEDIATE write reservation. This prevents a concurrent accounting writer invalidating a business transaction's read snapshot before its optimistic update. Network/model operations remain outside transactions. See [story binding](story-binding.md) for runtime and qualification boundaries.

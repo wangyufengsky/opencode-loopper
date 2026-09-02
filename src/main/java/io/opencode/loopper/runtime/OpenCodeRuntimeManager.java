@@ -352,7 +352,7 @@ public final class OpenCodeRuntimeManager implements AutoCloseable {
                 }
             }
         }
-        return mergeManagedConfig(System.getenv("OPENCODE_CONFIG_CONTENT"), config);
+        return OpenCodeAccountingAgent.install(mergeManagedConfig(System.getenv("OPENCODE_CONFIG_CONTENT"), config), properties.getDataDir());
     }
 
     /**

@@ -1,6 +1,7 @@
 package io.opencode.loopper.runtime;
 
 import io.opencode.loopper.config.LoopperProperties;
+import io.opencode.loopper.service.StoryAccountingCoordinator;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -51,11 +52,13 @@ class OpenCodeConfiguration {
     @Bean
     OpenCodeClient openCodeClient(LoopperProperties properties, OpenCodeRuntimeManager runtimeManager,
                                   OpenCodeCapabilityRegistry capabilities,
-                                  OpenCodeSessionRuntimeBindings runtimeBindings, OpenCodeAttachmentResources resources) {
+                                  OpenCodeSessionRuntimeBindings runtimeBindings, OpenCodeAttachmentResources resources,
+                                  StoryAccountingCoordinator storyAccounting) {
         if ("fake".equalsIgnoreCase(properties.getOpenCode().getMode())) {
             return new FakeOpenCodeClient(runtimeBindings);
         }
         return new HttpOpenCodeClient(RestClient.builder(), runtimeManager::connectionForClient,
-                runtimeManager::currentIdentityNoIo, properties, capabilities, runtimeBindings, resources);
+                runtimeManager::currentIdentityNoIo, properties, capabilities, runtimeBindings, resources,
+                storyAccounting);
     }
 }

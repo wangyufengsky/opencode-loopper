@@ -76,6 +76,7 @@ public class RecoveryService {
         TaskRow child = mode == RecoveryMode.REWORK_ALL_STAGES || checkpointSeeded
                 ? drafts.confirmAtBaseline(childDraft.id(), recoveryTitle(parent.title(), mode), "RECOVERY", parent.baselineCommit())
                 : drafts.confirm(childDraft.id(), recoveryTitle(parent.title(), mode), "RECOVERY");
+        mapper.inheritRecoveryStoryBinding(child.id(), parent.id());
         attachmentContext.inheritPrepared(child.id(), inheritedAttachments);
         TaskDesignOriginService.Origin origin = designOrigins.sourceForChild(parent);
         persistence.link(new TaskLineageRow(child.id(), parent.id(), mode.name(),

@@ -4,6 +4,7 @@ import static io.opencode.loopper.runtime.OpenCodeHttpTransport.sessionUri;
 import tools.jackson.databind.JsonNode;
 import io.opencode.loopper.config.LoopperProperties;
 import io.opencode.loopper.domain.SessionFailure;
+import io.opencode.loopper.service.StoryAccountingCoordinator;
 import java.net.URI;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -35,7 +36,9 @@ public class HttpOpenCodeClient implements OpenCodeClient {
             new OpenCodeMachineResponseInspector(json, responses);
     private final OpenCodeTodoParser todoParser = new OpenCodeTodoParser();
     private final OpenCodeExactRecoveryTransport exactRecovery;
+    private final OpenCodeCommandTransport commandTransport;
     private OpenCodeAttachmentResources attachmentResources;
+    private StoryAccountingCoordinator storyAccounting;
     public HttpOpenCodeClient(RestClient.Builder builder, LoopperProperties properties) {
         this(builder, () -> new OpenCodeConnectionDetails(properties.getOpenCode().getBaseUrl(), properties.getOpenCode().getUsername(), properties.getOpenCode().getPassword(), false, null, null),
                 () -> OpenCodeHttpClientSemantics.externalIdentity(properties.getOpenCode().getBaseUrl()),
@@ -94,6 +97,14 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         this(builder, connectionSupplier, localIdentitySupplier, properties, capabilities, bindings);
         this.attachmentResources = resources;
     }
+    public HttpOpenCodeClient(RestClient.Builder builder, Supplier<OpenCodeRuntimeManager.Connection> connectionSupplier,
+            Supplier<OpenCodeRuntimeManager.RuntimeIdentity> localIdentitySupplier, LoopperProperties properties,
+            OpenCodeCapabilityRegistry capabilities, OpenCodeSessionRuntimeBindings bindings,
+            OpenCodeAttachmentResources resources, StoryAccountingCoordinator storyAccounting) {
+        this(builder, connectionSupplier, localIdentitySupplier, properties, capabilities, bindings, resources);
+        this.storyAccounting = storyAccounting;
+        if (storyAccounting != null) storyAccounting.installTransport(this::executeCommand);
+    }
     private HttpOpenCodeClient(RestClient.Builder builder, Supplier<OpenCodeRuntimeManager.Connection> connectionSupplier,
                                Duration connectTimeout, Duration requestTimeout,
                                OpenCodeCapabilityRegistry capabilities,
@@ -128,6 +139,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
                 requirePersistentBinding);
         this.exactRecovery = new OpenCodeExactRecoveryTransport(connectionSupplier, localIdentitySupplier,
                 http, mcpDiscovery, sessionConnections, runtimeBindings, requirePersistentBinding);
+        this.commandTransport = new OpenCodeCommandTransport(this::client, this::client);
     }
     @Override public boolean healthy() {
         try { client().get().uri("/global/health").retrieve().toBodilessEntity(); return true; }
@@ -216,6 +228,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
     @Override public void promptAsync(OpenCodeSession session, PromptRequest prompt) {
         boolean structured = prompt != null && prompt.responseFormat() instanceof ResponseFormat.JsonSchema;
         try {
+            if (storyAccounting != null) storyAccounting.beforeBusinessPrompt(session, request -> executeCommand(session, request));
             SessionProfile profile = sessionProfiles.get(session.id());
             boolean attached = prompt != null && !prompt.files().isEmpty();
             List<Map<String, Object>> files = List.of();
@@ -228,6 +241,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
             }
             Map<String, Object> body = OpenCodePromptBody.encode(prompt, profile,
                     Boolean.TRUE.equals(managedSessions.get(session.id())), sessionModels.get(session.id()), files);
+            if (storyAccounting != null && !storyAccounting.accountingMessageIds(session.id()).isEmpty()) OpenCodePromptBody.restoreBusinessContext(body, sessionModels.get(session.id()));
             client(session).post().uri(uri -> sessionUri(uri, "/session/{id}/prompt_async", session)).contentType(MediaType.APPLICATION_JSON)
                     .body(body).retrieve().toBodilessEntity();
             if (attached) attachmentResources.verifyDelivery(session.id(), () -> exactRecovery.findPrompt(
@@ -252,17 +266,17 @@ public class HttpOpenCodeClient implements OpenCodeClient {
                     .retrieve().body(JsonNode.class);
             JsonNode entry = body == null ? null : body.get(session.id());
             if (entry == null || entry.isNull()) {
-                return messageStatus(session);
+                return observedStatus(session, messageStatus(session));
             }
             String state = entry.isTextual() ? entry.asText() : entry.path("status").asText(null);
             if (state == null || state.isBlank()) state = entry.isTextual() ? entry.asText() : entry.path("type").asText(null);
-            if (state == null || state.isBlank()) return new SessionStatus("UNKNOWN");
+            if (state == null || state.isBlank()) return observedStatus(session, new SessionStatus("UNKNOWN"));
             String detail = entry.isTextual() ? null : entry.path("message").asText(null);
             if ((detail == null || detail.isBlank()) && !entry.isTextual()) {
                 detail = entry.path("action").path("message").asText(null);
             }
             inspectMachineResponseProgress(session);
-            return new SessionStatus(state, detail);
+            return observedStatus(session, accountingStatus(session, new SessionStatus(state, detail)));
         } catch (SessionFailure e) { throw e; }
         catch (RuntimeException e) { throw new SessionFailure("OPENCODE_STATUS_FAILED", e.getMessage()); }
     }
@@ -404,39 +418,17 @@ public class HttpOpenCodeClient implements OpenCodeClient {
     }
 
     @Override public ToolCapabilityProbe toolCapabilities(Path worktree) {
-        try {
-            Path canonical = worktree.toRealPath();
-            JsonNode body = client().get().uri(uri -> directoryUri(uri, "/experimental/tool/ids", canonical))
-                    .retrieve().body(JsonNode.class);
-            JsonNode ids = responses.listBody(body);
-            if (ids == null) return new ToolCapabilityProbe(CapabilityState.UNKNOWN, List.of(),
-                    "OpenCode returned an invalid tool-id response");
-            List<String> result = new ArrayList<>();
-            for (JsonNode id : ids) if (id.isTextual() && !id.asText().isBlank()) result.add(id.asText());
-            return new ToolCapabilityProbe(CapabilityState.AVAILABLE, result, null);
-        } catch (RestClientResponseException failure) {
-            if (failure.getStatusCode().value() == 404) {
-                return new ToolCapabilityProbe(CapabilityState.UNAVAILABLE, List.of(),
-                        "OpenCode does not expose /experimental/tool/ids");
-            }
-            return new ToolCapabilityProbe(CapabilityState.UNKNOWN, List.of(), responses.bounded(failure.getMessage()));
-        } catch (RuntimeException | java.io.IOException failure) {
-            return new ToolCapabilityProbe(CapabilityState.UNKNOWN, List.of(), responses.bounded(failure.getMessage()));
-        }
+        return commandTransport.tools(worktree);
     }
 
-    @Override public List<AgentInfo> agents() {
-        try {
-            JsonNode body = client().get().uri("/agent").retrieve().body(JsonNode.class);
-            List<AgentInfo> result = responses.agents(body);
-            if (result == null) throw new SessionFailure("OPENCODE_AGENT_INVALID_RESPONSE",
-                    "OpenCode did not return an agent list");
-            return result;
-        } catch (SessionFailure failure) { throw failure; }
-        catch (RuntimeException failure) {
-            throw new SessionFailure("OPENCODE_AGENT_LIST_FAILED", failure.getMessage());
-        }
+    @Override public CommandCapabilityProbe commandCapabilities(Path worktree) {
+        return commandTransport.capabilities(worktree);
     }
+    @Override public CommandResult executeCommand(OpenCodeSession session, CommandRequest request) {
+        return commandTransport.execute(session, request);
+    }
+
+    @Override public List<AgentInfo> agents() { return commandTransport.agents(); }
 
     @Override public StructuredOutputCapability structuredOutputCapability(OpenCodeModel model) {
         OpenCodeConnectionDetails connection = connectionSupplier.get();
@@ -509,7 +501,8 @@ public class HttpOpenCodeClient implements OpenCodeClient {
                     .retrieve().body(JsonNode.class);
             JsonNode messages = body != null && body.isArray() ? body : body == null ? null : body.path("data");
             if (messages == null || !messages.isArray()) throw new SessionFailure("OPENCODE_OUTPUT_MISSING", "OpenCode did not return a message list");
-            return messages;
+            return OpenCodeAccountingMessageFilter.filter(messages, storyAccounting == null
+                    ? java.util.Set.of() : storyAccounting.accountingMessageIds(session.id()));
         } catch (RestClientResponseException failure) {
             if (Boolean.TRUE.equals(structuredPrompts.get(session.id()))
                     && OpenCodeHttpClientSemantics.formatRejected(failure)) {
@@ -541,6 +534,16 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         } catch (SessionFailure e) { throw e; }
         catch (RuntimeException e) { throw new SessionFailure("OPENCODE_MESSAGES_FAILED", e.getMessage()); }
     }
+    private SessionStatus observedStatus(OpenCodeSession session, SessionStatus status) {
+        if (storyAccounting != null && (status.completed() || status.failed())) {
+            storyAccounting.afterTerminalStatus(session, request -> executeCommand(session, request));
+        }
+        return status;
+    }
+    private SessionStatus accountingStatus(OpenCodeSession session, SessionStatus status) {
+        var ids = storyAccounting == null ? java.util.Set.<String>of() : storyAccounting.accountingMessageIds(session.id());
+        return commandTransport.accountingStatus(session, status, ids);
+    }
     private String blankToNull(String value) { return value == null || value.isBlank() ? null : value; }
     @Override public String diff(OpenCodeSession session) {
         try {
@@ -551,6 +554,9 @@ public class HttpOpenCodeClient implements OpenCodeClient {
     @Override public void abort(OpenCodeSession session) { abortWithConfirmation(session); }
     @Override public AbortConfirmation abortWithConfirmation(OpenCodeSession session) {
         try {
+            if (storyAccounting != null) {
+                storyAccounting.beforeAbort(session);
+            }
             Boolean acknowledged = client(session).post().uri(uri -> sessionUri(uri, "/session/{id}/abort", session))
                     .retrieve().body(Boolean.class);
             if (!Boolean.TRUE.equals(acknowledged)) {

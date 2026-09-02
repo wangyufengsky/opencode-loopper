@@ -1159,3 +1159,9 @@ escaped text. Unavailable/incomplete tool lists are visibly different from an em
 list; no model or tool execution is triggered. Search covers server names and loaded descriptions.
 The Quality & Usage page filters project, Task state, quality, archive and title, applying the
 same filters to page rows and aggregate values. Its loaded-task count is labelled as loaded.
+
+## Story binding at design creation
+
+The creation form offers an off-by-default story-binding switch. While project-scoped OpenCode command detection is pending, missing or failed, the switch is disabled with a reason and recheck action; normal creation remains available. Project/runtime identity changes invalidate the prior detection. Enabling reveals required text fields for system and story codes; leading zeros survive API normalization, reload and task/Recovery inheritance. Both ordinary and attachment creation carry the same creation-only storyBinding value.
+
+Accounting failures are persistent Designer system messages or task events, with one notification per call and browser replay deduplication. They never disable automatic design, consume business retries, or replace the business error panel. The bound codes remain visible on the created design. See [story binding](story-binding.md).

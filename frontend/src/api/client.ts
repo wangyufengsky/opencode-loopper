@@ -2,6 +2,7 @@ import type { AppSettings, Artifact, Attempt, AutomationImportPreview, Automatio
 import type { AnalysisReport, DesignerTaskProfileUpdatePreview, ProjectStackProfile, RollingPackageCapabilities, RollingPackageDetail, RollingPackageFact, RollingPackageRun, RollingPackageWorkbench, RollingPlanPackage, RollingPlanProposal } from '@/types/domain'
 import { DESIGNER_SESSION_STATES, DESIGN_WORK_PACKAGE_STATES, LOOP_DRAFT_STATUSES, STAGE_STATUSES, TASK_PACKAGE_RUN_STATES, TASK_STATUSES, WORK_PACKAGE_AGGREGATE_STATUSES, requirePublicState } from '@/types/states'
 import type { InsightQuery, JudgeApproval, McpServerInfo, McpToolCatalog } from '@/types/domain'
+import type { StoryBindingCapability, StoryBindingConfiguration } from '@/types/domain'
 
 const apiBase = import.meta.env.VITE_API_BASE ?? '/api'
 
@@ -855,7 +856,7 @@ function normalizeDesignerMessage(value: unknown): DesignerMessage {
     role: role === 'USER' || role === 'ASSISTANT' || role === 'SYSTEM' ? role : 'SYSTEM',
     actor: ['USER', 'ROUTER', 'DECOMPOSER', 'DESIGNER', 'COMPILER', 'REVIEWER', 'VALIDATOR', 'SYSTEM'].includes(actor) ? actor as DesignerMessage['actor'] : role === 'USER' ? 'USER' : role === 'ASSISTANT' ? 'DESIGNER' : 'SYSTEM',
     content: asString(raw.content),
-    deliveryState: ['PERSISTED', 'PENDING_HANDOFF', 'COMPILED', 'DESIGN_INCOMPLETE', 'PASS', 'RETRYABLE_ERROR', 'TERMINAL_ERROR', 'SESSION_ERROR', 'CHAT_QUESTION', 'SERVER_REQUIREMENT_SNAPSHOT'].includes(asString(raw.deliveryState))
+    deliveryState: ['PERSISTED', 'PENDING_HANDOFF', 'COMPILED', 'DESIGN_INCOMPLETE', 'PASS', 'RETRYABLE_ERROR', 'TERMINAL_ERROR', 'SESSION_ERROR', 'CHAT_QUESTION', 'SERVER_REQUIREMENT_SNAPSHOT', 'STORY_BINDING_FAILED'].includes(asString(raw.deliveryState))
       ? asString(raw.deliveryState) as DesignerMessage['deliveryState']
       : undefined,
     requirementRevision: typeof raw.requirementRevision === 'number' ? raw.requirementRevision : undefined,
@@ -924,6 +925,11 @@ function normalizeDesignerSession(value: unknown): DesignerSession {
     updatedAt: asString(raw.updatedAt) || undefined,
     draft: raw.draft ? normalizeDraft(raw.draft) : undefined,
     messages: asArray(raw.messages).map(normalizeDesignerMessage),
+    storyBinding: (() => {
+      const binding = asRecord(raw.storyBinding)
+      return { enabled: binding.enabled === true, systemCode: asString(binding.systemCode) || undefined,
+        storyCode: asString(binding.storyCode) || undefined }
+    })(),
     pendingQuestions: asArray(raw.pendingQuestions).map(normalizeTaskSessionQuestion),
     answeredQuestions: asArray(raw.answeredQuestions).map(normalizeDesignerAnsweredQuestion),
     questionInteraction: (() => {
@@ -1049,7 +1055,7 @@ function normalizeDesignerStreamEvent(value: unknown): DesignerStreamEvent {
   return {
     sequence: asNumber(raw.sequence),
     sessionId: asString(raw.sessionId),
-    type: ['SNAPSHOT', 'STATUS', 'PARTIAL', 'COMPLETED', 'ERROR', 'AUTO_MODE'].includes(type) ? type as DesignerStreamEvent['type'] : 'STATUS',
+    type: ['SNAPSHOT', 'STATUS', 'PARTIAL', 'COMPLETED', 'ERROR', 'AUTO_MODE', 'STORY_BINDING_FAILED'].includes(type) ? type as DesignerStreamEvent['type'] : 'STATUS',
     state: normalizeDesignerState(raw.state),
     workflowPhase: normalizeWorkflowPhase(raw.workflowPhase),
     activeActor: normalizeDesignerActor(raw.activeActor),
@@ -1663,8 +1669,9 @@ export const api = {
   getDraft: async (id: string) => normalizeDraft(await request<unknown>(`/loop-drafts/${encodeURIComponent(id)}`)),
   updateDraft: async (id: string, spec: LoopDraft['spec']) => normalizeDraft(await request<unknown>(`/loop-drafts/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify({ spec: backendLoopSpec(spec) }) })),
   confirmDraft: async (id: string) => { const task = asRecord(await request<unknown>(`/loop-drafts/${encodeURIComponent(id)}/confirm`, { method: 'POST' })); return { taskId: asString(task.taskId) } },
-  createDesignerSession: async (projectId: string, draftId: string, initialMessage?: string, autoModeEnabled = false) => normalizeDesignerSession(await request<unknown>('/designer-sessions', { method: 'POST', headers: autoModeEnabled ? { 'X-Loopper-Local-UI': '1' } : undefined, body: JSON.stringify({ projectId, draftId, ...(initialMessage ? { initialMessage } : {}), autoModeEnabled }) })),
-  createDesignerContextTurn: async (input: { submissionId: string; projectId: string; draftId: string; content: string; autoModeEnabled: boolean }, files: File[]) => normalizeDesignerSession(await request<unknown>('/designer-sessions/context-turns', {
+  getStoryBindingCapability: async (projectId: string) => request<StoryBindingCapability>(`/projects/${encodeURIComponent(projectId)}/story-binding-capability`),
+  createDesignerSession: async (projectId: string, draftId: string, initialMessage?: string, autoModeEnabled = false, storyBinding?: StoryBindingConfiguration) => normalizeDesignerSession(await request<unknown>('/designer-sessions', { method: 'POST', headers: autoModeEnabled ? { 'X-Loopper-Local-UI': '1' } : undefined, body: JSON.stringify({ projectId, draftId, ...(initialMessage ? { initialMessage } : {}), autoModeEnabled, ...(storyBinding ? { storyBinding } : {}) }) })),
+  createDesignerContextTurn: async (input: { submissionId: string; projectId: string; draftId: string; content: string; autoModeEnabled: boolean; storyBinding?: StoryBindingConfiguration }, files: File[]) => normalizeDesignerSession(await request<unknown>('/designer-sessions/context-turns', {
     method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: designerContextForm(input, files),
   })),
   listOpenDesignerSessions: async (projectId: string) => (await request<unknown[]>(`/designer-sessions?projectId=${encodeURIComponent(projectId)}`)).map(normalizeDesignerSessionSummary),

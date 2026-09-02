@@ -45,7 +45,7 @@ class ProjectConventionCandidatePersistenceMigrationTest {
 
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("64");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("65");
 
         try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
             Set<String> tables = new HashSet<>();

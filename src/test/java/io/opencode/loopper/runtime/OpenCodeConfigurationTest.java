@@ -25,7 +25,8 @@ class OpenCodeConfigurationTest {
                 "generation-configured", "loopper-internal-configured"));
         OpenCodeClient client = new OpenCodeConfiguration().openCodeClient(properties, runtimeManager,
                 new OpenCodeCapabilityRegistry(), OpenCodeSessionRuntimeBindings.untracked(),
-                new OpenCodeAttachmentResources(new InternalMcpRuntimeAccess()));
+                new OpenCodeAttachmentResources(new InternalMcpRuntimeAccess()),
+                mock(io.opencode.loopper.service.StoryAccountingCoordinator.class));
 
         OpenCodeClient.SessionCreationPlan plan = client.prepareCandidateSessionCreationLocally(
                 worktree, "Acceptance configured", null,

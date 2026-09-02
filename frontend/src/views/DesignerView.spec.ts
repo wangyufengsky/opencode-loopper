@@ -122,6 +122,44 @@ afterEach(() => {
 })
 
 describe('Designer draft composer', () => {
+  it('refreshes accounting failures while idle and warns once across replay and remount', async () => {
+    class FakeEventSource {
+      static latest?: FakeEventSource
+      onmessage?: (message: MessageEvent<string>) => void
+      constructor() { FakeEventSource.latest = this }
+      close() {}
+    }
+    vi.stubGlobal('EventSource', FakeEventSource)
+    routeQuery.sessionId = 'designer-story'
+    const idle: DesignerSession = { ...session, id: 'designer-story', state: 'REVIEWING',
+      workflowPhase: 'DISCUSSING_REQUIREMENT', discussionScope: 'REQUIREMENT', activeActor: 'DESIGNER',
+      draft: draftFrom({ schemaVersion: 'v2', projectId: project.id, goal: 'Story fixture', context: '', stages: [],
+        limits: { maxStageAttempts: 3, maxTaskAttempts: 7, maxDuration: '7200', attemptTimeout: '1800' } }),
+      storyBinding: { enabled: true, systemCode: 'SYS-001', storyCode: '000123' },
+    }
+    const withNotice: DesignerSession = { ...idle, messages: [{ id: 'story-failed-once', role: 'SYSTEM', actor: 'SYSTEM',
+      deliveryState: 'STORY_BINDING_FAILED', content: 'AI 工作量统计失败：请求超时（30 秒），任务继续执行。', createdAt: 'now' }] }
+    const read = vi.spyOn(api, 'getDesignerSession').mockResolvedValueOnce(idle).mockResolvedValue(withNotice)
+    const warning = vi.spyOn(ElMessage, 'warning')
+    const wrapper = mountDesigner()
+    await flushPromises()
+    expect(read).toHaveBeenCalledTimes(1)
+    const deliver = () => FakeEventSource.latest?.onmessage?.({ data: JSON.stringify({
+      sequence: 1, sessionId: idle.id, type: 'STORY_BINDING_FAILED', state: 'RUNNING',
+      workflowPhase: 'DESIGNING', activeActor: 'SYSTEM', runtimeConnected: false, at: 'later',
+    }) } as MessageEvent<string>)
+    deliver(); await flushPromises()
+    expect(read).toHaveBeenCalledTimes(2)
+    expect(warning).toHaveBeenCalledExactlyOnceWith(withNotice.messages[0]!.content)
+    expect(wrapper.text()).toContain('SYS-001 / 000123')
+    deliver(); await flushPromises()
+    expect(warning).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+    const restored = mountDesigner()
+    await flushPromises()
+    expect(warning).toHaveBeenCalledTimes(1)
+    restored.unmount()
+  })
   it('keeps polling a reviewing session until profile rerouting finishes and then enables single-package design', async () => {
     vi.useFakeTimers()
     routeQuery.sessionId = 'designer-routing-profile'
@@ -721,7 +759,7 @@ describe('Designer draft composer', () => {
     await wrapper.get('.create-draft-button').trigger('click')
     await flushPromises()
 
-    expect(createSession).toHaveBeenCalledWith(project.id, 'draft-1', initialGoal, false)
+    expect(createSession).toHaveBeenCalledWith(project.id, 'draft-1', initialGoal, false, { enabled: false })
     expect(createDraft.mock.calls[0]?.[0].goal).toBe(initialGoal)
     expect(createDraft.mock.calls[0]?.[0].schemaVersion).toBe('v2')
     expect(createDraft.mock.calls[0]?.[0].stages[0]).toMatchObject({ allowedPaths: [], forbiddenPaths: [], verifiers: [] })
@@ -771,7 +809,7 @@ describe('Designer draft composer', () => {
     await wrapper.get('.create-draft-button').trigger('click')
     await flushPromises()
 
-    expect(createSession).toHaveBeenCalledWith(project.id, 'draft-1', '自动完成设计并启动任务', true)
+    expect(createSession).toHaveBeenCalledWith(project.id, 'draft-1', '自动完成设计并启动任务', true, { enabled: false })
     expect(wrapper.text()).toContain('全自动模式')
   })
 

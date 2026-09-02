@@ -956,3 +956,11 @@ graceful client shutdown (including stdio process exit); asynchronous close alon
 Complete catalogs cache for
 20 seconds with runtime/directory/config identity. Failures remain retryable and distinct from
 an empty successful tools list. This inventory does not expand any model role's tool permissions.
+
+## Native story-accounting commands
+
+`GET /api/projects/{id}/story-binding-capability` probes the selected runtime's project-scoped `GET /command`, with no Session/model/statistics side effects. Only the exact registered `aicoding` name enables the creation switch. `POST /session/{id}/command` receives the fixed command, generated start/continue/complete arguments, and a durable `msg_loopper_aicoding_...` message ID. Calls have a 30-second ceiling and no automatic retry.
+
+Managed config appends the bundled accounting guard while retaining operator plugins, and installs the accounting Agent. The guard filters statistical turns from business model context (and business context from accounting turns), and checks tool-call parent identity before allowing a statistics round to execute anything except aicoding tools. It does not register the aicoding command. Ordinary role permissions remain authoritative. Business prompts explicitly restore their Agent/model; output/status readers independently exclude accounting user messages and assistant children, including late errors. Command completion is advisory, never a Task/Judge outcome.
+
+External HTTP runtimes need the same Agent and guard configured externally; unavailable integration reports a non-blocking accounting failure. The public command mechanisms are described in [OpenCode server](https://opencode.ai/docs/server/) and [commands](https://opencode.ai/docs/commands/). See [story binding](story-binding.md) for the simulator and internal-plugin evidence limits.

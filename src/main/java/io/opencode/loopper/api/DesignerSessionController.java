@@ -17,6 +17,8 @@ import io.opencode.loopper.service.DirectMaintenanceDesignService;
 import io.opencode.loopper.service.DesignerAttachmentContext;
 import io.opencode.loopper.service.DesignerAttachmentReadService;
 import io.opencode.loopper.service.DesignerAttachmentCommandService;
+import io.opencode.loopper.service.StoryBindingService;
+import io.opencode.loopper.service.StoryBindingConfiguration;
 import io.opencode.loopper.domain.ExecutionStrategy;
 import io.opencode.loopper.domain.LoopSpec;
 import io.opencode.loopper.domain.ArtifactKind;
@@ -63,13 +65,14 @@ public class DesignerSessionController {
     private final DirectMaintenanceDesignService directMaintenance;
     private final DesignerAttachmentReadService attachmentReads;
     private final DesignerAttachmentCommandService attachmentCommands;
+    private final StoryBindingService storyBindings;
 
     public DesignerSessionController(DesignerSessionService service, LoopDraftService drafts, DesignerEventHub events,
                                      DesignerAutoModeService autoMode, TaskProfileService profiles,
                                      AnalysisReportService reports, DirectArtifactDesignService directArtifacts,
                                      DirectMaintenanceDesignService directMaintenance,
                                      DesignerAttachmentReadService attachmentReads,
-                                     DesignerAttachmentCommandService attachmentCommands) {
+                                     DesignerAttachmentCommandService attachmentCommands, StoryBindingService storyBindings) {
         this.service = service;
         this.drafts = drafts;
         this.events = events;
@@ -79,7 +82,7 @@ public class DesignerSessionController {
         this.directArtifacts = directArtifacts;
         this.directMaintenance = directMaintenance;
         this.attachmentReads = attachmentReads;
-        this.attachmentCommands = attachmentCommands;
+        this.attachmentCommands = attachmentCommands; this.storyBindings = storyBindings;
     }
 
     @PostMapping
@@ -87,7 +90,8 @@ public class DesignerSessionController {
             @Valid @RequestBody CreateDesignerSessionRequest request,
             @RequestHeader(value = "X-Loopper-Local-UI", required = false) String localUi) {
         if (request.autoModeEnabled()) requireLocalUi(localUi);
-        DesignerSessionRow row = service.create(request.projectId(), request.draftId(), request.initialMessage());
+        DesignerSessionRow row = service.create(request.projectId(), request.draftId(), request.initialMessage(),
+                request.storyBinding());
         profiles.initialize(row.id(), request.initialMessage());
         autoMode.initialize(row.id(), request.autoModeEnabled());
         return ResponseEntity.created(URI.create("/api/designer-sessions/" + row.id())).body(dto(row));
@@ -100,7 +104,7 @@ public class DesignerSessionController {
             @RequestHeader("X-Loopper-Local-UI") String localUi) {
         requireLocalUi(localUi);
         DesignerSessionRow row = attachmentCommands.create(request.projectId(), request.draftId(),
-                request.content(), request.submissionId(), incoming(files));
+                request.content(), request.submissionId(), incoming(files), request.storyBinding());
         profiles.initialize(row.id(), request.content());
         autoMode.initialize(row.id(), request.autoModeEnabled());
         return ResponseEntity.created(URI.create("/api/designer-sessions/" + row.id())).body(dto(row));
@@ -456,7 +460,7 @@ public class DesignerSessionController {
                 service.finalConfirmationEligible(row.id()), service.archived(row.id()), autoMode.get(row.id()),
                 profiles.current(row.id()), profiles.routerRun(row.id()),
                 List.of(TaskIntent.values()), List.of(ArtifactKind.values()),
-                reports.list(row.id()));
+                reports.list(row.id()), storyBindings.configurationForDesigner(row.id()));
     }
 
     private DesignerSessionSummaryDto summary(DesignerSessionRow row) {
@@ -513,11 +517,13 @@ public class DesignerSessionController {
 
     public record CreateDesignerSessionRequest(@NotBlank String projectId, @NotBlank String draftId,
                                                @Size(max = 12_000) String initialMessage,
-                                               boolean autoModeEnabled) { }
+                                               boolean autoModeEnabled,
+                                               @Valid StoryBindingConfiguration storyBinding) { }
     public record CreateContextTurnRequest(@NotBlank String submissionId, @NotBlank String projectId,
                                            @NotBlank String draftId,
                                            @NotBlank @Size(max = 12_000) String content,
-                                           boolean autoModeEnabled) { }
+                                           boolean autoModeEnabled,
+                                           @Valid StoryBindingConfiguration storyBinding) { }
     public record ContextTurnRequest(@NotBlank String submissionId,
                                      @NotBlank @Size(max = 12_000) String content,
                                      @NotBlank String scopeKey, String workPackageId,
@@ -559,7 +565,8 @@ public class DesignerSessionController {
                                      TaskProfileRouterRunService.RouterRunView routerRun,
                                      List<TaskIntent> availableProfileOverrides,
                                      List<ArtifactKind> availableArtifactOverrides,
-                                     List<AnalysisReportService.Summary> reports) { }
+                                     List<AnalysisReportService.Summary> reports,
+                                     StoryBindingConfiguration storyBinding) { }
     public record DesignerSessionSummaryDto(String id, String projectId, String state, String workflowPhase,
                                             String updatedAt, String draftId, String draftStatus, String goal,
                                             Integer requirementRevision, String activeWorkPackageId) { }

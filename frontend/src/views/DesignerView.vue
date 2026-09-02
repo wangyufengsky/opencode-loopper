@@ -16,10 +16,11 @@ import DesignerValidatorHistory from '@/components/DesignerValidatorHistory.vue'
 import DesignerCurrentActivity from '@/components/DesignerCurrentActivity.vue'
 import TaskProfileRouterDialog from '@/components/TaskProfileRouterDialog.vue'
 import StagedFileContextCard from '@/components/StagedFileContextCard.vue'
+import StoryBindingSetup from '@/components/StoryBindingSetup.vue'
 import { ApiError, api, subscribeDesignerEvents, type DesignerEventStream } from '@/api/client'
 import { demoDraft, demoMessages } from '@/mock/demoData'
 import { useTaskStore } from '@/stores/taskStore'
-import type { AnalysisReport, AppSettings, DesignerMessage, DesignerSession, ErrorEvent, LoopDraft, LoopSpecAssessment, StructuredModelStep, TaskSessionPendingQuestion } from '@/types/domain'
+import type { AnalysisReport, AppSettings, DesignerMessage, DesignerSession, ErrorEvent, LoopDraft, LoopSpecAssessment, StoryBindingConfiguration, StructuredModelStep, TaskSessionPendingQuestion } from '@/types/domain'
 import { formatDateTime } from '@/utils/dateTime'
 import {
   artifactKindLabel,
@@ -47,6 +48,7 @@ const acceptanceAssessment = ref<LoopSpecAssessment>()
 const busy = ref(false)
 const autoModeBusy = ref(false)
 const newAutoModeEnabled = ref(false)
+const newStoryBinding = ref<StoryBindingConfiguration>({ enabled: false })
 const designerReconnecting = ref(false)
 const designerStreamState = ref<'idle' | 'connecting' | 'connected' | 'reconnecting'>('idle')
 const designerRuntimeConnected = ref(false)
@@ -799,6 +801,10 @@ function startDesignerStream(sessionId: string) {
   designerStreamState.value = 'connecting'
   designerEventStream = subscribeDesignerEvents(sessionId, (event) => {
     if (generation !== designerStreamGeneration || designerSession.value?.id !== sessionId) return
+    if (event.type === 'STORY_BINDING_FAILED') {
+      refreshDesignerAfterTerminalEvent()
+      return
+    }
     designerRuntimeConnected.value = event.runtimeConnected
     designerRemoteState.value = event.remoteState ?? event.state
     designerObservedAt.value = event.at
@@ -865,6 +871,14 @@ watch(() => store.projects, (projects) => {
 
 watch(draftPrompt, (value) => persistSessionText(draftPromptKey, value))
 watch(userMessage, (value) => persistSessionText(messageDraftKey, value))
+watch(messages, rows => {
+  for (const message of rows.filter(item => item.deliveryState === 'STORY_BINDING_FAILED')) {
+    const key = `opencode-loopper.story-notice.${message.id}`
+    if (readSessionText(key)) continue
+    persistSessionText(key, 'seen')
+    ElMessage.warning(message.content)
+  }
+})
 
 async function applyBriefTemplate(prompt: string) {
   if (draftPrompt.value.trim() && draftPrompt.value !== prompt) {
@@ -894,6 +908,10 @@ async function startDraft() {
   }
   const project = selectedProject.value
   if (!project) { ElMessage.warning('请先在“项目”页面登记一个可用项目根目录。'); return }
+  if (newStoryBinding.value.enabled && (!newStoryBinding.value.systemCode?.trim() || !newStoryBinding.value.storyCode?.trim())) {
+    ElMessage.warning('开启故事绑定后，请填写系统编号和故事编号。')
+    return
+  }
   busy.value = true
   try {
     const settings = await api.getSettings()
@@ -903,8 +921,9 @@ async function startDraft() {
           submissionId: initialSubmissionId.value || (initialSubmissionId.value = newSubmissionId()),
           projectId: project.id, draftId: createdDraft.id, content: goal,
           autoModeEnabled: newAutoModeEnabled.value,
+          storyBinding: newStoryBinding.value,
         }, initialFiles.value)
-      : await api.createDesignerSession(project.id, createdDraft.id, goal, newAutoModeEnabled.value)
+      : await api.createDesignerSession(project.id, createdDraft.id, goal, newAutoModeEnabled.value, newStoryBinding.value)
     messages.value = designerSession.value.messages
     draft.value = designerSession.value.draft ?? createdDraft
     editorValue.value = JSON.stringify(draft.value.spec, null, 2)
@@ -914,6 +933,7 @@ async function startDraft() {
     initialFiles.value = []
     initialSubmissionId.value = ''
     newAutoModeEnabled.value = false
+    newStoryBinding.value = { enabled: false }
   } catch (error) { ElMessage.error(userFacingError(error, '无法创建设计草案')) } finally { busy.value = false }
 }
 
@@ -1502,6 +1522,8 @@ async function redesignPackage(packageId: string) {
             </button>
           </div>
 
+          <StoryBindingSetup v-model="newStoryBinding" :project-id="selectedProjectId" :runtime-identity="`${store.runtime?.endpoint ?? ''}:${store.runtime?.generation ?? ''}`" :disabled="busy || store.usingDemo" />
+
           <footer class="draft-create-actions">
             <div class="designer-auto-create">
               <span class="composer-boundary"><Icon icon="lucide:shield-check" />只读分析项目</span>
@@ -1547,6 +1569,7 @@ async function redesignPackage(packageId: string) {
         </nav>
         <div class="card-pad card-header"><div><p class="eyebrow">只读设计</p><h2 class="card-title">{{ designerSession?.projectName ?? activeProjectName }}</h2></div><div class="designer-state-actions"><label class="designer-auto-switch"><span><strong>全自动</strong><small>{{ statusLabel(designerSession?.autoMode.state ?? 'DISABLED') }}</small></span><el-switch :model-value="designerSession?.autoMode.enabled === true" :loading="autoModeBusy" :disabled="store.usingDemo || designerSession?.autoMode.state === 'COMPLETED'" @change="changeAutoMode" /></label><el-button v-if="designerReconnecting || designerStreamState === 'reconnecting'" plain size="small" @click="reconnectDesigner"><Icon icon="lucide:refresh-cw" />立即重连</el-button><StatusBadge :status="designerBadgeStatus" :label="designerReconnecting || designerStreamState === 'reconnecting' ? '重连中' : statusLabel(designerSession?.state ?? 'PENDING')" /></div></div>
         <div class="designer-connection-strip" role="status" aria-live="polite">
+          <span v-if="designerSession?.storyBinding?.enabled">故事绑定 {{ designerSession.storyBinding.systemCode }} / {{ designerSession.storyBinding.storyCode }}</span>
           <span><i :class="['connection-dot', designerStreamState]" />{{ designerTransportLabel }}</span>
           <span><i :class="['connection-dot', { connected: designerRuntimeConnected, error: designerLiveError }]" />{{ designerRuntimeLabel }}</span>
           <span class="active-role"><Icon :icon="activeActorMeta.icon" />{{ activeActorMeta.label }} · {{ activeDetailedWorkflowLabel }}</span>

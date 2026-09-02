@@ -419,6 +419,7 @@ class OpenCodeRuntimeManagerTest {
 
     private LoopperProperties properties(String mode, URI endpoint) {
         LoopperProperties properties = new LoopperProperties();
+        properties.setDataDir(temporaryDirectory.resolve("runtime-data"));
         properties.getOpenCode().setMode(mode);
         properties.getOpenCode().setBaseUrl(endpoint);
         properties.getOpenCode().setStartupTimeout(java.time.Duration.ofSeconds(2));

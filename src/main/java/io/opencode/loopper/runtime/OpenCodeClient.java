@@ -125,6 +125,15 @@ public interface OpenCodeClient {
     default ToolCapabilityProbe toolCapabilities(Path worktree) {
         return new ToolCapabilityProbe(CapabilityState.UNKNOWN, List.of(), "Tool discovery is not supported by this adapter");
     }
+    /** Discovers native slash commands without creating a Session or invoking a model. */
+    default CommandCapabilityProbe commandCapabilities(Path worktree) {
+        return new CommandCapabilityProbe(CapabilityState.UNKNOWN, List.of(),
+                "Command discovery is not supported by this adapter");
+    }
+    /** Executes one server-generated native command in the supplied Session. */
+    default CommandResult executeCommand(OpenCodeSession session, CommandRequest request) {
+        throw new UnsupportedOperationException("Native OpenCode commands are not supported by this adapter");
+    }
     /** Discovers native OpenCode agents without selecting one for Loopper's first implementation phase. */
     default List<AgentInfo> agents() { return List.of(); }
     default StructuredOutputCapability structuredOutputCapability(OpenCodeModel model) {
@@ -446,6 +455,24 @@ public interface OpenCodeClient {
         }
         public boolean contains(String toolId) { return toolId != null && toolIds.stream().anyMatch(toolId::equals); }
     }
+    record CommandCapabilityProbe(CapabilityState state, List<String> commandNames, String detail) {
+        public CommandCapabilityProbe {
+            state = state == null ? CapabilityState.UNKNOWN : state;
+            commandNames = commandNames == null ? List.of() : List.copyOf(commandNames);
+        }
+        public boolean contains(String commandName) {
+            return commandName != null && commandNames.stream().anyMatch(commandName::equals);
+        }
+    }
+    record CommandRequest(String command, String arguments, String messageId) {
+        public CommandRequest {
+            if (blank(command) || blank(messageId)) {
+                throw new IllegalArgumentException("Command and message identity are required");
+            }
+            arguments = arguments == null ? "" : arguments;
+        }
+    }
+    record CommandResult(String runId, String output) { }
     record SessionTranscript(List<SessionPart> parts, List<UsageRecord> usage) {
         public SessionTranscript(List<SessionPart> parts) { this(parts, List.of()); }
         public SessionTranscript {

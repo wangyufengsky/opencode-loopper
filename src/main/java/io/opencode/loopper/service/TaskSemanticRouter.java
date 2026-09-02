@@ -12,6 +12,7 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.regex.Pattern;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Autowired;
 import tools.jackson.databind.ObjectMapper;
 
 /** No-tool semantic classifier. Permissions, workflow and execution policy remain server-owned. */
@@ -26,22 +27,39 @@ public final class TaskSemanticRouter {
     private final LoopperProperties properties;
     private final ObjectMapper json;
     private final AiOutputExtractor outputExtractor;
+    private final StoryAccountingCoordinator storyAccounting;
 
+    @Autowired
     public TaskSemanticRouter(OpenCodeClient openCode, LoopperProperties properties, ObjectMapper json,
-                              AiOutputExtractor outputExtractor) {
+                              AiOutputExtractor outputExtractor, StoryAccountingCoordinator storyAccounting) {
         this.openCode = openCode;
         this.properties = properties;
         this.json = json;
         this.outputExtractor = outputExtractor;
+        this.storyAccounting = storyAccounting;
+    }
+
+    TaskSemanticRouter(OpenCodeClient openCode, LoopperProperties properties, ObjectMapper json,
+                       AiOutputExtractor outputExtractor) {
+        this(openCode, properties, json, outputExtractor, null);
     }
 
     public StartResult start(Path root, String requirement) {
+        return start(null, root, requirement);
+    }
+
+    public StartResult start(String designerSessionId, Path root, String requirement) {
         if (!openCode.healthy()) return StartResult.failure("ROUTER_RUNTIME_UNAVAILABLE", "OpenCode Router runtime is unavailable");
         OpenCodeClient.OpenCodeSession session = null;
         try {
             OpenCodeClient.OpenCodeModel model = configuredModel();
             session = openCode.createSession(root, "OpenCode Loopper Task Router (MCP_ONLY)", model,
                     OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS);
+            if (storyAccounting != null && designerSessionId != null) {
+                OpenCodeClient.OpenCodeSession accountingSession = session;
+                storyAccounting.beforeRouterPrompt(designerSessionId, session,
+                        request -> openCode.executeCommand(accountingSession, request));
+            }
             openCode.promptAsync(session, OpenCodeClient.PromptRequest.text(prompt(requirement)));
             return StartResult.started(session.id(), "TEXT_MARKER");
         } catch (Exception failure) {

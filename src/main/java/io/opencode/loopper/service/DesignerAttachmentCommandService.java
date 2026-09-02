@@ -28,6 +28,13 @@ public class DesignerAttachmentCommandService {
 
     public DesignerSessionRow create(String projectId, String loopDraftId, String content, String submissionId,
             List<DesignerAttachmentContext.IncomingFile> files) {
+        return create(projectId, loopDraftId, content, submissionId, files,
+                StoryBindingConfiguration.disabled());
+    }
+
+    public DesignerSessionRow create(String projectId, String loopDraftId, String content, String submissionId,
+            List<DesignerAttachmentContext.IncomingFile> files,
+            StoryBindingConfiguration storyBinding) {
         DesignerAttachmentContext.PreparedUpload prepared = attachments.prepare(files);
         var replay = attachments.publishedMessageRetry(submissionId, null,
                 DesignerAttachmentContext.AttachmentScope.requirement(), content, prepared);
@@ -39,7 +46,7 @@ public class DesignerAttachmentCommandService {
             }
             return existing;
         }
-        DesignerSessionRow session = sessions.create(projectId, loopDraftId, content);
+        DesignerSessionRow session = sessions.create(projectId, loopDraftId, content, storyBinding);
         DesignerMessageRow user = sessions.messages(session.id()).stream()
                 .filter(message -> DesignerActor.USER.name().equals(message.actor())).findFirst()
                 .orElseThrow(() -> new ConflictException(

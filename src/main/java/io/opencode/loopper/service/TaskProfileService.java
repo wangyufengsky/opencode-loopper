@@ -122,7 +122,7 @@ public class TaskProfileService {
             if (mapper.insertTaskProfileRouterRun(pending) != 1) {
                 throw new ConflictException("TASK_PROFILE_ROUTER_CREATE_CONFLICT", "任务设置识别记录未能持久化");
             }
-            TaskSemanticRouter.StartResult started = semanticRouter.start(root, requirement);
+            TaskSemanticRouter.StartResult started = semanticRouter.start(sessionId, root, requirement);
             TaskProfileRouterRunRow updated = new TaskProfileRouterRunRow(pending.id(), sessionId,
                     started.started() ? "RUNNING" : "FAILED", pending.requirementSnapshot(), pending.repositoryEvidenceJson(),
                     started.externalSessionId(), started.started() ? "RUNNING" : "FAILED", started.responseMode(), null,
@@ -155,7 +155,7 @@ public class TaskProfileService {
                     continue;
                 }
                 if ("PENDING".equals(run.state())) {
-                    TaskSemanticRouter.StartResult started = semanticRouter.start(root, run.requirementSnapshot());
+                    TaskSemanticRouter.StartResult started = semanticRouter.start(run.designerSessionId(), root, run.requirementSnapshot());
                     TaskProfileRouterRunRow startedRow;
                     try {
                         startedRow = updateRun(run, started.started() ? "RUNNING" : "FAILED",

@@ -1033,7 +1033,7 @@ export interface DesignerMessage {
   role: 'USER' | 'ASSISTANT' | 'SYSTEM'
   actor: 'USER' | 'ROUTER' | 'DECOMPOSER' | 'DESIGNER' | 'COMPILER' | 'REVIEWER' | 'VALIDATOR' | 'SYSTEM'
   content: string
-  deliveryState?: 'PERSISTED' | 'PENDING_HANDOFF' | 'SERVER_REQUIREMENT_SNAPSHOT' | 'CHAT_QUESTION' | 'COMPILED' | 'DESIGN_INCOMPLETE' | 'PASS' | 'NORMALIZED' | 'RETRYABLE_ERROR' | 'TERMINAL_ERROR' | 'SESSION_ERROR'
+  deliveryState?: 'PERSISTED' | 'PENDING_HANDOFF' | 'SERVER_REQUIREMENT_SNAPSHOT' | 'STORY_BINDING_FAILED' | 'CHAT_QUESTION' | 'COMPILED' | 'DESIGN_INCOMPLETE' | 'PASS' | 'NORMALIZED' | 'RETRYABLE_ERROR' | 'TERMINAL_ERROR' | 'SESSION_ERROR'
   requirementRevision?: number
   workPackageId?: string
   attachments?: DesignerAttachment[]
@@ -1273,12 +1273,26 @@ export interface AnalysisReport {
   reviewerContractVersion?: string; findings: AnalysisReportFinding[]
 }
 
+export interface StoryBindingConfiguration {
+  enabled: boolean
+  systemCode?: string
+  storyCode?: string
+}
+
+export interface StoryBindingCapability {
+  available: boolean
+  state: 'AVAILABLE' | 'UNAVAILABLE' | 'UNKNOWN'
+  reason: string
+  checkedAt: string
+}
+
 export interface DesignerSession {
   id: string
   taskId?: string
   projectId: string
   projectName?: string
   archived?: boolean
+  storyBinding?: StoryBindingConfiguration
   state: DesignerSessionState
   workflowPhase: DesignWorkflowPhase
   activeActor: DesignerActor
@@ -1393,7 +1407,7 @@ export interface DesignerAppendResult {
 export interface DesignerStreamEvent {
   sequence: number
   sessionId: string
-  type: 'SNAPSHOT' | 'STATUS' | 'PARTIAL' | 'COMPLETED' | 'ERROR' | 'AUTO_MODE'
+  type: 'SNAPSHOT' | 'STATUS' | 'PARTIAL' | 'COMPLETED' | 'ERROR' | 'AUTO_MODE' | 'STORY_BINDING_FAILED'
   state: DesignerSessionState
   workflowPhase: DesignWorkflowPhase
   activeActor: DesignerActor

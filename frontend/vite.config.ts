@@ -18,6 +18,8 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    // Bound concurrent jsdom instances so full verification does not exhaust the host.
+    maxWorkers: 4,
     include: ['src/**/*.spec.ts'],
   },
 })

@@ -191,7 +191,7 @@ ratchet. It is intentionally dependency-free so it runs in every Maven test and
 release build. Lower a legacy cap in the same change that extracts responsibility;
 never raise a cap to make a build green.
 
-The current compatibility ratchets are 5,401 physical lines for
+The current compatibility ratchets are 5,399 physical lines for
 `DesignerSessionService` and 2,727 for `TaskService`. Rolling package behavior must stay in the
 collaborators above; a later change may only preserve or lower those caps.
 
@@ -266,3 +266,5 @@ frontend discussion card as active requirements rather than interpreting Markdow
 ### SQLite 并发回归环境
 
 涉及多个数据库连接的队列准入、租约交接和后续启动，应使用独立文件型 SQLite，启用与生产一致的 `foreign_keys=on`、`busy_timeout=5000` 和 `journal_mode=WAL`。共享内存 `cache=shared` 的表锁行为不同，不能据此判断生产 WAL 下的读写并发。`DirectWorkspaceProductionForeignKeyIntegrationTest` 验证人工/自动交接同时触发时只准入一个 FIFO 等待者，只建立一个 Attempt/Session，并且只释放一次旧租约。
+
+Story accounting is owned by `StoryAccountingCoordinator` and `StoryBindingService`, independently of Task/Designer error transitions. Native command transport and identity filtering remain in runtime collaborators; the orchestration facades do not parse command replies or implement accounting retries.

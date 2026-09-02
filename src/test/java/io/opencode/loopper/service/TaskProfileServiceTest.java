@@ -60,7 +60,7 @@ class TaskProfileServiceTest {
         });
         when(projects.get(session.projectId())).thenReturn(project());
         when(router.route(any(ProjectStackSnapshot.class), anyString())).thenReturn(decision());
-        when(semanticRouter.start(any(), anyString())).thenAnswer(invocation -> {
+        when(semanticRouter.start(anyString(), any(), anyString())).thenAnswer(invocation -> {
             starts.incrementAndGet();
             startEntered.countDown();
             assertThat(releaseStart.await(5, TimeUnit.SECONDS)).isTrue();
@@ -94,7 +94,7 @@ class TaskProfileServiceTest {
         when(mapper.listActiveTaskProfileRouterRuns()).thenReturn(List.of(pending));
         when(mapper.findDesignerSession(session.id())).thenReturn(Optional.of(session));
         when(projects.get(session.projectId())).thenReturn(project());
-        when(semanticRouter.start(any(), anyString())).thenReturn(
+        when(semanticRouter.start(anyString(), any(), anyString())).thenReturn(
                 new TaskSemanticRouter.StartResult("orphan-candidate", "TEXT_MARKER", null, null));
         when(mapper.updateTaskProfileRouterRun(any())).thenReturn(0);
         TaskProfileService service = service(mapper, projects, router, semanticRouter);

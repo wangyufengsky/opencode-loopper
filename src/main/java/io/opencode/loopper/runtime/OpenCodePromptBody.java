@@ -9,6 +9,14 @@ import java.util.Map;
 final class OpenCodePromptBody {
     private OpenCodePromptBody() { }
 
+    static void restoreBusinessContext(Map<String, Object> body, OpenCodeClient.OpenCodeModel model) {
+        body.putIfAbsent("agent", "build");
+        if (model != null && model.providerId() != null && !model.providerId().isBlank()
+                && model.modelId() != null && !model.modelId().isBlank()) {
+            body.put("model", Map.of("providerID", model.providerId(), "modelID", model.modelId()));
+        }
+    }
+
     static Map<String, Object> encode(OpenCodeClient.PromptRequest prompt, OpenCodeClient.SessionProfile profile,
             boolean managed, OpenCodeClient.OpenCodeModel selectedModel, List<Map<String, Object>> files) {
         Map<String, Object> body = new LinkedHashMap<>();

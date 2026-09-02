@@ -39,6 +39,9 @@ export function requiresTaskSnapshot(type: string): boolean {
 }
 
 export function aiOutputNotice(event: TaskEvent): string | undefined {
+  if (event.type === 'story_binding.failed') {
+    return typeof event.data.message === 'string' ? event.data.message : 'AI 工作量统计失败，任务继续执行。'
+  }
   if (event.type !== 'AI_OUTPUT_NORMALIZED' && event.type !== 'AI_TOOL_LOOP_FINALIZER_STARTED') return undefined
   const role = typeof event.data.role === 'string' ? displayLabel(event.data.role) : 'AI'
   const corrections = Array.isArray(event.data.corrections)

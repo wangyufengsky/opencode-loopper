@@ -10,7 +10,7 @@ spring:
           enabled: false
         protocol: STREAMABLE
         name: opencode-loopper
-        version: 0.3.33
+        version: 0.3.37
         type: SYNC
         instructions: >-
           Use the six Loopper tools only. Designer access is READ_ONLY; proposals synchronize
@@ -26,7 +26,7 @@ spring:
           mcp-endpoint: /api/mcp-streamable
           disallow-delete: true
   datasource:
-    url: jdbc:sqlite:${LOOPPER_DATA_DIR:./data}/loopper.db?foreign_keys=on&busy_timeout=5000&journal_mode=WAL
+    url: jdbc:sqlite:${LOOPPER_DATA_DIR:./data}/loopper.db?foreign_keys=on&busy_timeout=5000&journal_mode=WAL&transaction_mode=IMMEDIATE
     driver-class-name: org.sqlite.JDBC
   flyway:
     locations: classpath:db/migration
