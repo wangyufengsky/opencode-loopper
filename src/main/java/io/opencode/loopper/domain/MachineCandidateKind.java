@@ -19,5 +19,6 @@ public enum MachineCandidateKind implements DescribedEnum {
     }
 
     @Override public String description() { return description; }
+    /** Legacy repair ceiling and frozen protocol identity; not an INTERNAL_MCP submission quota. */
     public int maximumAttempts() { return maximumAttempts; }
 }

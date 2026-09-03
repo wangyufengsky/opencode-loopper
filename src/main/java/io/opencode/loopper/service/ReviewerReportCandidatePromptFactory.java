@@ -40,7 +40,7 @@ final class ReviewerReportCandidatePromptFactory {
                 exact submit_candidate tool: %s
 
                 Call %s with runId, a fresh idempotencyKey, the complete candidate object, and
-                expectedSubmissionRevision. You may call that same exact tool at most three times in this Session.
+                expectedSubmissionRevision. MCP submissions have no count limit.
                 candidate must be a JSON object, not a JSON-encoded string. When a type error points at
                 /limitations, replace that value with an array of strings; never invent missing authority fields.
                 On REJECTED, use only its bounded code, JSON Pointer, allowed values, and returned

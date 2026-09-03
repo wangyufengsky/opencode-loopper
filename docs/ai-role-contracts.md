@@ -97,8 +97,14 @@ Monitor 可在重启后继续；AI 完成只形成候选，不能确认计划、
 预设计，并在每个包的初稿和修订中提问；普通 WP-1 使用不含 `question` 的通用只读角色，初稿、
 反馈修订和重新设计都直接返回 1–6 Stage 的完整替代设计。
 
+V69 起，Decomposer、验收闭集选择、工作包 Designer、滚动规划、Reviewer、项目公约及双 Judge
+通过 MCP 提交候选均不设次数上限。可修正的拒绝继续返回 `REJECTED`，响应中的
+`submissionCountLimited=false / remainingAttempts=null` 表示不限制次数；真实提交计数仍保留。
+`maxAttempts` 是冻结的 Legacy 修复预算/身份元数据，不能当作 MCP 剩余配额。精确幂等重放保留
+原响应，成功、不可修复错误及已结束运行仍按原终态处理；不会为解除次数限制而绕过权限或验收。
+
 工作包 Designer 在一次模型调用和一个独立 OpenCode Session 内优先提交
-`PACKAGE_DESIGN_V1`。每次提交都是完整替换对象，最多三次；服务端只返回闭集问题码和
+`PACKAGE_DESIGN_V1`。每次提交都是完整替换对象，MCP 提交不设次数上限；服务端只返回闭集问题码和
 JSON Pointer，模型可以在同一 Session 读取拒绝原因并修正。模型只拥有需求语义、场景、
 交付物、评审点以及 Stage 目标/引用/依赖，不能决定命令、可写路径清单、测试命令、Verifier、
 权限、安全结论或稳定 ID。角色提示必须提供完整闭集字段模板：所有条目使用候选局部 `key`，
@@ -162,10 +168,10 @@ Decomposer 返回 `READY | NEEDS_INPUT | MULTI_TASK_REQUIRED`、规范目标、�
 旧 `coverageMappings`、目标引用和依赖证据会先转换到同一个内部语义模型。
 
 受管模式为每个 Decomposer 规划建立持久化 `DECOMPOSITION_PLAN_V2` 候选运行，绑定需求修订、
-TaskDecomposition 版本、外部 Session、运行时代际与 `INTERNAL_MCP` 通道，最多五次唯一提交。
-每次工具调用返回 `REJECTED / ACCEPTED / WAITING_INPUT`、剩余次数、下一提交修订和至多 16 个
+TaskDecomposition 版本、外部 Session、运行时代际与 `INTERNAL_MCP` 通道，不设唯一提交次数上限。
+每次工具调用返回 `REJECTED / ACCEPTED / WAITING_INPUT`、提交计数、无限制标记、下一提交修订和至多 16 个
 带 JSON Pointer 的问题。`REJECTED` 只让同一 Session 修正；`ACCEPTED` 与规范计划原子冻结；
-预算耗尽或不可修复边界进入人工输入。被拒原文不落库，只保存 SHA-256、问题和安全响应。
+不可修复边界进入人工输入，MCP 不因提交次数进入人工输入。被拒原文不落库，只保存 SHA-256、问题和安全响应。
 外部/兼容模式使用 `IN_PROCESS_LEGACY`，但复用完全相同的编译、策略和 accepted writer；两种通道不可互投。
 
 ## Compiler
@@ -219,12 +225,12 @@ capabilityPreferences / handoffSummary`，只填写服务端列出的 unresolved
 验收闭集候选迁移由 `loopper.internal-candidate.acceptance-closed-choice-v7-enabled` 单独控制。0.3.5 隔离成品 JAR 已证明当前真实模型会主动调用私有 MCP，并依据拒绝结果在同一 Session 自修正后接受，因此 0.3.6 起默认开启；显式设置 `LOOPPER_ACCEPTANCE_CLOSED_CHOICE_V7_ENABLED=false` 只阻止新候选运行，既有持久化运行仍可恢复和结算，新的真实同分则回到 `PACKAGE_ACCEPTANCE_CLOSED_CHOICE_V7` JSON 兼容路径。唯一最优始终由服务端直编；不可枚举、未穷举、路径归属或权限安全问题始终直接等待人工，不能为了启用候选协议扩大模型选择面。
 开关开启只允许已持久化 `compilerRequired` 路由且经服务端再次证明为 2–32 个穷举等价最优集合的真实同分
 建立 `ACCEPTANCE_CLOSED_CHOICE_V7` 候选运行。该运行固定 `INTERNAL_MCP` 通道、同一冻结 Compilation
-拥有者/设计修订/运行时代际和最多两次唯一提交；只开放专用候选 Session 的精确内部
+拥有者/设计修订/运行时代际，不限制唯一提交次数；只开放专用候选 Session 的精确内部
 `submit_candidate`，不开放内置工具或用户 MCP。只有闭集选择遗漏、越界、组合错误，或其余根字段仍合法且
 `factAssignments` 合法时，把 `capabilityPreferences` 对象数组机械简写成非空整数数组，或把每项精确简写为
 整数 `{factIndex, capabilityIndex}`；以及把同一个 capability 选择同时机械写成非空
 `factAssignments:[{factIndex, capabilityIndex}]` 与整数 `capabilityPreferences:[n]`，才以
-`ACCEPTANCE_CANDIDATE_SELECTION_INVALID` 返回服务端枚举的对象数组允许值并可在同一 Session 再提交一次；
+`ACCEPTANCE_CANDIDATE_SELECTION_INVALID` 返回服务端枚举的对象数组允许值并可在同一 Session 继续修正提交；
 简写候选本身不被接受。混合项、未知字段、路径/权限/执行/拓扑字段、其他非对象/合同错误和非枚举快照分别以 `ACCEPTANCE_CANDIDATE_SECURITY_BOUNDARY / CONTRACT_INVALID /
 NOT_ENUMERABLE` 失败关闭并进入人工输入，不创建修复 Session。Accepted writer 只从数据库冻结事实生成
 规范 binding，并通过通用 `MachineCandidateSubmission` 的短事务落库；模型提交不能写路径、命令、权限或安全策略。
@@ -241,7 +247,7 @@ NOT_ENUMERABLE` 失败关闭并进入人工输入，不创建修复 Session。Ac
 checkpoint、ordinal/version、路径、命令、测试目标、Verifier、权限、安全或 impact。服务端从当前未终态包、
 已冻结包和冻结需求引用建立闭集，将 `replaces` 映射为稳定 package-run ID，并要求依赖只指向已冻结包或
 候选列表中更早的包，从结构上排除前向依赖与环。MCP 与手工/Legacy 入口共用同一编译内核和 impact 算法。
-只有闭集引用、缺失/类型/未知字段等有界机械错误可在同一 Session 最多修正三次；权威字段、安全或非枚举
+只有闭集引用、缺失/类型/未知字段等有界机械错误可在同一 Session 继续通过 MCP 修正，不设提交次数上限；权威字段、安全或非枚举
 问题失败关闭且不可 fallback。接受只先写 V56 不可变 canonical result；远端完成或确认停止后才能把拥有者
 结算为 `PROPOSED`，人工确认计划的既有边界不变。0.3.8 隔离成品 JAR 已证明真实模型能看到精确私有工具、
 主动调用并在前向依赖机械拒绝后于同一 Session 自修正；0.3.9 起默认开启新候选派发。显式设置
@@ -260,7 +266,7 @@ intent，再停止 prompt、run 和 remote；只有全部安静且终止证明�
 V57 为 Reviewer、项目公约和双 Judge 提供同构的 `GENERIC_V1` launch 协议。它不复用 Acceptance
 `ACCEPTANCE_V55` 的 `internal_launch_id`，而是使用互斥的 `candidate_launch_id`；Java 调用方必须传递
 强类型 launch，不能用裸字符串跨协议复用。数据库要求三个角色的 `INTERNAL_MCP` run 精确匹配自己的
-scope、owner、workflow、contract 和预算，并把创建 attestation、同事务 run certificate、INITIAL/
+scope、owner、workflow、contract 和冻结的 Legacy 预算元数据，并把创建 attestation、同事务 run certificate、INITIAL/
 CORRECTION 同 launch、零提交 ACK、清理远端和 termination intent 固化为 gate。Legacy run 不携带 launch，
 仍作为派发前双入口保留。V58–V61 激活 Reviewer 的 Candidate adapter、冻结 source manifest、
 accepted-result 和取消优先级；V62 再激活项目公约的冻结源文/证据目录、单一编译内核、accepted result
@@ -284,7 +290,7 @@ V63 的 Requirement/Risk Candidate 不提交完整评审文档，而只提交
 入口因此只有一个确定性接受权威。每一轮两个角色绑定同一 `judge_review_batch`；滚动任务的最终评审 Cycle 可引用
 最后一个已冻结事实的成功 Attempt，但不得改写该 Attempt 原有 Cycle。Session 重试不换批次，
 人工重试必须换新代次，聚合器禁止跨代拼接结论。只有闭集字段、枚举、证据引用等有界机械错误可在同一
-Candidate Session 内最多提交两次（初投加一次修正）。`reason` 中的 CR/LF/TAB 返回
+Candidate Session 内通过 MCP 继续修正，不设提交次数上限。`reason` 中的 CR/LF/TAB 返回
 `JUDGE_DECISION_REASON_LINE_BREAK_INVALID`，普通额外说明字段返回 `JUDGE_DECISION_FIELD_INVALID`，
 两者都必须按工具返回的精确约束提交完整替换候选；NUL/BEL/C1、混合危险控制字符、权限和服务端权威字段
 不可纠正，危险控制字符检查必须先于长度检查，权威字段的通用语义前缀不能降级成普通附加说明。不可纠正
@@ -388,7 +394,7 @@ v7 消歧提示给出唯一小型对象形状和全部闭集候选。服务端�
 Stage 拓扑、权限或安全字段即使 Schema transport 接受也必须失败关闭。缺少必选项、越界索引、重复或冲突
 选择、修改锁定事实，以及多个不等价的有效 JSON 候选在显式关闭开关的兼容路径继续产生
 `AMBIGUOUS_ACCEPTANCE_INTENT`，不创建格式或语义修复 Session；候选开关开启后只有纯机械闭集选择错误
-可由同一候选 Session 在总提交上限内重送，安全、合同和非枚举问题仍不可重试。两条路径都不得以空 binding、
+可由同一候选 Session 继续通过 MCP 修正重送，不设次数上限；安全、合同和非枚举问题仍不可重试。两条路径都不得以空 binding、
 丢弃建议或 catch-all Stage 继续。无效结果保留冻结事实和
 已完成的唯一绑定，只更新失败诊断。结构缺失、依赖冲突和确定性验证能力缺失直接
 `DESIGN_INCOMPLETE`，不会为了取得一个无法改变结论的回答而调用 Compiler。

@@ -27,7 +27,7 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-/** Persistent implementation of the bounded machine-candidate correction protocol. */
+/** Persistent candidate correction with bounded legacy repairs and uncapped MCP submissions. */
 @Service
 public final class PersistentMachineCandidateSubmission implements MachineCandidateSubmission {
     private static final int MAX_CANDIDATE_BYTES = 128 * 1024;
@@ -161,13 +161,14 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
     private SubmissionResult persist(SubmitCommand command, String requestSha, CandidateSubmissionRunRow run,
                                      CandidatePolicy.Context context, ValidatedDecision decision) {
         int ordinal = run.attemptsUsed() + 1;
+        boolean exhausted = remainingAttempts(run, ordinal) != null && ordinal >= run.maxAttempts();
         MachineCandidateOutcome outcome;
         if (decision.accepted()) {
             outcome = MachineCandidateOutcome.ACCEPTED;
-        } else if (decision.retryable() && ordinal >= run.maxAttempts() && decision.fallbackEligible()) {
+        } else if (decision.retryable() && exhausted && decision.fallbackEligible()) {
             outcome = MachineCandidateOutcome.FALLBACK_REQUIRED;
         } else {
-            outcome = !decision.retryable() || ordinal >= run.maxAttempts()
+            outcome = !decision.retryable() || exhausted
                     ? MachineCandidateOutcome.WAITING_INPUT : MachineCandidateOutcome.REJECTED;
         }
         MachineCandidateRunState target = switch (outcome) {
@@ -225,15 +226,22 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
         response.put("outcome", outcome.name());
         response.put("runState", state.name());
         response.put("attemptOrdinal", ordinal);
-        response.put("remainingAttempts", Math.max(0, run.maxAttempts() - ordinal));
+        response.put("remainingAttempts", remainingAttempts(run, ordinal));
+        response.put("submissionCountLimited", remainingAttempts(run, ordinal) != null);
         response.put("retryable", retryable);
         response.put("problems", problems);
         response.put("submissionRevision", run.version() + 1);
         if (canonicalSha != null) response.put("canonicalResultSha256", canonicalSha);
         String responseJson = boundedJson(response, "Candidate response");
         return new SubmissionResult(run.id(), outcome, state, ordinal,
-                Math.max(0, run.maxAttempts() - ordinal), retryable, problems, canonicalSha,
+                remainingAttempts(run, ordinal), retryable, problems, canonicalSha,
                 run.version() + 1, responseJson);
+    }
+
+    /** Null means unlimited, not exhausted. maxAttempts remains immutable historical contract metadata for MCP. */
+    private Integer remainingAttempts(CandidateSubmissionRunRow run, int ordinal) {
+        return SubmissionChannel.INTERNAL_MCP.name().equals(run.submissionChannel())
+                ? null : Math.max(0, run.maxAttempts() - ordinal);
     }
 
     private SubmissionResult replay(CandidateSubmissionRunRow run, CandidateSubmissionAttemptRow attempt,
@@ -255,7 +263,8 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
             JsonNode response = json.readTree(attempt.responseJson());
             return new SubmissionResult(run.id(), MachineCandidateOutcome.valueOf(attempt.outcome()),
                     MachineCandidateRunState.valueOf(response.path("runState").asText()), attempt.ordinal(),
-                    response.path("remainingAttempts").asInt(), attempt.retryable(), problems,
+                    response.path("remainingAttempts").isNull() ? null : response.path("remainingAttempts").asInt(),
+                    attempt.retryable(), problems,
                     attempt.canonicalResultSha256(), response.path("submissionRevision").asLong(),
                     attempt.responseJson());
         } catch (JacksonException invalid) {

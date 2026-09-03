@@ -83,6 +83,61 @@ class MachineCandidateSubmissionIntegrationTest {
     }
 
     @Test
+    void internalMcpCanKeepCorrectingPastTheFormerLimitAndAcceptWithIdempotentReplay() {
+        var legacy = decomposerRun("mcp-unlimited", 5);
+        var channel = MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP;
+        var command = new MachineCandidateSubmission.OpenCommand(legacy.runId(), legacy.scope(), legacy.owner(),
+                legacy.candidateKind(), legacy.workflowStep(), legacy.sourceRevision(), legacy.ownerVersion(),
+                channel, legacy.contractVersion(), legacy.runtimeGenerationId(), legacy.externalSessionId(), 5);
+        submissions.open(command);
+        for (int index = 0; index < 9; index++) {
+            var request = new MachineCandidateSubmission.SubmitCommand(command.runId(), "try-" + index,
+                    INVALID, index, channel);
+            var rejected = submissions.submit(request);
+            assertThat(rejected.outcome()).isEqualTo(MachineCandidateOutcome.REJECTED);
+            assertThat(rejected.retryable()).isTrue();
+            assertThat(rejected.attemptOrdinal()).isEqualTo(index + 1);
+            assertThat(rejected.remainingAttempts()).isNull();
+            assertThat(rejected.responseJson()).contains("\"remainingAttempts\":null", "\"submissionCountLimited\":false");
+            assertThat(submissions.submit(request)).isEqualTo(rejected);
+            assertThat(submissions.open(command).attemptsUsed()).isEqualTo(index + 1);
+        }
+        var accepted = submissions.submit(new MachineCandidateSubmission.SubmitCommand(
+                command.runId(), "accepted", "{\"valid\":true}", 9, channel));
+        assertThat(accepted.outcome()).isEqualTo(MachineCandidateOutcome.ACCEPTED);
+        assertThat(accepted.attemptOrdinal()).isEqualTo(10);
+        assertThat(submissions.terminal(command.runId())).contains(accepted);
+        assertThatThrownBy(() -> submissions.submit(new MachineCandidateSubmission.SubmitCommand(
+                command.runId(), "after-acceptance", INVALID, 10, channel)))
+                .isInstanceOfSatisfying(ConflictException.class,
+                        failure -> assertThat(failure.code()).isEqualTo("CANDIDATE_RUN_TERMINAL"));
+    }
+
+    @Test
+    void internalMcpDoesNotForceMarkdownFallbackAfterRepeatedMechanicalRejections() {
+        var legacy = packageRun("mcp-package-unlimited", 3);
+        var channel = MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP;
+        submissions.open(new MachineCandidateSubmission.OpenCommand(legacy.runId(), legacy.scope(), legacy.owner(),
+                legacy.candidateKind(), legacy.workflowStep(), legacy.sourceRevision(), legacy.ownerVersion(),
+                channel, legacy.contractVersion(), legacy.runtimeGenerationId(), legacy.externalSessionId(), 3));
+        for (int index = 0; index < 8; index++) {
+            var rejected = submissions.submit(new MachineCandidateSubmission.SubmitCommand(
+                    legacy.runId(), "try-" + index, "{\"fallbackEligible\":true}", index, channel));
+            assertThat(rejected.outcome()).isEqualTo(MachineCandidateOutcome.REJECTED);
+            assertThat(rejected.runState()).isEqualTo(MachineCandidateRunState.OPEN);
+            assertThat(rejected.remainingAttempts()).isNull();
+        }
+        when(packageDesignCandidatePolicy.evaluate(any(CandidatePolicy.Context.class), anyString()))
+                .thenReturn(CandidatePolicy.Decision.rejected(false, List.of(new MachineCandidateSubmission.Problem(
+                        "PACKAGE_DESIGN_INPUT_REQUIRED", "/design", "Package design requires user input"))));
+        var blocked = submissions.submit(new MachineCandidateSubmission.SubmitCommand(
+                legacy.runId(), "input-required", "{\"inputRequired\":true}", 8, channel));
+        assertThat(blocked.outcome()).isEqualTo(MachineCandidateOutcome.WAITING_INPUT);
+        assertThat(blocked.retryable()).isFalse();
+        assertThat(submissions.terminal(legacy.runId())).contains(blocked);
+    }
+
+    @Test
     void rejectedCandidateCanBeCorrectedAndAcceptedWithExactIdempotentReplay() {
         MachineCandidateSubmission.RunSnapshot opened = submissions.open(decomposerRun("run-1", 5));
         assertThat(opened.state()).isEqualTo(MachineCandidateRunState.OPEN);

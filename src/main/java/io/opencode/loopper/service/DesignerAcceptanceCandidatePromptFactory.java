@@ -47,7 +47,8 @@ final class DesignerAcceptanceCandidatePromptFactory {
                 capabilityPreferences plus optional summary/handoffSummary, and expectedSubmissionRevision. The tool
                 result is authoritative. Only when it returns REJECTED with
                 ACCEPTANCE_CANDIDATE_SELECTION_INVALID may you mechanically correct the listed selection and call the
-                same exact tool once more with the returned submissionRevision. On ACCEPTED or WAITING_INPUT stop.
+                same exact tool again with the returned submissionRevision. MCP submissions have no count limit.
+                On ACCEPTED or WAITING_INPUT stop.
                 The final text is non-authoritative and must never claim acceptance.
                 """.formatted(facts(planning, routing), capabilities(planning, routing),
                 contract.resolution(routing.resolution()), run.runId(), run.version(), run.contractVersion(),

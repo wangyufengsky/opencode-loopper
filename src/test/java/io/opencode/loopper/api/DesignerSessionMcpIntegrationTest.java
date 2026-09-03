@@ -4638,36 +4638,59 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     @Test
-    void invalidManagedCandidateExhaustionWaitsForInputWithoutOpeningLegacyFallback() throws Exception {
+    void internalMcpAcceptanceCanCorrectRepeatedlyAndAcceptWithoutLegacyFallback() throws Exception {
         properties.getInternalCandidate().setAcceptanceClosedChoiceV7Enabled(true);
         InternalMcpCredentialProvider.Credentials credentials = activateManagedCandidateRuntime();
         fake().holdProfileOpen(
                 OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS, true);
-        ProjectRow project = project("managed-acceptance-v7-invalid-exhaustion");
-        Files.writeString(Path.of(project.rootPath()).resolve("pom.xml"), "<project/>\\n");
+        ProjectRow project = project("managed-acceptance-v7-unlimited");
+        Files.writeString(Path.of(project.rootPath()).resolve("pom.xml"), "<project/>\n");
         LoopDraftRow draft = drafts.create(legacySpec(project.id()));
-        String design = trueTieDesign("Java Flow 无效候选耗尽");
+        String design = trueTieDesign("Java Flow 闭集选择修正");
         fake().setDesignerOutput(designerOutput(design, legacySpec(project.id())));
         setPackageDesignerOutput("WP-1", design);
         DesignerSessionRow reviewing = prepareReviewingSession(project.id(), draft.id(),
-                "修改 Java Flow；两次无效闭集选择必须等待人工输入，禁止转入兼容通道");
+                "修改 Java Flow，并从两个同等确定性的聚焦测试方案中选择一个验证成功行为");
 
         designerSessions.confirmRequirement(reviewing.id(), reviewing.discussionRevision());
-        ManagedAcceptanceExhaustion exhausted = exhaustManagedAcceptanceCandidate(
-                reviewing.id(), credentials, "invalid-exhaustion");
+        DesignerSessionService.CompilerStatus opened = pollUntilCandidateSession(reviewing.id());
+        String runId = jdbc.queryForObject("""
+                SELECT id FROM ai_candidate_submission_run
+                WHERE owner_type='LOOP_SPEC_COMPILATION' AND owner_id=?
+                  AND submission_channel='INTERNAL_MCP'
+                """, String.class, opened.id());
+        String mcpSession = initializeInternalMcp(credentials);
+        for (int index = 0; index < 8; index++) {
+            submitInvalidAcceptanceCandidate(credentials, mcpSession, runId,
+                    "correction-" + index, 130 + index, "REJECTED");
+        }
+        assertThat(jdbc.queryForMap("SELECT state,attempts_used FROM ai_candidate_submission_run WHERE id=?", runId))
+                .containsEntry("state", "OPEN").containsEntry("attempts_used", 8);
+        assertThat(designerSessions.get(reviewing.id()).state()).isEqualTo("RUNNING");
+        long revision = jdbc.queryForObject("SELECT version FROM ai_candidate_submission_run WHERE id=?", Long.class, runId);
+        String arguments = """
+                {"name":"submit_candidate","arguments":{"runId":"%s","idempotencyKey":"corrected",
+                 "candidate":{"factAssignments":[],"capabilityPreferences":[{"factIndex":1,"capabilityIndexes":[0]}]},
+                 "expectedSubmissionRevision":%d}}
+                """.formatted(runId, revision);
+        MvcResult accepted = mvc.perform(internalMcp(credentials, rpc(150, "tools/call", arguments), mcpSession))
+                .andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(asyncDispatch(accepted)).andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("ACCEPTED")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("submissionCountLimited")));
         pollUntilSettled(reviewing.id());
 
-        DesignerSessionRow waiting = designerSessions.get(reviewing.id());
         DesignerSessionService.CompilerStatus compilation = designerSessions.compilerStatus(reviewing.id());
-        assertThat(waiting.state()).isEqualTo("WAITING_INPUT");
-        assertThat(compilation.state()).isEqualTo("DESIGN_INCOMPLETE");
-        assertThat(compilation.lastErrorCode()).isEqualTo("ACCEPTANCE_CANDIDATE_WAITING_INPUT");
+        assertThat(designerSessions.get(reviewing.id()).workflowPhase()).isEqualTo("FINAL_REVIEW");
+        assertThat(compilation.state()).isEqualTo("COMPLETED");
+        assertThat(compilation.candidateSessions()).isEqualTo(1);
+        assertThat(compilation.candidateSubmissions()).isEqualTo(9);
         assertThat(jdbc.queryForMap("""
                 SELECT state,attempts_used,submission_channel
                 FROM ai_candidate_submission_run WHERE id=?
-                """, exhausted.runId()))
-                .containsEntry("state", "WAITING_INPUT")
-                .containsEntry("attempts_used", 2)
+                """, runId))
+                .containsEntry("state", "ACCEPTED")
+                .containsEntry("attempts_used", 9)
                 .containsEntry("submission_channel", "INTERNAL_MCP");
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*) FROM acceptance_candidate_legacy_handoff WHERE compilation_id=?
@@ -4678,7 +4701,7 @@ class DesignerSessionMcpIntegrationTest {
                   AND submission_channel='IN_PROCESS_LEGACY'
                 """, Integer.class, compilation.id())).isZero();
         assertThat(fake().promptHistory())
-                .filteredOn(call -> call.sessionId().equals(exhausted.opened().externalSessionId()))
+                .filteredOn(call -> call.sessionId().equals(opened.externalSessionId()))
                 .hasSize(1);
         assertThat(mapper.listTasks()).isEmpty();
     }
@@ -5592,32 +5615,6 @@ class DesignerSessionMcpIntegrationTest {
         return sessionId;
     }
 
-    private ManagedAcceptanceExhaustion exhaustManagedAcceptanceCandidate(
-            String designerSessionId, InternalMcpCredentialProvider.Credentials credentials,
-            String keyPrefix) throws Exception {
-        DesignerSessionService.CompilerStatus opened = pollUntilCandidateSession(designerSessionId);
-        String runId = jdbc.queryForObject("""
-                SELECT id FROM ai_candidate_submission_run
-                WHERE owner_type='LOOP_SPEC_COMPILATION' AND owner_id=?
-                  AND submission_channel='INTERNAL_MCP'
-                """, String.class, opened.id());
-        String mcpSession = initializeInternalMcp(credentials);
-        submitInvalidAcceptanceCandidate(
-                credentials, mcpSession, runId, keyPrefix + "-1", 131, "REJECTED");
-        // Internal MCP returns the rejection directly to the same model tool loop;
-        // no second model prompt is dispatched for the mechanical correction.
-        assertThat(fake().promptHistory()).filteredOn(call -> call.sessionId().equals(opened.externalSessionId()))
-                .hasSize(1);
-        submitInvalidAcceptanceCandidate(
-                credentials, mcpSession, runId, keyPrefix + "-2", 132, "WAITING_INPUT");
-        assertThat(jdbc.queryForMap("""
-                SELECT state,attempts_used FROM ai_candidate_submission_run WHERE id=?
-                """, runId))
-                .containsEntry("state", "WAITING_INPUT")
-                .containsEntry("attempts_used", 2);
-        return new ManagedAcceptanceExhaustion(opened, runId);
-    }
-
     private void submitInvalidAcceptanceCandidate(
             InternalMcpCredentialProvider.Credentials credentials, String mcpSession,
             String runId, String idempotencyKey, int rpcId, String expectedOutcome) throws Exception {
@@ -6210,9 +6207,6 @@ class DesignerSessionMcpIntegrationTest {
                     "candidateSubmissions", candidateSubmissions);
         }
     }
-
-    private record ManagedAcceptanceExhaustion(
-            DesignerSessionService.CompilerStatus opened, String runId) { }
 
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder mcp(String requestBody) {
         return post("/api/mcp").header("Authorization", "Bearer " + TOKEN)

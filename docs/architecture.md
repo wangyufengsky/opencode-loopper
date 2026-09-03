@@ -483,17 +483,31 @@ Confirmed transport retries and all content repairs still count against it.
 
 V47 adds an independent candidate-submission state domain without merging it into
 Designer, OpenCode Session, or compilation lifecycle state. Each run freezes the
-candidate kind, owner/source revision, transport channel, submission budget and
+candidate kind, owner/source revision, transport channel, legacy repair-budget metadata and
 runtime binding. Every unique submission advances an optimistic revision; exact
 idempotent replay returns the stored safe response, while key reuse with different
 content fails closed. Rejected raw candidates are not persisted: only a digest,
 bounded problem codes/JSON Pointers and the safe response remain. Acceptance writes
 the canonical candidate and advances the owning workflow in one short transaction.
 
+V69 removes submission-count ceilings for every `INTERNAL_MCP` candidate kind.
+Retryable rejection remains `OPEN / REJECTED` regardless of the ordinal; it no longer
+triggers `WAITING_INPUT` or package Markdown fallback by count. Responses publish
+`submissionCountLimited=false` and `remainingAttempts=null` (unlimited), while unique
+attempt ordinals and submission revisions keep increasing. Exact idempotent replay
+preserves the original response, including historical numeric remaining counts.
+`max_attempts` remains immutable legacy-budget / launch-identity metadata; only
+`IN_PROCESS_LEGACY` still enforces it. V69 uses the V59 FK-safe rebuild pattern inside
+an explicit SQLite savepoint, preserves all run indexes/triggers and child references,
+and checks candidate-graph foreign keys before releasing the savepoint. Existing OPEN rows use the
+new policy; historical terminal runs are not reopened or reinterpreted. Accepted
+writes, non-retryable failures, owner/source/runtime guards and cancellation retain
+their existing authority. This changes neither role step limits nor model-call budgets.
+
 V48 extends that domain with `PACKAGE_DESIGN_V1`, a `designWorkPackageId` owner and
 the package-only `FALLBACK_REQUIRED` terminal. A work-package candidate run is bound
 to one package revision, one fresh OpenCode Session and one managed runtime generation;
-it accepts at most three complete-replacement submissions. Its accepted-result row
+V69 removes the former three-submission MCP cap. Its accepted-result row
 atomically stores the normalized candidate, canonical server-rendered Markdown,
 deterministic compilation result, digests and `settledCompilationId`. Restart recovery
 may settle an accepted row exactly once, but cannot reinterpret an old-generation or
@@ -627,7 +641,7 @@ stable IDs, commands, verifier mappings and permissions. A candidate is therefor
 never allowed to submit those authoritative fields. Equivalent MCP and Markdown
 semantics must compile to the same deterministic result.
 
-The managed Decomposer uses one OpenCode Session and at most five unique
+The managed Decomposer uses one OpenCode Session with no count limit on unique
 `INTERNAL_MCP` submissions. A rejected submission returns enough bounded evidence
 for the model to correct and resubmit in that same Session. `ACCEPTED` or
 `WAITING_INPUT`, rather than assistant final text, is authoritative. An external
@@ -644,8 +658,8 @@ dispatch, Package Designer receives one candidate Session with `read/glob/grep` 
 only the exact private submit tool; the interactive variant additionally receives
 `question`. `ACCEPTED` bypasses only Markdown semantic adaptation and the independent
 AI Compiler Session, then waits for a proven remote terminal/abort before settling
-the deterministic result. If the model completes normally without accepting a
-candidate, or exhausts three explicitly fallback-eligible mechanical rejections,
+the deterministic result. If the model completes normally without submitting a
+candidate, or a historical run already reached FALLBACK_REQUIRED,
 the same Session's nonempty final Markdown enters the existing compilation route.
 `NEEDS_INPUT`, path/safety/permission/revision/generation conflict, timeout, transport
 failure or unconfirmed stop never fall back. The work-package projection exposes
@@ -653,7 +667,7 @@ the candidate state, Session/submission counts, `MCP_ACCEPTED | MARKDOWN_FALLBAC
 fallback reason and `serverCompiled` directly from persisted server facts.
 
 Qualified v7 acceptance closed-choice routing uses the same authority split with
-a stricter two-submission budget. A unique optimum remains server-direct; a
+no MCP submission-count limit. A unique optimum remains server-direct; a
 non-enumerable, non-exhaustive, path, or permission result opens no candidate run;
 only an exhaustive true tie opens one no-built-in-tools internal-MCP Session. The
 production flag remains off until an isolated real-model run proves private-MCP

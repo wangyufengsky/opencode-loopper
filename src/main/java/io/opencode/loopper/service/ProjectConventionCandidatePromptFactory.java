@@ -30,7 +30,7 @@ final class ProjectConventionCandidatePromptFactory {
                 the candidate object, and expectedSubmissionRevision.
                 Do not return the candidate as final assistant text. If the tool rejects a mechanical value, correct the complete candidate and call
                 the same tool again in this Session using the returned submissionRevision. A successful tool
-                result ends your work.
+                result ends your work. MCP submissions have no count limit. Stop on ACCEPTED or WAITING_INPUT.
 
                 Candidate JSON fields are closed and required:
                 - contractVersion: "PROJECT_CONVENTION_V1"

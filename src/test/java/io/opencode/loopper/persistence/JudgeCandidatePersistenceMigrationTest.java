@@ -36,7 +36,7 @@ class JudgeCandidatePersistenceMigrationTest {
 
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("68");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("69");
         try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement();
              var result = statement.executeQuery("""
                      SELECT review_batch_id,source_revision FROM judge_run WHERE id='legacy'

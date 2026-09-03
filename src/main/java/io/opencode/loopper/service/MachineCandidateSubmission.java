@@ -9,7 +9,8 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Deep module interface for one bounded machine-candidate correction loop.
+ * Machine-candidate correction protocol. MCP submissions have no count limit;
+ * the frozen maxAttempts field is retained for legacy repair budgets and run identity.
  * Policy evaluation is deterministic and occurs outside the short persistence transaction.
  */
 public interface MachineCandidateSubmission {
@@ -149,7 +150,7 @@ public interface MachineCandidateSubmission {
 
     record SubmissionResult(
             String runId, MachineCandidateOutcome outcome, MachineCandidateRunState runState,
-            int attemptOrdinal, int remainingAttempts, boolean retryable, List<Problem> problems,
+            int attemptOrdinal, Integer remainingAttempts, boolean retryable, List<Problem> problems,
             String canonicalResultSha256, long submissionRevision, String responseJson) {
         public SubmissionResult {
             problems = List.copyOf(Objects.requireNonNull(problems, "problems"));

@@ -221,7 +221,7 @@ final class RollingPackagePlanCandidateOrchestrator {
 
                 runId: %s
                 expectedSubmissionRevision: %d
-                You may call the same tool at most three times in this Session. On REJECTED, replace the whole
+                MCP submissions have no count limit. On REJECTED, replace the whole
                 candidate and retry only with the returned bounded code, JSON Pointer, allowed values and returned
                 submissionRevision. On ACCEPTED, stop; final assistant text is ignored. On WAITING_INPUT or
                 FALLBACK_REQUIRED, stop. Never return a legacy payload instead of calling the private tool.

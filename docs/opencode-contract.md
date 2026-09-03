@@ -332,7 +332,7 @@ true tie may create one
 `ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS` Session and an
 `ACCEPTANCE_CLOSED_CHOICE_V7` run on `INTERNAL_MCP`. This profile has no built-in
 tools and no user-MCP wildcard; its sole grant is the exact generation-scoped
-`<server>_submit_candidate`. It permits at most two unique submissions in that
+`<server>_submit_candidate`. MCP submissions have no count limit in that
 same Session. Only a mechanical closed-set selection error is retryable;
 contract, path, permission, execution, topology, non-enumerable, or non-exhaustive
 failures stop at `WAITING_INPUT`. The accepted projection is database-only and
@@ -464,7 +464,7 @@ Decomposer Session invoked the private tool once; V47 recorded one
 `INTERNAL_MCP` attempt as `ACCEPTED`, compiled two ordered work packages, and
 left the Task table empty. Because the first candidate passed, this is evidence
 of real model tool adoption, not evidence that this model repaired a rejected
-candidate. Same-Session rejection/correction, five-attempt exhaustion, raw-value
+candidate. Same-Session rejection/correction beyond the former MCP cap, legacy exhaustion, raw-value
 redaction and idempotency remain automated contract evidence until a separate
 real-model run naturally exercises rejection.
 
@@ -610,9 +610,19 @@ available-at-execution dependency rather than `MISSING_SCOPE`. Compiler may only
 report a dependency-related semantic gap when neither the current design nor the
 frozen predecessor contract defines the required behavior/API.
 
+All seven private candidate roles use uncapped `INTERNAL_MCP` submissions from V69.
+On a retryable REJECTED response, correct the full object and resubmit using a fresh
+idempotency key and the returned submissionRevision. `submissionCountLimited=false`
+and `remainingAttempts=null` mean no count limit; ACCEPTED and WAITING_INPUT still
+end that run. Recorded ordinals remain audit facts, not quotas. The immutable
+maxAttempts identity field applies as a repair ceiling only to IN_PROCESS_LEGACY.
+Existing terminal responses and exact replays remain historical evidence. Role step
+limits, repeated-tool detection, timeouts, permissions and model-call budgets remain
+separate controls.
+
 Decomposer submits one compact semantic object from a read-only Session and maps numbered requirements
 to package/constraint indices. The persistent candidate run binds the exact owner/source revisions,
-submission channel, external Session and runtime generation. It allows at most five unique submissions;
+submission channel, external Session and runtime generation. INTERNAL_MCP submissions have no count limit;
 idempotency replays the same safe response, while key reuse with different content fails closed. Policy
 evaluation is deterministic and accepted projection shares one short transaction with the terminal attempt.
 Rejected payload values never appear in persisted problems or safe responses: problem codes, JSON Pointers,

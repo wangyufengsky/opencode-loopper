@@ -54,7 +54,7 @@ final class DesignerDecompositionPromptFactory {
                 object, and expectedSubmissionRevision. Make exactly one call for each candidate. The tool result is
                 authoritative: on REJECTED, repair all returned problems in the same Session and call again with the
                 returned submissionRevision; on ACCEPTED or WAITING_INPUT, stop immediately.
-                The final text is non-authoritative and must not claim acceptance.
+                MCP submissions have no count limit. The final text is non-authoritative and must not claim acceptance.
 
                 Compact shape:
                 {"outcome":"READY|NEEDS_INPUT|MULTI_TASK_REQUIRED","normalizedGoal":"...",
