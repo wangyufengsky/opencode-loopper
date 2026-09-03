@@ -11,5 +11,5 @@ public interface LoopperMapper extends LoopperInfrastructureMapper, LoopperProje
         LoopperDesignerMapper, LoopperTaskMapper, LoopperAttachmentMapper, LoopperMachineCandidateMapper,
         LoopperAcceptanceCandidateLaunchMapper, LoopperAcceptanceCandidateTerminationMapper,
         LoopperGenericCandidateLaunchMapper, LoopperGenericCandidateTerminationMapper,
-        LoopperJudgeCandidateMapper, ModelTokenUsageMapper, StoryBindingMapper {
+        LoopperJudgeCandidateMapper, ModelTokenUsageMapper, StoryBindingMapper, DesignerConversationMapper {
 }

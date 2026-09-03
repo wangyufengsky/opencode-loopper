@@ -966,3 +966,14 @@ Managed config appends the bundled accounting guard while retaining operator plu
 External HTTP runtimes need the same Agent and guard configured externally; unavailable integration reports a non-blocking accounting failure. The public command mechanisms are described in [OpenCode server](https://opencode.ai/docs/server/) and [commands](https://opencode.ai/docs/commands/). See [story binding](story-binding.md) for the simulator and internal-plugin evidence limits.
 
 Ordinary abort and accounting commands share a per-remote gate: cleanup waits for a pending command reply, while explicit statistics cancellation releases only its own message gate, including a late/unresponsive HTTP request. New starts wait for retired Sessions in the same binding chain to settle their completion attempt; success is not required and no automatic retry is introduced. V67 manual retries append a fresh call/message identity linked by `retry_of`, only after the remote business owner retires. The latest failed/unknown/cancelled phase can be retried once per user action; concurrent clicks cannot duplicate dispatch or alter prior evidence.
+
+
+### 设计师持久会话的消息边界（V68）
+
+`designer_conversation` 固定远端、runtime generation、私有 MCP 名称、初始权限和模型；`designer_conversation_turn` 在发送前保存请求及 SHA-256，以唯一活动回合和 CAS 领取防止重复调度。`msg_loopper_design_r_`、`_q_`、`_p_` 分别表示需求讨论、包内提问和设计提交。恢复使用已持久化身份；发送结果未知时只通过 exact message ID 与请求摘要确认是否送达，不自动重发。
+
+`OpenCodeDesignMessageFilter` 只将当前用户消息及其 assistant 子消息提供给设计结果、错误和 Markdown 兜底解析。原生问题必须通过 tool.messageID 归属当前回合；旧回合、迟到统计、旧候选不得成为本轮结果。Token 仍读取去除统计后的完整业务消息集合并按已有唯一身份落库。Session 的全局 IDLE 必须重新核对当前回合消息，不能用上一轮完成作为当前结束证据。
+
+详情的问题列表是只读投影：当前回合仍在 PREPARED/SENDING/UNKNOWN 时返回暂无可回答问题，不触发发送恢复或将瞬时发送窗口变为 HTTP 500；恢复流程才核对请求送达证明。真实工具查询失败继续按服务不可用报告。
+
+内置 guard 在需求阶段屏蔽候选提交，在单包设计生成阶段屏蔽再次提问，在统计阶段屏蔽业务工具；工具执行前再核对所属消息。新阶段提示明确替代上一阶段的临时限制，而非永久禁止后续设计。候选接受后仍确认当前模型停止，但只结算当前回合，不退休可复用会话。外部 OpenCode 要获得相同阶段隔离必须加载同一 guard，Session 权限仍保持只读。

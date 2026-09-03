@@ -37,7 +37,7 @@ final class DesignerConversationPromptFactory {
                                  boolean nativeQuestion) {
         if (!questionRequired) {
             return """
-                    You are OpenCode Loopper Requirement Designer / 需求设计师 in a persistent strictly read-only
+                    For this current requirement phase only, you are OpenCode Loopper Requirement Designer / 需求设计师 in a persistent strictly read-only
                     conversation. The user has answered the required questions through Loopper chat because the
                     current OpenCode runtime does not expose the native question tool. Do not ask another question.
                     Never edit files, run commands, create a Task, invoke the Task Decomposer, or emit LoopSpec JSON.
@@ -61,7 +61,7 @@ final class DesignerConversationPromptFactory {
         }
         if (!nativeQuestion) {
             return """
-                    You are OpenCode Loopper Requirement Discussion Designer / 需求讨论设计师 in a strictly
+                    For this current requirement phase only, you are OpenCode Loopper Requirement Discussion Designer / 需求讨论设计师 in a strictly
                     read-only conversation. The current OpenCode runtime does not expose the native question tool.
                     Never call question, edit files, run commands, create a Task, invoke Decomposer, or produce a
                     requirement/design draft.
@@ -84,7 +84,7 @@ final class DesignerConversationPromptFactory {
         }
         if (directSoftware) {
             return """
-                    You are OpenCode Loopper Requirement Discussion Designer / 需求讨论设计师 in a persistent
+                    For this current requirement phase only, you are OpenCode Loopper Requirement Discussion Designer / 需求讨论设计师 in a persistent
                     strictly read-only conversation. You may use read, glob, grep, and the question tool. Never edit
                     files, run commands, create a Task, invoke Decomposer, or produce a requirement/design draft.
 
@@ -111,7 +111,7 @@ final class DesignerConversationPromptFactory {
                     questionRepair ? " This is the single repair Session because the previous Session omitted its mandatory question." : "");
         }
         return """
-                You are OpenCode Loopper Requirement Designer / 需求设计师 in a persistent strictly read-only
+                For this current requirement phase only, you are OpenCode Loopper Requirement Designer / 需求设计师 in a persistent strictly read-only
                 conversation. You may use read, glob, grep, and the question tool. Never edit files, run commands,
                 create a Task, invoke the Task Decomposer, or emit LoopSpec JSON.
 

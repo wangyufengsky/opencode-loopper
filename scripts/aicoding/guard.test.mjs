@@ -68,3 +68,24 @@ test('an unbound Loopper business Session cannot start statistics from its model
   await guard['tool.execute.before']({ sessionID: 'unbound', tool: 'question', callID: 'question' })
   await assert.rejects(() => guard['tool.execute.before']({ sessionID: 'unbound', tool: 'aicoding_story_start', callID: 'unexpected' }), /ACCOUNTING_TOOL_DENIED/)
 })
+
+test('reused designer narrows question and submission tools by the exact business message', async () => {
+  const rows = []
+  const guard = await LoopperAccountingGuard({ client: {
+    session: { get: async () => ({ data: { title: 'OpenCode Loopper Requirement Designer' } }), messages: async () => ({ data: rows }) },
+    tool: { ids: async () => ({ data: ['read', 'question', 'private_submit_candidate', 'aicoding_story_start'] }) },
+  } })
+  const requirement = { message: { id: 'msg_loopper_design_r_1' } }
+  await guard['chat.message']({ sessionID: 's' }, requirement)
+  assert.equal(requirement.message.tools.private_submit_candidate, false)
+  assert.equal(requirement.message.tools.question, undefined)
+  const design = { message: { id: 'msg_loopper_design_p_2' } }
+  await guard['chat.message']({ sessionID: 's' }, design)
+  assert.equal(design.message.tools.question, false)
+  assert.equal(design.message.tools.private_submit_candidate, undefined)
+  rows.push({ info: { id: 'old', parentID: requirement.message.id }, parts: [{ type: 'tool', callID: 'old-call' }] })
+  rows.push({ info: { id: 'new', parentID: design.message.id }, parts: [{ type: 'tool', callID: 'new-call' }] })
+  await assert.rejects(() => guard['tool.execute.before']({ sessionID: 's', tool: 'private_submit_candidate', callID: 'old-call' }), /DESIGN_PHASE_TOOL_DENIED/)
+  await assert.rejects(() => guard['tool.execute.before']({ sessionID: 's', tool: 'question', callID: 'new-call' }), /DESIGN_PHASE_TOOL_DENIED/)
+  await guard['tool.execute.before']({ sessionID: 's', tool: 'private_submit_candidate', callID: 'new-call' })
+})

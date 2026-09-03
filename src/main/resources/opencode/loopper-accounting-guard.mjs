@@ -6,9 +6,13 @@ export const LoopperAccountingGuard = async ({ client, directory }) => {
   const prefix = 'msg_loopper_aicoding_'
   const affected = new Set()
   const statisticsRound = new Map()
+  const designSessions = new Set()
   const parent = info => info?.parentID ?? info?.parentId
   const isStatistics = message => message.info?.id?.startsWith(prefix)
     || parent(message.info)?.startsWith(prefix)
+  const designPhase = id => /^msg_loopper_design_([rqp])_/.exec(id ?? '')?.[1]
+  const isSubmissionTool = id => /_submit_candidate$/.test(id)
+  const deniedInPhase = (id, phase) => phase === 'r' && isSubmissionTool(id) || phase === 'p' && id === 'question'
   const isAccountingTool = name => /^aicoding(?:_|$)/.test(name)
   const managedSession = async sessionID => {
     if (affected.has(sessionID)) return true
@@ -20,6 +24,7 @@ export const LoopperAccountingGuard = async ({ client, directory }) => {
   return {
     'chat.message': async (input, output) => {
       const accounting = output.message.id.startsWith(prefix)
+      if (designPhase(output.message.id)) designSessions.add(input.sessionID)
       if (!accounting) {
         try { if (!await managedSession(input.sessionID)) return }
         catch { return } // Unavailable metadata must not break an ordinary prompt.
@@ -35,7 +40,7 @@ export const LoopperAccountingGuard = async ({ client, directory }) => {
       }
       output.message.tools ??= {}
       for (const id of [...ids, 'list_mcp_resources', 'list_mcp_resource_templates', 'read_mcp_resource']) {
-        if (accounting ? !isAccountingTool(id) : isAccountingTool(id)) output.message.tools[id] = false
+        if (accounting ? !isAccountingTool(id) : isAccountingTool(id) || deniedInPhase(id, designPhase(output.message.id))) output.message.tools[id] = false
       }
       if (accounting) output.message.agent = 'loopper-accounting'
       statisticsRound.set(input.sessionID, accounting)
@@ -46,6 +51,7 @@ export const LoopperAccountingGuard = async ({ client, directory }) => {
       if (!lastUser) return
       const session = lastUser.info.sessionID
       const accounting = lastUser.info.id.startsWith(prefix)
+      if (designPhase(lastUser.info.id)) designSessions.add(session)
       statisticsRound.set(session, accounting)
       if (output.messages.some(isStatistics)) affected.add(session)
       if (!affected.has(session)) return
@@ -57,15 +63,21 @@ export const LoopperAccountingGuard = async ({ client, directory }) => {
     },
     'tool.execute.before': async (input) => {
       if (!affected.has(input.sessionID)) {
-        if (!isAccountingTool(input.tool) || !await managedSession(input.sessionID)) return
+        if (!isAccountingTool(input.tool) && !isSubmissionTool(input.tool) && input.tool !== 'question' || !await managedSession(input.sessionID)) return
       }
+      let phase
       let accounting = statisticsRound.get(input.sessionID) === true
       try {
         const result = await client.session.messages({ path: { id: input.sessionID }, query: { directory } })
         const owner = result.data?.find(message => message.parts?.some(part =>
           part.type === 'tool' && part.callID === input.callID))
-        if (owner) accounting = isStatistics(owner)
+        if (owner) {
+          accounting = isStatistics(owner)
+          phase = designPhase(parent(owner.info))
+        }
       } catch { /* Preserve ordinary tool execution if the advisory lookup fails. */ }
+      if (!accounting && !phase && designSessions.has(input.sessionID) && (isSubmissionTool(input.tool) || input.tool === 'question')) throw new Error('LOOPPER_DESIGN_PHASE_UNKNOWN: cannot verify tool message identity')
+      if (deniedInPhase(input.tool, phase)) throw new Error('LOOPPER_DESIGN_PHASE_TOOL_DENIED: tool is unavailable in the current design phase')
       if (accounting && !isAccountingTool(input.tool)) throw new Error('LOOPPER_ACCOUNTING_TOOL_DENIED: statistics cannot execute business tools')
       if (!accounting && isAccountingTool(input.tool)) throw new Error('LOOPPER_ACCOUNTING_TOOL_DENIED: accounting tools require an explicit statistics round')
     },

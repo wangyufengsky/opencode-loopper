@@ -25,6 +25,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
     private final OpenCodeHttpTransport http;
     private final OpenCodeCapabilityRegistry capabilities;
     private final Map<String, OpenCodeModel> sessionModels = new ConcurrentHashMap<>();
+    private final Map<String, String> designMessageIds = new ConcurrentHashMap<>();
     private final Map<String, SessionProfile> sessionProfiles = new ConcurrentHashMap<>();
     private final Map<String, Boolean> managedSessions = new ConcurrentHashMap<>();
     private final Map<String, Boolean> structuredPrompts = new ConcurrentHashMap<>();
@@ -143,6 +144,12 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         this.exactRecovery = new OpenCodeExactRecoveryTransport(connectionSupplier, localIdentitySupplier,
                 http, mcpDiscovery, sessionConnections, runtimeBindings, requirePersistentBinding);
         this.commandTransport = new OpenCodeCommandTransport(this::client, this::client, session -> http.commandClient(connectionFor(session)));
+    }
+    @Override public void restoreDesignTurn(OpenCodeSession session, SessionProfile profile, OpenCodeModel model, String messageId) {
+        sessionProfiles.put(session.id(), profile);
+        managedSessions.put(session.id(), session.internalMcpServer() != null);
+        if (model != null) sessionModels.put(session.id(), model);
+        designMessageIds.put(session.id(), messageId);
     }
     @Override public boolean healthy() {
         try { client().get().uri("/global/health").retrieve().toBodilessEntity(); return true; }
@@ -285,13 +292,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         catch (RuntimeException e) { throw new SessionFailure("OPENCODE_STATUS_FAILED", e.getMessage()); }
     }
     @Override public String sessionOutput(OpenCodeSession session) {
-        SessionResult result = sessionResult(session);
-        if (!result.text().isBlank()) return result.text();
-        if (result.hasStructured()) {
-            try { return json.writeValueAsString(result.structured()); }
-            catch (JacksonException failure) { throw new SessionFailure("OPENCODE_OUTPUT_FAILED", failure.getMessage()); }
-        }
-        throw new SessionFailure("OPENCODE_OUTPUT_MISSING", "OpenCode completed without assistant text or structured output");
+        return responses.output(sessionResult(session), json);
     }
     @Override public SessionResult sessionResult(OpenCodeSession session) {
         try {
@@ -330,7 +331,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
     }
     @Override public SessionTranscript sessionTranscript(OpenCodeSession session) {
         try {
-            return responses.transcript(sessionMessages(session));
+            return OpenCodeDesignMessageFilter.transcript(allSessionMessages(session), designMessageIds.get(session.id()), responses);
         } catch (SessionFailure e) { throw e; }
         catch (RuntimeException e) { throw new SessionFailure("OPENCODE_TRANSCRIPT_FAILED", e.getMessage()); }
     }
@@ -348,7 +349,8 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         try {
             JsonNode body = client(session).get().uri(uri -> directoryUri(uri, "/question", session.worktree()))
                     .retrieve().body(JsonNode.class);
-            List<PendingQuestion> result = responses.questions(body, session.id());
+            List<PendingQuestion> result = responses.questions(designMessageIds.containsKey(session.id())
+                    ? OpenCodeDesignMessageFilter.interactions(body, sessionMessages(session), designMessageIds.get(session.id())) : body, session.id());
             if (result == null) {
                 throw new SessionFailure("OPENCODE_QUESTION_INVALID_RESPONSE", "OpenCode did not return a pending question list");
             }
@@ -483,11 +485,14 @@ public class HttpOpenCodeClient implements OpenCodeClient {
     }
     @Override public List<UsageRecord> sessionUsage(OpenCodeSession session) {
         try {
-            return responses.usage(sessionMessages(session));
+            return responses.usage(allSessionMessages(session));
         } catch (SessionFailure e) { throw e; }
         catch (RuntimeException e) { throw new SessionFailure("OPENCODE_USAGE_LIST_FAILED", e.getMessage()); }
     }
     private JsonNode sessionMessages(OpenCodeSession session) {
+        return OpenCodeDesignMessageFilter.filter(allSessionMessages(session), designMessageIds.get(session.id()));
+    }
+    private JsonNode allSessionMessages(OpenCodeSession session) {
         try {
             JsonNode body = client(session).get().uri(uri -> sessionUri(uri, "/session/{id}/message", session))
                     .retrieve().body(JsonNode.class);
@@ -527,6 +532,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         catch (RuntimeException e) { throw new SessionFailure("OPENCODE_MESSAGES_FAILED", e.getMessage()); }
     }
     private SessionStatus observedStatus(OpenCodeSession session, SessionStatus status) {
+        if (designMessageIds.containsKey(session.id()) && status.completed()) status = messageStatus(session);
         if (storyAccounting != null && (status.completed() || status.failed())) {
             storyAccounting.afterTerminalStatus(session, request -> executeCommand(session, request));
         }

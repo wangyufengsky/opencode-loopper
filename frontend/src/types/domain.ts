@@ -1292,6 +1292,7 @@ export interface DesignerSession {
   projectId: string
   projectName?: string
   archived?: boolean
+  designConversations?: Array<{ id: string; scopeKey: string; generation: number; externalSessionId: string | null; state: string; reason: string | null }>
   storyBinding?: StoryBindingConfiguration
   state: DesignerSessionState
   workflowPhase: DesignWorkflowPhase

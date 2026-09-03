@@ -192,6 +192,10 @@ public class FakeOpenCodeClient implements OpenCodeClient {
         submitPrompt(session, prompt == null ? PromptRequest.text("") : prompt);
     }
     private void submitPrompt(OpenCodeSession session, PromptRequest prompt) {
+        if (prompt.messageId() != null && prompt.messageId().startsWith("msg_loopper_design_")) {
+            var pkg = java.util.regex.Pattern.compile("Current package (WP-\\d+)").matcher(prompt.text());
+            judgeRoleBySession.put(session.id(), pkg.find() ? "DESIGNER:" + pkg.group(1) : "DESIGNER");
+        }
         promptCalls.incrementAndGet();
         promptBySession.put(session.id(), prompt.text());
         promptRequestBySession.put(session.id(), prompt);

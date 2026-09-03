@@ -219,6 +219,15 @@ const structuredStepLabels: Record<StructuredModelStep, string> = {
 const activeStructuredStep = computed(() => designerStructuredStep.value
   ?? (designerSession.value?.activeActor === 'DECOMPOSER' ? designerSession.value.decomposition?.workflowStep : undefined)
   ?? (designerSession.value?.activeActor === 'COMPILER' ? designerSession.value.compiler?.workflowStep : undefined))
+const designConversationNotice = computed(() => {
+  const history = [...(designerSession.value?.designConversations ?? [])].reverse()
+  const current = history.find(item => item.state === 'OPEN') ?? history[0]
+  if (!current || current.generation < 2) return ''
+  const previous = history.find(item => item.scopeKey === current.scopeKey && item.generation < current.generation)
+  return previous?.reason === 'CONTEXT_REPLACED'
+    ? `上下文已更新，开始第 ${current.generation} 轮设计`
+    : `已重新打开，开始第 ${current.generation} 轮设计`
+})
 const activeDetailedWorkflowLabel = computed(() => activeStructuredStep.value
   ? `${activeWorkflowLabel.value} · ${structuredStepLabels[activeStructuredStep.value]}` : activeWorkflowLabel.value)
 function workPackageLabel(packageId?: string) {
@@ -1573,6 +1582,7 @@ async function redesignPackage(packageId: string) {
           <span><i :class="['connection-dot', designerStreamState]" />{{ designerTransportLabel }}</span>
           <span><i :class="['connection-dot', { connected: designerRuntimeConnected, error: designerLiveError }]" />{{ designerRuntimeLabel }}</span>
           <span class="active-role"><Icon :icon="activeActorMeta.icon" />{{ activeActorMeta.label }} · {{ activeDetailedWorkflowLabel }}</span>
+          <span v-if="designConversationNotice" class="active-role">{{ designConversationNotice }}</span>
           <span v-if="designerSession?.activeWorkPackageId">{{ workPackageLabel(designerSession.activeWorkPackageId) }}/{{ designerSession.workPackages?.length ?? 0 }}</span>
           <span v-if="designerSession?.requirement" class="mono">模型调用 {{ designerSession.requirement.modelCallsUsed }}/{{ designerSession.requirement.maxModelCalls }}</span>
           <span v-if="(designerSession?.decomposition?.candidateSessions ?? 0) > 0" class="mono">候选 Session {{ designerSession?.decomposition?.candidateSessions }}</span>

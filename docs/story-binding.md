@@ -17,6 +17,14 @@ SQLite 继续使用 WAL、IMMEDIATE 和既有 busy timeout。驱动在锁失败�
 
 通知示例：“AI 工作量统计失败：统计服务暂不可用，任务继续执行。”设计通知保存在系统消息中，任务通知保存在事件记录中。通知和业务消息使用数据库原子追加，避免并发序号冲突。统计通知通过独立 SSE 事件刷新持久化消息；即使设计已停止轮询，也会显示结束调用失败，且不会覆盖业务角色或运行状态。重复刷新或重放不重复追加通知；通知投递异常也不能影响任务。
 
+## 设计师复用（V68）
+
+新建设计启用 `PER_PACKAGE_V1`：单包从需求讨论、回答到初稿、修改和编译返修共用一个实际 OpenCode Session；大型多包的全局讨论独立，每个包各自持有一个 Session。正常单包只有一组自动 `start → complete`，三个包则是全局加三个包，共四组。用户手动重试仍是独立调用记录。
+
+等待回答、模型单轮 IDLE、候选停止确认、编译、校验和待确认均不退休。单包内部自动批准 WP-1 只是聚合步骤，最终确认草稿时才退休；多包在明确批准当前包交接时退休。结果先落库，再允许统计完成调用；下一 Session 的统计沿用既有串行交接。已退休后重新打开或需要清除旧附件上下文时创建下一设计轮次，历史会话、候选和统计保留。
+
+V68 的会话及回合表保存远端身份、权限配置、模型、运行代次、业务消息 ID、候选运行 ID 和结束原因。派发、提问回答和轮询按所属设计互斥，慢统计不会占用其他设计的锁。每回合先持久化请求身份和摘要再发出；恢复只核对该请求，不把旧回复当作结果，不盲目重发未知请求。创建中断且尚未绑定业务请求的空会话允许重新领取，迟到创建方不能继续发送。运行代次变化但旧远端停止尚未确认时仍阻断替换，不能伪造停止证明。升级前已存在的设计保持旧策略，不合并历史会话、不补发统计。
+
 ## 统计弹窗与手动取消
 
 统计弹窗独立于设计提交响应，因此设计师的首条业务提示尚未发送时也可看到统计状态。页面每 1.2 秒刷新调用列表与当前统计的输出；并行调用可切换查看。完成回执不会阻塞业务，关闭结果会持久化确认，刷新不重新弹出已关闭的历史结果。输出仅来自该统计消息的 assistant 子回复；不展示 HTTP 原始信封，也不读取业务设计稿。
@@ -48,7 +56,7 @@ V65 保存绑定链、Designer/Task 继承关系、每个远端 Session 的角�
 `start-qualification.mjs` 启动独立端口、数据库和 XDG 目录的 Loopper/真实 OpenCode 环境，输出 environment.json 路径。模型只访问 localhost。可传入已构建 JAR：
 
 ```bash
-node scripts/aicoding/start-qualification.mjs target/opencode-loopper-0.3.44.jar --native-tools
+node scripts/aicoding/start-qualification.mjs target/opencode-loopper-0.3.49.jar --native-tools
 node scripts/aicoding/qualify-workflow.mjs /绝对路径/environment.json
 # complete 延迟 40 秒且同一故事不允许重叠 run，核验交接顺序
 node scripts/aicoding/qualify-workflow.mjs /绝对路径/environment.json --handoff-wait
@@ -62,5 +70,15 @@ node scripts/aicoding/qualify-workflow.mjs /绝对路径/environment.json --mode
 `--native-tools` 默认读取本机 `~/.config/opencode/node_modules/@opencode-ai/plugin/dist/index.js` 的插件 API；非此布局可用 `AICODING_MOCK_PLUGIN_API` 指定实际模块的 file URL。模拟插件与 API 只在隔离实例加载。普通/故障链路必须核对只有设计师和执行者的四次调用，且两次 BEGIN 都是 start。
 
 接收端 `POST /control` 支持 `fail`、`delayMs`、`loseResponse`、`onlyOperation`（限定故障操作）、`strictActiveRun`（活动故事拒绝再次 start）、`accountingModelDelayMs`（统计流式正文返回后的停顿） 故障注入；`GET /requests` 回读接收台账和模型请求。终止启动脚本会停止专用 JVM、受管 OpenCode 和接收服务；保留隔离目录的日志用于核验，后续可删除整个目录。原有 OpenCode 配置和 8080 服务不受影响。
+
+设计师复用联调另提供 `--reuse` 模型夹具，仍经过真实 OpenCode 和原生插件：
+
+```bash
+node scripts/aicoding/start-qualification.mjs target/opencode-loopper-0.3.49.jar --native-tools --reuse
+node scripts/aicoding/qualify-reuse.mjs /绝对路径/environment.json --execute --slow
+# 完整分包设计兼容模式：全局和三个包，每包修订一次
+node scripts/aicoding/start-qualification.mjs target/opencode-loopper-0.3.49.jar --native-tools --reuse --nonrolling
+node scripts/aicoding/qualify-multi-reuse.mjs /绝对路径/environment.json
+```
 
 自动化测试覆盖配置、前导零、继承、唯一调用、网络事务边界、持续等待/失败/手动取消、消息分流、重启未知结果和 UI 探测竞态；真实调用验收记录单独保存。模拟成功证明的是 Loopper 接入与容错能力，不能代替内网插件的现场验证。

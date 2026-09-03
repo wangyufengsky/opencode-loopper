@@ -122,6 +122,25 @@ afterEach(() => {
 })
 
 describe('Designer draft composer', () => {
+  it('shows a reopened design generation while preserving its stage after refresh', async () => {
+    routeQuery.sessionId = session.id
+    vi.spyOn(api, 'getDesignerSession').mockResolvedValue({ ...session, state: 'REVIEWING',
+      workflowPhase: 'REVIEWING_PACKAGE', activeActor: 'DESIGNER',
+      draft: draftFrom({ schemaVersion: 'v2', projectId: project.id, goal: 'Reuse fixture', context: '', stages: [], limits: { maxStageAttempts: 3, maxTaskAttempts: 7, maxDuration: '7200', attemptTimeout: '1800' } }), designConversations: [
+        { id: 'c1', scopeKey: 'wp-row', generation: 1, state: 'RETIRED', reason: 'PACKAGE_APPROVED', externalSessionId: 'remote-1' },
+        { id: 'c2', scopeKey: 'wp-row', generation: 2, state: 'OPEN', reason: null, externalSessionId: 'remote-2' },
+      ] })
+    const wrapper = mountDesigner()
+    await flushPromises()
+    expect(wrapper.text()).toContain('已重新打开，开始第 2 轮设计')
+    expect(wrapper.text()).toContain('工作包待确认')
+    wrapper.unmount()
+    const refreshed = mountDesigner()
+    await flushPromises()
+    expect(refreshed.text()).toContain('已重新打开，开始第 2 轮设计')
+    refreshed.unmount()
+  })
+
   it('refreshes accounting failures while idle and warns once across replay and remount', async () => {
     class FakeEventSource {
       static latest?: FakeEventSource

@@ -121,6 +121,7 @@ public class DesignerSessionService {
     private final AcceptanceCandidateInternalTerminationWorkflow internalTerminations;
     private final AcceptanceCandidateInternalParentSettlement internalParentSettlement;
     private final StoryBindingService storyBindings;
+    private final DesignerConversationCoordinator conversations;
     public DesignerSessionService(LoopperMapper mapper, LifecycleTransitionService lifecycle,
                                   ProjectService projects, OpenCodeClient openCode,
                                   LoopperProperties defaults, LoopDraftService drafts, ObjectMapper json,
@@ -141,7 +142,7 @@ public class DesignerSessionService {
                                   WorkPackageRoleService workPackageRoles,
                                   DesignerQuestionSupport questionSupport, RollingPackageService rollingPackages,
                                   DesignerAttachmentContext attachmentContext,
-                                  StoryBindingService storyBindings) {
+                                  StoryBindingService storyBindings, DesignerConversationCoordinator conversations) {
         this.mapper = mapper;
         this.lifecycle = lifecycle;
         this.projects = projects;
@@ -181,7 +182,7 @@ public class DesignerSessionService {
         this.attachmentContext = attachmentContext;
         this.modelPrompts = new DesignerModelPromptTransport(openCode, attachmentContext, json);
         this.internalTerminations = internalTerminations; this.internalParentSettlement = internalParentSettlement;
-        this.storyBindings = storyBindings;
+        this.storyBindings = storyBindings; this.conversations = conversations;
         this.acceptanceCandidateWorkflow = new DesignerAcceptanceCandidateWorkflow(acceptanceWorkflow, acceptanceCandidates,
                 acceptanceCandidateProofs, acceptanceLegacyHandoffs, projects, modelPrompts,
                 candidatePromptDispatches, internalLaunchPreparer, internalLaunches, initialPromptFailures);
@@ -219,6 +220,7 @@ public class DesignerSessionService {
                 () -> mapper.insertDesignerSession(session),
                 () -> new ConflictException("DESIGNER_SESSION_CREATE_CONFLICT",
                         "Designer session could not be created"));
+        conversations.enable(session.id());
         storyBindings.attachDesigner(session.id(), storyBinding);
         appendMessage(session.id(), DesignerActor.SYSTEM, "设计会话已创建，需求分析师正在识别任务设置。",
                 DesignerSessionState.PENDING_HANDOFF.name(), null, null);
@@ -453,7 +455,7 @@ public class DesignerSessionService {
         DesignDiscussionRevisionRow discussion = mapper.findLatestDesignDiscussionRevision(
                 session.id(), session.discussionScope()).orElse(null);
         if (questionSupport.chatMode(discussion)) return List.of();
-        return questionSupport.pendingQuestions(designerRemote(session)).stream()
+        return conversations.questions(session.externalSessionId(), Path.of(projects.get(session.projectId()).rootPath())).stream()
                 .map(question -> question(question, session.discussionScope(), session.discussionRevision())).toList();
     }
 
@@ -494,46 +496,47 @@ public class DesignerSessionService {
 
     private void replyQuestion(String sessionId, String questionId, List<List<String>> answers,
                                String answerSource) {
-        DesignerSessionRow session = requireRunningDesigner(sessionId);
-        OpenCodeClient.OpenCodeSession remote = designerRemote(session);
-        OpenCodeClient.PendingQuestion pending = questionSupport.pendingQuestion(remote, questionId);
-        List<List<String>> validatedAnswers = questionSupport.validateAnswers(pending, answers);
-        try {
-            openCode.replyQuestion(remote, pending.id(), validatedAnswers);
-        } catch (SessionFailure failure) {
-            throw new ServiceUnavailableException(failure.code(), safeMessage(failure.getMessage()));
-        }
-        DesignDiscussionRevisionRow discussion = currentDiscussion(session);
-        updateDiscussion(discussion, discussion.state(), discussion.sourceMessageId(), discussion.designMessageId(),
-                discussion.snapshotMarkdown(), questionSupport.appendDecision(
-                        discussion.decisionLogJson(), pending, validatedAnswers,
-                        answerSource), true,
-                discussion.questionRetryCount(), discussion.candidateCompilationId(), null, null);
-        if ("AUTO_RECOMMENDED".equals(answerSource)) {
-            appendMessage(session.id(), DesignerActor.SYSTEM, "全自动模式已按推荐答案回答当前设计问题。",
-                    "AUTO_RECOMMENDED", session.currentRequirementRevision(), session.activeWorkPackageId());
-        }
-        DesignerSessionRow current = get(sessionId);
-        if (!blank(current.activeWorkPackageId())) {
-            DesignWorkPackageRow workPackage = requireCurrentPackage(current, current.activeWorkPackageId());
-            if (DesignWorkPackageState.QUESTIONING.name().equals(workPackage.state())) {
-                updateWorkPackage(workPackage, DesignWorkPackageState.DESIGNING,
-                        workPackage.designerExternalSessionId(), "RUNNING", workPackage.designMessageId(),
-                        workPackage.designRevision(), workPackage.redesignCount(),
-                        workPackage.designerTransportRetryCount(), workPackage.compilerSummary(),
-                        workPackage.handoffSummary(), null, null);
+        try (var guard = conversations.guard(sessionId)) {
+            DesignerSessionRow session = requireRunningDesigner(sessionId);
+            OpenCodeClient.OpenCodeSession remote = designerRemote(session);
+            OpenCodeClient.PendingQuestion pending = questionSupport.pendingQuestion(remote, questionId);
+            List<List<String>> validatedAnswers = questionSupport.validateAnswers(pending, answers);
+            DesignDiscussionRevisionRow discussion = currentDiscussion(session);
+            updateDiscussion(discussion, discussion.state(), discussion.sourceMessageId(), discussion.designMessageId(),
+                    discussion.snapshotMarkdown(), questionSupport.appendDecision(
+                            discussion.decisionLogJson(), pending, validatedAnswers,
+                            answerSource), true,
+                    discussion.questionRetryCount(), discussion.candidateCompilationId(), null, null);
+            try {
+                openCode.replyQuestion(remote, pending.id(), validatedAnswers);
+            } catch (SessionFailure failure) {
+                throw new ServiceUnavailableException(failure.code(), safeMessage(failure.getMessage()));
             }
-            current = updateDesignerProjection(get(sessionId), DesignerSessionState.RUNNING,
-                    DesignWorkflowPhase.DESIGNING, remote.id(), "RUNNING", current.designRevision(),
-                    current.redesignCount(), current.currentRequirementRevision(), current.activeWorkPackageId());
-        } else {
-            current = updateDesignerProjection(current, DesignerSessionState.RUNNING,
-                    DesignWorkflowPhase.DISCUSSING_REQUIREMENT, remote.id(), "RUNNING",
-                    current.designRevision(), current.redesignCount());
+            if ("AUTO_RECOMMENDED".equals(answerSource)) {
+                appendMessage(session.id(), DesignerActor.SYSTEM, "全自动模式已按推荐答案回答当前设计问题。",
+                        "AUTO_RECOMMENDED", session.currentRequirementRevision(), session.activeWorkPackageId());
+            }
+            DesignerSessionRow current = get(sessionId);
+            if (!blank(current.activeWorkPackageId())) {
+                DesignWorkPackageRow workPackage = requireCurrentPackage(current, current.activeWorkPackageId());
+                if (DesignWorkPackageState.QUESTIONING.name().equals(workPackage.state()) && packageDesignCandidates.find(workPackage).isEmpty()) {
+                    updateWorkPackage(workPackage, DesignWorkPackageState.DESIGNING,
+                            workPackage.designerExternalSessionId(), "RUNNING", workPackage.designMessageId(),
+                            workPackage.designRevision(), workPackage.redesignCount(),
+                            workPackage.designerTransportRetryCount(), workPackage.compilerSummary(),
+                            workPackage.handoffSummary(), null, null);
+                }
+                current = updateDesignerProjection(get(sessionId), DesignerSessionState.RUNNING,
+                        DesignWorkflowPhase.DESIGNING, remote.id(), "RUNNING", current.designRevision(),
+                        current.redesignCount(), current.currentRequirementRevision(), current.activeWorkPackageId());
+            } else {
+                current = updateDesignerProjection(current, DesignerSessionState.RUNNING,
+                        DesignWorkflowPhase.DISCUSSING_REQUIREMENT, remote.id(), "RUNNING",
+                        current.designRevision(), current.redesignCount());
+            }
+            publish(current, "STATUS", DesignerActor.DESIGNER, true, "", "问题回答已保存，设计师正在生成完整替代稿");
         }
-        publish(current, "STATUS", DesignerActor.DESIGNER, true, "", "问题回答已保存，设计师正在生成完整替代稿");
     }
-
     public void rejectQuestion(String sessionId, String questionId) {
         DesignerSessionRow session = requireRunningDesigner(sessionId);
         if (currentDiscussion(session).questionRequired()) {
@@ -549,7 +552,6 @@ public class DesignerSessionService {
                 DesignWorkflowPhase.valueOf(get(sessionId).workflowPhase()), remote.id(), "RUNNING",
                 get(sessionId).designRevision(), get(sessionId).redesignCount());
     }
-
     public LoopDraftRow draft(String sessionId) {
         DesignerSessionRow session = get(sessionId);
         return blank(session.loopDraftId()) ? null : drafts.get(session.loopDraftId());
@@ -627,10 +629,9 @@ public class DesignerSessionService {
             throw new ServiceUnavailableException("ATTACHMENT_DELIVERY_FAILED", notice.content());
         return List.of(user, notice);
     }
-    private List<DesignerMessageRow> answerRequirementChatQuestion(DesignerSessionRow session,
-                                                                   DesignDiscussionRevisionRow discussion,
-                                                                   String content) {
-        return answerRequirementChatQuestion(session, discussion, content, null, null);
+    private boolean serverRequirementSnapshot(String sessionId) {
+        return directSoftwareMode(sessionId) || conversations.enabled(sessionId)
+                && taskProfiles.current(sessionId).workflowTemplate() == WorkflowTemplate.FULL_PACKAGE_DESIGN;
     }
 
     private List<DesignerMessageRow> answerRequirementChatQuestion(DesignerSessionRow session, DesignDiscussionRevisionRow discussion,
@@ -644,7 +645,7 @@ public class DesignerSessionService {
                 discussion.sourceMessageId(), discussion.designMessageId(), discussion.snapshotMarkdown(),
                 questionSupport.appendChatDecision(discussion.decisionLogJson(), question, user.content()), true,
                 discussion.questionRetryCount(), discussion.candidateCompilationId(), null, null);
-        if (directSoftwareMode(session.id())) {
+        if (serverRequirementSnapshot(session.id())) {
             persistServerRequirementSnapshot(get(session.id()), answered, session.externalSessionId());
             return List.of(user);
         }
@@ -656,14 +657,12 @@ public class DesignerSessionService {
         try {
             OpenCodeClient.OpenCodeSession remote = designerRemote(session);
             ProjectRow project = projects.get(session.projectId());
-            String previous = mapper.listDesignDiscussionRevisions(session.id()).stream()
-                    .filter(row -> "REQUIREMENT".equals(row.scopeKey()) && row.revision() < discussion.revision())
-                    .filter(row -> !blank(row.snapshotMarkdown())).reduce((first, second) -> second)
-                    .map(DesignDiscussionRevisionRow::snapshotMarkdown).orElse("（首次讨论，暂无上一版）");
+            String previous = conversations.previousRequirement(session.id(), discussion.revision());
             DesignerSessionRow running = updateDesignerDiscussionProjection(get(session.id()),
                     DesignerSessionState.RUNNING, DesignWorkflowPhase.DISCUSSING_REQUIREMENT,
                     remote.id(), "RUNNING", "REQUIREMENT", discussion.revision(), "SYNCING", null);
-            openCode.promptAsync(remote, attachmentContext.requirementPrompt(session.id(),
+            conversations.begin(remote, "REQUIREMENT");
+            conversations.send(remote, attachmentContext.requirementPrompt(session.id(),
                     requirementDiscussionPrompt(running, project, previous, user.content(), false, false, false)));
             DesignerMessageRow notice = appendMessage(session.id(), DesignerActor.SYSTEM,
                     "聊天回答已保存；设计师正在生成完整替代需求稿。", "PENDING_HANDOFF", null, null);
@@ -686,7 +685,6 @@ public class DesignerSessionService {
     public void confirmRequirementAutomatically(String sessionId, int expectedDiscussionRevision) {
         confirmRequirement(sessionId, expectedDiscussionRevision, "AUTO_RECOMMENDED");
     }
-
     private void confirmRequirement(String sessionId, int expectedDiscussionRevision, String actionSource) {
         DesignerSessionRow session = get(sessionId);
         requireDiscussionRevision(session, expectedDiscussionRevision);
@@ -711,7 +709,10 @@ public class DesignerSessionService {
                     "AUTO_APPROVED", revision.revision(), null);
         }
         if (directSoftware) createDirectSoftwarePackage(get(sessionId), revision);
-        else dispatchDecomposer(get(sessionId), revision, false);
+        else {
+            conversations.retire(session.externalSessionId(), "REQUIREMENT_CONFIRMED");
+            dispatchDecomposer(get(sessionId), revision, false);
+        }
     }
 
     private void createDirectSoftwarePackage(DesignerSessionRow session, DesignRequirementRevisionRow revision) {
@@ -1042,6 +1043,7 @@ public class DesignerSessionService {
         appendMessage(session.id(), DesignerActor.SYSTEM, detail,
                 "AUTO_RECOMMENDED".equals(source) ? "AUTO_APPROVED" : "APPROVED",
                 session.currentRequirementRevision(), packageId);
+        if (!"DIRECT_SOFTWARE".equals(source)) conversations.retire(approved.designerExternalSessionId(), "PACKAGE_APPROVED");
         if (rollingPackages.approvePackage(get(session.id()), approved, compilation) != null) {
             appendMessage(session.id(), DesignerActor.SYSTEM,
                     approved.ordinal() == 0
@@ -1118,150 +1120,149 @@ public class DesignerSessionService {
     private DesignerMessageRow dispatchRequirementDesigner(DesignerSessionRow input,
                                                             DesignDiscussionRevisionRow discussion,
                                                             String feedback, boolean questionRepair) {
-        if (!openCode.healthy()) {
-            waitForRequirementDiscussion(input, discussion, "OPENCODE_DESIGNER_UNAVAILABLE",
-                    "OpenCode Designer runtime is unavailable");
-            return appendMessage(input.id(), DesignerActor.SYSTEM,
-                    "SYSTEM_ERROR[SESSION] OPENCODE_DESIGNER_UNAVAILABLE: 整体需求讨论已保存，可在运行时恢复后继续。",
-                    "PENDING_HANDOFF");
-        }
-        ProjectRow project = projects.get(input.projectId());
-        try {
-            boolean questionRequired = discussion.questionRequired() && !discussion.questionAnswered();
-            boolean nativeQuestion = questionRequired && questionSupport.nativeQuestionAvailable(
-                    Path.of(project.rootPath()));
-            DesignDiscussionRevisionRow selectedDiscussion = discussion;
-            if (questionRequired && !nativeQuestion && !questionSupport.chatMode(discussion)) {
-                selectedDiscussion = updateDiscussion(discussion, CHAT_QUESTIONING,
-                        discussion.sourceMessageId(), discussion.designMessageId(), discussion.snapshotMarkdown(),
-                        discussion.decisionLogJson(), false, discussion.questionRetryCount(),
-                        discussion.candidateCompilationId(), null, null);
+        try (var guard = conversations.guard(input.id())) {
+            if (!openCode.healthy()) {
+                waitForRequirementDiscussion(input, discussion, "OPENCODE_DESIGNER_UNAVAILABLE",
+                        "OpenCode Designer runtime is unavailable");
+                return appendMessage(input.id(), DesignerActor.SYSTEM,
+                        "SYSTEM_ERROR[SESSION] OPENCODE_DESIGNER_UNAVAILABLE: 整体需求讨论已保存，可在运行时恢复后继续。",
+                        "PENDING_HANDOFF");
             }
-            DesignDiscussionRevisionRow activeDiscussion = selectedDiscussion;
-            OpenCodeClient.OpenCodeSession remote = !questionRepair && reusableDesigner(input)
-                    ? designerRemote(input)
-                    : openCode.createSession(Path.of(project.rootPath()),
-                    "OpenCode Loopper Requirement Designer (READ_ONLY)", configuredModel(),
-                    nativeQuestion ? OpenCodeClient.SessionProfile.DESIGNER_INTERACTIVE_READ_ONLY
-                            : OpenCodeClient.SessionProfile.GENERAL_READ_ONLY);
-            DesignerSessionRow running = updateDesignerDiscussionProjection(input, DesignerSessionState.RUNNING,
-                    DesignWorkflowPhase.DISCUSSING_REQUIREMENT, remote.id(), "RUNNING", "REQUIREMENT",
-                    activeDiscussion.revision(), "SYNCING", null);
-            String previous = mapper.listDesignDiscussionRevisions(input.id()).stream()
-                    .filter(row -> "REQUIREMENT".equals(row.scopeKey()) && row.revision() < activeDiscussion.revision())
-                    .filter(row -> !blank(row.snapshotMarkdown())).reduce((first, second) -> second)
-                    .map(DesignDiscussionRevisionRow::snapshotMarkdown).orElse("（首次讨论，暂无上一版）");
-            openCode.promptAsync(remote, attachmentContext.requirementPrompt(input.id(), requirementDiscussionPrompt(
-                    running, project, previous, feedback, questionRepair, questionRequired, nativeQuestion)));
-            publish(running, "STATUS", DesignerActor.DESIGNER, true, "",
-                    !questionRequired ? "设计师正在生成完整替代需求稿"
-                            : nativeQuestion ? questionRepair ? "设计师正在补做必需的设计问题"
-                            : "设计师将先询问 1–3 个设计问题"
-                            : "设计师正在生成兼容模式问题");
-            boolean serverSnapshot = directSoftwareMode(input.id());
-            return appendMessage(input.id(), DesignerActor.SYSTEM,
-                    !questionRequired ? "聊天回答已交给只读设计师，正在生成完整替代需求稿。"
-                            : !nativeQuestion ? "当前 OpenCode 不提供选项式提问；设计师将以普通消息提问，请直接在输入框回答。"
-                            : questionRepair ? "设计师遗漏了必需问题，已在全新只读 Session 中补问。"
-                            : serverSnapshot
-                                    ? "本轮整体需求讨论已交给只读设计师；回答后由服务端原样生成需求快照。"
-                                    : "本轮整体需求讨论已交给只读设计师；回答问题后会保存完整替代需求稿。",
-                    "PENDING_HANDOFF", null, null);
-        } catch (RuntimeException failure) {
-            waitForRequirementDiscussion(input, discussion, "OPENCODE_DESIGNER_HANDOFF_FAILED",
-                    failure.getMessage());
-            return appendMessage(input.id(), DesignerActor.SYSTEM,
-                    "SYSTEM_ERROR[SESSION] OPENCODE_DESIGNER_HANDOFF_FAILED: " + safeMessage(failure.getMessage()),
-                    "TERMINAL_ERROR", null, null);
+            ProjectRow project = projects.get(input.projectId());
+            try {
+                boolean questionRequired = discussion.questionRequired() && !discussion.questionAnswered();
+                boolean nativeQuestion = questionRequired && questionSupport.nativeQuestionAvailable(
+                        Path.of(project.rootPath()));
+                DesignDiscussionRevisionRow selectedDiscussion = discussion;
+                if (questionRequired && !nativeQuestion && !questionSupport.chatMode(discussion)) {
+                    selectedDiscussion = updateDiscussion(discussion, CHAT_QUESTIONING,
+                            discussion.sourceMessageId(), discussion.designMessageId(), discussion.snapshotMarkdown(),
+                            discussion.decisionLogJson(), false, discussion.questionRetryCount(),
+                            discussion.candidateCompilationId(), null, null);
+                }
+                DesignDiscussionRevisionRow activeDiscussion = selectedDiscussion;
+                OpenCodeClient.OpenCodeSession remote = conversations.requirement(input, Path.of(project.rootPath()),
+                        configuredModel(), directSoftwareMode(input.id()) && packageDesignCandidates.eligibility().candidate(), nativeQuestion, questionRepair);
+                DesignerSessionRow running = updateDesignerDiscussionProjection(input, DesignerSessionState.RUNNING,
+                        DesignWorkflowPhase.DISCUSSING_REQUIREMENT, remote.id(), "RUNNING", "REQUIREMENT",
+                        activeDiscussion.revision(), "SYNCING", null);
+                String previous = conversations.previousRequirement(input.id(), activeDiscussion.revision());
+                conversations.begin(remote, "REQUIREMENT");
+                conversations.send(remote, attachmentContext.requirementPrompt(input.id(), requirementDiscussionPrompt(
+                        running, project, previous, feedback, questionRepair, questionRequired, nativeQuestion)));
+                publish(running, "STATUS", DesignerActor.DESIGNER, true, "",
+                        !questionRequired ? "设计师正在生成完整替代需求稿"
+                                : nativeQuestion ? questionRepair ? "设计师正在补做必需的设计问题"
+                                : "设计师将先询问 1–3 个设计问题"
+                                : "设计师正在生成兼容模式问题");
+                boolean serverSnapshot = directSoftwareMode(input.id());
+                return appendMessage(input.id(), DesignerActor.SYSTEM,
+                        !questionRequired ? "聊天回答已交给只读设计师，正在生成完整替代需求稿。"
+                                : !nativeQuestion ? "当前 OpenCode 不提供选项式提问；设计师将以普通消息提问，请直接在输入框回答。"
+                                : questionRepair ? "设计师遗漏了必需问题，已在全新只读 Session 中补问。"
+                                : serverSnapshot
+                                        ? "本轮整体需求讨论已交给只读设计师；回答后由服务端原样生成需求快照。"
+                                        : "本轮整体需求讨论已交给只读设计师；回答问题后会保存完整替代需求稿。",
+                        "PENDING_HANDOFF", null, null);
+            } catch (RuntimeException failure) {
+                waitForRequirementDiscussion(input, discussion, "OPENCODE_DESIGNER_HANDOFF_FAILED",
+                        failure.getMessage());
+                return appendMessage(input.id(), DesignerActor.SYSTEM,
+                        "SYSTEM_ERROR[SESSION] OPENCODE_DESIGNER_HANDOFF_FAILED: " + safeMessage(failure.getMessage()),
+                        "TERMINAL_ERROR", null, null);
+            }
         }
     }
 
     private void pollRequirementDesigner(DesignerSessionRow input) {
-        DesignerSessionRow session = get(input.id());
-        DesignDiscussionRevisionRow discussion = currentDiscussion(session);
-        OpenCodeClient.OpenCodeSession remote = designerRemote(session);
-        try {
-            if (WAITING_CHAT_ANSWER.equals(discussion.state())) return;
-            if (!questionSupport.chatMode(discussion)) {
-                List<OpenCodeClient.PendingQuestion> pending = openCode.pendingQuestions(remote);
-                if (!pending.isEmpty()) {
-                    if (!same(session.externalSessionState(), "WAITING_INPUT")) {
-                        session = updateDesignerDiscussionProjection(session, DesignerSessionState.RUNNING,
-                                DesignWorkflowPhase.DISCUSSING_REQUIREMENT, remote.id(), "WAITING_INPUT",
-                                "REQUIREMENT", discussion.revision(), "SYNCING", null);
-                    }
-                    publish(session, "STATUS", DesignerActor.DESIGNER, true, openCode.sessionLiveOutput(remote),
-                            "设计师正在等待整体需求问题的回答");
-                    return;
-                }
-            }
-            OpenCodeClient.SessionStatus status = openCode.sessionStatus(remote);
-            if (status.retrying()) {
-                if (!same(session.externalSessionState(), status.state())) {
-                    DesignerSessionRow retrying = updateDesignerDiscussionProjection(session,
-                            DesignerSessionState.RUNNING, DesignWorkflowPhase.DISCUSSING_REQUIREMENT,
-                            remote.id(), status.state(), "REQUIREMENT", discussion.revision(), "SYNCING", null);
-                    publish(retrying, "STATUS", DesignerActor.DESIGNER, true, "",
-                            "需求设计师正在等待 Provider 瞬态重试恢复");
-                }
-                return;
-            } else if (status.failed()) {
-                waitForRequirementDiscussion(session, discussion,
-                        "OPENCODE_DESIGNER_" + safeState(status.state()), statusDetail(status));
-            } else if (status.completed()) {
-                if (discussion.questionRequired() && !discussion.questionAnswered()) {
-                    if (questionSupport.chatMode(discussion)) {
-                        persistChatQuestion(session, discussion, remote, null);
+        try (var guard = conversations.guard(input.id())) {
+            DesignerSessionRow session = get(input.id());
+            DesignDiscussionRevisionRow discussion = currentDiscussion(session);
+            try {
+                OpenCodeClient.OpenCodeSession remote = designerRemote(session);
+                if (WAITING_CHAT_ANSWER.equals(discussion.state())) return;
+                if (!questionSupport.chatMode(discussion)) {
+                    List<OpenCodeClient.PendingQuestion> pending = openCode.pendingQuestions(remote);
+                    if (!pending.isEmpty()) {
+                        if (!same(session.externalSessionState(), "WAITING_INPUT")) {
+                            session = updateDesignerDiscussionProjection(session, DesignerSessionState.RUNNING,
+                                    DesignWorkflowPhase.DISCUSSING_REQUIREMENT, remote.id(), "WAITING_INPUT",
+                                    "REQUIREMENT", discussion.revision(), "SYNCING", null);
+                        }
+                        publish(session, "STATUS", DesignerActor.DESIGNER, true, openCode.sessionLiveOutput(remote),
+                                "设计师正在等待整体需求问题的回答");
                         return;
                     }
-                    runtimeControl.requireStoppedBeforeReplacement(remote.id(), session.projectId());
-                    if (discussion.questionRetryCount() < 1) {
-                        DesignDiscussionRevisionRow repaired = updateDiscussion(discussion, "QUESTIONING",
-                                discussion.sourceMessageId(), discussion.designMessageId(), discussion.snapshotMarkdown(),
-                                discussion.decisionLogJson(), false, discussion.questionRetryCount() + 1,
-                                discussion.candidateCompilationId(), "DESIGN_QUESTION_REQUIRED",
-                                "Designer completed before asking the required question");
-                        dispatchRequirementDesigner(get(session.id()), repaired,
-                                messageContent(repaired.sourceMessageId()), true);
-                    } else {
-                        waitForRequirementDiscussion(session, discussion, "DESIGN_QUESTION_REQUIRED",
-                                "Designer twice completed without asking the required design question");
+                }
+                OpenCodeClient.SessionStatus status = openCode.sessionStatus(remote);
+                if (status.retrying()) {
+                    if (!same(session.externalSessionState(), status.state())) {
+                        DesignerSessionRow retrying = updateDesignerDiscussionProjection(session,
+                                DesignerSessionState.RUNNING, DesignWorkflowPhase.DISCUSSING_REQUIREMENT,
+                                remote.id(), status.state(), "REQUIREMENT", discussion.revision(), "SYNCING", null);
+                        publish(retrying, "STATUS", DesignerActor.DESIGNER, true, "",
+                                "需求设计师正在等待 Provider 瞬态重试恢复");
                     }
                     return;
+                } else if (status.failed()) {
+                    waitForRequirementDiscussion(session, discussion,
+                            "OPENCODE_DESIGNER_" + safeState(status.state()), statusDetail(status));
+                } else if (status.completed()) {
+                    conversations.settle(remote.id());
+                    if (discussion.questionRequired() && !discussion.questionAnswered()) {
+                        if (questionSupport.chatMode(discussion)) {
+                            persistChatQuestion(session, discussion, remote, null);
+                            return;
+                        }
+                        runtimeControl.requireStoppedBeforeReplacement(remote.id(), session.projectId());
+                        if (discussion.questionRetryCount() < 1) {
+                            DesignDiscussionRevisionRow repaired = updateDiscussion(discussion, "QUESTIONING",
+                                    discussion.sourceMessageId(), discussion.designMessageId(), discussion.snapshotMarkdown(),
+                                    discussion.decisionLogJson(), false, discussion.questionRetryCount() + 1,
+                                    discussion.candidateCompilationId(), "DESIGN_QUESTION_REQUIRED",
+                                    "Designer completed before asking the required question");
+                            dispatchRequirementDesigner(get(session.id()), repaired,
+                                    messageContent(repaired.sourceMessageId()), true);
+                        } else {
+                            waitForRequirementDiscussion(session, discussion, "DESIGN_QUESTION_REQUIRED",
+                                    "Designer twice completed without asking the required design question");
+                        }
+                        return;
+                    }
+                    if (serverRequirementSnapshot(session.id())) {
+                        completeServerRequirementSnapshot(session, discussion, remote);
+                        return;
+                    }
+                    String markdown = questionSupport.markdown(openCode.sessionOutput(remote));
+                    if (blank(markdown) || markdown.getBytes(java.nio.charset.StandardCharsets.UTF_8).length
+                            > MAX_REQUIREMENT_SNAPSHOT_LENGTH) {
+                        waitForRequirementDiscussion(session, discussion, blank(markdown)
+                                        ? "DESIGN_OUTPUT_MISSING" : "DESIGN_OUTPUT_TOO_LARGE",
+                                "Designer must return one complete Markdown requirement snapshot no larger than 24 KiB");
+                        return;
+                    }
+                    DesignerMessageRow design = appendMessage(session.id(), DesignerActor.DESIGNER, markdown,
+                            "PERSISTED", null, null);
+                    updateDiscussion(discussion, "REVIEWING", discussion.sourceMessageId(), design.id(), markdown,
+                            discussion.decisionLogJson(), true, discussion.questionRetryCount(), null, null, null);
+                    DesignerSessionRow reviewing = updateDesignerDiscussionProjection(get(session.id()),
+                            DesignerSessionState.REVIEWING, DesignWorkflowPhase.DISCUSSING_REQUIREMENT,
+                            remote.id(), "COMPLETED", "REQUIREMENT", discussion.revision(), "SYNCED", null);
+                    taskProfiles.reroute(session.id(), markdown);
+                    appendMessage(session.id(), DesignerActor.SYSTEM,
+                            "完整需求稿已变化，正在异步重新识别任务设置；识别完成前不能确认需求。",
+                            "PERSISTED", null, null);
+                    publish(reviewing, "COMPLETED", DesignerActor.DESIGNER, true, "",
+                            "完整需求稿已保存；继续讨论或确认后开始拆包");
+                } else if (!same(session.externalSessionState(), status.state())) {
+                    updateDesignerDiscussionProjection(session, DesignerSessionState.RUNNING,
+                            DesignWorkflowPhase.DISCUSSING_REQUIREMENT, remote.id(), status.state(),
+                            "REQUIREMENT", discussion.revision(), "SYNCING", null);
                 }
-                if (directSoftwareMode(session.id())) {
-                    completeServerRequirementSnapshot(session, discussion, remote);
-                    return;
-                }
-                String markdown = questionSupport.markdown(openCode.sessionOutput(remote));
-                if (blank(markdown) || markdown.getBytes(java.nio.charset.StandardCharsets.UTF_8).length
-                        > MAX_REQUIREMENT_SNAPSHOT_LENGTH) {
-                    waitForRequirementDiscussion(session, discussion, blank(markdown)
-                                    ? "DESIGN_OUTPUT_MISSING" : "DESIGN_OUTPUT_TOO_LARGE",
-                            "Designer must return one complete Markdown requirement snapshot no larger than 24 KiB");
-                    return;
-                }
-                DesignerMessageRow design = appendMessage(session.id(), DesignerActor.DESIGNER, markdown,
-                        "PERSISTED", null, null);
-                updateDiscussion(discussion, "REVIEWING", discussion.sourceMessageId(), design.id(), markdown,
-                        discussion.decisionLogJson(), true, discussion.questionRetryCount(), null, null, null);
-                DesignerSessionRow reviewing = updateDesignerDiscussionProjection(get(session.id()),
-                        DesignerSessionState.REVIEWING, DesignWorkflowPhase.DISCUSSING_REQUIREMENT,
-                        remote.id(), "COMPLETED", "REQUIREMENT", discussion.revision(), "SYNCED", null);
-                taskProfiles.reroute(session.id(), markdown);
-                appendMessage(session.id(), DesignerActor.SYSTEM,
-                        "完整需求稿已变化，正在异步重新识别任务设置；识别完成前不能确认需求。",
-                        "PERSISTED", null, null);
-                publish(reviewing, "COMPLETED", DesignerActor.DESIGNER, true, "",
-                        "完整需求稿已保存；继续讨论或确认后开始拆包");
-            } else if (!same(session.externalSessionState(), status.state())) {
-                updateDesignerDiscussionProjection(session, DesignerSessionState.RUNNING,
-                        DesignWorkflowPhase.DISCUSSING_REQUIREMENT, remote.id(), status.state(),
-                        "REQUIREMENT", discussion.revision(), "SYNCING", null);
+            } catch (RuntimeException failure) {
+                waitForRequirementDiscussion(session, discussion, "OPENCODE_DESIGNER_STATUS_FAILED",
+                        failure.getMessage());
             }
-        } catch (RuntimeException failure) {
-            waitForRequirementDiscussion(session, discussion, "OPENCODE_DESIGNER_STATUS_FAILED",
-                    failure.getMessage());
         }
     }
 
@@ -1274,6 +1275,7 @@ public class DesignerSessionService {
     private void persistServerRequirementSnapshot(DesignerSessionRow session,
                                                   DesignDiscussionRevisionRow discussion,
                                                   String externalSessionId) {
+        conversations.settle(session.externalSessionId());
         String markdown = assembleServerRequirementSnapshot(session.id());
         if (markdown.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > MAX_REQUIREMENT_SNAPSHOT_LENGTH) {
             waitForRequirementDiscussion(session, discussion, "REQUIREMENT_SNAPSHOT_TOO_LARGE",
@@ -2030,222 +2032,220 @@ public class DesignerSessionService {
     }
     void dispatchPackageDesigner(DesignerSessionRow session, DesignWorkPackageRow input,
                                  String replacementPrompt, boolean redesign) {
-        DesignRequirementRevisionRow revision = getRequirement(input.requirementRevisionId());
-        requirementDraftGuard.requireUnchanged(session, revision.sourceDraftVersion());
-        if (!isCurrent(session, revision)) throw new ConflictException("REQUIREMENT_REVISION_STALE",
-                "This work package belongs to a superseded requirement revision");
-        if (redesign && input.redesignCount() >= MAX_AUTOMATIC_REDESIGNS) {
-            waitForDesignInput(session, revision, input, "DESIGN_RETRY_EXHAUSTED",
-                    "The work package already used its one complete redesign");
-            return;
-        }
-        if (!openCode.healthy()) {
-            waitForDesignInput(session, revision, input, "OPENCODE_DESIGNER_UNAVAILABLE",
-                    "OpenCode Designer runtime is unavailable");
-            return;
-        }
-        ProjectRow project = designProject(session);
-        try {
-            boolean directSoftware = directSoftwareMode(session.id());
-            boolean questionRepair = replacementPrompt != null && replacementPrompt.startsWith("QUESTION_REPAIR:");
-            DesignDiscussionRevisionRow discussion = mapper.findLatestDesignDiscussionRevision(
-                    session.id(), input.packageId()).filter(row -> Set.of("QUESTIONING", "DESIGNING",
-                            CHAT_QUESTIONING, WAITING_CHAT_ANSWER, CHAT_DESIGNING).contains(row.state()))
-                    .orElseGet(() -> createDiscussion(session, input.packageId(), input.packageId(),
-                            nextDiscussionRevision(session.id(), input.packageId()), null, 0, !directSoftware));
-            boolean questionRequired = discussion.questionRequired() && !discussion.questionAnswered();
-            boolean nativeQuestion = questionRequired && questionSupport.nativeQuestionAvailable(
-                    Path.of(project.rootPath()));
-            DesignerPackageCandidateOrchestrator.Eligibility candidateEligibility =
-                    packageDesignCandidates.eligibility();
-            boolean candidateTurn = !questionRequired || nativeQuestion;
-            boolean usePackageCandidate = candidateTurn && candidateEligibility.candidate();
-            if (questionRequired && !nativeQuestion && !questionSupport.chatMode(discussion)) {
-                discussion = updateDiscussion(discussion, CHAT_QUESTIONING,
-                        discussion.sourceMessageId(), discussion.designMessageId(), discussion.snapshotMarkdown(),
-                        discussion.decisionLogJson(), false, discussion.questionRetryCount(),
-                        discussion.candidateCompilationId(), null, null);
-            }
-            OpenCodeClient.OpenCodeSession remote = usePackageCandidate
-                    ? packageDesignCandidates.create(Path.of(project.rootPath()), input.packageId(),
-                    configuredModel(), nativeQuestion)
-                    : !questionRepair && !blank(input.designerExternalSessionId())
-                    && !Set.of("FAILED", "ABORTED", "SUPERSEDED").contains(String.valueOf(input.designerExternalSessionState()))
-                    ? new OpenCodeClient.OpenCodeSession(input.designerExternalSessionId(), Path.of(project.rootPath()))
-                    : openCode.createSession(Path.of(project.rootPath()),
-                    "OpenCode Loopper Designer " + input.packageId() + " (READ_ONLY)", configuredModel(),
-                    nativeQuestion ? OpenCodeClient.SessionProfile.DESIGNER_INTERACTIVE_READ_ONLY
-                            : OpenCodeClient.SessionProfile.GENERAL_READ_ONLY);
-            int redesignCount = redesign ? input.redesignCount() + 1 : input.redesignCount();
-            DesignWorkPackageRow designing = updateWorkPackage(input, !questionRequired
-                            ? DesignWorkPackageState.DESIGNING : DesignWorkPackageState.QUESTIONING,
-                    remote.id(), "RUNNING", input.designMessageId(), input.designRevision(), redesignCount,
-                    input.designerTransportRetryCount(), input.compilerSummary(), input.handoffSummary(), null, null);
-            DesignerSessionRow running = updateDesignerDiscussionProjection(get(session.id()),
-                    DesignerSessionState.RUNNING, !questionRequired
-                            ? DesignWorkflowPhase.DESIGNING : DesignWorkflowPhase.QUESTIONING_PACKAGE,
-                    remote.id(), "RUNNING", input.packageId(), discussion.revision(), "SYNCING", input.packageId());
-            if (!consumeModelCall(running, revision, "WORK_PACKAGE_MODEL_CALL_LIMIT")) {
-                if (usePackageCandidate) packageDesignCandidates.closeQuietly(designing);
-                runtimeControl.abortQuietly(remote.id(), session.projectId());
+        try (var guard = conversations.guard(session.id())) {
+            DesignRequirementRevisionRow revision = getRequirement(input.requirementRevisionId());
+            requirementDraftGuard.requireUnchanged(session, revision.sourceDraftVersion());
+            if (!isCurrent(session, revision)) throw new ConflictException("REQUIREMENT_REVISION_STALE",
+                    "This work package belongs to a superseded requirement revision");
+            if (redesign && input.redesignCount() >= MAX_AUTOMATIC_REDESIGNS) {
+                waitForDesignInput(session, revision, input, "DESIGN_RETRY_EXHAUSTED",
+                        "The work package already used its one complete redesign");
                 return;
             }
-            String prefix = questionRepair ? replacementPrompt.substring("QUESTION_REPAIR:".length()) : replacementPrompt;
-            String basePrompt = prefix == null
-                    ? packageDesignerPrompt(running, project, revision, designing, questionRequired, nativeQuestion)
-                    : prefix + "\n\n" + packageDesignerPrompt(running, project, revision, designing,
-                    questionRequired, nativeQuestion);
-            String prompt = usePackageCandidate
-                    ? packageDesignCandidates.open(designing, remote, basePrompt).prompt() : basePrompt;
-            openCode.promptAsync(remote, attachmentContext.packagePrompt(session.id(), input.packageId(), prompt));
-            publish(running, "STATUS", DesignerActor.DESIGNER, true, "",
-                    !questionRequired ? input.packageId() + " 正在生成完整设计"
-                            : nativeQuestion ? input.packageId() + " 正在先询问 1–3 个设计问题"
-                            : input.packageId() + " 正在生成兼容模式问题");
-            appendMessage(session.id(), DesignerActor.SYSTEM,
-                    input.packageId() + (!questionRequired ? " 已交给只读设计师直接生成完整替代设计稿，不再重复提问。"
-                            : !nativeQuestion ? " 当前 OpenCode 不提供选项式提问；请在设计师发问后直接使用输入框回答。"
-                            : questionRepair ? " 已在全新只读 Session 中补做必需问题。"
-                            : " 已交给只读设计师；回答问题后生成完整替代设计稿。"), "PENDING_HANDOFF",
-                    revision.revision(), input.packageId());
-        } catch (ConflictException failure) {
-            packageDesignCandidateWorkflow.failHandoff(
-                    this, input, session, failure.code(), failure.getMessage(), false);
-        } catch (SessionFailure failure) {
-            packageDesignCandidateWorkflow.failHandoff(
-                    this, input, session, failure.code(), failure.getMessage(), true);
-        } catch (RuntimeException failure) {
-            packageDesignCandidateWorkflow.failHandoff(this, input, session,
-                    "OPENCODE_PACKAGE_DESIGNER_HANDOFF_FAILED", failure.getMessage(), true);
-        }
-    }
-    synchronized void pollWorkPackageDesigner(DesignWorkPackageRow input) {
-        DesignWorkPackageRow workPackage = getWorkPackage(input.id());
-        DesignerSessionRow session = get(workPackage.designerSessionId());
-        DesignRequirementRevisionRow revision = getRequirement(workPackage.requirementRevisionId());
-        if (!isCurrent(session, revision)) return;
-        ProjectRow project = designProject(session);
-        OpenCodeClient.OpenCodeSession remote = new OpenCodeClient.OpenCodeSession(
-                workPackage.designerExternalSessionId(), Path.of(project.rootPath()));
-        DesignDiscussionRevisionRow discussion = mapper.findLatestDesignDiscussionRevision(
-                session.id(), workPackage.packageId()).orElseThrow(() -> new ConflictException(
-                "DESIGN_DISCUSSION_MISSING", "工作包讨论快照不存在"));
-        try {
-            requirementDraftGuard.requireUnchanged(session, revision.sourceDraftVersion());
-            if (WAITING_CHAT_ANSWER.equals(discussion.state())) return;
-            if (!questionSupport.chatMode(discussion)) {
-                List<OpenCodeClient.PendingQuestion> pending = openCode.pendingQuestions(remote);
-                if (!pending.isEmpty()) {
-                    if (directSoftwareMode(session.id())) {
-                        runtimeControl.abortQuietly(remote.id(), session.projectId());
-                        failPackageDesigner(workPackage, session, "DIRECT_PACKAGE_QUESTION_NOT_ALLOWED",
-                                "普通单包设计不得再次提问，请直接生成完整替代设计稿", false);
-                        return;
-                    }
-                    // Designer is the only model role allowed to request user input.
-                    DesignWorkPackageRow waiting = updateWorkPackage(workPackage, DesignWorkPackageState.QUESTIONING,
-                            remote.id(), "WAITING_INPUT", workPackage.designMessageId(), workPackage.designRevision(),
-                            workPackage.redesignCount(), workPackage.designerTransportRetryCount(),
-                            workPackage.compilerSummary(), workPackage.handoffSummary(), null, null);
-                    updateDesignerDiscussionProjection(session, DesignerSessionState.RUNNING,
-                            DesignWorkflowPhase.QUESTIONING_PACKAGE, remote.id(), "WAITING_INPUT",
-                            waiting.packageId(), discussion.revision(), "SYNCING", waiting.packageId());
-                    publish(session, "STATUS", DesignerActor.DESIGNER, true, openCode.sessionLiveOutput(remote),
-                            workPackage.packageId() + " 的设计师正在等待你的回答");
+            if (!openCode.healthy()) {
+                waitForDesignInput(session, revision, input, "OPENCODE_DESIGNER_UNAVAILABLE",
+                        "OpenCode Designer runtime is unavailable");
+                return;
+            }
+            ProjectRow project = designProject(session);
+            try {
+                boolean directSoftware = directSoftwareMode(session.id());
+                boolean questionRepair = replacementPrompt != null && replacementPrompt.startsWith("QUESTION_REPAIR:");
+                DesignDiscussionRevisionRow discussion = mapper.findLatestDesignDiscussionRevision(
+                        session.id(), input.packageId()).filter(row -> Set.of("QUESTIONING", "DESIGNING",
+                                CHAT_QUESTIONING, WAITING_CHAT_ANSWER, CHAT_DESIGNING).contains(row.state()))
+                        .orElseGet(() -> createDiscussion(session, input.packageId(), input.packageId(),
+                                nextDiscussionRevision(session.id(), input.packageId()), null, 0, !directSoftware));
+                boolean questionRequired = discussion.questionRequired() && !discussion.questionAnswered();
+                boolean nativeQuestion = questionRequired && questionSupport.nativeQuestionAvailable(
+                        Path.of(project.rootPath()));
+                DesignerPackageCandidateOrchestrator.Eligibility candidateEligibility =
+                        packageDesignCandidates.eligibility();
+                boolean candidateTurn = !questionRequired || nativeQuestion;
+                boolean usePackageCandidate = candidateTurn && candidateEligibility.candidate();
+                if (questionRequired && !nativeQuestion && !questionSupport.chatMode(discussion)) {
+                    discussion = updateDiscussion(discussion, CHAT_QUESTIONING,
+                            discussion.sourceMessageId(), discussion.designMessageId(), discussion.snapshotMarkdown(),
+                            discussion.decisionLogJson(), false, discussion.questionRetryCount(),
+                            discussion.candidateCompilationId(), null, null);
+                }
+                OpenCodeClient.OpenCodeSession remote = conversations.workPackage(session, input, Path.of(project.rootPath()),
+                        configuredModel(), candidateEligibility.candidate(), usePackageCandidate, nativeQuestion, directSoftware, questionRepair);
+                usePackageCandidate = candidateTurn && conversations.candidate(remote.id(), usePackageCandidate);
+                int redesignCount = redesign ? input.redesignCount() + 1 : input.redesignCount();
+                DesignWorkPackageRow designing = updateWorkPackage(input, !questionRequired || usePackageCandidate
+                                ? DesignWorkPackageState.DESIGNING : DesignWorkPackageState.QUESTIONING,
+                        remote.id(), "RUNNING", input.designMessageId(), input.designRevision(), redesignCount,
+                        input.designerTransportRetryCount(), input.compilerSummary(), input.handoffSummary(), null, null);
+                DesignerSessionRow running = updateDesignerDiscussionProjection(get(session.id()),
+                        DesignerSessionState.RUNNING, !questionRequired
+                                ? DesignWorkflowPhase.DESIGNING : DesignWorkflowPhase.QUESTIONING_PACKAGE,
+                        remote.id(), "RUNNING", input.packageId(), discussion.revision(), "SYNCING", input.packageId());
+                if (!consumeModelCall(running, revision, "WORK_PACKAGE_MODEL_CALL_LIMIT")) {
+                    if (usePackageCandidate) packageDesignCandidates.closeQuietly(designing);
+                    runtimeControl.abortQuietly(remote.id(), session.projectId());
                     return;
                 }
+                String prefix = questionRepair ? replacementPrompt.substring("QUESTION_REPAIR:".length()) : replacementPrompt;
+                String basePrompt = prefix == null
+                        ? packageDesignerPrompt(running, project, revision, designing, questionRequired, nativeQuestion)
+                        : prefix + "\n\n" + packageDesignerPrompt(running, project, revision, designing,
+                        questionRequired, nativeQuestion);
+                conversations.begin(remote, questionRequired ? "PACKAGE_QUESTION" : "PACKAGE_DESIGN");
+                String prompt = usePackageCandidate
+                        ? packageDesignCandidates.open(designing, remote, basePrompt).prompt() : basePrompt;
+                conversations.send(remote, attachmentContext.packagePrompt(session.id(), input.packageId(), prompt));
+                publish(running, "STATUS", DesignerActor.DESIGNER, true, "",
+                        !questionRequired ? input.packageId() + " 正在生成完整设计"
+                                : nativeQuestion ? input.packageId() + " 正在先询问 1–3 个设计问题"
+                                : input.packageId() + " 正在生成兼容模式问题");
+                appendMessage(session.id(), DesignerActor.SYSTEM,
+                        input.packageId() + (!questionRequired ? " 已交给只读设计师直接生成完整替代设计稿，不再重复提问。"
+                                : !nativeQuestion ? " 当前 OpenCode 不提供选项式提问；请在设计师发问后直接使用输入框回答。"
+                                : questionRepair ? " 已在全新只读 Session 中补做必需问题。"
+                                : " 已交给只读设计师；回答问题后生成完整替代设计稿。"), "PENDING_HANDOFF",
+                        revision.revision(), input.packageId());
+            } catch (ConflictException failure) {
+                packageDesignCandidateWorkflow.failHandoff(
+                        this, input, session, failure.code(), failure.getMessage(), false);
+            } catch (SessionFailure failure) {
+                packageDesignCandidateWorkflow.failHandoff(
+                        this, input, session, failure.code(), failure.getMessage(), true);
+            } catch (RuntimeException failure) {
+                packageDesignCandidateWorkflow.failHandoff(this, input, session,
+                        "OPENCODE_PACKAGE_DESIGNER_HANDOFF_FAILED", failure.getMessage(), true);
             }
-            if (packageDesignCandidates.find(workPackage).isPresent()) {
-                packageDesignCandidateWorkflow.handle(this, workPackage, session, revision, discussion,
-                        packageDesignCandidates.poll(workPackage, Path.of(project.rootPath()),
-                                timedOut(workPackage.updatedAt(), workPackage.designerExternalSessionId())));
-                return;
-            }
-            if (timedOut(workPackage.updatedAt(), workPackage.designerExternalSessionId())) {
-                try { openCode.abort(remote); } catch (RuntimeException ignored) { }
-                failPackageDesigner(workPackage, session, "OPENCODE_PACKAGE_DESIGNER_TIMEOUT",
-                        "Package Designer exceeded " + defaults.getDesignerTimeout(), true);
-                return;
-            }
-            OpenCodeClient.SessionStatus status = openCode.sessionStatus(remote);
-            if (status.retrying()) {
-                boolean changed = !same(workPackage.designerExternalSessionState(), status.state())
-                        || !same(session.externalSessionState(), status.state());
-                if (changed) {
-                    updateWorkPackage(workPackage, DesignWorkPackageState.valueOf(workPackage.state()),
-                            remote.id(), status.state(), workPackage.designMessageId(), workPackage.designRevision(),
-                            workPackage.redesignCount(), workPackage.designerTransportRetryCount(),
-                            workPackage.compilerSummary(), workPackage.handoffSummary(),
-                            workPackage.lastErrorCode(), workPackage.lastErrorDetail());
-                    DesignerSessionRow retrying = updateDesignerProjection(get(session.id()),
+        }
+    }
+    void pollWorkPackageDesigner(DesignWorkPackageRow input) {
+        try (var guard = conversations.guard(input.designerSessionId())) {
+            DesignWorkPackageRow workPackage = getWorkPackage(input.id());
+            DesignerSessionRow session = get(workPackage.designerSessionId());
+            DesignRequirementRevisionRow revision = getRequirement(workPackage.requirementRevisionId());
+            if (!isCurrent(session, revision)) return;
+            ProjectRow project = designProject(session);
+            DesignDiscussionRevisionRow discussion = mapper.findLatestDesignDiscussionRevision(
+                    session.id(), workPackage.packageId()).orElseThrow(() -> new ConflictException(
+                    "DESIGN_DISCUSSION_MISSING", "工作包讨论快照不存在"));
+            try {
+                OpenCodeClient.OpenCodeSession remote = conversations.remote(workPackage.designerExternalSessionId(), Path.of(project.rootPath()));
+                requirementDraftGuard.requireUnchanged(session, revision.sourceDraftVersion());
+                if (WAITING_CHAT_ANSWER.equals(discussion.state())) return;
+                if (!questionSupport.chatMode(discussion)) {
+                    List<OpenCodeClient.PendingQuestion> pending = openCode.pendingQuestions(remote);
+                    if (!pending.isEmpty()) {
+                        if (directSoftwareMode(session.id())) {
+                            runtimeControl.abortQuietly(remote.id(), session.projectId());
+                            failPackageDesigner(workPackage, session, "DIRECT_PACKAGE_QUESTION_NOT_ALLOWED",
+                                    "普通单包设计不得再次提问，请直接生成完整替代设计稿", false);
+                            return;
+                        }
+                        // Designer is the only model role allowed to request user input.
+                        DesignWorkPackageRow waiting = packageDesignCandidates.find(workPackage).isPresent() ? workPackage : updateWorkPackage(workPackage, DesignWorkPackageState.QUESTIONING,
+                                remote.id(), "WAITING_INPUT", workPackage.designMessageId(), workPackage.designRevision(),
+                                workPackage.redesignCount(), workPackage.designerTransportRetryCount(),
+                                workPackage.compilerSummary(), workPackage.handoffSummary(), null, null);
+                        updateDesignerDiscussionProjection(session, DesignerSessionState.RUNNING,
+                                DesignWorkflowPhase.QUESTIONING_PACKAGE, remote.id(), "WAITING_INPUT",
+                                waiting.packageId(), discussion.revision(), "SYNCING", waiting.packageId());
+                        publish(session, "STATUS", DesignerActor.DESIGNER, true, openCode.sessionLiveOutput(remote),
+                                workPackage.packageId() + " 的设计师正在等待你的回答");
+                        return;
+                    }
+                }
+                if (packageDesignCandidates.find(workPackage).isPresent()) {
+                    packageDesignCandidateWorkflow.handle(this, workPackage, session, revision, discussion,
+                            packageDesignCandidates.poll(workPackage, Path.of(project.rootPath()),
+                                    timedOut(workPackage.updatedAt(), workPackage.designerExternalSessionId())));
+                    return;
+                }
+                if (timedOut(workPackage.updatedAt(), workPackage.designerExternalSessionId())) {
+                    try { openCode.abort(remote); } catch (RuntimeException ignored) { }
+                    failPackageDesigner(workPackage, session, "OPENCODE_PACKAGE_DESIGNER_TIMEOUT",
+                            "Package Designer exceeded " + defaults.getDesignerTimeout(), true);
+                    return;
+                }
+                OpenCodeClient.SessionStatus status = openCode.sessionStatus(remote);
+                if (status.retrying()) {
+                    boolean changed = !same(workPackage.designerExternalSessionState(), status.state())
+                            || !same(session.externalSessionState(), status.state());
+                    if (changed) {
+                        updateWorkPackage(workPackage, DesignWorkPackageState.valueOf(workPackage.state()),
+                                remote.id(), status.state(), workPackage.designMessageId(), workPackage.designRevision(),
+                                workPackage.redesignCount(), workPackage.designerTransportRetryCount(),
+                                workPackage.compilerSummary(), workPackage.handoffSummary(),
+                                workPackage.lastErrorCode(), workPackage.lastErrorDetail());
+                        DesignerSessionRow retrying = updateDesignerProjection(get(session.id()),
+                                DesignerSessionState.RUNNING, DesignWorkflowPhase.valueOf(session.workflowPhase()),
+                                remote.id(), status.state(), session.designRevision(), session.redesignCount(),
+                                session.currentRequirementRevision(), workPackage.packageId());
+                        publish(retrying, "STATUS", DesignerActor.DESIGNER, true, "",
+                                workPackage.packageId() + " 的设计师正在等待 Provider 瞬态重试恢复");
+                    }
+                } else if (status.failed()) {
+                    failPackageDesigner(workPackage, session,
+                            "OPENCODE_PACKAGE_DESIGNER_" + safeState(status.state()), statusDetail(status), true);
+                } else if (status.completed()) {
+                    conversations.settle(remote.id());
+                    if (discussion.questionRequired() && !discussion.questionAnswered()) {
+                        if (questionSupport.chatMode(discussion)) {
+                            persistChatQuestion(session, discussion, remote, workPackage);
+                            return;
+                        }
+                        runtimeControl.abortQuietly(remote.id(), session.projectId());
+                        if (discussion.questionRetryCount() < 1) {
+                            DesignDiscussionRevisionRow repaired = updateDiscussion(discussion, "QUESTIONING",
+                                    discussion.sourceMessageId(), discussion.designMessageId(),
+                                    discussion.snapshotMarkdown(), discussion.decisionLogJson(), false,
+                                    discussion.questionRetryCount() + 1, discussion.candidateCompilationId(),
+                                    "DESIGN_QUESTION_REQUIRED", "Designer completed before asking the required question");
+                            DesignWorkPackageRow retrying = updateWorkPackage(workPackage,
+                                    DesignWorkPackageState.WAITING_INPUT, remote.id(), "FAILED",
+                                    workPackage.designMessageId(), workPackage.designRevision(),
+                                    workPackage.redesignCount(), workPackage.designerTransportRetryCount(),
+                                    workPackage.compilerSummary(), workPackage.handoffSummary(),
+                                    "DESIGN_QUESTION_REQUIRED", "Designer completed before asking the required question");
+                            dispatchPackageDesigner(get(session.id()), retrying,
+                                    "QUESTION_REPAIR:You omitted the mandatory design question. Ask it before producing Markdown.", false);
+                        } else {
+                            waitForDesignInput(session, revision, workPackage, "DESIGN_QUESTION_REQUIRED",
+                                    "Designer twice completed without asking the required work-package design question");
+                        }
+                        return;
+                    }
+                    String markdown = questionSupport.markdown(openCode.sessionOutput(remote));
+                    if (markdown.isBlank()) {
+                        failPackageDesigner(workPackage, session, "DESIGN_OUTPUT_MISSING",
+                                "Package Designer completed without Markdown", false);
+                        return;
+                    }
+                    DesignerPackageCandidateOrchestrator.Eligibility eligibility = packageDesignCandidates.eligibility();
+                    packageDesignCandidateWorkflow.completeMarkdown(
+                            this, session, revision, workPackage, discussion, remote, markdown,
+                            eligibility.fallbackReason() == null
+                                    ? "PACKAGE_DESIGN_CANDIDATE_NOT_SCHEDULED" : eligibility.fallbackReason());
+                } else if (!same(workPackage.designerExternalSessionState(), status.state())
+                        || !same(session.externalSessionState(), status.state())) {
+                    updateWorkPackage(workPackage, DesignWorkPackageState.valueOf(workPackage.state()), remote.id(), status.state(),
+                            workPackage.designMessageId(), workPackage.designRevision(), workPackage.redesignCount(),
+                            workPackage.designerTransportRetryCount(), workPackage.compilerSummary(),
+                            workPackage.handoffSummary(), workPackage.lastErrorCode(), workPackage.lastErrorDetail());
+                    DesignerSessionRow current = updateDesignerProjection(get(session.id()),
                             DesignerSessionState.RUNNING, DesignWorkflowPhase.valueOf(session.workflowPhase()),
                             remote.id(), status.state(), session.designRevision(), session.redesignCount(),
                             session.currentRequirementRevision(), workPackage.packageId());
-                    publish(retrying, "STATUS", DesignerActor.DESIGNER, true, "",
-                            workPackage.packageId() + " 的设计师正在等待 Provider 瞬态重试恢复");
+                    publish(current, "PARTIAL", DesignerActor.DESIGNER, true,
+                            questionSupport.markdown(openCode.sessionLiveOutput(remote)),
+                            workPackage.packageId() + " 正在接收设计师 Markdown");
                 }
-            } else if (status.failed()) {
-                failPackageDesigner(workPackage, session,
-                        "OPENCODE_PACKAGE_DESIGNER_" + safeState(status.state()), statusDetail(status), true);
-            } else if (status.completed()) {
-                if (discussion.questionRequired() && !discussion.questionAnswered()) {
-                    if (questionSupport.chatMode(discussion)) {
-                        persistChatQuestion(session, discussion, remote, workPackage);
-                        return;
-                    }
-                    runtimeControl.abortQuietly(remote.id(), session.projectId());
-                    if (discussion.questionRetryCount() < 1) {
-                        DesignDiscussionRevisionRow repaired = updateDiscussion(discussion, "QUESTIONING",
-                                discussion.sourceMessageId(), discussion.designMessageId(),
-                                discussion.snapshotMarkdown(), discussion.decisionLogJson(), false,
-                                discussion.questionRetryCount() + 1, discussion.candidateCompilationId(),
-                                "DESIGN_QUESTION_REQUIRED", "Designer completed before asking the required question");
-                        DesignWorkPackageRow retrying = updateWorkPackage(workPackage,
-                                DesignWorkPackageState.WAITING_INPUT, remote.id(), "FAILED",
-                                workPackage.designMessageId(), workPackage.designRevision(),
-                                workPackage.redesignCount(), workPackage.designerTransportRetryCount(),
-                                workPackage.compilerSummary(), workPackage.handoffSummary(),
-                                "DESIGN_QUESTION_REQUIRED", "Designer completed before asking the required question");
-                        dispatchPackageDesigner(get(session.id()), retrying,
-                                "QUESTION_REPAIR:You omitted the mandatory design question. Ask it before producing Markdown.", false);
-                    } else {
-                        waitForDesignInput(session, revision, workPackage, "DESIGN_QUESTION_REQUIRED",
-                                "Designer twice completed without asking the required work-package design question");
-                    }
-                    return;
-                }
-                String markdown = questionSupport.markdown(openCode.sessionOutput(remote));
-                if (markdown.isBlank()) {
-                    failPackageDesigner(workPackage, session, "DESIGN_OUTPUT_MISSING",
-                            "Package Designer completed without Markdown", false);
-                    return;
-                }
-                DesignerPackageCandidateOrchestrator.Eligibility eligibility = packageDesignCandidates.eligibility();
-                packageDesignCandidateWorkflow.completeMarkdown(
-                        this, session, revision, workPackage, discussion, remote, markdown,
-                        eligibility.fallbackReason() == null
-                                ? "PACKAGE_DESIGN_CANDIDATE_NOT_SCHEDULED" : eligibility.fallbackReason());
-            } else if (!same(workPackage.designerExternalSessionState(), status.state())
-                    || !same(session.externalSessionState(), status.state())) {
-                updateWorkPackage(workPackage, DesignWorkPackageState.valueOf(workPackage.state()), remote.id(), status.state(),
-                        workPackage.designMessageId(), workPackage.designRevision(), workPackage.redesignCount(),
-                        workPackage.designerTransportRetryCount(), workPackage.compilerSummary(),
-                        workPackage.handoffSummary(), workPackage.lastErrorCode(), workPackage.lastErrorDetail());
-                DesignerSessionRow current = updateDesignerProjection(get(session.id()),
-                        DesignerSessionState.RUNNING, DesignWorkflowPhase.valueOf(session.workflowPhase()),
-                        remote.id(), status.state(), session.designRevision(), session.redesignCount(),
-                        session.currentRequirementRevision(), workPackage.packageId());
-                publish(current, "PARTIAL", DesignerActor.DESIGNER, true,
-                        questionSupport.markdown(openCode.sessionLiveOutput(remote)),
-                        workPackage.packageId() + " 正在接收设计师 Markdown");
+            } catch (ConflictException stale) {
+                failPackageDesigner(workPackage, session, stale.code(), stale.getMessage(), false);
+            } catch (SessionFailure failure) {
+                failPackageDesigner(workPackage, session, failure.code(), failure.getMessage(), !failure.code().startsWith("DESIGNER_TURN_"));
+            } catch (RuntimeException failure) {
+                failPackageDesigner(workPackage, session, "OPENCODE_PACKAGE_DESIGNER_STATUS_FAILED",
+                        failure.getMessage(), true);
             }
-        } catch (ConflictException stale) {
-            failPackageDesigner(workPackage, session, stale.code(), stale.getMessage(), false);
-        } catch (SessionFailure failure) {
-            failPackageDesigner(workPackage, session, failure.code(), failure.getMessage(), true);
-        } catch (RuntimeException failure) {
-            failPackageDesigner(workPackage, session, "OPENCODE_PACKAGE_DESIGNER_STATUS_FAILED",
-                    failure.getMessage(), true);
         }
     }
 
@@ -4646,7 +4646,7 @@ public class DesignerSessionService {
 
     private int openRequirementDiscussionModelCalls(String sessionId) {
         return questionSupport.openRequirementModelCalls(mapper.listDesignDiscussionRevisions(sessionId),
-                directSoftwareMode(sessionId));
+                serverRequirementSnapshot(sessionId));
     }
 
     private int nextDiscussionRevision(String sessionId, String scopeKey) {
@@ -4672,7 +4672,7 @@ public class DesignerSessionService {
     }
 
     private OpenCodeClient.OpenCodeSession designerRemote(DesignerSessionRow session) {
-        return new OpenCodeClient.OpenCodeSession(session.externalSessionId(),
+        return conversations.remote(session.externalSessionId(),
                 Path.of(projects.get(session.projectId()).rootPath()));
     }
 

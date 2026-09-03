@@ -1,5 +1,7 @@
 package io.opencode.loopper.api;
 
+import static io.opencode.loopper.api.DesignerSessionViews.*;
+
 import io.opencode.loopper.persistence.DesignerMessageRow;
 import io.opencode.loopper.persistence.DesignerSessionHistoryRow;
 import io.opencode.loopper.persistence.DesignerSessionRow;
@@ -66,13 +68,15 @@ public class DesignerSessionController {
     private final DesignerAttachmentReadService attachmentReads;
     private final DesignerAttachmentCommandService attachmentCommands;
     private final StoryBindingService storyBindings;
+    private final io.opencode.loopper.service.DesignerConversationCoordinator conversations;
 
     public DesignerSessionController(DesignerSessionService service, LoopDraftService drafts, DesignerEventHub events,
                                      DesignerAutoModeService autoMode, TaskProfileService profiles,
                                      AnalysisReportService reports, DirectArtifactDesignService directArtifacts,
                                      DirectMaintenanceDesignService directMaintenance,
                                      DesignerAttachmentReadService attachmentReads,
-                                     DesignerAttachmentCommandService attachmentCommands, StoryBindingService storyBindings) {
+                                     DesignerAttachmentCommandService attachmentCommands, StoryBindingService storyBindings,
+                                     io.opencode.loopper.service.DesignerConversationCoordinator conversations) {
         this.service = service;
         this.drafts = drafts;
         this.events = events;
@@ -82,7 +86,7 @@ public class DesignerSessionController {
         this.directArtifacts = directArtifacts;
         this.directMaintenance = directMaintenance;
         this.attachmentReads = attachmentReads;
-        this.attachmentCommands = attachmentCommands; this.storyBindings = storyBindings;
+        this.attachmentCommands = attachmentCommands; this.storyBindings = storyBindings; this.conversations = conversations;
     }
 
     @PostMapping
@@ -446,7 +450,7 @@ public class DesignerSessionController {
         LoopDraftRow draft = service.draft(row.id());
         return new DesignerSessionDto(row.id(), row.taskId(), row.projectId(), project.name(), row.state(), row.workflowPhase(),
                 service.activeActor(row), row.accessMode(), true,
-                "Task Decomposer and each package's Designer/LoopSpec Compiler use separate read-only Sessions. Only the deterministic server validator may aggregate and synchronize the bound draft.",
+                "Designer conversations remain read-only across questions and revisions. Only the deterministic server validator may aggregate and synchronize the bound draft.",
                 row.createdAt(), row.updatedAt(), draft == null ? null : new DesignerDraftDto(
                         draft.id(), draft.status(), draft.updatedAt(), drafts.spec(draft)),
                 service.messages(row.id()).stream().map(this::message).toList(), service.pendingQuestions(row.id()),
@@ -460,7 +464,7 @@ public class DesignerSessionController {
                 service.finalConfirmationEligible(row.id()), service.archived(row.id()), autoMode.get(row.id()),
                 profiles.current(row.id()), profiles.routerRun(row.id()),
                 List.of(TaskIntent.values()), List.of(ArtifactKind.values()),
-                reports.list(row.id()), storyBindings.configurationForDesigner(row.id()));
+                reports.list(row.id()), storyBindings.configurationForDesigner(row.id()), conversations.views(row.id()));
     }
 
     private DesignerSessionSummaryDto summary(DesignerSessionRow row) {
@@ -544,49 +548,6 @@ public class DesignerSessionController {
     public record PackageMessageRequest(@NotBlank @Size(max = 12_000) String content,
                                         int expectedDiscussionRevision, int expectedDesignRevision) { }
     public record PackageRevisionRequest(int expectedDiscussionRevision, int expectedDesignRevision) { }
-    public record DesignerSessionDto(String id, String taskId, String projectId, String projectName, String state,
-                                     String workflowPhase, String activeActor, String accessMode,
-                                     boolean readOnly, String permissionSummary, String createdAt, String updatedAt,
-                                     DesignerDraftDto draft, List<DesignerMessageDto> messages,
-                                     List<DesignerSessionService.PendingQuestion> pendingQuestions,
-                                     List<DesignerSessionService.AnsweredQuestion> answeredQuestions,
-                                     DesignerSessionService.QuestionInteractionStatus questionInteraction,
-                                     DesignerSessionService.RequirementSnapshot requirementSnapshot,
-                                     DesignerSessionService.CompilerStatus compiler,
-                                     DesignerSessionService.RequirementRevisionStatus requirement,
-                                     DesignerSessionService.DecompositionStatus decomposition,
-                                     List<DesignerSessionService.WorkPackageStatus> workPackages,
-                                     Integer requirementRevision, String activeWorkPackageId,
-                                     String discussionScope, int discussionRevision,
-                                     DesignerSessionService.CandidateStatus candidate,
-                                     boolean finalConfirmationEligible, boolean archived,
-                                     DesignerAutoModeService.View autoMode,
-                                     TaskProfileService.View taskProfile,
-                                     TaskProfileRouterRunService.RouterRunView routerRun,
-                                     List<TaskIntent> availableProfileOverrides,
-                                     List<ArtifactKind> availableArtifactOverrides,
-                                     List<AnalysisReportService.Summary> reports,
-                                     StoryBindingConfiguration storyBinding) { }
-    public record DesignerSessionSummaryDto(String id, String projectId, String state, String workflowPhase,
-                                            String updatedAt, String draftId, String draftStatus, String goal,
-                                            Integer requirementRevision, String activeWorkPackageId) { }
-    public record DesignerSessionHistoryDto(String id, String projectId, String projectName,
-                                            String state, String workflowPhase,
-                                            String createdAt, String updatedAt,
-                                            String draftId, String draftStatus, String goal,
-                                            Integer requirementRevision, String activeWorkPackageId,
-                                            boolean archived, String archivedAt,
-                                            String taskId, String taskState) { }
-    public record DesignerDraftDto(String id, String status, String updatedAt,
-                                   io.opencode.loopper.domain.LoopSpec spec) { }
-    public record DesignerMessageDto(String id, int ordinal, String role, String actor, String content,
-                                     String deliveryState, String createdAt,
-                                     Integer requirementRevision, String workPackageId,
-                                     List<DesignerAttachmentDto> attachments) { }
-    public record DesignerAttachmentDto(String id, String filename, String mediaType, long sizeBytes,
-                                        String sha256, String scopeKey, String workPackageId,
-                                        String extractorId, String previewKind, String state,
-                                        String supersededByAttachmentId) { }
     public record AppendMessageResult(String sessionId, String state, List<DesignerMessageDto> persistedMessages, String notice) { }
     public record QuestionReplyRequest(List<List<String>> answers) { }
     public record ReopenPackageResult(List<String> invalidatedPackageIds) { }

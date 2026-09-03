@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { mkdtemp, mkdir, readFile, realpath, writeFile } from 'node:fs/promises'
+import { cp, mkdtemp, mkdir, readFile, realpath, writeFile } from 'node:fs/promises'
 import { createWriteStream } from 'node:fs'
 import { tmpdir, homedir } from 'node:os'
 import { pathToFileURL } from 'node:url'
@@ -7,13 +7,24 @@ import { join, resolve } from 'node:path'
 import { createServer } from 'node:net'
 import { createMockReceiver } from './mock-receiver.mjs'
 import { maintenanceModel } from './mock-model.mjs'
+import { reuseModel } from './reuse-model.mjs'
 
 const repo = resolve(new URL('../..', import.meta.url).pathname)
 const directory = await realpath(await mkdtemp(join(tmpdir(), 'loopper-story-qualification-')))
 const workspaces = [join(directory, 'project')]
 await mkdir(workspaces[0])
 await writeFile(join(workspaces[0], 'config.properties'), 'feature.enabled=false\nkeep.value=unchanged\n')
-const receiver = await createMockReceiver({ modelReply: maintenanceModel(workspaces) })
+if (process.argv.includes('--reuse')) {
+  await mkdir(join(workspaces[0], 'src')); await mkdir(join(workspaces[0], 'test'))
+  for (const name of ['difference', 'product']) {
+    await writeFile(join(workspaces[0], `src/${name}.js`), `export function ${name}(a, b) { return 0 }\n`)
+    await writeFile(join(workspaces[0], `test/${name}.test.js`), `import { test } from 'node:test'; import assert from 'node:assert/strict'; import { ${name} } from '../src/${name}.js'; test('${name}', () => assert.equal(${name}(2, 3), ${name === 'difference' ? -1 : 6}));\n`)
+  }
+  await writeFile(join(workspaces[0], 'package.json'), JSON.stringify({ name: 'reuse-fixture', type: 'module', scripts: { test: 'node --test' } }))
+  await writeFile(join(workspaces[0], 'src/sum.js'), 'export function sum(a, b) { return 0 }\n')
+  await writeFile(join(workspaces[0], 'test/sum.test.js'), "import { test } from 'node:test'; import assert from 'node:assert/strict'; import { sum } from '../src/sum.js'; test('sum', () => assert.equal(sum(2, 3), 5));\n")
+}
+const receiver = await createMockReceiver({ modelReply: (process.argv.includes('--reuse') ? reuseModel : maintenanceModel)(workspaces) })
 const socket = createServer()
 await new Promise(resolve => socket.listen(0, '127.0.0.1', resolve))
 const port = socket.address().port
@@ -23,6 +34,7 @@ const config = { model: 'aicoding-test/mock', plugin: process.argv.includes('--w
     options: { baseURL: `${receiver.url}/v1`, apiKey: 'local-test' }, models: { mock: { name: 'mock' } } } } }
 const env = { ...process.env, LOOPPER_DATA_DIR: join(directory, 'data'), LOOPPER_ALLOWED_ROOT: directory,
   LOOPPER_OPEN_BROWSER: 'false', LOOPPER_OPENCODE_MODE: 'managed', OPENCODE_MODEL: 'aicoding-test/mock',
+  ...(process.argv.includes('--nonrolling') ? { LOOPPER_ROLLING_PACKAGES_ENABLED: 'false' } : {}),
   OPENCODE_EXECUTABLE: process.env.OPENCODE_EXECUTABLE ?? 'opencode',
   OPENCODE_CONFIG_CONTENT: JSON.stringify(config), AICODING_MOCK_URL: receiver.url,
   ...(process.argv.includes('--native-tools') ? { AICODING_MOCK_PLUGIN_API: process.env.AICODING_MOCK_PLUGIN_API
@@ -32,7 +44,9 @@ const env = { ...process.env, LOOPPER_DATA_DIR: join(directory, 'data'), LOOPPER
 for (const path of [env.XDG_CONFIG_HOME, env.XDG_DATA_HOME, env.XDG_STATE_HOME, env.XDG_CACHE_HOME]) await mkdir(path)
 const java = process.env.JAVA_EXECUTABLE ?? (process.env.JAVA_HOME ? join(process.env.JAVA_HOME, 'bin', 'java') : 'java')
 const jar = process.argv.slice(2).find(value => !value.startsWith('--'))
-const args = jar ? ['-jar', resolve(jar)] : ['-cp', `${repo}/target/classes:${(await readFile('/tmp/loopper-story-classpath.txt', 'utf8')).trim()}`, 'io.opencode.loopper.LoopperApplication']
+// A concurrent clean build must not remove classes used by this isolated JVM.
+if (!jar) await cp(join(repo, 'target/classes'), join(directory, 'classes'), { recursive: true })
+const args = jar ? ['-jar', resolve(jar)] : ['-cp', `${directory}/classes:${(await readFile('/tmp/loopper-story-classpath.txt', 'utf8')).trim()}`, 'io.opencode.loopper.LoopperApplication']
 const log = createWriteStream(join(directory, 'loopper.log'))
 const child = spawn(java, [...args, `--server.port=${port}`, '--spring.main.banner-mode=off'], { cwd: repo, env, stdio: ['ignore', 'pipe', 'pipe'] })
 child.stdout.pipe(log); child.stderr.pipe(log)

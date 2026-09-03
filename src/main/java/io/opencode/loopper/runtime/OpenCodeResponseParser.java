@@ -21,6 +21,11 @@ import tools.jackson.databind.JsonNode;
 
 /** Converts OpenCode wire JSON into bounded domain projections without performing HTTP calls. */
 final class OpenCodeResponseParser {
+    String output(OpenCodeClient.SessionResult result, tools.jackson.databind.ObjectMapper json) {
+        if (!result.text().isBlank()) return result.text();
+        if (result.hasStructured()) return json.writeValueAsString(result.structured());
+        throw new io.opencode.loopper.domain.SessionFailure("OPENCODE_OUTPUT_MISSING", "OpenCode completed without assistant text or structured output");
+    }
     JsonNode listBody(JsonNode body) {
         JsonNode value = body != null && body.isArray() ? body : body == null ? null : body.path("data");
         return value != null && value.isArray() ? value : null;

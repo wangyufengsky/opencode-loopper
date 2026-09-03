@@ -993,8 +993,9 @@ class DesignerSessionMcpIntegrationTest {
         DesignerSessionRow session = designerSessions.get(reviewing.id());
         assertThat(session.workflowPhase()).isEqualTo("DESIGNING");
         assertThat(designerSessions.pendingQuestions(session.id())).isEmpty();
+        assertThat(session.externalSessionId()).isEqualTo(reviewing.externalSessionId());
         assertThat(fake().profileForSession(session.externalSessionId()))
-                .isEqualTo(OpenCodeClient.SessionProfile.GENERAL_READ_ONLY);
+                .isEqualTo(OpenCodeClient.SessionProfile.DESIGNER_INTERACTIVE_READ_ONLY);
         assertThat(mapper.listTasks()).isEmpty();
         var markerDecomposition = mapper.findTaskDecompositionByRevision(
                 mapper.findCurrentDesignRequirementRevision(session.id()).orElseThrow().id()).orElseThrow();
@@ -1057,7 +1058,19 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(aggregatedSpec.stages()).hasSize(6)
                 .allMatch(stage -> "WP-1".equals(stage.workPackageId()));
 
+        String reusableRemote = mapper.findLatestDesignWorkPackage(session.id(), "WP-1").orElseThrow().designerExternalSessionId();
+        assertThat(mapper.designerConversationForRemote(reusableRemote).orElseThrow().state()).isEqualTo("OPEN");
+        for (int round = 0; round < 2; round++) {
+            var currentPackage = designerSessions.workPackageStatuses(session.id()).getFirst();
+            designerSessions.reopenPackage(session.id(), "WP-1", designerSessions.get(session.id()).discussionRevision(), currentPackage.designRevision());
+            designerSessions.appendPackageMessage(session.id(), "WP-1", "进一步明确缓存刷新验收",
+                    designerSessions.get(session.id()).discussionRevision(), currentPackage.designRevision());
+            pollUntilSettled(session.id());
+            assertThat(mapper.findLatestDesignWorkPackage(session.id(), "WP-1").orElseThrow().designerExternalSessionId()).isEqualTo(reusableRemote);
+            assertThat(mapper.designerConversationForRemote(reusableRemote).orElseThrow().state()).isEqualTo("OPEN");
+        }
         TaskRow task = drafts.confirm(draft.id(), null);
+        assertThat(mapper.designerConversationForRemote(reusableRemote).orElseThrow().state()).isEqualTo("RETIRED");
         assertThat(task.title()).isEqualTo(originalRequirement);
         assertThat(task.state()).isEqualTo("PENDING_START");
         assertThat(mapper.findTaskQueue(task.id())).isEmpty();
@@ -2398,6 +2411,68 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     @Test
+    void newLargeChatAnswerBuildsTheUserSnapshotWithoutDispatchingAnotherTurn() throws Exception {
+        ProjectRow project = project("reuse-large-chat-snapshot");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        fake().setToolCapability(new OpenCodeClient.ToolCapabilityProbe(
+                OpenCodeClient.CapabilityState.AVAILABLE, List.of("read", "glob", "grep"), null));
+        fake().setDesignerOutput("请选择失败策略：保留旧值还是清空？");
+        DesignerSessionRow created = designerSessions.create(project.id(), draft.id(), "实现大型缓存系统");
+        designerSessions.pollActiveHandoffs();
+        var profile = taskProfiles.current(created.id());
+        designerSessions.updateTaskProfile(created.id(), profile.intent(), profile.artifactKinds().getFirst(), true, profile.version());
+        designerSessions.pollActiveHandoffs();
+        var questioning = designerSessions.get(created.id());
+        var firstTurn = mapper.designerTurnForRemote(questioning.externalSessionId()).orElseThrow();
+        assertThat(designerSessions.questionInteractionStatus(created.id()).awaitingAnswer()).isTrue();
+
+        designerSessions.appendRequirementMessage(created.id(), "保留旧值并记录错误", questioning.discussionRevision());
+
+        assertThat(designerSessions.get(created.id()).state()).isEqualTo("REVIEWING");
+        assertThat(mapper.designerTurnForRemote(questioning.externalSessionId()).orElseThrow().id()).isEqualTo(firstTurn.id());
+        assertThat(mapper.designerConversations(created.id())).singleElement().satisfies(row -> {
+            assertThat(row.externalSessionId()).isEqualTo(questioning.externalSessionId());
+            assertThat(row.state()).isEqualTo("OPEN");
+        });
+        assertThat(mapper.listDesignDiscussionRevisions(created.id())).singleElement().satisfies(row ->
+                assertThat(row.snapshotMarkdown()).contains("实现大型缓存系统", "保留旧值并记录错误"));
+        designerSessions.pollActiveHandoffs();
+        confirmInitialTaskProfile(created.id());
+        designerSessions.confirmRequirement(created.id(), designerSessions.get(created.id()).discussionRevision());
+        // One question turn and one new Decomposer dispatch; no phantom answer-model call.
+        assertThat(mapper.findCurrentDesignRequirementRevision(created.id()).orElseThrow().modelCallsUsed()).isEqualTo(2);
+    }
+
+    @Test
+    void newMaintenanceChatAnswerClaimsANewTurnInTheSameConversation() throws Exception {
+        ProjectRow project = project("reuse-maintenance-chat-turn");
+        Files.writeString(Path.of(project.rootPath()).resolve("settings.yml"), "enabled: false\n");
+        LoopDraftRow draft = drafts.create(v2DocumentationSpec(project.id()));
+        fake().setToolCapability(new OpenCodeClient.ToolCapabilityProbe(
+                OpenCodeClient.CapabilityState.AVAILABLE, List.of("read", "glob", "grep"), null));
+        fake().setDesignerOutput("是否将 enabled 设置为 true？");
+        DesignerSessionRow created = designerSessions.create(project.id(), draft.id(), "本地配置维护：只修改 `settings.yml`");
+        designerSessions.pollActiveHandoffs();
+        confirmInitialTaskProfile(created.id());
+        designerSessions.pollActiveHandoffs();
+        var questioning = designerSessions.get(created.id());
+        var firstTurn = mapper.designerTurnForRemote(questioning.externalSessionId()).orElseThrow();
+        fake().setDesignerOutput("# 配置维护\n\n只修改 `settings.yml`，把 enabled 设置为 true。");
+
+        designerSessions.appendRequirementMessage(created.id(), "确认设置为 true", questioning.discussionRevision());
+
+        var secondTurn = mapper.designerTurnForRemote(questioning.externalSessionId()).orElseThrow();
+        assertThat(secondTurn.conversationId()).isEqualTo(firstTurn.conversationId());
+        assertThat(secondTurn.messageId()).isNotEqualTo(firstTurn.messageId());
+        assertThat(secondTurn.state()).isEqualTo("SENT");
+        assertThat(secondTurn.requestJson()).contains("确认设置为 true");
+        designerSessions.pollActiveHandoffs();
+        assertThat(designerSessions.get(created.id()).state()).isEqualTo("REVIEWING");
+        assertThat(mapper.designerTurnForRemote(questioning.externalSessionId()).orElseThrow().state()).isEqualTo("SETTLED");
+        assertThat(mapper.designerConversations(created.id())).hasSize(1);
+    }
+
+    @Test
     void availableQuestionCapabilityKeepsTheNativeInteractiveProfile() throws Exception {
         ProjectRow project = project("question-native-tool");
         LoopDraftRow draft = drafts.create(legacySpec(project.id()));
@@ -2602,7 +2677,7 @@ class DesignerSessionMcpIntegrationTest {
         fake().setDesignerOutput(designerOutput(
                 "# 结构化设计\n\nREADME 文档设计可执行验证。", structuredSpec));
 
-        DesignerSessionRow reviewing = prepareLargeReviewingSession(project.id(), draft.id(), "结构化输出失败时安全回退");
+        DesignerSessionRow reviewing = prepareLargeReviewingSession(project.id(), draft.id(), "结构化输出失败时安全回退", true);
         fake().failNextStructuredPrompts(1);
         designerSessions.confirmRequirement(reviewing.id(), reviewing.discussionRevision());
         DesignerSessionRow session = designerSessions.get(reviewing.id());
@@ -4187,6 +4262,40 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     @Test
+    void nativePackageQuestionDoesNotInvalidateTheCurrentCandidateOwner() throws Exception {
+        properties.getInternalCandidate().setPackageDesignV1Enabled(true);
+        var credentials = activateManagedCandidateRuntime();
+        holdPackageCandidateProfiles(true);
+        fake().setDecomposerOutput(decomposition("DECOMPOSED", "三个独立包", 3));
+        ProjectRow project = project("reused-package-question");
+        Files.writeString(Path.of(project.rootPath()).resolve("pom.xml"), "<project/>\n");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        DesignerSessionRow reviewing = prepareLargeReviewingSession(project.id(), draft.id(),
+                "新增 Java EventBus 分支，分包实现并使用 EventBusTest 验证", true);
+        mapper.enableDesignerConversations(reviewing.id());
+        designerSessions.confirmRequirement(reviewing.id(), reviewing.discussionRevision());
+        String runId = pollUntilPackageCandidateRun(reviewing.id());
+        String ownerId = jdbc.queryForObject("SELECT owner_id FROM ai_candidate_submission_run WHERE id=?", String.class, runId);
+        var owner = mapper.findDesignWorkPackage(ownerId).orElseThrow();
+        String mcpSession = initializeInternalMcp(credentials);
+        long revision = jdbc.queryForObject("SELECT version FROM ai_candidate_submission_run WHERE id=?", Long.class, runId);
+        MvcResult premature = mvc.perform(internalMcp(credentials,
+                rpc(301, "tools/call", packageCandidateCall(runId, "before-answer", packageDesignCandidate(), revision)), mcpSession))
+                .andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(asyncDispatch(premature)).andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("DESIGN_QUESTION_REQUIRED")));
+        fake().setPendingQuestion(owner.designerExternalSessionId(), new OpenCodeClient.PendingQuestion(
+                "native-question", owner.designerExternalSessionId(), List.of(new OpenCodeClient.QuestionPrompt(
+                "是否继续当前包？", "范围", List.of(new OpenCodeClient.QuestionOption("确认", "确认范围")), false, true))));
+        designerSessions.pollActiveHandoffs();
+        assertThat(mapper.findDesignWorkPackage(ownerId).orElseThrow().version()).isEqualTo(owner.version());
+        designerSessions.replyQuestion(reviewing.id(), "native-question", List.of(List.of("确认")));
+        assertThat(mapper.findDesignWorkPackage(ownerId).orElseThrow().version()).isEqualTo(owner.version());
+        assertThat(mapper.designerTurnForRemote(owner.designerExternalSessionId()).orElseThrow().candidateRunId()).isEqualTo(runId);
+        assertThat(mapper.designerConversationForRemote(owner.designerExternalSessionId()).orElseThrow().state()).isEqualTo("OPEN");
+    }
+
+    @Test
     void packageDesignerWithoutMcpSubmissionUsesTheExistingMarkdownCompilerRoute() throws Exception {
         properties.getInternalCandidate().setPackageDesignV1Enabled(true);
         activateManagedCandidateRuntime();
@@ -5275,6 +5384,7 @@ class DesignerSessionMcpIntegrationTest {
 
     private DesignerSessionRow createConfirmedSession(String projectId, String draftId, String requirement) {
         DesignerSessionRow created = designerSessions.create(projectId, draftId, requirement);
+        jdbc.update("DELETE FROM designer_conversation_policy WHERE designer_session_id=?", created.id()); // Frozen legacy acceptance fixtures keep their pre-V68 policy.
         legacyAcceptanceSessions.add(created.id());
         designerSessions.pollActiveHandoffs();
         TaskProfileService.View profile = taskProfiles.current(created.id());
@@ -5312,7 +5422,12 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     private DesignerSessionRow prepareLargeReviewingSession(String projectId, String draftId, String requirement) {
+        return prepareLargeReviewingSession(projectId, draftId, requirement, false);
+    }
+
+    private DesignerSessionRow prepareLargeReviewingSession(String projectId, String draftId, String requirement, boolean legacy) {
         DesignerSessionRow session = designerSessions.create(projectId, draftId, requirement);
+        if (legacy) jdbc.update("DELETE FROM designer_conversation_policy WHERE designer_session_id=?", session.id());
         designerSessions.pollActiveHandoffs();
         TaskProfileService.View profile = taskProfiles.current(session.id());
         designerSessions.updateTaskProfile(session.id(), profile.intent(), profile.artifactKinds().getFirst(),
@@ -6005,9 +6120,11 @@ class DesignerSessionMcpIntegrationTest {
             String designerSessionId, String candidateKind, OpenCodeClient.SessionProfile... profiles) {
         Set<OpenCodeClient.SessionProfile> expected = Set.of(profiles);
         int modelCalls = (int) fake().promptHistory().stream()
-                .filter(call -> expected.contains(fake().profileForSession(call.sessionId()))).count();
+                .filter(call -> expected.contains(fake().profileForSession(call.sessionId())))
+                .filter(call -> !"PACKAGE_DESIGN_V1".equals(candidateKind) || call.prompt().contains("PACKAGE_DESIGN_V1"))
+                .count();
         int candidateSessions = jdbc.queryForObject("""
-                SELECT COUNT(*) FROM ai_candidate_submission_run
+                SELECT COUNT(DISTINCT external_session_id) FROM ai_candidate_submission_run
                 WHERE designer_session_id=? AND candidate_kind=?
                 """, Integer.class, designerSessionId, candidateKind);
         int candidateSubmissions = jdbc.queryForObject("""

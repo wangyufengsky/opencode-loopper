@@ -36,6 +36,10 @@ interface PackageDesignCompilationInputLoader {
                 throw new ConflictException("CANDIDATE_OWNER_REVISION_STALE",
                         "Package design candidate owner revision has changed");
             }
+            var discussion = mapper.findLatestDesignDiscussionRevision(owner.designerSessionId(), owner.packageId()).orElse(null);
+            if (discussion != null && discussion.questionRequired() && !discussion.questionAnswered()) {
+                throw new ConflictException("DESIGN_QUESTION_REQUIRED", "当前包的问题尚未回答，不能提交设计候选");
+            }
             DesignRequirementRevisionRow requirement = mapper.findDesignRequirementRevision(owner.requirementRevisionId())
                     .filter(row -> context.scope().id().equals(row.designerSessionId()))
                     .orElseThrow(() -> new ConflictException(

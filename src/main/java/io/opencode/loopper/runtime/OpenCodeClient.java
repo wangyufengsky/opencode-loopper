@@ -92,6 +92,8 @@ public interface OpenCodeClient {
     default MessageLookup findPromptMessage(OpenCodeSession session, String messageId) {
         return new MessageLookup(false, false, null);
     }
+    /** Restores a durable Designer profile and selects the exact business turn for output readers. */
+    default void restoreDesignTurn(OpenCodeSession session, SessionProfile profile, OpenCodeModel model, String messageId) { }
     SessionStatus sessionStatus(OpenCodeSession session);
     /** Returns the latest assistant text after a completed session, preserving the original model response. */
     String sessionOutput(OpenCodeSession session);

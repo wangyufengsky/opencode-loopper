@@ -28,6 +28,17 @@ final class DesignerPackageCandidateOrchestrator {
     private final OpenCodeClient openCode;
     private final InternalMcpRuntimeAccess runtime;
     private final LoopperProperties properties;
+    private io.opencode.loopper.persistence.LoopperMapper conversationMapper;
+    private DesignerConversationCoordinator conversations;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    DesignerPackageCandidateOrchestrator(MachineCandidateSubmission submissions,
+            Optional<CandidateRuntimeBindingService> bindings, OpenCodeClient openCode,
+            InternalMcpRuntimeAccess runtime, LoopperProperties properties,
+            io.opencode.loopper.persistence.LoopperMapper mapper, DesignerConversationCoordinator conversations) {
+        this(submissions, bindings, openCode, runtime, properties);
+        this.conversationMapper = mapper; this.conversations = conversations;
+    }
 
     DesignerPackageCandidateOrchestrator(
             MachineCandidateSubmission submissions,
@@ -105,17 +116,20 @@ final class DesignerPackageCandidateOrchestrator {
         OpenCodeClient.OpenCodeSession remote = new OpenCodeClient.OpenCodeSession(
                 run.externalSessionId(), projectRoot, run.runtimeGenerationId(), serverName);
         try {
+            if (conversations != null) remote = conversations.remote(remote.id(), projectRoot);
             bindings.orElseThrow(() -> new ConflictException("CANDIDATE_RUNTIME_BINDING_UNAVAILABLE",
                             "候选运行时绑定服务不可用"))
                     .validate(run, MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP);
             if (run.state() == MachineCandidateRunState.WAITING_INPUT) {
                 OpenCodeClient.SessionStatus status = openCode.sessionStatus(remote);
                 if (!status.completed()) openCode.abortWithConfirmation(remote);
+                if (conversations != null) conversations.settle(remote.id());
                 return Poll.waiting(remote, run, submissions.terminal(run.runId()).orElse(null));
             }
             if (run.state() == MachineCandidateRunState.ACCEPTED) {
                 OpenCodeClient.SessionStatus status = openCode.sessionStatus(remote);
                 if (!status.completed()) openCode.abortWithConfirmation(remote);
+                if (conversations != null) conversations.settle(remote.id());
                 return Poll.accepted(remote, run);
             }
             if (timedOut) {
@@ -133,6 +147,7 @@ final class DesignerPackageCandidateOrchestrator {
                 return Poll.failed(remote, run, "OPENCODE_PACKAGE_DESIGN_CANDIDATE_" + safe(status.state()),
                         status.detail());
             }
+            if (conversations != null) conversations.settle(remote.id());
             if (run.state() == MachineCandidateRunState.FALLBACK_REQUIRED
                     || run.state() == MachineCandidateRunState.CLOSED) {
                 return markdownFallback(remote, run, run.state() == MachineCandidateRunState.FALLBACK_REQUIRED
@@ -159,6 +174,10 @@ final class DesignerPackageCandidateOrchestrator {
     String runId(DesignWorkPackageRow workPackage) {
         if (workPackage == null || workPackage.id() == null || workPackage.id().isBlank()) {
             throw new IllegalArgumentException("Work package is required");
+        }
+        if (conversationMapper != null && workPackage.designerExternalSessionId() != null) {
+            var turn = conversationMapper.designerTurnForRemote(workPackage.designerExternalSessionId());
+            if (turn.isPresent()) return turn.get().candidateRunId();
         }
         return UUID.nameUUIDFromBytes(("package-design-candidate:" + workPackage.id() + ":"
                 + (workPackage.designRevision() + 1L) + ":INTERNAL_MCP")
@@ -222,7 +241,7 @@ final class DesignerPackageCandidateOrchestrator {
 
                 runId: %s
                 expectedSubmissionRevision: %d
-                You may call that same tool at most three times in this Session. On REJECTED, read only the returned
+                You may call that same tool at most three times for this candidate run. On REJECTED, read only the returned
                 bounded code, JSON Pointer, and allowed values, then replace the entire candidate and retry with the
                 returned submissionRevision. On ACCEPTED, stop: final assistant text is ignored. On WAITING_INPUT,
                 stop and wait for the user. On FALLBACK_REQUIRED, produce the complete controlled Markdown design

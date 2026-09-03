@@ -14,6 +14,14 @@ public final class DesignerSessionRuntimeControl {
     private final ProjectService projects;
     private final OpenCodeClient openCode;
     private final AcceptanceCandidateInternalTerminationIntentStore internalTerminations;
+    private DesignerConversationCoordinator conversations;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public DesignerSessionRuntimeControl(LoopperMapper mapper, ProjectService projects, OpenCodeClient openCode,
+            AcceptanceCandidateInternalTerminationIntentStore internalTerminations, DesignerConversationCoordinator conversations) {
+        this(mapper, projects, openCode, internalTerminations);
+        this.conversations = conversations;
+    }
 
     public DesignerSessionRuntimeControl(LoopperMapper mapper, ProjectService projects, OpenCodeClient openCode,
             AcceptanceCandidateInternalTerminationIntentStore internalTerminations) {
@@ -33,6 +41,7 @@ public final class DesignerSessionRuntimeControl {
         if (externalSessionId == null || externalSessionId.isBlank()) return;
         try {
             abort(externalSessionId, projectId);
+            if (conversations != null) conversations.retire(externalSessionId, "CONTEXT_REPLACED");
         } catch (RuntimeException failure) {
             throw new ServiceUnavailableException("DESIGNER_SESSION_REPLACEMENT_ABORT_FAILED",
                     "旧的远端角色会话尚未确认停止，未创建替代会话");

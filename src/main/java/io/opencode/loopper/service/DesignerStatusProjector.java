@@ -60,7 +60,8 @@ final class DesignerStatusProjector {
             CandidateSubmissionRunRow candidateRun = mapper
                     .findLatestCandidateSubmissionRunForWorkPackage(row.id(), candidateSourceRevision)
                     .orElse(null);
-            int candidateSubmissions = candidateRun == null ? 0
+            boolean reuse = mapper.designerConversationsEnabled(sessionId);
+            int candidateSubmissions = reuse ? mapper.designerPackageCandidateSubmissions(row.id()) : candidateRun == null ? 0
                     : mapper.countCandidateSubmissionAttemptsForRun(candidateRun.id());
             WorkPackageRoleService.View role = mapper.findWorkPackageRoleProfile(row.id())
                     .map(stored -> new WorkPackageRoleService.View(
@@ -82,7 +83,7 @@ final class DesignerStatusProjector {
                     role == null ? null : role.executionStrategy().name(),
                     role == null ? null : role.testPolicy().name(),
                     role == null ? List.of() : role.technologies(), acceptanceWorkflow.status(compiler),
-                    candidateRun == null ? null : candidateRun.state(), candidateRun == null ? 0 : 1,
+                    candidateRun == null ? null : candidateRun.state(), reuse ? mapper.designerPackageCandidateSessions(row.id()) : candidateRun == null ? 0 : 1,
                     candidateSubmissions, compiler == null ? null : compiler.compilationSource(),
                     compiler != null && "MARKDOWN_FALLBACK".equals(compiler.compilationSource())
                             ? compiler.fallbackReason() : null,
