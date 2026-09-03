@@ -17,6 +17,35 @@ import org.springframework.web.client.RestClient;
 class OpenCodeCommandTransportTest {
     @TempDir Path root;
 
+    @Test void isolatesLiveOutputAndNeverAbortsALaterBusinessMessage() throws Exception {
+        var lastUser = new AtomicReference<>("msg_loopper_aicoding_test");
+        var aborts = new AtomicInteger();
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/", exchange -> {
+            String response;
+            if (exchange.getRequestURI().getPath().endsWith("/abort")) { aborts.incrementAndGet(); response = "true"; }
+            else response = """
+                    {"data":[{"info":{"id":"%s","role":"user"}},
+                    {"info":{"id":"stat-output","role":"assistant","parentID":"msg_loopper_aicoding_test"},"parts":[{"id":"p1","type":"text","text":"故事统计真实输出"}]},
+                    {"info":{"id":"business-output","role":"assistant","parentID":"business"},"parts":[{"type":"text","text":"BUSINESS_ONLY"}]}]}
+                    """.formatted(lastUser.get());
+            byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, bytes.length); exchange.getResponseBody().write(bytes); exchange.close();
+        });
+        server.start();
+        try {
+            var client = new HttpOpenCodeClient(RestClient.builder(), URI.create("http://127.0.0.1:" + server.getAddress().getPort()), null, null);
+            var remote = new OpenCodeClient.OpenCodeSession("session", root);
+            assertThat(client.commandTranscript(remote, "msg_loopper_aicoding_test").parts()).singleElement()
+                    .extracting(OpenCodeClient.SessionPart::content).isEqualTo("故事统计真实输出");
+            assertThat(client.cancelCommand(remote, "msg_loopper_aicoding_test")).isTrue();
+            lastUser.set("business");
+            assertThat(client.cancelCommand(remote, "msg_loopper_aicoding_test")).isFalse();
+            assertThat(aborts).hasValue(1);
+        } finally { server.stop(0); }
+    }
+
     @Test void discoversWithoutCreatingSessionsAndInvokesNativeCommandWithExactIdentity() throws Exception {
         var requests = new AtomicInteger();
         var body = new AtomicReference<String>();

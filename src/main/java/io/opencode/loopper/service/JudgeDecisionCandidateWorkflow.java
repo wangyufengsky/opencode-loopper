@@ -215,7 +215,7 @@ final class JudgeDecisionCandidateWorkflow {
                         "JUDGE_CANDIDATE_INTERACTION_FORBIDDEN",
                         "Judge candidate must not request interactive input", false);
             }
-            if (Instant.now().isAfter(context.deadline())) {
+            if (StoryAccountingClock.sessionNow(mapper, remote.id(), launch.createdAt()).isAfter(context.deadline())) {
                 close(run, MachineCandidateSubmission.CandidateCloseReason.TIMEOUT);
                 return terminate(launch,
                         GenericCandidateInternalTerminationPreparer.IntentKind.PROTOCOL_FAILURE,

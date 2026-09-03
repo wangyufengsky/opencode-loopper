@@ -125,9 +125,15 @@ public interface StoryBindingMapper {
     @Update("""
             UPDATE story_accounting_call SET state=#{state},plugin_run_id=#{pluginRunId},result_text=#{resultText},
               error_code=#{errorCode},error_detail=#{errorDetail},notification_emitted=#{notificationEmitted},
-              finished_at=#{finishedAt} WHERE id=#{id} AND state='PREPARED'
+              finished_at=#{finishedAt} WHERE id=#{id} AND state IN ('PREPARED','CANCELLING')
             """)
     int finishStoryAccountingCall(StoryAccountingCallRow row);
+
+    @Update("UPDATE story_accounting_call SET state='CANCELLING' WHERE id=#{id} AND state='PREPARED'")
+    int markStoryAccountingCancelling(String id);
+
+    @Select("SELECT * FROM story_accounting_call WHERE id=#{id}")
+    Optional<StoryAccountingCallRow> findStoryAccountingCallById(String id);
 
     @Select("SELECT message_id FROM story_accounting_call WHERE accounting_session_id IN (SELECT id FROM story_accounting_session WHERE external_session_id=#{externalSessionId})")
     List<String> listStoryAccountingMessageIds(String externalSessionId);
@@ -144,8 +150,18 @@ public interface StoryBindingMapper {
             """)
     List<StoryAccountingSessionRow> listRetiredStoryAccountingSessions();
 
-    @Select("SELECT * FROM story_accounting_call WHERE state='PREPARED' AND started_at < #{startupAt}")
+    @Select("SELECT * FROM story_accounting_call WHERE state IN ('PREPARED','CANCELLING') AND started_at < #{startupAt}")
     List<StoryAccountingCallRow> listInterruptedStoryAccountingCalls(String startupAt);
+    @Select("""
+            SELECT call.started_at,call.finished_at FROM story_accounting_call call
+            JOIN story_accounting_session session ON session.id=call.accounting_session_id
+            WHERE call.phase='BEGIN' AND
+              ((#{remoteId} IS NOT NULL AND session.external_session_id=#{remoteId}) OR
+               (#{taskId} IS NOT NULL AND session.task_id=#{taskId}))
+            """)
+    List<AccountingWait> storyAccountingWaits(@Param("remoteId") String remoteId, @Param("taskId") String taskId);
+    record AccountingWait(String startedAt, String finishedAt) { }
+
     @Select("SELECT * FROM story_accounting_session WHERE id=#{id}")
     Optional<StoryAccountingSessionRow> findStoryAccountingSessionById(String id);
 }

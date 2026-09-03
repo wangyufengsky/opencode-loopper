@@ -54,6 +54,8 @@ class StoryAccountingIntegrationTest {
     @Autowired ProjectService projects;
     @Autowired StoryBindingService bindings;
     @Autowired StoryAccountingCoordinator accounting;
+    @Autowired StoryAccountingActivityService activity;
+    @Autowired io.opencode.loopper.persistence.StoryAccountingActivityMapper activityMapper;
     @Autowired DesignerEventHub designerEvents;
     @Autowired DesignerSessionService designers;
     @Autowired DesignerAttachmentCommandService attachments;
@@ -111,32 +113,76 @@ class StoryAccountingIntegrationTest {
                 .extracting(row -> row.pluginRunId()).isEqualTo("plugin-actual-run");
     }
 
-    @Test void failureAndTimeoutDoNotFailBusinessAndDoNotRetryOrDuplicateNotifications() {
-        String designer = fixture("timeout", true);
+    @Test void manualCancellationReleasesBusinessWithoutDeadlineRetryOrLateOverwrite() throws Exception {
+        String designer = fixture("cancel-statistics", true);
         AtomicInteger requests = new AtomicInteger();
+        var received = new java.util.concurrent.CountDownLatch(1);
+        var late = new java.util.concurrent.CountDownLatch(1);
         try (var ignored = new CoordinatorCloser(new StoryAccountingCoordinator(mapper, mock(TaskEventService.class),
-                Duration.ofMillis(40), new TransactionTemplate(transactionManager)))) {
+                new TransactionTemplate(transactionManager)));
+             var workers = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
             var coordinator = ignored.value;
-            coordinator.beforeBusinessPrompt(remote("timeout"), request -> {
+            var business = workers.submit(() -> coordinator.beforeBusinessPrompt(remote("cancel-statistics"), request -> {
                 requests.incrementAndGet();
-                try { Thread.sleep(1_000); } catch (InterruptedException expected) { Thread.currentThread().interrupt(); }
+                received.countDown();
+                try { late.await(); } catch (InterruptedException expected) { /* Simulate a late transport result. */ }
                 return new OpenCodeClient.CommandResult("late-run", "late result");
+            }));
+            assertThat(received.await(2, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            Thread.sleep(100); // A pending provider request stays blocked until explicitly cancelled.
+            assertThat(business.isDone()).isFalse();
+            var session = mapper.findStoryAccountingSession("cancel-statistics").orElseThrow();
+            var call = mapper.findStoryAccountingCall(session.id(), "BEGIN").orElseThrow();
+            assertThat(call.state()).isEqualTo("PREPARED");
+            AtomicInteger aborts = new AtomicInteger();
+            coordinator.installCancellation((remote, message) -> {
+                assertThat(business.isDone()).isFalse();
+                assertThat(message).isEqualTo(call.messageId());
+                aborts.incrementAndGet();
+                return true;
             });
-            coordinator.beforeBusinessPrompt(remote("timeout"), request -> { throw new AssertionError("must not resend"); });
-            assertThat(requests.get()).isEqualTo(1);
-            var session = mapper.findStoryAccountingSession("timeout").orElseThrow();
+            coordinator.cancel(call.id());
+            business.get(2, java.util.concurrent.TimeUnit.SECONDS);
+            late.countDown();
+            coordinator.cancel(call.id());
+            assertThat(aborts).hasValue(1);
+            coordinator.beforeBusinessPrompt(remote("cancel-statistics"), request -> { throw new AssertionError("must not resend"); });
+            assertThat(requests).hasValue(1);
             assertThat(mapper.findStoryAccountingCall(session.id(), "BEGIN")).get()
-                    .extracting(StoryAccountingCallRow::state).isEqualTo("UNKNOWN");
-            assertThat(session.pluginRunId()).isNull();
-            coordinator.beforeAbort(remote("timeout"));
-            assertThat(mapper.findStoryAccountingCall(session.id(), "COMPLETE")).isEmpty();
+                    .extracting(StoryAccountingCallRow::state).isEqualTo("CANCELLED");
+            assertThat(mapper.findStoryAccountingSession("cancel-statistics").orElseThrow().pluginRunId()).isNull();
+            assertThat(designers.get(designer).state()).isEqualTo("RUNNING");
+            assertThat(designers.messages(designer)).isEmpty();
             jdbc.update("UPDATE designer_session SET state='CANCELLED' WHERE id=?", designer);
-            coordinator.afterTerminalStatus(remote("timeout"), request -> { throw new IllegalStateException("receiver rejected report"); });
-            coordinator.afterTerminalStatus(remote("timeout"), request -> { throw new AssertionError("duplicate complete"); });
-            assertThat(designers.get(designer).state()).isEqualTo("CANCELLED");
-            assertThat(designers.messages(designer)).hasSize(2);
-            assertThat(designers.messages(designer)).allMatch(message -> "STORY_BINDING_FAILED".equals(message.deliveryState()));
-        }
+            coordinator.afterTerminalStatus(remote("cancel-statistics"), request -> { throw new IllegalStateException("receiver rejected report"); });
+            coordinator.afterTerminalStatus(remote("cancel-statistics"), request -> { throw new AssertionError("duplicate complete"); });
+            assertThat(designers.messages(designer)).singleElement()
+                    .extracting(message -> message.deliveryState()).isEqualTo("STORY_BINDING_FAILED");
+        } finally { late.countDown(); }
+    }
+
+    @Test void persistsExactActivityAndDismissalWithoutReopeningHistoryOrReplacingCancelledOutput() {
+        fixture("activity", true);
+        accounting.beforeBusinessPrompt(remote("activity"), request -> {
+            var session = mapper.findStoryAccountingSession("activity").orElseThrow();
+            var call = mapper.findStoryAccountingCall(session.id(), "BEGIN").orElseThrow();
+            activityMapper.saveParts(call.id(), """
+                    [{"id":"output","type":"OUTPUT","label":"模型输出","content":"正在绑定 000123","status":"completed","startedAt":null}]
+                    """);
+            assertThat(activity.list()).anyMatch(view -> view.id().equals(call.id()));
+            activity.dismiss(call.id()); // A running call cannot be hidden through the terminal acknowledgement.
+            assertThat(activity.list()).anyMatch(view -> view.id().equals(call.id()));
+            return new OpenCodeClient.CommandResult("run", "ok");
+        });
+        var session = mapper.findStoryAccountingSession("activity").orElseThrow();
+        var call = mapper.findStoryAccountingCall(session.id(), "BEGIN").orElseThrow();
+        assertThat(activity.get(call.id()).parts()).singleElement()
+                .extracting(OpenCodeClient.SessionPart::content).isEqualTo("正在绑定 000123");
+        assertThat(activityMapper.saveParts(call.id(), "[]")).isZero();
+        activity.dismiss(call.id());
+        activity.dismiss(call.id());
+        assertThat(activity.list()).noneMatch(view -> view.id().equals(call.id()));
+        assertThat(activity.get(call.id()).parts()).hasSize(1);
     }
 
     @Test void unknownCallsAreRecoveredOnceWithoutRedispatch() {

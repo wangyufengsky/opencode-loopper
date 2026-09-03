@@ -53,6 +53,12 @@ export async function createMockReceiver({ modelReply } = {}) {
       const answer = content.includes('AICODING_RECEIPT') ? { text: content.split('\n')[0] }
         : modelReply ? await modelReply(body, content)
         : { text: content.match(/BUSINESS_RESULT_[A-Z0-9_]+/)?.[0] ?? 'BUSINESS_RESULT_OK' }
+      let modelDelay = content.includes('AICODING_RECEIPT') ? (behavior.accountingModelDelayMs ?? 0) : 0
+      if (behavior.modelOperation && !content.includes(`"operation":"${behavior.modelOperation}"`)) modelDelay = 0
+      if (behavior.modelRemaining !== undefined) {
+        if (behavior.modelRemaining <= 0) modelDelay = 0
+        else if (modelDelay) behavior.modelRemaining -= 1
+      }
       const text = answer.text ?? ''
       const toolCalls = answer.toolCalls
       const finishReason = toolCalls ? 'tool_calls' : 'stop'
@@ -65,6 +71,7 @@ export async function createMockReceiver({ modelReply } = {}) {
       response.writeHead(200, { 'content-type': 'text/event-stream' })
       const base = { id: `chat-${modelRequests.length}`, object: 'chat.completion.chunk', created: 1, model: 'mock' }
       response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { role: 'assistant', content: text, ...(toolCalls ? { tool_calls: toolCalls.map((call, index) => ({ ...call, index })) } : {}) }, finish_reason: null }] })}\n\n`)
+      if (modelDelay) await new Promise(resolve => setTimeout(resolve, modelDelay))
       response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: {}, finish_reason: finishReason }], usage: { prompt_tokens: 5, completion_tokens: 5, total_tokens: 10 } })}\n\n`)
       response.end('data: [DONE]\n\n')
       return

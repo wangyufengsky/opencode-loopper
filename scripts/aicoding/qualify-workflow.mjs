@@ -2,18 +2,21 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 const environment = JSON.parse(await readFile(process.argv[2], 'utf8'))
 const fault = process.argv.includes('--fault')
-const timeout = process.argv.includes('--timeout')
+const longWait = process.argv.includes('--long-wait')
+const manualCancel = process.argv.includes('--manual-cancel')
+const modelWait = process.argv.includes('--model-wait')
+const completeWait = process.argv.includes('--complete-wait')
 const { endpoint, projectRoot, directory, receiver } = environment
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms))
 async function call(path, body) {
   const response = await fetch(endpoint + path, { method: body === undefined ? 'GET' : 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Loopper-Local-UI': '1', Origin: endpoint },
-    body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(45000) })
+    body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(120000) })
   const text = await response.text()
   if (!response.ok) throw new Error(`${path} HTTP ${response.status}: ${text.slice(0, 1000)}`)
   return text ? JSON.parse(text) : undefined
 }
-await fetch(receiver + '/control', { method: 'POST', body: JSON.stringify({ fail: fault, delayMs: timeout ? 31500 : 0, remaining: timeout ? 1 : 1000 }) })
+await fetch(receiver + '/control', { method: 'POST', body: JSON.stringify({ fail: fault, delayMs: longWait && !modelWait ? 40000 : 0, remaining: longWait ? 1 : 1000, accountingModelDelayMs: modelWait ? 40000 : 0, modelRemaining: 1, modelOperation: completeWait ? 'complete' : null }) })
 const existing = await call('/api/projects')
 const project = existing.find(item => item.rootPath === projectRoot) ?? await call('/api/projects', { name: '故事统计真实链路', rootPath: projectRoot })
 const capability = await call(`/api/projects/${project.id}/story-binding-capability`)
@@ -22,13 +25,32 @@ const goal = '本地配置维护：修改 `config.properties`，将 feature.enab
 const draft = await call('/api/loop-drafts', { spec: { schemaVersion: 'v2', projectId: project.id, goal,
   stages: [{ objective: '等待确认设计', allowedPaths: [], deliverables: [], verifiers: [] }],
   model: { providerId: 'aicoding-test', modelId: 'mock' } } })
-const created = await call('/api/designer-sessions', { projectId: project.id, draftId: draft.id,
+const creation = call('/api/designer-sessions', { projectId: project.id, draftId: draft.id,
   initialMessage: goal, autoModeEnabled: true, storyBinding: { enabled: true, systemCode: 'SYS-001', storyCode: fault ? '000124' : '000123' } })
+if (longWait || modelWait) {
+  let pending
+  for (let i = 0; i < 200; i++) {
+    pending = (await call('/api/story-accounting')).find(row => row.state === 'PREPARED' && row.operation === (completeWait ? 'complete' : 'start'))
+    if (pending) break
+    await pause(200)
+  }
+  if (!pending) throw new Error('No live accounting call')
+  console.log(JSON.stringify({ awaitingStatistics: pending.id, manualCancel }))
+  await writeFile(join(directory, 'pending-call.json'), JSON.stringify(pending, null, 2))
+  if (!manualCancel) {
+    await pause(32000)
+    const waiting = await call(`/api/story-accounting/${pending.id}`)
+    if (waiting.state !== 'PREPARED') throw new Error('Statistics must still be running beyond 30 seconds')
+    await writeFile(join(directory, 'past-30-seconds.json'), JSON.stringify(waiting, null, 2))
+    await call(`/api/story-accounting/${pending.id}/cancel`, {})
+  }
+}
+const created = await creation
 console.log(JSON.stringify({ designerId: created.id, draftId: draft.id, capability }))
 const history = []
 let previous = ''
 let finalTask
-const artifact = fault ? 'fault-workflow.json' : timeout ? 'timeout-workflow.json' : 'normal-workflow.json'
+const artifact = fault ? 'fault-workflow.json' : (longWait || modelWait) ? 'cancel-workflow.json' : 'normal-workflow.json'
 for (let index = 0; index < 240; index++) {
   const design = await call(`/api/designer-sessions/${created.id}`)
   const taskId = design.taskId ?? design.autoMode?.taskId

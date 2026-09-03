@@ -24,8 +24,19 @@ final class OpenCodeHttpTransport {
     }
 
     RestClient client(OpenCodeConnectionDetails connection) {
-        RestClient.Builder spec = bounded(source, connectTimeout, requestTimeout)
-                .baseUrl(connection.baseUrl().toString());
+        return authenticated(bounded(source, connectTimeout, requestTimeout), connection);
+    }
+
+    /** Statistics rounds finish at the provider or by explicit user cancellation, never a read deadline. */
+    RestClient commandClient(OpenCodeConnectionDetails connection) {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(boundedTimeoutMillis(connectTimeout, DEFAULT_CONNECT_TIMEOUT));
+        factory.setReadTimeout(0);
+        return authenticated(source.clone().requestFactory(factory), connection);
+    }
+
+    private RestClient authenticated(RestClient.Builder builder, OpenCodeConnectionDetails connection) {
+        RestClient.Builder spec = builder.baseUrl(connection.baseUrl().toString());
         if (connection.username() != null && !connection.username().isBlank()) {
             spec.defaultHeaders(headers -> headers.setBasicAuth(connection.username(),
                     connection.password() == null ? "" : connection.password()));

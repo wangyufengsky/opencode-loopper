@@ -156,7 +156,7 @@ public class AnalysisReportService {
             return null;
         }
         OpenCodeClient.OpenCodeSession remote = new OpenCodeClient.OpenCodeSession(row.externalSessionId(), root);
-        if (row.deadlineAt() != null && Instant.now().isAfter(Instant.parse(row.deadlineAt()))) {
+        if (row.deadlineAt() != null && StoryAccountingClock.sessionNow(mapper, row.externalSessionId(), row.createdAt()).isAfter(Instant.parse(row.deadlineAt()))) {
             try { openCode.abort(remote); } catch (Exception ignored) { }
             update(row, "FAILED", row.title(), row.markdown(), readEvidence(row.evidenceJson()), null, null,
                     "REVIEWER_TIMEOUT", "Independent Reviewer exceeded its 120 second boundary", remote.id(), "FAILED");

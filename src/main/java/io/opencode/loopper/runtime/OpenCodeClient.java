@@ -472,6 +472,10 @@ public interface OpenCodeClient {
             arguments = arguments == null ? "" : arguments;
         }
     }
+    default SessionTranscript commandTranscript(OpenCodeSession session, String messageId) {
+        return new SessionTranscript(List.of());
+    }
+    default boolean cancelCommand(OpenCodeSession session, String messageId) { return false; }
     record CommandResult(String runId, String output) { }
     record SessionTranscript(List<SessionPart> parts, List<UsageRecord> usage) {
         public SessionTranscript(List<SessionPart> parts) { this(parts, List.of()); }

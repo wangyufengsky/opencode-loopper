@@ -21,12 +21,20 @@ final class OpenCodeCommandTransport {
     private static final Pattern RUN_ID = Pattern.compile("(?i)\\\"runId\\\"\\s*:\\s*\\\"([^\\\"]{1,512})\\\"");
     private final Supplier<RestClient> client;
     private final Function<OpenCodeClient.OpenCodeSession, RestClient> sessions;
+    private final Function<OpenCodeClient.OpenCodeSession, RestClient> commands;
     private final OpenCodeResponseParser responses = new OpenCodeResponseParser();
 
     OpenCodeCommandTransport(Supplier<RestClient> client,
                              Function<OpenCodeClient.OpenCodeSession, RestClient> sessions) {
+        this(client, sessions, sessions);
+    }
+
+    OpenCodeCommandTransport(Supplier<RestClient> client,
+                             Function<OpenCodeSession, RestClient> sessions,
+                             Function<OpenCodeSession, RestClient> commands) {
         this.client = client;
         this.sessions = sessions;
+        this.commands = commands;
     }
 
     OpenCodeClient.CommandCapabilityProbe capabilities(Path worktree) {
@@ -100,7 +108,7 @@ final class OpenCodeCommandTransport {
     OpenCodeClient.CommandResult execute(OpenCodeClient.OpenCodeSession session,
                                           OpenCodeClient.CommandRequest request) {
         try {
-            JsonNode response = sessions.apply(session).post()
+            JsonNode response = commands.apply(session).post()
                     .uri(uri -> sessionUri(uri, "/session/{id}/command", session))
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(Map.of("command", request.command(), "agent", OpenCodeAccountingAgent.NAME, "arguments", request.arguments(),
@@ -118,6 +126,38 @@ final class OpenCodeCommandTransport {
         catch (RuntimeException failure) {
             throw new SessionFailure("OPENCODE_COMMAND_FAILED", failure.getMessage());
         }
+    }
+
+    SessionTranscript transcript(OpenCodeSession session, String messageId) {
+        JsonNode messages = messages(session);
+        var selected = new tools.jackson.databind.ObjectMapper().createArrayNode();
+        if (messages != null) for (JsonNode message : messages) {
+            JsonNode info = message.path("info");
+            if (messageId.equals(info.path("parentID").asText(info.path("parentId").asText(null)))) {
+                selected.add(message);
+            }
+        }
+        return responses.transcript(selected);
+    }
+
+    /** Called only while the coordinator still owns the pre-business barrier. Never abort a later user turn. */
+    boolean cancel(OpenCodeSession session, String messageId) {
+        JsonNode messages = messages(session);
+        String lastUser = null;
+        if (messages != null) for (JsonNode message : messages) {
+            if ("user".equals(message.path("info").path("role").asText())) {
+                lastUser = message.path("info").path("id").asText(null);
+            }
+        }
+        if (!messageId.equals(lastUser)) return false;
+        Boolean stopped = sessions.apply(session).post()
+                .uri(uri -> sessionUri(uri, "/session/{id}/abort", session)).retrieve().body(Boolean.class);
+        return Boolean.TRUE.equals(stopped);
+    }
+
+    private JsonNode messages(OpenCodeSession session) {
+        return responses.listBody(sessions.apply(session).get()
+                .uri(uri -> sessionUri(uri, "/session/{id}/message", session)).retrieve().body(JsonNode.class));
     }
 
     private void inspectCommandMessages(OpenCodeSession session, String messageId) {

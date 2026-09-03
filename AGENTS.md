@@ -42,10 +42,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.3.37.jar
-   jar tf target/opencode-loopper-0.3.37.jar \
+   test -s target/opencode-loopper-0.3.39.jar
+   jar tf target/opencode-loopper-0.3.39.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.3.37.jar
+   shasum -a 256 target/opencode-loopper-0.3.39.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -95,8 +95,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.3.37`。
-- 正式产物：`target/opencode-loopper-0.3.37.jar`。
+- Maven 项目版本：`0.3.39`。
+- 正式产物：`target/opencode-loopper-0.3.39.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -481,7 +481,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.3.37.jar
+JAR=target/opencode-loopper-0.3.39.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -581,7 +581,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 - V65 故事绑定仅在 Designer 创建时配置，默认关闭；项目作用域 `/command` 实探包含 `aicoding` 才开放开关，不创建 Session 或调用模型。系统/故事编号按字符串保留，Task 确认与 Recovery 继承同一链。
 - `StoryAccountingCoordinator` 独立持有每个远端 Session 的 BEGIN/COMPLETE 调用与消息身份；首个 start，后续 continue，相同 Session 不重复。业务结果先保存，所属流程不再复用后才 complete；IDLE、等待回答或单独 abort 不等于业务结束。失败/取消也收尾，未工作的 fork 与服务端步骤不伪造统计。
-- 每次最多 30 秒，统计与通知失败不得改变业务生命周期、重试预算、全自动授权或结果。调用前短事务落库；重启将遗留 PREPARED 记 UNKNOWN，不自动重发。SQLite 使用 WAL + IMMEDIATE 事务，避免后台统计写入使业务事务产生 SQLITE_BUSY_SNAPSHOT。
+- 统计不设置自动超时，全局弹窗显示开启/完成阶段与真实模型输出，用户可取消当前统计并继续任务。V66 持久化 CANCELLING/CANCELLED、活动快照及关闭确认；取消先领取调用并在业务屏障释放前校验远端最新 user 消息身份，禁止对已经继续工作的业务会话补发 abort，迟到结果不能覆盖取消。BEGIN 等待按区间并集从相关业务时限中扣除。统计与通知失败不得改变业务生命周期、重试预算、全自动授权或结果。调用前短事务落库；重启将遗留 PREPARED/CANCELLING 记 UNKNOWN，不自动重发。SQLite 使用 WAL + IMMEDIATE 事务，避免后台统计写入使业务事务产生 SQLITE_BUSY_SNAPSHOT。
 - 统计失败通过专属 SSE 类型触发消息刷新，前端 REST/SSE 解析均保留该类型，不更新业务状态；刷新和事件重放按持久化消息 ID 去重。Designer 业务消息与统计通知共用数据库原子追加序号，不使用独立的 MAX+INSERT；并发回归使用与生产一致的文件 SQLite。完整 Vitest 门禁最多并行 4 个 worker，避免并发 jsdom 资源争用导致超时。
 - 受管运行时安装 `loopper-accounting` Agent 及 `loopper-accounting-guard.mjs`；guard 不实现 aicoding，只按保留消息 ID 隔离模型上下文并阻止统计回合调用业务工具。业务提示显式恢复业务 Agent/模型；HTTP 读模型同样排除统计消息及子回复。不可放宽既有角色权限。
 - 开发模拟插件、接收服务与资格脚本位于 `scripts/aicoding/`，只运行于隔离端口/数据/XDG 目录，不访问内网统计平台；模拟成功不能替代内网插件回执和并行语义验证。详见 `docs/story-binding.md`。
@@ -592,6 +592,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-09-03 | 故事统计活动弹窗与手动取消，交付 0.3.39 | V66 保存取消状态、模型输出与关闭确认；全局开启/完成弹窗、独立取消及迟到结果隔离；移除统计等待和命令 HTTP 读取的自动截止，相关业务时限扣除统计等待；保留真实错误通知和无自动重试；同步原生联调脚本与契约 | `./scripts/verify.sh` BUILD SUCCESS：Java 1283（0 失败/错误，2 条件跳过）、Vitest 267/267、原生 guard 1/1；首轮 9 处 V65 迁移断言已同步 V66。JAR `target/opencode-loopper-0.3.39.jar` 289235090 bytes、113 静态文件，SHA-256 `6d4480a3f198d20f2d7c0fdf98516f476f8a604fee471d3463384fca33ee91f5`。真实 OpenCode 1.18.23 模拟链路：32 秒前置请求取消仍一次业务成功、41 秒自然完成不超时、浏览器取消模型回合保留输出；最终 JAR 完成统计手动取消后一次 Attempt 成功、双 Judge PASS，12 个调用独立收束。浏览器输出/切换/刷新/关闭去重及静态资源哈希核对通过。证据 `/tmp/loopper-story-cancel-evidence/VALIDATION.md`；专用实例测试后停止，内网插件待现场核验；未覆盖现有服务、未推送/标签/Release |
 | 2026-09-02 | 故事绑定与 AI 工作量统计，交付 0.3.37 | 新增项目命令探测、创建配置与 V65 继承/调用台账；统一会话统计、超时非阻断、原生消息/工具隔离；更新设计/OpenCode/架构说明，加入隔离模拟环境与完整门禁中的 guard 测试 | `./scripts/verify.sh` BUILD SUCCESS：Java 1279（0 失败/错误，2 条件跳过）、Vitest 263/263、原生 guard 1/1；通知聚焦 Java 13/13、前端 104/104。JAR `target/opencode-loopper-0.3.37.jar` 289217197 bytes、115 个静态文件，SHA-256 `69d3c443f4829b85bafb921f04158a751ed2419b0ba7c55f75e31c1c2756cb5d`。独立成品实例 + OpenCode 1.18.23 + 原生模拟插件/本地确定性模型：正常、持续失败、30 秒超时迟到均一次 Attempt 成功、双 Judge PASS，业务模型上下文无统计回执；原生双 Session 顺序/并行与故障注入通过。浏览器无插件禁用/重新检测/前导零/实际失败通知/刷新无重复通过；修正 REST 消息类型与暂停轮询后的 SSE 通知遗漏。详细证据 `/tmp/loopper-story-delivery-evidence/VALIDATION.md`；内网插件回执/并行语义待现场核验，未操作既有 8080、未推送/标签/Release |
 | 2026-09-02 | 附件全角色派发与评审合同修复，交付 0.3.33 | 补齐 Candidate 双 Judge 全冻结附件，隔离 Legacy Markdown 与 MCP 单行理由要求；Reviewer 类型与反馈明确，不放宽安全边界；更新附件、角色、OpenCode 合同及 README | 红灯复现 5 项失败；聚焦 Java 45/45，强化派发入口 6/6。`./scripts/verify.sh` BUILD SUCCESS：Java 1262（0 失败、0 错误、2 既有条件跳过），Vitest 258/258。JAR `target/opencode-loopper-0.3.33.jar` 为 289164391 bytes，116 个 SPA 入口/assets，SHA-256 `3973047c9e94d70d5043759db2abbba841348842bfa6e9163d957816ee5c0bc8`。隔离 18063、Loopper PID 58719/OpenCode 1.18.23 PID 58742、DeepSeek V4 Flash：真实 DOCX 开发与 ALL_STAGES Recovery 各 7 项测试通过、共 4 个 Judge 正式候选均首次接受/PASS，输入全文哈希均吻合；Reviewer 首次候选接受/报告 READY，limitations 数组。Reviewer 前置 Router 多次错误 REPORT 枚举，明确 ANALYSIS_REPORT 后经正常门禁成功，不计作自动识别无故障。仅服务端直编，未验证独立 AI Compiler/银行原件/Qwen/新浏览器；未操作 8080、未推送/标签/Release。详细取证 `/tmp/loopper-attachment-fix-tU4YvB/VALIDATION.md` |
 | 2026-09-02 | MCP Resource 附件修复，交付 0.3.32 | Office 仅供确定性文本；私有不可枚举资源、不可变快照、读取回执及远端输入哈希证明；保持作用域、冻结、Router、目录权限边界；同步 README、ADR 和接口/设计合同 | 0.3.30 成品实测复现 DOCX 媒体拒绝、TXT .bin 误判；中间 0.3.31 门禁通过但未部署，按用户要求改为 MCP。聚焦 Java 67/67、追加资源/候选门禁 10/10，文案 8/8；`./scripts/verify.sh`：Java 1259（0 失败、0 错误、2 条件跳过）、Vitest 258/258，BUILD SUCCESS。JAR `target/opencode-loopper-0.3.32.jar` 为 289162824 bytes，116 个 SPA 入口/assets，SHA-256 `fc3afdb8fdbfff054f7b56d60efbf6e87da6e189ab848b4e0059d4bdcce762f2`。隔离 18061 成品 PID 39926、OpenCode 1.18.23/PID 39942、DeepSeek V4 Flash 实际上传约 652 KiB 合成 DOCX，资源读取和完整输入校验通过，模型引用 ORCHID-7319/SYNTH-42/E_SYNTH_NULL，刷新后原生问题正常、无设计错误；浏览器 JS 与 JAR 内哈希一致。测试会话 CANCELLED/ABORTED、Task 0，隔离进程已停止；8080/PID 94869 仍为 0.3.28，未改动。未验证银行原件/Qwen 现场或完整实施；未推送、未打标签、未创建 Release |

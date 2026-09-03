@@ -1710,7 +1710,7 @@ public class DesignerSessionService {
                 decompositionRejected(decomposition, session, remote, "DECOMPOSER_INTERACTION_FORBIDDEN", "Task Decomposer must return NEEDS_INPUT instead of asking a model-side question");
                 return;
             }
-            if (timedOut(decomposition.updatedAt())) {
+            if (timedOut(decomposition.updatedAt(), decomposition.externalSessionId())) {
                 try { openCode.abort(remote); } catch (RuntimeException ignored) { }
                 failDecomposition(decomposition, session, "OPENCODE_DECOMPOSER_TIMEOUT", "Task Decomposer exceeded " + defaults.getDesignerTimeout(), true);
                 return;
@@ -1768,7 +1768,7 @@ public class DesignerSessionService {
                         "Task Decomposer must submit NEEDS_INPUT instead of asking a model-side question", false);
                 return true;
             }
-            if (timedOut(input.updatedAt())) {
+            if (timedOut(input.updatedAt(), input.externalSessionId())) {
                 openCode.abortWithConfirmation(remote); closeCandidateQuietly(input.id(), run.submissionChannel());
                 failDecomposition(input, session, "OPENCODE_DECOMPOSER_TIMEOUT",
                         "Task Decomposer exceeded " + defaults.getDesignerTimeout(), false);
@@ -2158,10 +2158,10 @@ public class DesignerSessionService {
             if (packageDesignCandidates.find(workPackage).isPresent()) {
                 packageDesignCandidateWorkflow.handle(this, workPackage, session, revision, discussion,
                         packageDesignCandidates.poll(workPackage, Path.of(project.rootPath()),
-                                timedOut(workPackage.updatedAt())));
+                                timedOut(workPackage.updatedAt(), workPackage.designerExternalSessionId())));
                 return;
             }
-            if (timedOut(workPackage.updatedAt())) {
+            if (timedOut(workPackage.updatedAt(), workPackage.designerExternalSessionId())) {
                 try { openCode.abort(remote); } catch (RuntimeException ignored) { }
                 failPackageDesigner(workPackage, session, "OPENCODE_PACKAGE_DESIGNER_TIMEOUT",
                         "Package Designer exceeded " + defaults.getDesignerTimeout(), true);
@@ -2461,7 +2461,7 @@ public class DesignerSessionService {
                         openCode.sessionLiveOutput(remote), "设计师正在等待你的回答");
                 return;
             }
-            if (timedOut(session.updatedAt())) {
+            if (timedOut(session.updatedAt(), session.externalSessionId())) {
                 try { openCode.abort(remote); } catch (RuntimeException ignored) { }
                 failWorkflow(session, "OPENCODE_DESIGNER_TIMEOUT", "Designer exceeded " + defaults.getDesignerTimeout());
                 return;
@@ -2546,7 +2546,7 @@ public class DesignerSessionService {
     private void pollCompiler(LoopSpecCompilationRow compilation) {
         DesignerSessionRow session = get(compilation.designerSessionId());
         if (acceptanceCandidateWorkflow.poll(acceptanceCandidatePort, compilation, session,
-                responseModel(ModelResponseMode.TEXT_MARKER), timedOut(compilation.updatedAt()))) return;
+                responseModel(ModelResponseMode.TEXT_MARKER), timedOut(compilation.updatedAt(), compilation.externalSessionId()))) return;
         if (acceptanceCandidateWorkflow.advanceLegacyHandoffIfRequired(
                 acceptanceCandidatePort, compilation, session,
                 responseModel(ModelResponseMode.TEXT_MARKER))) return;
@@ -2592,7 +2592,7 @@ public class DesignerSessionService {
                         "LoopSpec Compiler must resolve the frozen design without asking questions");
                 return;
             }
-            if (timedOut(compilation.updatedAt())) {
+            if (timedOut(compilation.updatedAt(), compilation.externalSessionId())) {
                 try { openCode.abort(remote); } catch (RuntimeException ignored) { }
                 failCompilation(compilation, session, "OPENCODE_COMPILER_TIMEOUT",
                         "LoopSpec Compiler exceeded " + defaults.getDesignerTimeout());
@@ -5297,10 +5297,10 @@ public class DesignerSessionService {
                 ? ModelResponseMode.JSON_SCHEMA : ModelResponseMode.TEXT_MARKER;
     }
 
-    private boolean timedOut(String updatedAt) {
+    private boolean timedOut(String updatedAt, String remoteId) {
         Duration timeout = defaults.getDesignerTimeout();
         if (timeout == null || timeout.isZero() || timeout.isNegative()) return false;
-        try { return Duration.between(Instant.parse(updatedAt), Instant.now()).compareTo(timeout) > 0; }
+        try { return Duration.between(Instant.parse(updatedAt), StoryAccountingClock.sessionNow(mapper, remoteId, updatedAt)).compareTo(timeout) > 0; }
         catch (RuntimeException invalidTimestamp) { return false; }
     }
 

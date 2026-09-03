@@ -1422,3 +1422,19 @@ export interface DesignerStreamEvent {
   maxModelCalls: number
   structuredStep?: StructuredModelStep
 }
+
+export interface StoryAccountingCall {
+  id: string
+  operation: 'start' | 'continue' | 'complete'
+  state: 'PREPARED' | 'CANCELLING' | 'SUCCEEDED' | 'FAILED' | 'UNKNOWN' | 'CANCELLED'
+  systemCode: string
+  storyCode: string
+  role: string
+  designerSessionId?: string | null
+  taskId?: string | null
+  startedAt: string
+  finishedAt?: string | null
+  detail?: string | null
+  refreshError?: string | null
+  parts: Array<{ id: string; type: string; label: string; content: string; status?: string | null; startedAt?: string | null }>
+}

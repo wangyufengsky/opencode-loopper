@@ -688,10 +688,9 @@ public class TaskService {
                 && !TaskState.VERIFYING.name().equals(task.state())
                 && !TaskState.JUDGING.name().equals(task.state())) return;
         LoopSpec spec = spec(task);
-        Instant now = Instant.now();
         TaskExecutionCycleRow activeCycle = executionCycles.active(task.id());
         Instant cycleStarted = activeCycle == null ? Instant.parse(task.createdAt()) : Instant.parse(activeCycle.startedAt());
-        if (cycleStarted.plusSeconds(effectiveMaxDurationSeconds(spec)).isBefore(now)) {
+        if (cycleStarted.plusSeconds(effectiveMaxDurationSeconds(spec)).isBefore(StoryAccountingClock.taskNow(mapper, taskId, cycleStarted.toString()))) {
             if (TaskState.VERIFYING.name().equals(task.state())) {
                 VerifierOutcome runtimeStop = managedVerifierRuntimes.stopTask(taskId, "task-duration-exhausted");
                 if (runtimeStop != null && runtimeStop.state() == VerificationState.ERROR) {
@@ -704,7 +703,7 @@ public class TaskService {
         }
         for (AttemptRow attempt : mapper.listAttempts(taskId)) {
             if (AttemptState.RUNNING.name().equals(attempt.state())
-                    && Instant.parse(attempt.createdAt()).plusSeconds(effectiveAttemptTimeoutSeconds(spec)).isBefore(now)) {
+                    && Instant.parse(attempt.createdAt()).plusSeconds(effectiveAttemptTimeoutSeconds(spec)).isBefore(StoryAccountingClock.taskNow(mapper, taskId, attempt.createdAt()))) {
                 sessionFailed(taskId, attempt.id(), "SESSION_TIMEOUT", "Attempt exceeded its session timeout");
             }
         }
@@ -2239,7 +2238,7 @@ public class TaskService {
         if (!JudgeRunState.RUNNING.name().equals(judge.state()) || judge.externalSessionId() == null) return;
         try {
             long timeoutSeconds = spec(inputTask).limits().attemptTimeoutSeconds();
-            if (Instant.parse(judge.createdAt()).plusSeconds(timeoutSeconds).isBefore(Instant.now())) {
+            if (Instant.parse(judge.createdAt()).plusSeconds(timeoutSeconds).isBefore(StoryAccountingClock.sessionNow(mapper, judge.externalSessionId(), judge.createdAt()))) {
                 handleJudgeSessionFailure(inputTask, judge, new SessionFailure("JUDGE_TIMEOUT", "Judge exceeded its configured session timeout"));
                 return;
             }
@@ -2701,7 +2700,7 @@ public class TaskService {
         } catch (RuntimeException invalid) {
             throw new TaskFailure("TASK_DURATION_INVALID", "Task duration deadline cannot be evaluated safely");
         }
-        Duration remaining = Duration.between(Instant.now(), deadline);
+        Duration remaining = Duration.between(StoryAccountingClock.taskNow(mapper, task.id(), deadline.minusSeconds(effectiveMaxDurationSeconds(spec)).toString()), deadline);
         if (remaining.isZero() || remaining.isNegative()) {
             throw new TaskFailure("TASK_DURATION_EXHAUSTED", "Task exceeded its maximum duration");
         }

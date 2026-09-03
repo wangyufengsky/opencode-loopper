@@ -2,7 +2,7 @@ import type { AppSettings, Artifact, Attempt, AutomationImportPreview, Automatio
 import type { AnalysisReport, DesignerTaskProfileUpdatePreview, ProjectStackProfile, RollingPackageCapabilities, RollingPackageDetail, RollingPackageFact, RollingPackageRun, RollingPackageWorkbench, RollingPlanPackage, RollingPlanProposal } from '@/types/domain'
 import { DESIGNER_SESSION_STATES, DESIGN_WORK_PACKAGE_STATES, LOOP_DRAFT_STATUSES, STAGE_STATUSES, TASK_PACKAGE_RUN_STATES, TASK_STATUSES, WORK_PACKAGE_AGGREGATE_STATUSES, requirePublicState } from '@/types/states'
 import type { InsightQuery, JudgeApproval, McpServerInfo, McpToolCatalog } from '@/types/domain'
-import type { StoryBindingCapability, StoryBindingConfiguration } from '@/types/domain'
+import type { StoryAccountingCall, StoryBindingCapability, StoryBindingConfiguration } from '@/types/domain'
 
 const apiBase = import.meta.env.VITE_API_BASE ?? '/api'
 
@@ -1516,7 +1516,22 @@ type RollingPackageCommandVersions = {
   expectedDesignRevision: number
 }
 
+function normalizeStoryAccountingCall(value: unknown): StoryAccountingCall {
+  const raw = asRecord(value)
+  const state = requirePublicState(['PREPARED', 'CANCELLING', 'SUCCEEDED', 'FAILED', 'UNKNOWN', 'CANCELLED'] as const, raw.state, 'StoryAccountingCall')
+  const operation = requirePublicState(['start', 'continue', 'complete'] as const, raw.operation, 'StoryAccountingCall.operation')
+  return { ...raw, id: asString(raw.id), state, operation, systemCode: asString(raw.systemCode), storyCode: asString(raw.storyCode),
+    role: asString(raw.role), startedAt: asString(raw.startedAt), parts: Array.isArray(raw.parts) ? raw.parts.map(value => {
+      const part = asRecord(value)
+      return { id: asString(part.id), type: asString(part.type), label: asString(part.label), content: asString(part.content) }
+    }) : [] }
+}
+
 export const api = {
+  getStoryAccountingCalls: async () => (await request<unknown[]>('/story-accounting')).map(normalizeStoryAccountingCall),
+  getStoryAccountingCall: async (id: string) => normalizeStoryAccountingCall(await request<unknown>(`/story-accounting/${encodeURIComponent(id)}`)),
+  cancelStoryAccountingCall: async (id: string) => normalizeStoryAccountingCall(await request<unknown>(`/story-accounting/${encodeURIComponent(id)}/cancel`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } })),
+  dismissStoryAccountingCall: async (id: string) => request<void>(`/story-accounting/${encodeURIComponent(id)}/dismiss`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } }),
   getProjects: async (refresh = false) => (await request<unknown[]>(`/projects/summaries${refresh ? '?refresh=true' : ''}`)).map(normalizeProject),
   pickProjectDirectory: async (): Promise<DirectorySelection> => {
     const raw = asRecord(await request<unknown>('/projects/pick-directory', { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } }))

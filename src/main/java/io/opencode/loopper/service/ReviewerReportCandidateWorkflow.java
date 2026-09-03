@@ -184,7 +184,7 @@ final class ReviewerReportCandidateWorkflow {
                         "REVIEWER_CANDIDATE_INTERACTION_FORBIDDEN",
                         "Reviewer candidate must not request interactive input", false);
             }
-            if (report.deadlineAt() != null && Instant.now().isAfter(Instant.parse(report.deadlineAt()))) {
+            if (report.deadlineAt() != null && StoryAccountingClock.sessionNow(mapper, launch.externalSessionId(), report.createdAt()).isAfter(Instant.parse(report.deadlineAt()))) {
                 close(run, MachineCandidateSubmission.CandidateCloseReason.TIMEOUT);
                 return terminate(context, report, launch,
                         GenericCandidateInternalTerminationPreparer.IntentKind.PROTOCOL_FAILURE,

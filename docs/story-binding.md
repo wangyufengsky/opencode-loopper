@@ -9,10 +9,20 @@
 - 首个实际派发业务提示的 Session 使用 `aicoding start <系统编号> <故事编号>`，后续新 Session 使用 `continue`。相同 Session 的继续讨论、问题回答和 Provider 重试不重复绑定。
 - 覆盖 Router、需求与工作包设计、规划、Compiler、Implementation、Reviewer、双 Judge 及这些角色的修复/finalizer。未开展工作的 fork 和服务端生成步骤不制造统计调用。
 - 业务结果先落库；只有所属流程已经不再复用该远端 Session，才提交 `complete`。正常结束、失败和取消均适用。远端一次 IDLE、等待用户回答和单独 abort 不是业务结束判据。
-- 统计调用最多等待 30 秒。失败、连接中断和超时只写入统计记录与一次 Loopper 内通知，不消耗业务重试预算，不关闭全自动模式，不回滚业务结果，也不因统计超时中止业务 Session。
-- 每个 Session 的 BEGIN/COMPLETE 各有独立且唯一的调用和消息 ID。网络请求前以短事务持久化，网络操作在事务外。结果未知不自动重发；重启把遗留 PREPARED 标为 UNKNOWN。
+- 统计调用持续等待，不再设置 30 秒自动超时。全局弹窗显示“正在开启／完成故事点统计”、真实模型输出和用时，提供“取消本次统计，继续任务”。真实调用失败仍只写入统计记录与一次 Loopper 内通知，不消耗业务重试预算，不关闭全自动模式，不回滚业务结果。
+- 每个 Session 的 BEGIN/COMPLETE 各有独立且唯一的调用和消息 ID。网络请求前以短事务持久化，网络操作在事务外。结果未知不自动重发；重启把遗留 PREPARED/CANCELLING 标为 UNKNOWN。
 
-通知示例：“AI 工作量统计失败：请求超时（30 秒），任务继续执行。”设计通知保存在系统消息中，任务通知保存在事件记录中。通知和业务消息使用数据库原子追加，避免并发序号冲突。统计通知通过独立 SSE 事件刷新持久化消息；即使设计已停止轮询，也会显示结束调用失败，且不会覆盖业务角色或运行状态。重复刷新或重放不重复追加通知；通知投递异常也不能影响任务。
+通知示例：“AI 工作量统计失败：统计服务暂不可用，任务继续执行。”设计通知保存在系统消息中，任务通知保存在事件记录中。通知和业务消息使用数据库原子追加，避免并发序号冲突。统计通知通过独立 SSE 事件刷新持久化消息；即使设计已停止轮询，也会显示结束调用失败，且不会覆盖业务角色或运行状态。重复刷新或重放不重复追加通知；通知投递异常也不能影响任务。
+
+## 统计弹窗与手动取消
+
+统计弹窗独立于设计提交响应，因此首个 Router 尚未创建完成也可看到统计状态。页面每 1.2 秒刷新调用列表与当前统计的输出；并行调用可切换查看。完成回执不会阻塞业务，关闭结果会持久化确认，刷新不重新弹出已关闭的历史结果。输出仅来自该统计消息的 assistant 子回复；不展示 HTTP 原始信封，也不读取业务设计稿。
+
+取消只作用于指定调用。服务端先领取取消，再在业务提示尚未释放时核对最新远端 user 消息身份；只有它仍是当前统计消息才尝试 OpenCode abort。真实 abort 的网络请求仍有连接和读取边界；其失败不升级为业务错误。取消落为 CANCELLED，正常完成与取消只能有一个结果胜出；后续 Session 继续继承故事绑定，结束时仍尝试 complete。已送达平台的请求无法撤回，插件前置 hook 尚未生成消息或远端停止未确认时，迟到回复继续按统计身份隔离，不覆盖取消结果，也不再补发 abort。
+
+V66 保存取消状态、模型活动快照及关闭确认。BEGIN 的等待区间从相关 Session/Task 的业务超时预算中扣除，并行区间按并集合并；业务自己的执行时限仍保留。统计输出读取失败只提示无法刷新，不改变正在执行的统计。进程重启不盲目重发未知请求。
+
+本地接口：`GET /api/story-accounting` 列出未关闭调用，`GET /api/story-accounting/{id}` 查询活动；`POST /api/story-accounting/{id}/cancel` 和 `/dismiss` 分别取消统计、确认关闭结果，两者要求 `X-Loopper-Local-UI: 1`。
 
 ## OpenCode 接入
 
@@ -31,10 +41,15 @@ V65 保存绑定链、Designer/Task 继承关系、每个远端 Session 的角�
 `start-qualification.mjs` 启动独立端口、数据库和 XDG 目录的 Loopper/真实 OpenCode 环境，输出 environment.json 路径。模型只访问 localhost。可传入已构建 JAR：
 
 ```bash
-node scripts/aicoding/start-qualification.mjs target/opencode-loopper-0.3.37.jar
+node scripts/aicoding/start-qualification.mjs target/opencode-loopper-0.3.39.jar
 node scripts/aicoding/qualify-workflow.mjs /绝对路径/environment.json
+# 等待超过 30 秒仍运行，再手动取消并验证完整业务链
+node scripts/aicoding/qualify-workflow.mjs /绝对路径/environment.json --long-wait
+# 模型已返回正文时取消；附加 --manual-cancel 可改由浏览器点击
+node scripts/aicoding/qualify-workflow.mjs /绝对路径/environment.json --model-wait
+node scripts/aicoding/qualify-workflow.mjs /绝对路径/environment.json --model-wait --complete-wait
 ```
 
-接收端 `POST /control` 支持 `fail`、`delayMs`、`loseResponse` 故障注入；`GET /requests` 回读接收台账和模型请求。终止启动脚本会停止专用 JVM、受管 OpenCode 和接收服务；保留隔离目录的日志用于核验，后续可删除整个目录。原有 OpenCode 配置和 8080 服务不受影响。
+接收端 `POST /control` 支持 `fail`、`delayMs`、`loseResponse`、`accountingModelDelayMs`（统计流式正文返回后的停顿） 故障注入；`GET /requests` 回读接收台账和模型请求。终止启动脚本会停止专用 JVM、受管 OpenCode 和接收服务；保留隔离目录的日志用于核验，后续可删除整个目录。原有 OpenCode 配置和 8080 服务不受影响。
 
-自动化测试覆盖配置、前导零、继承、唯一调用、网络事务边界、超时/失败/取消、消息分流、重启未知结果和 UI 探测竞态；真实调用验收记录单独保存。模拟成功证明的是 Loopper 接入与容错能力，不能代替内网插件的现场验证。
+自动化测试覆盖配置、前导零、继承、唯一调用、网络事务边界、持续等待/失败/手动取消、消息分流、重启未知结果和 UI 探测竞态；真实调用验收记录单独保存。模拟成功证明的是 Loopper 接入与容错能力，不能代替内网插件的现场验证。

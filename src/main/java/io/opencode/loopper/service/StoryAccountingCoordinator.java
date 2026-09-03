@@ -9,7 +9,6 @@ import io.opencode.loopper.persistence.StoryAccountingSessionRow;
 import io.opencode.loopper.persistence.StoryBindingRow;
 import io.opencode.loopper.runtime.OpenCodeClient;
 import jakarta.annotation.PreDestroy;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
@@ -17,8 +16,6 @@ import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -40,7 +37,9 @@ public class StoryAccountingCoordinator {
     private final LoopperMapper mapper;
     private final TaskEventService taskEvents;
     private DesignerEventHub designerEvents;
-    private final Duration timeout;
+    private StoryAccountingActivityService activity;
+    private volatile CommandCancellation cancellation;
+    private final Map<String, Pending> active = new ConcurrentHashMap<>();
     private final String startupAt = Instant.now().toString();
     private final ExecutorService commands = Executors.newVirtualThreadPerTaskExecutor();
     private volatile SessionCommandTransport sessionTransport;
@@ -49,20 +48,17 @@ public class StoryAccountingCoordinator {
 
     @Autowired
     public StoryAccountingCoordinator(LoopperMapper mapper, TaskEventService taskEvents,
-                                     PlatformTransactionManager transactionManager, DesignerEventHub designerEvents) {
-        this(mapper, taskEvents, Duration.ofSeconds(30), new TransactionTemplate(transactionManager));
+                                     PlatformTransactionManager transactionManager, DesignerEventHub designerEvents,
+                                     StoryAccountingActivityService activity) {
+        this(mapper, taskEvents, new TransactionTemplate(transactionManager));
         this.designerEvents = designerEvents;
+        this.activity = activity;
     }
 
-    StoryAccountingCoordinator(LoopperMapper mapper, TaskEventService taskEvents, Duration timeout) {
-        this(mapper, taskEvents, timeout, null);
-    }
-
-    StoryAccountingCoordinator(LoopperMapper mapper, TaskEventService taskEvents, Duration timeout,
+    StoryAccountingCoordinator(LoopperMapper mapper, TaskEventService taskEvents,
                                TransactionTemplate transactions) {
         this.mapper = mapper;
         this.taskEvents = taskEvents;
-        this.timeout = timeout;
         this.transactions = transactions;
     }
 
@@ -100,6 +96,35 @@ public class StoryAccountingCoordinator {
     }
 
     public void installTransport(SessionCommandTransport transport) { this.sessionTransport = transport; }
+    public void installCancellation(CommandCancellation cancellation) { this.cancellation = cancellation; }
+
+    /** Claim cancellation before releasing the prompt barrier; a late result cannot win after this claim. */
+    public void cancel(String callId) {
+        Pending pending = active.get(callId);
+        if (pending == null) return;
+        synchronized (pending) {
+            if (pending.result.isDone() || pending.cancelled) return;
+            pending.cancelled = true;
+        }
+        String detail = "已取消本次统计，任务继续执行。已送达平台的请求可能仍产生报告。";
+        try {
+            mapper.markStoryAccountingCancelling(callId);
+            CommandCancellation transport = cancellation;
+            if (transport != null && !transport.cancel(pending.remote, pending.messageId)) {
+                detail += " 远端停止未确认，后续返回不会改变本次取消结果。";
+            }
+            if (activity != null) {
+                try { activity.capture(callId); }
+                catch (RuntimeException unavailable) { log.debug("Cancelled accounting output unavailable", unavailable); }
+            }
+        } catch (RuntimeException failure) {
+            detail += " 远端停止未确认：" + bounded(failure.getMessage());
+        } finally {
+            var worker = pending.worker;
+            if (worker != null) worker.cancel(true);
+            pending.result.completeExceptionally(new UserCancelled(detail));
+        }
+    }
 
     @Scheduled(fixedDelay = 1_000)
     public void completeRetiredSessions() {
@@ -130,9 +155,9 @@ public class StoryAccountingCoordinator {
         CompletableFuture<Void> pending = new CompletableFuture<>();
         CompletableFuture<Void> existing = starting.putIfAbsent(remote.id(), pending);
         if (existing != null) {
-            try { existing.get(timeout.toMillis(), TimeUnit.MILLISECONDS); }
+            try { existing.get(); }
             catch (InterruptedException failure) { Thread.currentThread().interrupt(); }
-            catch (ExecutionException | TimeoutException ignored) { /* Main work remains independent. */ }
+            catch (ExecutionException ignored) { /* Main work remains independent. */ }
             return;
         }
         try {
@@ -192,15 +217,24 @@ public class StoryAccountingCoordinator {
         String state = "SUCCEEDED";
         String code = null;
         String detail = null;
-        var future = commands.submit(() -> transport.execute(new OpenCodeClient.CommandRequest(
-                COMMAND, call.argumentsText(), call.messageId())));
+        Pending pending = new Pending(new OpenCodeClient.OpenCodeSession(session.externalSessionId(),
+                java.nio.file.Path.of(session.worktreePath()), session.runtimeGenerationId(), null), call.messageId());
+        active.put(call.id(), pending);
+        pending.worker = commands.submit(() -> {
+            synchronized (pending) { if (pending.cancelled) return; }
+            try {
+                var receipt = transport.execute(new OpenCodeClient.CommandRequest(COMMAND, call.argumentsText(), call.messageId()));
+                if (activity != null) {
+                    try { activity.capture(call.id()); }
+                    catch (RuntimeException unavailable) { log.debug("Accounting output unavailable", unavailable); }
+                }
+                synchronized (pending) { if (!pending.cancelled) pending.result.complete(receipt); }
+            } catch (Throwable failure) {
+                synchronized (pending) { if (!pending.cancelled) pending.result.completeExceptionally(failure); }
+            }
+        });
         try {
-            result = future.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
-        } catch (TimeoutException failure) {
-            future.cancel(true);
-            state = "UNKNOWN";
-            code = "STORY_ACCOUNTING_TIMEOUT";
-            detail = "请求超时（" + timeout.toSeconds() + " 秒）";
+            result = pending.result.get();
         } catch (InterruptedException failure) {
             Thread.currentThread().interrupt();
             state = "UNKNOWN";
@@ -208,17 +242,17 @@ public class StoryAccountingCoordinator {
             detail = "统计调用被中断";
         } catch (ExecutionException failure) {
             Throwable cause = failure.getCause() == null ? failure : failure.getCause();
-            state = "FAILED";
-            code = cause instanceof SessionFailure sessionFailure
+            state = cause instanceof UserCancelled ? "CANCELLED" : "FAILED";
+            code = cause instanceof UserCancelled ? "STORY_ACCOUNTING_CANCELLED" : cause instanceof SessionFailure sessionFailure
                     ? sessionFailure.code() : "STORY_ACCOUNTING_COMMAND_FAILED";
             detail = bounded(cause.getMessage());
-        }
+        } finally { active.remove(call.id(), pending); }
         String now = Instant.now().toString();
         boolean failed = !"SUCCEEDED".equals(state);
         StoryAccountingCallRow finished = new StoryAccountingCallRow(call.id(), call.accountingSessionId(),
                 call.phase(), call.messageId(), call.operation(), call.argumentsText(), state,
                 result == null || result.runId() == null ? null : bounded(result.runId()),
-                result == null ? null : bounded(result.output()), code, detail, failed,
+                result == null ? null : bounded(result.output()), code, detail, failed && !"CANCELLED".equals(state),
                 call.startedAt(), now);
         String sessionState = "BEGIN".equals(call.phase())
                 ? failed ? "BIND_FAILED" : "ACTIVE"
@@ -229,7 +263,7 @@ public class StoryAccountingCoordinator {
             mapper.updateStoryAccountingSession(copy(session, sessionState, runId, now));
             return true;
         }));
-        if (claimed && failed) notifyFailure(session, call, detail == null ? code : detail);
+        if (claimed && failed && !"CANCELLED".equals(state)) notifyFailure(session, call, detail == null ? code : detail);
     }
 
     private void notifyFailure(StoryAccountingSessionRow session, StoryAccountingCallRow call, String reason) {
@@ -315,6 +349,20 @@ public class StoryAccountingCoordinator {
     }
     @FunctionalInterface public interface SessionCommandTransport {
         OpenCodeClient.CommandResult execute(OpenCodeClient.OpenCodeSession session, OpenCodeClient.CommandRequest request);
+    }
+    @FunctionalInterface public interface CommandCancellation {
+        boolean cancel(OpenCodeClient.OpenCodeSession session, String messageId);
+    }
+    private static final class Pending {
+        final OpenCodeClient.OpenCodeSession remote;
+        final String messageId;
+        final CompletableFuture<OpenCodeClient.CommandResult> result = new CompletableFuture<>();
+        volatile java.util.concurrent.Future<?> worker;
+        boolean cancelled;
+        Pending(OpenCodeClient.OpenCodeSession remote, String messageId) { this.remote = remote; this.messageId = messageId; }
+    }
+    private static final class UserCancelled extends RuntimeException {
+        UserCancelled(String message) { super(message); }
     }
     private record Prepared(StoryAccountingSessionRow session, StoryAccountingCallRow call) { }
 }
