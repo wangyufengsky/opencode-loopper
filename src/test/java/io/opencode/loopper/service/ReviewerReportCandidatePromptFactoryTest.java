@@ -17,7 +17,7 @@ class ReviewerReportCandidatePromptFactoryTest {
                 MachineCandidateKind.REVIEWER_REPORT_V1, "REVIEWER_REPORT_V1", 7, 1,
                 MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP,
                 "REVIEWER_REPORT_V1", "generation-1", "remote-1",
-                MachineCandidateRunState.OPEN, 3, 0, null, 0);
+                MachineCandidateRunState.OPEN, 0, 2, null, 7);
 
         String prompt = prompts.internal("Read-only role instructions", "/repo", "Review concurrency safety",
                 run, "loopper_private_submit_candidate");
@@ -26,7 +26,7 @@ class ReviewerReportCandidatePromptFactoryTest {
                 .contains("REVIEWER_REPORT_V1 PRIVATE SUBMISSION CONTRACT")
                 .contains("loopper_private_submit_candidate")
                 .contains("runId: run-1")
-                .contains("expectedSubmissionRevision: 0")
+                .contains("expectedSubmissionRevision: 7")
                 .contains("MCP submissions have no count limit")
                 .doesNotContain("at most three times")
                 .contains("final assistant text is ignored")

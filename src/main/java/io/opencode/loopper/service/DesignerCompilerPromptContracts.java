@@ -139,7 +139,7 @@ final class DesignerCompilerPromptContracts {
                 %s
                 """.formatted(rolePrompts.compilerInstructions(profile.rolePackId(), profile.rolePackVersion(),
                         profile.executionStrategy(), profile.technologies(), profile.testPolicy()),
-                MachineRoleContractCatalog.legacyCompilerCard(), packageId, example);
+                MachineRoleContractCatalog.legacySemanticCompilerCard(), packageId, example);
     }
 
     static String semanticPlanning(String projectRoot, int requirementRevision, String packageId,
@@ -167,13 +167,11 @@ final class DesignerCompilerPromptContracts {
                 Frozen prerequisite package contracts:
                 %s
 
-                Repository timing rule: this read-only repository is the immutable pre-execution baseline. A listed
-                prerequisite with state APPROVED is guaranteed to execute successfully before this package's Stages
-                can start in the single dependency-ordered Task. Its files may therefore be absent now. Use read/glob/
-                grep only for baseline conventions and files not owned by completed prerequisites. You must not return
-                DESIGN_INCOMPLETE or MISSING_SCOPE merely because a completed prerequisite deliverable is absent from
-                the current repository. Report a semantic gap only when the required contract is absent from both the
-                frozen current design and the frozen prerequisite contract/handoff.
+                Repository timing rule: inspect the supplied read-only snapshot for actual files. An APPROVED
+                prerequisite contract promises work before this package; it does not prove implementation success.
+                Missing files explicitly promised by that contract are not by themselves MISSING_SCOPE. Proven
+                checkpoint facts, accepted contracts and AI handoff summaries are distinct; summaries are navigation
+                only. Report a semantic gap only when the required commitment is absent from the frozen designs.
 
                 Designer-declared focused test evidence (exact frozen design lines; reuse these named tests and
                 commands instead of inventing replacements):
@@ -230,8 +228,8 @@ final class DesignerCompilerPromptContracts {
                 Read-only draft defaults preserved later by server aggregation: %s
                 Frozen prerequisite package contracts: %s
 
-                This repository is the pre-execution baseline. A prerequisite with state APPROVED will execute
-                before this package, so its currently absent deliverables are available-at-execution dependencies,
+                A prerequisite with state APPROVED promises delivery before this package; approval alone does not
+                prove implementation. Its explicitly contracted absent deliverables are available-at-execution dependencies,
                 not MISSING_SCOPE. Do not reject the package solely because read/glob/grep cannot find those files.
 
                 COMPILED returns %s complete StageSpec objects only (not a LoopSpec), a short summary, an exact
@@ -262,8 +260,8 @@ final class DesignerCompilerPromptContracts {
                   JSON arrays even when they contain only one item. Never emit a command or verifier as a string.
                 - stages[*].verifiers[*] is a VerifierSpec JSON object. A PROCESS verifier uses
                   {"type":"PROCESS","command":["mvn","-q","-Dtest=ExampleFocusedTest","test"],"processPurpose":"TEST","testTargets":["ExampleFocusedTest"],"criterionIds":["%s"]}.
-                  processPurpose is BUILD, TEST, or SELF_CHECK. A TEST mapped to a business criterion has non-empty
-                  testTargets; a full-suite supplemental TEST has empty criterionIds/testTargets. SELF_CHECK has
+                  processPurpose is BUILD, TEST, SELF_CHECK, or REPORT. TEST requires explicit focused testTargets;
+                  a full-suite supplemental run uses REPORT with empty criterionIds/testTargets. SELF_CHECK has
                   outputContains. command is direct argv and never one shell command string.
                 - Path policies must be satisfiable. No stage or GIT_DIFF allowedPaths rule may be entirely covered
                   by a forbiddenPaths rule. Narrow exclusions inside a broader allow rule remain valid.

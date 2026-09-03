@@ -4559,7 +4559,7 @@ public class DesignerSessionService {
                                                boolean questionRepair, boolean questionRequired,
                                                boolean nativeQuestion) {
         return conversationPrompts.requirementDiscussion(directSoftwareMode(session.id()),
-                MachineRoleContractCatalog.card("DESIGNER"), project.rootPath(), session.id(),
+                rolePrompts.requirementDesignerInstructions(taskProfiles.current(session.id())), project.rootPath(), session.id(),
                 previousSnapshot, feedback, questionRepair, questionRequired, nativeQuestion);
     }
 

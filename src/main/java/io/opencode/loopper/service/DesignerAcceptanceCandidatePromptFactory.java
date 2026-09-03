@@ -37,6 +37,8 @@ final class DesignerAcceptanceCandidatePromptFactory {
                 Frozen exhaustive resolution:
                 %s
 
+                %s
+
                 Submission contract:
                 runId: %s
                 expectedSubmissionRevision: %d
@@ -51,7 +53,7 @@ final class DesignerAcceptanceCandidatePromptFactory {
                 On ACCEPTED or WAITING_INPUT stop.
                 The final text is non-authoritative and must never claim acceptance.
                 """.formatted(facts(planning, routing), capabilities(planning, routing),
-                contract.resolution(routing.resolution()), run.runId(), run.version(), run.contractVersion(),
+                contract.resolution(routing.resolution()), DesignerClosedChoiceContract.outputContract(), run.runId(), run.version(), run.contractVersion(),
                 exactToolName, exactToolName);
     }
 
@@ -78,12 +80,14 @@ final class DesignerAcceptanceCandidatePromptFactory {
                 %s
                 %s
 
+                %s
+
                 Return exactly one JSON object between these markers:
                 <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
                 {"factAssignments":[],"capabilityPreferences":[{"factIndex":0,"capabilityIndexes":[0]}]}
                 <!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->
                 """.formatted(facts(planning, routing), capabilities(planning, routing),
-                contract.resolution(routing.resolution()), repair);
+                contract.resolution(routing.resolution()), repair, DesignerClosedChoiceContract.outputContract());
     }
 
     String candidateJson(String output) {

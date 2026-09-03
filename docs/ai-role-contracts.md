@@ -68,7 +68,7 @@ Task 确认后每个 Stage 也保存同一快照，Implementation 与 Recovery �
 
 除真正零工具的 Router 外，机器角色在创建 Session 前执行有界 MCP 发现。普通角色只把已连接的
 用户 MCP allow 叠加到既有权限模板；候选角色移除用户 MCP 通配权限，只开放本代随机内部
-`submit_candidate` 精确工具。内部 MCP 不会进入 Judge、Router 或公共六工具 Provider，也不能解除写文件、
+`submit_candidate` 精确工具。内部 MCP 只进入显式候选 profile（含 Judge Candidate），不会进入 Legacy Judge、Router 或公共六工具 Provider，也不能解除写文件、
 Bash、Git、外部目录或人工授权限制；发现或精确就绪失败时不发送模型提示。界面称谓统一为需求分析师、任务规划师、设计师、
 规范工程师、评审员、验收工程师和开发工程师；需求与风险 Judge 分别显示为需求评审员和风险评审员，
 数据库及协议角色码保持不变。
@@ -85,7 +85,7 @@ Task；后续包在前一包机器验收和事实冻结后才生成详细设计�
 不能作为通过条件。每包事实索引限制为 4 KiB、累计 24 KiB；超出部分只能通过只读事实/证据接口读取。
 模型不能重写已冻结包；改变既有行为只能提出带 `correctionOf` 的后续修正包。
 调整未执行后缀时，用户可以人工编辑，也可以显式启动独立的只读 AI 建议。建议角色只读取原始冻结需求、
-当前未执行包、精确 Checkpoint 快照和有界事实索引，以 marker JSON 返回 `replaces/dependencies/requirementRefs`；
+当前未执行包、精确 Checkpoint 快照和有界事实索引，优先以私有 MCP 候选、兼容路径以 marker JSON 返回 `replaces/dependencies/requirementRefs`；
 服务端验证来源、依赖、基线版本并计算影响。`GENERATING / PROPOSED / FAILED`、外部 Session 和错误均持久化，
 Monitor 可在重启后继续；AI 完成只形成候选，不能确认计划、确认包设计或开始执行。
 
@@ -103,7 +103,7 @@ V69 起，Decomposer、验收闭集选择、工作包 Designer、滚动规划、
 `maxAttempts` 是冻结的 Legacy 修复预算/身份元数据，不能当作 MCP 剩余配额。精确幂等重放保留
 原响应，成功、不可修复错误及已结束运行仍按原终态处理；不会为解除次数限制而绕过权限或验收。
 
-工作包 Designer 在一次模型调用和一个独立 OpenCode Session 内优先提交
+工作包 Designer 在所属持久会话的当前回合、对应独立候选 run 内优先提交
 `PACKAGE_DESIGN_V1`。每次提交都是完整替换对象，MCP 提交不设次数上限；服务端只返回闭集问题码和
 JSON Pointer，模型可以在同一 Session 读取拒绝原因并修正。模型只拥有需求语义、场景、
 交付物、评审点以及 Stage 目标/引用/依赖，不能决定命令、可写路径清单、测试命令、Verifier、
@@ -462,3 +462,24 @@ Judge 优先读取唯一有效 JSON，也接受唯一、明确的 `VERDICT/判�
 文本不参与 MCP 权威结果。accepted result 必须等待正向远端停止证明，且仍保持长度、保留 marker、
 人工预览和显式应用边界。Designer 只接收短合同卡，聚焦业务
 结果、边界、异常和可观察验收；Implementation 的权限、Attempt 和执行合同不变。
+
+## 当前角色提示装配合同（0.3.55）
+
+应用版本、冻结 Role Pack 版本和机器输出合同版本独立管理；仅优化提示不重写历史冻结版本。
+需求讨论的原生问题、聊天兼容和完整快照分支，以及 MCP Decomposer，均携带已确认画像的专属提示。
+画像说明不再触发重复任务设置确认；是否提问及输出哪类结果由当前阶段决定。
+
+开发与恢复提示从当前 Stage 的零基 ordinal 读取完整 StageSpec，一次序列化路径、交付物、Verifier、
+acceptanceCriteria（含 JUDGE/BOTH 准则）、implementationKind 与 verificationRuntime；不重复发送其他 Stage。
+StageSpec 优先于历史设计及重试摘要。验证服务及动态端口由 Loopper 管理，模型不得留下竞争实例。
+滚动包使用当前 checkpoint 快照；APPROVED 合同是执行承诺，不能当成实现成功证明，AI 摘要只帮助定位。
+
+所有闭集字段必须在当前通道提示中给出类型和嵌套结构。Router 制品枚举来自 ArtifactKind；验收选择模板由
+DesignerClosedChoiceContract 持有；PackageDesignCandidatePromptContract 包含非空 reviews 示例和闭集缺口码。
+示例必须通过生产解析器，示例值不能成为仓库事实。MCP 成功／拒绝由工具响应决定；已修正候选可用新 payload
+和返回的 revision 在同一精确工具继续提交，不设置次数上限，不更换权限或绕过 WAITING_INPUT。
+
+历史 v3 语义 Compiler 保留 criteria/sourceRefs/evidence，不能混入禁止这些字段的 v5 建议卡；修复操作以
+compact evidence 为目标，最终 testTargets/Verifier 仍由服务器派生。全套测试的补充 PROCESS 证据使用 REPORT。
+Reviewer 建议具体修正但不执行；Judge 区分 PASS、可修正差距与证据阻断；提交说明只声称实际 Git 摘要支持的变化；
+合并建议保留双方独立改动；统计角色只返回本次操作的真实回执。工具循环收尾仍遵守原冻结合同和既有权限。

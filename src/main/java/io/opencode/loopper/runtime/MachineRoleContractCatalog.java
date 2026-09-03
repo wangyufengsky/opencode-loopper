@@ -32,6 +32,14 @@ public final class MachineRoleContractCatalog {
                 + "commands, paths, ids, criteria, source refs, or executable verifier fields.";
     }
 
+    public static String legacySemanticCompilerCard() {
+        return "Legacy semantic Compiler contract v3: return source-backed stages, criteria, sourceRefs and "
+                + "evidence intentions from the frozen design and indexed repository facts. Use only evidenced "
+                + "paths and direct commands; examples are shapes, not repository evidence. The server validates "
+                + "and derives stable ids, exact excerpts, criterionIds, testTargets and final verifier objects. "
+                + "COMPILED and DESIGN_INCOMPLETE belong only to this legacy envelope, not to v5-v7 closed choices.";
+    }
+
     public static String closedChoiceCompilerCard() {
         return "Machine role contract " + CLOSED_CHOICE_CONTRACT_VERSION
                 + ": Select every required fact assignment and capability preference only from the server's "

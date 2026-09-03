@@ -1460,3 +1460,9 @@ Creation-only story identity is persisted before the first Router. Designer link
 SQLite retains WAL and the existing busy timeout and now begins transactions with IMMEDIATE write reservation. This prevents a concurrent accounting writer invalidating a business transaction's read snapshot before its optimistic update. Network/model operations remain outside transactions. Hikari discards SQLite BUSY/LOCKED connections and explicitly broken transaction state: SQLite JDBC changes auto-commit before BEGIN succeeds, so recycling a failed connection can break unrelated reads. Constraint errors retain the normal rollback policy; no operation is replayed by this pool safeguard. See [story binding](story-binding.md) for runtime and qualification boundaries.
 
 V67 preserves call and activity history while adding explicit retry lineage and a unique active-call constraint. Statistics completion is coordinated with remote cleanup and with the next start in the same binding chain; waiting and manual cancellation remain outside business failure/retry semantics. No persisted business outcome is rolled back by a failed completion or its manual retry.
+
+### 当前阶段执行提示
+
+TaskExecutionPromptFactory 与验证入口使用相同的零基 Stage ordinal 读取冻结 StageSpec。提示一次包含该阶段的
+验收条款、Judge 准则、路径、Verifier 和 verificationRuntime，缺失映射在派发前失败。历史设计与 Attempt handoff
+仅解释上下文，不能覆盖结构化验收；其他阶段合同不进入当前可写会话。运行时启动、端口分配和停止仍由服务器持有。

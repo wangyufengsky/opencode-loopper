@@ -69,8 +69,9 @@ class DesignerPackageCandidateOrchestratorTest {
                 "expectedSubmissionRevision", "PACKAGE_DESIGN_V1",
                 "\"key\":\"REQ-1\"", "\"statement\":\"需求语义\"",
                 "\"observableResult\":\"可观察结果\"", "\"requirementRefs\":[\"REQ-1\"]",
-                "\"kind\":\"DELIVERABLE\"", "\"includes\":[\"SC-1\",\"DEL-1\"]",
-                "\"dependencies\":[]", "candidate-local reference, not a server stable ID",
+                "\"kind\":\"DELIVERABLE\"", "\"includes\":[\"SC-1\",\"DEL-1\",\"REV-1\"]",
+                "\"dependencies\":[]", "Every key is a unique candidate-local reference",
+                "Never submit commands", "or stable server IDs",
                 "explicitly requests Markdown-only or no private submission",
                 "must respect that choice and do not call the private tool")
                 .doesNotContain("\"id\":\"STAGE-1\"");

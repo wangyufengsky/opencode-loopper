@@ -42,10 +42,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.3.53.jar
-   jar tf target/opencode-loopper-0.3.53.jar \
+   test -s target/opencode-loopper-0.3.55.jar
+   jar tf target/opencode-loopper-0.3.55.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.3.53.jar
+   shasum -a 256 target/opencode-loopper-0.3.55.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -95,8 +95,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.3.53`。
-- 正式产物：`target/opencode-loopper-0.3.53.jar`。
+- Maven 项目版本：`0.3.55`。
+- 正式产物：`target/opencode-loopper-0.3.55.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -224,6 +224,9 @@ Task 详情 `overview` 必须投影 `loopRetryAvailable`、`cancellationAvailabl
 所有新 Task 进入 `COMPLETED / SUPERSEDED / CANCELLED` 前必须经过统一聚合终态守卫：非终态 PackageRun、Attempt、Stage、Execution Cycle 和 Designer 子流程必须已收束或在同一短事务内收束，Queue/Lease 必须无活动占用。远端停止未确认、乐观锁冲突、活动 writer/Verifier/Judge 或 Queue/Lease 混合状态一律失败关闭并保持父 Task 非终态；历史 `SUCCEEDED/FAILED` 只能读取，不得作为新建状态或新转换目标。
 
 ### 5.3 Designer 和 LoopSpec
+
+- 当前角色提示必须按实际阶段、通道和冻结合同代际装配。需求讨论与 MCP Decomposer 均携带专属 Role Pack，但不得重复确认任务设置；工作包提示不混入编译器 argv/Verifier 字段。滚动设计以最新 checkpoint 为现状，APPROVED 仅是已接受合同，AI 摘要仅作导航。Router 枚举、闭集选择嵌套字段、Package reviews 与设计缺口码必须完整给出并经生产解析器回归；MCP 沿用无次数上限的同工具新 payload/revision 修正，权限、角色超时和停止条件保持。历史 v3 语义 Compiler 与 v5/v6/v7 建议合同分别维护。
+- 实施与 Recovery 提示必须通过与验证入口一致的零基 ordinal 注入当前完整 StageSpec（含 acceptanceCriteria、Judge 准则和 verificationRuntime），不得只依赖设计摘要或重复其他阶段合同；当前结构化合同优先，服务启动和动态端口仍由 Loopper 管理。Reviewer、Judge、公约、提交、合并及统计提示分别保留证据边界，不得把建议、工具结果文本或历史回执当作当前成功事实。
 
 - V35 在设计流程前冻结 `TaskIntent / WorkflowTemplate / MutationMode / ArtifactKind / TestPolicy / ExecutionStrategy` 任务画像和版本化 Role Pack；V36 引入独立 `ROUTER_NO_TOOLS` 和 Reviewer 运行态；V37 把工作包 Role Pack、版本、技术栈和测试策略复制到每个确认 Stage，Implementation/Recovery 必须复用；V38 持久化每次 Router 的完整需求快照、外部 Session、响应模式、标签和错误，重启继续同一 Session，新讨论必须 abort 并废弃旧运行；V39 把 Reviewer 升级为固定 `REVIEWER_REPORT_V1` findings 合同并持久化合同版本。服务端结合有界仓库事实决定最终流程，格式/Session 失败降级为通用画像提问而不终止 Designer。置信度低于 80 或证据冲突必须人工确认；历史缺失画像投影为 `LEGACY_SOFTWARE`，Recovery 复用冻结画像。当前 Role Pack `2026-08-dynamic-v7` 继承 v6 的 Java/Python/Node/Other 软件族归并：JavaScript/TypeScript 不得命中 Java，JUnit/Jupiter/Surefire 仍属于 Java，同族别名不得生成混合栈，真实跨族使用 `software-mixed`，显式未知单栈使用 `software-generic`；工作包技术信号使用词边界，业务符号中的 `Node`/`node` 子串不得误判为 Node 技术栈；每个可编译角色使用栈原生规划示例，文档、表格和只读报告明确走服务端或 Reviewer 绕过。新软件任务默认使用 `DIRECT_SOFTWARE_DESIGN` 和单一 `WP-1`，只有画像冻结前由用户显式打开“大型任务”才使用 `FULL_PACKAGE_DESIGN`；两种软件流程都冻结工作包自己的技术栈、Role Pack、执行和测试策略，其中默认单包必须继承已确认的软件任务画像，需求正文中的否定性“依赖/配置”措辞不得把它降级为维护角色，已冻结的冲突快照在下次权威使用时修复；只有大型任务的显式分包允许按包内容专门化角色。简单文档/表格/维护继续使用既有专属流程；大型文档要求 2–6 个二级章节包并由服务端确定性聚合结构化片段；只读 Reviewer 只开放 `read/glob/grep`，Legacy 与后续 MCP 候选必须共用单一 `ReviewerReportCompilation`，确认无问题时允许空 findings 但 summary 仍必填；每条实际 finding 都须逐条绑定受管路径、精确行号与源哈希，任一失败即整份拒绝且不得保留部分 finding；Reviewer 不创建 Task、Attempt、租约、分支或可写 Session，转换入口只创建关联 Designer。冻结 v4/v5/v6 工作包保持历史兼容，不得用 v7 改写既有设计快照。
 - 任务画像对外决策态固定为 `ROUTING / NEEDS_CONFIRMATION / CONFIRMED / FROZEN`，所有设计入口统一依赖服务端 `confirmationReady`，不得从 `!decisionRequired` 推导。人工推荐确认记录 `USER_CONFIRMED`，编辑/沿用记录 `USER_OVERRIDE`；完整需求稿重算只有在任务意图、主要制品、单包/大型流程和读写模式不变且无新增安全冲突时，才以 `USER_CONFIRMED_CARRIED_FORWARD` 继承确认，技术栈、Role Pack 和测试策略仍取最新结果。对用户统一称为“任务设置”：首次歧义显示“确认并继续 / 修改设置”，实质变化返回 `previousConfirmedChoice` 并显示“原设置 / 本次识别结果”与“继续使用原设置 / 使用本次识别结果 / 修改设置”；编辑控件必须由用户主动打开。保存前调用只读影响预览，已确认且完全相同的选择由服务端无操作；只有流程切换才显示“停止当前设计并重新开始”的明确确认，取消不得废弃当前 Session，确认前不得启动设计。
@@ -486,7 +489,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.3.53.jar
+JAR=target/opencode-loopper-0.3.55.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -597,6 +600,8 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-09-03 | 全角色提示适配，交付 0.3.55 | 当前 StageSpec 执行上下文、滚动事实、Role Pack 讨论/规划、完整 MCP 示例与 Router 枚举、历史 Compiler 分代、辅助角色证据边界；承接 0.3.53 MCP 无限提交；同步项目公约和完整人工评审示例的旧文案断言 | 联合回归 270 项（269 通过、1 条件跳过），修正后聚焦 38/38；`./scripts/verify.sh` BUILD SUCCESS：Java 1389 项（0 失败、0 错误、2 条件跳过），Vitest 273/273、原生 guard 6/6；JAR `target/opencode-loopper-0.3.55.jar` 为 289286887 bytes，113 个静态文件、Maven/MCP 版本及 92 个相关编译类核对一致，SHA-256 `dbeaa796e553afcfc839bb05bdbf0a69658f3827d454d3926b81094ae504aa10`。`git diff --check` 通过；未重启运行实例，未做真实模型或浏览器验收；用户已授权推送发布，远端证据另行回读 |
+| 2026-09-03 | 全角色提示适配，0.3.54 候选未交付 | 完成角色提示与合同测试优化；项目约定上下文由服务端保留、PACKAGE_DESIGN_V1 补齐人工评审示例 | `./scripts/verify.sh` Java 1389 项，仅 2 个旧提示文案断言失败（另有 2 条件跳过），无错误；未生成 JAR，集中修正后顺延 0.3.55 |
 | 2026-09-03 | MCP 无次数上限兼容回归，交付 0.3.53 | 承接 0.3.52；端到端改为真实私有 MCP 接口连续 8 次拒绝后第 9 次接受，同一模型提示与候选运行；V69 外键自检限定候选表及其子引用，避免审计无关历史数据 | 兼容聚焦 5/5 通过；`./scripts/verify.sh` BUILD SUCCESS：Java 1381 项（0 失败、0 错误、2 条件跳过），Vitest 273/273、原生 guard 6/6；JAR `target/opencode-loopper-0.3.53.jar` 为 289280992 bytes，含 113 个静态文件，Maven/MCP 版本、V69 迁移和已测试编译类均核对一致，SHA-256 `55f4789a6e7457d75814cf3b553ee2a9b658a6184513263be6ab23b89dcc8635`。`git diff --check` 通过；未重启运行实例，未做真实模型或浏览器验收，未推送/标签/Release |
 | 2026-09-03 | 取消全部 MCP 候选提交次数上限，0.3.52 候选未交付 | 七角色统一无次数上限，安全响应明确无限制并保留计数/幂等；V69 以独立 savepoint 重建计数 CHECK，保留旧 run/attempt、外键、索引和全部触发器，历史终态不重开；Legacy 修复预算与其他角色边界保持，更新全部候选提示及契约 | 新增回归红灯复现；七角色与连续 10 投、机械拒绝不强制兜底、旧库升级保真已通过，联合回归 315 项仅旧提示文案断言失败，更新后聚焦 11/11 通过；完整验证 Java 1381 项发现 1 个旧 MCP 两投耗尽断言和 1 个无关历史外键夹具问题，未生成 JAR；集中修正后顺延 0.3.53。未重启运行实例，未做真实模型或浏览器验收，未推送/标签/Release |
 | 2026-09-03 | 按角色取消固定步数上限，交付 0.3.51 | Designer/Implementation/Reviewer/Judge（含 Judge 收尾）无固定步数；统一 Agent/本地计步策略；控制提示不进入设计与验收，中文错误；同步角色、设计、OpenCode 和代码契约 | 最终后端聚焦 114/114、前端 9/9；0.3.50 验证在打包前主动停止以补齐旧会话兼容。`./scripts/verify.sh` BUILD SUCCESS：Java 1371 项（0 失败、0 错误、2 既有条件跳过）、Vitest 273/273、统计 guard 6/6。0.3.51 JAR 289275811 bytes，113 个静态文件，版本/新增类/首页核验通过，SHA-256 `c7188bfd0c930881b80f80128c02f9095c306c395cc6cf403b5f9c2e09ce0f72`。未运行新 JAR 或真实模型/浏览器联调，未替换运行服务，未推送/标签/Release |

@@ -18,10 +18,10 @@ public final class RolePromptComposer {
             case "local-maintenance" -> "Treat this as safe local maintenance. Ask for exact files and observable outcome. Explicitly exclude deletion, service control, Git submission/push/release, external applications, and external writes.";
             default -> "Treat this as Java software work only when repository and requirement evidence support Java; require observable behavior and a focused repository-native test.";
         };
-        String ambiguity = profile.decisionRequired()
-                ? "The Router result is ambiguous. One mandatory question must ask the user to choose the task type/artifact before confirmation."
-                : "The frozen provisional profile is authoritative unless the user explicitly overrides it in Loopper.";
-        return header(profile) + "\n" + specialized + "\n" + ambiguity;
+        return header(profile) + "\n" + specialized
+                + "\nThese are clarification topics only when the current phase permits questions. Ask only about "
+                + "unresolved decisions; preserve prior answers. Task settings are confirmed by Loopper, not by "
+                + "another classification question. Repository observations are evidence, not new user requirements.";
     }
 
     public String decomposerInstructions(TaskProfileService.View profile) {
@@ -41,18 +41,26 @@ public final class RolePromptComposer {
     public String packageDesignerInstructions(TaskProfileService.View profile, String rolePackId,
                                               io.opencode.loopper.domain.ExecutionStrategy executionStrategy,
                                               List<String> technologies, TestPolicy testPolicy) {
-        RolePackRegistry.RolePack pack = new RolePackRegistry.RolePack(rolePackId, profile.rolePackVersion(), rolePackId,
-                executionStrategy, testPolicy);
-        return compilerInstructions(pack, technologies, testPolicy).replace("Role Pack:", "Work-package Role Pack:")
-                + "\n" + (rolePackId.equals("document-markdown-docx")
-                ? "Design one self-contained document fragment with headings, paragraphs, lists, code blocks and tables; include no executable test."
-                : rolePackId.equals("local-maintenance")
-                ? "Design only bounded local file maintenance and state forbidDeletes=true; never authorize deletion, services, Git publication, or external writes."
-                : "Design only the current package using its detected stack and repository-native evidence.");
+        String focus = switch (rolePackId) {
+            case "document-markdown-docx" -> "Design headings, paragraphs, lists and tables for one document fragment; include no executable test.";
+            case "tabular-conversion" -> "Describe source/output equivalence, sheet selection and conversion rules; the server performs the conversion.";
+            case "local-maintenance" -> "Design only the exact requested file changes. Forbid deletion, service control, Git publication and external writes in plain language.";
+            case "software-java" -> "Keep Java production behavior and its focused Maven/Gradle test targets together in every stage, including wiring/demo changes.";
+            case "software-python" -> "Use Python invocation, input/output and error semantics; identify repository pytest/unittest targets when required.";
+            case "software-node" -> "Use the detected Node/Vue/TypeScript runtime and UI boundary, with repository-native test targets.";
+            case "software-mixed" -> "Design vertical behavior across the frozen stacks; keep each affected stack's native tests with its production behavior.";
+            default -> "Use the evidenced repository-native stack and test targets; never guess another stack's commands.";
+        };
+        return "Work-package Role Pack: " + rolePackId + "@" + profile.rolePackVersion()
+                + "; technologies=" + technologies + "; execution=" + executionStrategy
+                + "; testPolicy=" + testPolicy + ".\n" + focus
+                + "\nDescribe test intent and exact evidenced target names, not argv, verifier JSON or compiler fields. "
+                + "REQUIRED retains focused tests; OPTIONAL uses available native evidence; NOT_APPLICABLE uses "
+                + "the artifact's structural/data evidence. State observable results separately from build/test success.";
     }
 
     public String reviewerInstructions(TaskProfileService.View profile) {
-        return header(profile) + "\nAct as an independent read-only Reviewer. Use only read/glob/grep. Every concrete finding must cite a managed relative file path and exact line as path:line. Separate confirmed findings, limitations, and recommendations. Never emit instructions to modify files or claim a Task was created.";
+        return header(profile) + "\nAct as an independent read-only Reviewer. Use only read/glob/grep. Every concrete finding must cite a managed relative file path and exact line as path:line. Separate confirmed findings, limitations, and recommendations. Recommend concrete corrections for confirmed findings, but do not perform them or claim a Task was created. Distinguish a verified defect from uncertainty; report coverage limitations instead of inventing findings.";
     }
 
     public String implementationInstructions(String rolePackId, String rolePackVersion,

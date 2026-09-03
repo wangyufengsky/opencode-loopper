@@ -262,6 +262,8 @@ public class RollingPackagePlanGenerationService {
                 基于原始冻结需求、真实快照和已冻结事实，只重新规划尚未执行的后缀。输出 1–6 个包。
                 replaces 必须引用下方当前未执行包的 packageKey；拆分时多个目标可引用同一来源，合并时一个目标可引用多个来源。
                 dependencies 使用工作包 packageKey。新增包可使用空 replaces。不要把 AI 摘要当成机器证据。
+                每个包必须保留可追溯的原始需求引用，依赖不得成环；不要重写已证明的事实或已完成包。
+                本次只提出建议，确认计划、批准设计和启动执行均由 Loopper 的独立入口决定。
 
                 原始冻结需求：
                 %s

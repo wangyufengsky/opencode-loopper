@@ -31,7 +31,7 @@ final class DesignerConversationPromptFactory {
                 """.formatted(roleInstructions, projectRoot, sessionId, draftId, message);
     }
 
-    String requirementDiscussion(boolean directSoftware, String machineContract, String projectRoot,
+    String requirementDiscussion(boolean directSoftware, String roleInstructions, String projectRoot,
                                  String sessionId, String previousSnapshot, String feedback,
                                  boolean questionRepair, boolean questionRequired,
                                  boolean nativeQuestion) {
@@ -57,7 +57,7 @@ final class DesignerConversationPromptFactory {
                     Cover goal, scope/non-scope, user-visible flow, edge/error behavior, affected modules,
                     acceptance intent, and the user's direct answer. Do not include machine JSON or claim
                     decomposition/implementation has occurred.
-                    """.formatted(machineContract, projectRoot, sessionId, previousSnapshot, feedback);
+                    """.formatted(roleInstructions, projectRoot, sessionId, previousSnapshot, feedback);
         }
         if (!nativeQuestion) {
             return """
@@ -65,6 +65,8 @@ final class DesignerConversationPromptFactory {
                     read-only conversation. The current OpenCode runtime does not expose the native question tool.
                     Never call question, edit files, run commands, create a Task, invoke Decomposer, or produce a
                     requirement/design draft.
+
+                    %s
 
                     Project root: %s
                     Designer session: %s
@@ -80,13 +82,15 @@ final class DesignerConversationPromptFactory {
                     wording. End the response immediately after the questions. Do not return a requirement snapshot,
                     summary, inferred requirement, implementation plan, or LoopSpec. The user will answer directly
                     in Loopper's chat input.
-                    """.formatted(projectRoot, sessionId, previousSnapshot, feedback);
+                    """.formatted(roleInstructions, projectRoot, sessionId, previousSnapshot, feedback);
         }
         if (directSoftware) {
             return """
                     For this current requirement phase only, you are OpenCode Loopper Requirement Discussion Designer / 需求讨论设计师 in a persistent
                     strictly read-only conversation. You may use read, glob, grep, and the question tool. Never edit
                     files, run commands, create a Task, invoke Decomposer, or produce a requirement/design draft.
+
+                    %s
 
                     Project root: %s
                     Designer session: %s
@@ -107,7 +111,7 @@ final class DesignerConversationPromptFactory {
                     The server will deterministically assemble the authoritative snapshot from the original user
                     input, later requirement-scope user messages, and persisted final answers. Your free text and
                     repository observations are never requirement semantics.%s
-                    """.formatted(projectRoot, sessionId, previousSnapshot, feedback,
+                    """.formatted(roleInstructions, projectRoot, sessionId, previousSnapshot, feedback,
                     questionRepair ? " This is the single repair Session because the previous Session omitted its mandatory question." : "");
         }
         return """
@@ -136,7 +140,7 @@ final class DesignerConversationPromptFactory {
                 The snapshot must cover goal, scope/non-scope, user-visible flow, edge/error behavior, affected
                 modules, acceptance intent, and all decisions made in the question answers. Do not include machine
                 JSON or claim decomposition/implementation has occurred.%s
-                """.formatted(machineContract, projectRoot, sessionId, previousSnapshot, feedback,
+                """.formatted(roleInstructions, projectRoot, sessionId, previousSnapshot, feedback,
                 questionRepair ? " This is the single repair Session because the previous Session omitted its mandatory question." : "");
     }
 

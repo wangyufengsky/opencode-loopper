@@ -32,6 +32,10 @@ final class TaskExecutionPromptFactory {
     }
 
     String prompt(TaskRow task, LoopSpec spec, StageRow stage, Path workspace, String recovery) {
+        if (stage.ordinal() < 0 || stage.ordinal() >= spec.stages().size()) {
+            throw new TaskFailure("STAGE_CONTRACT_MISSING", "Current Stage has no matching frozen StageSpec");
+        }
+        LoopSpec.StageSpec stageContract = spec.stages().get(stage.ordinal());
         String designContext = designContext(task.id(), stage);
         TestPolicy testPolicy;
         try {
@@ -45,16 +49,21 @@ final class TaskExecutionPromptFactory {
                 + "\nWorkspace branch: " + task.branchName()
                 + "\nAll reads, writes, AgentBridge tool calls, searches, and commands must target this checkout and its current Task branch."
                 + "\nDo not switch branches, create another worktree, or write outside this workspace."
-                + "\nGoal: " + spec.goal() + "\nContext: " + spec.context() + "\nStage: " + stage.objective()
-                + "\nAllowed paths: " + stage.allowedPathsJson() + "\nForbidden paths: " + stage.forbiddenPathsJson()
-                + "\nDeliverables: " + stage.deliverablesJson() + "\nVerifier contract: " + stage.verifiersJson()
+                + "\nGoal: " + spec.goal() + "\nContext: " + spec.context() + "\nStage: " + stageContract.objective()
+                + "\nAuthoritative current StageSpec (including acceptance criteria, Judge rubrics and runtime):\n"
+                + json.writeValueAsString(stageContract)
+                + "\nImplement every current acceptance criterion, including JUDGE/BOTH criteria. "
+                + "Frozen design and retry summaries explain prior decisions; this StageSpec owns current acceptance. "
+                + "Do not weaken tests or alter acceptance merely to obtain a pass."
+                + "\nLoopper starts and stops verificationRuntime during verification and allocates {{LOOPPER_PORT}}. "
+                + "Make the declared startup and readiness contract work; do not leave a competing service running."
                 + (designContext.isBlank() ? "" : "\nConfirmed package design context (read-only and frozen at Task confirmation):"
                 + "\nUse this snapshot to preserve architecture, implementation decisions, risks, and acceptance rationale. "
-                + "If it conflicts with Goal, Context, Stage, path rules, Deliverables, or Verifier contract, the structured LoopSpec and Verifier contract are authoritative."
+                + "If it conflicts with Goal, Context, Stage, path rules, Deliverables, or current StageSpec, the structured LoopSpec and current StageSpec are authoritative."
                 + "\n----- BEGIN CONFIRMED DESIGN -----\n" + designContext + "\n----- END CONFIRMED DESIGN -----")
                 + "\nLanguage requirement: 使用简体中文撰写面向用户的进度说明、结论、评审和最终总结。"
                 + "代码、命令、路径、标识符、JSON 字段名、协议枚举值以及要求精确匹配的字面量保持原样；"
-                + "仅当用户目标明确要求其他语言时才切换语言。\n" + recovery;
+                + "仅当用户目标明确要求其他语言时才切换语言。报告实际修改、验证命令和结果及未解决项；不得把计划或 Todo 状态当作验收证据。\n" + recovery;
     }
 
     String todoInstructions() {

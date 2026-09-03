@@ -463,8 +463,8 @@ class TaskServiceIntegrationTest {
                 .contains("Workspace branch: " + running.branchName())
                 .contains("All reads, writes, AgentBridge tool calls")
                 .contains("Context: 先调用 question，确认后仅创建 automation.txt。")
-                .contains("Deliverables: [\"automation.txt\"]")
-                .contains("Verifier contract:")
+                .contains("\"deliverables\":[\"automation.txt\"]")
+                .contains("Authoritative current StageSpec")
                 .contains("\"expectedContent\":\"Loopper automation accepted\"");
     }
 

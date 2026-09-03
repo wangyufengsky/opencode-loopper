@@ -5198,12 +5198,12 @@ class DesignerSessionMcpIntegrationTest {
                 .filter(prompt -> prompt.contains("Required workPackageId: WP-2")
                         && prompt.contains("LOOPSPEC_COMPILATION_PLAN_JSON_START")))
                 .singleElement().satisfies(prompt -> assertThat(prompt)
-                        .contains("immutable pre-execution baseline")
+                        .contains("inspect the supplied read-only snapshot", "does not prove implementation success")
                         .contains("\"workPackageId\":\"WP-1\"")
                         .contains("\"state\":\"APPROVED\"")
                         .contains("Designer-declared focused test evidence")
                         .contains("mvn -q -Dtest=EventStateBridgeTest test")
-                        .contains("must not return", "MISSING_SCOPE"));
+                        .contains("not by themselves MISSING_SCOPE"));
         assertThat(mapper.listTasks()).isEmpty();
     }
 

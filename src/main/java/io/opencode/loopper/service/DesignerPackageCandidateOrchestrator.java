@@ -218,22 +218,10 @@ final class DesignerPackageCandidateOrchestrator {
                 requirements, scenarios, deliverables, reviews, stages, and closed gapCodes. Use only candidate-local
                 keys and references. Never submit commands, writable-path allowlists, test commands/targets, verifier
                 objects, permission conclusions, or stable server IDs. The server remains authoritative for all of
-                those fields.
+                those fields. On the private submission path, this object replaces the earlier Markdown output
+                format; the design semantics still apply. An explicit frozen Markdown-only request takes priority.
 
-                Use this exact closed object shape; replace the Chinese example text with the current package facts:
-                {"contractVersion":"PACKAGE_DESIGN_V1","outcome":"READY",
-                "requirements":[{"key":"REQ-1","statement":"需求语义"}],
-                "scenarios":[{"key":"SC-1","title":"场景标题","precondition":"前置或触发",
-                "action":"操作","observableResult":"可观察结果","invariant":"保持不变",
-                "requirementRefs":["REQ-1"]}],
-                "deliverables":[{"key":"DEL-1","kind":"DELIVERABLE","target":"仓库相对路径或符号",
-                "description":"交付说明","requirementRefs":["REQ-1"]}],
-                "reviews":[],
-                "stages":[{"key":"STAGE-1","title":"阶段标题","objective":"阶段目标",
-                "includes":["SC-1","DEL-1"],"dependencies":[]}],"gapCodes":[]}
-                Every `key` is a candidate-local reference, not a server stable ID. `kind` is SCOPE or DELIVERABLE.
-                Each scenario, deliverable, and review uses `requirementRefs`; each stage `includes` their keys and
-                `dependencies` only earlier stage keys. Do not rename these fields or add fields outside this shape.
+                %s
 
                 If the frozen original requirement explicitly requests Markdown-only or no private submission, you
                 must respect that choice and do not call the private tool. Return the complete controlled Markdown
@@ -247,7 +235,7 @@ final class DesignerPackageCandidateOrchestrator {
                 stop and wait for the user. On FALLBACK_REQUIRED, produce the complete controlled Markdown design
                 required above as your final response; do not call another tool. If you choose not to call the tool,
                 your final response must still be that complete controlled Markdown design.
-                """.formatted(toolName, run.runId(), run.version());
+                """.formatted(toolName, PackageDesignCandidatePromptContract.instructions(), run.runId(), run.version());
     }
 
     private static String safe(String value) {

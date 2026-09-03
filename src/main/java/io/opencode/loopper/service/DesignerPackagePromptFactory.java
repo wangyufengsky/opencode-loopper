@@ -33,9 +33,10 @@ final class DesignerPackagePromptFactory {
                 COMPLETE-DESIGN CONTRACT: do not call the question tool and do not ask the user anything.
                 Produce one complete replacement Simplified-Chinese Markdown design. Never return a patch. Preserve
                 all still-valid facts and feedback. Use exactly the controlled Markdown sections and tables defined
-                below. If the complete design cannot fit safely in 1-6 stages, state that limitation explicitly so
-                the Compiler can return LARGE_TASK_MODE_REQUIRED.
-                """ : nativeQuestion ? """
+                below. %s
+                """.formatted(directSoftware
+                ? "Use 1-6 stages. If this cannot fit safely, state the gap so the server can return LARGE_TASK_MODE_REQUIRED."
+                : "Use 1-3 stages for this already decomposed package. Report a concrete scope gap if it cannot fit; do not request large-task mode again.") : nativeQuestion ? """
                 MANDATORY TURN ORDER: before writing any design Markdown, call the question tool exactly once with
                 1-3 concise design questions. Each question has 2-3 mutually exclusive choices; put the recommended
                 choice first and suffix its label with “(Recommended)”. Wait for the answers in this same model call.
@@ -78,11 +79,7 @@ final class DesignerPackagePromptFactory {
                 Persisted decisions for the current discussion round:
                 %s
 
-                The repository is the immutable pre-execution baseline. A prerequisite with state APPROVED has
-                completed Designer/Compiler/Validator processing, but its production files are intentionally absent
-                until the single Task executes packages in dependency order. Treat its frozen contract as available
-                at execution time. Do not redesign the current package merely because read/glob/grep cannot find a
-                prerequisite deliverable in the baseline repository.
+                %s
 
                 %s
 
@@ -125,6 +122,19 @@ final class DesignerPackagePromptFactory {
                         packageRole.testPolicy()), project.rootPath(), revision.revision(), revision.requirementText(),
                 decomposition.planJson(), workPackage.packageId(), context.packageScope(workPackage),
                 context.prerequisites(revision.id(), workPackage), context.previousDesign(workPackage),
-                context.decisions(session, workPackage), turnContract);
+                context.decisions(session, workPackage), repositoryContext(session.taskId() != null), turnContract);
+    }
+    static String repositoryContext(boolean rollingExecution) {
+        return rollingExecution ? """
+                The repository is the latest read-only checkpoint snapshot of this rolling Task, including prior
+                implemented packages. Inspect this snapshot rather than assuming the initial repository is current.
+                Proven facts come only from checkpoint/verification evidence. Accepted contracts describe commitments;
+                AI handoff summaries are navigation only. Report any discrepancy without rewriting completed packages.
+                """ : """
+                The repository is the read-only pre-execution design baseline. APPROVED prerequisite contracts
+                describe work scheduled before this package; approval alone is not proof that files already exist.
+                Inspect actual files. An absent deliverable explicitly promised by a prerequisite is not by itself
+                MISSING_SCOPE. Preserve the contract without claiming its implementation or verification has happened.
+                """;
     }
 }
