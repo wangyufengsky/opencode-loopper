@@ -23,6 +23,7 @@ final class OpenCodeCommandTransport {
     private final Function<OpenCodeClient.OpenCodeSession, RestClient> sessions;
     private final Function<OpenCodeClient.OpenCodeSession, RestClient> commands;
     private final OpenCodeResponseParser responses = new OpenCodeResponseParser();
+    private final OpenCodeSessionCommandGate gate = new OpenCodeSessionCommandGate();
 
     OpenCodeCommandTransport(Supplier<RestClient> client,
                              Function<OpenCodeClient.OpenCodeSession, RestClient> sessions) {
@@ -107,6 +108,14 @@ final class OpenCodeCommandTransport {
 
     OpenCodeClient.CommandResult execute(OpenCodeClient.OpenCodeSession session,
                                           OpenCodeClient.CommandRequest request) {
+        return gate.command(session, request.messageId(), () -> invoke(session, request));
+    }
+
+    <T> T businessAbort(OpenCodeSession session, Supplier<T> action) {
+        return gate.abort(session, action);
+    }
+
+    private CommandResult invoke(OpenCodeSession session, CommandRequest request) {
         try {
             JsonNode response = commands.apply(session).post()
                     .uri(uri -> sessionUri(uri, "/session/{id}/command", session))
@@ -142,6 +151,11 @@ final class OpenCodeCommandTransport {
 
     /** Called only while the coordinator still owns the pre-business barrier. Never abort a later user turn. */
     boolean cancel(OpenCodeSession session, String messageId) {
+        try { return cancelRemote(session, messageId); }
+        finally { gate.cancelled(session, messageId); }
+    }
+
+    private boolean cancelRemote(OpenCodeSession session, String messageId) {
         JsonNode messages = messages(session);
         String lastUser = null;
         if (messages != null) for (JsonNode message : messages) {

@@ -268,3 +268,5 @@ frontend discussion card as active requirements rather than interpreting Markdow
 涉及多个数据库连接的队列准入、租约交接和后续启动，应使用独立文件型 SQLite，启用与生产一致的 `foreign_keys=on`、`busy_timeout=5000` 和 `journal_mode=WAL`。共享内存 `cache=shared` 的表锁行为不同，不能据此判断生产 WAL 下的读写并发。`DirectWorkspaceProductionForeignKeyIntegrationTest` 验证人工/自动交接同时触发时只准入一个 FIFO 等待者，只建立一个 Attempt/Session，并且只释放一次旧租约。
 
 Story accounting is owned by `StoryAccountingCoordinator` and `StoryBindingService`; `StoryAccountingActivityService` owns the bounded live-output/acknowledgement read model and `StoryAccountingClock` unions statistics waits for business budgets, independently of Task/Designer error transitions. Native command transport and identity filtering remain in runtime collaborators; the orchestration facades do not parse command replies or implement accounting retries.
+
+`OpenCodeSessionCommandGate` coordinates native statistics requests and ordinary abort for one remote, with identity-specific release on explicit cancellation. `StoryAccountingRetryPolicy` shares the authoritative eligibility decision between activity projection and the transactional retry claim; retry endpoints never overwrite historical call rows.

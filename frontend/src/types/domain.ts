@@ -1436,5 +1436,7 @@ export interface StoryAccountingCall {
   finishedAt?: string | null
   detail?: string | null
   refreshError?: string | null
+  retryAvailable?: boolean
+  retryUnavailableReason?: string | null
   parts: Array<{ id: string; type: string; label: string; content: string; status?: string | null; startedAt?: string | null }>
 }

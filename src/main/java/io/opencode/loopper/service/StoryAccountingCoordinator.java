@@ -44,6 +44,7 @@ public class StoryAccountingCoordinator {
     private volatile SessionCommandTransport sessionTransport;
     private final TransactionTemplate transactions;
     private final Map<String, CompletableFuture<Void>> starting = new ConcurrentHashMap<>();
+    private final Map<String, CompletableFuture<Void>> completing = new ConcurrentHashMap<>();
 
     @Autowired
     public StoryAccountingCoordinator(LoopperMapper mapper, TaskEventService taskEvents,
@@ -100,6 +101,40 @@ public class StoryAccountingCoordinator {
     public void installTransport(SessionCommandTransport transport) { this.sessionTransport = transport; }
     public void installCancellation(CommandCancellation cancellation) { this.cancellation = cancellation; }
 
+    /** Explicit user action only. A fresh identity preserves every previous receipt and failure. */
+    public synchronized String retry(String previousId) {
+        SessionCommandTransport transport = sessionTransport;
+        if (transport == null) throw new ConflictException("STORY_ACCOUNTING_RETRY_UNAVAILABLE", "统计连接不可用");
+        CompletableFuture<Void> done = new CompletableFuture<>();
+        Prepared prepared = transaction(() -> {
+            var previous = mapper.findStoryAccountingCallById(previousId)
+                    .orElseThrow(() -> new NotFoundException("统计调用不存在"));
+            String reason = StoryAccountingRetryPolicy.unavailableReason(mapper, previous);
+            if (reason != null) throw new ConflictException("STORY_ACCOUNTING_RETRY_UNAVAILABLE", reason);
+            var owner = mapper.findStoryAccountingSessionById(previous.accountingSessionId()).orElseThrow();
+            String now = Instant.now().toString();
+            // Historical continue failures are explicitly retried as start, matching current behavior.
+            String operation = "BEGIN".equals(previous.phase()) ? "start" : "complete";
+            String arguments = "continue".equals(previous.operation())
+                    ? "start" + previous.argumentsText().substring("continue".length()) : previous.argumentsText();
+            var call = preparedCall(owner.id(), previous.phase(), operation, arguments, now);
+            mapper.insertStoryAccountingRetry(call, previous.id());
+            var session = copy(owner, "BEGIN".equals(call.phase()) ? "BINDING" : "COMPLETING", owner.pluginRunId(), now);
+            mapper.updateStoryAccountingSession(session);
+            return new Prepared(session, call);
+        });
+        var session = prepared.session();
+        var remote = new OpenCodeClient.OpenCodeSession(session.externalSessionId(),
+                java.nio.file.Path.of(session.worktreePath()), session.runtimeGenerationId(), null);
+        // Publish after commit, under the same lock used by collectors; rollback cannot leak a barrier.
+        if ("COMPLETE".equals(prepared.call().phase())) completing.put(remote.id(), done);
+        commands.submit(() -> {
+            try { execute(session, prepared.call(), request -> transport.execute(remote, request)); }
+            finally { done.complete(null); completing.remove(remote.id(), done); }
+        });
+        return prepared.call().id();
+    }
+
     /** Claim cancellation before releasing the prompt barrier; a late result cannot win after this claim. */
     public void cancel(String callId) {
         Pending pending = active.get(callId);
@@ -136,8 +171,7 @@ public class StoryAccountingCoordinator {
             for (StoryAccountingSessionRow row : mapper.listRetiredStoryAccountingSessions()) {
                 OpenCodeClient.OpenCodeSession remote = new OpenCodeClient.OpenCodeSession(row.externalSessionId(),
                         java.nio.file.Path.of(row.worktreePath()));
-                commands.submit(() -> safely("retired complete", remote,
-                        () -> complete(remote, request -> transport.execute(remote, request))));
+                completion(remote, request -> transport.execute(remote, request));
             }
         } catch (RuntimeException failure) {
             log.warn("Unable to collect retired story-accounting Sessions", failure);
@@ -164,7 +198,10 @@ public class StoryAccountingCoordinator {
         }
         try {
             Prepared prepared = transaction(() -> prepareBegin(owner, remote));
-            if (prepared != null) execute(prepared.session(), prepared.call(), transport);
+            if (prepared != null) execute(prepared.session(), prepared.call(), request -> {
+                awaitRetiredCompletions(owner.bindingId());
+                return transport.execute(request);
+            });
         } finally {
             pending.complete(null);
             starting.remove(remote.id(), pending);
@@ -189,8 +226,45 @@ public class StoryAccountingCoordinator {
     }
 
     private void complete(OpenCodeClient.OpenCodeSession remote, CommandTransport transport) {
-        Prepared prepared = transaction(() -> prepareComplete(remote));
-        if (prepared != null) execute(prepared.session(), prepared.call(), transport);
+        await(completion(remote, transport));
+    }
+
+    private synchronized CompletableFuture<Void> completion(OpenCodeClient.OpenCodeSession remote, CommandTransport transport) {
+        CompletableFuture<Void> done = new CompletableFuture<>();
+        var existing = completing.putIfAbsent(remote.id(), done);
+        if (existing != null) return existing;
+        commands.submit(() -> {
+            try {
+                Prepared prepared = transaction(() -> prepareComplete(remote));
+                if (prepared != null) execute(prepared.session(), prepared.call(), transport);
+                done.complete(null);
+            } catch (Throwable failure) {
+                log.warn("Unable to finish story-accounting handoff for {}", remote.id(), failure);
+                done.completeExceptionally(failure);
+            } finally { completing.remove(remote.id(), done); }
+        });
+        return done;
+    }
+
+    private void awaitRetiredCompletions(String bindingId) {
+        SessionCommandTransport transport = sessionTransport;
+        if (transport == null) return;
+        for (var row : mapper.listStoryAccountingHandoffs(bindingId)) {
+            var remote = new OpenCodeClient.OpenCodeSession(row.externalSessionId(),
+                    java.nio.file.Path.of(row.worktreePath()), row.runtimeGenerationId(), null);
+            await(completion(remote, request -> transport.execute(remote, request)));
+        }
+    }
+
+    private void await(CompletableFuture<Void> done) {
+        try { done.get(); }
+        catch (InterruptedException failure) {
+            Thread.currentThread().interrupt();
+            throw new SessionFailure("STORY_ACCOUNTING_INTERRUPTED", "统计交接等待被中断");
+        } catch (ExecutionException failure) {
+            // A failed statistics attempt releases the handoff; never retry it automatically.
+            log.warn("Statistics handoff failed; continuing the next Session", failure.getCause());
+        }
     }
 
     private synchronized Prepared prepareComplete(OpenCodeClient.OpenCodeSession remote) {

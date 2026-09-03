@@ -29,6 +29,7 @@ public class StoryAccountingActivityService {
     }
 
     public List<CallView> list() { return activity.visibleCalls().stream().map(this::view).toList(); }
+    public CallView snapshot(String id) { return view(requireCall(id)); }
 
     public CallView get(String id) {
         var call = requireCall(id);
@@ -40,7 +41,7 @@ public class StoryAccountingActivityService {
         CallView current = view(requireCall(id));
         return new CallView(current.id(), current.operation(), current.state(), current.systemCode(), current.storyCode(),
                 current.role(), current.designerSessionId(), current.taskId(), current.startedAt(), current.finishedAt(),
-                current.detail(), current.parts(), refreshError);
+                current.detail(), current.parts(), refreshError, current.retryAvailable(), current.retryUnavailableReason());
     }
 
     /** Also captured before releasing the business barrier, so fast rounds retain their output. */
@@ -75,9 +76,10 @@ public class StoryAccountingActivityService {
                 : mapper.findTaskStoryBinding(owner.taskId());
         List<SessionPart> parts = activity.parts(call.id()).map(value -> List.of(json.readValue(value, SessionPart[].class)))
                 .orElse(List.of());
+        String retryReason = StoryAccountingRetryPolicy.unavailableReason(mapper, call);
         return new CallView(call.id(), call.operation(), call.state(), binding.map(row -> row.systemCode()).orElse(""),
                 binding.map(row -> row.storyCode()).orElse(""), owner.role(), owner.designerSessionId(), owner.taskId(),
-                call.startedAt(), call.finishedAt(), call.errorDetail(), parts, null);
+                call.startedAt(), call.finishedAt(), call.errorDetail(), parts, null, retryReason == null, retryReason);
     }
 
     private boolean active(StoryAccountingCallRow call) {
@@ -86,5 +88,6 @@ public class StoryAccountingActivityService {
 
     public record CallView(String id, String operation, String state, String systemCode, String storyCode,
                            String role, String designerSessionId, String taskId, String startedAt, String finishedAt,
-                           String detail, List<SessionPart> parts, String refreshError) { }
+                           String detail, List<SessionPart> parts, String refreshError,
+                           boolean retryAvailable, String retryUnavailableReason) { }
 }

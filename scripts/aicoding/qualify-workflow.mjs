@@ -6,6 +6,7 @@ const longWait = process.argv.includes('--long-wait')
 const manualCancel = process.argv.includes('--manual-cancel')
 const modelWait = process.argv.includes('--model-wait')
 const completeWait = process.argv.includes('--complete-wait')
+const handoffWait = process.argv.includes('--handoff-wait')
 const { endpoint, projectRoot, directory, receiver } = environment
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms))
 async function call(path, body) {
@@ -16,7 +17,7 @@ async function call(path, body) {
   if (!response.ok) throw new Error(`${path} HTTP ${response.status}: ${text.slice(0, 1000)}`)
   return text ? JSON.parse(text) : undefined
 }
-await fetch(receiver + '/control', { method: 'POST', body: JSON.stringify({ fail: fault, delayMs: longWait && !modelWait ? (manualCancel ? 120000 : 40000) : 0, remaining: longWait ? 1 : 1000, accountingModelDelayMs: modelWait ? 40000 : 0, modelRemaining: 1, modelOperation: completeWait ? 'complete' : null }) })
+await fetch(receiver + '/control', { method: 'POST', body: JSON.stringify({ fail: fault, delayMs: handoffWait ? 40000 : longWait && !modelWait ? (manualCancel ? 120000 : 40000) : 0, remaining: longWait ? 1 : 1000, onlyOperation: handoffWait ? 'complete' : null, strictActiveRun: handoffWait, accountingModelDelayMs: modelWait ? 40000 : 0, modelRemaining: 1, modelOperation: completeWait ? 'complete' : null }) })
 const existing = await call('/api/projects')
 const project = existing.find(item => item.rootPath === projectRoot) ?? await call('/api/projects', { name: '故事统计真实链路', rootPath: projectRoot })
 const capability = await call(`/api/projects/${project.id}/story-binding-capability`)
@@ -50,7 +51,7 @@ console.log(JSON.stringify({ designerId: created.id, draftId: draft.id, capabili
 const history = []
 let previous = ''
 let finalTask
-const artifact = fault ? 'fault-workflow.json' : (longWait || modelWait) ? 'cancel-workflow.json' : 'normal-workflow.json'
+const artifact = handoffWait ? 'handoff-workflow.json' : fault ? 'fault-workflow.json' : (longWait || modelWait) ? 'cancel-workflow.json' : 'normal-workflow.json'
 for (let index = 0; index < 240; index++) {
   const design = await call(`/api/designer-sessions/${created.id}`)
   const taskId = design.taskId ?? design.autoMode?.taskId
@@ -69,7 +70,7 @@ for (let index = 0; index < 240; index++) {
   await pause(1000)
 }
 // Allow the collector to finish retired Sessions before checking the request ledger.
-for (let i = 0; i < 50; i++) {
+for (let i = 0; i < (handoffWait ? 300 : 50); i++) {
   const rows = (await call('/api/story-accounting')).filter(row => row.designerSessionId === created.id || row.taskId === finalTask?.id)
   if (rows.length === 4 && rows.every(row => !['PREPARED', 'CANCELLING'].includes(row.state))) break
   await pause(200)
@@ -84,6 +85,11 @@ if (ledger.requests.length !== 4 || ledger.requests.map(row => row.operation).jo
   throw new Error('A statistics command returned without the expected native plugin requests')
 }
 if (fault && accounting.some(row => row.state !== 'FAILED')) throw new Error('Injected statistics failures were not recorded')
+if (handoffWait) {
+  if (accounting.some(row => row.state !== 'SUCCEEDED')) throw new Error('A slow complete was interrupted')
+  if (Date.parse(ledger.requests[2].at) < Date.parse(ledger.requests[1].receiptAt)) throw new Error('Next start overtook complete')
+  if (ledger.requests.some(row => row.error === 'ACTIVE_RUN_EXISTS')) throw new Error('Story run overlapped')
+}
 console.log(JSON.stringify({ requests: ledger.requests.map(row => ({ operation: row.operation, sessionId: row.sessionId, receipt: row.receipt })), modelTurns: ledger.modelRequests.length }))
 if (!finalTask || !['AWAITING_DECISION', 'COMPLETED'].includes(finalTask.state ?? finalTask.status)) {
   throw new Error(`Workflow did not reach result review; inspect ${join(directory, artifact)}`)

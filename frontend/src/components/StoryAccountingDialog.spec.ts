@@ -56,3 +56,38 @@ it('keeps cancellation available when output refresh fails', async () => {
   expect(text()).toContain('取消本次统计，继续任务')
   expect(text()).toContain('统计状态暂时无法刷新')
 })
+it.each(['start', 'complete'] as const)('explicitly retries failed %s with a fresh call and preserves the old output', async operation => {
+  const failed = { ...call(), operation, state: 'FAILED' as const, retryAvailable: true, finishedAt: '2026-09-03T00:00:05Z' }
+  vi.mocked(api.getStoryAccountingCalls).mockResolvedValue([failed])
+  vi.mocked(api.getStoryAccountingCall).mockResolvedValue(failed)
+  const retry = vi.spyOn(api, 'retryStoryAccountingCall').mockResolvedValue({ ...call('retry'), operation })
+  open(); await flushPromises()
+  await click(`重新发起 ${operation}`)
+  expect(retry).toHaveBeenCalledExactlyOnceWith('one')
+  expect(text()).toContain('正在等待统计结果')
+  expect(document.querySelector('[aria-label="选择统计会话"]')).not.toBeNull()
+  expect(api.dismissStoryAccountingCall).not.toHaveBeenCalled()
+})
+it('disables retry while the remote is still owned by business and explains why', async () => {
+  const failed = { ...call(), state: 'FAILED' as const, retryAvailable: false, retryUnavailableReason: '该会话仍用于业务或提问，请在会话交接后重试' }
+  vi.mocked(api.getStoryAccountingCalls).mockResolvedValue([failed])
+  vi.mocked(api.getStoryAccountingCall).mockResolvedValue(failed)
+  open(); await flushPromises()
+  expect([...document.querySelectorAll('button')].find(button => button.textContent?.includes('重新发起 start'))?.disabled).toBe(true)
+  expect(text()).toContain(failed.retryUnavailableReason)
+})
+it('keeps the dialog open and prevents another retry while the new call is being created', async () => {
+  const failed = { ...call(), state: 'FAILED' as const, retryAvailable: true }
+  vi.mocked(api.getStoryAccountingCalls).mockResolvedValue([failed])
+  vi.mocked(api.getStoryAccountingCall).mockResolvedValue(failed)
+  let finish!: (value: StoryAccountingCall) => void
+  const retry = vi.spyOn(api, 'retryStoryAccountingCall').mockReturnValue(new Promise(resolve => { finish = resolve }))
+  open(); await flushPromises()
+  await click('重新发起 start')
+  expect(wrapper!.findComponent(ElDialog).props('showClose')).toBe(false)
+  expect(wrapper!.findComponent(ElDialog).props('closeOnPressEscape')).toBe(false)
+  await click('重新发起 start')
+  expect(retry).toHaveBeenCalledTimes(1)
+  finish(call('retry')); await flushPromises()
+  expect(text()).toContain('正在等待统计结果')
+})

@@ -8,9 +8,10 @@
 
 - 每个实际派发业务提示且属于统计范围的新 Session 都使用 `aicoding start <系统编号> <故事编号>`，不自动使用 `continue`。相同 Session 的继续讨论、问题回答和 Provider 重试不重复绑定。
 - 仅统计需求设计师、工作包设计师（包含 PACKAGE_DESIGN_V1 候选会话）和 Implementation。Router、规划、Compiler、Reviewer、双 Judge、其他角色的修复/finalizer 与未知拥有者不统计。历史其他角色的记录保留供审计和消息隔离，不再补发 complete。未开展工作的 fork 和服务端生成步骤不制造统计调用。
+- 同一绑定链交接时，新 Session 的 start 先等待已退役 Session 的 complete 结束或手动取消；后台收集、轮询与交接共享同一次调用。普通会话清理与统计命令按远端 Session 协调，不能中断尚未返回的 complete；其他 Session 不受该等待影响。
 - 业务结果先落库；只有所属流程已经不再复用该远端 Session，才提交 `complete`。正常结束、失败和取消均适用。远端一次 IDLE、等待用户回答和单独 abort 不是业务结束判据。
 - 统计调用持续等待，不再设置 30 秒自动超时。全局弹窗显示“正在开启／完成故事点统计”、真实模型输出和用时，提供“取消本次统计，继续任务”。真实调用失败仍只写入统计记录与一次 Loopper 内通知，不消耗业务重试预算，不关闭全自动模式，不回滚业务结果。
-- 每个 Session 的 BEGIN/COMPLETE 各有独立且唯一的调用和消息 ID。网络请求前以短事务持久化，网络操作在事务外。结果未知不自动重发；重启把遗留 PREPARED/CANCELLING 标为 UNKNOWN。
+- 每个 Session 的 BEGIN/COMPLETE 各自动发起一次；显式重试追加独立调用和消息 ID。网络请求前以短事务持久化，网络操作在事务外。结果未知不自动重发；重启把遗留 PREPARED/CANCELLING 标为 UNKNOWN。
 
 SQLite 继续使用 WAL、IMMEDIATE 和既有 busy timeout。驱动在锁失败后可能留下不一致的 JDBC 事务状态，连接池会丢弃 SQLite BUSY/LOCKED 或明确无活动事务的连接，避免后续任务查询复用坏连接；不会因此重发统计或重试业务。
 
@@ -24,7 +25,11 @@ SQLite 继续使用 WAL、IMMEDIATE 和既有 busy timeout。驱动在锁失败�
 
 V66 保存取消状态、模型活动快照及关闭确认。BEGIN 的等待区间从相关 Session/Task 的业务超时预算中扣除，并行区间按并集合并；业务自己的执行时限仍保留。统计输出读取失败只提示无法刷新，不改变正在执行的统计。进程重启不盲目重发未知请求。
 
-本地接口：`GET /api/story-accounting` 列出未关闭调用，`GET /api/story-accounting/{id}` 查询活动；`POST /api/story-accounting/{id}/cancel` 和 `/dismiss` 分别取消统计、确认关闭结果，两者要求 `X-Loopper-Local-UI: 1`。
+失败、结果未知或取消后的弹窗提供“重新发起 start／complete”。服务端只接受该阶段最新的一条失败记录，保留原始输出、原因与关闭状态；连续点击只能领取一次重试。V67 用 retry_of 关联前次调用，并限制同一远端 Session 同时只有一个活动统计调用。自动重试仍关闭。
+
+业务或提问仍在复用该远端 Session 时，按钮禁用并显示原因；完成会话交接后才可重试，避免统计抢占业务回合。重试始终使用原 Session、原编号和原阶段（历史 continue 统一重发 start）；不会重启设计或任务。已成功完成统计的会话不再允许重开 start；若先重试 start 恢复绑定，仍需对失败的 complete 点击重新发起，提交该旧会话的统计。
+
+本地接口：`GET /api/story-accounting` 列出未关闭调用，`GET /api/story-accounting/{id}` 查询活动；`POST /api/story-accounting/{id}/cancel` 和 `/dismiss` 分别取消统计、确认关闭结果，三者（含 `POST /api/story-accounting/{id}/retry`）均要求 `X-Loopper-Local-UI: 1`；retry 立即返回新的调用快照，旧调用及其迟到响应不能覆盖新调用。
 
 ## OpenCode 接入
 
@@ -43,8 +48,10 @@ V65 保存绑定链、Designer/Task 继承关系、每个远端 Session 的角�
 `start-qualification.mjs` 启动独立端口、数据库和 XDG 目录的 Loopper/真实 OpenCode 环境，输出 environment.json 路径。模型只访问 localhost。可传入已构建 JAR：
 
 ```bash
-node scripts/aicoding/start-qualification.mjs target/opencode-loopper-0.3.42.jar --native-tools
+node scripts/aicoding/start-qualification.mjs target/opencode-loopper-0.3.44.jar --native-tools
 node scripts/aicoding/qualify-workflow.mjs /绝对路径/environment.json
+# complete 延迟 40 秒且同一故事不允许重叠 run，核验交接顺序
+node scripts/aicoding/qualify-workflow.mjs /绝对路径/environment.json --handoff-wait
 # 等待超过 30 秒仍运行，再手动取消并验证完整业务链
 node scripts/aicoding/qualify-workflow.mjs /绝对路径/environment.json --long-wait
 # 模型已返回正文时取消；附加 --manual-cancel 可改由浏览器点击
@@ -54,6 +61,6 @@ node scripts/aicoding/qualify-workflow.mjs /绝对路径/environment.json --mode
 
 `--native-tools` 默认读取本机 `~/.config/opencode/node_modules/@opencode-ai/plugin/dist/index.js` 的插件 API；非此布局可用 `AICODING_MOCK_PLUGIN_API` 指定实际模块的 file URL。模拟插件与 API 只在隔离实例加载。普通/故障链路必须核对只有设计师和执行者的四次调用，且两次 BEGIN 都是 start。
 
-接收端 `POST /control` 支持 `fail`、`delayMs`、`loseResponse`、`accountingModelDelayMs`（统计流式正文返回后的停顿） 故障注入；`GET /requests` 回读接收台账和模型请求。终止启动脚本会停止专用 JVM、受管 OpenCode 和接收服务；保留隔离目录的日志用于核验，后续可删除整个目录。原有 OpenCode 配置和 8080 服务不受影响。
+接收端 `POST /control` 支持 `fail`、`delayMs`、`loseResponse`、`onlyOperation`（限定故障操作）、`strictActiveRun`（活动故事拒绝再次 start）、`accountingModelDelayMs`（统计流式正文返回后的停顿） 故障注入；`GET /requests` 回读接收台账和模型请求。终止启动脚本会停止专用 JVM、受管 OpenCode 和接收服务；保留隔离目录的日志用于核验，后续可删除整个目录。原有 OpenCode 配置和 8080 服务不受影响。
 
 自动化测试覆盖配置、前导零、继承、唯一调用、网络事务边界、持续等待/失败/手动取消、消息分流、重启未知结果和 UI 探测竞态；真实调用验收记录单独保存。模拟成功证明的是 Loopper 接入与容错能力，不能代替内网插件的现场验证。

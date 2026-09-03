@@ -353,6 +353,78 @@ class StoryAccountingIntegrationTest {
         assertThat(mapper.findTaskStoryBinding(recovered.taskId())).isEqualTo(mapper.findTaskStoryBinding(task.id()));
     }
 
+    @Test void nextStartWaitsForTheRetiredSessionsPendingComplete() throws Exception {
+        String designer = fixture("handoff-old", true);
+        CountDownLatch completing = new CountDownLatch(1), release = new CountDownLatch(1);
+        var calls = new CopyOnWriteArrayList<String>();
+        try (var closer = new CoordinatorCloser(new StoryAccountingCoordinator(mapper, mock(TaskEventService.class),
+                new TransactionTemplate(transactionManager))); var pool = Executors.newVirtualThreadPerTaskExecutor()) {
+            var coordinator = closer.value;
+            coordinator.installTransport((remote, request) -> {
+                calls.add(remote.id() + ":" + request.arguments());
+                completing.countDown();
+                try { release.await(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+                return new OpenCodeClient.CommandResult("run-old", "completed");
+            });
+            coordinator.beforeBusinessPrompt(remote("handoff-old"), request -> new OpenCodeClient.CommandResult("run-old", "started"));
+            jdbc.update("UPDATE designer_session SET external_session_id='handoff-new' WHERE id=?", designer);
+            var next = pool.submit(() -> coordinator.beforeBusinessPrompt(remote("handoff-new"), request -> {
+                calls.add("next start"); return new OpenCodeClient.CommandResult("run-new", "started");
+            }));
+            try {
+                assertThat(completing.await(3, TimeUnit.SECONDS)).isTrue();
+                assertThat(next.isDone()).isFalse();
+                assertThat(calls).containsExactly("handoff-old:complete");
+                coordinator.completeRetiredSessions(); // Repeated collection must share the same call.
+                release.countDown(); next.get(3, TimeUnit.SECONDS);
+                assertThat(calls).containsExactly("handoff-old:complete", "next start");
+            } finally { release.countDown(); }
+        }
+    }
+
+    @Test void explicitRetriesKeepOldFailuresAndCannotInterruptBusinessOrBeSentTwice() throws Exception {
+        String designer = fixture("retry-retired", true);
+        try (var closer = new CoordinatorCloser(new StoryAccountingCoordinator(mapper, mock(TaskEventService.class),
+                new TransactionTemplate(transactionManager)))) {
+            var coordinator = closer.value;
+            StoryAccountingCoordinator.CommandTransport failed = request -> {
+                throw new io.opencode.loopper.domain.SessionFailure("PLUGIN_FAILED", "platform unavailable");
+            };
+            coordinator.installTransport((remote, request) -> new OpenCodeClient.CommandResult("actual-run", "receipt"));
+            coordinator.beforeBusinessPrompt(remote("retry-retired"), failed);
+            var session = mapper.findStoryAccountingSession("retry-retired").orElseThrow();
+            var start = mapper.findStoryAccountingCall(session.id(), "BEGIN").orElseThrow();
+            assertThat(activity.get(start.id()).retryAvailable()).isFalse();
+            assertThatThrownBy(() -> coordinator.retry(start.id())).isInstanceOf(ConflictException.class)
+                    .hasMessageContaining("业务或提问");
+            jdbc.update("UPDATE designer_session SET state='COMPLETED',workflow_phase='COMPLETED' WHERE id=?", designer);
+            coordinator.afterTerminalStatus(remote("retry-retired"), failed);
+            var complete = mapper.findStoryAccountingCall(session.id(), "COMPLETE").orElseThrow();
+            assertThat(activity.get(start.id()).retryAvailable()).isTrue();
+            String newStart = coordinator.retry(start.id());
+            awaitCall(newStart);
+            assertThat(mapper.findStoryAccountingCallById(start.id()).orElseThrow()).isEqualTo(start);
+            assertThatThrownBy(() -> coordinator.retry(start.id())).isInstanceOf(ConflictException.class);
+            assertThatThrownBy(() -> coordinator.retry(newStart)).isInstanceOf(ConflictException.class);
+            String newComplete = coordinator.retry(complete.id());
+            awaitCall(newComplete);
+            assertThat(mapper.findStoryAccountingCallById(complete.id()).orElseThrow()).isEqualTo(complete);
+            assertThat(jdbc.queryForList("SELECT state FROM story_accounting_call ORDER BY rowid", String.class))
+                    .containsExactly("FAILED", "FAILED", "SUCCEEDED", "SUCCEEDED");
+            assertThat(jdbc.queryForObject("SELECT COUNT(DISTINCT message_id) FROM story_accounting_call", Integer.class)).isEqualTo(4);
+            assertThat(jdbc.queryForList("SELECT retry_of FROM story_accounting_call WHERE retry_of IS NOT NULL ORDER BY rowid", String.class))
+                    .containsExactly(start.id(), complete.id());
+            assertThat(designers.get(designer).state()).isEqualTo("COMPLETED");
+            coordinator.completeRetiredSessions();
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM story_accounting_call", Integer.class)).isEqualTo(4);
+        }
+    }
+
+    private void awaitCall(String id) throws InterruptedException {
+        for (int i = 0; i < 100 && mapper.findStoryAccountingCallById(id).orElseThrow().finishedAt() == null; i++) Thread.sleep(20);
+        assertThat(mapper.findStoryAccountingCallById(id).orElseThrow().state()).isEqualTo("SUCCEEDED");
+    }
+
     private String fixture(String external, boolean enabled) {
         String id = UUID.randomUUID().toString(), now = Instant.now().toString();
         mapper.insertDesignerSession(new DesignerSessionRow(id, projectId, "RUNNING", "READ_ONLY", now, now, 0,

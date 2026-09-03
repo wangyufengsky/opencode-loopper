@@ -1521,7 +1521,7 @@ function normalizeStoryAccountingCall(value: unknown): StoryAccountingCall {
   const state = requirePublicState(['PREPARED', 'CANCELLING', 'SUCCEEDED', 'FAILED', 'UNKNOWN', 'CANCELLED'] as const, raw.state, 'StoryAccountingCall')
   const operation = requirePublicState(['start', 'continue', 'complete'] as const, raw.operation, 'StoryAccountingCall.operation')
   return { ...raw, id: asString(raw.id), state, operation, systemCode: asString(raw.systemCode), storyCode: asString(raw.storyCode),
-    role: asString(raw.role), startedAt: asString(raw.startedAt), parts: Array.isArray(raw.parts) ? raw.parts.map(value => {
+    role: asString(raw.role), startedAt: asString(raw.startedAt), retryAvailable: raw.retryAvailable === true, parts: Array.isArray(raw.parts) ? raw.parts.map(value => {
       const part = asRecord(value)
       return { id: asString(part.id), type: asString(part.type), label: asString(part.label), content: asString(part.content) }
     }) : [] }
@@ -1531,6 +1531,7 @@ export const api = {
   getStoryAccountingCalls: async () => (await request<unknown[]>('/story-accounting')).map(normalizeStoryAccountingCall),
   getStoryAccountingCall: async (id: string) => normalizeStoryAccountingCall(await request<unknown>(`/story-accounting/${encodeURIComponent(id)}`)),
   cancelStoryAccountingCall: async (id: string) => normalizeStoryAccountingCall(await request<unknown>(`/story-accounting/${encodeURIComponent(id)}/cancel`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } })),
+  retryStoryAccountingCall: async (id: string) => normalizeStoryAccountingCall(await request<unknown>(`/story-accounting/${encodeURIComponent(id)}/retry`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } })),
   dismissStoryAccountingCall: async (id: string) => request<void>(`/story-accounting/${encodeURIComponent(id)}/dismiss`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } }),
   getProjects: async (refresh = false) => (await request<unknown[]>(`/projects/summaries${refresh ? '?refresh=true' : ''}`)).map(normalizeProject),
   pickProjectDirectory: async (): Promise<DirectorySelection> => {

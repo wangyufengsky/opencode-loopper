@@ -120,7 +120,15 @@ public interface StoryBindingMapper {
             """)
     int insertStoryAccountingCall(StoryAccountingCallRow row);
 
-    @Select("SELECT * FROM story_accounting_call WHERE accounting_session_id=#{sessionId} AND phase=#{phase}")
+    @Insert("""
+            INSERT INTO story_accounting_call(id,accounting_session_id,phase,message_id,operation,
+              arguments_text,state,notification_emitted,started_at,retry_of)
+            VALUES(#{call.id},#{call.accountingSessionId},#{call.phase},#{call.messageId},#{call.operation},
+              #{call.argumentsText},'PREPARED',0,#{call.startedAt},#{previousId})
+            """)
+    int insertStoryAccountingRetry(@Param("call") StoryAccountingCallRow call, @Param("previousId") String previousId);
+
+    @Select("SELECT * FROM story_accounting_call WHERE accounting_session_id=#{sessionId} AND phase=#{phase} ORDER BY rowid DESC LIMIT 1")
     Optional<StoryAccountingCallRow> findStoryAccountingCall(@Param("sessionId") String sessionId,
                                                               @Param("phase") String phase);
     @Update("""
@@ -151,6 +159,17 @@ public interface StoryBindingMapper {
             ORDER BY session.created_at,session.id LIMIT 32
             """)
     List<StoryAccountingSessionRow> listRetiredStoryAccountingSessions();
+
+    @Select("""
+            SELECT session.* FROM story_accounting_session session
+            WHERE session.binding_id=#{bindingId} AND session.owner_observed=1
+              AND session.state IN ('ACTIVE','BIND_FAILED','COMPLETING')
+              AND session.role IN ('REQUIREMENT_DESIGNER','PACKAGE_DESIGNER','PACKAGE_DESIGN_V1','IMPLEMENTATION')
+              AND NOT EXISTS(SELECT 1 FROM story_accounting_active_remote active
+                WHERE active.external_session_id=session.external_session_id)
+            ORDER BY session.ordinal
+            """)
+    List<StoryAccountingSessionRow> listStoryAccountingHandoffs(String bindingId);
 
     @Select("SELECT * FROM story_accounting_call WHERE state IN ('PREPARED','CANCELLING') AND started_at < #{startupAt}")
     List<StoryAccountingCallRow> listInterruptedStoryAccountingCalls(String startupAt);

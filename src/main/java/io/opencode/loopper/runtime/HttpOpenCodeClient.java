@@ -545,6 +545,9 @@ public class HttpOpenCodeClient implements OpenCodeClient {
     }
     @Override public void abort(OpenCodeSession session) { abortWithConfirmation(session); }
     @Override public AbortConfirmation abortWithConfirmation(OpenCodeSession session) {
+        return commandTransport.businessAbort(session, () -> abortBusinessSession(session));
+    }
+    private AbortConfirmation abortBusinessSession(OpenCodeSession session) {
         try {
             if (storyAccounting != null) {
                 storyAccounting.beforeAbort(session);

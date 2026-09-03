@@ -29,6 +29,11 @@ public class StoryAccountingController {
         requireLocalUi(localUi);
         activity.dismiss(id);
     }
+    @PostMapping("/{id}/retry") public CallView retry(@PathVariable String id,
+            @RequestHeader(value = "X-Loopper-Local-UI", required = false) String localUi) {
+        requireLocalUi(localUi);
+        return activity.snapshot(accounting.retry(id));
+    }
     private void requireLocalUi(String value) {
         if (!"1".equals(value)) throw new BadRequestException("LOCAL_UI_HEADER_REQUIRED", "仅允许本地界面操作统计调用");
     }

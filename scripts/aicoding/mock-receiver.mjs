@@ -2,7 +2,7 @@ import { createServer } from 'node:http'
 
 /** Independent request ledger and deterministic model for native transport tests. */
 export async function createMockReceiver({ modelReply } = {}) {
-  const requests = [], modelRequests = [], bindings = new Map(), runs = new Map()
+  const requests = [], modelRequests = [], bindings = new Map(), runs = new Map(), activeRuns = new Map()
   let behavior = { delayMs: 0, fail: false, loseResponse: false }
   const server = createServer(async (request, response) => {
     const chunks = []
@@ -20,6 +20,7 @@ export async function createMockReceiver({ modelReply } = {}) {
       const record = { ...body, at: new Date().toISOString(), ordinal: requests.length + 1 }
       requests.push(record)
       const selected = { ...behavior }
+      if (selected.onlyOperation && selected.onlyOperation !== body.operation) Object.assign(selected, { delayMs: 0, fail: false, loseResponse: false })
       if (behavior.remaining !== undefined) {
         if (behavior.remaining <= 0) Object.assign(selected, { delayMs: 0, fail: false, loseResponse: false })
         else behavior.remaining -= 1
@@ -31,7 +32,12 @@ export async function createMockReceiver({ modelReply } = {}) {
         if (!systemCode || !storyCode) { json(400, { error: '系统编号和故事编号必填' }); return }
         const key = `${systemCode}/${storyCode}`
         let runId = runs.get(key)
-        if (operation === 'start') { runId = `run-${requests.length}`; runs.set(key, runId) }
+        if (operation === 'start') {
+          if (selected.strictActiveRun && activeRuns.has(key)) {
+            record.error = 'ACTIVE_RUN_EXISTS'; json(409, { ok: false, errorCode: record.error }); return
+          }
+          runId = `run-${record.ordinal}`; runs.set(key, runId); activeRuns.set(key, runId)
+        }
         if (!runId) { json(409, { error: '故事尚未开始' }); return }
         bindings.set(sessionId, { runId, systemCode, storyCode, completed: false })
       } else if (!['complete', 'status', 'sync'].includes(operation)) {
@@ -39,7 +45,12 @@ export async function createMockReceiver({ modelReply } = {}) {
       }
       const binding = bindings.get(sessionId)
       if (!binding) { json(409, { error: '当前会话未绑定故事' }); return }
-      if (operation === 'complete') binding.completed = true
+      if (operation === 'complete') {
+        binding.completed = true
+        const key = `${binding.systemCode}/${binding.storyCode}`
+        if (activeRuns.get(key) === binding.runId) activeRuns.delete(key)
+      }
+      record.receiptAt = new Date().toISOString()
       record.receipt = { ok: true, operation, sessionId, ...binding }
       if (selected.loseResponse) { response.destroy(); return }
       json(200, record.receipt)

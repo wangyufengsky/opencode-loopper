@@ -9,6 +9,7 @@ const calls = ref<StoryAccountingCall[]>([])
 const selectedId = ref('')
 const error = ref('')
 const cancelling = ref(false)
+const retrying = ref(false)
 const now = ref(Date.now())
 let timer: ReturnType<typeof setTimeout> | undefined
 let clock: ReturnType<typeof setInterval> | undefined
@@ -17,6 +18,7 @@ let selection = 0
 const current = computed(() => calls.value.find(call => call.id === selectedId.value))
 const active = (call: StoryAccountingCall) => call.state === 'PREPARED' || call.state === 'CANCELLING'
 const running = computed(() => current.value ? active(current.value) : false)
+const failed = computed(() => current.value && ['FAILED', 'UNKNOWN', 'CANCELLED'].includes(current.value.state))
 const roleNames: Record<string, string> = { ROUTER: '任务识别', REQUIREMENT_DESIGNER: '需求设计', PACKAGE_DESIGNER: '工作包设计', IMPLEMENTATION: '实施', JUDGE: '评审', REVIEWER: '只读审查', DECOMPOSER: '需求拆分', COMPILER: '设计编译' }
 const roleLabel = (call: StoryAccountingCall) => roleNames[call.role] ?? '设计与执行'
 const operationLabel = (call: StoryAccountingCall) => call.operation === 'complete' ? '完成' : '开启'
@@ -65,7 +67,7 @@ async function cancel() {
 }
 
 async function close() {
-  if (running.value) return
+  if (running.value || retrying.value) return
   selection++
   const finished = calls.value.filter(call => !active(call))
   try {
@@ -74,14 +76,28 @@ async function close() {
     selectedId.value = calls.value[0]?.id ?? ''
   } catch (failure) { error.value = userFacingError(failure, '关闭统计结果失败，请重试') }
 }
+async function retry() {
+  if (!current.value?.retryAvailable || retrying.value) return
+  const id = current.value.id
+  selection++
+  retrying.value = true
+  error.value = ''
+  try {
+    const result = await api.retryStoryAccountingCall(id)
+    if (!alive) return
+    calls.value = [...calls.value.filter(call => call.id !== result.id), result]
+    selectedId.value = result.id
+  } catch (failure) { if (alive) error.value = userFacingError(failure, '重新发起统计失败，请刷新后重试') }
+  finally { retrying.value = false }
+}
 onMounted(() => { clock = setInterval(() => { now.value = Date.now() }, 1_000); void refresh() })
 onBeforeUnmount(() => { alive = false; selection++; if (timer) clearTimeout(timer); if (clock) clearInterval(clock) })
 </script>
 
 <template>
   <el-dialog :model-value="!!current" :title="title" width="760px" append-to-body destroy-on-close
-    class="story-accounting-dialog" :z-index="4000" :close-on-click-modal="false" :close-on-press-escape="!running"
-    :show-close="!running" @close="close">
+    class="story-accounting-dialog" :z-index="4000" :close-on-click-modal="false" :close-on-press-escape="!running && !retrying"
+    :show-close="!running && !retrying" @close="close">
     <template v-if="current">
       <p class="accounting-context">系统 {{ current.systemCode }} · 故事 {{ current.storyCode }} · {{ roleLabel(current) }} · 已用 {{ elapsed }} 秒</p>
       <el-select v-if="calls.length > 1" v-model="selectedId" :teleported="false" aria-label="选择统计会话" @change="selection++">
@@ -99,11 +115,15 @@ onBeforeUnmount(() => { alive = false; selection++; if (timer) clearTimeout(time
         <p v-if="!current.parts.length">{{ running ? '正在等待模型输出…' : '本次统计未返回模型正文。' }}</p>
       </div>
       <p v-if="current.detail" class="accounting-detail">{{ current.detail }}</p>
+      <p v-if="failed && current.retryUnavailableReason" class="accounting-hint">{{ current.retryUnavailableReason }}</p>
       <p v-if="running" class="accounting-hint">统计会持续等待。觉得等待太久，可以取消本次统计并继续任务；已送达平台的请求无法撤回。</p>
     </template>
     <template #footer>
       <el-button v-if="running" type="danger" plain :loading="cancelling || current?.state === 'CANCELLING'" @click="cancel">取消本次统计，继续任务</el-button>
-      <el-button v-else type="primary" @click="close">关闭</el-button>
+      <template v-else>
+        <el-button v-if="failed" type="primary" :disabled="!current?.retryAvailable" :loading="retrying" @click="retry">重新发起 {{ current?.operation === 'complete' ? 'complete' : 'start' }}</el-button>
+        <el-button :disabled="retrying" @click="close">关闭</el-button>
+      </template>
     </template>
   </el-dialog>
 </template>
