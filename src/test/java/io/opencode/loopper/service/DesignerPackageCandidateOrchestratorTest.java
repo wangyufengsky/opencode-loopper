@@ -123,6 +123,24 @@ class DesignerPackageCandidateOrchestratorTest {
     }
 
     @Test
+    void completedControlNoticeCannotBecomeMarkdownDesignOrEnterAcceptanceCompilation() {
+        DesignWorkPackageRow workPackage = workPackage();
+        when(submissions.find(orchestrator.runId(workPackage)))
+                .thenReturn(Optional.of(run(workPackage, MachineCandidateRunState.OPEN, 0)));
+        when(submissions.close(any())).thenReturn(run(workPackage, MachineCandidateRunState.CLOSED, 0));
+        when(openCode.sessionStatus(any())).thenReturn(new OpenCodeClient.SessionStatus("COMPLETED"));
+        when(openCode.sessionOutput(any())).thenReturn("CRITICAL - MAXIMUM STEPS REACHED\n"
+                + "The maximum number of steps allowed for this task has been reached. "
+                + "Tools are disabled until next user input. Respond with text only.");
+
+        var result = orchestrator.poll(workPackage, Path.of("/tmp/project"), false);
+
+        assertThat(result.action()).isEqualTo(DesignerPackageCandidateOrchestrator.Action.FAILED);
+        assertThat(result.reasonCode()).isEqualTo("OPENCODE_STEP_LIMIT_REACHED");
+        assertThat(result.markdown()).isNull();
+    }
+
+    @Test
     void generationConflictAndTimeoutFailClosedWithoutReadingMarkdown() {
         DesignWorkPackageRow workPackage = workPackage();
         MachineCandidateSubmission.RunSnapshot open = run(workPackage, MachineCandidateRunState.OPEN, 0);

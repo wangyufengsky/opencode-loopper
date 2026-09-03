@@ -200,7 +200,7 @@ final class DesignerPackageCandidateOrchestrator {
 
     private Poll markdownFallback(OpenCodeClient.OpenCodeSession remote,
                                   MachineCandidateSubmission.RunSnapshot run, String reason) {
-        String markdown = openCode.sessionOutput(remote);
+        String markdown = io.opencode.loopper.runtime.OpenCodeStepLimitNotice.requireBusinessOutput(openCode.sessionOutput(remote));
         if (markdown == null || markdown.isBlank()) {
             return Poll.failed(remote, run, "DESIGN_OUTPUT_MISSING",
                     "工作包候选 Session 正常完成但没有可供兜底的 Markdown");

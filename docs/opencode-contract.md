@@ -589,10 +589,17 @@ records structured-output observations by endpoint, OpenCode version, provider,
 and model. It may show that native `plan` exists, but this release does not
 select that agent for Designer: Designer Markdown, Compiler JSON, and the
 deterministic Validator remain separate artifacts and authority boundaries.
-Loopper-managed runtimes define a private `loopper-structured` agent with at most 24 agentic steps
-for Decomposer, Compiler, and Judge, plus a separate one-step `loopper-router` agent for immediate
-zero-tool task classification. Interactive Markdown Designer and writable Implementation remain on
-their normal agent behavior. Neither agent output becomes authoritative without server validation.
+`OpenCodeAgentPolicy` owns both managed agent selection and Loopper's independent step guard.
+Designer (including private package candidates), Implementation, Reviewer (Legacy and MCP), and
+Requirement/Risk Judge (Legacy, MCP and tool-loop finalizers) have no Loopper fixed step limit.
+Machine-response profiles in this group select `loopper-structured-unbounded`, whose managed
+definition omits `steps`; ordinary interactive Designer and Implementation keep their normal agents.
+Decomposer, Compiler (including binding, repair and acceptance choice), rolling package planning,
+project convention and generic non-Judge finalizers retain `loopper-structured` with 24 steps.
+Router retains the separate one-step `loopper-router`; story accounting retains its separate two-step
+command agent. A legacy explicit bounded-agent request cannot reintroduce the limit for an exempt role.
+External runtimes do not receive the new private agent name; their own configuration remains operator-owned.
+Neither agent output becomes authoritative without server validation.
 
 Those tools see the pre-execution repository baseline, not a simulated checkout
 after earlier packages. For a package dependency already marked `APPROVED`,
@@ -695,18 +702,28 @@ remain authoritative. `RETRY` is not a terminal observation and cannot prove
 that a mutating writer stopped. A
 failed `StructuredOutput` tool part is the same explicit
 structured-output failure. Loopper also counts assistant/step-start records after
-the latest user turn and enforces its own 24-step hard limit even if OpenCode's
-agent setting is ignored. The managed agent uses temperature zero and a fixed
+the latest user turn and enforces the role's fixed limit, when one exists, even if OpenCode's
+agent setting is ignored. Exempt roles still undergo the same structured-output and repeated-tool
+inspection; reaching 24 steps must not fail their Session or downgrade Schema capability.
+Managed machine-response agents use temperature zero and a fixed
 instruction to stop repository exploration once evidence is sufficient and never
 repeat or invent tool calls. Three consecutive calls with the same normalized
 tool name and canonical arguments terminate that loop early. Loopper aborts the
 original Session and, once per persisted role step, may start a built-in-tools-disabled
 finalizer with bounded deduplicated evidence. That call counts against the
 global model-call budget but not the format/semantic repair budgets; V28
-prevents a restart from granting another finalizer. Implementation retains its existing
+prevents a restart from granting another finalizer. Judge recovery uses `JUDGE_FINALIZER_NO_TOOLS`,
+which preserves the generic finalizer's permissions but has no fixed step limit. Implementation retains its existing
 failure-escalation contract. Actual terminal failure, retry exhaustion, timeout, or transition to
 human input always makes a best-effort abort call before Loopper reports the
 structured role as stopped.
+
+A completed response containing the OpenCode `CRITICAL - MAXIMUM STEPS REACHED` control notice
+and its known disabled-tools boilerplate fails with `OPENCODE_STEP_LIMIT_REACHED`. It is not a
+design artifact, Reviewer report or Judge verdict. Package Markdown fallback checks the same boundary
+before persisting design or starting acceptance compilation. Quoted references and ordinary descriptions
+of the notice remain valid content. Existing stored designs are not rewritten. Loading this release's
+managed agent definitions requires a newly started managed runtime; existing processes are not hot-patched.
 
 Decomposer and the historical semantic Compiler use a compact object containing either `COMPILED` semantic Stages or
 `DESIGN_INCOMPLETE` with closed gap codes. Loopper resolves every `DS-Lxxx`

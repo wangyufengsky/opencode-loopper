@@ -259,6 +259,12 @@ class OpenCodeRuntimeManagerTest {
                         "Never retry the same tool call", "loopper-router", "\"steps\":1",
                         "Classify the supplied requirement in one response");
         assertThat(capturedCommand.get().toString()).doesNotContain(capturedEnvironment.get().get("OPENCODE_SERVER_PASSWORD"));
+        var agents = new tools.jackson.databind.ObjectMapper().readTree(
+                capturedEnvironment.get().get("OPENCODE_CONFIG_CONTENT")).path("agent");
+        assertThat(agents.path("loopper-structured-unbounded").isObject()).isTrue();
+        assertThat(agents.path("loopper-structured-unbounded").has("steps")).isFalse();
+        assertThat(agents.path("loopper-structured").path("steps").asInt()).isEqualTo(24);
+        assertThat(agents.path("loopper-router").path("steps").asInt()).isEqualTo(1);
 
         HttpOpenCodeClient client = new HttpOpenCodeClient(org.springframework.web.client.RestClient.builder(), manager::connectionForClient);
         assertThat(client.healthy()).isTrue();

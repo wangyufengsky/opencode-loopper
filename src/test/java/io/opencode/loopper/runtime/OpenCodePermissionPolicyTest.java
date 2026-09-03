@@ -6,6 +6,15 @@ import org.junit.jupiter.api.Test;
 
 class OpenCodePermissionPolicyTest {
     @Test
+    void judgeFinalizerKeepsTheExistingNoBuiltinToolsPermissionBoundary() {
+        var servers = java.util.List.of("github", "loopper_internal_generation");
+        assertThat(OpenCodePermissionPolicy.rules(OpenCodeClient.SessionProfile.JUDGE_FINALIZER_NO_TOOLS,
+                servers, "loopper_internal_generation")).isEqualTo(
+                OpenCodePermissionPolicy.rules(OpenCodeClient.SessionProfile.MACHINE_FINALIZER_NO_TOOLS,
+                        servers, "loopper_internal_generation"));
+    }
+
+    @Test
     void onlyManagedDesignerProfilesAddTheGuardedAccountingException() {
         var designers = java.util.Set.of(OpenCodeClient.SessionProfile.GENERAL_READ_ONLY,
                 OpenCodeClient.SessionProfile.DESIGNER_INTERACTIVE_READ_ONLY,

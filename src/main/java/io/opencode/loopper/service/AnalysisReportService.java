@@ -323,7 +323,7 @@ public class AnalysisReportService {
                 OpenCodeClient.SessionProfile.REVIEWER_READ_ONLY);
         String prompt = reviewerPrompt(profile, root, row.sourceRequirement(), schema);
         OpenCodeClient.PromptRequest request = schema
-                ? new OpenCodeClient.PromptRequest(prompt, null, OpenCodeClient.STRUCTURED_AGENT,
+                ? new OpenCodeClient.PromptRequest(prompt, null, null,
                 OpenCodeStructuredSchemas.format(OpenCodeStructuredSchemas.REVIEWER_REPORT_V1))
                 : OpenCodeClient.PromptRequest.text(prompt);
         request = attachmentContext.withContext(

@@ -22,7 +22,7 @@ final class OpenCodeMachineResponseInspector {
         this.responses = responses;
     }
 
-    void inspect(JsonNode messages, boolean structuredPrompt, Runnable onStructured,
+    void inspect(JsonNode messages, boolean structuredPrompt, int stepLimit, Runnable onStructured,
                  Consumer<String> onStructuredUnsupported) {
         int latestUserIndex = latestUserIndex(messages);
         int assistantTurns = 0;
@@ -57,7 +57,7 @@ final class OpenCodeMachineResponseInspector {
                 inspectStructuredTool(part, structuredPrompt, onStructuredUnsupported);
             }
         }
-        inspectStepLimit(Math.max(assistantTurns, stepStarts), structuredPrompt, onStructuredUnsupported);
+        inspectStepLimit(Math.max(assistantTurns, stepStarts), stepLimit, structuredPrompt, onStructuredUnsupported);
     }
 
     private int latestUserIndex(JsonNode messages) {
@@ -95,11 +95,11 @@ final class OpenCodeMachineResponseInspector {
         throw new SessionFailure("OPENCODE_STRUCTURED_OUTPUT_FAILED", detail);
     }
 
-    private void inspectStepLimit(int observedSteps, boolean structuredPrompt,
+    private void inspectStepLimit(int observedSteps, int stepLimit, boolean structuredPrompt,
                                   Consumer<String> onStructuredUnsupported) {
-        if (observedSteps <= OpenCodeClient.STRUCTURED_AGENT_STEPS) return;
+        if (stepLimit == 0 || observedSteps <= stepLimit) return;
         String detail = "OpenCode machine-response session exceeded Loopper's hard limit of "
-                + OpenCodeClient.STRUCTURED_AGENT_STEPS + " steps (observed " + observedSteps + ")";
+                + stepLimit + " steps (observed " + observedSteps + ")";
         if (structuredPrompt) {
             onStructuredUnsupported.accept(detail);
             throw new SessionFailure("OPENCODE_STRUCTURED_OUTPUT_FAILED", detail);

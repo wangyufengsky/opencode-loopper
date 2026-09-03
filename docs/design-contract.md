@@ -709,17 +709,23 @@ and deterministic validation. The Markdown Designer remains on the configured
 model behavior, so the transport workaround does not silently reduce interactive
 design or implementation quality.
 
-On a Loopper-managed runtime those same three machine-response roles select the
-private zero-temperature `loopper-structured` agent, capped at 24 agentic steps
-and instructed to stop exploring after collecting sufficient evidence. Loopper
-also enforces the same bound from message records rather than trusting the
-OpenCode agent setting alone. Three consecutive calls with the same normalized
+On a Loopper-managed runtime Designer, Implementation, Reviewer and Requirement/Risk Judge
+have no fixed agentic-step limit, including package candidates and Judge finalizers. Machine-response
+roles in this group select the zero-temperature `loopper-structured-unbounded` agent with no `steps`
+setting. Decomposer, Compiler/binding/repair/acceptance choice, rolling package planning,
+project convention and generic non-Judge finalizers retain the 24-step `loopper-structured` agent;
+Router retains one step and the separate story-accounting command retains two. Loopper derives
+its message-count check and managed agent from the same role policy. Three consecutive calls with the same normalized
 tool name and arguments trigger an immediate best-effort abort and at most one
 persisted, built-in-tools-disabled finalizer Session for that role step. Configured MCP tools
 remain available under the same additive permission rule. The finalizer uses
 bounded deduplicated evidence, counts against the global model-call budget, and
-does not consume format-repair budget; the 24-step cap remains the final safety
-net. For Decomposer
+does not consume format-repair budget. Judge finalization preserves the no-step-limit policy
+without opening built-in tools. Role timeouts, Task budgets, candidate submission limits and
+permission boundaries remain independent. A returned maximum-steps control notice is shown as
+a Chinese Session failure and cannot be saved as a design or enter acceptance compilation.
+Existing stored output is not rewritten; the user must rerun the affected design after the new runtime is loaded.
+For Decomposer
 and Compiler, OpenCode status `RETRY` is displayed as an in-progress remote state
 and keeps the same Session; it must not increment the design transport-retry
 counter. Interactive Designer uses the same transient rule: requirement,

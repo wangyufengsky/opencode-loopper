@@ -312,7 +312,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
                 structured = latest.path("structured");
             }
             Map<String, Object> structuredValue = structured.isObject() ? responses.object(structured) : Map.of();
-            String text = responses.assistantText(latest);
+            String text = OpenCodeStepLimitNotice.requireBusinessOutput(responses.assistantText(latest));
             int retryCount = info.path("structuredRetryCount").asInt(
                     info.path("structured_retry_count").asInt(0));
             URI endpoint = connectionFor(session).baseUrl();
@@ -519,7 +519,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         boolean structuredPrompt = Boolean.TRUE.equals(structuredPrompts.get(session.id()));
         URI endpoint = connectionFor(session).baseUrl();
         OpenCodeModel model = sessionModels.get(session.id());
-        machineResponses.inspect(messages, structuredPrompt,
+        machineResponses.inspect(messages, structuredPrompt, OpenCodeAgentPolicy.stepLimit(sessionProfiles.get(session.id())),
                 () -> capabilities.structured(endpoint, model),
                 detail -> capabilities.modelUnsupported(endpoint, model, detail));
     }

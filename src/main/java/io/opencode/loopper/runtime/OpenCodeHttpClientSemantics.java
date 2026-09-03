@@ -30,6 +30,7 @@ final class OpenCodeHttpClientSemantics {
                 || profile == OpenCodeClient.SessionProfile.COMPILER_REPAIR_NO_TOOLS
                 || profile == OpenCodeClient.SessionProfile.REVIEWER_READ_ONLY
                 || profile == OpenCodeClient.SessionProfile.JUDGE_READ_ONLY
+                || profile == OpenCodeClient.SessionProfile.JUDGE_FINALIZER_NO_TOOLS
                 || profile == OpenCodeClient.SessionProfile.PROJECT_CONVENTION_READ_ONLY
                 || profile == OpenCodeClient.SessionProfile.MACHINE_FINALIZER_NO_TOOLS;
     }

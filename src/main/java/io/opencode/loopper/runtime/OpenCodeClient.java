@@ -17,6 +17,7 @@ public interface OpenCodeClient {
     String STRUCTURED_NO_THINKING_VARIANT = "loopper-no-thinking";
     /** Private managed-runtime agent that bounds read-only machine-response loops. */
     String STRUCTURED_AGENT = "loopper-structured";
+    String UNBOUNDED_STRUCTURED_AGENT = "loopper-structured-unbounded";
     int STRUCTURED_AGENT_STEPS = 24;
     double STRUCTURED_AGENT_TEMPERATURE = 0.0d;
     String STRUCTURED_AGENT_PROMPT = """
@@ -288,6 +289,7 @@ public interface OpenCodeClient {
         COMPILER_REPAIR_NO_TOOLS,
         REVIEWER_READ_ONLY,
         JUDGE_READ_ONLY,
+        JUDGE_FINALIZER_NO_TOOLS,
         PROJECT_CONVENTION_READ_ONLY,
         MACHINE_FINALIZER_NO_TOOLS,
         GENERAL_READ_ONLY,

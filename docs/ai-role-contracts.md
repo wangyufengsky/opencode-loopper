@@ -434,6 +434,14 @@ Pointer 一次返回。AI 应在同一个补丁中修完全部列出问题，避
 工具循环 finalizer 仍是每个持久化角色步骤最多一次，并计入全局模型调用预算，
 不占格式或语义修复次数。
 
+固定 agentic 步数按角色区分：Designer（需求、工作包及 MCP 候选）、Implementation、
+Reviewer（Legacy/MCP）和 Requirement/Risk Judge（Legacy/MCP/工具循环收尾）不设固定上限。
+受管机器响应角色使用不含 `steps` 的 `loopper-structured-unbounded`，本地计步检查遵守同一策略；
+重复工具检测和结构化格式检查继续生效。Decomposer、Compiler（含绑定、修复、验收选择）、
+滚动规划、项目公约及非 Judge 通用 finalizer 保留 24 步，Router 保留 1 步，独立统计命令保留 2 步。
+这些步数不是 Task 尝试次数或 MCP 提交次数，也不改变角色超时、权限和业务验收。
+OpenCode 返回的最大步数控制提示以 `OPENCODE_STEP_LIMIT_REACHED` 明确失败，不能进入设计稿或验收编译。
+
 ## Judge、项目公约与 Designer
 
 Judge 优先读取唯一有效 JSON，也接受唯一、明确的 `VERDICT/判定` 与

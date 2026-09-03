@@ -22,6 +22,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.web.client.RestClient;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -454,7 +456,7 @@ class HttpOpenCodeClientTest {
                 .doesNotContain("user_probe_*")
                 .doesNotContain(internal + "_*");
         client.promptAsync(session, "submit the reviewer candidate");
-        assertThat(promptBody.get()).contains("\"agent\":\"loopper-structured\"");
+        assertThat(promptBody.get()).contains("\"agent\":\"loopper-structured-unbounded\"");
 
         mcpBody.set("{\"" + internal + "\":{\"status\":\"failed\"}}");
         createBody.set(null);
@@ -581,14 +583,17 @@ class HttpOpenCodeClientTest {
                 .isEqualTo("OPENCODE_STRUCTURED_OUTPUT_FAILED");
     }
 
-    @Test
-    void enforcesMachineResponseStepLimitEvenWhenOpenCodeStillReportsBusy() throws Exception {
-        LoopperProperties properties = new LoopperProperties();
-        properties.getOpenCode().setBaseUrl(new java.net.URI("http://127.0.0.1:" + server.getAddress().getPort()));
-        HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(), properties);
+    @ParameterizedTest
+    @EnumSource(value = OpenCodeClient.SessionProfile.class, names = {
+            "DECOMPOSER_READ_ONLY", "DECOMPOSER_CANDIDATE_READ_ONLY", "COMPILER_READ_ONLY",
+            "COMPILER_BINDING_NO_TOOLS", "COMPILER_REPAIR_NO_TOOLS", "ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS",
+            "ROLLING_PACKAGE_CANDIDATE_READ_ONLY", "PROJECT_CONVENTION_READ_ONLY",
+            "PROJECT_CONVENTION_CANDIDATE_READ_ONLY", "MACHINE_FINALIZER_NO_TOOLS"})
+    void enforcesMachineResponseStepLimitEvenWhenOpenCodeStillReportsBusy(OpenCodeClient.SessionProfile profile) throws Exception {
+        HttpOpenCodeClient client = managedRoleClient();
         OpenCodeClient.OpenCodeSession session = client.createSession(worktree, "marker",
                 new OpenCodeClient.OpenCodeModel("deepseek", "deepseek-v4-flash", false),
-                OpenCodeClient.SessionProfile.DECOMPOSER_READ_ONLY);
+                profile);
         client.promptAsync(session, OpenCodeClient.PromptRequest.text("decompose"));
         statusBody.set("{\"s1\":{\"type\":\"busy\"}}");
         StringBuilder messages = new StringBuilder("[{\"info\":{\"role\":\"user\"}}");
@@ -604,13 +609,13 @@ class HttpOpenCodeClientTest {
                 .isEqualTo("OPENCODE_MACHINE_STEP_LIMIT_EXCEEDED");
     }
 
-    @Test
-    void stopsOnThirdConsecutiveEquivalentToolCallButAllowsDifferentArguments() throws Exception {
-        LoopperProperties properties = new LoopperProperties();
-        properties.getOpenCode().setBaseUrl(new java.net.URI("http://127.0.0.1:" + server.getAddress().getPort()));
-        HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(), properties);
+    @ParameterizedTest
+    @EnumSource(value = OpenCodeClient.SessionProfile.class, names = {
+            "COMPILER_READ_ONLY", "PACKAGE_DESIGN_CANDIDATE_READ_ONLY", "REVIEWER_READ_ONLY", "JUDGE_READ_ONLY"})
+    void stopsOnThirdConsecutiveEquivalentToolCallButAllowsDifferentArguments(OpenCodeClient.SessionProfile profile) throws Exception {
+        HttpOpenCodeClient client = managedRoleClient();
         OpenCodeClient.OpenCodeSession session = client.createSession(worktree, "marker", null,
-                OpenCodeClient.SessionProfile.COMPILER_READ_ONLY);
+                profile);
         client.promptAsync(session, OpenCodeClient.PromptRequest.text("compile"));
         statusBody.set("{\"s1\":{\"type\":\"busy\"}}");
         messageBody.set("[{\"info\":{\"role\":\"user\"}},"
@@ -633,6 +638,90 @@ class HttpOpenCodeClientTest {
     private static String toolMessage(String tool, String input) {
         return "{\"info\":{\"role\":\"assistant\"},\"parts\":[{\"type\":\"tool\",\"tool\":\""
                 + tool + "\",\"state\":{\"status\":\"completed\",\"input\":" + input + "}}]}";
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = OpenCodeClient.SessionProfile.class, names = {
+            "GENERAL_READ_ONLY", "DESIGNER_INTERACTIVE_READ_ONLY", "IMPLEMENTATION",
+            "PACKAGE_DESIGN_CANDIDATE_READ_ONLY", "PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY",
+            "REVIEWER_READ_ONLY", "REVIEWER_CANDIDATE_READ_ONLY", "JUDGE_READ_ONLY", "JUDGE_CANDIDATE_READ_ONLY",
+            "JUDGE_FINALIZER_NO_TOOLS"})
+    void designerImplementationReviewerAndJudgeContinueBeyond24Steps(OpenCodeClient.SessionProfile profile) {
+        var client = managedRoleClient();
+        var session = client.createSession(worktree, "role", null, profile);
+        client.promptAsync(session, OpenCodeClient.PromptRequest.text("complete the requested work"));
+        statusBody.set("{\"s1\":{\"type\":\"busy\"}}");
+        StringBuilder messages = new StringBuilder("[{\"info\":{\"role\":\"user\"}}");
+        for (int step = 0; step < 40; step++) {
+            messages.append(',').append(toolMessage("read", "{\"path\":\"file-" + step + "\"}"));
+        }
+        messageBody.set(messages + "]");
+        assertThat(client.sessionStatus(session).state()).isEqualTo("busy");
+        assertThat(promptBody.get()).doesNotContain("\"agent\":\"loopper-structured\"");
+        messageBody.set(messages + ", {\"info\":{\"role\":\"assistant\",\"time\":{\"completed\":123},\"finish\":\"stop\"},"
+                + "\"parts\":[{\"type\":\"text\",\"text\":\"finished work\"}]}]");
+        statusBody.set("{}");
+        assertThat(client.sessionStatus(session).completed()).isTrue();
+        assertThat(client.sessionOutput(session)).isEqualTo("finished work");
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = OpenCodeClient.SessionProfile.class, names = {"REVIEWER_READ_ONLY", "JUDGE_READ_ONLY", "JUDGE_FINALIZER_NO_TOOLS"})
+    void schemaRolesDoNotDowngradeStructuredCapabilityBecauseOfStepCount(OpenCodeClient.SessionProfile profile) {
+        var client = managedRoleClient();
+        var model = new OpenCodeClient.OpenCodeModel("deepseek", "deepseek-v4-flash", false);
+        var session = client.createSession(worktree, "schema role", model, profile);
+        client.promptAsync(session, new OpenCodeClient.PromptRequest("review", null, OpenCodeClient.STRUCTURED_AGENT,
+                OpenCodeStructuredSchemas.format(OpenCodeStructuredSchemas.JUDGE_DECISION_V1)));
+        assertThat(promptBody.get()).contains("\"agent\":\"loopper-structured-unbounded\"");
+        StringBuilder messages = new StringBuilder("[{\"info\":{\"role\":\"user\"}}");
+        for (int step = 0; step < 40; step++) messages.append(",{\"info\":{\"role\":\"assistant\"}}");
+        messages.append(",{\"info\":{\"role\":\"assistant\",\"structured\":{\"verdict\":\"PASS\",\"reason\":\"verified\"},"
+                + "\"time\":{\"completed\":123},\"finish\":\"stop\"}}]");
+        messageBody.set(messages.toString());
+        assertThat(client.sessionStatus(session).completed()).isTrue();
+        assertThat(client.sessionResult(session).structured()).containsEntry("verdict", "PASS");
+        assertThat(client.structuredOutputCapability(model).selectedModel()).isEqualTo(OpenCodeClient.CapabilityState.AVAILABLE);
+    }
+
+    @Test
+    void restoredDesignerTurnUsesUnboundedAgentAndKeepsPreviousTurnsIsolated() {
+        var client = managedRoleClient();
+        var session = new OpenCodeClient.OpenCodeSession("s1", worktree, "generation-role", "loopper_internal_role");
+        client.restoreDesignTurn(session, OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_READ_ONLY, null, "current");
+        client.promptAsync(session, new OpenCodeClient.PromptRequest("revise", null, null,
+                new OpenCodeClient.ResponseFormat.Text(), "current", List.of()));
+        assertThat(promptBody.get()).contains("\"agent\":\"loopper-structured-unbounded\"");
+        StringBuilder messages = new StringBuilder("[{\"info\":{\"id\":\"current\",\"role\":\"user\"}}");
+        for (int step = 0; step < 40; step++) {
+            messages.append(",{\"info\":{\"role\":\"assistant\",\"parentID\":\"current\"},\"parts\":[{\"type\":\"step-start\"}]}");
+        }
+        // A late reply from a previous turn must not become the current result.
+        messages.append(",{\"info\":{\"role\":\"assistant\",\"parentID\":\"old\",\"time\":{\"completed\":123}}}]");
+        messageBody.set(messages.toString());
+        assertThat(client.sessionStatus(session).state()).isEqualTo("RUNNING");
+    }
+
+    private HttpOpenCodeClient managedRoleClient() {
+        mcpBody.set("{\"loopper_internal_role\":{\"status\":\"connected\"}}");
+        return new HttpOpenCodeClient(RestClient.builder(),
+                () -> new OpenCodeRuntimeManager.Connection(endpoint(), "", "", true,
+                        "generation-role", "loopper_internal_role"));
+    }
+
+    @Test
+    void stepLimitControlNoticeIsAnExplicitSessionFailureInsteadOfBusinessOutput() {
+        LoopperProperties properties = new LoopperProperties();
+        properties.getOpenCode().setBaseUrl(endpoint());
+        var client = new HttpOpenCodeClient(RestClient.builder(), properties);
+        var session = client.createReadOnlySession(worktree, "Designer", null);
+        String notice = "CRITICAL - MAXIMUM STEPS REACHED\n\nThe maximum number of steps allowed for this task has been reached. "
+                + "Tools are disabled until next user input. Respond with text only.";
+        messageBody.set(new tools.jackson.databind.ObjectMapper().writeValueAsString(List.of(Map.of(
+                "info", Map.of("role", "assistant", "finish", "stop", "time", Map.of("completed", 123)),
+                "parts", List.of(Map.of("type", "text", "text", notice))))));
+        assertThatThrownBy(() -> client.sessionResult(session)).isInstanceOf(SessionFailure.class)
+                .extracting(failure -> ((SessionFailure) failure).code()).isEqualTo("OPENCODE_STEP_LIMIT_REACHED");
     }
 
     @Test

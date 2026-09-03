@@ -101,6 +101,7 @@ final class OpenCodePermissionPolicy {
 
     private static boolean isNoTools(OpenCodeClient.SessionProfile profile) {
         return profile == OpenCodeClient.SessionProfile.MACHINE_FINALIZER_NO_TOOLS
+                || profile == OpenCodeClient.SessionProfile.JUDGE_FINALIZER_NO_TOOLS
                 || profile == OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS
                 || profile == OpenCodeClient.SessionProfile.COMPILER_REPAIR_NO_TOOLS
                 || profile == OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS

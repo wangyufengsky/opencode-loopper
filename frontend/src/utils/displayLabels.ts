@@ -91,6 +91,7 @@ const errorCodeLabels: Record<string, string> = {
   OPENCODE_DESIGNER_HANDOFF_FAILED: '设计请求未能发送给 OpenCode',
   OPENCODE_PROMPT_FAILED: 'OpenCode 未能接收请求',
   OPENCODE_DESIGNER_UNAVAILABLE: 'OpenCode 当前不可用',
+  OPENCODE_STEP_LIMIT_REACHED: 'OpenCode 达到步数上限，本轮未产生有效结果',
   WRAPPER_TOLERATED: '已兼容常见外层格式', AI_OUTPUT_NORMALIZED: '输出已自动规范化',
 }
 
@@ -108,6 +109,7 @@ const errorRecoveryMessages: Record<string, string> = {
   OPENCODE_DESIGNER_HANDOFF_FAILED: '设计请求未能发送给 OpenCode，请检查运行环境中的版本兼容性与连接状态后重试',
   OPENCODE_PROMPT_FAILED: 'OpenCode 未能接收请求，请检查运行环境中的版本兼容性与连接状态后重试',
   OPENCODE_DESIGNER_UNAVAILABLE: 'OpenCode 当前不可用，请检查运行环境中的连接状态后重试',
+  OPENCODE_STEP_LIMIT_REACHED: 'OpenCode 达到步数上限，本轮未产生有效结果。请确认运行环境已更新后重新发起本轮设计或评审。',
 }
 
 const systemErrorFallbacks: Record<string, string> = {

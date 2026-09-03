@@ -43,6 +43,11 @@ reduce coupling, isolate a changing axis, or make a contract independently testa
 
 ## Active compatibility-facade boundaries
 
+`OpenCodeAgentPolicy` owns role step limits and managed agent definitions/selection together;
+the HTTP prompt adapter and message inspector consume that policy. Step exemption must not remove
+structured-output or repeated-tool inspection. `OpenCodeStepLimitNotice` recognizes runtime control
+output at both the HTTP result and package Markdown fallback boundaries, before artifact persistence.
+
 The historical `DesignerSessionService` and `TaskService` remain public
 compatibility coordinators while their use cases are migrated. Their public
 signatures may stay stable, but extracted implementation must follow these

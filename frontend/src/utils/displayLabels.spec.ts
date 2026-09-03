@@ -21,6 +21,13 @@ describe('displayLabels', () => {
     expect(userFacingError(new Error('connection reset'))).toBe('操作未完成，请重试')
   })
 
+  it('shows a step-limit runtime failure with a recovery action instead of treating it as acceptance failure', () => {
+    const message = userFacingError('SYSTEM_ERROR[SESSION] OPENCODE_STEP_LIMIT_REACHED: CRITICAL - MAXIMUM STEPS REACHED')
+    expect(message).toContain('步数上限')
+    expect(message).toContain('运行环境已更新')
+    expect(message).not.toMatch(/CRITICAL|OPENCODE_|验收闭集/)
+  })
+
   it('shows the actionable Designer handoff failure instead of its system envelope', () => {
     const message = userFacingError('SYSTEM_ERROR[SESSION] OPENCODE_DESIGNER_HANDOFF_FAILED: 400 Bad Request: messageID must start with "msg"; Bearer private-test-value')
     expect(message).toContain('设计请求未能发送给 OpenCode')

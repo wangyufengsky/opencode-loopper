@@ -76,7 +76,7 @@ final class LegacyJudgeTransport {
             try { openCode.abort(failedRemote); } catch (RuntimeException ignored) { }
             OpenCodeClient.OpenCodeSession finalizer = openCode.createSession(Path.of(task.worktreePath()),
                     roleTitle(judge.role()) + " Finalizer (MCP_ONLY)", model,
-                    OpenCodeClient.SessionProfile.MACHINE_FINALIZER_NO_TOOLS);
+                    OpenCodeClient.SessionProfile.JUDGE_FINALIZER_NO_TOOLS);
             JudgeRunRow recovered = new JudgeRunRow(judge.id(), judge.taskId(), judge.attemptId(), judge.role(),
                     judge.ordinal(), finalizer.id(), judge.state(), judge.verdict(), judge.reason(),
                     judge.rawOutput(), judge.createdAt(), judge.endedAt(), judge.version(),

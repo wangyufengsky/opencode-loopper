@@ -27,11 +27,8 @@ final class OpenCodePromptBody {
         if (prompt == null) return body;
         if (prompt.messageId() != null) body.put("messageID", prompt.messageId());
         if (prompt.system() != null && !prompt.system().isBlank()) body.put("system", prompt.system());
-        if (prompt.agent() != null && !prompt.agent().isBlank()) body.put("agent", prompt.agent());
-        else if (managed) {
-            if (profile == OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS) body.put("agent", OpenCodeClient.ROUTER_AGENT);
-            else if (OpenCodeHttpClientSemantics.machineResponseProfile(profile)) body.put("agent", OpenCodeClient.STRUCTURED_AGENT);
-        }
+        String agent = OpenCodeAgentPolicy.promptAgent(prompt.agent(), profile, managed);
+        if (agent != null) body.put("agent", agent);
         boolean structured = prompt.responseFormat() instanceof OpenCodeClient.ResponseFormat.JsonSchema;
         if (OpenCodeHttpClientSemantics.isDeepSeek(selectedModel) && (structured && Boolean.FALSE.equals(selectedModel.thinking())
                 || managed && profile == OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS)) {
