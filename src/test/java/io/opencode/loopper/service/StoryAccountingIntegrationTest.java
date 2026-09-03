@@ -79,7 +79,7 @@ class StoryAccountingIntegrationTest {
         var enabled = designers.create(projectId, null, "Explain this project", config);
         assertThat(bindings.configurationForDesigner(enabled.id())).isEqualTo(config);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM story_accounting_session WHERE designer_session_id=?", Integer.class, enabled.id()))
-                .isEqualTo(1);
+                .isZero();
         assertThat(designers.get(enabled.id()).state()).isNotEqualTo("SESSION_ERROR");
         var attached = attachments.create(projectId, null, "Use this context", UUID.randomUUID().toString(),
                 List.of(new DesignerAttachmentContext.IncomingFile("context.txt", "text/plain", new byte[]{65})), config);
@@ -88,7 +88,7 @@ class StoryAccountingIntegrationTest {
                 .isInstanceOf(BadRequestException.class);
     }
 
-    @Test void startsOnceReusesUntilOwnerRetiresAndContinuesWithASecondSession() {
+    @Test void startsEachNewSessionOnceAndCompletesOnlyAfterOwnerRetires() {
         String designer = fixture("remote-1", true);
         List<String> calls = new CopyOnWriteArrayList<>();
         StoryAccountingCoordinator.CommandTransport transport = request -> {
@@ -108,7 +108,7 @@ class StoryAccountingIntegrationTest {
         jdbc.update("UPDATE designer_session SET state='COMPLETED',workflow_phase='COMPLETED' WHERE id=?", designer);
         accounting.afterTerminalStatus(remote("remote-2"), transport);
         accounting.beforeAbort(remote("remote-2"));
-        assertThat(calls).containsExactly("start SYS-001 000123", "complete", "continue SYS-001 000123", "complete");
+        assertThat(calls).containsExactly("start SYS-001 000123", "complete", "start SYS-001 000123", "complete");
         assertThat(mapper.findStoryAccountingSession("remote-2")).get()
                 .extracting(row -> row.pluginRunId()).isEqualTo("plugin-actual-run");
     }
@@ -230,8 +230,39 @@ class StoryAccountingIntegrationTest {
         accounting.beforeBusinessPrompt(remote("parallel-2"), transport);
         assertThat(sent.get()).isEqualTo(2);
         assertThat(jdbc.queryForList("SELECT operation FROM story_accounting_call ORDER BY started_at", String.class))
-                .containsExactly("start", "continue");
+                .containsExactly("start", "start");
         assertThat(jdbc.queryForObject("SELECT COUNT(DISTINCT message_id) FROM story_accounting_call", Integer.class)).isEqualTo(2);
+    }
+
+    @Test void historicalUnownedUsageDoesNotBecomeADesignerOrConsumeTheFirstStart() {
+        String designer = fixture("old-repair", true);
+        jdbc.update("UPDATE designer_session SET external_session_id=NULL WHERE id=?", designer);
+        accounting.beforeBusinessPrompt(remote("old-repair"), request -> { throw new AssertionError("unowned repair"); });
+        assertThat(mapper.findStoryAccountingOwner("old-repair")).get()
+                .extracting(io.opencode.loopper.persistence.StoryAccountingOwnerRow::role).isEqualTo("UNTRACKED");
+        jdbc.update("UPDATE designer_session SET external_session_id='actual-designer' WHERE id=?", designer);
+        List<String> commands = new java.util.ArrayList<>();
+        accounting.beforeBusinessPrompt(remote("actual-designer"), request -> {
+            commands.add(request.arguments()); return new OpenCodeClient.CommandResult("run", "ok");
+        });
+        assertThat(commands).containsExactly("start SYS-001 000123");
+        assertThat(mapper.findStoryAccountingSession("old-repair")).isEmpty();
+    }
+
+    @Test void oldExcludedRoleRecordsKeepHistoryWithoutSubmittingComplete() {
+        String designer = fixture("current-designer", true);
+        var binding = mapper.findDesignerStoryBinding(designer).orElseThrow();
+        String now = Instant.now().toString();
+        int ordinal = 0;
+        for (String role : List.of("ROUTER", "JUDGE", "REVIEWER", "DECOMPOSER", "COMPILER", "ROLLING_PACKAGE_PLAN_V1")) {
+            mapper.insertStoryAccountingSession(new io.opencode.loopper.persistence.StoryAccountingSessionRow(
+                    UUID.randomUUID().toString(), binding.id(), designer, null, "old-" + role,
+                    null, root.toString(), role, ++ordinal, "continue", true, "ACTIVE", null, now, now));
+            accounting.afterTerminalStatus(remote("old-" + role), request -> { throw new AssertionError(role); });
+        }
+        assertThat(mapper.listRetiredStoryAccountingSessions()).isEmpty();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM story_accounting_call", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM story_accounting_session", Integer.class)).isEqualTo(6);
     }
 
     @Test void disabledSessionsAndUnworkedForksProduceNoRecords() {
@@ -243,6 +274,13 @@ class StoryAccountingIntegrationTest {
 
     @Test void failureNotificationsAndBusinessMessagesAppendWithoutOrdinalCollisions() throws Exception {
         String designer = fixture("messages", true);
+        var binding = mapper.findDesignerStoryBinding(designer).orElseThrow();
+        for (int i = 0; i < 20; i++) {
+            String now = Instant.now().toString();
+            mapper.insertStoryAccountingSession(new io.opencode.loopper.persistence.StoryAccountingSessionRow(
+                    UUID.randomUUID().toString(), binding.id(), designer, null, "notification-" + i,
+                    null, root.toString(), "REQUIREMENT_DESIGNER", i + 1, "continue", true, "ACTIVE", null, now, now));
+        }
         CountDownLatch start = new CountDownLatch(1);
         try (var pool = Executors.newVirtualThreadPerTaskExecutor()) {
             var jobs = new java.util.ArrayList<java.util.concurrent.Future<?>>();
@@ -255,7 +293,7 @@ class StoryAccountingIntegrationTest {
                 }));
                 jobs.add(pool.submit(() -> {
                     try { start.await(); } catch (InterruptedException failure) { Thread.currentThread().interrupt(); }
-                    accounting.beforeRouterPrompt(designer, remote("notification-" + sequence),
+                    accounting.afterTerminalStatus(remote("notification-" + sequence),
                             request -> { throw new IllegalStateException("simulated rejection"); });
                 }));
             }

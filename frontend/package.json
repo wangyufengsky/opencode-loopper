@@ -1,7 +1,7 @@
 {
   "name": "opencode-loopper-frontend",
   "private": true,
-  "version": "0.3.39",
+  "version": "0.3.42",
   "type": "module",
   "scripts": {
     "dev": "vite",

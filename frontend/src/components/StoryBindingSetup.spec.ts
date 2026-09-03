@@ -34,6 +34,7 @@ describe('StoryBindingSetup', () => {
     vi.spyOn(api, 'getStoryBindingCapability').mockResolvedValue(available)
     const wrapper = setup()
     await flushPromises()
+    expect(wrapper.text()).toContain('仅统计设计师和执行者的 AI 工作量')
     expect(wrapper.find('#story-code').exists()).toBe(false)
     await wrapper.setProps({ modelValue: { enabled: true, systemCode: 'SYS-001', storyCode: '000123' } })
     expect((wrapper.get('#story-code').element as HTMLInputElement).value).toBe('000123')

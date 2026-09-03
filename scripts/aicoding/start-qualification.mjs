@@ -1,7 +1,8 @@
 import { spawn } from 'node:child_process'
 import { mkdtemp, mkdir, readFile, realpath, writeFile } from 'node:fs/promises'
 import { createWriteStream } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { tmpdir, homedir } from 'node:os'
+import { pathToFileURL } from 'node:url'
 import { join, resolve } from 'node:path'
 import { createServer } from 'node:net'
 import { createMockReceiver } from './mock-receiver.mjs'
@@ -17,13 +18,15 @@ const socket = createServer()
 await new Promise(resolve => socket.listen(0, '127.0.0.1', resolve))
 const port = socket.address().port
 await new Promise(resolve => socket.close(resolve))
-const config = { model: 'aicoding-test/mock', plugin: process.argv.includes('--without-plugin') ? [] : [new URL('./mock-plugin.mjs', import.meta.url).href],
+const config = { model: 'aicoding-test/mock', plugin: process.argv.includes('--without-plugin') ? [] : [new URL(process.argv.includes('--native-tools') ? './native-tools-plugin.mjs' : './mock-plugin.mjs', import.meta.url).href],
   provider: { 'aicoding-test': { npm: '@ai-sdk/openai-compatible', name: 'Local accounting qualification',
     options: { baseURL: `${receiver.url}/v1`, apiKey: 'local-test' }, models: { mock: { name: 'mock' } } } } }
 const env = { ...process.env, LOOPPER_DATA_DIR: join(directory, 'data'), LOOPPER_ALLOWED_ROOT: directory,
   LOOPPER_OPEN_BROWSER: 'false', LOOPPER_OPENCODE_MODE: 'managed', OPENCODE_MODEL: 'aicoding-test/mock',
   OPENCODE_EXECUTABLE: process.env.OPENCODE_EXECUTABLE ?? 'opencode',
   OPENCODE_CONFIG_CONTENT: JSON.stringify(config), AICODING_MOCK_URL: receiver.url,
+  ...(process.argv.includes('--native-tools') ? { AICODING_MOCK_PLUGIN_API: process.env.AICODING_MOCK_PLUGIN_API
+    ?? pathToFileURL(join(homedir(), '.config/opencode/node_modules/@opencode-ai/plugin/dist/index.js')).href } : {}),
   XDG_CONFIG_HOME: join(directory, 'config'), XDG_DATA_HOME: join(directory, 'opencode-data'),
   XDG_STATE_HOME: join(directory, 'state'), XDG_CACHE_HOME: join(directory, 'cache') }
 for (const path of [env.XDG_CONFIG_HOME, env.XDG_DATA_HOME, env.XDG_STATE_HOME, env.XDG_CACHE_HOME]) await mkdir(path)

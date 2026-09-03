@@ -5,6 +5,16 @@ export function maintenanceModel(workspaces) {
   return async (body, content) => {
     const tool = (name, args) => ({ toolCalls: [{ id: `call_${randomUUID().replaceAll('-', '')}`,
       type: 'function', function: { name, arguments: JSON.stringify(args) } }] })
+    if (content.includes('AICODING_NATIVE_TOOL')) {
+      const receipt = body.messages.slice(body.messages.findLastIndex(message => message.role === 'user') + 1).findLast(message => message.role === 'tool')
+      if (receipt) return { text: receipt.content }
+      const [, operation, args] = content.match(/AICODING_NATIVE_TOOL (\w+) ([^\n]+)/)
+      const name = `aicoding_story_${operation}`
+      if (!(body.tools ?? []).some(item => item.function?.name === name)) {
+        return { text: `ACCOUNTING_TOOL_NOT_EXPOSED: ${name}` }
+      }
+      return tool(name, JSON.parse(args))
+    }
     if (content.includes('TASK_PROFILE_ROUTER_INPUT')) return { text: JSON.stringify({
       intent: 'LOCAL_MAINTENANCE', artifactKinds: ['CONFIGURATION'], complexity: 'SIMPLE',
     }) }

@@ -56,7 +56,8 @@ public interface StoryBindingMapper {
                   WHEN EXISTS(SELECT 1 FROM judge_run r WHERE r.external_session_id=usage.external_session_id) THEN 'JUDGE'
                   WHEN EXISTS(SELECT 1 FROM execution_session r WHERE r.external_session_id=usage.external_session_id) THEN 'IMPLEMENTATION'
                   WHEN EXISTS(SELECT 1 FROM design_work_package r WHERE r.designer_external_session_id=usage.external_session_id) THEN 'PACKAGE_DESIGNER'
-                  ELSE 'REQUIREMENT_DESIGNER'
+                  WHEN EXISTS(SELECT 1 FROM designer_session r WHERE r.external_session_id=usage.external_session_id) THEN 'REQUIREMENT_DESIGNER'
+                  ELSE 'UNTRACKED'
                 END AS role
               FROM model_token_usage usage WHERE usage.external_session_id=#{externalSessionId}
               UNION ALL
@@ -144,6 +145,7 @@ public interface StoryBindingMapper {
     @Select("""
             SELECT session.* FROM story_accounting_session session
             WHERE session.state IN ('ACTIVE','BIND_FAILED') AND session.owner_observed=1
+              AND session.role IN ('REQUIREMENT_DESIGNER','PACKAGE_DESIGNER','PACKAGE_DESIGN_V1','IMPLEMENTATION')
               AND NOT EXISTS(SELECT 1 FROM story_accounting_active_remote active
                 WHERE active.external_session_id=session.external_session_id)
             ORDER BY session.created_at,session.id LIMIT 32

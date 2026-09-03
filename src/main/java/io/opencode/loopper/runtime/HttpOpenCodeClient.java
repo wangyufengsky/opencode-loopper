@@ -264,6 +264,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         return exactRecovery.findPrompt(session, expectedRequest, persistedRequestSha256);
     }
     @Override public SessionStatus sessionStatus(OpenCodeSession session) {
+        if (storyAccounting != null && storyAccounting.awaitingBusinessStart(session.id())) return new SessionStatus("RUNNING");
         try {
             JsonNode body = client(session).get().uri(uri -> directoryUri(uri, "/session/status", session.worktree()))
                     .retrieve().body(JsonNode.class);
@@ -343,6 +344,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         }
     }
     @Override public List<PendingQuestion> pendingQuestions(OpenCodeSession session) {
+        if (storyAccounting != null && storyAccounting.awaitingBusinessStart(session.id())) return List.of();
         try {
             JsonNode body = client(session).get().uri(uri -> directoryUri(uri, "/question", session.worktree()))
                     .retrieve().body(JsonNode.class);

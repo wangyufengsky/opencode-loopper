@@ -39,6 +39,15 @@ final class OpenCodePermissionPolicy {
                     || profile == OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY) {
                 rules.add(rule("question", "*", "allow"));
             }
+            // The managed guard makes this exception usable only by a reserved accounting message.
+            // Session deny-all overrides Agent permissions, so the Agent alone cannot expose these tools.
+            if (internalMcpServer != null && !internalMcpServer.isBlank()
+                    && (profile == OpenCodeClient.SessionProfile.GENERAL_READ_ONLY
+                    || profile == OpenCodeClient.SessionProfile.DESIGNER_INTERACTIVE_READ_ONLY
+                    || profile == OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_READ_ONLY
+                    || profile == OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY)) {
+                rules.add(rule("aicoding_*", "*", "allow"));
+            }
             rules.add(rule("read", ".env", "deny"));
             rules.add(rule("read", ".env.*", "deny"));
             rules.add(rule("read", ".env.example", "allow"));

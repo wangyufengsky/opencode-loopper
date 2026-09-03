@@ -51,7 +51,7 @@ watch(() => [props.projectId, props.runtimeIdentity], () => {
 <template>
   <section class="story-binding-setup" aria-label="故事绑定设置">
     <div class="story-binding-heading">
-      <label for="story-binding-switch"><strong>开启故事绑定</strong><span>自动统计本次设计和执行的 AI 工作量</span></label>
+      <label for="story-binding-switch"><strong>开启故事绑定</strong><span>仅统计设计师和执行者的 AI 工作量</span></label>
       <el-switch id="story-binding-switch" :model-value="model.enabled" :loading="checking"
         :disabled="disabled || checking || !available" aria-label="开启故事绑定"
         @update:model-value="model = { ...model, enabled: $event === true }" />

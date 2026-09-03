@@ -6,6 +6,20 @@ import org.junit.jupiter.api.Test;
 
 class OpenCodePermissionPolicyTest {
     @Test
+    void onlyManagedDesignerProfilesAddTheGuardedAccountingException() {
+        var designers = java.util.Set.of(OpenCodeClient.SessionProfile.GENERAL_READ_ONLY,
+                OpenCodeClient.SessionProfile.DESIGNER_INTERACTIVE_READ_ONLY,
+                OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_READ_ONLY,
+                OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY);
+        for (var profile : OpenCodeClient.SessionProfile.values()) {
+            var managed = OpenCodePermissionPolicy.rules(profile, java.util.List.of(), "loopper_internal_test");
+            assertThat(managed.stream().anyMatch(rule -> "aicoding_*".equals(rule.get("permission"))))
+                    .as(profile.name()).isEqualTo(designers.contains(profile));
+            assertThat(OpenCodePermissionPolicy.rules(profile)).noneMatch(rule -> "aicoding_*".equals(rule.get("permission")));
+        }
+    }
+
+    @Test
     void candidateRoleAllowsOnlyReadToolsAndTheExactInternalSubmissionTool() {
         var rules = OpenCodePermissionPolicy.rules(
                 OpenCodeClient.SessionProfile.DECOMPOSER_CANDIDATE_READ_ONLY,
@@ -57,7 +71,7 @@ class OpenCodePermissionPolicyTest {
                         "pattern", "*", "action", "allow"));
         assertThat(rules.stream().filter(rule -> "allow".equals(rule.get("action")))
                 .map(rule -> rule.get("permission")).toList())
-                .containsExactly("read", "glob", "grep", "read",
+                .containsExactly("read", "glob", "grep", "aicoding_*", "read",
                         "loopper_internal_generation_submit_candidate");
     }
 
@@ -184,7 +198,7 @@ class OpenCodePermissionPolicyTest {
                         "pattern", "*", "action", "allow"));
         assertThat(rules.stream().filter(rule -> "allow".equals(rule.get("action")))
                 .map(rule -> rule.get("permission")).toList())
-                .containsExactly("read", "glob", "grep", "question", "read",
+                .containsExactly("read", "glob", "grep", "question", "aicoding_*", "read",
                         "loopper_internal_generation_submit_candidate");
     }
 

@@ -84,6 +84,24 @@ class HttpOpenCodeClientTest {
     @AfterEach void stop() { server.stop(0); }
 
     @Test
+    void statisticsBeforeBusinessCannotSatisfyOrFailTheDesignerQuestionPhase() {
+        LoopperProperties properties = new LoopperProperties();
+        properties.getOpenCode().setBaseUrl(endpoint());
+        HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(), properties);
+        var accounting = org.mockito.Mockito.mock(io.opencode.loopper.service.StoryAccountingCoordinator.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(client, "storyAccounting", accounting);
+        var session = new OpenCodeClient.OpenCodeSession("s1", worktree);
+        org.mockito.Mockito.when(accounting.awaitingBusinessStart("s1")).thenReturn(true);
+        statusBody.set("{\"s1\":{\"status\":\"idle\"}}");
+        messageBody.set("[{\"info\":{\"id\":\"stats-error\",\"parentID\":\"msg_loopper_aicoding_begin\",\"role\":\"assistant\",\"error\":{\"name\":\"APIError\"}}}]");
+        assertThat(client.sessionStatus(session).state()).isEqualTo("RUNNING");
+        assertThat(client.pendingQuestions(session)).isEmpty();
+        assertThat(httpRequests.get()).isZero();
+        org.mockito.Mockito.verify(accounting, org.mockito.Mockito.never()).afterTerminalStatus(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
     void usesDirectoryForSessionTransportAndCompletesOnlyAfterObservedBusy() throws Exception {
         LoopperProperties properties = new LoopperProperties();
         properties.getOpenCode().setBaseUrl(new java.net.URI("http://127.0.0.1:" + server.getAddress().getPort()));

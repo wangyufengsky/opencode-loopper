@@ -16,7 +16,7 @@ async function call(path, body) {
   if (!response.ok) throw new Error(`${path} HTTP ${response.status}: ${text.slice(0, 1000)}`)
   return text ? JSON.parse(text) : undefined
 }
-await fetch(receiver + '/control', { method: 'POST', body: JSON.stringify({ fail: fault, delayMs: longWait && !modelWait ? 40000 : 0, remaining: longWait ? 1 : 1000, accountingModelDelayMs: modelWait ? 40000 : 0, modelRemaining: 1, modelOperation: completeWait ? 'complete' : null }) })
+await fetch(receiver + '/control', { method: 'POST', body: JSON.stringify({ fail: fault, delayMs: longWait && !modelWait ? (manualCancel ? 120000 : 40000) : 0, remaining: longWait ? 1 : 1000, accountingModelDelayMs: modelWait ? 40000 : 0, modelRemaining: 1, modelOperation: completeWait ? 'complete' : null }) })
 const existing = await call('/api/projects')
 const project = existing.find(item => item.rootPath === projectRoot) ?? await call('/api/projects', { name: '故事统计真实链路', rootPath: projectRoot })
 const capability = await call(`/api/projects/${project.id}/story-binding-capability`)
@@ -68,13 +68,27 @@ for (let index = 0; index < 240; index++) {
   }
   await pause(1000)
 }
+// Allow the collector to finish retired Sessions before checking the request ledger.
+for (let i = 0; i < 50; i++) {
+  const rows = (await call('/api/story-accounting')).filter(row => row.designerSessionId === created.id || row.taskId === finalTask?.id)
+  if (rows.length === 4 && rows.every(row => !['PREPARED', 'CANCELLING'].includes(row.state))) break
+  await pause(200)
+}
+const accounting = (await call('/api/story-accounting')).filter(row => row.designerSessionId === created.id || row.taskId === finalTask?.id)
+await writeFile(join(directory, 'accounting-roles.json'), JSON.stringify(accounting, null, 2))
+if (accounting.length !== 4 || accounting.some(row => !['REQUIREMENT_DESIGNER', 'IMPLEMENTATION'].includes(row.role))
+    || accounting.some(row => row.operation === 'continue')) throw new Error('Unexpected accounting role or operation')
 const ledger = await (await fetch(receiver + '/requests')).json()
 await writeFile(join(directory, 'receiver-ledger.json'), JSON.stringify(ledger, null, 2))
+if (ledger.requests.length !== 4 || ledger.requests.map(row => row.operation).join(',') !== 'start,complete,start,complete') {
+  throw new Error('A statistics command returned without the expected native plugin requests')
+}
+if (fault && accounting.some(row => row.state !== 'FAILED')) throw new Error('Injected statistics failures were not recorded')
 console.log(JSON.stringify({ requests: ledger.requests.map(row => ({ operation: row.operation, sessionId: row.sessionId, receipt: row.receipt })), modelTurns: ledger.modelRequests.length }))
 if (!finalTask || !['AWAITING_DECISION', 'COMPLETED'].includes(finalTask.state ?? finalTask.status)) {
   throw new Error(`Workflow did not reach result review; inspect ${join(directory, artifact)}`)
 }
-if (finalTask.executionResult !== 'SUCCEEDED' || finalTask.attemptCount !== 1
+if (finalTask.executionResult !== 'SUCCEEDED' || finalTask.attemptCount !== 1 || finalTask.judges.length !== 2
     || !['REQUIREMENT', 'RISK'].every(role => finalTask.judges.some(judge => judge.role === role
       && judge.status === 'COMPLETED' && judge.verdict === 'PASS'))) {
   throw new Error(`Accounting affected business acceptance or retry budget; inspect ${join(directory, artifact)}`)

@@ -6,7 +6,6 @@ import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.StoryAccountingCallRow;
 import io.opencode.loopper.persistence.StoryAccountingOwnerRow;
 import io.opencode.loopper.persistence.StoryAccountingSessionRow;
-import io.opencode.loopper.persistence.StoryBindingRow;
 import io.opencode.loopper.runtime.OpenCodeClient;
 import jakarta.annotation.PreDestroy;
 import java.time.Instant;
@@ -64,18 +63,21 @@ public class StoryAccountingCoordinator {
 
     public void beforeBusinessPrompt(OpenCodeClient.OpenCodeSession remote, CommandTransport transport) {
         safely("begin", remote, () -> mapper.findStoryAccountingOwner(remote.id())
+                .filter(owner -> recordsRole(owner.role()))
                 .ifPresent(owner -> {
                     begin(owner, remote, transport);
                     mapper.markStoryAccountingOwnerObserved(remote.id());
                 }));
     }
 
-    /** Router is started before its remote ownership row is durable, so it supplies the exact Designer owner once. */
-    public void beforeRouterPrompt(String designerSessionId, OpenCodeClient.OpenCodeSession remote,
-                                   CommandTransport transport) {
-        safely("router begin", remote, () -> mapper.findDesignerStoryBinding(designerSessionId)
-                .map(binding -> owner(binding, designerSessionId, null, "ROUTER", false))
-                .ifPresent(owner -> begin(owner, remote, transport)));
+    /** Unknown/planning/review roles never consume an ordinal or produce a statistics call. */
+    private static boolean recordsRole(String role) {
+        return role != null && java.util.Set.of("REQUIREMENT_DESIGNER", "PACKAGE_DESIGNER",
+                "PACKAGE_DESIGN_V1", "IMPLEMENTATION").contains(role);
+    }
+
+    public boolean awaitingBusinessStart(String externalSessionId) {
+        return starting.containsKey(externalSessionId);
     }
 
     public void beforeAbort(OpenCodeClient.OpenCodeSession remote) {
@@ -87,7 +89,7 @@ public class StoryAccountingCoordinator {
     public void afterTerminalStatus(OpenCodeClient.OpenCodeSession remote, CommandTransport transport) {
         safely("terminal complete", remote, () -> {
             StoryAccountingSessionRow accounting = mapper.findStoryAccountingSession(remote.id()).orElse(null);
-            if (accounting == null) return;
+            if (accounting == null || !recordsRole(accounting.role())) return;
             if (mapper.findStoryAccountingOwner(remote.id()).isPresent()) {
                 mapper.markStoryAccountingOwnerObserved(remote.id());
             }
@@ -174,7 +176,7 @@ public class StoryAccountingCoordinator {
         if (mapper.findStoryAccountingSession(remote.id()).isPresent()) return null;
         if (mapper.incrementStorySessionOrdinal(owner.bindingId()) != 1) return null;
         int ordinal = mapper.currentStorySessionOrdinal(owner.bindingId());
-        String operation = ordinal == 1 ? "start" : "continue";
+        String operation = "start";
         String now = Instant.now().toString();
         StoryAccountingSessionRow session = new StoryAccountingSessionRow(UUID.randomUUID().toString(),
                 owner.bindingId(), owner.designerSessionId(), owner.taskId(), remote.id(), remote.generation(),
@@ -193,7 +195,7 @@ public class StoryAccountingCoordinator {
 
     private synchronized Prepared prepareComplete(OpenCodeClient.OpenCodeSession remote) {
         StoryAccountingSessionRow session = mapper.findStoryAccountingSession(remote.id()).orElse(null);
-        if (session == null || "BINDING".equals(session.state())
+        if (session == null || !recordsRole(session.role()) || "BINDING".equals(session.state())
                 || mapper.findStoryAccountingCall(session.id(), "COMPLETE").isPresent()) return null;
         String now = Instant.now().toString();
         StoryAccountingSessionRow completing = copy(session, "COMPLETING", session.pluginRunId(), now);
@@ -326,11 +328,6 @@ public class StoryAccountingCoordinator {
         }
     }
 
-    private static StoryAccountingOwnerRow owner(StoryBindingRow binding, String designerId,
-                                                  String taskId, String role, boolean reusable) {
-        return new StoryAccountingOwnerRow(binding.id(), binding.systemCode(), binding.storyCode(),
-                designerId, taskId, role, reusable);
-    }
     private static StoryAccountingSessionRow copy(StoryAccountingSessionRow row, String state,
                                                    String runId, String now) {
         return new StoryAccountingSessionRow(row.id(), row.bindingId(), row.designerSessionId(), row.taskId(),

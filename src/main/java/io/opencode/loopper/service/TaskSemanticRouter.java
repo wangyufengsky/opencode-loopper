@@ -27,21 +27,14 @@ public final class TaskSemanticRouter {
     private final LoopperProperties properties;
     private final ObjectMapper json;
     private final AiOutputExtractor outputExtractor;
-    private final StoryAccountingCoordinator storyAccounting;
 
     @Autowired
     public TaskSemanticRouter(OpenCodeClient openCode, LoopperProperties properties, ObjectMapper json,
-                              AiOutputExtractor outputExtractor, StoryAccountingCoordinator storyAccounting) {
+                              AiOutputExtractor outputExtractor) {
         this.openCode = openCode;
         this.properties = properties;
         this.json = json;
         this.outputExtractor = outputExtractor;
-        this.storyAccounting = storyAccounting;
-    }
-
-    TaskSemanticRouter(OpenCodeClient openCode, LoopperProperties properties, ObjectMapper json,
-                       AiOutputExtractor outputExtractor) {
-        this(openCode, properties, json, outputExtractor, null);
     }
 
     public StartResult start(Path root, String requirement) {
@@ -55,11 +48,6 @@ public final class TaskSemanticRouter {
             OpenCodeClient.OpenCodeModel model = configuredModel();
             session = openCode.createSession(root, "OpenCode Loopper Task Router (MCP_ONLY)", model,
                     OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS);
-            if (storyAccounting != null && designerSessionId != null) {
-                OpenCodeClient.OpenCodeSession accountingSession = session;
-                storyAccounting.beforeRouterPrompt(designerSessionId, session,
-                        request -> openCode.executeCommand(accountingSession, request));
-            }
             openCode.promptAsync(session, OpenCodeClient.PromptRequest.text(prompt(requirement)));
             return StartResult.started(session.id(), "TEXT_MARKER");
         } catch (Exception failure) {

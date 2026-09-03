@@ -12,9 +12,13 @@ final class OpenCodeAccountingAgent {
     static final String NAME = "loopper-accounting";
     private OpenCodeAccountingAgent() { }
     static Map<String, Object> configuration() {
+        // OpenCode resolves the last matching rule. Map.of iteration order varies between JVMs.
+        Map<String, String> permission = new java.util.LinkedHashMap<>();
+        permission.put("*", "deny");
+        permission.put("aicoding*", "allow");
         return Map.of("description", "Loopper story accounting command only", "mode", "primary",
                 "steps", 2, "temperature", 0.0,
-                "permission", Map.of("*", "deny", "aicoding*", "allow"),
+                "permission", java.util.Collections.unmodifiableMap(permission),
                 "prompt", "Execute only the requested aicoding accounting operation. Return its receipt. Never continue business work or modify files.");
     }
 

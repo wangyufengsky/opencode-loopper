@@ -1164,8 +1164,10 @@ same filters to page rows and aggregate values. Its loaded-task count is labelle
 
 The creation form offers an off-by-default story-binding switch. While project-scoped OpenCode command detection is pending, missing or failed, the switch is disabled with a reason and recheck action; normal creation remains available. Project/runtime identity changes invalidate the prior detection. Enabling reveals required text fields for system and story codes; leading zeros survive API normalization, reload and task/Recovery inheritance. Both ordinary and attachment creation carry the same creation-only storyBinding value.
 
+Only Requirement Designers, Package Designers and Implementation record accounting. Each new eligible Session starts with start, never continue; reused Sessions do not rebind. Accounting cannot satisfy or fail the Designer question requirement: its message tools and outputs are isolated before business dispatch.
+
 Accounting failures are persistent Designer system messages or task events, with one notification per call and browser replay deduplication. They never disable automatic design, consume business retries, or replace the business error panel. The bound codes remain visible on the created design. See [story binding](story-binding.md).
 
 ### 故事统计活动弹窗
 
-`StoryAccountingDialog` 挂在全局 App，独立于设计创建响应；首个 Router 绑定前也可查看及取消。显示开启/完成阶段、系统与故事字符串、真实用时和严格按统计消息身份提取的模型正文。持续等待不设自动超时；取消只针对当前调用并继续业务，失败不关闭全自动模式。支持并行调用切换、刷新恢复与终态输出快照，关闭结果由服务端持久化且历史升级不重复弹出；完成弹窗本身不是业务确认门。详细协议见 `story-binding.md`。
+`StoryAccountingDialog` 挂在全局 App，独立于设计创建响应；设计师的首条业务提示发送前也可查看及取消。显示开启/完成阶段、系统与故事字符串、真实用时和严格按统计消息身份提取的模型正文。持续等待不设自动超时；取消只针对当前调用并继续业务，失败不关闭全自动模式。支持并行调用切换、刷新恢复与终态输出快照，关闭结果由服务端持久化且历史升级不重复弹出；完成弹窗本身不是业务确认门。详细协议见 `story-binding.md`。
