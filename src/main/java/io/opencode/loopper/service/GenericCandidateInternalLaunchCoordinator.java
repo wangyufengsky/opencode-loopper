@@ -27,6 +27,10 @@ final class GenericCandidateInternalLaunchCoordinator {
     private final OpenCodeClient openCode;
     private final Duration claimTtl;
 
+    String actualToolName(GenericCandidateInternalLaunchRow launch) {
+        return launches.actualToolName(launch);
+    }
+
     @Autowired
     GenericCandidateInternalLaunchCoordinator(
             GenericCandidateInternalLaunchService launches,

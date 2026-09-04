@@ -1,6 +1,7 @@
 package io.opencode.loopper.api;
 
 import io.opencode.loopper.domain.MachineCandidateOutcome;
+import io.opencode.loopper.domain.MachineCandidateKind;
 import io.opencode.loopper.domain.MachineCandidateRunState;
 import io.opencode.loopper.runtime.InternalMcpCredentialProvider;
 import io.opencode.loopper.runtime.InternalMcpRuntimeAccess;
@@ -51,7 +52,7 @@ class InternalMcpServerIntegrationTest {
     }
 
     @Test
-    void loopbackBearerServerListsOnlySubmitCandidateAndDelegatesTheObjectPayload() throws Exception {
+    void loopbackBearerServerListsRoleToolsWithExactSchemasAndDelegatesTheObjectPayload() throws Exception {
         String initialize = rpc(1, "initialize",
                 "{\"protocolVersion\":\"2025-03-26\",\"capabilities\":{},"
                         + "\"clientInfo\":{\"name\":\"test\",\"version\":\"1\"}}");
@@ -75,12 +76,21 @@ class InternalMcpServerIntegrationTest {
         MvcResult listed = mvc.perform(internal(rpc(2, "tools/list", "{}"), sessionId))
                 .andExpect(request().asyncStarted()).andReturn();
         mvc.perform(asyncDispatch(listed)).andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("submit_decomposition_plan")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("submit_acceptance_choice")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("submit_package_design")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("submit_rolling_package_plan")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("submit_reviewer_report")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("submit_project_convention")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("submit_judge_decision")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("submit_candidate")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("\"candidate\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("normalizedGoal")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("evidenceIds")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString("get_project_context"))));
 
-        String arguments = "{\"name\":\"submit_candidate\",\"arguments\":{"
+        String arguments = "{\"name\":\"submit_decomposition_plan\",\"arguments\":{"
                 + "\"runId\":\"run-1\",\"idempotencyKey\":\"key-1\","
                 + "\"candidate\":{\"normalizedGoal\":\"目标\"},\"expectedSubmissionRevision\":3}}";
         MvcResult called = mvc.perform(internal(rpc(3, "tools/call", arguments), sessionId))
@@ -95,7 +105,24 @@ class InternalMcpServerIntegrationTest {
         assertThat(command.expectedSubmissionRevision()).isEqualTo(3);
         assertThat(command.submissionChannel()).isEqualTo(
                 MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP);
+        assertThat(command.submissionSchema()).isEqualTo(
+                MachineCandidateSubmission.SubmissionSchema.ROLE_SPECIFIC_V2);
         assertThat(command.candidateJson()).contains("normalizedGoal", "目标");
+    }
+
+    @Test
+    void roleToolRejectsAValidRunOwnedByAnotherCandidateKindBeforeCompilation() throws Exception {
+        String sessionId = initialize();
+        String arguments = "{\"name\":\"submit_judge_decision\",\"arguments\":{"
+                + "\"runId\":\"run-1\",\"idempotencyKey\":\"wrong-role\","
+                + "\"candidate\":{\"contractVersion\":\"JUDGE_DECISION_V1\",\"role\":\"RISK\","
+                + "\"verdict\":\"PASS\",\"reason\":\"通过\",\"evidenceIds\":[\"E-1\"]},"
+                + "\"expectedSubmissionRevision\":0}}";
+
+        assertThat(result(rpc(2, "tools/call", arguments), sessionId))
+                .contains("CANDIDATE_TOOL_KIND_MISMATCH", "/runId", "submit_decomposition_plan")
+                .doesNotContain("sqlite-secret-table");
+        assertThat(submitted.get()).isNull();
     }
 
     @Test
@@ -124,8 +151,63 @@ class InternalMcpServerIntegrationTest {
         mvc.perform(asyncDispatch(called)).andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString(
                         "INTERNAL_CANDIDATE_SUBMISSION_FAILED")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "STOP_AND_RETRY_LATER")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("diagnosticId")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString("sqlite-secret-table"))));
+    }
+
+    @Test
+    void invalidRequestReturnsEveryIndependentParameterProblemInOneDiagnosticEnvelope() throws Exception {
+        String sessionId = initialize();
+        String arguments = "{\"name\":\"submit_reviewer_report\",\"arguments\":{"
+                + "\"runId\":7,\"idempotencyKey\":\"\",\"candidate\":\"{}\","
+                + "\"expectedSubmissionRevision\":-1,\"serverPath\":\"/forbidden\"}}";
+
+        String response = result(rpc(2, "tools/call", arguments), sessionId);
+
+        assertThat(response).contains(
+                "CANDIDATE_DIAGNOSTIC_V2", "REQUEST_PARAMETERS_INVALID", "diagnosticsComplete",
+                "returnedProblemCount", "/runId", "/idempotencyKey", "/candidate",
+                "/expectedSubmissionRevision", "/serverPath", "CANDIDATE_PARAMETER_UNKNOWN",
+                "FIX_AND_RESUBMIT");
+        assertThat(new ObjectMapper().readTree(response.substring(response.indexOf("data:") + 5).trim())
+                .path("result").path("structuredContent").path("returnedProblemCount").asInt()).isEqualTo(5);
+        assertThat(submitted.get()).isNull();
+    }
+
+    @Test
+    void oversizedIdempotencyKeyIdentifiesTheExactParameterBeforeSubmission() throws Exception {
+        String sessionId = initialize();
+        String arguments = "{\"name\":\"submit_decomposition_plan\",\"arguments\":{"
+                + "\"runId\":\"run-1\",\"idempotencyKey\":\"" + "k".repeat(129) + "\","
+                + "\"candidate\":{},\"expectedSubmissionRevision\":0}}";
+
+        String response = result(rpc(2, "tools/call", arguments), sessionId);
+
+        assertThat(response).contains("CANDIDATE_PARAMETER_TOO_LONG", "/idempotencyKey",
+                "128 UTF-8 bytes", "129 UTF-8 bytes", "FIX_AND_RESUBMIT");
+        assertThat(submitted.get()).isNull();
+    }
+
+    @Test
+    void missingRunReturnsAnExactTerminalReferenceDiagnostic() throws Exception {
+        runtime.close();
+        runtime = new InternalMcpServerConfiguration().internalMcpServerRuntime(
+                notFoundSubmissions(), new ObjectMapper(), resources, "test");
+        mvc = MockMvcBuilders.routerFunctions(runtime.routerFunction())
+                .addFilters(new InternalMcpStreamableBearerFilter(access))
+                .build();
+        String sessionId = initialize();
+        String arguments = "{\"name\":\"submit_decomposition_plan\",\"arguments\":{"
+                + "\"runId\":\"missing-run\",\"idempotencyKey\":\"missing\","
+                + "\"candidate\":{},\"expectedSubmissionRevision\":0}}";
+
+        String response = result(rpc(2, "tools/call", arguments), sessionId);
+
+        assertThat(response).contains("CANDIDATE_RUN_NOT_FOUND", "/runId", "REFERENCE",
+                "STOP_AND_WAIT_FOR_INPUT");
     }
 
     @Test
@@ -161,6 +243,18 @@ class InternalMcpServerIntegrationTest {
     private String result(String body, String sessionId) throws Exception {
         MvcResult call = mvc.perform(internal(body, sessionId)).andExpect(request().asyncStarted()).andReturn();
         return mvc.perform(asyncDispatch(call)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+    }
+
+    private String initialize() throws Exception {
+        MvcResult initialized = mvc.perform(internal(rpc(1, "initialize",
+                        "{\"protocolVersion\":\"2025-03-26\",\"capabilities\":{},"
+                                + "\"clientInfo\":{\"name\":\"test\",\"version\":\"1\"}}"), null))
+                .andExpect(status().isOk()).andReturn();
+        String sessionId = initialized.getResponse().getHeader("Mcp-Session-Id");
+        mvc.perform(internal("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\",\"params\":{}}",
+                        sessionId))
+                .andExpect(status().isAccepted());
+        return sessionId;
     }
 
     @Test
@@ -199,9 +293,18 @@ class InternalMcpServerIntegrationTest {
                         + "\"submissionRevision\":4}");
             }
             @Override public RunSnapshot close(CloseCommand command) { throw new UnsupportedOperationException(); }
-            @Override public Optional<RunSnapshot> find(String runId) { return Optional.empty(); }
+            @Override public Optional<RunSnapshot> find(String runId) { return Optional.of(decompositionRun(runId)); }
             @Override public Optional<SubmissionResult> terminal(String runId) { return Optional.empty(); }
         };
+    }
+
+    private MachineCandidateSubmission.RunSnapshot decompositionRun(String runId) {
+        return new MachineCandidateSubmission.RunSnapshot(runId,
+                MachineCandidateSubmission.CandidateScope.designerSession("designer-1"),
+                MachineCandidateSubmission.CandidateOwnerRef.taskDecomposition("decomposition-1"),
+                MachineCandidateKind.DECOMPOSITION_PLAN_V2, "TASK_DECOMPOSITION", 1, 1,
+                MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP, "DECOMPOSITION_PLAN_V2",
+                credentials.generation(), "session-1", MachineCandidateRunState.OPEN, 3, 0, null, 0);
     }
 
     private MachineCandidateSubmission failingSubmissions() {
@@ -209,6 +312,18 @@ class InternalMcpServerIntegrationTest {
             @Override public RunSnapshot open(OpenCommand command) { throw new UnsupportedOperationException(); }
             @Override public SubmissionResult submit(SubmitCommand command) {
                 throw new IllegalStateException("sqlite-secret-table leaked by driver");
+            }
+            @Override public RunSnapshot close(CloseCommand command) { throw new UnsupportedOperationException(); }
+            @Override public Optional<RunSnapshot> find(String runId) { return Optional.empty(); }
+            @Override public Optional<SubmissionResult> terminal(String runId) { return Optional.empty(); }
+        };
+    }
+
+    private MachineCandidateSubmission notFoundSubmissions() {
+        return new MachineCandidateSubmission() {
+            @Override public RunSnapshot open(OpenCommand command) { throw new UnsupportedOperationException(); }
+            @Override public SubmissionResult submit(SubmitCommand command) {
+                throw new io.opencode.loopper.service.NotFoundException("Candidate submission run not found");
             }
             @Override public RunSnapshot close(CloseCommand command) { throw new UnsupportedOperationException(); }
             @Override public Optional<RunSnapshot> find(String runId) { return Optional.empty(); }

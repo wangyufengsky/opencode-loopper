@@ -41,14 +41,16 @@ final class ReviewerReportCandidatePromptFactory {
                 runId: %s
                 expectedSubmissionRevision: %d
                 Server-owned contract (not a candidate field): REVIEWER_REPORT_V1
-                exact submit_candidate tool: %s
+                exact role submission tool: %s
 
                 Call %s with runId, a fresh idempotencyKey, the complete candidate object, and
                 expectedSubmissionRevision. MCP submissions have no count limit.
                 candidate must be a JSON object, not a JSON-encoded string. When a type error points at
                 /limitations, replace that value with an array of strings; never invent missing authority fields.
-                On REJECTED, use only its bounded code, JSON Pointer, detail, allowed values, and returned
-                submissionRevision to replace the complete candidate and retry. On ACCEPTED or WAITING_INPUT stop.
+                On REJECTED, require CANDIDATE_DIAGNOSTIC_V2 and repair every returned problem using parameter,
+                JSON Pointer, category, expected, actual, detail, allowedValues, and repairHint. Follow action and
+                submissionRevision; diagnosticsComplete=false or truncated=true means only the returned bounded
+                set is known. Replace the complete candidate and retry. On ACCEPTED or WAITING_INPUT stop.
                 Never emit a compatibility payload. The final assistant text is ignored and is never authoritative.
                 """.formatted(projectRoot, requirement, run.runId(), run.version(), exactToolName, exactToolName);
     }

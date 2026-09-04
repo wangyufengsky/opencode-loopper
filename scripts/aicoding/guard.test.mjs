@@ -71,21 +71,31 @@ test('an unbound Loopper business Session cannot start statistics from its model
 
 test('reused designer narrows question and submission tools by the exact business message', async () => {
   const rows = []
+  const submissionTools = [
+    'private_submit_decomposition_plan', 'private_submit_acceptance_choice',
+    'private_submit_package_design', 'private_submit_rolling_package_plan',
+    'private_submit_reviewer_report', 'private_submit_project_convention',
+    'private_submit_judge_decision', 'private_submit_candidate',
+  ]
   const guard = await LoopperAccountingGuard({ client: {
     session: { get: async () => ({ data: { title: 'OpenCode Loopper Requirement Designer' } }), messages: async () => ({ data: rows }) },
-    tool: { ids: async () => ({ data: ['read', 'question', 'private_submit_candidate', 'aicoding_story_start'] }) },
+    tool: { ids: async () => ({ data: ['read', 'question', ...submissionTools, 'aicoding_story_start'] }) },
   } })
   const requirement = { message: { id: 'msg_loopper_design_r_1' } }
   await guard['chat.message']({ sessionID: 's' }, requirement)
-  assert.equal(requirement.message.tools.private_submit_candidate, false)
+  submissionTools.forEach(name => assert.equal(requirement.message.tools[name], false))
   assert.equal(requirement.message.tools.question, undefined)
   const design = { message: { id: 'msg_loopper_design_p_2' } }
   await guard['chat.message']({ sessionID: 's' }, design)
   assert.equal(design.message.tools.question, false)
-  assert.equal(design.message.tools.private_submit_candidate, undefined)
+  submissionTools.forEach(name => assert.equal(design.message.tools[name], undefined))
   rows.push({ info: { id: 'old', parentID: requirement.message.id }, parts: [{ type: 'tool', callID: 'old-call' }] })
   rows.push({ info: { id: 'new', parentID: design.message.id }, parts: [{ type: 'tool', callID: 'new-call' }] })
-  await assert.rejects(() => guard['tool.execute.before']({ sessionID: 's', tool: 'private_submit_candidate', callID: 'old-call' }), /DESIGN_PHASE_TOOL_DENIED/)
+  for (const name of submissionTools) {
+    await assert.rejects(() => guard['tool.execute.before']({ sessionID: 's', tool: name, callID: 'old-call' }), /DESIGN_PHASE_TOOL_DENIED/)
+  }
   await assert.rejects(() => guard['tool.execute.before']({ sessionID: 's', tool: 'question', callID: 'new-call' }), /DESIGN_PHASE_TOOL_DENIED/)
-  await guard['tool.execute.before']({ sessionID: 's', tool: 'private_submit_candidate', callID: 'new-call' })
+  for (const name of submissionTools) {
+    await guard['tool.execute.before']({ sessionID: 's', tool: name, callID: 'new-call' })
+  }
 })

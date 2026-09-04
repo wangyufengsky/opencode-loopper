@@ -218,7 +218,8 @@ class AcceptanceCandidateInternalLaunchPreparerTest {
         List<OpenCodeClient.SessionPermissionRule> permissions = List.of(
                 new OpenCodeClient.SessionPermissionRule("*", "*", "deny"),
                 new OpenCodeClient.SessionPermissionRule("external_directory", "*", "deny"),
-                new OpenCodeClient.SessionPermissionRule(INTERNAL_MCP + "_submit_candidate", "*", "allow"));
+                new OpenCodeClient.SessionPermissionRule(
+                        INTERNAL_MCP + "_submit_acceptance_choice", "*", "allow"));
         String permissionDigest = OpenCodeClient.permissionPolicyDigest(permissions);
         String title = OpenCodeClient.recoveryTitle(baseTitle, credential);
         String requestDigest = OpenCodeClient.sessionCreationRequestSha256(root.toRealPath(), title,

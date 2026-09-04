@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.opencode.loopper.LoopperApplication;
 import io.opencode.loopper.config.LoopperProperties;
+import io.opencode.loopper.domain.MachineCandidateKind;
 import io.opencode.loopper.domain.ProjectConventionState;
 import io.opencode.loopper.persistence.ProjectConventionDraftRow;
 import io.opencode.loopper.persistence.ProjectRow;
@@ -88,7 +89,8 @@ class ProjectConventionServiceTest {
         assertThat(fake.profileForSession(remoteId))
                 .isEqualTo(OpenCodeClient.SessionProfile.PROJECT_CONVENTION_CANDIDATE_READ_ONLY);
         assertThat(fake.promptForSession(remoteId))
-                .contains(credentials.exactToolName(), "PROJECT_CONVENTION_V1", "fallbackAllowed: false")
+                .contains(credentials.exactToolName(MachineCandidateKind.PROJECT_CONVENTION_V1),
+                        "PROJECT_CONVENTION_V1", "fallbackAllowed: false")
                 .doesNotContain("mvn deploy", "../outside");
 
         MachineCandidateSubmission.RunSnapshot first = candidateSubmissions.find(runId).orElseThrow();

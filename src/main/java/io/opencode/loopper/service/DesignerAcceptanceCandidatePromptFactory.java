@@ -43,14 +43,16 @@ final class DesignerAcceptanceCandidatePromptFactory {
                 runId: %s
                 expectedSubmissionRevision: %d
                 contractVersion: %s
-                exact submit_candidate tool: %s
+                exact role submission tool: %s
 
                 Call %s once with runId, a new idempotencyKey, candidate containing exactly factAssignments and
                 capabilityPreferences plus optional summary/handoffSummary, and expectedSubmissionRevision. The tool
                 result is authoritative. When it returns REJECTED with ACCEPTANCE_CANDIDATE_SELECTION_INVALID or
-                ACCEPTANCE_CANDIDATE_CONTRACT_INVALID, use only the returned bounded code, JSON Pointer, detail, allowed values,
-                and submissionRevision to correct the complete candidate and call the
-                same exact tool again with the returned submissionRevision. MCP submissions have no count limit.
+                ACCEPTANCE_CANDIDATE_CONTRACT_INVALID, require CANDIDATE_DIAGNOSTIC_V2 and repair every returned
+                problem using parameter, JSON Pointer, category, expected, actual, detail, allowedValues, and
+                repairHint. Follow action and submissionRevision; diagnosticsComplete=false or truncated=true
+                means only the bounded returned set is known. Call the same exact tool again with the returned
+                submissionRevision. MCP submissions have no count limit.
                 On ACCEPTED or WAITING_INPUT stop.
                 The final text is non-authoritative and must never claim acceptance.
                 """.formatted(facts(planning, routing), capabilities(planning, routing),

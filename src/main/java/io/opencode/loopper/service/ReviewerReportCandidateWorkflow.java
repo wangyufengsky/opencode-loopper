@@ -308,8 +308,7 @@ final class ReviewerReportCandidateWorkflow {
     private CandidatePromptDispatchService.Result dispatchInitial(
             Context context, GenericCandidateInternalLaunchRow launch,
             MachineCandidateSubmission.RunSnapshot run) {
-        String tool = launch.internalMcpServer().replaceAll("[^a-zA-Z0-9_-]", "_")
-                + "_submit_candidate";
+        String tool = launches.actualToolName(launch);
         String prompt = promptFactory.internal(context.roleInstructions(),
                 context.projectRoot().toString(), context.requirement(), run, tool);
         String messageId = CandidatePromptDispatchService.initialMessageId(run.runId());

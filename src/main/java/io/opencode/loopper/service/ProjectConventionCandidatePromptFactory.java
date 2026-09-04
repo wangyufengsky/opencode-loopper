@@ -28,8 +28,10 @@ final class ProjectConventionCandidatePromptFactory {
 
                 Submit exactly one complete candidate object by calling `%s` with runId, a fresh idempotencyKey,
                 the candidate object, and expectedSubmissionRevision.
-                Do not return the candidate as final assistant text. On REJECTED, use only the returned bounded code, JSON Pointer, detail, allowed values, and
-                returned submissionRevision to correct the complete candidate
+                Do not return the candidate as final assistant text. On REJECTED, require
+                CANDIDATE_DIAGNOSTIC_V2 and repair every returned problem using parameter, JSON Pointer, category,
+                expected, actual, detail, allowedValues, and repairHint. Follow action; diagnosticsComplete=false
+                or truncated=true means only the returned bounded set is known. Use submissionRevision to correct the complete candidate
                 and call the same tool again in this Session. A successful tool
                 result ends your work. MCP submissions have no count limit. Stop on ACCEPTED or WAITING_INPUT;
                 never interpret an error as acceptance.

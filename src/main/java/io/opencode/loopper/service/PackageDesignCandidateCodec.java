@@ -22,7 +22,7 @@ import tools.jackson.databind.ObjectMapper;
 /** Strict codec and semantic firewall for the model-owned PACKAGE_DESIGN_V1 document. */
 final class PackageDesignCandidateCodec {
     static final String CONTRACT_VERSION = "PACKAGE_DESIGN_V1";
-    private static final int MAX_PROBLEMS = 16;
+    private static final int MAX_PROBLEMS = 64;
     private static final Set<String> OUTCOMES = Set.of("READY", "NEEDS_INPUT");
     private static final Set<String> DELIVERABLE_KINDS = Set.of("SCOPE", "DELIVERABLE");
     private static final Set<String> ROOT_FIELDS = Set.of("contractVersion", "outcome", "requirements",

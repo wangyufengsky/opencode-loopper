@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import io.opencode.loopper.domain.MachineCandidateKind;
 import io.opencode.loopper.runtime.OpenCodeClient;
+import io.opencode.loopper.runtime.InternalMcpContractCatalog;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
@@ -99,7 +100,8 @@ class GenericCandidateInternalLaunchPreparerTest {
                 new OpenCodeClient.SessionPermissionRule("read", ".env.*", "deny"),
                 new OpenCodeClient.SessionPermissionRule("read", ".env.example", "allow"),
                 new OpenCodeClient.SessionPermissionRule("external_directory", "*", "deny"),
-                new OpenCodeClient.SessionPermissionRule(server + "_submit_candidate", "*", "allow"));
+                new OpenCodeClient.SessionPermissionRule(server + "_"
+                        + InternalMcpContractCatalog.toolName(profile).orElseThrow(), "*", "allow"));
         String title = OpenCodeClient.recoveryTitle(baseTitle, credential);
         String digest = OpenCodeClient.permissionPolicyDigest(permissions);
         String request = OpenCodeClient.sessionCreationRequestSha256(

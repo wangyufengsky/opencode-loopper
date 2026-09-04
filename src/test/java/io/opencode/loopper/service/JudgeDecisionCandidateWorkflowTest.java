@@ -137,6 +137,8 @@ class JudgeDecisionCandidateWorkflowTest {
                 mock(JudgeDecisionCandidateSourceSnapshotStore.class);
         final JudgeDecisionCandidateSettlementService settlements =
                 mock(JudgeDecisionCandidateSettlementService.class);
+        final GenericCandidateInternalLaunchCoordinator launches =
+                mock(GenericCandidateInternalLaunchCoordinator.class);
         final MachineCandidateSubmission submissions = mock(MachineCandidateSubmission.class);
         final CandidatePromptDispatchService dispatches = mock(CandidatePromptDispatchService.class);
         final DesignerAttachmentStore store = mock(DesignerAttachmentStore.class);
@@ -144,7 +146,7 @@ class JudgeDecisionCandidateWorkflowTest {
                 mock(org.springframework.transaction.PlatformTransactionManager.class));
         final JudgeDecisionCandidateCodec codec = new JudgeDecisionCandidateCodec(new tools.jackson.databind.ObjectMapper());
         final JudgeDecisionCandidateWorkflow workflow = new JudgeDecisionCandidateWorkflow(
-                mapper, preparer, mock(GenericCandidateInternalLaunchCoordinator.class),
+                mapper, preparer, launches,
                 mock(GenericCandidateInternalTerminationPreparer.class),
                 mock(GenericCandidateInternalTerminationCoordinator.class),
                 mock(GenericCandidateInternalTerminationIntentStore.class),
@@ -152,6 +154,7 @@ class JudgeDecisionCandidateWorkflowTest {
                 mock(OpenCodeClient.class), attachments);
 
         Fixture() {
+            when(launches.actualToolName(any())).thenReturn("loopper-private_submit_judge_decision");
             when(mapper.findJudgeRun("judge")).thenAnswer(call -> Optional.of(judge("CREATING")));
             when(mapper.findGenericCandidateInternalLaunchForJudgeRun("judge"))
                     .thenReturn(Optional.empty());

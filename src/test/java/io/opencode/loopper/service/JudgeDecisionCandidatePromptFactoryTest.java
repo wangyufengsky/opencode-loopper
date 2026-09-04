@@ -39,7 +39,8 @@ class JudgeDecisionCandidatePromptFactoryTest {
         assertThat(prompt)
                 .contains("Frozen evaluation context", "JUDGE_DECISION_V1", "RISK",
                         "verification-v2", "task-diff", "loopper_internal_submit_candidate")
-                .contains("expectedSubmissionRevision: 7", "returned submissionRevision")
+                .contains("expectedSubmissionRevision: 7", "submissionRevision",
+                        "diagnosticsComplete=false", "repairHint")
                 .contains("one line", "no CR, LF, or TAB")
                 .contains("JSON object, not a JSON-encoded string", "semicolon-separated sentences")
                 .contains("JUDGE_DECISION_REASON_LINE_BREAK_INVALID", "do not resend the same reason")

@@ -36,8 +36,8 @@ class ProjectConventionCandidatePromptFactoryTest {
                         "component-java:manifest:pom.xml")
                 .contains("componentKeys", "commandIds", "pathIds")
                 .contains("expectedSubmissionRevision: 7")
-                .contains("returned submissionRevision")
-                .contains("code, JSON Pointer, detail, allowed values")
+                .contains("submissionRevision", "diagnosticsComplete=false")
+                .contains("parameter, JSON Pointer, category", "repairHint")
                 .contains("Do not return the candidate as final assistant text")
                 .doesNotContain("fallbackAllowed: true");
     }

@@ -311,8 +311,7 @@ final class JudgeDecisionCandidateWorkflow {
         JudgeCandidateSourceSnapshotRow snapshot = mapper.findJudgeCandidateSourceSnapshot(run.runId())
                 .orElseThrow(() -> stale("Frozen Judge source snapshot is missing"));
         var evidence = codec.requireEvidence(snapshot.canonicalEvidenceJson(), snapshot.evidenceSha256());
-        String tool = launch.internalMcpServer().replaceAll("[^a-zA-Z0-9_-]", "_")
-                + "_submit_candidate";
+        String tool = launches.actualToolName(launch);
         String text = promptFactory.internal(run, snapshot.role(), snapshot.sourcePrompt(), evidence, tool, codec);
         OpenCodeClient.PromptRequest request = new OpenCodeClient.PromptRequest(
                 text, null, null, new OpenCodeClient.ResponseFormat.Text(),

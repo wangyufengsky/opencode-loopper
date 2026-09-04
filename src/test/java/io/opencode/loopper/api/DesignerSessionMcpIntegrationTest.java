@@ -5,6 +5,7 @@ import io.opencode.loopper.config.LoopperProperties;
 import io.opencode.loopper.domain.ImplementationKind;
 import io.opencode.loopper.domain.LoopDraftStatus;
 import io.opencode.loopper.domain.LoopSpec;
+import io.opencode.loopper.domain.MachineCandidateKind;
 import io.opencode.loopper.domain.SessionFailure;
 import io.opencode.loopper.persistence.DesignDiscussionRevisionRow;
 import io.opencode.loopper.persistence.DesignRequirementRevisionRow;
@@ -1309,7 +1310,8 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(fake().profileForSession(remoteId))
                 .isEqualTo(OpenCodeClient.SessionProfile.REVIEWER_CANDIDATE_READ_ONLY);
         assertThat(fake().promptForSession(remoteId))
-                .contains(credentials.exactToolName(), "REVIEWER_REPORT_V1", "expectedSubmissionRevision")
+                .contains(credentials.exactToolName(MachineCandidateKind.REVIEWER_REPORT_V1),
+                        "REVIEWER_REPORT_V1", "expectedSubmissionRevision")
                 .contains("final assistant text is ignored");
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*) FROM reviewer_report_candidate_source_snapshot
@@ -1325,7 +1327,7 @@ class DesignerSessionMcpIntegrationTest {
                    "path":"README.md","line":99,"recommendation":"改用精确行号。"}],"limitations":[]}
                 """;
         MvcResult rejected = mvc.perform(internalMcp(credentials,
-                        rpc(120, "tools/call", packageCandidateCall(
+                        rpc(120, "tools/call", packageCandidateCall(MachineCandidateKind.REVIEWER_REPORT_V1,
                                 runId, "reviewer-invalid-line", invalid, revision)), mcpSession))
                 .andExpect(request().asyncStarted()).andReturn();
         mvc.perform(asyncDispatch(rejected)).andExpect(status().isOk())
@@ -1340,7 +1342,7 @@ class DesignerSessionMcpIntegrationTest {
                  "limitations":["仅评审当前冻结文件清单。"]}
                 """;
         MvcResult accepted = mvc.perform(internalMcp(credentials,
-                        rpc(121, "tools/call", packageCandidateCall(
+                        rpc(121, "tools/call", packageCandidateCall(MachineCandidateKind.REVIEWER_REPORT_V1,
                                 runId, "reviewer-accepted", valid, retryRevision)), mcpSession))
                 .andExpect(request().asyncStarted()).andReturn();
         mvc.perform(asyncDispatch(accepted)).andExpect(status().isOk())
@@ -1399,8 +1401,9 @@ class DesignerSessionMcpIntegrationTest {
                 "SELECT external_session_id FROM ai_candidate_submission_run WHERE id=?",
                 String.class, runId);
         assertThat(fake().promptForSession(remoteId))
-                .contains(credentials.exactToolName(), "PROJECT_CONVENTION_V1", "fallbackAllowed: false",
-                        "expectedSubmissionRevision: 0", "returned submissionRevision");
+                .contains(credentials.exactToolName(MachineCandidateKind.PROJECT_CONVENTION_V1),
+                        "PROJECT_CONVENTION_V1", "fallbackAllowed: false",
+                        "expectedSubmissionRevision: 0", "submissionRevision");
         assertThat(fake().profileForSession(remoteId))
                 .isEqualTo(OpenCodeClient.SessionProfile.PROJECT_CONVENTION_CANDIDATE_READ_ONLY);
 
@@ -1408,7 +1411,8 @@ class DesignerSessionMcpIntegrationTest {
         long revision = jdbc.queryForObject(
                 "SELECT version FROM ai_candidate_submission_run WHERE id=?", Long.class, runId);
         MvcResult rejected = mvc.perform(internalMcp(credentials,
-                        rpc(122, "tools/call", packageCandidateCall(runId, "convention-invalid", """
+                        rpc(122, "tools/call", packageCandidateCall(MachineCandidateKind.PROJECT_CONVENTION_V1,
+                                runId, "convention-invalid", """
                                 {"contractVersion":"PROJECT_CONVENTION_V1","componentKeys":[],
                                  "commandIds":["not-frozen"],"pathIds":[]}
                                 """, revision)), mcpSession))
@@ -1431,7 +1435,8 @@ class DesignerSessionMcpIntegrationTest {
         long retryRevision = jdbc.queryForObject(
                 "SELECT version FROM ai_candidate_submission_run WHERE id=?", Long.class, runId);
         MvcResult accepted = mvc.perform(internalMcp(credentials,
-                        rpc(123, "tools/call", packageCandidateCall(runId, "convention-accepted",
+                        rpc(123, "tools/call", packageCandidateCall(MachineCandidateKind.PROJECT_CONVENTION_V1,
+                                runId, "convention-accepted",
                                 json.writeValueAsString(candidate), retryRevision)), mcpSession))
                 .andExpect(request().asyncStarted()).andReturn();
         mvc.perform(asyncDispatch(accepted)).andExpect(status().isOk())
@@ -4038,7 +4043,8 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(fake().profileForSession(opened.externalSessionId())).isEqualTo(
                 OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS);
         assertThat(fake().promptForSession(opened.externalSessionId()))
-                .contains(credentials.exactToolName(), "expectedSubmissionRevision")
+                .contains(credentials.exactToolName(MachineCandidateKind.ACCEPTANCE_CLOSED_CHOICE_V7),
+                        "expectedSubmissionRevision")
                 .doesNotContain("FlowATest", "FlowBTest", "-Dtest", "src/");
         assertThat(fake().promptRequestForSession(opened.externalSessionId()).messageId())
                 .startsWith("msg_");
@@ -4051,7 +4057,7 @@ class DesignerSessionMcpIntegrationTest {
         Long submissionRevision = jdbc.queryForObject(
                 "SELECT version FROM ai_candidate_submission_run WHERE id=?", Long.class, runId);
         String mcpSession = initializeInternalMcp(credentials);
-        String rejectedArguments = "{\"name\":\"submit_candidate\",\"arguments\":{"
+        String rejectedArguments = "{\"name\":\"submit_acceptance_choice\",\"arguments\":{"
                 + "\"runId\":\"" + runId + "\",\"idempotencyKey\":\"true-tie-invalid\","
                 + "\"candidate\":{\"factAssignments\":[],\"capabilityPreferences\":[{"
                 + "\"factIndex\":1,\"capabilityIndexes\":[99]}]},"
@@ -4064,7 +4070,7 @@ class DesignerSessionMcpIntegrationTest {
 
         Long retryRevision = jdbc.queryForObject(
                 "SELECT version FROM ai_candidate_submission_run WHERE id=?", Long.class, runId);
-        String acceptedArguments = "{\"name\":\"submit_candidate\",\"arguments\":{"
+        String acceptedArguments = "{\"name\":\"submit_acceptance_choice\",\"arguments\":{"
                 + "\"runId\":\"" + runId + "\",\"idempotencyKey\":\"true-tie-accepted\","
                 + "\"candidate\":{\"factAssignments\":[],\"capabilityPreferences\":[{"
                 + "\"factIndex\":1,\"capabilityIndexes\":[0]}]},"
@@ -4210,14 +4216,16 @@ class DesignerSessionMcpIntegrationTest {
                 "SELECT external_session_id FROM ai_candidate_submission_run WHERE id=?",
                 String.class, runId);
         assertThat(fake().promptForSession(remoteId))
-                .contains(credentials.exactToolName(), "PACKAGE_DESIGN_V1", "expectedSubmissionRevision")
+                .contains(credentials.exactToolName(MachineCandidateKind.PACKAGE_DESIGN_V1),
+                        "PACKAGE_DESIGN_V1", "expectedSubmissionRevision")
                 .doesNotContain("allowedPaths", "testCommand");
 
         String mcpSession = initializeInternalMcp(credentials);
         long revision = jdbc.queryForObject(
                 "SELECT version FROM ai_candidate_submission_run WHERE id=?", Long.class, runId);
         MvcResult rejected = mvc.perform(internalMcp(credentials,
-                        rpc(101, "tools/call", packageCandidateCall(runId, "package-invalid",
+                        rpc(101, "tools/call", packageCandidateCall(MachineCandidateKind.PACKAGE_DESIGN_V1,
+                                runId, "package-invalid",
                                 packageDesignCandidate().replace("\"dependencies\": []",
                                         "\"dependencies\":[\"STAGE-1\"]")
                                         .replace("\"dependencies\":[]",
@@ -4231,7 +4239,8 @@ class DesignerSessionMcpIntegrationTest {
         long retryRevision = jdbc.queryForObject(
                 "SELECT version FROM ai_candidate_submission_run WHERE id=?", Long.class, runId);
         MvcResult accepted = mvc.perform(internalMcp(credentials,
-                        rpc(102, "tools/call", packageCandidateCall(runId, "package-accepted",
+                        rpc(102, "tools/call", packageCandidateCall(MachineCandidateKind.PACKAGE_DESIGN_V1,
+                                runId, "package-accepted",
                                 packageDesignCandidate(), retryRevision)), mcpSession))
                 .andExpect(request().asyncStarted()).andReturn();
         mvc.perform(asyncDispatch(accepted)).andExpect(status().isOk())
@@ -4280,7 +4289,8 @@ class DesignerSessionMcpIntegrationTest {
         String mcpSession = initializeInternalMcp(credentials);
         long revision = jdbc.queryForObject("SELECT version FROM ai_candidate_submission_run WHERE id=?", Long.class, runId);
         MvcResult premature = mvc.perform(internalMcp(credentials,
-                rpc(301, "tools/call", packageCandidateCall(runId, "before-answer", packageDesignCandidate(), revision)), mcpSession))
+                rpc(301, "tools/call", packageCandidateCall(MachineCandidateKind.PACKAGE_DESIGN_V1,
+                        runId, "before-answer", packageDesignCandidate(), revision)), mcpSession))
                 .andExpect(request().asyncStarted()).andReturn();
         mvc.perform(asyncDispatch(premature)).andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("DESIGN_QUESTION_REQUIRED")));
@@ -4350,7 +4360,7 @@ class DesignerSessionMcpIntegrationTest {
                 """;
         String mcpSession = initializeInternalMcp(credentials);
         MvcResult waiting = mvc.perform(internalMcp(credentials,
-                        rpc(103, "tools/call", packageCandidateCall(
+                        rpc(103, "tools/call", packageCandidateCall(MachineCandidateKind.PACKAGE_DESIGN_V1,
                                 runId, "package-needs-input", needsInput, revision)), mcpSession))
                 .andExpect(request().asyncStarted()).andReturn();
         mvc.perform(asyncDispatch(waiting)).andExpect(status().isOk())
@@ -6161,13 +6171,15 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     private String packageCandidateCall(
-            String runId, String idempotencyKey, String candidateJson, long expectedRevision) throws Exception {
+            MachineCandidateKind kind, String runId, String idempotencyKey,
+            String candidateJson, long expectedRevision) throws Exception {
         Map<String, Object> arguments = new LinkedHashMap<>();
         arguments.put("runId", runId);
         arguments.put("idempotencyKey", idempotencyKey);
         arguments.put("candidate", json.readValue(candidateJson, Map.class));
         arguments.put("expectedSubmissionRevision", expectedRevision);
-        return json.writeValueAsString(Map.of("name", "submit_candidate", "arguments", arguments));
+        return json.writeValueAsString(Map.of(
+                "name", InternalMcpContractCatalog.toolName(kind), "arguments", arguments));
     }
 
     private String packageDesignCandidate() {

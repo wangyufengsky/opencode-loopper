@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.opencode.loopper.config.LoopperProperties;
+import io.opencode.loopper.domain.MachineCandidateKind;
 import io.opencode.loopper.domain.MachineCandidateRunState;
 import io.opencode.loopper.persistence.TaskPackagePlanRevisionRow;
 import io.opencode.loopper.runtime.InternalMcpCredentialProvider;
@@ -60,10 +61,11 @@ class RollingPackagePlanCandidateOrchestratorTest {
             assertThat(run.ownerVersion()).isEqualTo(1);
             assertThat(run.maxAttempts()).isEqualTo(3);
         });
-        assertThat(start.prompt()).contains("base facts", credentials.exactToolName(), start.run().runId(),
+        assertThat(start.prompt()).contains("base facts",
+                credentials.exactToolName(MachineCandidateKind.ROLLING_PACKAGE_PLAN_V1), start.run().runId(),
                 "ROLLING_PACKAGE_PLAN_V1", "expectedSubmissionRevision",
                 "\"packageKey\":\"WP-2\"", "\"replaces\":[\"WP-2\"]", "\"requirementRefs\":[]")
-                .contains("code, JSON Pointer, detail, allowed values")
+                .contains("parameter, JSON Pointer, category", "diagnosticsComplete=false", "repairHint")
                 .contains("final assistant text is ignored")
                 .doesNotContain("MARKER", "Markdown fallback", "command", "allowedPaths");
     }

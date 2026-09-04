@@ -189,7 +189,8 @@ final class AcceptanceCandidateInternalLaunchCoordinator {
     private Result settle(AcceptanceCandidateInternalLaunchRow launch) {
         try {
             AcceptanceCandidateInternalLaunchSettlementService.Settlement settlement = settlements.settle(launch.id());
-            return Result.settled(settlement.launch(), remote(settlement.launch()), settlement.run());
+            return Result.settled(settlement.launch(), remote(settlement.launch()), settlement.run(),
+                    launches.actualToolName(settlement.launch()));
         } catch (RuntimeException failure) {
             AcceptanceCandidateInternalLaunchRow current = launches.require(launch.id());
             return state(current) == AcceptanceCandidateInternalLaunchState.CREATED
@@ -296,31 +297,36 @@ final class AcceptanceCandidateInternalLaunchCoordinator {
     record Result(Status status, AcceptanceCandidateInternalLaunchRow launch,
                   OpenCodeClient.OpenCodeSession remote,
                   MachineCandidateSubmission.RunSnapshot run,
-                  String code, String detail) {
+                  String code, String detail, String actualToolName) {
         static Result legacy(AcceptanceCandidateInternalLaunchRow row) {
             return new Result(Status.LEGACY_FALLBACK, row, null, null,
-                    "OPENCODE_EXACT_LOOKUP_UNSUPPORTED", null);
+                    "OPENCODE_EXACT_LOOKUP_UNSUPPORTED", null, null);
         }
         static Result pending(AcceptanceCandidateInternalLaunchRow row, String code, String detail) {
-            return new Result(Status.PENDING, row, null, null, code, detail);
+            return new Result(Status.PENDING, row, null, null, code, detail, null);
         }
         static Result blocked(AcceptanceCandidateInternalLaunchRow row, String code, String detail) {
-            return new Result(Status.BLOCKED, row, null, null, code, detail);
+            return new Result(Status.BLOCKED, row, null, null, code, detail, null);
         }
         static Result created(AcceptanceCandidateInternalLaunchRow row,
                 OpenCodeClient.OpenCodeSession remote, String code, String detail) {
-            return new Result(Status.CREATED, row, remote, null, code, detail);
+            return new Result(Status.CREATED, row, remote, null, code, detail, null);
         }
         static Result settled(AcceptanceCandidateInternalLaunchRow row,
                 OpenCodeClient.OpenCodeSession remote, MachineCandidateSubmission.RunSnapshot run) {
-            return new Result(Status.SETTLED, row, remote, run, null, null);
+            return settled(row, remote, run, null);
+        }
+        static Result settled(AcceptanceCandidateInternalLaunchRow row,
+                OpenCodeClient.OpenCodeSession remote, MachineCandidateSubmission.RunSnapshot run,
+                String actualToolName) {
+            return new Result(Status.SETTLED, row, remote, run, null, null, actualToolName);
         }
         static Result cleanup(AcceptanceCandidateInternalLaunchRow row, String detail) {
             return new Result(Status.CLEANUP_PENDING, row, null, null,
-                    "OPENCODE_SESSION_CREATION_AMBIGUOUS", detail);
+                    "OPENCODE_SESSION_CREATION_AMBIGUOUS", detail, null);
         }
         static Result failed(AcceptanceCandidateInternalLaunchRow row, String code, String detail) {
-            return new Result(Status.FAILED_STOPPED, row, null, null, code, detail);
+            return new Result(Status.FAILED_STOPPED, row, null, null, code, detail, null);
         }
     }
 }

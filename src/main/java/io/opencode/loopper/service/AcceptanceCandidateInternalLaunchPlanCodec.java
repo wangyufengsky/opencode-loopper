@@ -1,6 +1,8 @@
 package io.opencode.loopper.service;
 
+import io.opencode.loopper.domain.MachineCandidateKind;
 import io.opencode.loopper.persistence.AcceptanceCandidateInternalLaunchRow;
+import io.opencode.loopper.runtime.InternalMcpContractCatalog;
 import io.opencode.loopper.runtime.OpenCodeClient;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -44,7 +46,7 @@ final class AcceptanceCandidateInternalLaunchPlanCodec {
             requireRowIdentity(row);
             List<OpenCodeClient.SessionPermissionRule> permissionPolicy = permissionPolicy(
                     row.permissionPolicyJson());
-            if (!permissionPolicy.equals(expectedPolicy(row.internalMcpServer()))) throw invalid();
+            if (actualToolName(permissionPolicy, row.internalMcpServer(), true) == null) throw invalid();
             OpenCodeClient.OpenCodeModel model = model(row.modelProviderId(), row.modelId(), row.thinking());
             OpenCodeClient.SessionCreationPlan plan = OpenCodeClient.SessionCreationPlan.fromPersisted(
                     Path.of(row.canonicalDirectory()), row.exactTitle(), row.runtimeGenerationId(), row.managed(),
@@ -73,7 +75,7 @@ final class AcceptanceCandidateInternalLaunchPlanCodec {
                     != OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS
                     || !plan.managed() || !Objects.equals(model, plan.model())
                     || !OpenCodeClient.recoveryTitle(baseTitle, plan.creationCredential()).equals(plan.exactTitle())
-                    || !expectedPolicy(plan.internalMcpServer()).equals(plan.permissionPolicy())
+                    || actualToolName(plan.permissionPolicy(), plan.internalMcpServer(), false) == null
                     || !OpenCodeClient.permissionPolicyDigest(plan.permissionPolicy())
                             .equals(plan.permissionPolicyDigest())
                     || !OpenCodeClient.sessionCreationRequestSha256(plan).equals(plan.createRequestSha256())) {
@@ -82,6 +84,11 @@ final class AcceptanceCandidateInternalLaunchPlanCodec {
         } catch (RuntimeException invalid) {
             throw invalid();
         }
+    }
+
+    String actualToolName(AcceptanceCandidateInternalLaunchRow row) {
+        OpenCodeClient.SessionCreationPlan plan = decode(row);
+        return actualToolName(plan.permissionPolicy(), plan.internalMcpServer(), true);
     }
 
     void validatePlanningObject(String value) {
@@ -203,12 +210,26 @@ final class AcceptanceCandidateInternalLaunchPlanCodec {
         return List.copyOf(rules);
     }
 
-    private List<OpenCodeClient.SessionPermissionRule> expectedPolicy(String internalMcpServer) {
+    private String actualToolName(List<OpenCodeClient.SessionPermissionRule> policy,
+            String internalMcpServer, boolean allowLegacy) {
         if (blank(internalMcpServer)) throw invalid();
-        String tool = internalMcpServer.replaceAll("[^a-zA-Z0-9_-]", "_") + "_submit_candidate";
-        return List.of(new OpenCodeClient.SessionPermissionRule("*", "*", "deny"),
-                new OpenCodeClient.SessionPermissionRule("external_directory", "*", "deny"),
-                new OpenCodeClient.SessionPermissionRule(tool, "*", "allow"));
+        String prefix = internalMcpServer.replaceAll("[^a-zA-Z0-9_-]", "_") + "_";
+        String roleTool = prefix + InternalMcpContractCatalog.toolName(
+                MachineCandidateKind.ACCEPTANCE_CLOSED_CHOICE_V7);
+        String legacyTool = prefix + InternalMcpContractCatalog.legacyToolName();
+        if (policy.size() != 3
+                || !policy.contains(new OpenCodeClient.SessionPermissionRule("*", "*", "deny"))
+                || !policy.contains(new OpenCodeClient.SessionPermissionRule(
+                        "external_directory", "*", "deny"))) return null;
+        List<String> candidateTools = policy.stream()
+                .filter(rule -> "allow".equals(rule.action()) && "*".equals(rule.pattern()))
+                .map(OpenCodeClient.SessionPermissionRule::permission)
+                .filter(permission -> InternalMcpContractCatalog.toolNames().stream()
+                        .map(prefix::concat).anyMatch(permission::equals))
+                .toList();
+        if (candidateTools.size() != 1) return null;
+        String actual = candidateTools.getFirst();
+        return actual.equals(roleTool) || allowLegacy && actual.equals(legacyTool) ? actual : null;
     }
 
     private OpenCodeClient.OpenCodeModel model(String provider, String modelId, Boolean thinking) {

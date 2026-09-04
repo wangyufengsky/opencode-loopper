@@ -100,7 +100,8 @@ final class DesignerPackageCandidateOrchestrator {
                     "工作包候选 Session 未绑定私有 MCP 名称");
         }
         return new Start(remote, run, prompt(basePrompt, run,
-                privateServer + "_" + InternalMcpContractCatalog.TOOL_NAME));
+                privateServer + "_" + InternalMcpContractCatalog.toolName(
+                        MachineCandidateKind.PACKAGE_DESIGN_V1)));
     }
 
     Poll poll(DesignWorkPackageRow workPackage, Path projectRoot, boolean timedOut) {
@@ -229,9 +230,11 @@ final class DesignerPackageCandidateOrchestrator {
 
                 runId: %s
                 expectedSubmissionRevision: %d
-                MCP submissions have no count limit. On REJECTED, read only the returned
-                bounded code, JSON Pointer, detail, and allowed values, then replace the entire candidate and retry with the
-                returned submissionRevision. On ACCEPTED, stop: final assistant text is ignored. On WAITING_INPUT,
+                MCP submissions have no count limit. On REJECTED, require CANDIDATE_DIAGNOSTIC_V2 and repair every
+                returned problem using parameter, JSON Pointer, category, expected, actual, detail, allowedValues,
+                and repairHint. Follow action; diagnosticsComplete=false or truncated=true means only the returned
+                bounded set is known. Replace the entire candidate and retry with submissionRevision. On ACCEPTED,
+                stop: final assistant text is ignored. On WAITING_INPUT,
                 stop and wait for the user. On FALLBACK_REQUIRED, produce the complete controlled Markdown design
                 required above as your final response; do not call another tool. If you choose not to call the tool,
                 your final response must still be that complete controlled Markdown design.

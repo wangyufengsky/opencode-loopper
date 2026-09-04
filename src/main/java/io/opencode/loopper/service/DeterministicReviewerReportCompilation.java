@@ -16,7 +16,7 @@ import tools.jackson.databind.ObjectMapper;
 public final class DeterministicReviewerReportCompilation implements ReviewerReportCompilation {
     private static final int MAX_REPORT_BYTES = 64 * 1024;
     private static final int MAX_FINDINGS = 128;
-    private static final int MAX_PROBLEMS = 16;
+    private static final int MAX_PROBLEMS = 64;
     private static final List<String> SEVERITY_VALUES = List.of("CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO");
 
     private final ObjectMapper json;

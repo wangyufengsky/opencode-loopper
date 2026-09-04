@@ -50,13 +50,15 @@ final class DesignerDecompositionPromptFactory {
                 runId: %s
                 expectedSubmissionRevision: %d
                 contractVersion: %s
-                exact submit_candidate tool: %s
+                exact role submission tool: %s
 
                 Call %s with exactly runId, a new idempotencyKey, candidate containing one complete compact JSON
                 object, and expectedSubmissionRevision. Make exactly one call for each candidate. The tool result is
-                authoritative: on REJECTED, use each returned bounded code, JSON Pointer, detail, and allowed values
-                to repair all returned problems in the same Session and call again with the
-                returned submissionRevision; on ACCEPTED or WAITING_INPUT, stop immediately.
+                authoritative: on REJECTED, require CANDIDATE_DIAGNOSTIC_V2 and repair every returned problem
+                using parameter, JSON Pointer, category, expected, actual, detail, allowedValues, and repairHint.
+                diagnosticsComplete states whether this pass returned the full problem set; truncated=true means
+                only the bounded returned set is known. Follow action and call again with submissionRevision;
+                on ACCEPTED or WAITING_INPUT, stop immediately.
                 MCP submissions have no count limit. The final text is non-authoritative and must not claim acceptance.
 
                 %s

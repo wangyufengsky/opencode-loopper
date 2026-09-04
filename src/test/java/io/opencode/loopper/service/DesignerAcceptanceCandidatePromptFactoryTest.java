@@ -18,13 +18,14 @@ class DesignerAcceptanceCandidatePromptFactoryTest {
 
     @Test
     void internalPromptNamesOnlyTheExactToolAndFrozenClosedChoices() throws Exception {
-        String prompt = prompts.internal(planning(), routing(), run(), "loopper_internal_xyz_submit_candidate");
+        String prompt = prompts.internal(planning(), routing(), run(),
+                "loopper_internal_xyz_submit_acceptance_choice");
 
         assertThat(prompt).contains(
                 "ACCEPTANCE_CLOSED_CHOICE_V7",
                 "run-7",
                 "expectedSubmissionRevision: 3",
-                "loopper_internal_xyz_submit_candidate",
+                "loopper_internal_xyz_submit_acceptance_choice",
                 "\"optimalTieChoiceSets\":[[0],[1]]",
                 "\"label\":\"closed-choice-0\"",
                 "\"label\":\"closed-choice-1\"");
@@ -32,8 +33,9 @@ class DesignerAcceptanceCandidatePromptFactoryTest {
                 "mvn", "ATest", "BTest", "同分 A", "同分 B", "src/", "allowedPaths", "\"permissions\"");
         assertThat(prompt).contains("\"factIndex\":0,\"stageIndex\":0", "\"capabilityIndexes\":[0]",
                 "MCP submissions have no count limit", "ACCEPTANCE_CANDIDATE_CONTRACT_INVALID",
-                "code, JSON Pointer, detail, allowed values");
-        assertThat(prompt.split("loopper_internal_xyz_submit_candidate", -1).length - 1)
+                "parameter, JSON Pointer, category, expected, actual, detail, allowedValues, and",
+                "diagnosticsComplete=false", "truncated=true");
+        assertThat(prompt.split("loopper_internal_xyz_submit_acceptance_choice", -1).length - 1)
                 .as("the exact tool may be repeated only as the call target and contract label")
                 .isLessThanOrEqualTo(3);
     }

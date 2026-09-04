@@ -39,7 +39,7 @@ class OpenCodePermissionPolicyTest {
                 java.util.Map.of("permission", "read", "pattern", "*", "action", "allow"),
                 java.util.Map.of("permission", "glob", "pattern", "*", "action", "allow"),
                 java.util.Map.of("permission", "grep", "pattern", "*", "action", "allow"),
-                java.util.Map.of("permission", "loopper_internal_generation_submit_candidate",
+                java.util.Map.of("permission", "loopper_internal_generation_submit_decomposition_plan",
                         "pattern", "*", "action", "allow"));
         assertThat(rules).noneMatch(rule -> "allow".equals(rule.get("action"))
                 && ("github_*".equals(rule.get("permission"))
@@ -56,7 +56,7 @@ class OpenCodePermissionPolicyTest {
         assertThat(rules).contains(
                 java.util.Map.of("permission", "*", "pattern", "*", "action", "deny"),
                 java.util.Map.of("permission", "external_directory", "pattern", "*", "action", "deny"),
-                java.util.Map.of("permission", "loopper_internal_generation_submit_candidate",
+                java.util.Map.of("permission", "loopper_internal_generation_submit_acceptance_choice",
                         "pattern", "*", "action", "allow"));
         assertThat(rules).noneMatch(rule -> "allow".equals(rule.get("action"))
                 && (java.util.Set.of("read", "glob", "grep", "question")
@@ -76,12 +76,12 @@ class OpenCodePermissionPolicyTest {
                 java.util.Map.of("permission", "read", "pattern", "*", "action", "allow"),
                 java.util.Map.of("permission", "glob", "pattern", "*", "action", "allow"),
                 java.util.Map.of("permission", "grep", "pattern", "*", "action", "allow"),
-                java.util.Map.of("permission", "loopper_internal_generation_submit_candidate",
+                java.util.Map.of("permission", "loopper_internal_generation_submit_package_design",
                         "pattern", "*", "action", "allow"));
         assertThat(rules.stream().filter(rule -> "allow".equals(rule.get("action")))
                 .map(rule -> rule.get("permission")).toList())
                 .containsExactly("read", "glob", "grep", "aicoding_*", "read",
-                        "loopper_internal_generation_submit_candidate");
+                        "loopper_internal_generation_submit_package_design");
     }
 
     @Test
@@ -97,12 +97,12 @@ class OpenCodePermissionPolicyTest {
                 java.util.Map.of("permission", "glob", "pattern", "*", "action", "allow"),
                 java.util.Map.of("permission", "grep", "pattern", "*", "action", "allow"),
                 java.util.Map.of("permission", "external_directory", "pattern", "*", "action", "deny"),
-                java.util.Map.of("permission", "loopper_internal_generation_submit_candidate",
+                java.util.Map.of("permission", "loopper_internal_generation_submit_rolling_package_plan",
                         "pattern", "*", "action", "allow"));
         assertThat(rules.stream().filter(rule -> "allow".equals(rule.get("action")))
                 .map(rule -> rule.get("permission")).toList())
                 .containsExactly("read", "glob", "grep", "read",
-                        "loopper_internal_generation_submit_candidate");
+                        "loopper_internal_generation_submit_rolling_package_plan");
         assertThat(rules).noneMatch(rule -> "allow".equals(rule.get("action"))
                 && ("question".equals(rule.get("permission"))
                 || "bash".equals(rule.get("permission"))
@@ -124,12 +124,12 @@ class OpenCodePermissionPolicyTest {
                 java.util.Map.of("permission", "glob", "pattern", "*", "action", "allow"),
                 java.util.Map.of("permission", "grep", "pattern", "*", "action", "allow"),
                 java.util.Map.of("permission", "external_directory", "pattern", "*", "action", "deny"),
-                java.util.Map.of("permission", "loopper_internal_generation_submit_candidate",
+                java.util.Map.of("permission", "loopper_internal_generation_submit_reviewer_report",
                         "pattern", "*", "action", "allow"));
         assertThat(rules.stream().filter(rule -> "allow".equals(rule.get("action")))
                 .map(rule -> rule.get("permission")).toList())
                 .containsExactly("read", "glob", "grep", "read",
-                        "loopper_internal_generation_submit_candidate");
+                        "loopper_internal_generation_submit_reviewer_report");
         assertThat(rules).noneMatch(rule -> "allow".equals(rule.get("action"))
                 && ("question".equals(rule.get("permission"))
                 || "bash".equals(rule.get("permission"))
@@ -151,12 +151,12 @@ class OpenCodePermissionPolicyTest {
                 java.util.Map.of("permission", "glob", "pattern", "*", "action", "allow"),
                 java.util.Map.of("permission", "grep", "pattern", "*", "action", "allow"),
                 java.util.Map.of("permission", "external_directory", "pattern", "*", "action", "deny"),
-                java.util.Map.of("permission", "loopper_internal_generation_submit_candidate",
+                java.util.Map.of("permission", "loopper_internal_generation_submit_project_convention",
                         "pattern", "*", "action", "allow"));
         assertThat(rules.stream().filter(rule -> "allow".equals(rule.get("action")))
                 .map(rule -> rule.get("permission")).toList())
                 .containsExactly("read", "glob", "grep", "read",
-                        "loopper_internal_generation_submit_candidate");
+                        "loopper_internal_generation_submit_project_convention");
         assertThat(rules).noneMatch(rule -> "allow".equals(rule.get("action"))
                 && ("question".equals(rule.get("permission"))
                 || "bash".equals(rule.get("permission"))
@@ -178,12 +178,12 @@ class OpenCodePermissionPolicyTest {
                 java.util.Map.of("permission", "glob", "pattern", "*", "action", "allow"),
                 java.util.Map.of("permission", "grep", "pattern", "*", "action", "allow"),
                 java.util.Map.of("permission", "external_directory", "pattern", "*", "action", "deny"),
-                java.util.Map.of("permission", "loopper_internal_generation_submit_candidate",
+                java.util.Map.of("permission", "loopper_internal_generation_submit_judge_decision",
                         "pattern", "*", "action", "allow"));
         assertThat(rules.stream().filter(rule -> "allow".equals(rule.get("action")))
                 .map(rule -> rule.get("permission")).toList())
                 .containsExactly("read", "glob", "grep", "read",
-                        "loopper_internal_generation_submit_candidate");
+                        "loopper_internal_generation_submit_judge_decision");
         assertThat(rules).noneMatch(rule -> "allow".equals(rule.get("action"))
                 && (java.util.Set.of("bash", "write", "edit", "question", "todowrite")
                         .contains(rule.get("permission"))
@@ -203,12 +203,12 @@ class OpenCodePermissionPolicyTest {
                 java.util.Map.of("permission", "glob", "pattern", "*", "action", "allow"),
                 java.util.Map.of("permission", "grep", "pattern", "*", "action", "allow"),
                 java.util.Map.of("permission", "question", "pattern", "*", "action", "allow"),
-                java.util.Map.of("permission", "loopper_internal_generation_submit_candidate",
+                java.util.Map.of("permission", "loopper_internal_generation_submit_package_design",
                         "pattern", "*", "action", "allow"));
         assertThat(rules.stream().filter(rule -> "allow".equals(rule.get("action")))
                 .map(rule -> rule.get("permission")).toList())
                 .containsExactly("read", "glob", "grep", "question", "aicoding_*", "read",
-                        "loopper_internal_generation_submit_candidate");
+                        "loopper_internal_generation_submit_package_design");
     }
 
     @Test

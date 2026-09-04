@@ -28,7 +28,7 @@ class ReviewerReportCandidatePromptFactoryTest {
                 .contains("runId: run-1")
                 .contains("expectedSubmissionRevision: 7")
                 .contains("MCP submissions have no count limit")
-                .contains("code, JSON Pointer, detail, allowed values")
+                .contains("parameter, JSON Pointer, category", "diagnosticsComplete=false", "repairHint")
                 .doesNotContain("at most three times")
                 .contains("final assistant text is ignored")
                 .contains("title, summary, findings, and limitations")

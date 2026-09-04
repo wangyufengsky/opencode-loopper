@@ -18,7 +18,7 @@ import tools.jackson.databind.ObjectMapper;
 
 /** Pure deterministic compiler for one compact {@code DECOMPOSITION_PLAN_V2} candidate. */
 final class DesignerDecompositionCandidateCompiler {
-    private static final int MAX_PROBLEMS = 16;
+    private static final int MAX_PROBLEMS = 64;
     private static final int MAX_GOAL_CHARS = 12_000;
     private static final Set<String> OUTCOMES = Set.of("READY", "NEEDS_INPUT", "MULTI_TASK_REQUIRED");
     private static final Set<String> TARGET_TYPES = Set.of("GLOBAL_CONSTRAINT", "WORK_PACKAGE");

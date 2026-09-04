@@ -4,6 +4,7 @@ import io.opencode.loopper.domain.MachineCandidateKind;
 import io.opencode.loopper.persistence.LoopperMachineCandidateMapper;
 import io.opencode.loopper.persistence.ProjectConventionCandidateSourceSnapshotRow;
 import java.time.Instant;
+import java.util.Objects;
 
 /** Canonicalizes and persists complete Convention compilation facts before any remote I/O. */
 final class ProjectConventionCandidateSourceSnapshotStore {
@@ -66,11 +67,44 @@ final class ProjectConventionCandidateSourceSnapshotStore {
                         plannedContext.contractVersion(), sourceExists ? 1 : 0, sourceAgentsSha256,
                         sourceContent, sourceContentSha256, projectStackProfileId, stackFingerprint,
                         canonicalEvidence, codec.sha256(canonicalEvidence), Instant.now().toString());
-        if (mapper.insertProjectConventionCandidateSourceSnapshot(row) != 1) {
-            throw new ConflictException("PROJECT_CONVENTION_SOURCE_SNAPSHOT_CONFLICT",
-                    "Frozen project convention source snapshot could not be inserted");
+        try {
+            if (mapper.insertProjectConventionCandidateSourceSnapshot(row) != 1) {
+                throw new ConflictException("PROJECT_CONVENTION_SOURCE_SNAPSHOT_CONFLICT",
+                        "Frozen project convention source snapshot could not be inserted");
+            }
+            return row;
+        } catch (RuntimeException insertFailure) {
+            ProjectConventionCandidateSourceSnapshotRow existing;
+            try {
+                existing = mapper.findProjectConventionCandidateSourceSnapshot(
+                        plannedContext.runId()).orElse(null);
+            } catch (RuntimeException lookupFailure) {
+                insertFailure.addSuppressed(lookupFailure);
+                throw insertFailure;
+            }
+            if (sameFrozenSnapshot(existing, row)) return existing;
+            throw insertFailure;
         }
-        return row;
+    }
+
+    private static boolean sameFrozenSnapshot(
+            ProjectConventionCandidateSourceSnapshotRow left,
+            ProjectConventionCandidateSourceSnapshotRow right) {
+        return left != null
+                && Objects.equals(left.candidateRunId(), right.candidateRunId())
+                && Objects.equals(left.projectId(), right.projectId())
+                && Objects.equals(left.projectConventionDraftId(), right.projectConventionDraftId())
+                && left.sourceRevision() == right.sourceRevision()
+                && left.preparedOwnerVersion() == right.preparedOwnerVersion()
+                && Objects.equals(left.contractVersion(), right.contractVersion())
+                && left.sourceExists() == right.sourceExists()
+                && Objects.equals(left.sourceAgentsSha256(), right.sourceAgentsSha256())
+                && Objects.equals(left.sourceContent(), right.sourceContent())
+                && Objects.equals(left.sourceContentSha256(), right.sourceContentSha256())
+                && Objects.equals(left.projectStackProfileId(), right.projectStackProfileId())
+                && Objects.equals(left.stackFingerprint(), right.stackFingerprint())
+                && Objects.equals(left.canonicalEvidenceJson(), right.canonicalEvidenceJson())
+                && Objects.equals(left.evidenceSha256(), right.evidenceSha256());
     }
 
     private static void validateContract(CandidatePolicy.Context context) {

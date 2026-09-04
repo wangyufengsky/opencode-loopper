@@ -1,5 +1,6 @@
 package io.opencode.loopper.runtime;
 
+import io.opencode.loopper.domain.MachineCandidateKind;
 import java.net.URI;
 import java.security.SecureRandom;
 import java.util.Base64;
@@ -48,7 +49,11 @@ public final class InternalMcpCredentialProvider {
         }
 
         public String exactToolName() {
-            return serverName + "_" + InternalMcpContractCatalog.TOOL_NAME;
+            return serverName + "_" + InternalMcpContractCatalog.legacyToolName();
+        }
+
+        public String exactToolName(MachineCandidateKind kind) {
+            return serverName + "_" + InternalMcpContractCatalog.toolName(kind);
         }
 
         @Override

@@ -14,6 +14,7 @@ import io.opencode.loopper.persistence.ProjectConventionCandidateAcceptedResultR
 import io.opencode.loopper.persistence.ProjectConventionCandidateSourceSnapshotRow;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import tools.jackson.databind.ObjectMapper;
@@ -90,6 +91,32 @@ class ProjectConventionCandidatePolicyTest {
             assertThat(row.canonicalEvidenceJson()).isEqualTo(codec.canonicalEvidence(evidence()));
             assertThat(row.evidenceSha256()).isEqualTo(codec.sha256(row.canonicalEvidenceJson()));
         });
+    }
+
+    @Test
+    void sourceStoreTreatsAnIdenticalConcurrentFreezeAsIdempotent() {
+        LoopperMachineCandidateMapper mapper = mock(LoopperMachineCandidateMapper.class);
+        AtomicReference<ProjectConventionCandidateSourceSnapshotRow> inserted = new AtomicReference<>();
+        when(mapper.insertProjectConventionCandidateSourceSnapshot(any())).thenAnswer(invocation -> {
+            ProjectConventionCandidateSourceSnapshotRow candidate = invocation.getArgument(0);
+            if (!inserted.compareAndSet(null, candidate)) {
+                throw new RuntimeException("simulated concurrent unique constraint");
+            }
+            return 1;
+        });
+        when(mapper.findProjectConventionCandidateSourceSnapshot("run"))
+                .thenAnswer(ignored -> Optional.ofNullable(inserted.get()));
+        ProjectConventionCandidateSourceSnapshotStore store =
+                new ProjectConventionCandidateSourceSnapshotStore(mapper, codec, compilation);
+
+        ProjectConventionCandidateSourceSnapshotRow first = store.freeze(
+                context(), true, codec.sha256(SOURCE), SOURCE,
+                "stack", "a".repeat(64), evidence());
+        ProjectConventionCandidateSourceSnapshotRow replay = store.freeze(
+                context(), true, codec.sha256(SOURCE), SOURCE,
+                "stack", "a".repeat(64), evidence());
+
+        assertThat(replay).isEqualTo(first);
     }
 
     @Test

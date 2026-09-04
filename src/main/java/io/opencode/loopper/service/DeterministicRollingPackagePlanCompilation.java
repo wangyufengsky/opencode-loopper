@@ -22,7 +22,7 @@ import tools.jackson.databind.ObjectMapper;
 /** Strict candidate firewall and single normalize/impact authority for rolling package plans. */
 public final class DeterministicRollingPackagePlanCompilation implements RollingPackagePlanCompilation {
     private static final int MAX_CANDIDATE_BYTES = 64 * 1024;
-    private static final int MAX_PROBLEMS = 16;
+    private static final int MAX_PROBLEMS = 64;
     private static final Set<String> ROOT_FIELDS = Set.of("packages");
     private static final Set<String> PACKAGE_FIELDS = Set.of("packageKey", "title", "objective", "replaces",
             "dependencies", "requirementRefs");

@@ -25,7 +25,8 @@ class DesignerDecompositionPromptFactoryTest {
         assertThat(prompt).contains(
                 "run-42", "expectedSubmissionRevision: 7", "DECOMPOSITION_PLAN_V2",
                 "loopper_internal_submit_candidate", "read, glob, and grep",
-                "exactly one call", "REJECTED", "all returned problems", "same Session",
+                "exactly one call", "REJECTED", "repair every returned problem", "call again",
+                "diagnosticsComplete states", "submissionRevision",
                 "ACCEPTED", "WAITING_INPUT", "stop", "final text is non-authoritative");
         assertThat(prompt).contains("candidate containing one complete compact JSON", "software-python",
                 "Decompose Python", "\"code\":\"MISSING_SCOPE\"", "\"detail\":");

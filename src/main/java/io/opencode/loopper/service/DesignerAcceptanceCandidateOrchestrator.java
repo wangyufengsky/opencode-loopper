@@ -53,7 +53,10 @@ final class DesignerAcceptanceCandidateOrchestrator {
             throw new ConflictException("ACCEPTANCE_INTERNAL_SETTLEMENT_STALE",
                     "验收候选 internal launch 尚未形成精确的 SETTLED 运行");
         }
-        String tool = launch.internalMcpServer() + "_" + InternalMcpContractCatalog.TOOL_NAME;
+        String tool = result.actualToolName() == null
+                ? launch.internalMcpServer() + "_" + InternalMcpContractCatalog.toolName(
+                        io.opencode.loopper.domain.MachineCandidateKind.ACCEPTANCE_CLOSED_CHOICE_V7)
+                : result.actualToolName();
         return new Start(remote, run, prompts.internal(planning, routing, run, tool), launch.id());
     }
 

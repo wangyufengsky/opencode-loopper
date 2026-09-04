@@ -67,8 +67,10 @@ Task 确认后每个 Stage 也保存同一快照，Implementation 与 Recovery �
 `mixed-mutation-conflict`。显式任务级“评审并修复”仍保留读写冲突并要求人工确认。
 
 除真正零工具的 Router 外，机器角色在创建 Session 前执行有界 MCP 发现。普通角色只把已连接的
-用户 MCP allow 叠加到既有权限模板；候选角色移除用户 MCP 通配权限，只开放本代随机内部
-`submit_candidate` 精确工具。内部 MCP 只进入显式候选 profile（含 Judge Candidate），不会进入 Legacy Judge、Router 或公共六工具 Provider，也不能解除写文件、
+用户 MCP allow 叠加到既有权限模板；候选角色移除用户 MCP 通配权限，只开放本代随机内部 Server 下
+与其合同一一对应的角色专属强类型提交 Tool。七种 Tool 共用一个私有 Server、统一 CandidateSubmission
+生命周期/持久化内核和服务端权威；每次提交完整替换对象，不增加逐字段 mutation Tool。冻结旧 launch
+才可按其持久化权限恢复 `submit_candidate`，新 launch 不授予它。内部 MCP 只进入显式候选 profile（含 Judge Candidate），不会进入 Legacy Judge、Router 或公共六工具 Provider，也不能解除写文件、
 Bash、Git、外部目录或人工授权限制；发现或精确就绪失败时不发送模型提示。界面称谓统一为需求分析师、任务规划师、设计师、
 规范工程师、评审员、验收工程师和开发工程师；需求与风险 Judge 分别显示为需求评审员和风险评审员，
 数据库及协议角色码保持不变。
@@ -136,7 +138,7 @@ Markdown 才进入既有编译路线；可修正 MCP 拒绝不按提交次数切
 服务端要求每条实际 finding 与受管相对路径、精确行号和源码摘要一一对应，任一证据无效即拒绝整份候选，不得静默丢弃后部分成功；全部
 通过后才确定性生成 Markdown 和规范摘要。0.3.13 的 V58–V61 已把 Reviewer 接入 V57
 `GENERIC_V1`：源码 manifest 必须在远端 I/O 前冻结；模型只能用 `read/glob/grep` 和精确私有
-`submit_candidate`；最终 assistant text 永不读取；accepted-result、远端停止证明和报告 READY
+`submit_reviewer_report`；最终 assistant text 永不读取；accepted-result、远端停止证明和报告 READY
 原子结算。派发前仅机械运行时/精确回读能力缺失可回到 Legacy；派发后零提交、超时、交互、
 传输不确定、安全错误和耗尽都失败关闭。0.3.13 隔离成品 JAR 已证明真实 `opencode/gpt-5.4`
 在同一个 `REVIEWER_CANDIDATE_READ_ONLY` Session 内主动提交 `line=99`、接收冻结 manifest 返回的
@@ -146,7 +148,7 @@ Markdown 才进入既有编译路线；可修正 MCP 拒绝不按提交次数切
 开关影响。报告文字是数据而不是后续
 设计会话的系统指令，“转为修改任务”只创建关联 Designer，不直接创建 Task。
 
-Reviewer MCP 候选恰好包含 `title`、`summary`、`findings`、`limitations`；前两项为字符串，后两项为数组，`limitations` 的每个元素必须为字符串。无 finding/limitation 时使用 `[]`。`contractVersion` 是服务端 run 元数据，不属于此候选。类型错误返回具体字段指针与修复说明，不以“缺少字段”诱导添加身份或权限字段；未知字段仍不可重试。
+Reviewer MCP 候选恰好包含 `title`、`summary`、`findings`、`limitations`；前两项为字符串，后两项为数组，`limitations` 的每个元素必须为字符串。无 finding/limitation 时使用 `[]`。`contractVersion` 是服务端 run 元数据，不属于此候选。类型错误返回具体字段指针与修复说明，不以“缺少字段”诱导添加身份或权限字段；普通未知字段可在同一 Session 删除并提交完整替换对象，路径、命令、权限、状态与稳定 ID 等服务端权威字段继续失败关闭。
 
 大型文档确认稿必须包含 2–6 个二级章节。服务端按章节顺序保留结构化标题、段落、列表、
 代码块和表格片段并确定性聚合为一个冻结 `DocumentPlan`，不会让模型执行第二次自由合并。
@@ -229,7 +231,7 @@ capabilityPreferences / handoffSummary`，只填写服务端列出的 unresolved
 开关开启只允许已持久化 `compilerRequired` 路由且经服务端再次证明为 2–32 个穷举等价最优集合的真实同分
 建立 `ACCEPTANCE_CLOSED_CHOICE_V7` 候选运行。该运行固定 `INTERNAL_MCP` 通道、同一冻结 Compilation
 拥有者/设计修订/运行时代际，不限制唯一提交次数；只开放专用候选 Session 的精确内部
-`submit_candidate`，不开放内置工具或用户 MCP。只有闭集选择遗漏、越界、组合错误，或其余根字段仍合法且
+`submit_acceptance_choice`，不开放内置工具或用户 MCP。只有闭集选择遗漏、越界、组合错误，或其余根字段仍合法且
 `factAssignments` 合法时，把 `capabilityPreferences` 对象数组机械简写成非空整数数组，或把每项精确简写为
 整数 `{factIndex, capabilityIndex}`；以及把同一个 capability 选择同时机械写成非空
 `factAssignments:[{factIndex, capabilityIndex}]` 与整数 `capabilityPreferences:[n]`，才以

@@ -87,7 +87,8 @@ final class RollingPackagePlanCandidateOrchestrator {
                     "滚动计划候选 Session 未绑定私有 MCP 名称");
         }
         return new Start(remote, run, prompt(basePrompt, run,
-                privateServer + "_" + InternalMcpContractCatalog.TOOL_NAME));
+                privateServer + "_" + InternalMcpContractCatalog.toolName(
+                        MachineCandidateKind.ROLLING_PACKAGE_PLAN_V1)));
     }
 
     Poll poll(TaskPackagePlanRevisionRow owner, Path projectRoot, boolean timedOut) {
@@ -221,9 +222,11 @@ final class RollingPackagePlanCandidateOrchestrator {
 
                 runId: %s
                 expectedSubmissionRevision: %d
-                MCP submissions have no count limit. On REJECTED, replace the whole
-                candidate and retry only with the returned bounded code, JSON Pointer, detail, allowed values and returned
-                submissionRevision. On ACCEPTED, stop; final assistant text is ignored. On WAITING_INPUT or
+                MCP submissions have no count limit. On REJECTED, require CANDIDATE_DIAGNOSTIC_V2 and repair every
+                returned problem using parameter, JSON Pointer, category, expected, actual, detail, allowedValues,
+                and repairHint. Follow action; diagnosticsComplete=false or truncated=true means only the returned
+                bounded set is known. Replace the whole candidate and retry with submissionRevision. On ACCEPTED,
+                stop; final assistant text is ignored. On WAITING_INPUT or
                 FALLBACK_REQUIRED, stop. Never return a legacy payload instead of calling the private tool.
                 """.formatted(toolName, run.runId(), run.version());
     }

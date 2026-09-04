@@ -1526,7 +1526,7 @@ class MachineCandidateSubmissionIntegrationTest {
                             "PACKAGE_DESIGN_INVALID", "/design", "Package design candidate is invalid")));
         }
         if (candidateJson.contains("tooManyProblems")) {
-            return CandidatePolicy.Decision.rejected(true, java.util.stream.IntStream.range(0, 17)
+            return CandidatePolicy.Decision.rejected(true, java.util.stream.IntStream.range(0, 65)
                     .mapToObj(index -> new MachineCandidateSubmission.Problem(
                             "CANDIDATE_INVALID_" + index, "/value", "候选不满足测试合同"))
                     .toList());

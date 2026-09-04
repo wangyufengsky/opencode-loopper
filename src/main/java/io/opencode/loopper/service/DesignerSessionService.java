@@ -1657,7 +1657,7 @@ public class DesignerSessionService {
             return appendMessage(session.id(), DesignerActor.SYSTEM, "需求版本的 " + MAX_MODEL_CALLS
                     + " 次自动模型调用预算已耗尽，任务拆解已停止。", "TERMINAL_ERROR", revision.revision(), null);
         }
-        String tool = remote.internalMcpServer() + "_" + InternalMcpContractCatalog.TOOL_NAME;
+        String tool = remote.internalMcpServer() + "_" + InternalMcpContractCatalog.toolName(io.opencode.loopper.domain.MachineCandidateKind.DECOMPOSITION_PLAN_V2);
         modelPrompts.submit(remote, decompositionPrompts.candidate(revision, project.rootPath(), run.runId(),
                 run.version(), run.contractVersion(), tool), ModelResponseMode.TEXT_MARKER.name(), null, session.id(), null);
         publish(session, "STATUS", DesignerActor.DECOMPOSER, true, "", "任务规划师正在同一只读 Session 中提交并修正候选；工具提交不计模型调用");

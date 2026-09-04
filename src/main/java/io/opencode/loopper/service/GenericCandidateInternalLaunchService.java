@@ -51,6 +51,10 @@ class GenericCandidateInternalLaunchService {
         return plans.decode(row);
     }
 
+    String actualToolName(GenericCandidateInternalLaunchRow row) {
+        return plans.actualToolName(row);
+    }
+
     List<GenericCandidateInternalLaunchCleanupRemoteRow> cleanup(String launchId) {
         return mapper.listGenericCandidateInternalLaunchCleanupRemotes(launchId);
     }

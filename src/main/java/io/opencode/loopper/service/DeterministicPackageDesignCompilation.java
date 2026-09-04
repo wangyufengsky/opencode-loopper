@@ -109,7 +109,7 @@ public final class DeterministicPackageDesignCompilation implements PackageDesig
     }
 
     private Result gaps(String canonicalJson, String markdown, List<DesignGap> gaps, boolean correctionAllowed) {
-        List<Problem> problems = gaps == null ? List.of() : gaps.stream().limit(16)
+        List<Problem> problems = gaps == null ? List.of() : gaps.stream().limit(64)
                 .map(gap -> {
                     ProblemClass type = classification(gap.code().name());
                     return problem(gap.code().name(), "/stages", type);
@@ -173,7 +173,7 @@ public final class DeterministicPackageDesignCompilation implements PackageDesig
         }
         if (result.isEmpty()) result.add(problem("AMBIGUOUS_ACCEPTANCE_INTENT", "/stages",
                 ProblemClass.CORRECTABLE));
-        return List.copyOf(result.stream().limit(16).toList());
+        return List.copyOf(result.stream().limit(64).toList());
     }
 
     private static boolean correctable(ProblemClass type) {

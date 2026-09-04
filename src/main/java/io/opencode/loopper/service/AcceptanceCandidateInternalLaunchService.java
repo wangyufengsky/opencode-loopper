@@ -50,6 +50,10 @@ class AcceptanceCandidateInternalLaunchService {
         return plans.decode(row);
     }
 
+    String actualToolName(AcceptanceCandidateInternalLaunchRow row) {
+        return plans.actualToolName(row);
+    }
+
     List<AcceptanceCandidateInternalLaunchCleanupRemoteRow> cleanup(String launchId) {
         return mapper.listAcceptanceCandidateInternalLaunchCleanupRemotes(launchId);
     }

@@ -1,6 +1,8 @@
 package io.opencode.loopper.service;
 
+import io.opencode.loopper.domain.MachineCandidateKind;
 import io.opencode.loopper.persistence.GenericCandidateInternalLaunchRow;
+import io.opencode.loopper.runtime.InternalMcpContractCatalog;
 import io.opencode.loopper.runtime.OpenCodeClient;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -36,28 +38,30 @@ final class GenericCandidateInternalLaunchPlanCodec {
                     row.internalMcpServer(), row.endpointFingerprint(), model,
                     OpenCodeClient.SessionProfile.valueOf(row.profile()), permissions,
                     row.permissionPolicyDigest(), row.creationCredential(), row.createRequestSha256());
+            MachineCandidateKind kind = MachineCandidateKind.valueOf(row.candidateKind());
             if (!GenericCandidateInternalLaunchPreparer.baseTitle(
-                    io.opencode.loopper.domain.MachineCandidateKind.valueOf(row.candidateKind()),
+                    kind,
                     row.candidateRunId(), row.id()).equals(stripCredential(plan.exactTitle(),
                             plan.creationCredential()))
-                    || !hasFailClosedCandidatePermission(plan)) throw invalid();
+                    || actualToolName(plan, kind, true) == null) throw invalid();
             return plan;
         } catch (RuntimeException invalid) {
             throw invalid();
         }
     }
 
-    void validatePreparedPlan(String baseTitle, OpenCodeClient.OpenCodeModel model,
-            OpenCodeClient.SessionProfile profile, OpenCodeClient.SessionCreationPlan plan) {
+    void validatePreparedPlan(String baseTitle, MachineCandidateKind kind,
+            OpenCodeClient.OpenCodeModel model, OpenCodeClient.SessionProfile profile,
+            OpenCodeClient.SessionCreationPlan plan) {
         try {
-            if (plan == null || profile == null || plan.profile() != profile || !plan.managed()
+            if (plan == null || kind == null || profile == null || plan.profile() != profile || !plan.managed()
                     || !Objects.equals(model, plan.model())
                     || !OpenCodeClient.recoveryTitle(baseTitle, plan.creationCredential())
                             .equals(plan.exactTitle())
                     || !OpenCodeClient.permissionPolicyDigest(plan.permissionPolicy())
                             .equals(plan.permissionPolicyDigest())
                     || !OpenCodeClient.sessionCreationRequestSha256(plan).equals(plan.createRequestSha256())
-                    || !hasFailClosedCandidatePermission(plan)) throw invalid();
+                    || actualToolName(plan, kind, false) == null) throw invalid();
         } catch (RuntimeException invalid) {
             throw invalid();
         }
@@ -66,6 +70,11 @@ final class GenericCandidateInternalLaunchPlanCodec {
     String encodePermissionPolicy(OpenCodeClient.SessionCreationPlan plan) {
         try { return json.writeValueAsString(plan.permissionPolicy()); }
         catch (RuntimeException invalid) { throw invalid(); }
+    }
+
+    String actualToolName(GenericCandidateInternalLaunchRow row) {
+        OpenCodeClient.SessionCreationPlan plan = decode(row);
+        return actualToolName(plan, MachineCandidateKind.valueOf(row.candidateKind()), true);
     }
 
     private List<OpenCodeClient.SessionPermissionRule> permissions(String value) {
@@ -87,13 +96,25 @@ final class GenericCandidateInternalLaunchPlanCodec {
         }
     }
 
-    private static boolean hasFailClosedCandidatePermission(OpenCodeClient.SessionCreationPlan plan) {
-        String submit = plan.internalMcpServer().replaceAll("[^a-zA-Z0-9_-]", "_") + "_submit_candidate";
-        return plan.permissionPolicy().contains(new OpenCodeClient.SessionPermissionRule("*", "*", "deny"))
-                && plan.permissionPolicy().contains(
-                        new OpenCodeClient.SessionPermissionRule("external_directory", "*", "deny"))
-                && plan.permissionPolicy().contains(
-                        new OpenCodeClient.SessionPermissionRule(submit, "*", "allow"));
+    private static String actualToolName(OpenCodeClient.SessionCreationPlan plan,
+            MachineCandidateKind kind, boolean allowLegacy) {
+        if (plan.internalMcpServer() == null || plan.internalMcpServer().isBlank()
+                || !plan.permissionPolicy().contains(
+                        new OpenCodeClient.SessionPermissionRule("*", "*", "deny"))
+                || !plan.permissionPolicy().contains(
+                        new OpenCodeClient.SessionPermissionRule("external_directory", "*", "deny"))) return null;
+        String prefix = plan.internalMcpServer().replaceAll("[^a-zA-Z0-9_-]", "_") + "_";
+        String roleTool = prefix + InternalMcpContractCatalog.toolName(kind);
+        String legacyTool = prefix + InternalMcpContractCatalog.legacyToolName();
+        List<String> candidateTools = plan.permissionPolicy().stream()
+                .filter(rule -> "allow".equals(rule.action()) && "*".equals(rule.pattern()))
+                .map(OpenCodeClient.SessionPermissionRule::permission)
+                .filter(permission -> InternalMcpContractCatalog.toolNames().stream()
+                        .map(prefix::concat).anyMatch(permission::equals))
+                .toList();
+        if (candidateTools.size() != 1) return null;
+        String actual = candidateTools.getFirst();
+        return actual.equals(roleTool) || allowLegacy && actual.equals(legacyTool) ? actual : null;
     }
 
     private static void requireIdentity(GenericCandidateInternalLaunchRow row) {

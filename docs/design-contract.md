@@ -1100,7 +1100,7 @@ mutates the draft or creates a Task.
 
 当前只允许以下七个候选合同：
 
-- 七种合同在 `INTERNAL_MCP` 通道均不设提交次数上限；每次可修正拒绝必须返回有界 `code / JSON Pointer / detail / allowedValues`，保持同一 run 与远端 Session 为 `OPEN`，模型使用返回的 `submissionRevision` 提交完整替换候选。冻结的 `maxAttempts` 只约束 Legacy 修复预算，不是 MCP 配额。
+- 七种合同在 `INTERNAL_MCP` 通道均不设提交次数上限；每次可修正拒绝使用 `CANDIDATE_DIAGNOSTIC_V2`，逐项返回 `parameter / pointer / category / expected / actual / detail / allowedValues / repairHint`，并用 `diagnosticsComplete / problemCount / returnedProblemCount / truncated / action` 声明本轮诊断是否完整及下一步。安全独立问题必须一次聚合，达到上限时明确声明截断；同一 run 与远端 Session 保持 `OPEN`，模型使用返回的 `submissionRevision` 提交完整替换候选。冻结的 `maxAttempts` 只约束 Legacy 修复预算，不是 MCP 配额。
 - `DECOMPOSITION_PLAN_V2`：提交完整任务拆解；合同或覆盖问题继续在同一 Session 修正。模型明确声明真实 `NEEDS_INPUT / MULTI_TASK_REQUIRED` 时进入人工边界。
 - `ACCEPTANCE_CLOSED_CHOICE_V7`：只允许服务端已证明自然可枚举、候选集合完备且存在真实机械同分的闭集选择。安全的 JSON/字段形状和闭集选择值错误均可修正；路径、权限、执行、拓扑以及不可枚举/非穷尽结果不开放候选修复面。
 - `PACKAGE_DESIGN_V1`：每次提交完整替换的工作包语义对象，包含 `READY | NEEDS_INPUT`、需求语义、场景、交付物、评审点、Stage 目标/语义引用/依赖和闭集 gap code。`READY` 的内容缺失、覆盖不全、验收归属或验证能力歧义是模型可修正问题；服务端必须保留具体缺口说明，不能只返回泛化的 `AMBIGUOUS_ACCEPTANCE_INTENT`。模型明确提交 `NEEDS_INPUT`、大型任务模式选择及路径/安全/权限边界仍需人工。命令、可写路径清单、测试命令、Verifier、权限结论和稳定 ID 属于服务端权威字段，候选不得携带。
@@ -1117,7 +1117,7 @@ Compiler v7 的既有快速路径保持不变：
 - 非枚举歧义、路径守卫、安全边界或权限约束不得交给候选角色修复，保持 0 个 candidate，并由服务端失败关闭到人工输入；已经开放的候选若只有安全合同形状错误，则在同一 run 内修正。
 - 真同分候选只允许在现有服务端路由明确 `compilerRequired=true` 且闭集证明成立后打开候选 run；不能由模型自行声称“这是闭集”。
 
-候选 OpenCode Session 必须使用独立的最小权限 profile：Decomposer、工作包设计、滚动计划、Reviewer、项目公约和 Judge 候选只保留形成仓库证据所需的 `read / glob / grep`，交互式工作包候选可额外使用 `question`，验收闭集选择不开放任何内置工具；每个 profile 都只可见精确命名的私有内部 `submit_candidate`，不可见用户 MCP。该内部 MCP 仅允许 Loopper 受管 OpenCode 通过 loopback 和代际 bearer 调用，不属于公共六工具目录。Router 的单次零工具边界不变；Legacy Requirement/Risk 继续使用既有只读 profile，`JUDGE_CANDIDATE_READ_ONLY` 获得精确私有提交工具；0.3.22 默认启用该路线不扩大文件、交互或写权限。
+候选 OpenCode Session 必须使用独立的最小权限 profile：Decomposer、工作包设计、滚动计划、Reviewer、项目公约和 Judge 候选只保留形成仓库证据所需的 `read / glob / grep`，交互式工作包候选可额外使用 `question`，验收闭集选择不开放任何内置工具。新 profile 只能调用与角色对应的私有内部 Tool：`submit_decomposition_plan / submit_acceptance_choice / submit_package_design / submit_rolling_package_plan / submit_reviewer_report / submit_project_convention / submit_judge_decision`，不可见通用兼容 Tool、其他角色 Tool 或用户 MCP。所有角色 Tool 位于同一个私有 Server，并提交一个完整替换对象；不得用逐字段调用制造半成品候选。冻结旧 launch 按持久化权限继续恢复 `submit_candidate`，新 launch 不授予它。该内部 MCP 仅允许 Loopper 受管 OpenCode 通过 loopback 和代际 bearer 调用，不属于公共六工具目录。Router 的单次零工具边界不变；Legacy Requirement/Risk 继续使用既有只读 profile，`JUDGE_CANDIDATE_READ_ONLY` 获得角色专属提交工具；默认启用路线不扩大文件、交互或写权限。
 
 滚动计划继续保持人工确认边界。启用 `ROLLING_PACKAGE_PLAN_V1` 后，派发前 flag 或私有 MCP 就绪证明缺失才允许创建全新的既有只读 Legacy Session；候选 Session/run 一旦存在，零提交、超时、Provider/传输、交互、安全、代次或停止不确定都不得读取 marker 输出。接受结果先以 V56 不可变行保存，只有远端完成或 abort/不存在的正向证明才与 `GENERATING -> PROPOSED` 在同一结算事务中绑定；未确认停止时保持 `GENERATING + DISCONNECTED`，不得自动确认计划或派发后续包。0.3.8 隔离成品 JAR 已证明真实模型主动调用私有工具、在前向依赖机械拒绝后于同一 Session 修正并接受，因此 0.3.9 起默认开启；显式设置 `LOOPPER_ROLLING_PACKAGE_PLAN_V1_ENABLED=false` 只把新建议送回全新 Legacy Session，不改变既有 run、接受结果和失败关闭边界。
 

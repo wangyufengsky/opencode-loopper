@@ -19,13 +19,18 @@ public interface CandidatePolicy {
             String contractVersion, int maxAttempts, int attemptsUsed) { }
 
     record Decision(boolean accepted, String canonicalCandidateJson, boolean retryable, boolean fallbackEligible,
-                    List<MachineCandidateSubmission.Problem> problems) {
+                    List<MachineCandidateSubmission.Problem> problems, boolean diagnosticsComplete) {
         public Decision {
             problems = List.copyOf(Objects.requireNonNull(problems, "problems"));
         }
 
+        public Decision(boolean accepted, String canonicalCandidateJson, boolean retryable,
+                boolean fallbackEligible, List<MachineCandidateSubmission.Problem> problems) {
+            this(accepted, canonicalCandidateJson, retryable, fallbackEligible, problems, true);
+        }
+
         public static Decision accepted(String canonicalCandidateJson) {
-            return new Decision(true, Objects.requireNonNull(canonicalCandidateJson), false, false, List.of());
+            return new Decision(true, Objects.requireNonNull(canonicalCandidateJson), false, false, List.of(), true);
         }
 
         public static Decision rejected(boolean retryable, List<MachineCandidateSubmission.Problem> problems) {
@@ -34,7 +39,12 @@ public interface CandidatePolicy {
 
         public static Decision rejected(boolean retryable, boolean fallbackEligible,
                                         List<MachineCandidateSubmission.Problem> problems) {
-            return new Decision(false, null, retryable, fallbackEligible, problems);
+            return new Decision(false, null, retryable, fallbackEligible, problems, true);
+        }
+
+        public static Decision rejected(boolean retryable, boolean fallbackEligible,
+                List<MachineCandidateSubmission.Problem> problems, boolean diagnosticsComplete) {
+            return new Decision(false, null, retryable, fallbackEligible, problems, diagnosticsComplete);
         }
     }
 }

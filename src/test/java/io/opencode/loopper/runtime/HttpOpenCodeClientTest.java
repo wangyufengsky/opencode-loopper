@@ -213,7 +213,7 @@ class HttpOpenCodeClientTest {
 
         assertThat(session.generation()).isEqualTo("generation-1");
         assertThat(session.internalMcpServer()).isEqualTo(internal);
-        assertThat(createBody.get()).contains("\"permission\":\"" + internal + "_submit_candidate\"")
+        assertThat(createBody.get()).contains("\"permission\":\"" + internal + "_submit_decomposition_plan\"")
                 .doesNotContain("user_probe_*");
 
         connection.set(new OpenCodeRuntimeManager.Connection(
@@ -323,7 +323,7 @@ class HttpOpenCodeClientTest {
                 OpenCodeClient.SessionProfile.DECOMPOSER_CANDIDATE_READ_ONLY);
 
         assertThat(session.generation()).isEqualTo("generation-after-window");
-        assertThat(createBody.get()).contains("\"permission\":\"" + internal + "_submit_candidate\"")
+        assertThat(createBody.get()).contains("\"permission\":\"" + internal + "_submit_decomposition_plan\"")
                 .doesNotContain("user_0_*");
     }
 
@@ -341,7 +341,7 @@ class HttpOpenCodeClientTest {
                 OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS);
 
         assertThat(session.internalMcpServer()).isEqualTo(internal);
-        assertThat(createBody.get()).contains("\"permission\":\"" + internal + "_submit_candidate\"")
+        assertThat(createBody.get()).contains("\"permission\":\"" + internal + "_submit_acceptance_choice\"")
                 .doesNotContain("\"permission\":\"read\"")
                 .doesNotContain("\"permission\":\"glob\"")
                 .doesNotContain("\"permission\":\"grep\"")
@@ -374,7 +374,7 @@ class HttpOpenCodeClientTest {
                         "\"permission\":\"read\"",
                         "\"permission\":\"glob\"",
                         "\"permission\":\"grep\"",
-                        "\"permission\":\"" + internal + "_submit_candidate\"")
+                        "\"permission\":\"" + internal + "_submit_package_design\"")
                 .doesNotContain("\"permission\":\"question\"")
                 .doesNotContain("user_probe_*")
                 .doesNotContain(internal + "_*");
@@ -386,7 +386,7 @@ class HttpOpenCodeClientTest {
                         "\"permission\":\"glob\"",
                         "\"permission\":\"grep\"",
                         "\"permission\":\"question\"",
-                        "\"permission\":\"" + internal + "_submit_candidate\"")
+                        "\"permission\":\"" + internal + "_submit_package_design\"")
                 .doesNotContain("user_probe_*")
                 .doesNotContain(internal + "_*");
 
@@ -416,7 +416,7 @@ class HttpOpenCodeClientTest {
                         "\"permission\":\"read\"",
                         "\"permission\":\"glob\"",
                         "\"permission\":\"grep\"",
-                        "\"permission\":\"" + internal + "_submit_candidate\"")
+                        "\"permission\":\"" + internal + "_submit_rolling_package_plan\"")
                 .doesNotContain("\"permission\":\"question\"")
                 .doesNotContain("\"permission\":\"bash\"")
                 .doesNotContain("\"permission\":\"write\"")
@@ -449,7 +449,7 @@ class HttpOpenCodeClientTest {
                         "\"permission\":\"read\"",
                         "\"permission\":\"glob\"",
                         "\"permission\":\"grep\"",
-                        "\"permission\":\"" + internal + "_submit_candidate\"")
+                        "\"permission\":\"" + internal + "_submit_reviewer_report\"")
                 .doesNotContain("\"permission\":\"question\"")
                 .doesNotContain("\"permission\":\"bash\"")
                 .doesNotContain("\"permission\":\"write\"")
@@ -484,7 +484,7 @@ class HttpOpenCodeClientTest {
                         "\"permission\":\"read\"",
                         "\"permission\":\"glob\"",
                         "\"permission\":\"grep\"",
-                        "\"permission\":\"" + internal + "_submit_candidate\"")
+                        "\"permission\":\"" + internal + "_submit_project_convention\"")
                 .doesNotContain("\"permission\":\"question\"")
                 .doesNotContain("\"permission\":\"bash\"")
                 .doesNotContain("\"permission\":\"write\"")
@@ -1053,7 +1053,7 @@ class HttpOpenCodeClientTest {
                 new OpenCodeClient.SessionPermissionRule("*", "*", "deny"),
                 new OpenCodeClient.SessionPermissionRule("external_directory", "*", "deny"),
                 new OpenCodeClient.SessionPermissionRule(
-                        "loopper-private-7_submit_candidate", "*", "allow"));
+                        "loopper-private-7_submit_acceptance_choice", "*", "allow"));
         assertThat(first.permissionPolicyDigest()).hasSize(64);
         assertThat(first.createRequestSha256()).hasSize(64);
         assertThat(rolling.permissionPolicy()).containsExactly(
@@ -1066,10 +1066,13 @@ class HttpOpenCodeClientTest {
                 new OpenCodeClient.SessionPermissionRule("read", ".env.example", "allow"),
                 new OpenCodeClient.SessionPermissionRule("external_directory", "*", "deny"),
                 new OpenCodeClient.SessionPermissionRule(
-                        "loopper-private-7_submit_candidate", "*", "allow"));
-        assertThat(reviewer.permissionPolicy()).isEqualTo(rolling.permissionPolicy());
-        assertThat(convention.permissionPolicy()).isEqualTo(rolling.permissionPolicy());
-        assertThat(judge.permissionPolicy()).isEqualTo(rolling.permissionPolicy());
+                        "loopper-private-7_submit_rolling_package_plan", "*", "allow"));
+        assertThat(reviewer.permissionPolicy().getLast().permission())
+                .isEqualTo("loopper-private-7_submit_reviewer_report");
+        assertThat(convention.permissionPolicy().getLast().permission())
+                .isEqualTo("loopper-private-7_submit_project_convention");
+        assertThat(judge.permissionPolicy().getLast().permission())
+                .isEqualTo("loopper-private-7_submit_judge_decision");
 
         mcpBody.set("{\"loopper-private-7\":{\"status\":\"connected\"}}");
         client.requireCandidateSessionReady(first);

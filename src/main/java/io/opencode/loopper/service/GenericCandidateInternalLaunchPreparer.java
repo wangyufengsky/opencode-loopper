@@ -41,7 +41,7 @@ final class GenericCandidateInternalLaunchPreparer {
         String credential = credentials.create();
         OpenCodeClient.SessionCreationPlan plan = openCode.prepareCandidateSessionCreationLocally(
                 command.projectRoot(), baseTitle, command.model(), command.profile(), credential);
-        plans.validatePreparedPlan(baseTitle, command.model(), command.profile(), plan);
+        plans.validatePreparedPlan(baseTitle, command.candidateKind(), command.model(), command.profile(), plan);
         GenericCandidateInternalLaunchRow requested = row(command, launchId, runId, plan);
         if (!plans.decode(requested).equals(plan)) throw invalidPlan();
         try {

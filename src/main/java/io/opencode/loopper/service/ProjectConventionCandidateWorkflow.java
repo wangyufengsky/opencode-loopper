@@ -341,8 +341,7 @@ final class ProjectConventionCandidateWorkflow {
                 run.runId(), run.scope(), run.owner(), run.candidateKind(), run.workflowStep(),
                 run.sourceRevision(), run.ownerVersion(), run.contractVersion(), run.maxAttempts(),
                 run.attemptsUsed()));
-        String tool = launch.internalMcpServer().replaceAll("[^a-zA-Z0-9_-]", "_")
-                + "_submit_candidate";
+        String tool = launches.actualToolName(launch);
         String text = promptFactory.internal(run, input.evidenceCatalog(), tool);
         String messageId = CandidatePromptDispatchService.initialMessageId(run.runId());
         OpenCodeClient.PromptRequest request = new OpenCodeClient.PromptRequest(

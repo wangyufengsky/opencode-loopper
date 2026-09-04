@@ -12,16 +12,21 @@ import io.opencode.loopper.domain.MachineCandidateRunState;
 import io.opencode.loopper.lifecycle.LifecycleTransitionService;
 import io.opencode.loopper.persistence.CandidateSubmissionRunRow;
 import io.opencode.loopper.persistence.LoopperMapper;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.JsonNode;
 
 class PersistentMachineCandidateSubmissionTest {
     @ParameterizedTest
     @EnumSource(MachineCandidateKind.class)
-    void everyMcpRoleMayCorrectBeyondItsFormerSubmissionCap(MachineCandidateKind kind) {
+    void everyMcpRoleReturnsTheCompleteCandidateDiagnosticV2EnvelopeBeyondItsFormerSubmissionCap(
+            MachineCandidateKind kind) throws Exception {
         String owner = switch (kind) {
             case DECOMPOSITION_PLAN_V2 -> "TASK_DECOMPOSITION";
             case ACCEPTANCE_CLOSED_CHOICE_V7 -> "LOOP_SPEC_COMPILATION";
@@ -48,12 +53,63 @@ class PersistentMachineCandidateSubmissionTest {
                 JsonMapper.builder().build(), List.of(policy), List.of(), List.of());
 
         var result = submissions.submit(new MachineCandidateSubmission.SubmitCommand("run", "next", "{}",
-                row.version(), MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP));
+                row.version(), MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP,
+                MachineCandidateSubmission.SubmissionSchema.ROLE_SPECIFIC_V2));
 
         assertThat(result.outcome()).isEqualTo(MachineCandidateOutcome.REJECTED);
         assertThat(result.runState()).isEqualTo(MachineCandidateRunState.OPEN);
         assertThat(result.retryable()).isTrue();
         assertThat(result.remainingAttempts()).isNull();
         assertThat(result.attemptOrdinal()).isEqualTo(kind.maximumAttempts() + 1);
+        JsonNode response = JsonMapper.builder().build().readTree(result.responseJson());
+        assertThat(response.path("diagnosticVersion").asText()).isEqualTo("CANDIDATE_DIAGNOSTIC_V2");
+        assertThat(response.path("action").asText()).isEqualTo("FIX_AND_RESUBMIT");
+        assertThat(response.path("diagnosticsComplete").asBoolean()).isTrue();
+        assertThat(response.path("problemCount").asInt()).isGreaterThan(1);
+        assertThat(response.path("returnedProblemCount").asInt())
+                .isEqualTo(response.path("problemCount").asInt());
+        assertThat(response.path("truncated").asBoolean()).isFalse();
+        JsonNode valueProblem = java.util.stream.StreamSupport.stream(
+                        response.path("problems").spliterator(), false)
+                .filter(problem -> "VALUE_INVALID".equals(problem.path("code").asText()))
+                .findFirst().orElseThrow();
+        assertThat(valueProblem.path("parameter").asText()).isEqualTo("candidate");
+        assertThat(valueProblem.path("category").asText()).isEqualTo("VALUE");
+        assertThat(valueProblem.path("repairHint").asText()).contains("/value");
+    }
+
+    @Test
+    void trimsOversizedProblemSetsInsteadOfReplacingPreciseDiagnosticsWithAnInternalError() throws Exception {
+        MachineCandidateKind kind = MachineCandidateKind.REVIEWER_REPORT_V1;
+        var row = new CandidateSubmissionRunRow("run", "designer", null, null,
+                "ANALYSIS_REPORT", "owner", kind.name(), kind.name(), 1, 1,
+                "INTERNAL_MCP", kind.name(), "generation", "remote", "OPEN", kind.maximumAttempts(),
+                0, null, "now", "now", 0);
+        var mapper = mock(LoopperMapper.class);
+        when(mapper.findCandidateSubmissionRun("run")).thenReturn(Optional.of(row));
+        var policy = mock(CandidatePolicy.class);
+        when(policy.supports(kind)).thenReturn(true);
+        List<MachineCandidateSubmission.Problem> largeProblemSet = new ArrayList<>();
+        for (int index = 0; index < 64; index++) {
+            largeProblemSet.add(new MachineCandidateSubmission.Problem(
+                    "PROBLEM_" + index, "/field" + index, "d".repeat(1000),
+                    java.util.stream.IntStream.range(0, 32).mapToObj(value -> "v".repeat(200)).toList(),
+                    "candidate", MachineCandidateSubmission.ProblemCategory.VALUE,
+                    "e".repeat(1000), "a".repeat(1000), "r".repeat(1000)));
+        }
+        when(policy.evaluate(any(), anyString())).thenReturn(
+                CandidatePolicy.Decision.rejected(true, false, largeProblemSet, true));
+        var submissions = new PersistentMachineCandidateSubmission(mapper, mock(LifecycleTransitionService.class),
+                JsonMapper.builder().build(), List.of(policy), List.of(), List.of());
+
+        var result = submissions.submit(new MachineCandidateSubmission.SubmitCommand(
+                "run", "next", "{}", 0, MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP));
+
+        JsonNode response = JsonMapper.builder().build().readTree(result.responseJson());
+        assertThat(response.path("diagnosticsComplete").asBoolean()).isFalse();
+        assertThat(response.path("problemCount").isNull()).isTrue();
+        assertThat(response.path("truncated").asBoolean()).isTrue();
+        assertThat(response.path("returnedProblemCount").asInt()).isLessThan(64).isPositive();
+        assertThat(result.responseJson().getBytes(StandardCharsets.UTF_8)).hasSizeLessThanOrEqualTo(96 * 1024);
     }
 }

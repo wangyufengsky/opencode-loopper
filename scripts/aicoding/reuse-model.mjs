@@ -14,10 +14,10 @@ export function reuseModel(workspaces) {
     const used = following.flatMap(message => message.tool_calls ?? []).map(call => call.function?.name)
     const names = (body.tools ?? []).map(item => item.function?.name)
     if (content.includes('Produce one compact DECOMPOSITION_PLAN_V2 candidate')) {
-      if (used.some(name => name.endsWith('_submit_candidate'))) return { text: '拆包候选已提交。' }
+      if (used.some(name => name.endsWith('_submit_decomposition_plan'))) return { text: '拆包候选已提交。' }
       const segments = content.match(/Numbered immutable requirement segments:\n([\s\S]*?)\n\nComplete immutable requirement:/)[1]
       const refs = [...segments.matchAll(/^(RQ-\d+):/gm)].map(match => match[1])
-      return tool(names.find(name => /^loopper_internal_.*_submit_candidate$/.test(name)), {
+      return tool(names.find(name => /^loopper_internal_.*_submit_decomposition_plan$/.test(name)), {
         runId: content.match(/\nrunId: (.+)/)[1].trim(), idempotencyKey: randomUUID(),
         expectedSubmissionRevision: Number(content.match(/expectedSubmissionRevision: (\d+)/)[1]),
         candidate: { outcome: 'READY', normalizedGoal: '实现数学函数并验证结果', globalConstraints: [],
@@ -30,9 +30,9 @@ export function reuseModel(workspaces) {
     if (content.includes('PACKAGE_DESIGN_V1 PRIVATE SUBMISSION CONTRACT')) {
       if (names.includes('question') && !used.includes('question')) return tool('question', { questions: [{ header: '包内范围',
         question: '是否按当前包的加法验收继续设计？', options: [{ label: '确认', description: '继续当前包' }, { label: '补充', description: '补充设计约束' }] }] })
-      if (used.some(name => name.endsWith('_submit_candidate'))) return { text: '设计候选已提交。' }
-      const exact = content.match(/exact submit_candidate tool: (\S+)/)?.[1]
-      const name = names.find(name => name === exact || /^loopper_internal_.*_submit_candidate$/.test(name))
+      if (used.some(name => name.endsWith('_submit_package_design'))) return { text: '设计候选已提交。' }
+      const exact = content.match(/exact private tool `([^`]+)`/)?.[1]
+      const name = names.find(name => name === exact || /^loopper_internal_.*_submit_package_design$/.test(name))
       const slot = Number(content.match(/Current package WP-(\d+)/)?.[1] ?? 1) - 1
       const operation = ['sum', 'difference', 'product'][slot]
       const candidate = { contractVersion: 'PACKAGE_DESIGN_V1', outcome: 'READY',

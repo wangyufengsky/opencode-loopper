@@ -26,7 +26,7 @@ final class OpenCodePermissionPolicy {
                 // Router receives a bounded server snapshot and must remain a true zero-tool classifier.
                 // Other no-built-in roles may still use explicitly configured MCP evidence sources.
                 if (profile == OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS) {
-                    allowInternalSubmission(rules, internalMcpServer);
+                    allowInternalSubmission(rules, internalMcpServer, profile);
                 } else if (profile != OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS) {
                     allowMcp(rules, mcpServers, internalMcpServer);
                 }
@@ -59,7 +59,7 @@ final class OpenCodePermissionPolicy {
                     || profile == OpenCodeClient.SessionProfile.REVIEWER_CANDIDATE_READ_ONLY
                     || profile == OpenCodeClient.SessionProfile.PROJECT_CONVENTION_CANDIDATE_READ_ONLY
                     || profile == OpenCodeClient.SessionProfile.JUDGE_CANDIDATE_READ_ONLY) {
-                allowInternalSubmission(rules, internalMcpServer);
+                allowInternalSubmission(rules, internalMcpServer, profile);
             } else {
                 allowMcp(rules, mcpServers, internalMcpServer);
             }
@@ -108,9 +108,11 @@ final class OpenCodePermissionPolicy {
                 || profile == OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS;
     }
 
-    private static void allowInternalSubmission(List<Map<String, String>> rules, String internalMcpServer) {
+    private static void allowInternalSubmission(
+            List<Map<String, String>> rules, String internalMcpServer, OpenCodeClient.SessionProfile profile) {
         if (internalMcpServer != null && !internalMcpServer.isBlank()) {
-            rules.add(rule(sanitize(internalMcpServer) + "_submit_candidate", "*", "allow"));
+            InternalMcpContractCatalog.toolName(profile).ifPresent(toolName ->
+                    rules.add(rule(sanitize(internalMcpServer) + "_" + toolName, "*", "allow")));
         }
     }
 

@@ -26,7 +26,14 @@ public interface MachineCandidateSubmission {
             String contractVersion, String runtimeGenerationId, String externalSessionId, int maxAttempts) { }
 
     record SubmitCommand(String runId, String idempotencyKey, String candidateJson,
-                         long expectedSubmissionRevision, SubmissionChannel submissionChannel) { }
+                         long expectedSubmissionRevision, SubmissionChannel submissionChannel,
+                         SubmissionSchema submissionSchema) {
+        public SubmitCommand(String runId, String idempotencyKey, String candidateJson,
+                long expectedSubmissionRevision, SubmissionChannel submissionChannel) {
+            this(runId, idempotencyKey, candidateJson, expectedSubmissionRevision, submissionChannel,
+                    SubmissionSchema.LEGACY_COMPATIBLE);
+        }
+    }
     record CloseCommand(String runId, long expectedVersion, CandidateCloseReason reason) {
         public CloseCommand(String runId, long expectedVersion) {
             this(runId, expectedVersion, CandidateCloseReason.OWNER_REQUESTED);
@@ -138,13 +145,70 @@ public interface MachineCandidateSubmission {
         @Override public String description() { return description; }
     }
 
-    record Problem(String code, String pointer, String detail, List<String> allowedValues) {
+    enum SubmissionSchema implements DescribedEnum {
+        ROLE_SPECIFIC_V2("角色专属强类型结构"),
+        LEGACY_COMPATIBLE("冻结旧工具兼容结构");
+
+        private final String description;
+        SubmissionSchema(String description) { this.description = description; }
+        @Override public String description() { return description; }
+    }
+
+    enum ProblemCategory implements DescribedEnum {
+        SHAPE("候选结构"), TYPE("字段类型"), VALUE("字段值"), REFERENCE("闭集引用"),
+        SEMANTIC("业务语义"), AUTHORITY("服务端权威边界"), SECURITY("安全边界"), INTERNAL("内部故障");
+
+        private final String description;
+        ProblemCategory(String description) { this.description = description; }
+        @Override public String description() { return description; }
+    }
+
+    record Problem(String code, String pointer, String detail, List<String> allowedValues,
+                   String parameter, ProblemCategory category, String expected,
+                   String actual, String repairHint) {
         public Problem {
             allowedValues = List.copyOf(Objects.requireNonNull(allowedValues, "allowedValues"));
+            pointer = pointer == null || pointer.isBlank() ? "/candidate" : pointer;
+            parameter = parameter == null || parameter.isBlank() ? "candidate" : parameter;
+            category = category == null ? category(code) : category;
+            expected = expected == null || expected.isBlank()
+                    ? expected(code, allowedValues) : expected;
+            actual = actual == null || actual.isBlank()
+                    ? "value at " + pointer + " does not satisfy the declared contract" : actual;
+            repairHint = repairHint == null || repairHint.isBlank()
+                    ? "Replace " + parameter + pointer + " and resubmit the complete candidate" : repairHint;
+        }
+
+        public Problem(String code, String pointer, String detail, List<String> allowedValues) {
+            this(code, pointer, detail, allowedValues, null, null, null, null, null);
         }
 
         public Problem(String code, String pointer, String detail) {
             this(code, pointer, detail, List.of());
+        }
+
+        private static ProblemCategory category(String code) {
+            String value = code == null ? "" : code;
+            if (value.contains("AUTHORITY") || value.contains("FORBIDDEN")) return ProblemCategory.AUTHORITY;
+            if (value.contains("SECURITY")) return ProblemCategory.SECURITY;
+            if (value.contains("TYPE")) return ProblemCategory.TYPE;
+            if (value.contains("REFERENCE") || value.contains("_REF") || value.contains("UNKNOWN")) {
+                return ProblemCategory.REFERENCE;
+            }
+            if (value.contains("JSON") || value.contains("FIELD") || value.contains("ROOT")
+                    || value.contains("SHAPE") || value.contains("MISSING") || value.contains("REQUIRED")) {
+                return ProblemCategory.SHAPE;
+            }
+            if (value.contains("SEMANTIC") || value.contains("COVERAGE") || value.contains("DEPENDENCY")) {
+                return ProblemCategory.SEMANTIC;
+            }
+            return ProblemCategory.VALUE;
+        }
+
+        private static String expected(String code, List<String> allowedValues) {
+            return allowedValues.isEmpty()
+                    ? "value satisfying " + (code == null ? "the candidate contract" : code)
+                    : "one value from allowedValues";
         }
     }
 

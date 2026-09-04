@@ -186,16 +186,20 @@ fault induction from the unchanged server/tool/permission protocol; it is not a 
 reliability claim.
 
 The private `/api/internal-mcp-streamable` Router accepts only literal loopback
-addresses and constant-time Bearer matches. It registers exactly one tool,
-`submit_candidate`, plus private non-enumerable attachment resources; it does not contribute a `ToolCallbackProvider`, resource,
-prompt or completion to the public MCP. A candidate role receives only its exact
-random `<server>_submit_candidate` permission. Router and ordinary roles never receive the private candidate tool;
-only the dedicated Judge Candidate profile receives it for the staged Judge path; user MCP permissions remain
-governed by their existing role profiles. OpenCode 1.18.23's experimental tool
+addresses and constant-time Bearer matches. One private Server registers seven role-specific tools,
+`submit_decomposition_plan`, `submit_acceptance_choice`, `submit_package_design`,
+`submit_rolling_package_plan`, `submit_reviewer_report`, `submit_project_convention` and
+`submit_judge_decision`, plus recovery-only `submit_candidate` and private non-enumerable attachment
+resources; it does not contribute a `ToolCallbackProvider`, resource, prompt or completion to the public MCP.
+Every new candidate role receives only its exact random `<server>_<role-tool>` permission. It cannot call the
+legacy tool or a sibling role tool. Frozen launch plans may continue their persisted `submit_candidate` permission,
+but new plans cannot select it. Router and ordinary roles never receive a private candidate tool; user MCP
+permissions remain governed by their existing role profiles. OpenCode 1.18.23's experimental tool
 endpoints list built-ins but not MCP tools, so they are not an internal-MCP
 readiness proof. Loopper instead requires the exact server to be `connected` in
-`/mcp` and keeps the one-tool name/input schema under its own MCP `tools/list`
-integration contract.
+`/mcp` and keeps every role-tool name and closed input schema under its own MCP `tools/list`
+integration contract. Tool splitting reduces the model's schema and semantic choice surface; it does not create
+seven servers or seven persistence engines, and each call still carries one complete replacement candidate.
 
 `PACKAGE_DESIGN_V1` uses a fresh work-package-owned Session in the same managed
 process generation; Loopper never starts an OpenCode process per Task. Its normal
@@ -332,11 +336,14 @@ true tie may create one
 `ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS` Session and an
 `ACCEPTANCE_CLOSED_CHOICE_V7` run on `INTERNAL_MCP`. This profile has no built-in
 tools and no user-MCP wildcard; its sole grant is the exact generation-scoped
-`<server>_submit_candidate`. MCP submissions have no count limit in that
+`<server>_submit_acceptance_choice`. MCP submissions have no count limit in that
 same Session. Mechanical closed-set selection errors and safe JSON/field-shape contract errors are retryable;
 path, permission, execution, topology, security, non-enumerable, or non-exhaustive
-failures stop at `WAITING_INPUT`. Every retryable response carries bounded code, JSON Pointer, detail and
-allowed values, and the accepted projection is database-only and
+failures stop at `WAITING_INPUT`. Every retryable response uses `CANDIDATE_DIAGNOSTIC_V2`: each problem carries
+`parameter`, JSON `pointer`, `category`, `expected`, `actual`, `detail`, `allowedValues` and `repairHint`; the
+envelope carries `diagnosticsComplete`, `problemCount`, `returnedProblemCount`, `truncated`, `action` and the next
+`submissionRevision`. Independent request/shape/semantic problems are aggregated in one bounded pass, and the
+response declares when the bound prevents completeness. The accepted projection is database-only and
 cannot expand the frozen topology, mutation ownership, verifier, or permission
 surface.
 
@@ -450,7 +457,7 @@ directly; there is no Decomposer transport, prompt, Session, or role message. In
 explicitly enabled `FULL_PACKAGE_DESIGN`, confirmation supplies the frozen revision
 and read-only project context to Task Decomposer. On a ready managed generation,
 its built-ins are limited to `read/glob/grep` and its only MCP grant is the exact
-private `submit_candidate`; user MCP is intentionally absent from this candidate
+private `submit_decomposition_plan`; user MCP is intentionally absent from this candidate
 role. The tool result, not final assistant text, is authoritative. `REJECTED`
 returns all bounded deterministic problems and the next submission revision so
 the same Session can repair and resubmit; `ACCEPTED` atomically freezes the
@@ -611,7 +618,8 @@ available-at-execution dependency rather than `MISSING_SCOPE`. Compiler may only
 report a dependency-related semantic gap when neither the current design nor the
 frozen predecessor contract defines the required behavior/API.
 
-All seven private candidate roles use uncapped `INTERNAL_MCP` submissions from V69.
+All seven private candidate roles use uncapped `INTERNAL_MCP` submissions from V69 and role-specific
+strongly typed tools from 0.3.60.
 On a retryable REJECTED response, correct the full object and resubmit using a fresh
 idempotency key and the returned submissionRevision. `submissionCountLimited=false`
 and `remainingAttempts=null` mean no count limit; ACCEPTED and WAITING_INPUT still
@@ -626,8 +634,10 @@ to package/constraint indices. The persistent candidate run binds the exact owne
 submission channel, external Session and runtime generation. INTERNAL_MCP submissions have no count limit;
 idempotency replays the same safe response, while key reuse with different content fails closed. Policy
 evaluation is deterministic and accepted projection shares one short transaction with the terminal attempt.
-Rejected payload values never appear in persisted problems or safe responses: problem codes, JSON Pointers,
-detail text and allowed values are selected from server-owned bounded templates only. Candidate-local semantic
+Rejected payload values never appear in persisted problems or safe responses: problem codes, parameters,
+JSON Pointers, categories, expected/actual type summaries, detail text, allowed values and repair hints are selected
+from server-owned bounded templates only. Request envelope and candidate shape validation collect independent
+problems before returning, while `diagnosticsComplete=false` or `truncated=true` forbids treating the list as exhaustive. Candidate-local semantic
 omissions may therefore receive actionable field guidance without echoing the submitted value.
 For v6 acceptance, the server preserves the Designer's 1–6 direct Stages
 or 1–3 Stages per large package; an optional one-turn Compiler fills only enumerated fact/capability holes.

@@ -18,6 +18,8 @@ class InternalMcpCredentialProviderTest {
         assertThat(first.serverName()).startsWith("loopper_internal_");
         assertThat(first.exactToolName())
                 .isEqualTo(first.serverName() + "_submit_candidate");
+        assertThat(first.exactToolName(io.opencode.loopper.domain.MachineCandidateKind.REVIEWER_REPORT_V1))
+                .isEqualTo(first.serverName() + "_submit_reviewer_report");
         assertThat(first.generation()).isNotEqualTo(second.generation());
         assertThat(first.serverName()).isNotEqualTo(second.serverName());
         assertThat(first.bearerToken()).isNotEqualTo(second.bearerToken());

@@ -31,13 +31,18 @@ import tools.jackson.databind.ObjectMapper;
 @Service
 public final class PersistentMachineCandidateSubmission implements MachineCandidateSubmission {
     private static final int MAX_CANDIDATE_BYTES = 128 * 1024;
-    private static final int MAX_PROBLEMS = 16;
+    private static final int MAX_PROBLEMS = 64;
     private static final int MAX_PROBLEM_CODE_BYTES = 64;
     private static final int MAX_PROBLEM_POINTER_BYTES = 256;
     private static final int MAX_PROBLEM_DETAIL_BYTES = 1024;
+    private static final int MAX_PROBLEM_PARAMETER_BYTES = 128;
+    private static final int MAX_PROBLEM_EXPECTED_BYTES = 1024;
+    private static final int MAX_PROBLEM_ACTUAL_BYTES = 1024;
+    private static final int MAX_PROBLEM_REPAIR_HINT_BYTES = 1024;
     private static final int MAX_ALLOWED_VALUES = 32;
     private static final int MAX_ALLOWED_VALUE_BYTES = 256;
-    private static final int MAX_SAFE_JSON_BYTES = 16 * 1024;
+    private static final int MAX_SAFE_JSON_BYTES = 96 * 1024;
+    private static final int MAX_PROBLEMS_JSON_BYTES = 72 * 1024;
 
     private final LoopperMachineCandidateMapper mapper;
     private final LifecycleTransitionService lifecycle;
@@ -107,7 +112,8 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
         validateGuards(run, command.submissionChannel());
 
         CandidatePolicy.Context context = context(run);
-        CandidatePolicy.Decision decision = policy(run).evaluate(context, command.candidateJson());
+        CandidatePolicy.Decision decision = evaluate(run, context, command.candidateJson(),
+                command.submissionSchema());
         ValidatedDecision validated = validateDecision(decision, context.candidateKind());
         return persist(command, requestSha, run, context, validated);
     }
@@ -180,7 +186,8 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
         String attemptId = UUID.randomUUID().toString();
         String canonicalSha = decision.accepted() ? sha256(decision.canonicalCandidateJson()) : null;
         boolean retryable = outcome == MachineCandidateOutcome.REJECTED && decision.retryable();
-        SubmissionResult result = result(run, outcome, target, ordinal, retryable, decision.problems(), canonicalSha);
+        SubmissionResult result = result(run, outcome, target, ordinal, retryable, decision.problems(),
+                decision.diagnosticsComplete(), canonicalSha);
         String problemsJson = boundedJson(result.problems(), "Candidate problems");
         String responseJson = result.responseJson();
         String now = Instant.now().toString();
@@ -220,7 +227,7 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
 
     private SubmissionResult result(CandidateSubmissionRunRow run, MachineCandidateOutcome outcome,
                                     MachineCandidateRunState state, int ordinal, boolean retryable,
-                                    List<Problem> problems, String canonicalSha) {
+                                    List<Problem> problems, boolean diagnosticPassComplete, String canonicalSha) {
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("runId", run.id());
         response.put("outcome", outcome.name());
@@ -229,6 +236,13 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
         response.put("remainingAttempts", remainingAttempts(run, ordinal));
         response.put("submissionCountLimited", remainingAttempts(run, ordinal) != null);
         response.put("retryable", retryable);
+        boolean diagnosticsComplete = diagnosticPassComplete && problems.size() < MAX_PROBLEMS;
+        response.put("diagnosticVersion", "CANDIDATE_DIAGNOSTIC_V2");
+        response.put("action", action(outcome));
+        response.put("diagnosticsComplete", diagnosticsComplete);
+        response.put("problemCount", diagnosticsComplete ? problems.size() : null);
+        response.put("returnedProblemCount", problems.size());
+        response.put("truncated", !diagnosticsComplete);
         response.put("problems", problems);
         response.put("submissionRevision", run.version() + 1);
         if (canonicalSha != null) response.put("canonicalResultSha256", canonicalSha);
@@ -236,6 +250,50 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
         return new SubmissionResult(run.id(), outcome, state, ordinal,
                 remainingAttempts(run, ordinal), retryable, problems, canonicalSha,
                 run.version() + 1, responseJson);
+    }
+
+    private CandidatePolicy.Decision evaluate(CandidateSubmissionRunRow run,
+            CandidatePolicy.Context context, String candidateJson, SubmissionSchema submissionSchema) {
+        CandidatePolicy.Decision semantic = policy(run).evaluate(context, candidateJson);
+        if (submissionSchema == SubmissionSchema.LEGACY_COMPATIBLE) return semantic;
+        CandidateShapeValidator.Result shape = CandidateShapeValidator.validate(
+                json, context.candidateKind(), candidateJson);
+        if (shape.problems().isEmpty()) {
+            return new CandidatePolicy.Decision(semantic.accepted(), semantic.canonicalCandidateJson(),
+                    semantic.retryable(), semantic.fallbackEligible(), semantic.problems(),
+                    semantic.diagnosticsComplete() && semantic.problems().size() < MAX_PROBLEMS);
+        }
+        List<Problem> merged = new ArrayList<>();
+        boolean complete = appendDistinct(merged, shape.problems());
+        complete &= appendDistinct(merged, semantic.problems());
+        complete &= shape.complete() && semantic.diagnosticsComplete();
+        boolean safeShape = shape.problems().stream().noneMatch(problem ->
+                problem.category() == ProblemCategory.AUTHORITY
+                        || problem.category() == ProblemCategory.SECURITY);
+        boolean retryable = safeShape && (semantic.accepted() || semantic.retryable());
+        return CandidatePolicy.Decision.rejected(retryable,
+                semantic.fallbackEligible() && retryable, merged, complete);
+    }
+
+    private static boolean appendDistinct(List<Problem> target, List<Problem> source) {
+        boolean complete = true;
+        for (Problem problem : source) {
+            boolean duplicate = target.stream().anyMatch(existing -> existing.code().equals(problem.code())
+                    && existing.pointer().equals(problem.pointer()));
+            if (duplicate) continue;
+            if (target.size() < MAX_PROBLEMS) target.add(problem);
+            else complete = false;
+        }
+        return complete;
+    }
+
+    private static String action(MachineCandidateOutcome outcome) {
+        return switch (outcome) {
+            case ACCEPTED -> "STOP_ACCEPTED";
+            case REJECTED -> "FIX_AND_RESUBMIT";
+            case WAITING_INPUT -> "STOP_AND_WAIT_FOR_INPUT";
+            case FALLBACK_REQUIRED -> "STOP_AND_USE_MARKDOWN_FALLBACK";
+        };
     }
 
     /** Null means unlimited, not exhausted. maxAttempts remains immutable historical contract metadata for MCP. */
@@ -281,13 +339,20 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
             if (problem == null || blank(problem.code()) || !problem.code().matches("[A-Z0-9_]+")
                     || bytes(problem.code()) > MAX_PROBLEM_CODE_BYTES || bytes(nullToEmpty(problem.pointer())) > MAX_PROBLEM_POINTER_BYTES
                     || blank(problem.detail()) || bytes(problem.detail()) > MAX_PROBLEM_DETAIL_BYTES
+                    || blank(problem.parameter()) || bytes(problem.parameter()) > MAX_PROBLEM_PARAMETER_BYTES
+                    || problem.category() == null
+                    || blank(problem.expected()) || bytes(problem.expected()) > MAX_PROBLEM_EXPECTED_BYTES
+                    || blank(problem.actual()) || bytes(problem.actual()) > MAX_PROBLEM_ACTUAL_BYTES
+                    || blank(problem.repairHint())
+                    || bytes(problem.repairHint()) > MAX_PROBLEM_REPAIR_HINT_BYTES
                     || problem.allowedValues() == null || problem.allowedValues().size() > MAX_ALLOWED_VALUES
                     || problem.allowedValues().stream().anyMatch(value -> blank(value)
                         || bytes(value) > MAX_ALLOWED_VALUE_BYTES)) {
                 throw new IllegalStateException("Candidate policy returned an invalid problem");
             }
             problems.add(new Problem(problem.code(), nullToEmpty(problem.pointer()), problem.detail(),
-                    problem.allowedValues()));
+                    problem.allowedValues(), problem.parameter(), problem.category(), problem.expected(),
+                    problem.actual(), problem.repairHint()));
         }
         if (decision.accepted()) {
             if (!problems.isEmpty() || blank(decision.canonicalCandidateJson()) || decision.fallbackEligible()) {
@@ -303,9 +368,17 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
         if (decision.fallbackEligible() && !decision.retryable()) {
             throw new IllegalStateException("Fallback eligibility requires a retryable package-design rejection");
         }
-        boundedJson(problems, "Candidate problems");
+        boolean diagnosticsComplete = decision.diagnosticsComplete();
+        while (!problems.isEmpty() && serializedBytes(problems, "Candidate problems") > MAX_PROBLEMS_JSON_BYTES) {
+            problems.removeLast();
+            diagnosticsComplete = false;
+        }
+        if (!decision.accepted() && problems.isEmpty()) {
+            throw new IllegalStateException("Candidate problems cannot fit the diagnostic envelope");
+        }
         return new ValidatedDecision(decision.accepted(), decision.canonicalCandidateJson(),
-                decision.retryable(), decision.fallbackEligible(), List.copyOf(problems));
+                decision.retryable(), decision.fallbackEligible(), List.copyOf(problems),
+                diagnosticsComplete);
     }
 
     private void validateJsonObject(String value) {
@@ -359,6 +432,9 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
                 || bytes(command.idempotencyKey()) > 128 || blank(command.candidateJson())
                 || command.expectedSubmissionRevision() < 0 || command.submissionChannel() == null) {
             throw new BadRequestException("CANDIDATE_SUBMISSION_INVALID", "候选提交参数不完整");
+        }
+        if (command.submissionSchema() == null) {
+            throw new BadRequestException("CANDIDATE_SUBMISSION_SCHEMA_INVALID", "候选提交结构代际缺失");
         }
         if (bytes(command.candidateJson()) > MAX_CANDIDATE_BYTES) {
             throw new BadRequestException("CANDIDATE_TOO_LARGE", "候选 JSON 超过 128 KiB");
@@ -449,8 +525,16 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
     private String boundedJson(Object value, String label) {
         try {
             String encoded = json.writeValueAsString(value);
-            if (bytes(encoded) > MAX_SAFE_JSON_BYTES) throw new IllegalStateException(label + " exceeds 16 KiB");
+            if (bytes(encoded) > MAX_SAFE_JSON_BYTES) throw new IllegalStateException(label + " exceeds 96 KiB");
             return encoded;
+        } catch (JacksonException failure) {
+            throw new IllegalStateException(label + " cannot be serialized", failure);
+        }
+    }
+
+    private int serializedBytes(Object value, String label) {
+        try {
+            return bytes(json.writeValueAsString(value));
         } catch (JacksonException failure) {
             throw new IllegalStateException(label + " cannot be serialized", failure);
         }
@@ -470,5 +554,6 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
     private static String nullToEmpty(String value) { return value == null ? "" : value; }
 
     private record ValidatedDecision(boolean accepted, String canonicalCandidateJson,
-                                     boolean retryable, boolean fallbackEligible, List<Problem> problems) { }
+                                     boolean retryable, boolean fallbackEligible, List<Problem> problems,
+                                     boolean diagnosticsComplete) { }
 }
