@@ -105,6 +105,31 @@ class DesignerActivityServiceTest {
     }
 
     @Test
+    void routerHidesTheOpenCodeStepLimitControlNotice() {
+        DesignerSessionRow session = session("ROUTING", null);
+        TaskProfileRouterRunRow router = new TaskProfileRouterRunRow("router-step-limit", session.id(), "RUNNING", "req",
+                "[]", "router-remote", "RUNNING", "TEXT_MARKER", null, null, null, "now", "now", 0);
+        OpenCodeClient.OpenCodeSession remote = remote("router-remote");
+        when(mapper.findDesignerSession(session.id())).thenReturn(Optional.of(session));
+        when(mapper.findLatestTaskProfileRouterRun(session.id())).thenReturn(Optional.of(router));
+        when(projects.get(session.projectId())).thenReturn(project());
+        when(openCode.sessionStatus(remote)).thenReturn(new OpenCodeClient.SessionStatus("RUNNING"));
+        when(openCode.sessionTranscript(remote)).thenReturn(new OpenCodeClient.SessionTranscript(List.of(
+                new OpenCodeClient.SessionPart("output", "OUTPUT", "assistant", """
+                        CRITICAL - MAXIMUM STEPS REACHED
+                        The maximum number of steps allowed for this task has been reached. Tools are disabled until next user input.
+                        Respond with text only.
+                        """, null))));
+
+        DesignerActivityService.View view = activities.activity(session.id());
+
+        assertThat(view.parts()).singleElement().satisfies(part -> {
+            assertThat(part.content()).isEqualTo("正在整理任务设置识别结果…");
+            assertThat(part.content()).doesNotContain("MAXIMUM STEPS", "Tools are disabled");
+        });
+    }
+
+    @Test
     void activeRerouteWinsOverTheCompletedRequirementDesignerProjection() {
         DesignerSessionRow session = session("DISCUSSING_REQUIREMENT", "completed-designer");
         TaskProfileRouterRunRow router = new TaskProfileRouterRunRow("router-2", session.id(), "RUNNING", "req",

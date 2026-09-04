@@ -247,9 +247,11 @@ do not trigger the Node family. Router test-artifact aliases such as `TEST_SOURC
 source code rather than failing the profile.
 The Router profile is a true zero-tool classifier: it denies every built-in tool, including
 read/glob/grep/question, skips MCP discovery, and does not allow configured MCP tools. A managed
-runtime selects the private one-step, zero-temperature `loopper-router` agent and the non-thinking
-variant where available. Its prompt forbids repository exploration, design, implementation planning,
-and reasoning exposition, and requires the closed object immediately. It uses the
+runtime selects the private zero-temperature `loopper-router` agent with a two-step transport cap and the
+non-thinking variant where available. Its prompt forbids repository exploration, design, implementation
+planning, and reasoning exposition, and requires the closed object immediately. The business contract remains
+one-shot: the second transport step exists only because OpenCode replaces its configured final step
+with a tool-disabled summary prompt, so a cap of one would overwrite the first Router call. It uses the
 fixed marker envelope rather than an OpenCode JSON Schema response format, avoiding the desktop
 Session-loader incompatibility that rejects a persisted `{type: json_schema, schema: ...}` object.
 The V2 server contract contains only those three classification labels; V1 extra fields remain
@@ -545,7 +547,8 @@ tool list that weakens them.
 The local UI reads `GET /api/designer-sessions/{id}/activity` every 1.2 seconds. Interactive
 Designer activity may project bounded `THINKING`, `OUTPUT`, and `TOOL` parts from the active
 remote Session. Router uses the same bounded part types in its dedicated modal, but any marker,
-JSON-like object, or task-profile field is replaced by **正在整理任务设置识别结果** before it
+JSON-like object, task-profile field, or recognized OpenCode maximum-step control notice is replaced by
+**正在整理任务设置识别结果** before it
 crosses the API. Decomposer, Compiler, Reviewer, repair, and finalizer expose only tool parts plus
 the persisted authoritative workflow step; raw structured planning JSON is never returned as an
 activity fragment. Tool names, status, bounded arguments, and bounded
@@ -604,8 +607,9 @@ Machine-response profiles in this group select `loopper-structured-unbounded`, w
 definition omits `steps`; ordinary interactive Designer and Implementation keep their normal agents.
 Decomposer, Compiler (including binding, repair and acceptance choice), rolling package planning,
 project convention and generic non-Judge finalizers retain `loopper-structured` with 24 steps.
-Router retains the separate one-step `loopper-router`; story accounting retains its separate two-step
-command agent. A legacy explicit bounded-agent request cannot reintroduce the limit for an exempt role.
+Router retains one business classification response through the separate `loopper-router` and uses a
+two-step OpenCode transport cap; story accounting retains its separate two-step command agent. A legacy
+explicit bounded-agent request cannot reintroduce the limit for an exempt role.
 External runtimes do not receive the new private agent name; their own configuration remains operator-owned.
 Neither agent output becomes authoritative without server validation.
 

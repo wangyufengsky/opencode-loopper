@@ -35,7 +35,7 @@ class OpenCodeRuntimeManagerTest {
                 """, java.util.Map.of(
                 "mcp", java.util.Map.of("loopper_internal_test", java.util.Map.of(
                         "type", "remote", "url", "http://127.0.0.1:18083/api/internal-mcp-streamable")),
-                "agent", java.util.Map.of("loopper-router", java.util.Map.of("steps", 1)),
+                "agent", OpenCodeAgentPolicy.managedDefinitions(),
                 "permission", java.util.Map.of("external_directory", "deny")));
 
         tools.jackson.databind.JsonNode root = new tools.jackson.databind.ObjectMapper().readTree(merged);
@@ -45,7 +45,7 @@ class OpenCodeRuntimeManagerTest {
                 .isEqualTo("remote");
         assertThat(root.path("agent").path("personal").path("description").asText())
                 .isEqualTo("user agent");
-        assertThat(root.path("agent").path("loopper-router").path("steps").asInt()).isEqualTo(1);
+        assertThat(root.path("agent").path("loopper-router").path("steps").asInt()).isEqualTo(2);
         assertThat(root.path("permission").path("question").asText()).isEqualTo("allow");
         assertThat(root.path("permission").path("external_directory").asText()).isEqualTo("deny");
     }
@@ -256,7 +256,7 @@ class OpenCodeRuntimeManagerTest {
                 .contains("external_directory", "git push *", "deepseek-v4-flash",
                         "loopper-no-thinking", "\"thinking\":{\"type\":\"disabled\"}",
                         "loopper-structured", "\"steps\":24", "\"temperature\":0.0",
-                        "Never retry the same tool call", "loopper-router", "\"steps\":1",
+                        "Never retry the same tool call", "loopper-router", "\"steps\":2",
                         "Classify the supplied requirement in one response");
         assertThat(capturedCommand.get().toString()).doesNotContain(capturedEnvironment.get().get("OPENCODE_SERVER_PASSWORD"));
         var agents = new tools.jackson.databind.ObjectMapper().readTree(
@@ -264,7 +264,7 @@ class OpenCodeRuntimeManagerTest {
         assertThat(agents.path("loopper-structured-unbounded").isObject()).isTrue();
         assertThat(agents.path("loopper-structured-unbounded").has("steps")).isFalse();
         assertThat(agents.path("loopper-structured").path("steps").asInt()).isEqualTo(24);
-        assertThat(agents.path("loopper-router").path("steps").asInt()).isEqualTo(1);
+        assertThat(agents.path("loopper-router").path("steps").asInt()).isEqualTo(2);
 
         HttpOpenCodeClient client = new HttpOpenCodeClient(org.springframework.web.client.RestClient.builder(), manager::connectionForClient);
         assertThat(client.healthy()).isTrue();

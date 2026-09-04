@@ -2,6 +2,7 @@ package io.opencode.loopper.service;
 
 import io.opencode.loopper.config.LoopperProperties;
 import io.opencode.loopper.domain.ArtifactKind;
+import io.opencode.loopper.domain.SessionFailure;
 import io.opencode.loopper.domain.TaskIntent;
 import io.opencode.loopper.runtime.OpenCodeClient;
 import java.nio.file.Path;
@@ -74,6 +75,9 @@ public final class TaskSemanticRouter {
                 output = json.writeValueAsString(result.structured());
             } else output = openCode.sessionOutput(session);
             return PollResult.completed(parse(output));
+        } catch (SessionFailure failure) {
+            abortQuietly(session);
+            return PollResult.failed(failure.code(), safe(failure.getMessage()));
         } catch (Exception failure) {
             abortQuietly(session);
             return PollResult.failed("ROUTER_OUTPUT_INVALID", safe(failure.getMessage()));

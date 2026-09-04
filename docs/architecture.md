@@ -189,7 +189,9 @@ through a fixed marker envelope and the closed `TASK_PROFILE_ROUTER_V2` contract
 extra fields remain parse-compatible but cannot influence technology or confidence. Router deliberately does not persist an
 OpenCode JSON Schema response format because affected OpenCode desktop versions reject that stored
 shape while loading the Session. Router skips MCP discovery, denies every built-in and configured MCP
-tool, and on a managed runtime uses a one-step, zero-temperature, non-thinking `loopper-router` Agent.
+tool, and on a managed runtime uses a two-step transport cap, zero-temperature, non-thinking
+`loopper-router` Agent. The Router still accepts one business classification response: the second
+transport step only prevents OpenCode from replacing the first call with its final-step control prompt.
 Its prompt allows only immediate task classification and forbids repository search, design, implementation
 planning, or reasoning exposition. Technology/component selection and confidence are derived only from
 bounded server evidence plus agreement with those three labels. The AI Router never owns permissions,
@@ -968,7 +970,8 @@ a new lifecycle state or evidence source.
 
 Managed runtimes define a private `loopper-structured` machine-response agent capped at 24 agentic steps.
 Decomposer, Compiler, and Judge select it to bound read-only exploration; Router instead selects the
-one-step zero-tool `loopper-router` agent. These do not replace Loopper model-call, repair,
+zero-tool `loopper-router` agent with a two-step OpenCode transport cap for one-shot classification.
+These do not replace Loopper model-call, repair,
 timeout, validation, or lifecycle authority. OpenCode `RETRY` remains a
 transient external Session projection for every caller: Loopper keeps the same
 remote Session, while Designer workflows also remain `RUNNING`, so provider

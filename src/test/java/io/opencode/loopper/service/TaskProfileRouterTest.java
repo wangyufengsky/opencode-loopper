@@ -3,6 +3,7 @@ package io.opencode.loopper.service;
 import io.opencode.loopper.domain.ExecutionStrategy;
 import io.opencode.loopper.domain.ArtifactKind;
 import io.opencode.loopper.domain.TaskIntent;
+import io.opencode.loopper.domain.SessionFailure;
 import io.opencode.loopper.domain.TestPolicy;
 import io.opencode.loopper.domain.WorkflowTemplate;
 import io.opencode.loopper.config.LoopperProperties;
@@ -84,6 +85,22 @@ class TaskProfileRouterTest {
         assertThat(result.completed()).isTrue();
         assertThat(result.labels()).isEqualTo(new TaskProfileRouter.SemanticLabels(
                 TaskIntent.SOFTWARE_CHANGE, java.util.List.of(ArtifactKind.SOURCE_CODE), "SIMPLE"));
+    }
+
+    @Test void preservesTheSpecificOpenCodeStepLimitFailure() {
+        OpenCodeClient client = mock(OpenCodeClient.class);
+        tools.jackson.databind.ObjectMapper json = new tools.jackson.databind.ObjectMapper();
+        TaskSemanticRouter semanticRouter = new TaskSemanticRouter(client, new LoopperProperties(), json,
+                new AiOutputExtractor(json));
+        when(client.sessionStatus(any())).thenReturn(new OpenCodeClient.SessionStatus("COMPLETED", null));
+        when(client.sessionOutput(any())).thenThrow(new SessionFailure("OPENCODE_STEP_LIMIT_REACHED",
+                "OpenCode 返回了步数上限控制提示，本轮没有可用的业务结果。"));
+
+        TaskSemanticRouter.PollResult result = semanticRouter.poll(root, "router-step-limit", "TEXT_MARKER");
+
+        assertThat(result.failed()).isTrue();
+        assertThat(result.errorCode()).isEqualTo("OPENCODE_STEP_LIMIT_REACHED");
+        assertThat(result.errorDetail()).contains("步数上限控制提示");
     }
 
     @Test void routesPythonScriptWithoutJavaAssumptions() throws Exception {

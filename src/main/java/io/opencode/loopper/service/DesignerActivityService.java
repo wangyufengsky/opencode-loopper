@@ -6,6 +6,7 @@ import io.opencode.loopper.persistence.AnalysisReportRow;
 import io.opencode.loopper.persistence.DesignerSessionRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.runtime.OpenCodeClient;
+import io.opencode.loopper.runtime.OpenCodeStepLimitNotice;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
@@ -120,7 +121,7 @@ public final class DesignerActivityService {
 
     private Part routerPart(OpenCodeClient.SessionPart source) {
         String content = source.content();
-        if (looksLikeRouterObject(content)) {
+        if (looksLikeRouterObject(content) || OpenCodeStepLimitNotice.isControlNotice(content)) {
             content = "正在整理任务设置识别结果…";
         }
         return new Part(source.id(), source.type(), source.label(), boundedContent(content),

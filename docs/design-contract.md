@@ -219,8 +219,8 @@ snapshot and safe activity every 1.2 seconds. The dialog cannot be closed by its
 mask, or Escape key and displays real elapsed time, remote state, latest bounded activity, and
 provider-reported Token usage. It does not show a timeout limit: after the remote Session is
 connected there is no Router wall-clock deadline, and the server waits for its real terminal state. It never
-renders an estimated progress percentage or raw Router object. Marker or JSON-like fragments are
-replaced by **正在整理任务设置识别结果**.
+renders an estimated progress percentage or raw Router object. Marker, JSON-like fragments, and a
+recognized OpenCode maximum-step control notice are replaced by **正在整理任务设置识别结果**.
 
 The first successful ordinary-mode result remains in `ROUTING` and blocks requirement-Designer
 creation until a versioned decision is saved. The result dialog separates **识别置信度** from
@@ -714,7 +714,8 @@ have no fixed agentic-step limit, including package candidates and Judge finaliz
 roles in this group select the zero-temperature `loopper-structured-unbounded` agent with no `steps`
 setting. Decomposer, Compiler/binding/repair/acceptance choice, rolling package planning,
 project convention and generic non-Judge finalizers retain the 24-step `loopper-structured` agent;
-Router retains one step and the separate story-accounting command retains two. Loopper derives
+Router retains one business classification response with a two-step OpenCode transport cap, and the
+separate story-accounting command retains two. Loopper derives
 its message-count check and managed agent from the same role policy. Three consecutive calls with the same normalized
 tool name and arguments trigger an immediate best-effort abort and at most one
 persisted, built-in-tools-disabled finalizer Session for that role step. Configured MCP tools
@@ -820,7 +821,8 @@ does not accumulate activity history. Interactive Designer content uses the same
 presentation as persisted messages and may show bounded thinking, incremental output, and
 ordinary/MCP tool calls with name, status, arguments, and output. The task-settings Router reuses
 the same activity component inside its modal and may show bounded thinking, output, and tool
-fragments after server redaction; any marker or JSON-like result becomes a neutral整理提示.
+fragments after server redaction; any marker, JSON-like result, or recognized OpenCode maximum-step
+control notice becomes a neutral整理提示.
 Other structured roles render only the latest tool activity and their authoritative step. Raw
 Router, Decomposer, Compiler, Reviewer, repair, finalizer, or Judge JSON is never shown. Reconnect
 keeps that one latest fragment until a newer authoritative observation arrives.

@@ -33,8 +33,9 @@ Java、Python、Node、混合栈、通用软件、Markdown/DOCX、表格转换�
 各自组合提示，不能把其他栈或非软件流程的示例注入当前 Compiler。
 
 Router 使用独立 `ROUTER_NO_TOOLS` Session；它不执行 MCP 发现并拒绝全部内置与 MCP 工具，
-只读取服务端提供的需求快照完成单次分类；仓库画像不进入模型提示。受管运行时为它选择单步、零温度、
-非思考的 `loopper-router` Agent；提示明确禁止仓库搜索、方案设计、实现推演和解释。Router 固定使用 marker 信封承载
+只读取服务端提供的需求快照完成单次业务分类；仓库画像不进入模型提示。受管运行时为它选择 2 步 OpenCode
+传输上限、零温度、非思考的 `loopper-router` Agent；第 2 步仅用于避开 OpenCode 把配置的最后一步替换为收束提示，
+不会增加第二次业务分类。提示明确禁止仓库搜索、方案设计、实现推演和解释。Router 固定使用 marker 信封承载
 `TASK_PROFILE_ROUTER_V2` 闭集对象，不向 OpenCode Session 持久化 JSON Schema 响应格式，
 以兼容会在加载该格式时崩溃的桌面版本；服务端解析与闭集校验没有放宽。它只返回
 `intent / artifactKinds（恰好一个主要制品）/ complexity`；V1 的额外字段仅兼容读取，不能参与决策。
@@ -450,9 +451,11 @@ Pointer 一次返回。AI 应在同一个补丁中修完全部列出问题，避
 Reviewer（Legacy/MCP）和 Requirement/Risk Judge（Legacy/MCP/工具循环收尾）不设固定上限。
 受管机器响应角色使用不含 `steps` 的 `loopper-structured-unbounded`，本地计步检查遵守同一策略；
 重复工具检测和结构化格式检查继续生效。Decomposer、Compiler（含绑定、修复、验收选择）、
-滚动规划、项目公约及非 Judge 通用 finalizer 保留 24 步，Router 保留 1 步，独立统计命令保留 2 步。
+滚动规划、项目公约及非 Judge 通用 finalizer 保留 24 步，Router 保留单次业务分类并使用 2 步 OpenCode
+传输上限，独立统计命令保留 2 步。
 这些步数不是 Task 尝试次数或 MCP 提交次数，也不改变角色超时、权限和业务验收。
-OpenCode 返回的最大步数控制提示以 `OPENCODE_STEP_LIMIT_REACHED` 明确失败，不能进入设计稿或验收编译。
+OpenCode 返回的最大步数控制提示以 `OPENCODE_STEP_LIMIT_REACHED` 明确失败，Router 轮询保留该具体错误码，
+活动投影隐藏控制原文，且该提示不能进入设计稿或验收编译。
 
 ## Judge、项目公约与 Designer
 
