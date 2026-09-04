@@ -344,8 +344,11 @@ path, permission, execution, topology, security, non-enumerable, or non-exhausti
 failures stop at `WAITING_INPUT`. Every retryable response uses `CANDIDATE_DIAGNOSTIC_V2`: each problem carries
 `parameter`, JSON `pointer`, `category`, `expected`, `actual`, `detail`, `allowedValues` and `repairHint`; the
 envelope carries `diagnosticsComplete`, `problemCount`, `returnedProblemCount`, `truncated`, `action` and the next
-`submissionRevision`. `actual` is rendered from the exact bounded candidate-local value at that pointer; semantic
-problems additionally identify the affected fact key, stage or evidence item and, when required to disambiguate the
+`submissionRevision`. `actual` is rendered from the exact bounded candidate-local value at that pointer; a root
+`/candidate` problem uses only the object type, UTF-8 size and top-level-field summary rather than echoing the full
+candidate. Every diagnostic text and allowed value is bounded by UTF-8 bytes, not Java character count; any field-level
+truncation sets `diagnosticsComplete=false / truncated=true` without converting a retryable rejection into an internal
+failure. Semantic problems additionally identify the affected fact key, stage or evidence item and, when required to disambiguate the
 model's own statement, its bounded candidate-authored sentence. Placeholder phrases such as `value satisfying ...`,
 `does not satisfy the declared contract`, or `Replace candidate` are not valid V2 diagnostics. Independent
 request/shape/semantic problems are aggregated in one bounded pass, and the response declares when the bound

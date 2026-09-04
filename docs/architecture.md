@@ -510,6 +510,9 @@ attempt ordinals and submission revisions keep increasing. Retryable classificat
 shape errors and candidate-owned semantic omissions, not only syntax or reference mechanics; the response must
 include bounded code, JSON Pointer, actionable detail and allowed values. Exact idempotent replay
 preserves the original response, including historical numeric remaining counts.
+Diagnostic text and allowed values are bounded by UTF-8 bytes. A root `/candidate` problem records only a typed
+size/top-level-field summary instead of duplicating the submitted object; field-level truncation marks the envelope
+incomplete but cannot turn a retryable rejection into an internal submission failure.
 `max_attempts` remains immutable legacy-budget / launch-identity metadata; only
 `IN_PROCESS_LEGACY` still enforces it. V69 uses the V59 FK-safe rebuild pattern inside
 an explicit SQLite savepoint, preserves all run indexes/triggers and child references,
@@ -656,12 +659,13 @@ never allowed to submit those authoritative fields. Equivalent MCP and Markdown
 semantics must compile to the same deterministic result.
 
 `CandidateDiagnosticEnricher` is the common diagnostic seam after every role-specific policy. It resolves each
-problem's exact JSON Pointer against the submitted role object and supplies a bounded typed `actual` value while
+problem's exact JSON Pointer against the submitted role object and supplies a UTF-8-byte-bounded typed `actual` value while
 preserving the role compiler's expected constraint and repair. `PackageDesignCandidateDiagnostics` is the deeper
 package-design adapter: it maps acceptance fact indexes back to `SC-* / REV-*`, candidate-authored source sentences,
 exact `stages[i].includes[j]` locations and all matching verification capabilities. The resolver may still preserve
 frozen v6/v7 compatibility, but once a semantic contradiction is deterministic it collects every independent issue
-before returning. A 64-problem or response-byte bound changes `diagnosticsComplete` to false instead of replacing
+before returning. Root-object problems use a structural summary rather than duplicating the candidate. A field,
+allowed-value, 64-problem or response-byte bound changes `diagnosticsComplete` to false instead of replacing
 precise findings with a generic internal error.
 
 The managed Decomposer uses one OpenCode Session with no count limit on unique

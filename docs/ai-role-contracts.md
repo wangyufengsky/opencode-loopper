@@ -109,6 +109,9 @@ allowedValues / repairHint`；`actual` 必须来自该 Pointer 的候选局部�
 阶段/证据项和需要消歧的候选原句，不能退化为通用占位词。一次确定性检查返回全部可独立发现的问题，
 并以 `diagnosticsComplete / truncated` 声明是否因 64 条或响应字节边界截断；可修正时保持 run 为 `OPEN`；
 成功、真实人工缺口、权限/安全/身份边界及已结束运行仍按原终态处理。
+所有诊断文本与允许值必须按协议声明的 UTF-8 字节边界截断，不能用 Java 字符数近似；根级
+`/candidate` 问题只返回类型、UTF-8 大小和顶层字段摘要，不复制完整候选。任何字段级截断都必须令
+`diagnosticsComplete=false / truncated=true`，但不得把原本可修正的拒绝升级为内部错误或停止同 Session 续投。
 
 工作包 Designer 在所属持久会话的当前回合、对应独立候选 run 内优先提交
 `PACKAGE_DESIGN_V1`。每次提交都是完整替换对象，MCP 提交不设次数上限；服务端返回闭集问题码、

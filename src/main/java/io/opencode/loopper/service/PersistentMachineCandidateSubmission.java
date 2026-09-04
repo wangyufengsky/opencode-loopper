@@ -343,8 +343,9 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
         if (decision == null || decision.problems() == null || decision.problems().size() > MAX_PROBLEMS) {
             throw new IllegalStateException("Candidate policy returned an invalid problem set");
         }
+        CandidateDiagnosticEnricher.BoundedProblems bounded = CandidateDiagnosticEnricher.bound(decision.problems());
         List<Problem> problems = new ArrayList<>();
-        for (Problem problem : decision.problems()) {
+        for (Problem problem : bounded.problems()) {
             if (problem == null || blank(problem.code()) || !problem.code().matches("[A-Z0-9_]+")
                     || bytes(problem.code()) > MAX_PROBLEM_CODE_BYTES || bytes(nullToEmpty(problem.pointer())) > MAX_PROBLEM_POINTER_BYTES
                     || blank(problem.detail()) || bytes(problem.detail()) > MAX_PROBLEM_DETAIL_BYTES
@@ -377,7 +378,7 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
         if (decision.fallbackEligible() && !decision.retryable()) {
             throw new IllegalStateException("Fallback eligibility requires a retryable package-design rejection");
         }
-        boolean diagnosticsComplete = decision.diagnosticsComplete();
+        boolean diagnosticsComplete = decision.diagnosticsComplete() && bounded.complete();
         while (!problems.isEmpty() && serializedBytes(problems, "Candidate problems") > MAX_PROBLEMS_JSON_BYTES) {
             problems.removeLast();
             diagnosticsComplete = false;

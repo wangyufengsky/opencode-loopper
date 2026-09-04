@@ -119,4 +119,90 @@ class PersistentMachineCandidateSubmissionTest {
         assertThat(response.path("returnedProblemCount").asInt()).isLessThan(64).isPositive();
         assertThat(result.responseJson().getBytes(StandardCharsets.UTF_8)).hasSizeLessThanOrEqualTo(96 * 1024);
     }
+
+    @Test
+    void longMultibyteRootCandidateReturnsABoundedRetryableDiagnosticInsteadOfAnInternalFailure() throws Exception {
+        MachineCandidateKind kind = MachineCandidateKind.PACKAGE_DESIGN_V1;
+        var row = new CandidateSubmissionRunRow("run", "designer", null, null,
+                "DESIGN_WORK_PACKAGE", "owner", kind.name(), kind.name(), 1, 1,
+                "INTERNAL_MCP", kind.name(), "generation", "remote", "OPEN", kind.maximumAttempts(),
+                0, null, "now", "now", 0);
+        var mapper = mock(LoopperMapper.class);
+        when(mapper.findCandidateSubmissionRun("run")).thenReturn(Optional.of(row));
+        var policy = mock(CandidatePolicy.class);
+        when(policy.supports(kind)).thenReturn(true);
+        when(policy.evaluate(any(), anyString())).thenReturn(CandidatePolicy.Decision.rejected(true, true,
+                List.of(new MachineCandidateSubmission.Problem(
+                        "PACKAGE_DESIGN_SEMANTIC_INVALID", "/candidate", "Correct the candidate semantics"))));
+        var submissions = new PersistentMachineCandidateSubmission(mapper, mock(LifecycleTransitionService.class),
+                JsonMapper.builder().build(), List.of(policy), List.of(), List.of());
+        String candidate = JsonMapper.builder().build().writeValueAsString(
+                java.util.Map.of("contractVersion", kind.name(), "summary", "中文设计说明🙂".repeat(180)));
+
+        var result = submissions.submit(new MachineCandidateSubmission.SubmitCommand(
+                "run", "next", candidate, 0, MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP,
+                MachineCandidateSubmission.SubmissionSchema.ROLE_SPECIFIC_V2));
+
+        assertThat(result.outcome()).isEqualTo(MachineCandidateOutcome.REJECTED);
+        assertThat(result.runState()).isEqualTo(MachineCandidateRunState.OPEN);
+        assertThat(result.retryable()).isTrue();
+        JsonNode response = JsonMapper.builder().build().readTree(result.responseJson());
+        JsonNode rootProblem = java.util.stream.StreamSupport.stream(
+                        response.path("problems").spliterator(), false)
+                .filter(problem -> "PACKAGE_DESIGN_SEMANTIC_INVALID".equals(problem.path("code").asText()))
+                .findFirst().orElseThrow();
+        assertThat(rootProblem.path("actual").asText())
+                .contains("object", "UTF-8 bytes", "top-level fields")
+                .doesNotContain("中文设计说明🙂".repeat(20));
+        assertThat(rootProblem.path("actual").asText().getBytes(StandardCharsets.UTF_8))
+                .hasSizeLessThanOrEqualTo(1024);
+        assertThat(response.path("action").asText()).isEqualTo("FIX_AND_RESUBMIT");
+    }
+
+    @Test
+    void multibyteDiagnosticTextIsBoundedByUtf8BytesWithoutSplittingEmoji() throws Exception {
+        MachineCandidateKind kind = MachineCandidateKind.REVIEWER_REPORT_V1;
+        var row = new CandidateSubmissionRunRow("run", "designer", null, null,
+                "ANALYSIS_REPORT", "owner", kind.name(), kind.name(), 1, 1,
+                "INTERNAL_MCP", kind.name(), "generation", "remote", "OPEN", kind.maximumAttempts(),
+                0, null, "now", "now", 0);
+        var mapper = mock(LoopperMapper.class);
+        when(mapper.findCandidateSubmissionRun("run")).thenReturn(Optional.of(row));
+        var policy = mock(CandidatePolicy.class);
+        when(policy.supports(kind)).thenReturn(true);
+        List<String> allowedValues = java.util.stream.IntStream.range(0, 40)
+                .mapToObj(index -> "允许值🙂".repeat(80) + index).toList();
+        when(policy.evaluate(any(), anyString())).thenReturn(CandidatePolicy.Decision.rejected(true, false,
+                List.of(new MachineCandidateSubmission.Problem(
+                        "VALUE_INVALID", "/字段🙂".repeat(80), "详细原因🙂".repeat(240), allowedValues,
+                        "参数🙂".repeat(80),
+                        MachineCandidateSubmission.ProblemCategory.VALUE, "预期结果🙂".repeat(240),
+                        "实际结果🙂".repeat(240), "修复方式🙂".repeat(240)))));
+        var submissions = new PersistentMachineCandidateSubmission(mapper, mock(LifecycleTransitionService.class),
+                JsonMapper.builder().build(), List.of(policy), List.of(), List.of());
+
+        var result = submissions.submit(new MachineCandidateSubmission.SubmitCommand(
+                "run", "next", "{\"summary\":\"短值\"}", 0,
+                MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP,
+                MachineCandidateSubmission.SubmissionSchema.ROLE_SPECIFIC_V2));
+
+        JsonNode response = JsonMapper.builder().build().readTree(result.responseJson());
+        JsonNode problem = java.util.stream.StreamSupport.stream(
+                        response.path("problems").spliterator(), false)
+                .filter(value -> "VALUE_INVALID".equals(value.path("code").asText()))
+                .findFirst().orElseThrow();
+        for (String field : List.of("detail", "expected", "actual", "repairHint")) {
+            assertThat(problem.path(field).asText().getBytes(StandardCharsets.UTF_8))
+                    .as(field).hasSizeLessThanOrEqualTo(1024);
+            assertThat(problem.path(field).asText()).as(field).doesNotEndWith("\uFFFD");
+        }
+        assertThat(problem.path("pointer").asText()).isEqualTo("/candidate");
+        assertThat(problem.path("parameter").asText()).isEqualTo("candidate");
+        assertThat(problem.path("allowedValues")).hasSize(32);
+        problem.path("allowedValues").forEach(value ->
+                assertThat(value.asText().getBytes(StandardCharsets.UTF_8)).hasSizeLessThanOrEqualTo(256));
+        assertThat(response.path("diagnosticsComplete").asBoolean()).isFalse();
+        assertThat(response.path("truncated").asBoolean()).isTrue();
+        assertThat(response.path("action").asText()).isEqualTo("FIX_AND_RESUBMIT");
+    }
 }
