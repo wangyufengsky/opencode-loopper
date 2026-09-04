@@ -56,7 +56,7 @@ it('keeps cancellation available when output refresh fails', async () => {
   expect(text()).toContain('取消本次统计，继续任务')
   expect(text()).toContain('统计状态暂时无法刷新')
 })
-it.each(['start', 'complete'] as const)('explicitly retries failed %s with a fresh call and preserves the old output', async operation => {
+it.each(['start', 'continue', 'complete'] as const)('explicitly retries failed %s with a fresh call and preserves the old output', async operation => {
   const failed = { ...call(), operation, state: 'FAILED' as const, retryAvailable: true, finishedAt: '2026-09-03T00:00:05Z' }
   vi.mocked(api.getStoryAccountingCalls).mockResolvedValue([failed])
   vi.mocked(api.getStoryAccountingCall).mockResolvedValue(failed)

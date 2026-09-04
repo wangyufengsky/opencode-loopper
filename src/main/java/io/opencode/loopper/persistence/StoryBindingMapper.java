@@ -107,7 +107,7 @@ public interface StoryBindingMapper {
     Optional<StoryAccountingSessionRow> findStoryAccountingSession(String externalSessionId);
     @Update("UPDATE story_accounting_session SET owner_observed=1 WHERE external_session_id=#{externalSessionId}")
     int markStoryAccountingOwnerObserved(String externalSessionId);
-    @Update("UPDATE story_accounting_session SET state=#{state},plugin_run_id=#{pluginRunId},updated_at=#{updatedAt} WHERE id=#{id}")
+    @Update("UPDATE story_accounting_session SET bind_operation=#{bindOperation},state=#{state},plugin_run_id=#{pluginRunId},updated_at=#{updatedAt} WHERE id=#{id}")
     int updateStoryAccountingSession(StoryAccountingSessionRow row);
 
     @Insert("""

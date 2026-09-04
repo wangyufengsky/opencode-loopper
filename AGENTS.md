@@ -42,10 +42,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.3.56.jar
-   jar tf target/opencode-loopper-0.3.56.jar \
+   test -s target/opencode-loopper-0.3.57.jar
+   jar tf target/opencode-loopper-0.3.57.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.3.56.jar
+   shasum -a 256 target/opencode-loopper-0.3.57.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -95,8 +95,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.3.56`。
-- 正式产物：`target/opencode-loopper-0.3.56.jar`。
+- Maven 项目版本：`0.3.57`。
+- 正式产物：`target/opencode-loopper-0.3.57.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -385,7 +385,7 @@ Task 详情 `overview` 必须投影 `loopRetryAvailable`、`cancellationAvailabl
 - `InsightPageMapper/InsightSql` 统一筛选列表、Token 和成本，支持 projectId/state/quality/archive/query；前端切换筛选清空 cursor 并防止旧请求覆盖。未知用量继续 null，人工认定独立投影，不伪造 AI PASS。
 - 取消已停止且仍持有租约的 Git holder：`WorkspaceLeaseReconciliationService` 在根指纹核验后复用 `TaskWorkspaceCheckpointService` 保存脏文件，再调用 `restoreMainBranch`（origin/HEAD 本地对应分支、main、master）并释放租约。保存/切换失败不得强制 checkout/reset 或丢弃文件；未申请资源、排队、Direct 或已转交的工作区不得切换其他 holder 的分支。
 
-统计交接必须按远端 Session 协调普通 abort 与正在运行的命令：自动清理不得中断未返回的 complete；手动取消仅释放自己的消息保护，迟到 HTTP 不得继续占用交接。新 start 等待同一绑定链已退役 Session 的 complete 尝试收束，不要求成功、不自动重试。V67 显式重试用 retry_of 保存调用链与唯一消息身份，保留原始结果/输出/关闭记录；仅最新 FAILED/UNKNOWN/CANCELLED 调用可由本地 UI 重发，且原业务拥有者必须已退役、同一 Session 无其他活动统计。成功 complete 后不再重开 start；能力和禁用原因由同一服务端策略供接口与弹窗使用。
+统计交接必须按远端 Session 协调普通 abort 与正在运行的命令：自动清理不得中断未返回的 complete；手动取消仅释放自己的消息保护，迟到 HTTP 不得继续占用交接。新 start 等待同一绑定链已退役 Session 的 complete 尝试收束，不要求成功；只有 start 明确 FAILED 时才自动追加一次同 Session、同编号的 continue，UNKNOWN/CANCELLED 不补发，continue 失败不递归重试。V67 的自动降级与显式重试都用 retry_of 保存调用链与唯一消息身份，保留原始结果/输出/关闭记录；仅最新 FAILED/UNKNOWN/CANCELLED 调用可由本地 UI 按原操作重发，且原业务拥有者必须已退役、同一 Session 无其他活动统计。成功 complete 后不再重开 BEGIN；能力和禁用原因由同一服务端策略供接口与弹窗使用。
 
 ## 6. 后端开发约定
 
@@ -490,7 +490,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.3.56.jar
+JAR=target/opencode-loopper-0.3.57.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -589,8 +589,8 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 ### 故事绑定与统计隔离
 
 - V65 故事绑定仅在 Designer 创建时配置，默认关闭；项目作用域 `/command` 实探包含 `aicoding` 才开放开关，不创建 Session 或调用模型。系统/故事编号按字符串保留，Task 确认与 Recovery 继承同一链。
-- `StoryAccountingCoordinator` 独立持有每个远端 Session 的 BEGIN/COMPLETE 调用与消息身份；只接收需求设计师、工作包设计师（含 PACKAGE_DESIGN_V1）和 IMPLEMENTATION；每个新 Session 均使用 start，不自动 continue，相同 Session 不重复。Router、规划、Compiler、Reviewer、Judge、其他修复/finalizer 与未知拥有者均不新建或补发统计；历史记录保留供审计与消息隔离。业务结果先保存，所属流程不再复用后才 complete；IDLE、等待回答或单独 abort 不等于业务结束。失败/取消也收尾，未工作的 fork 与服务端步骤不伪造统计。
-- 统计不设置自动超时，全局弹窗显示开启/完成阶段与真实模型输出，用户可取消当前统计并继续任务。V66 持久化 CANCELLING/CANCELLED、活动快照及关闭确认；取消先领取调用并在业务屏障释放前校验远端最新 user 消息身份，禁止对已经继续工作的业务会话补发 abort，迟到结果不能覆盖取消。BEGIN 等待按区间并集从相关业务时限中扣除。统计与通知失败不得改变业务生命周期、重试预算、全自动授权或结果。调用前短事务落库；重启将遗留 PREPARED/CANCELLING 记 UNKNOWN，不自动重发。SQLite 使用 WAL + IMMEDIATE 事务，避免后台统计写入使业务事务产生 SQLITE_BUSY_SNAPSHOT。SQLite JDBC 在失败的 BEGIN/事务重启后可能遗留错误的 auto-commit 状态；Hikari 必须丢弃 SQLITE_BUSY/LOCKED 及明确“no transaction is active”的连接，不能复用到业务查询。该连接处理不自动重试任何统计或业务操作。
+- `StoryAccountingCoordinator` 独立持有每个远端 Session 的 BEGIN/COMPLETE 调用与消息身份；只接收需求设计师、工作包设计师（含 PACKAGE_DESIGN_V1）和 IMPLEMENTATION；每个新 Session 均先使用 start，明确 FAILED 时在同 Session、同编号下自动追加一次 continue，UNKNOWN/CANCELLED 不补发且 continue 失败不递归，相同 Session 不重复绑定。Router、规划、Compiler、Reviewer、Judge、其他修复/finalizer 与未知拥有者均不新建或补发统计；历史记录保留供审计与消息隔离。业务结果先保存，所属流程不再复用后才 complete；IDLE、等待回答或单独 abort 不等于业务结束。失败/取消也收尾，未工作的 fork 与服务端步骤不伪造统计。
+- 统计不设置自动超时，全局弹窗显示开启/继续/完成阶段与真实模型输出，用户可取消当前统计并继续任务。V66 持久化 CANCELLING/CANCELLED、活动快照及关闭确认；取消先领取调用并在业务屏障释放前校验远端最新 user 消息身份，禁止对已经继续工作的业务会话补发 abort，迟到结果不能覆盖取消。BEGIN 等待按区间并集从相关业务时限中扣除。统计与通知失败不得改变业务生命周期、重试预算、全自动授权或结果。调用前短事务落库；start 和自动 continue 使用独立消息 ID，continue 以 retry_of 关联失败 start；重启将遗留 PREPARED/CANCELLING 记 UNKNOWN，不自动重发。SQLite 使用 WAL + IMMEDIATE 事务，避免后台统计写入使业务事务产生 SQLITE_BUSY_SNAPSHOT。SQLite JDBC 在失败的 BEGIN/事务重启后可能遗留错误的 auto-commit 状态；Hikari 必须丢弃 SQLITE_BUSY/LOCKED 及明确“no transaction is active”的连接，不能复用到业务查询。该连接处理不自动重试任何统计或业务操作。
 - 统计失败通过专属 SSE 类型触发消息刷新，前端 REST/SSE 解析均保留该类型，不更新业务状态；刷新和事件重放按持久化消息 ID 去重。Designer 业务消息与统计通知共用数据库原子追加序号，不使用独立的 MAX+INSERT；并发回归使用与生产一致的文件 SQLite。完整 Vitest 门禁最多并行 4 个 worker，避免并发 jsdom 资源争用导致超时。
 - 统计 Agent 权限必须按 `* deny`、`aicoding* allow` 顺序序列化，禁止用无序 Map.of 生成有优先级的规则。受管运行时安装 `loopper-accounting` Agent 及 `loopper-accounting-guard.mjs`；guard 不实现 aicoding，只按保留消息 ID 隔离模型上下文并阻止统计回合调用业务工具。受管 Designer 的 Session 权限增加仅供统计回合使用的 aicoding_* 例外，避免 Session deny-all 覆盖统计 Agent；guard 以每条消息的 tools 禁用业务回合的统计工具、统计回合的 question/业务工具，且在工具执行前再次按归属拦截，不覆盖 Session 原有读写/路径权限。普通 OpenCode 手动会话不受此保护插件限制。业务提示显式恢复业务 Agent/模型；BEGIN 屏障期间对业务投影 RUNNING 与空问题列表，HTTP 读模型同样排除统计消息及子回复，不把统计结果送入必须提问检查。
 - 开发模拟插件、接收服务与资格脚本位于 `scripts/aicoding/`，只运行于隔离端口/数据/XDG 目录，不访问内网统计平台；模拟成功不能替代内网插件回执和并行语义验证。详见 `docs/story-binding.md`。
@@ -601,6 +601,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-09-04 | 故事统计 start 失败降级，交付 0.3.57 | start 明确失败后在同 Session、同编号下自动追加一次 continue；UNKNOWN/取消/continue 失败不递归；独立消息 ID 与 retry_of 保留失败链；恢复成功不通知，人工重试保留原操作；弹窗显示 continue | TDD 红灯先复现缺少 continue，聚焦故事统计 Java 46/46、弹窗及全前端 274/274、原生 guard 6/6 通过；`./scripts/verify.sh` BUILD SUCCESS：Java 1394 项（0 失败、0 错误、2 条件跳过），Vitest 274/274、原生 guard 6/6；JAR `target/opencode-loopper-0.3.57.jar` 为 289293515 bytes，113 个静态文件、Maven/MCP 版本均为 0.3.57，SHA-256 `5f4018209e025a165a150f62f478f085f4d8c4a8995e8e1336a1296d539e99a0`。未重启运行实例，未做真实插件或浏览器验收，未推送/标签/Release |
 | 2026-09-04 | MCP 可修正问题全角色审计，交付 0.3.56 | 工作包候选区分可修正语义、真实人工缺口与安全边界；验收/滚动/Reviewer/Convention 修复同类误判；全角色提示消费完整问题信息；UI 计数改称候选提交 | 聚焦后端策略、提示、编译、编排与持久化集成及 Designer Vitest 已通过；`./scripts/verify.sh` BUILD SUCCESS：Java 1393 项（0 失败、0 错误、2 条件跳过），Vitest 273/273、原生 guard 6/6；JAR `target/opencode-loopper-0.3.56.jar` 为 289291452 bytes，113 个静态文件、Maven/MCP 版本均为 0.3.56，SHA-256 `337b90b4e878c2f78b34a2ecd936dacf331db7691c0b59abe63898ed8f6b1ebe`。未重启运行实例，未做真实模型或浏览器验收，未推送/标签/Release |
 | 2026-09-03 | 全角色提示适配，交付 0.3.55 | 当前 StageSpec 执行上下文、滚动事实、Role Pack 讨论/规划、完整 MCP 示例与 Router 枚举、历史 Compiler 分代、辅助角色证据边界；承接 0.3.53 MCP 无限提交；同步项目公约和完整人工评审示例的旧文案断言 | 联合回归 270 项（269 通过、1 条件跳过），修正后聚焦 38/38；`./scripts/verify.sh` BUILD SUCCESS：Java 1389 项（0 失败、0 错误、2 条件跳过），Vitest 273/273、原生 guard 6/6；JAR `target/opencode-loopper-0.3.55.jar` 为 289286887 bytes，113 个静态文件、Maven/MCP 版本及 92 个相关编译类核对一致，SHA-256 `dbeaa796e553afcfc839bb05bdbf0a69658f3827d454d3926b81094ae504aa10`。`git diff --check` 通过；未重启运行实例，未做真实模型或浏览器验收；用户已授权推送发布，远端证据另行回读 |
 | 2026-09-03 | 全角色提示适配，0.3.54 候选未交付 | 完成角色提示与合同测试优化；项目约定上下文由服务端保留、PACKAGE_DESIGN_V1 补齐人工评审示例 | `./scripts/verify.sh` Java 1389 项，仅 2 个旧提示文案断言失败（另有 2 条件跳过），无错误；未生成 JAR，集中修正后顺延 0.3.55 |

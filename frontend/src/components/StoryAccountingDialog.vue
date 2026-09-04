@@ -21,7 +21,8 @@ const running = computed(() => current.value ? active(current.value) : false)
 const failed = computed(() => current.value && ['FAILED', 'UNKNOWN', 'CANCELLED'].includes(current.value.state))
 const roleNames: Record<string, string> = { ROUTER: '任务识别', REQUIREMENT_DESIGNER: '需求设计', PACKAGE_DESIGNER: '工作包设计', IMPLEMENTATION: '实施', JUDGE: '评审', REVIEWER: '只读审查', DECOMPOSER: '需求拆分', COMPILER: '设计编译' }
 const roleLabel = (call: StoryAccountingCall) => roleNames[call.role] ?? '设计与执行'
-const operationLabel = (call: StoryAccountingCall) => call.operation === 'complete' ? '完成' : '开启'
+const operationNames: Record<string, string> = { start: '开启', continue: '继续', complete: '完成' }
+const operationLabel = (call: StoryAccountingCall) => operationNames[call.operation] ?? call.operation
 const title = computed(() => current.value ? `${running.value ? '正在' : '已结束：'}${operationLabel(current.value)}故事点统计${running.value ? '…' : ''}` : '故事点统计')
 const elapsed = computed(() => {
   if (!current.value) return 0
@@ -121,7 +122,7 @@ onBeforeUnmount(() => { alive = false; selection++; if (timer) clearTimeout(time
     <template #footer>
       <el-button v-if="running" type="danger" plain :loading="cancelling || current?.state === 'CANCELLING'" @click="cancel">取消本次统计，继续任务</el-button>
       <template v-else>
-        <el-button v-if="failed" type="primary" :disabled="!current?.retryAvailable" :loading="retrying" @click="retry">重新发起 {{ current?.operation === 'complete' ? 'complete' : 'start' }}</el-button>
+        <el-button v-if="failed" type="primary" :disabled="!current?.retryAvailable" :loading="retrying" @click="retry">重新发起 {{ current?.operation }}</el-button>
         <el-button :disabled="retrying" @click="close">关闭</el-button>
       </template>
     </template>

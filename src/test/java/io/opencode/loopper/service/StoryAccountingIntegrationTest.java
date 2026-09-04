@@ -199,15 +199,42 @@ class StoryAccountingIntegrationTest {
 
     @Test void failedAccountingPublishesOneMessageRefreshWithoutChangingBusinessState() throws Exception {
         String designer = fixture("event", true);
+        List<String> calls = new CopyOnWriteArrayList<>();
         List<DesignerEventHub.DesignerEvent> notifications = new CopyOnWriteArrayList<>();
         try (var subscription = designerEvents.subscribe(designer, notifications::add)) {
-            accounting.beforeBusinessPrompt(remote("event"), request -> { throw new IllegalStateException("statistics unavailable"); });
+            accounting.beforeBusinessPrompt(remote("event"), request -> {
+                calls.add(request.arguments());
+                throw new IllegalStateException("statistics unavailable");
+            });
             accounting.beforeBusinessPrompt(remote("event"), request -> { throw new AssertionError("duplicate"); });
         }
+        assertThat(calls).containsExactly("start SYS-001 000123", "continue SYS-001 000123");
         assertThat(notifications).hasSize(1);
         assertThat(notifications.getFirst().type()).isEqualTo("STORY_BINDING_FAILED");
         assertThat(designers.get(designer).state()).isEqualTo("RUNNING");
         assertThat(designers.messages(designer)).hasSize(1);
+    }
+
+    @Test void failedStartFallsBackToContinueOnceWithoutReportingARecoveredFailure() {
+        String designer = fixture("start-fallback", true);
+        List<String> calls = new CopyOnWriteArrayList<>();
+        accounting.beforeBusinessPrompt(remote("start-fallback"), request -> {
+            calls.add(request.arguments());
+            if (request.arguments().startsWith("start ")) {
+                throw new io.opencode.loopper.domain.SessionFailure("PLUGIN_FAILED", "story already active");
+            }
+            return new OpenCodeClient.CommandResult("continued-run", "continued");
+        });
+        accounting.beforeBusinessPrompt(remote("start-fallback"), request -> {
+            throw new AssertionError("an existing accounting Session must not rebind");
+        });
+
+        assertThat(calls).containsExactly("start SYS-001 000123", "continue SYS-001 000123");
+        assertThat(activity.list().stream()
+                .filter(call -> designer.equals(call.designerSessionId()))
+                .map(call -> call.operation() + ":" + call.state()))
+                .containsExactlyInAnyOrder("start:FAILED", "continue:SUCCEEDED");
+        assertThat(designers.messages(designer)).isEmpty();
     }
 
     @Test void parallelPromptsShareOneBeginAndSeparateSessionsKeepDistinctMessageIds() throws Exception {
@@ -393,30 +420,36 @@ class StoryAccountingIntegrationTest {
             coordinator.installTransport((remote, request) -> new OpenCodeClient.CommandResult("actual-run", "receipt"));
             coordinator.beforeBusinessPrompt(remote("retry-retired"), failed);
             var session = mapper.findStoryAccountingSession("retry-retired").orElseThrow();
-            var start = mapper.findStoryAccountingCall(session.id(), "BEGIN").orElseThrow();
-            assertThat(activity.get(start.id()).retryAvailable()).isFalse();
-            assertThatThrownBy(() -> coordinator.retry(start.id())).isInstanceOf(ConflictException.class)
+            var failedContinue = mapper.findStoryAccountingCall(session.id(), "BEGIN").orElseThrow();
+            String failedStartId = jdbc.queryForObject("""
+                    SELECT id FROM story_accounting_call
+                    WHERE accounting_session_id=? AND phase='BEGIN' AND operation='start'
+                    """, String.class, session.id());
+            assertThat(failedContinue.operation()).isEqualTo("continue");
+            assertThat(activity.get(failedContinue.id()).retryAvailable()).isFalse();
+            assertThatThrownBy(() -> coordinator.retry(failedContinue.id())).isInstanceOf(ConflictException.class)
                     .hasMessageContaining("业务或提问");
             jdbc.update("UPDATE designer_session SET state='COMPLETED',workflow_phase='COMPLETED' WHERE id=?", designer);
             coordinator.afterTerminalStatus(remote("retry-retired"), failed);
             var complete = mapper.findStoryAccountingCall(session.id(), "COMPLETE").orElseThrow();
-            assertThat(activity.get(start.id()).retryAvailable()).isTrue();
-            String newStart = coordinator.retry(start.id());
-            awaitCall(newStart);
-            assertThat(mapper.findStoryAccountingCallById(start.id()).orElseThrow()).isEqualTo(start);
-            assertThatThrownBy(() -> coordinator.retry(start.id())).isInstanceOf(ConflictException.class);
-            assertThatThrownBy(() -> coordinator.retry(newStart)).isInstanceOf(ConflictException.class);
+            assertThat(activity.get(failedContinue.id()).retryAvailable()).isTrue();
+            String newContinue = coordinator.retry(failedContinue.id());
+            awaitCall(newContinue);
+            assertThat(mapper.findStoryAccountingCallById(failedContinue.id()).orElseThrow()).isEqualTo(failedContinue);
+            assertThat(mapper.findStoryAccountingCallById(newContinue).orElseThrow().operation()).isEqualTo("continue");
+            assertThatThrownBy(() -> coordinator.retry(failedContinue.id())).isInstanceOf(ConflictException.class);
+            assertThatThrownBy(() -> coordinator.retry(newContinue)).isInstanceOf(ConflictException.class);
             String newComplete = coordinator.retry(complete.id());
             awaitCall(newComplete);
             assertThat(mapper.findStoryAccountingCallById(complete.id()).orElseThrow()).isEqualTo(complete);
-            assertThat(jdbc.queryForList("SELECT state FROM story_accounting_call ORDER BY rowid", String.class))
-                    .containsExactly("FAILED", "FAILED", "SUCCEEDED", "SUCCEEDED");
-            assertThat(jdbc.queryForObject("SELECT COUNT(DISTINCT message_id) FROM story_accounting_call", Integer.class)).isEqualTo(4);
+            assertThat(jdbc.queryForList("SELECT operation || ':' || state FROM story_accounting_call ORDER BY rowid", String.class))
+                    .containsExactly("start:FAILED", "continue:FAILED", "complete:FAILED", "continue:SUCCEEDED", "complete:SUCCEEDED");
+            assertThat(jdbc.queryForObject("SELECT COUNT(DISTINCT message_id) FROM story_accounting_call", Integer.class)).isEqualTo(5);
             assertThat(jdbc.queryForList("SELECT retry_of FROM story_accounting_call WHERE retry_of IS NOT NULL ORDER BY rowid", String.class))
-                    .containsExactly(start.id(), complete.id());
+                    .containsExactly(failedStartId, failedContinue.id(), complete.id());
             assertThat(designers.get(designer).state()).isEqualTo("COMPLETED");
             coordinator.completeRetiredSessions();
-            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM story_accounting_call", Integer.class)).isEqualTo(4);
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM story_accounting_call", Integer.class)).isEqualTo(5);
         }
     }
 

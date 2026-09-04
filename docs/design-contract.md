@@ -1171,15 +1171,15 @@ same filters to page rows and aggregate values. Its loaded-task count is labelle
 
 The creation form offers an off-by-default story-binding switch. While project-scoped OpenCode command detection is pending, missing or failed, the switch is disabled with a reason and recheck action; normal creation remains available. Project/runtime identity changes invalidate the prior detection. Enabling reveals required text fields for system and story codes; leading zeros survive API normalization, reload and task/Recovery inheritance. Both ordinary and attachment creation carry the same creation-only storyBinding value.
 
-Only Requirement Designers, Package Designers and Implementation record accounting. Each new eligible Session starts with start, never continue; reused Sessions do not rebind. Accounting cannot satisfy or fail the Designer question requirement: its message tools and outputs are isolated before business dispatch.
+Only Requirement Designers, Package Designers and Implementation record accounting. Each new eligible Session starts with start; an explicit start failure falls back once to continue on that same Session and story identity. UNKNOWN and cancellation do not trigger the fallback, and reused Sessions do not rebind. Accounting cannot satisfy or fail the Designer question requirement: its message tools and outputs are isolated before business dispatch.
 
 Accounting failures are persistent Designer system messages or task events, with one notification per call and browser replay deduplication. They never disable automatic design, consume business retries, or replace the business error panel. The bound codes remain visible on the created design. See [story binding](story-binding.md).
 
 ### 故事统计活动弹窗
 
-`StoryAccountingDialog` 挂在全局 App，独立于设计创建响应；设计师的首条业务提示发送前也可查看及取消。显示开启/完成阶段、系统与故事字符串、真实用时和严格按统计消息身份提取的模型正文。持续等待不设自动超时；取消只针对当前调用并继续业务，失败不关闭全自动模式。支持并行调用切换、刷新恢复与终态输出快照，关闭结果由服务端持久化且历史升级不重复弹出；完成弹窗本身不是业务确认门。详细协议见 `story-binding.md`。
+`StoryAccountingDialog` 挂在全局 App，独立于设计创建响应；设计师的首条业务提示发送前也可查看及取消。显示开启/继续/完成阶段、系统与故事字符串、真实用时和严格按统计消息身份提取的模型正文。持续等待不设自动超时；取消只针对当前调用并继续业务，失败不关闭全自动模式。支持并行调用切换、刷新恢复与终态输出快照，关闭结果由服务端持久化且历史升级不重复弹出；完成弹窗本身不是业务确认门。详细协议见 `story-binding.md`。
 
-统计失败、结果未知或取消后显示“重新发起 start／complete”，可用性和禁用原因均由服务端投影。原远端仍用于业务/提问或已有统计运行时禁用；新调用创建后弹窗切换到它，保留旧记录供查看。重试不重启设计或任务，也不自动重发任何失败请求。
+统计失败、结果未知或取消后显示“重新发起 start／continue／complete”，可用性和禁用原因均由服务端投影。原远端仍用于业务/提问或已有统计运行时禁用；新调用创建后弹窗切换到它，保留旧记录供查看。人工重试保留原操作且不重启设计或任务；自动行为仅限明确 start 失败后的单次 continue，continue 失败、结果未知或取消均不递归补发。
 
 
 ### 设计师会话与业务回合（V68）

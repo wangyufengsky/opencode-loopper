@@ -113,10 +113,8 @@ public class StoryAccountingCoordinator {
             if (reason != null) throw new ConflictException("STORY_ACCOUNTING_RETRY_UNAVAILABLE", reason);
             var owner = mapper.findStoryAccountingSessionById(previous.accountingSessionId()).orElseThrow();
             String now = Instant.now().toString();
-            // Historical continue failures are explicitly retried as start, matching current behavior.
-            String operation = "BEGIN".equals(previous.phase()) ? "start" : "complete";
-            String arguments = "continue".equals(previous.operation())
-                    ? "start" + previous.argumentsText().substring("continue".length()) : previous.argumentsText();
+            String operation = previous.operation();
+            String arguments = previous.argumentsText();
             var call = preparedCall(owner.id(), previous.phase(), operation, arguments, now);
             mapper.insertStoryAccountingRetry(call, previous.id());
             var session = copy(owner, "BEGIN".equals(call.phase()) ? "BINDING" : "COMPLETING", owner.pluginRunId(), now);
@@ -129,7 +127,7 @@ public class StoryAccountingCoordinator {
         // Publish after commit, under the same lock used by collectors; rollback cannot leak a barrier.
         if ("COMPLETE".equals(prepared.call().phase())) completing.put(remote.id(), done);
         commands.submit(() -> {
-            try { execute(session, prepared.call(), request -> transport.execute(remote, request)); }
+            try { executePrepared(prepared, request -> transport.execute(remote, request)); }
             finally { done.complete(null); completing.remove(remote.id(), done); }
         });
         return prepared.call().id();
@@ -198,7 +196,7 @@ public class StoryAccountingCoordinator {
         }
         try {
             Prepared prepared = transaction(() -> prepareBegin(owner, remote));
-            if (prepared != null) execute(prepared.session(), prepared.call(), request -> {
+            if (prepared != null) executePrepared(prepared, request -> {
                 awaitRetiredCompletions(owner.bindingId());
                 return transport.execute(request);
             });
@@ -225,6 +223,41 @@ public class StoryAccountingCoordinator {
         return new Prepared(session, call);
     }
 
+    private void executePrepared(Prepared prepared, CommandTransport transport) {
+        if (!"BEGIN".equals(prepared.call().phase()) || !"start".equals(prepared.call().operation())) {
+            execute(prepared.session(), prepared.call(), transport, false);
+            return;
+        }
+        ExecutionOutcome outcome = execute(prepared.session(), prepared.call(), transport, true);
+        if (!outcome.commandFailed()) return;
+        Prepared fallback;
+        try {
+            fallback = transaction(() -> prepareContinue(prepared.session(), prepared.call()));
+        } catch (RuntimeException failure) {
+            notifyFailure(prepared.session(), prepared.call(), outcome.reason());
+            throw failure;
+        }
+        execute(fallback.session(), fallback.call(), transport, false);
+    }
+
+    private synchronized Prepared prepareContinue(StoryAccountingSessionRow original,
+                                                    StoryAccountingCallRow failedStart) {
+        StoryAccountingSessionRow session = mapper.findStoryAccountingSessionById(original.id()).orElseThrow();
+        StoryAccountingCallRow latest = mapper.findStoryAccountingCall(session.id(), "BEGIN").orElseThrow();
+        if (!latest.id().equals(failedStart.id()) || !"start".equals(latest.operation())
+                || !"FAILED".equals(latest.state())) {
+            throw new ConflictException("STORY_ACCOUNTING_FALLBACK_STALE",
+                    "start 失败状态已变化，不能重复发起 continue");
+        }
+        String now = Instant.now().toString();
+        String arguments = "continue" + failedStart.argumentsText().substring("start".length());
+        StoryAccountingCallRow call = preparedCall(session.id(), "BEGIN", "continue", arguments, now);
+        mapper.insertStoryAccountingRetry(call, failedStart.id());
+        StoryAccountingSessionRow binding = copy(session, "continue", "BINDING", session.pluginRunId(), now);
+        mapper.updateStoryAccountingSession(binding);
+        return new Prepared(binding, call);
+    }
+
     private void complete(OpenCodeClient.OpenCodeSession remote, CommandTransport transport) {
         await(completion(remote, transport));
     }
@@ -236,7 +269,7 @@ public class StoryAccountingCoordinator {
         commands.submit(() -> {
             try {
                 Prepared prepared = transaction(() -> prepareComplete(remote));
-                if (prepared != null) execute(prepared.session(), prepared.call(), transport);
+                if (prepared != null) executePrepared(prepared, transport);
                 done.complete(null);
             } catch (Throwable failure) {
                 log.warn("Unable to finish story-accounting handoff for {}", remote.id(), failure);
@@ -287,8 +320,8 @@ public class StoryAccountingCoordinator {
                 "PREPARED", null, null, null, null, false, now, null);
     }
 
-    private void execute(StoryAccountingSessionRow session, StoryAccountingCallRow call,
-                         CommandTransport transport) {
+    private ExecutionOutcome execute(StoryAccountingSessionRow session, StoryAccountingCallRow call,
+                                     CommandTransport transport, boolean suppressCommandFailureNotification) {
         OpenCodeClient.CommandResult result = null;
         String state = "SUCCEEDED";
         String code = null;
@@ -325,10 +358,12 @@ public class StoryAccountingCoordinator {
         } finally { active.remove(call.id(), pending); }
         String now = Instant.now().toString();
         boolean failed = !"SUCCEEDED".equals(state);
+        boolean notify = failed && !"CANCELLED".equals(state)
+                && !(suppressCommandFailureNotification && "FAILED".equals(state));
         StoryAccountingCallRow finished = new StoryAccountingCallRow(call.id(), call.accountingSessionId(),
                 call.phase(), call.messageId(), call.operation(), call.argumentsText(), state,
                 result == null || result.runId() == null ? null : bounded(result.runId()),
-                result == null ? null : bounded(result.output()), code, detail, failed && !"CANCELLED".equals(state),
+                result == null ? null : bounded(result.output()), code, detail, notify,
                 call.startedAt(), now);
         String sessionState = "BEGIN".equals(call.phase())
                 ? failed ? "BIND_FAILED" : "ACTIVE"
@@ -339,7 +374,8 @@ public class StoryAccountingCoordinator {
             mapper.updateStoryAccountingSession(copy(session, sessionState, runId, now));
             return true;
         }));
-        if (claimed && failed && !"CANCELLED".equals(state)) notifyFailure(session, call, detail == null ? code : detail);
+        if (claimed && notify) notifyFailure(session, call, detail == null ? code : detail);
+        return new ExecutionOutcome(claimed, state, detail == null ? code : detail);
     }
 
     private void notifyFailure(StoryAccountingSessionRow session, StoryAccountingCallRow call, String reason) {
@@ -404,9 +440,13 @@ public class StoryAccountingCoordinator {
 
     private static StoryAccountingSessionRow copy(StoryAccountingSessionRow row, String state,
                                                    String runId, String now) {
+        return copy(row, row.bindOperation(), state, runId, now);
+    }
+    private static StoryAccountingSessionRow copy(StoryAccountingSessionRow row, String bindOperation, String state,
+                                                   String runId, String now) {
         return new StoryAccountingSessionRow(row.id(), row.bindingId(), row.designerSessionId(), row.taskId(),
                 row.externalSessionId(), row.runtimeGenerationId(), row.worktreePath(), row.role(), row.ordinal(),
-                row.bindOperation(), row.ownerObserved(), state, runId, row.createdAt(), now);
+                bindOperation, row.ownerObserved(), state, runId, row.createdAt(), now);
     }
     private static String bounded(String value) {
         if (value == null || value.isBlank()) return "未知原因";
@@ -436,4 +476,7 @@ public class StoryAccountingCoordinator {
         UserCancelled(String message) { super(message); }
     }
     private record Prepared(StoryAccountingSessionRow session, StoryAccountingCallRow call) { }
+    private record ExecutionOutcome(boolean claimed, String state, String reason) {
+        boolean commandFailed() { return claimed && "FAILED".equals(state); }
+    }
 }
