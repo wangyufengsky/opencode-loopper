@@ -169,14 +169,16 @@ public interface MachineCandidateSubmission {
         public Problem {
             allowedValues = List.copyOf(Objects.requireNonNull(allowedValues, "allowedValues"));
             pointer = pointer == null || pointer.isBlank() ? "/candidate" : pointer;
+            detail = detail == null || detail.isBlank() ? "候选值不满足已声明合同" : detail;
             parameter = parameter == null || parameter.isBlank() ? "candidate" : parameter;
             category = category == null ? category(code) : category;
             expected = expected == null || expected.isBlank()
-                    ? expected(code, allowedValues) : expected;
+                    ? expected(detail, allowedValues) : expected;
             actual = actual == null || actual.isBlank()
-                    ? "value at " + pointer + " does not satisfy the declared contract" : actual;
+                    ? "submitted value at " + pointer + " requires candidate-context rendering" : actual;
             repairHint = repairHint == null || repairHint.isBlank()
-                    ? "Replace " + parameter + pointer + " and resubmit the complete candidate" : repairHint;
+                    ? "Correct " + parameter + pointer + " so that: " + detail
+                            + "; then resubmit the complete candidate" : repairHint;
         }
 
         public Problem(String code, String pointer, String detail, List<String> allowedValues) {
@@ -199,15 +201,17 @@ public interface MachineCandidateSubmission {
                     || value.contains("SHAPE") || value.contains("MISSING") || value.contains("REQUIRED")) {
                 return ProblemCategory.SHAPE;
             }
-            if (value.contains("SEMANTIC") || value.contains("COVERAGE") || value.contains("DEPENDENCY")) {
+            if (value.contains("SEMANTIC") || value.contains("COVERAGE") || value.contains("DEPENDENCY")
+                    || value.contains("ACCEPTANCE") || value.contains("VERIFICATION")
+                    || value.contains("CAPABILITY") || value.contains("AMBIGUOUS")) {
                 return ProblemCategory.SEMANTIC;
             }
             return ProblemCategory.VALUE;
         }
 
-        private static String expected(String code, List<String> allowedValues) {
+        private static String expected(String detail, List<String> allowedValues) {
             return allowedValues.isEmpty()
-                    ? "value satisfying " + (code == null ? "the candidate contract" : code)
+                    ? detail
                     : "one value from allowedValues";
         }
     }

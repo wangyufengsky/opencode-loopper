@@ -1113,10 +1113,10 @@ mutates the draft or creates a Task.
 
 当前只允许以下七个候选合同：
 
-- 七种合同在 `INTERNAL_MCP` 通道均不设提交次数上限；每次可修正拒绝使用 `CANDIDATE_DIAGNOSTIC_V2`，逐项返回 `parameter / pointer / category / expected / actual / detail / allowedValues / repairHint`，并用 `diagnosticsComplete / problemCount / returnedProblemCount / truncated / action` 声明本轮诊断是否完整及下一步。安全独立问题必须一次聚合，达到上限时明确声明截断；同一 run 与远端 Session 保持 `OPEN`，模型使用返回的 `submissionRevision` 提交完整替换候选。冻结的 `maxAttempts` 只约束 Legacy 修复预算，不是 MCP 配额。
+- 七种合同在 `INTERNAL_MCP` 通道均不设提交次数上限；每次可修正拒绝使用 `CANDIDATE_DIAGNOSTIC_V2`，逐项返回 `parameter / pointer / category / expected / actual / detail / allowedValues / repairHint`，并用 `diagnosticsComplete / problemCount / returnedProblemCount / truncated / action` 声明本轮诊断是否完整及下一步。`actual` 必须是精确 Pointer 上的有界候选类型和值；语义问题还要指出事实 key、相关阶段/证据项、全部冲突位置和需要消歧的候选原句，不能使用通用占位诊断。所有可独立发现的问题必须一次聚合，达到上限时明确声明截断；同一 run 与远端 Session 保持 `OPEN`，模型使用返回的 `submissionRevision` 提交完整替换候选。冻结的 `maxAttempts` 只约束 Legacy 修复预算，不是 MCP 配额。
 - `DECOMPOSITION_PLAN_V2`：提交完整任务拆解；合同或覆盖问题继续在同一 Session 修正。模型明确声明真实 `NEEDS_INPUT / MULTI_TASK_REQUIRED` 时进入人工边界。
 - `ACCEPTANCE_CLOSED_CHOICE_V7`：只允许服务端已证明自然可枚举、候选集合完备且存在真实机械同分的闭集选择。安全的 JSON/字段形状和闭集选择值错误均可修正；路径、权限、执行、拓扑以及不可枚举/非穷尽结果不开放候选修复面。
-- `PACKAGE_DESIGN_V1`：每次提交完整替换的工作包语义对象，包含 `READY | NEEDS_INPUT`、需求语义、场景、交付物、评审点、Stage 目标/语义引用/依赖和闭集 gap code。`READY` 的内容缺失、覆盖不全、验收归属或验证能力歧义是模型可修正问题；服务端必须保留具体缺口说明，不能只返回泛化的 `AMBIGUOUS_ACCEPTANCE_INTENT`。模型明确提交 `NEEDS_INPUT`、大型任务模式选择及路径/安全/权限边界仍需人工。命令、可写路径清单、测试命令、Verifier、权限结论和稳定 ID 属于服务端权威字段，候选不得携带。
+- `PACKAGE_DESIGN_V1`：每次提交完整替换的工作包语义对象，包含 `READY | NEEDS_INPUT`、需求语义、场景、交付物、评审点、Stage 目标/语义引用/依赖和闭集 gap code。`READY` 的内容缺失、覆盖不全、验收归属或验证能力歧义是模型可修正问题；服务端必须保留具体缺口说明，不能只返回泛化的 `AMBIGUOUS_ACCEPTANCE_INTENT`。`AMBIGUOUS_ACCEPTANCE_INTENT / VERIFICATION_CAPABILITY_UNAVAILABLE / REQUIRED_MUTATION_PATH_UNASSIGNED` 即使由模型放进 `NEEDS_INPUT`，仍属于模型应修正的候选错误并保持 run 为 `OPEN`；只有真实缺少用户拥有的成功/异常/范围/验收语义、大型任务模式选择及冻结路径/安全/权限冲突才可进入人工输入。命令、可写路径清单、测试命令、Verifier、权限结论和稳定 ID 属于服务端权威字段，候选不得携带。
 - `ROLLING_PACKAGE_PLAN_V1`：每次提交 1–6 个完整替换的剩余包，只允许 `packageKey/title/objective/replaces/dependencies/requirementRefs`。非法 JSON 根、载荷过大以及普通字段/闭集引用错误均返回可修正问题；稳定 run ID、checkpoint、顺序、impact、路径、命令、Verifier、权限和生命周期字段失败关闭。
 - `REVIEWER_REPORT_V1`：只提交标题、必填摘要、受限 findings 和 limitations；普通额外字段或拼写错误返回闭集字段列表供修正，真正的状态/权限/身份字段失败关闭。每条 finding 必须引用冻结的受管源码相对路径、精确行号和摘要，任一无效即整份拒绝。
 - `PROJECT_CONVENTION_V1`：只提交 `contractVersion/componentKeys/commandIds/pathIds`；普通额外字段返回闭集字段列表供修正，原始命令、路径、Markdown、权限、生命周期、稳定 ID 和 fallback 指令仍是禁止的权威字段。

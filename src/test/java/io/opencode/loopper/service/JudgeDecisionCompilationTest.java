@@ -131,11 +131,15 @@ class JudgeDecisionCompilationTest {
         assertThat(empty.problems()).extracting(JudgeDecisionCompilation.Problem::code)
                 .containsExactly("JUDGE_DECISION_EVIDENCE_REQUIRED");
         assertThat(duplicate.retryable()).isTrue();
-        assertThat(duplicate.problems()).extracting(JudgeDecisionCompilation.Problem::code)
-                .containsExactly("JUDGE_DECISION_EVIDENCE_INVALID");
+        assertThat(duplicate.problems()).singleElement().satisfies(problem -> {
+            assertThat(problem.code()).isEqualTo("JUDGE_DECISION_EVIDENCE_INVALID");
+            assertThat(problem.pointer()).isEqualTo("/evidenceIds/1");
+        });
         assertThat(unknown.retryable()).isTrue();
-        assertThat(unknown.problems()).extracting(JudgeDecisionCompilation.Problem::code)
-                .containsExactly("JUDGE_DECISION_EVIDENCE_INVALID");
+        assertThat(unknown.problems()).singleElement().satisfies(problem -> {
+            assertThat(problem.code()).isEqualTo("JUDGE_DECISION_EVIDENCE_INVALID");
+            assertThat(problem.pointer()).isEqualTo("/evidenceIds/0");
+        });
         assertNoCompiledResult(empty);
         assertNoCompiledResult(duplicate);
         assertNoCompiledResult(unknown);

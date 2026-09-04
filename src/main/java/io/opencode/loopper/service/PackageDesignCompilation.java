@@ -39,14 +39,24 @@ public interface PackageDesignCompilation {
             String staticDetail,
             List<String> allowedValues,
             ProblemClass problemClass,
-            boolean fallbackEligible) {
+            boolean fallbackEligible,
+            String expected,
+            String actual,
+            String repairHint) {
         public Problem {
             allowedValues = allowedValues == null ? List.of() : List.copyOf(allowedValues);
             Objects.requireNonNull(problemClass, "problemClass");
         }
 
+        Problem(String code, String pointer, String staticDetail, List<String> allowedValues,
+                ProblemClass problemClass, boolean fallbackEligible) {
+            this(code, pointer, staticDetail, allowedValues, problemClass, fallbackEligible,
+                    null, null, null);
+        }
+
         MachineCandidateSubmission.Problem submissionProblem() {
-            return new MachineCandidateSubmission.Problem(code, pointer, staticDetail, allowedValues);
+            return new MachineCandidateSubmission.Problem(code, pointer, staticDetail, allowedValues,
+                    "candidate", null, expected, actual, repairHint);
         }
     }
 

@@ -68,15 +68,38 @@ final class DesignerDecompositionCandidateCompiler {
                 problems.add("DECOMPOSITION_GAPS_REQUIRED", "/designGaps",
                         "NEEDS_INPUT requires at least one concrete closed-set design gap");
             }
+            List<MachineCandidateSubmission.Problem> boundaries = new ArrayList<>();
+            for (int index = 0; index < gaps.size(); index++) {
+                DesignGap gap = gaps.get(index);
+                String pointer = "/designGaps/" + index;
+                if (candidateCorrectableGap(gap.code())) {
+                    problems.add(new MachineCandidateSubmission.Problem(
+                            gap.code().name(), pointer + "/code",
+                            gap.code().name() + " 是候选可自行修正的问题，不能作为人工输入出口；具体声明："
+                                    + gap.detail(),
+                            java.util.Arrays.stream(DesignGapCode.values()).map(Enum::name).toList(),
+                            "candidate", MachineCandidateSubmission.ProblemCategory.SEMANTIC,
+                            "outcome READY after repairing the candidate-owned issue",
+                            "outcome NEEDS_INPUT with " + pointer + ".code=\"" + gap.code().name() + "\"",
+                            "Repair the field or relation described by " + pointer + "/detail, set /outcome to READY, "
+                                    + "clear /designGaps, and resubmit the complete candidate"));
+                } else {
+                    boundaries.add(new MachineCandidateSubmission.Problem(
+                            "DECOMPOSITION_NEEDS_INPUT", pointer + "/detail",
+                            "设计缺口 " + gap.code().name() + " 需要用户决定：" + gap.detail(),
+                            java.util.Arrays.stream(DesignGapCode.values()).map(Enum::name).toList(),
+                            "candidate", MachineCandidateSubmission.ProblemCategory.SEMANTIC,
+                            "a concrete user-owned decision for " + gap.code().name(),
+                            gap.code().name() + ": " + gap.detail(),
+                            "Stop candidate correction and ask the user exactly for the decision described at "
+                                    + pointer + "/detail"));
+                }
+            }
             DecompositionPlanEnvelope plan = new DecompositionPlanEnvelope(
                     "NEEDS_INPUT", nullableString(root.get("normalizedGoal")),
                     List.of(), List.of(), List.of(), List.of(), gaps,
                     nullableString(root.get("reason"))).normalized();
-            MachineCandidateSubmission.Problem boundary = gaps.isEmpty() ? null
-                    : new MachineCandidateSubmission.Problem("DECOMPOSITION_NEEDS_INPUT", "/designGaps",
-                    "Candidate requires user input described by the accepted closed-set design gap",
-                    java.util.Arrays.stream(DesignGapCode.values()).map(Enum::name).toList());
-            return finish(plan, problems, boundary);
+            return finish(plan, problems, boundaries);
         }
         if ("MULTI_TASK_REQUIRED".equals(outcome)) {
             String reason = nullableString(root.get("reason"));
@@ -87,12 +110,13 @@ final class DesignerDecompositionCandidateCompiler {
             DecompositionPlanEnvelope plan = new DecompositionPlanEnvelope("MULTI_TASK_REQUIRED",
                     nullableString(root.get("normalizedGoal")), List.of(), List.of(), List.of(), List.of(),
                     List.of(), reason).normalized();
-            MachineCandidateSubmission.Problem boundary = blank(reason) ? null
-                    : new MachineCandidateSubmission.Problem("DECOMPOSITION_MULTI_TASK_REQUIRED", "/reason",
-                    "Candidate identified a boundary that requires multiple independent tasks");
-            return finish(plan, problems, boundary);
+            List<MachineCandidateSubmission.Problem> boundaries = blank(reason) ? List.of()
+                    : List.of(new MachineCandidateSubmission.Problem(
+                            "DECOMPOSITION_MULTI_TASK_REQUIRED", "/reason",
+                            "Candidate identified a boundary that requires multiple independent tasks"));
+            return finish(plan, problems, boundaries);
         }
-        if (!"READY".equals(outcome)) return new Compilation(null, problems.list(), null);
+        if (!"READY".equals(outcome)) return new Compilation(null, problems.list(), List.of());
 
         String goal = nullableString(root.get("normalizedGoal"));
         if (blank(goal)) {
@@ -123,7 +147,7 @@ final class DesignerDecompositionCandidateCompiler {
 
         DecompositionPlanEnvelope plan = new DecompositionPlanEnvelope(status, goal, referencedConstraints,
                 referencedPackages, coverage.mappings(), packages.dependencies(), List.of(), null).normalized();
-        return finish(plan, problems, null);
+        return finish(plan, problems, List.of());
     }
 
     private List<GlobalConstraint> constraints(List<JsonNode> nodes, ProblemCollector problems) {
@@ -448,17 +472,23 @@ final class DesignerDecompositionCandidateCompiler {
     }
 
     private Compilation finish(DecompositionPlanEnvelope plan, ProblemCollector problems,
-                               MachineCandidateSubmission.Problem boundaryProblem) {
-        if (!problems.list().isEmpty()) return new Compilation(null, problems.list(), null);
+                               List<MachineCandidateSubmission.Problem> boundaryProblems) {
+        if (!problems.list().isEmpty()) return new Compilation(null, problems.list(), List.of());
         try {
-            return new Compilation(json.writeValueAsString(plan), List.of(), boundaryProblem);
+            return new Compilation(json.writeValueAsString(plan), List.of(), boundaryProblems);
         } catch (JacksonException invalid) {
             throw new IllegalStateException("Unable to serialize canonical decomposition plan", invalid);
         }
     }
 
     private Compilation rejected(MachineCandidateSubmission.Problem problem) {
-        return new Compilation(null, List.of(problem), null);
+        return new Compilation(null, List.of(problem), List.of());
+    }
+
+    private static boolean candidateCorrectableGap(DesignGapCode code) {
+        return code == DesignGapCode.AMBIGUOUS_ACCEPTANCE_INTENT
+                || code == DesignGapCode.VERIFICATION_CAPABILITY_UNAVAILABLE
+                || code == DesignGapCode.REQUIRED_MUTATION_PATH_UNASSIGNED;
     }
 
     private static String string(JsonNode node) {
@@ -492,9 +522,10 @@ final class DesignerDecompositionCandidateCompiler {
     }
 
     record Compilation(String canonicalJson, List<MachineCandidateSubmission.Problem> problems,
-                       MachineCandidateSubmission.Problem boundaryProblem) {
+                       List<MachineCandidateSubmission.Problem> boundaryProblems) {
         Compilation {
             problems = List.copyOf(problems);
+            boundaryProblems = boundaryProblems == null ? List.of() : List.copyOf(boundaryProblems);
         }
 
         boolean accepted() {
@@ -509,6 +540,10 @@ final class DesignerDecompositionCandidateCompiler {
 
     private static final class ProblemCollector {
         private final List<MachineCandidateSubmission.Problem> problems = new ArrayList<>();
+
+        void add(MachineCandidateSubmission.Problem problem) {
+            if (problems.size() < MAX_PROBLEMS) problems.add(problem);
+        }
 
         void add(String code, String pointer, String detail) {
             add(code, pointer, detail, List.of());

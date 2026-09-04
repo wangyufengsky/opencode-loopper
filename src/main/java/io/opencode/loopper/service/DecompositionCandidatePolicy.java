@@ -37,8 +37,8 @@ final class DecompositionCandidatePolicy implements CandidatePolicy {
                         "CANDIDATE_REQUIREMENT_MISSING", "Frozen requirement revision no longer exists"));
         DesignerDecompositionCandidateCompiler.Compilation result = compiler.compile(candidateJson, revision);
         if (!result.accepted()) return Decision.rejected(true, result.problems());
-        if (result.boundaryProblem() != null) {
-            return Decision.rejected(false, java.util.List.of(result.boundaryProblem()));
+        if (!result.boundaryProblems().isEmpty()) {
+            return Decision.rejected(false, result.boundaryProblems());
         }
         return Decision.accepted(result.canonicalJson());
     }

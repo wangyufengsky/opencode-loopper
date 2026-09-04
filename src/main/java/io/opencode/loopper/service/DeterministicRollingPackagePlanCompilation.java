@@ -187,12 +187,13 @@ public final class DeterministicRollingPackagePlanCompilation implements Rolling
             validateClosedList(item.requirementRefs(), allowedRequirements,
                     "ROLLING_PACKAGE_REQUIREMENT_REF_INVALID", pointer + "/requirementRefs",
                     "需求引用必须来自冻结需求闭集", problems);
-            for (String dependency : item.dependencies()) {
+            for (int dependencyIndex = 0; dependencyIndex < item.dependencies().size(); dependencyIndex++) {
+                String dependency = item.dependencies().get(dependencyIndex);
                 if (item.packageKey().equals(dependency) || !allowedDependencies.contains(dependency)) {
-                    problems.add(problem("ROLLING_PACKAGE_DEPENDENCY_INVALID", pointer + "/dependencies",
+                    problems.add(problem("ROLLING_PACKAGE_DEPENDENCY_INVALID",
+                            pointer + "/dependencies/" + dependencyIndex,
                             "依赖必须引用已冻结包或当前提案中的其他包且不能自依赖",
                             List.copyOf(allowedDependencies), MECHANICAL));
-                    break;
                 }
             }
             allowedDependencies.add(item.packageKey());
@@ -309,15 +310,20 @@ public final class DeterministicRollingPackagePlanCompilation implements Rolling
 
     private void validateClosedList(List<String> actual, Set<String> allowed, String code, String pointer,
                                     String detail, Problems problems) {
-        if (actual.stream().anyMatch(value -> !allowed.contains(value))) {
-            problems.add(problem(code, pointer, detail, List.copyOf(allowed), MECHANICAL));
+        for (int index = 0; index < actual.size(); index++) {
+            if (!allowed.contains(actual.get(index))) {
+                problems.add(problem(code, pointer + "/" + index, detail, List.copyOf(allowed), MECHANICAL));
+            }
         }
     }
 
     private void unique(List<String> values, String pointer, Problems problems) {
-        if (new HashSet<>(values).size() != values.size()) {
-            problems.add(problem("ROLLING_PACKAGE_LIST_DUPLICATE", pointer,
-                    "集合项不能重复", List.of(), MECHANICAL));
+        Set<String> unique = new HashSet<>();
+        for (int index = 0; index < values.size(); index++) {
+            if (!unique.add(values.get(index))) {
+                problems.add(problem("ROLLING_PACKAGE_LIST_DUPLICATE", pointer + "/" + index,
+                        "集合项不能重复；该值已在同一数组的更早位置出现", List.of(), MECHANICAL));
+            }
         }
     }
 

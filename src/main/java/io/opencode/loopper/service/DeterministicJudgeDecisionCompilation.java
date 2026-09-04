@@ -73,9 +73,10 @@ public final class DeterministicJudgeDecisionCompilation implements JudgeDecisio
             problems.add(mechanical("JUDGE_DECISION_EVIDENCE_REQUIRED", "/evidenceIds",
                     "Judge 候选必须绑定至少一条冻结证据", List.copyOf(evidence.keySet())));
         }
-        for (String id : source.evidenceIds()) {
+        for (int index = 0; index < source.evidenceIds().size(); index++) {
+            String id = source.evidenceIds().get(index);
             if (id == null || !evidence.containsKey(id) || !requested.add(id)) {
-                problems.add(mechanical("JUDGE_DECISION_EVIDENCE_INVALID", "/evidenceIds",
+                problems.add(mechanical("JUDGE_DECISION_EVIDENCE_INVALID", "/evidenceIds/" + index,
                         "evidenceIds 必须唯一且全部命中冻结证据目录", List.copyOf(evidence.keySet())));
             }
         }

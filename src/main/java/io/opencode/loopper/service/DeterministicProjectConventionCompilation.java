@@ -326,9 +326,11 @@ public final class DeterministicProjectConventionCompilation implements ProjectC
             return List.of();
         }
         LinkedHashSet<String> unique = new LinkedHashSet<>();
-        for (String value : requested) {
+        for (int index = 0; index < requested.size(); index++) {
+            String value = requested.get(index);
             if (blank(value) || !allowed.contains(value) || !unique.add(value)) {
-                problems.add(problem(code, pointer, "候选只能引用冻结证据目录中的唯一值", allowed));
+                problems.add(problem(code, pointer + "/" + index,
+                        "候选只能引用冻结证据目录中的唯一值；当前元素缺失、未知或重复", allowed));
             }
         }
         return allowed.stream().filter(unique::contains).toList();

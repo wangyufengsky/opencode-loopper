@@ -48,11 +48,13 @@ class PersistentMachineCandidateSubmissionTest {
         when(policy.supports(kind)).thenReturn(true);
         when(policy.evaluate(any(), anyString())).thenReturn(CandidatePolicy.Decision.rejected(true,
                 kind == MachineCandidateKind.PACKAGE_DESIGN_V1,
-                List.of(new MachineCandidateSubmission.Problem("VALUE_INVALID", "/value", "Correct the value"))));
+                List.of(new MachineCandidateSubmission.Problem(
+                        "VALUE_INVALID", "/contractVersion", "Use the active role contract version"))));
         var submissions = new PersistentMachineCandidateSubmission(mapper, mock(LifecycleTransitionService.class),
                 JsonMapper.builder().build(), List.of(policy), List.of(), List.of());
 
-        var result = submissions.submit(new MachineCandidateSubmission.SubmitCommand("run", "next", "{}",
+        var result = submissions.submit(new MachineCandidateSubmission.SubmitCommand(
+                "run", "next", "{\"contractVersion\":\"WRONG\"}",
                 row.version(), MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP,
                 MachineCandidateSubmission.SubmissionSchema.ROLE_SPECIFIC_V2));
 
@@ -75,7 +77,12 @@ class PersistentMachineCandidateSubmissionTest {
                 .findFirst().orElseThrow();
         assertThat(valueProblem.path("parameter").asText()).isEqualTo("candidate");
         assertThat(valueProblem.path("category").asText()).isEqualTo("VALUE");
-        assertThat(valueProblem.path("repairHint").asText()).contains("/value");
+        assertThat(valueProblem.path("expected").asText()).isEqualTo("Use the active role contract version");
+        assertThat(valueProblem.path("actual").asText()).isEqualTo("string \"WRONG\"");
+        assertThat(valueProblem.path("repairHint").asText())
+                .contains("/contractVersion", "Use the active role contract version");
+        assertThat(valueProblem.toString()).doesNotContain(
+                "value satisfying", "does not satisfy the declared contract", "Replace candidate");
     }
 
     @Test

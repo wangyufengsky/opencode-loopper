@@ -110,8 +110,10 @@ class ProjectConventionCompilationTest {
                 .containsExactly("PROJECT_CONVENTION_AUTHORITY_FIELD_FORBIDDEN");
         assertNoCompiledResult(unknown);
         assertThat(unproved.accepted()).isFalse();
-        assertThat(unproved.problems()).extracting(ProjectConventionCompilation.Problem::code)
-                .containsExactly("PROJECT_CONVENTION_COMMAND_UNVERIFIED");
+        assertThat(unproved.problems()).singleElement().satisfies(problem -> {
+            assertThat(problem.code()).isEqualTo("PROJECT_CONVENTION_COMMAND_UNVERIFIED");
+            assertThat(problem.pointer()).isEqualTo("/commandIds/0");
+        });
         assertNoCompiledResult(unproved);
     }
 

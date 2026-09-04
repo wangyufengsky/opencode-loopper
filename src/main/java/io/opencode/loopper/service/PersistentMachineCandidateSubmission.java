@@ -256,23 +256,32 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
             CandidatePolicy.Context context, String candidateJson, SubmissionSchema submissionSchema) {
         CandidatePolicy.Decision semantic = policy(run).evaluate(context, candidateJson);
         if (submissionSchema == SubmissionSchema.LEGACY_COMPATIBLE) return semantic;
+        semantic = enrich(semantic, candidateJson);
         CandidateShapeValidator.Result shape = CandidateShapeValidator.validate(
                 json, context.candidateKind(), candidateJson);
-        if (shape.problems().isEmpty()) {
+        List<Problem> shapeProblems = CandidateDiagnosticEnricher.enrich(
+                json, candidateJson, shape.problems());
+        if (shapeProblems.isEmpty()) {
             return new CandidatePolicy.Decision(semantic.accepted(), semantic.canonicalCandidateJson(),
                     semantic.retryable(), semantic.fallbackEligible(), semantic.problems(),
                     semantic.diagnosticsComplete() && semantic.problems().size() < MAX_PROBLEMS);
         }
         List<Problem> merged = new ArrayList<>();
-        boolean complete = appendDistinct(merged, shape.problems());
+        boolean complete = appendDistinct(merged, shapeProblems);
         complete &= appendDistinct(merged, semantic.problems());
         complete &= shape.complete() && semantic.diagnosticsComplete();
-        boolean safeShape = shape.problems().stream().noneMatch(problem ->
+        boolean safeShape = shapeProblems.stream().noneMatch(problem ->
                 problem.category() == ProblemCategory.AUTHORITY
                         || problem.category() == ProblemCategory.SECURITY);
         boolean retryable = safeShape && (semantic.accepted() || semantic.retryable());
         return CandidatePolicy.Decision.rejected(retryable,
                 semantic.fallbackEligible() && retryable, merged, complete);
+    }
+
+    private CandidatePolicy.Decision enrich(CandidatePolicy.Decision decision, String candidateJson) {
+        List<Problem> problems = CandidateDiagnosticEnricher.enrich(json, candidateJson, decision.problems());
+        return new CandidatePolicy.Decision(decision.accepted(), decision.canonicalCandidateJson(),
+                decision.retryable(), decision.fallbackEligible(), problems, decision.diagnosticsComplete());
     }
 
     private static boolean appendDistinct(List<Problem> target, List<Problem> source) {

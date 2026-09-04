@@ -655,6 +655,15 @@ stable IDs, commands, verifier mappings and permissions. A candidate is therefor
 never allowed to submit those authoritative fields. Equivalent MCP and Markdown
 semantics must compile to the same deterministic result.
 
+`CandidateDiagnosticEnricher` is the common diagnostic seam after every role-specific policy. It resolves each
+problem's exact JSON Pointer against the submitted role object and supplies a bounded typed `actual` value while
+preserving the role compiler's expected constraint and repair. `PackageDesignCandidateDiagnostics` is the deeper
+package-design adapter: it maps acceptance fact indexes back to `SC-* / REV-*`, candidate-authored source sentences,
+exact `stages[i].includes[j]` locations and all matching verification capabilities. The resolver may still preserve
+frozen v6/v7 compatibility, but once a semantic contradiction is deterministic it collects every independent issue
+before returning. A 64-problem or response-byte bound changes `diagnosticsComplete` to false instead of replacing
+precise findings with a generic internal error.
+
 The managed Decomposer uses one OpenCode Session with no count limit on unique
 `INTERNAL_MCP` submissions. A rejected submission returns enough bounded evidence
 for the model to correct and resubmit in that same Session. `ACCEPTED` or
@@ -663,6 +672,13 @@ or explicitly compatibility-mode OpenCode uses a fresh `IN_PROCESS_LEGACY` run
 through the same policy. A channel cannot change within a run, and a managed MCP
 failure cannot silently reinterpret final text from the same Session as a legacy
 candidate.
+
+For both Decomposer `designGaps` and package-design `gapCodes`, candidate-owned correction categories cannot be
+used as an artificial human-input escape. `AMBIGUOUS_ACCEPTANCE_INTENT`,
+`VERIFICATION_CAPABILITY_UNAVAILABLE`, and `REQUIRED_MUTATION_PATH_UNASSIGNED` keep the run open and point to the
+exact gap array item; genuine missing observable/exception/scope/acceptance semantics, an explicit large-task-mode
+choice, or a frozen forbidden-path conflict may stop for user input. This classification is server-owned even when
+the candidate declares `outcome=NEEDS_INPUT`.
 
 The qualified package-design flag defaults on; an explicit false value rolls back
 only newly dispatched work packages to the existing Designer plus Markdown route,

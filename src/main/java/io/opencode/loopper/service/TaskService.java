@@ -1859,11 +1859,8 @@ public class TaskService {
     }
 
     private LoopRetryStatus loopRetryStatus(TaskRow task) {
-        if (!TaskState.WAITING_INPUT.name().equals(task.state())) return new LoopRetryStatus(null, false);
-        String code = mapper.findTaskWaitingReasonCode(task.id()).orElse(null);
-        boolean available = "LOOP_STAGNATION_DETECTED".equals(code)
-                || "LOOP_FRESH_SESSION_REQUIRED".equals(code);
-        return new LoopRetryStatus(code, available);
+        String code = TaskWaitingInputPolicy.reasonCode(task, mapper);
+        return new LoopRetryStatus(code, TaskWaitingInputPolicy.loopRetryAvailable(code));
     }
 
     public record LoopRetryStatus(String waitingReasonCode, boolean loopRetryAvailable) { }
@@ -1908,10 +1905,7 @@ public class TaskService {
                     "This task no longer accepts the standard cancellation command");
         }
         LoopRetryStatus wait = loopRetryStatus(task);
-        boolean currentDirtyWait = TaskState.WAITING_INPUT.name().equals(task.state())
-                && "SOURCE_BRANCH_WORKSPACE_DIRTY".equals(wait.waitingReasonCode())
-                && task.branchName() == null && task.worktreePath() == null;
-        if (currentDirtyWait) {
+        if (TaskWaitingInputPolicy.currentDirtyWorkspaceWait(task, wait.waitingReasonCode())) {
             recordError(task, null, null, null, ErrorLayer.TASK, "SOURCE_BRANCH_WORKSPACE_CANCELLED",
                     "User cancelled source-workspace cleanup before the Task branch was created", false,
                     Map.of("localFilesPreserved", true, "resolution", TaskState.CANCELLED.name()));

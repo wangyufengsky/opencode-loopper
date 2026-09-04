@@ -127,21 +127,24 @@ final class PackageDesignCandidateCodec {
         for (int i = 0; i < value.requirements().size(); i++) {
             var item = value.requirements().get(i);
             item(item, item == null ? null : item.key(), item == null ? null : item.statement(),
-                    "/requirements/" + i, keys, problems);
+                    "statement", "/requirements/" + i, keys, problems);
         }
         for (int i = 0; i < value.scenarios().size(); i++) {
             var item = value.scenarios().get(i);
             item(item, item == null ? null : item.key(), item == null ? null : item.title(),
-                    "/scenarios/" + i, keys, problems);
-            if (item != null) require(nonblank(item.precondition()) && nonblank(item.action())
-                            && nonblank(item.observableResult()) && nonblank(item.invariant()), problems,
-                    "PACKAGE_DESIGN_FIELD_REQUIRED", "/scenarios/" + i,
-                    "验收场景必须完整描述前置、操作、结果与不变量", List.of());
+                    "title", "/scenarios/" + i, keys, problems);
+            if (item != null) {
+                requiredText(item.precondition(), "/scenarios/" + i + "/precondition", "前置条件", problems);
+                requiredText(item.action(), "/scenarios/" + i + "/action", "操作", problems);
+                requiredText(item.observableResult(), "/scenarios/" + i + "/observableResult",
+                        "可观察结果", problems);
+                requiredText(item.invariant(), "/scenarios/" + i + "/invariant", "不变量", problems);
+            }
         }
         for (int i = 0; i < value.deliverables().size(); i++) {
             var item = value.deliverables().get(i);
             item(item, item == null ? null : item.key(), item == null ? null : item.target(),
-                    "/deliverables/" + i, keys, problems);
+                    "target", "/deliverables/" + i, keys, problems);
             if (item != null) require(DELIVERABLE_KINDS.contains(item.kind()), problems,
                     "PACKAGE_DESIGN_DELIVERABLE_KIND_INVALID", "/deliverables/" + i + "/kind",
                     "交付类型必须使用闭集值", List.copyOf(DELIVERABLE_KINDS));
@@ -149,18 +152,24 @@ final class PackageDesignCandidateCodec {
         for (int i = 0; i < value.reviews().size(); i++) {
             var item = value.reviews().get(i);
             item(item, item == null ? null : item.key(), item == null ? null : item.title(),
-                    "/reviews/" + i, keys, problems);
-            if (item != null) require(nonblank(item.criteria()) && nonblank(item.humanOnlyReason()), problems,
-                    "PACKAGE_DESIGN_FIELD_REQUIRED", "/reviews/" + i,
-                    "人工评审必须包含判断标准和仅人工原因", List.of());
+                    "title", "/reviews/" + i, keys, problems);
+            if (item != null) {
+                requiredText(item.criteria(), "/reviews/" + i + "/criteria", "人工判断标准", problems);
+                requiredText(item.humanOnlyReason(), "/reviews/" + i + "/humanOnlyReason",
+                        "仅人工原因", problems);
+            }
         }
         for (int i = 0; i < value.stages().size(); i++) {
             var item = value.stages().get(i);
             item(item, item == null ? null : item.key(), item == null ? null : item.title(),
-                    "/stages/" + i, keys, problems);
-            if (item != null) require(nonblank(item.objective()) && item.includes() != null
-                            && item.dependencies() != null, problems, "PACKAGE_DESIGN_FIELD_REQUIRED",
-                    "/stages/" + i, "阶段必须完整描述目标、包含项与依赖", List.of());
+                    "title", "/stages/" + i, keys, problems);
+            if (item != null) {
+                requiredText(item.objective(), "/stages/" + i + "/objective", "阶段目标", problems);
+                require(item.includes() != null, problems, "PACKAGE_DESIGN_FIELD_REQUIRED",
+                        "/stages/" + i + "/includes", "阶段包含项必须是数组", List.of());
+                require(item.dependencies() != null, problems, "PACKAGE_DESIGN_FIELD_REQUIRED",
+                        "/stages/" + i + "/dependencies", "阶段依赖必须是数组", List.of());
+            }
         }
     }
 
@@ -176,10 +185,47 @@ final class PackageDesignCandidateCodec {
         if ("NEEDS_INPUT".equals(value.outcome())) require(!value.gapCodes().isEmpty(), problems,
                 "PACKAGE_DESIGN_NEEDS_INPUT_GAP_REQUIRED", "/gapCodes",
                 "NEEDS_INPUT 候选必须声明至少一个闭集设计缺口", List.copyOf(allowed));
-        if ("NEEDS_INPUT".equals(value.outcome()) && !value.gapCodes().isEmpty()) {
-            problems.add(problem(value.gapCodes().getFirst(), "/gapCodes/0",
-                    "候选明确声明需要用户补充设计语义", List.copyOf(allowed), HUMAN_REQUIRED, false));
+        if ("NEEDS_INPUT".equals(value.outcome())) {
+            for (int index = 0; index < value.gapCodes().size(); index++) {
+                String code = value.gapCodes().get(index);
+                if (!allowed.contains(code)) continue;
+                boolean correctable = candidateCorrectableGap(code);
+                String pointer = "/gapCodes/" + index;
+                String detail = correctable
+                        ? code + " 属于候选自身可修正问题，不能作为人工输入出口；"
+                                + "请修正完整候选并重新提交 READY"
+                        : humanGapDetail(code);
+                problems.add(new PackageDesignCompilation.Problem(code, pointer, detail, List.copyOf(allowed),
+                        correctable ? CORRECTABLE : HUMAN_REQUIRED, false,
+                        correctable ? "outcome READY with gapCodes [] after the candidate-owned issue is repaired"
+                                : "a genuine user-owned design decision identified by " + code,
+                        "outcome NEEDS_INPUT with " + pointer + "=\"" + code + "\"",
+                        correctable
+                                ? "Set /outcome to READY, set /gapCodes to [], repair the fields named by "
+                                        + code + ", and resubmit the complete candidate"
+                                : "Stop and ask the user for the missing design information described by " + code));
+            }
         }
+    }
+
+    private static boolean candidateCorrectableGap(String code) {
+        return Set.of("AMBIGUOUS_ACCEPTANCE_INTENT", "VERIFICATION_CAPABILITY_UNAVAILABLE",
+                "REQUIRED_MUTATION_PATH_UNASSIGNED").contains(code);
+    }
+
+    private static String humanGapDetail(String code) {
+        return switch (code) {
+            case "MISSING_OBSERVABLE_OUTCOME" ->
+                    "用户尚未给出可观察结果，候选无法凭空决定成功时应观察到什么";
+            case "MISSING_EXCEPTION_SEMANTICS" ->
+                    "用户尚未给出异常语义，候选无法凭空决定失败、回退或异常传播行为";
+            case "MISSING_SCOPE" -> "用户尚未给出交付范围，候选无法确定要修改或交付的对象";
+            case "MISSING_ACCEPTANCE_INTENT" -> "用户尚未给出可验证的验收意图";
+            case "LARGE_TASK_MODE_REQUIRED" -> "当前语义只能通过用户确认切换为大型任务模式继续";
+            case "REQUIRED_MUTATION_PATH_FORBIDDEN" ->
+                    "必需修改路径与冻结禁止范围冲突，必须由用户调整范围或需求";
+            default -> "候选明确声明存在需要用户决定的设计缺口：" + code;
+        };
     }
 
     private void validateReady(PackageDesignCandidateDocument value, int stageLimit, Problems problems) {
@@ -205,24 +251,33 @@ final class PackageDesignCandidateCodec {
                 .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
         for (int i = 0; i < value.stages().size(); i++) {
             var stage = value.stages().get(i);
-            for (String ref : stage.includes()) {
+            for (int item = 0; item < stage.includes().size(); item++) {
+                String ref = stage.includes().get(item);
                 require(facts.containsKey(key(ref)), problems, "PACKAGE_DESIGN_REFERENCE_INVALID",
-                        "/stages/" + i + "/includes", "阶段包含项引用未知", List.of());
+                        "/stages/" + i + "/includes/" + item,
+                        "阶段包含项“" + ref + "”不是候选中已声明的场景、交付项或评审 key",
+                        List.copyOf(facts.keySet()));
                 included.add(key(ref));
             }
             semantic(stage.includes().stream().map(PackageDesignCandidateCodec::key).anyMatch(acceptance::contains),
                     problems, "PACKAGE_DESIGN_STAGE_ACCEPTANCE_REQUIRED", "/stages/" + i + "/includes",
                     "每个阶段必须包含至少一个验收场景或人工评审");
-            for (String dependency : stage.dependencies()) require(stageKeys.contains(key(dependency)), problems,
-                    "PACKAGE_DESIGN_REFERENCE_INVALID", "/stages/" + i + "/dependencies",
-                    "阶段依赖引用未知", List.of());
+            for (int item = 0; item < stage.dependencies().size(); item++) {
+                String dependency = stage.dependencies().get(item);
+                require(stageKeys.contains(key(dependency)), problems,
+                        "PACKAGE_DESIGN_REFERENCE_INVALID", "/stages/" + i + "/dependencies/" + item,
+                        "阶段依赖“" + dependency + "”不是候选中已声明的 stage key",
+                        List.copyOf(stageKeys));
+            }
         }
         if (!problems.has(MECHANICAL)) {
-            semantic(coveredRequirements.equals(requirements.keySet()), problems,
-                    "PACKAGE_DESIGN_COVERAGE_INCOMPLETE", "/requirements",
-                    "需求必须由场景、交付或评审完整覆盖");
-            semantic(included.containsAll(facts.keySet()), problems, "PACKAGE_DESIGN_COVERAGE_INCOMPLETE",
-                    "/stages", "场景、交付与评审必须由阶段完整覆盖");
+            for (int index = 0; index < value.requirements().size(); index++) {
+                var requirement = value.requirements().get(index);
+                semantic(coveredRequirements.contains(key(requirement.key())), problems,
+                        "PACKAGE_DESIGN_COVERAGE_INCOMPLETE", "/requirements/" + index + "/key",
+                        "需求 " + requirement.key() + " 没有被任何 scenario、deliverable 或 review 引用");
+            }
+            addUnassignedFactProblems(value, included, problems);
             require(acyclic(value.stages()), problems, "PACKAGE_DESIGN_STAGE_DEPENDENCY_INVALID", "/stages",
                     "阶段依赖必须形成有向无环图", List.of());
         }
@@ -230,21 +285,52 @@ final class PackageDesignCandidateCodec {
 
     private void validateRequirementRefs(PackageDesignCandidateDocument value, Set<String> requirementKeys,
                                          Set<String> covered, Problems problems) {
-        List<List<String>> refs = new ArrayList<>();
-        value.scenarios().forEach(item -> refs.add(item.requirementRefs()));
-        value.deliverables().forEach(item -> refs.add(item.requirementRefs()));
-        value.reviews().forEach(item -> refs.add(item.requirementRefs()));
-        for (List<String> values : refs) {
-            if (values == null) {
-                problems.add(problem("PACKAGE_DESIGN_FIELD_REQUIRED", "/requirementRefs",
-                        "候选引用集合不能为空", List.of(), MECHANICAL, true));
-                continue;
-            }
-            for (String ref : values) {
-                require(requirementKeys.contains(key(ref)), problems, "PACKAGE_DESIGN_REFERENCE_INVALID",
-                        "/requirementRefs", "需求引用未知", List.of());
-                if (requirementKeys.contains(key(ref))) covered.add(key(ref));
-            }
+        for (int index = 0; index < value.scenarios().size(); index++) validateRequirementRefs(
+                value.scenarios().get(index).requirementRefs(), "/scenarios/" + index + "/requirementRefs",
+                requirementKeys, covered, problems);
+        for (int index = 0; index < value.deliverables().size(); index++) validateRequirementRefs(
+                value.deliverables().get(index).requirementRefs(), "/deliverables/" + index + "/requirementRefs",
+                requirementKeys, covered, problems);
+        for (int index = 0; index < value.reviews().size(); index++) validateRequirementRefs(
+                value.reviews().get(index).requirementRefs(), "/reviews/" + index + "/requirementRefs",
+                requirementKeys, covered, problems);
+    }
+
+    private void validateRequirementRefs(List<String> values, String pointer, Set<String> requirementKeys,
+                                         Set<String> covered, Problems problems) {
+        if (values == null) {
+            problems.add(problem("PACKAGE_DESIGN_FIELD_REQUIRED", pointer,
+                    "候选引用集合必须是数组", List.of(), MECHANICAL, true));
+            return;
+        }
+        for (int index = 0; index < values.size(); index++) {
+            String ref = values.get(index);
+            require(requirementKeys.contains(key(ref)), problems, "PACKAGE_DESIGN_REFERENCE_INVALID",
+                    pointer + "/" + index, "需求引用“" + ref + "”不是已声明的 requirement key",
+                    List.copyOf(requirementKeys));
+            if (requirementKeys.contains(key(ref))) covered.add(key(ref));
+        }
+    }
+
+    private void addUnassignedFactProblems(PackageDesignCandidateDocument value, Set<String> included,
+                                           Problems problems) {
+        for (int index = 0; index < value.scenarios().size(); index++) {
+            var fact = value.scenarios().get(index);
+            semantic(included.contains(key(fact.key())), problems, "PACKAGE_DESIGN_COVERAGE_INCOMPLETE",
+                    "/scenarios/" + index + "/key",
+                    "场景 " + fact.key() + " 没有出现在任何 stages[].includes 中");
+        }
+        for (int index = 0; index < value.deliverables().size(); index++) {
+            var fact = value.deliverables().get(index);
+            semantic(included.contains(key(fact.key())), problems, "PACKAGE_DESIGN_COVERAGE_INCOMPLETE",
+                    "/deliverables/" + index + "/key",
+                    "交付项 " + fact.key() + " 没有出现在任何 stages[].includes 中");
+        }
+        for (int index = 0; index < value.reviews().size(); index++) {
+            var fact = value.reviews().get(index);
+            semantic(included.contains(key(fact.key())), problems, "PACKAGE_DESIGN_COVERAGE_INCOMPLETE",
+                    "/reviews/" + index + "/key",
+                    "评审 " + fact.key() + " 没有出现在任何 stages[].includes 中");
         }
     }
 
@@ -343,11 +429,23 @@ final class PackageDesignCandidateCodec {
         return result;
     }
 
-    private static void item(Object item, String key, String text, String pointer, Set<String> keys, Problems problems) {
-        require(item != null && nonblank(key) && nonblank(text), problems, "PACKAGE_DESIGN_FIELD_REQUIRED", pointer,
-                "候选条目必须包含非空 key 和语义内容", List.of());
-        if (item != null && nonblank(key)) require(keys.add(key(key)), problems, "PACKAGE_DESIGN_KEY_DUPLICATE",
+    private static void item(Object item, String key, String text, String textField,
+                             String pointer, Set<String> keys, Problems problems) {
+        if (item == null) {
+            require(false, problems, "PACKAGE_DESIGN_ITEM_REQUIRED", pointer, "候选数组项必须是对象", List.of());
+            return;
+        }
+        require(nonblank(key), problems, "PACKAGE_DESIGN_FIELD_REQUIRED", pointer + "/key",
+                "候选条目 key 不能为空", List.of());
+        require(nonblank(text), problems, "PACKAGE_DESIGN_FIELD_REQUIRED", pointer + "/" + textField,
+                "候选条目 " + textField + " 不能为空", List.of());
+        if (nonblank(key)) require(keys.add(key(key)), problems, "PACKAGE_DESIGN_KEY_DUPLICATE",
                 pointer + "/key", "候选 key 必须在完整替换文档内唯一", List.of());
+    }
+
+    private static void requiredText(String value, String pointer, String label, Problems problems) {
+        require(nonblank(value), problems, "PACKAGE_DESIGN_FIELD_REQUIRED", pointer,
+                label + "不能为空", List.of());
     }
 
     private static void require(boolean condition, Problems problems, String code, String pointer,

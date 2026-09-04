@@ -7,7 +7,14 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.3.62`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.3.63`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+
+## 0.3.63 MCP 精确语义诊断与人工输入边界
+
+- `CANDIDATE_DIAGNOSTIC_V2` 不再为语义失败生成 `value satisfying ... / value at ... does not satisfy ... / Replace candidate` 这类占位信息。每条问题绑定模型调用参数 `candidate`、精确 JSON Pointer、该位置的有界实际值、预期约束、具体原因和可执行修复动作；工作包验收问题还绑定 `SC-* / REV-*`、阶段名、全部重复位置以及候选中的相关原句。
+- 工作包的验收能力、事实归属、阶段引用、依赖与覆盖现在一次确定性遍历收集全部独立问题。任务拆解、滚动分包、Judge 和项目公约的闭集错误也定位到具体数组元素；`diagnosticsComplete=true` 只表示该轮有界检查确实完整，超过上限时明确返回截断状态。
+- `AMBIGUOUS_ACCEPTANCE_INTENT`、`VERIFICATION_CAPABILITY_UNAVAILABLE` 和 `REQUIRED_MUTATION_PATH_UNASSIGNED` 属于候选可自行修正的问题。模型即使把它们包装成 `NEEDS_INPUT`，运行也保持 `OPEN / FIX_AND_RESUBMIT`，不能再借此误停到人工处理；只有缺少用户拥有的成功语义、范围选择、大型任务确认或冻结安全边界冲突才允许 `STOP_AND_WAIT_FOR_INPUT`。
+- 七个角色仍共享一个私有 MCP Server 和统一持久化内核，但每个新 Session 只看到本角色唯一的强类型提交 Tool；完整对象提交保留原子替换语义，不拆成会留下半成品的逐字段 setter。
 
 ## 0.3.62 历史任务脏文件误报与取消修复
 
@@ -231,7 +238,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.3.62.jar
+java -jar target/opencode-loopper-0.3.63.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -468,7 +475,7 @@ Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 或用�
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.3.62.jar`
+- `target/opencode-loopper-0.3.63.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -499,7 +506,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.3.62.jar`
+- `opencode-loopper-0.3.63.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -537,7 +544,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.3.62.jar \
+jar tf target/opencode-loopper-0.3.63.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -667,7 +674,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.3.62.jar
+java -jar target/opencode-loopper-0.3.63.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。

@@ -48,8 +48,69 @@ class PackageDesignCandidatePolicyTest {
         assertThat(decision.fallbackEligible()).isFalse();
         assertThat(decision.problems()).singleElement().satisfies(problem -> {
             assertThat(problem.code()).isEqualTo("PACKAGE_DESIGN_COVERAGE_INCOMPLETE");
-            assertThat(problem.pointer()).isEqualTo("/stages");
-            assertThat(problem.detail()).isEqualTo("场景、交付与评审必须由阶段完整覆盖");
+            assertThat(problem.pointer()).isEqualTo("/deliverables/0/key");
+            assertThat(problem.detail()).contains("DEL-1", "stages[].includes");
+        });
+    }
+
+    @Test
+    void reportsTheExactScenarioSentenceWhenNoVerificationCapabilityCanProveIt() {
+        CandidatePolicy.Decision decision = policy.evaluate(context(), candidate()
+                .replace("src/test/java/example/EventBusTest.java", "src/main/java/example/EventBus.java")
+                .replace("新增 EventBusTest 聚焦验证未注册事件分支", "修改事件分发逻辑"));
+
+        assertThat(decision.accepted()).isFalse();
+        assertThat(decision.retryable()).isTrue();
+        assertThat(decision.problems()).singleElement().satisfies(problem -> {
+            assertThat(problem.code()).isEqualTo("VERIFICATION_CAPABILITY_UNAVAILABLE");
+            assertThat(problem.pointer()).isEqualTo("/scenarios/0/observableResult");
+            assertThat(problem.detail()).contains(
+                    "SC-1", "未注册事件被安全忽略", "发布调用正常返回且没有处理器被调用");
+            assertThat(problem.expected()).contains("唯一、可执行的验证能力");
+            assertThat(problem.actual()).contains("SC-1", "没有匹配到可执行验证能力");
+            assertThat(problem.repairHint()).contains("/deliverables", "SC-1", "READY");
+        });
+    }
+
+    @Test
+    void reportsEveryUnverifiableScenarioInOneDeterministicPass() {
+        CandidatePolicy.Decision decision = policy.evaluate(context(), twoScenarioCandidate());
+
+        assertThat(decision.problems()).hasSize(2);
+        assertThat(decision.problems()).extracting(MachineCandidateSubmission.Problem::pointer)
+                .containsExactly("/scenarios/0/observableResult", "/scenarios/1/observableResult");
+        assertThat(decision.problems()).extracting(MachineCandidateSubmission.Problem::detail)
+                .allSatisfy(detail -> assertThat(detail).contains("SC-"));
+        assertThat(decision.diagnosticsComplete()).isTrue();
+    }
+
+    @Test
+    void reportsBothStageLocationsWhenOneAcceptanceFactIsAssignedTwice() {
+        CandidatePolicy.Decision decision = policy.evaluate(context(), duplicateAssignmentCandidate());
+
+        assertThat(decision.problems()).singleElement().satisfies(problem -> {
+            assertThat(problem.code()).isEqualTo("ACCEPTANCE_FACT_ASSIGNED_MORE_THAN_ONCE");
+            assertThat(problem.pointer()).isEqualTo("/stages/1/includes/0");
+            assertThat(problem.detail()).contains("SC-1", "STAGE-1", "STAGE-2");
+            assertThat(problem.actual()).contains("/stages/0/includes/0", "/stages/1/includes/0");
+            assertThat(problem.repairHint()).contains("remove", "/stages/1/includes/0");
+        });
+    }
+
+    @Test
+    void correctableAmbiguityCannotEscapeToAFalseHumanInputStop() {
+        CandidatePolicy.Decision decision = policy.evaluate(context(), candidate()
+                .replace("\"outcome\":\"READY\"", "\"outcome\":\"NEEDS_INPUT\"")
+                .replace("\"gapCodes\":[]", "\"gapCodes\":[\"AMBIGUOUS_ACCEPTANCE_INTENT\"]"));
+
+        assertThat(decision.accepted()).isFalse();
+        assertThat(decision.retryable()).isTrue();
+        assertThat(decision.problems()).singleElement().satisfies(problem -> {
+            assertThat(problem.code()).isEqualTo("AMBIGUOUS_ACCEPTANCE_INTENT");
+            assertThat(problem.pointer()).isEqualTo("/gapCodes/0");
+            assertThat(problem.detail()).contains("不能作为人工输入出口", "READY");
+            assertThat(problem.actual()).contains("NEEDS_INPUT", "AMBIGUOUS_ACCEPTANCE_INTENT");
+            assertThat(problem.repairHint()).contains("outcome", "READY", "gapCodes");
         });
     }
 
@@ -113,6 +174,43 @@ class PackageDesignCandidatePolicyTest {
                    "requirementRefs":["REQ-1"]}],"reviews":[],
                  "stages":[{"key":"STAGE-1","title":"事件分发测试","objective":"实现并验证未注册事件分支",
                    "includes":["SC-1","DEL-1"],"dependencies":[]}],"gapCodes":[]}
+                """;
+    }
+
+    private String twoScenarioCandidate() {
+        return """
+                {"contractVersion":"PACKAGE_DESIGN_V1","outcome":"READY",
+                 "requirements":[{"key":"REQ-1","statement":"事件分发必须覆盖已注册与未注册事件"}],
+                 "scenarios":[
+                   {"key":"SC-1","title":"未注册事件被安全忽略","precondition":"事件类型尚未注册",
+                    "action":"发布该事件","observableResult":"发布调用正常返回且没有处理器被调用",
+                    "invariant":"既有已注册事件分发不变","requirementRefs":["REQ-1"]},
+                   {"key":"SC-2","title":"注册事件仍被分发","precondition":"事件类型已经注册",
+                    "action":"发布该事件","observableResult":"已注册处理器恰好调用一次",
+                    "invariant":"未注册事件分支仍安全","requirementRefs":["REQ-1"]}],
+                 "deliverables":[{"key":"DEL-1","kind":"DELIVERABLE",
+                   "target":"src/main/java/example/EventBus.java","description":"修改事件分发逻辑",
+                   "requirementRefs":["REQ-1"]}],"reviews":[],
+                 "stages":[{"key":"STAGE-1","title":"事件分发","objective":"实现两个事件分支",
+                   "includes":["SC-1","SC-2","DEL-1"],"dependencies":[]}],"gapCodes":[]}
+                """;
+    }
+
+    private String duplicateAssignmentCandidate() {
+        return """
+                {"contractVersion":"PACKAGE_DESIGN_V1","outcome":"READY",
+                 "requirements":[{"key":"REQ-1","statement":"事件分发必须安全处理未注册事件"}],
+                 "scenarios":[{"key":"SC-1","title":"未注册事件被安全忽略","precondition":"事件类型尚未注册",
+                   "action":"发布该事件","observableResult":"发布调用正常返回且没有处理器被调用",
+                   "invariant":"既有已注册事件分发不变","requirementRefs":["REQ-1"]}],
+                 "deliverables":[{"key":"DEL-1","kind":"DELIVERABLE",
+                   "target":"src/test/java/example/EventBusTest.java","description":"新增 EventBusTest 聚焦验证未注册事件分支",
+                   "requirementRefs":["REQ-1"]}],"reviews":[],
+                 "stages":[
+                   {"key":"STAGE-1","title":"实现事件分发","objective":"实现未注册事件分支",
+                    "includes":["SC-1","DEL-1"],"dependencies":[]},
+                   {"key":"STAGE-2","title":"复核事件分发","objective":"复核未注册事件分支",
+                    "includes":["SC-1"],"dependencies":["STAGE-1"]}],"gapCodes":[]}
                 """;
     }
 

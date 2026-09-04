@@ -52,8 +52,8 @@ class PackageDesignCompilationTest {
         assertThat(result.retryable()).isTrue();
         assertThat(result.problems()).singleElement().satisfies(problem -> {
             assertThat(problem.code()).isEqualTo("PACKAGE_DESIGN_REFERENCE_INVALID");
-            assertThat(problem.pointer()).isEqualTo("/stages/0/includes");
-            assertThat(problem.staticDetail()).isEqualTo("阶段包含项引用未知");
+            assertThat(problem.pointer()).isEqualTo("/stages/0/includes/1");
+            assertThat(problem.staticDetail()).contains("UNKNOWN", "不是候选中已声明");
             assertThat(problem.fallbackEligible()).isTrue();
         });
     }
@@ -109,7 +109,8 @@ class PackageDesignCompilationTest {
         assertThat(result.problems()).singleElement().satisfies(problem -> {
             assertThat(problem.code()).isEqualTo("PACKAGE_DESIGN_COVERAGE_INCOMPLETE");
             assertThat(problem.problemClass()).isEqualTo(PackageDesignCompilation.ProblemClass.CORRECTABLE);
-            assertThat(problem.staticDetail()).isEqualTo("场景、交付与评审必须由阶段完整覆盖");
+            assertThat(problem.pointer()).isEqualTo("/deliverables/0/key");
+            assertThat(problem.staticDetail()).contains("DEL-1", "stages[].includes");
             assertThat(problem.fallbackEligible()).isFalse();
         });
     }

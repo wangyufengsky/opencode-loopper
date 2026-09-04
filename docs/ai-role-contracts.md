@@ -104,7 +104,10 @@ V69 起，Decomposer、验收闭集选择、工作包 Designer、滚动规划、
 通过 MCP 提交候选均不设次数上限。可修正的拒绝继续返回 `REJECTED`，响应中的
 `submissionCountLimited=false / remainingAttempts=null` 表示不限制次数；真实提交计数仍保留。
 `maxAttempts` 是冻结的 Legacy 修复预算/身份元数据，不能当作 MCP 剩余配额。精确幂等重放保留
-原响应。可修正问题统一携带有界 `code / JSON Pointer / detail / allowedValues` 并保持 run 为 `OPEN`；
+原响应。可修正问题统一携带有界 `parameter / code / JSON Pointer / category / expected / actual / detail /
+allowedValues / repairHint`；`actual` 必须来自该 Pointer 的候选局部值，语义错误还要指出候选事实 key、
+阶段/证据项和需要消歧的候选原句，不能退化为通用占位词。一次确定性检查返回全部可独立发现的问题，
+并以 `diagnosticsComplete / truncated` 声明是否因 64 条或响应字节边界截断；可修正时保持 run 为 `OPEN`；
 成功、真实人工缺口、权限/安全/身份边界及已结束运行仍按原终态处理。
 
 工作包 Designer 在所属持久会话的当前回合、对应独立候选 run 内优先提交
@@ -116,7 +119,10 @@ JSON Pointer、具体说明和允许值，模型可以在同一 Session 读取�
 权限、安全结论或稳定 ID。角色提示必须提供完整闭集字段模板：所有条目使用候选局部 `key`，
 场景使用 `precondition/action/observableResult/invariant/requirementRefs`，交付物使用
 `kind/target/description/requirementRefs`，Stage 使用 `title/objective/includes/dependencies`；
-不得让模型猜测字段或误用服务端 `id`。`NEEDS_INPUT` 是真实人工输入请求，不得转换成 Markdown 兜底。
+不得让模型猜测字段或误用服务端 `id`。`NEEDS_INPUT` 只能表示真实、由用户拥有的缺失语义，不得转换成
+Markdown 兜底；`AMBIGUOUS_ACCEPTANCE_INTENT`、`VERIFICATION_CAPABILITY_UNAVAILABLE` 和
+`REQUIRED_MUTATION_PATH_UNASSIGNED` 属于候选拥有的修正责任，模型把它们放进 `gapCodes` 也必须收到
+`REJECTED / FIX_AND_RESUBMIT`，不得触发人工阻塞。
 
 冻结需求明确要求 Markdown-only 或不使用私有提交时，工作包角色必须尊重该选择，不能让后置“优先调用”提示覆盖它；该候选 Session 以零提交完成并交给既有 Markdown 路线。候选被接受后，服务端忽略 assistant 最终文本，使用规范化候选生成可审计 Markdown，并通过
 与旧 Markdown 入口共用的 `PackageDesignCompilation` 内核产生确定性结果；因此 MCP 成功只

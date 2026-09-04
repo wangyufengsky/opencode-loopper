@@ -64,10 +64,35 @@ class DecompositionCandidatePolicyTest {
         assertThat(decision.retryable()).isFalse();
         assertThat(decision.problems()).singleElement().satisfies(problem -> {
             assertThat(problem.code()).isEqualTo("DECOMPOSITION_NEEDS_INPUT");
-            assertThat(problem.pointer()).isEqualTo("/designGaps");
-            assertThat(problem.detail()).isEqualTo(
-                    "Candidate requires user input described by the accepted closed-set design gap");
+            assertThat(problem.pointer()).isEqualTo("/designGaps/0/detail");
+            assertThat(problem.detail()).contains("MISSING_SCOPE", "choose managed root");
+            assertThat(problem.actual()).contains("MISSING_SCOPE", "choose managed root");
+            assertThat(problem.repairHint()).contains("/designGaps/0/detail");
             assertThat(problem.allowedValues()).contains("MISSING_SCOPE");
+        });
+    }
+
+    @Test
+    void candidateOwnedGapCannotPretendToNeedHumanInput() {
+        LoopperDesignerMapper mapper = mock(LoopperDesignerMapper.class);
+        when(mapper.findTaskDecomposition("dec")).thenReturn(Optional.of(owner()));
+        when(mapper.findDesignRequirementRevision("rev")).thenReturn(Optional.of(revision()));
+        DecompositionCandidatePolicy policy = new DecompositionCandidatePolicy(
+                mapper, new DesignerDecompositionCandidateCompiler(new ObjectMapper()));
+
+        CandidatePolicy.Decision decision = policy.evaluate(context(), """
+                {"outcome":"NEEDS_INPUT","normalizedGoal":null,"globalConstraints":[],"workPackages":[],
+                 "coverage":[],"designGaps":[{"code":"AMBIGUOUS_ACCEPTANCE_INTENT",
+                 "detail":"I assigned one acceptance fact to two stages"}],"reason":null}
+                """);
+
+        assertThat(decision.accepted()).isFalse();
+        assertThat(decision.retryable()).isTrue();
+        assertThat(decision.problems()).singleElement().satisfies(problem -> {
+            assertThat(problem.code()).isEqualTo("AMBIGUOUS_ACCEPTANCE_INTENT");
+            assertThat(problem.pointer()).isEqualTo("/designGaps/0/code");
+            assertThat(problem.detail()).contains("不能作为人工输入出口", "two stages");
+            assertThat(problem.repairHint()).contains("READY", "/designGaps");
         });
     }
 
@@ -106,6 +131,14 @@ class DecompositionCandidatePolicyTest {
                 "remote", "RUNNING", 0, 0, 0, null, null, "now", "now", 4,
                 "PLANNING", null, 0, "TEXT_MARKER", null, false, "TEXT_MARKER", null, false,
                 null, 0, 0, false);
+    }
+
+    private CandidatePolicy.Context context() {
+        return new CandidatePolicy.Context("run",
+                MachineCandidateSubmission.CandidateScope.designerSession("session"),
+                MachineCandidateSubmission.CandidateOwnerRef.taskDecomposition("dec"),
+                MachineCandidateKind.DECOMPOSITION_PLAN_V2, "PLANNING", 1, 4,
+                "DECOMPOSITION_PLAN_V2", 5, 0);
     }
 
     private DesignRequirementRevisionRow revision() {

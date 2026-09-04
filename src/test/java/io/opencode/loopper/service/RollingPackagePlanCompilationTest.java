@@ -121,6 +121,9 @@ class RollingPackagePlanCompilationTest {
         assertThat(result.problems()).extracting(RollingPackagePlanCompilation.Problem::code)
                 .containsExactlyInAnyOrder("ROLLING_PACKAGE_SOURCE_INVALID",
                         "ROLLING_PACKAGE_DEPENDENCY_INVALID", "ROLLING_PACKAGE_REQUIREMENT_REF_INVALID");
+        assertThat(result.problems()).extracting(RollingPackagePlanCompilation.Problem::pointer)
+                .containsExactlyInAnyOrder("/packages/0/replaces/0", "/packages/0/dependencies/0",
+                        "/packages/0/requirementRefs/0");
         assertThat(result.problems()).allSatisfy(problem ->
                 assertThat(problem.problemClass()).isEqualTo(RollingPackagePlanCompilation.ProblemClass.MECHANICAL));
     }
@@ -140,7 +143,7 @@ class RollingPackagePlanCompilationTest {
         assertThat(result.retryable()).isTrue();
         assertThat(result.problems()).singleElement().satisfies(problem -> {
             assertThat(problem.code()).isEqualTo("ROLLING_PACKAGE_DEPENDENCY_INVALID");
-            assertThat(problem.pointer()).isEqualTo("/packages/0/dependencies");
+            assertThat(problem.pointer()).isEqualTo("/packages/0/dependencies/0");
             assertThat(problem.allowedValues()).containsExactly("WP-1");
         });
     }
