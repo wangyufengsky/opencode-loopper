@@ -31,7 +31,8 @@ class DesignerAcceptanceCandidatePromptFactoryTest {
         assertThat(prompt).doesNotContain(
                 "mvn", "ATest", "BTest", "同分 A", "同分 B", "src/", "allowedPaths", "\"permissions\"");
         assertThat(prompt).contains("\"factIndex\":0,\"stageIndex\":0", "\"capabilityIndexes\":[0]",
-                "MCP submissions have no count limit");
+                "MCP submissions have no count limit", "ACCEPTANCE_CANDIDATE_CONTRACT_INVALID",
+                "code, JSON Pointer, detail, allowed values");
         assertThat(prompt.split("loopper_internal_xyz_submit_candidate", -1).length - 1)
                 .as("the exact tool may be repeated only as the call target and contract label")
                 .isLessThanOrEqualTo(3);

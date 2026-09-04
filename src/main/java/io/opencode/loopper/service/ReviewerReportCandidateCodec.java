@@ -9,6 +9,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import tools.jackson.core.JacksonException;
@@ -20,10 +21,21 @@ import tools.jackson.databind.ObjectMapper;
 final class ReviewerReportCandidateCodec {
     private static final int MAX_CANDIDATE_BYTES = 128 * 1024;
     private static final int MAX_MANIFEST_BYTES = 4 * 1024 * 1024;
-    private static final Set<String> CANDIDATE_FIELDS =
-            Set.of("title", "summary", "findings", "limitations");
-    private static final Set<String> FINDING_FIELDS =
-            Set.of("severity", "title", "detail", "path", "line", "recommendation");
+    private static final List<String> CANDIDATE_FIELD_ORDER =
+            List.of("title", "summary", "findings", "limitations");
+    private static final Set<String> CANDIDATE_FIELDS = Set.copyOf(CANDIDATE_FIELD_ORDER);
+    private static final List<String> FINDING_FIELD_ORDER =
+            List.of("severity", "title", "detail", "path", "line", "recommendation");
+    private static final Set<String> FINDING_FIELDS = Set.copyOf(FINDING_FIELD_ORDER);
+    private static final Set<String> AUTHORITY_FIELDS = Set.of(
+            "runid", "taskid", "reportid", "analysisreportid", "sourcerevision", "ownerversion",
+            "submissionrevision", "state", "lifecycle", "permission", "permissions", "allowedpaths",
+            "forbiddenpaths", "command", "commands", "argv", "test", "tests", "evidencecatalog",
+            "sourcesha256", "hash", "sha256", "model", "fallback", "externalsessionid", "stableid");
+    private static final Set<String> AUTHORITY_PREFIXES = Set.of(
+            "runtime", "task", "report", "analysisreport", "source", "owner", "submission", "session",
+            "attempt", "stage", "executioncycle", "permission", "allowedpath", "forbiddenpath", "command",
+            "argv", "testtarget", "testcommand", "evidence", "hash", "sha", "fallback", "stable", "server");
 
     private final ObjectMapper json;
 
@@ -42,7 +54,14 @@ final class ReviewerReportCandidateCodec {
                 return mechanical("REVIEWER_CANDIDATE_JSON_INVALID", "/candidate",
                         "Reviewer 候选必须是 JSON 对象");
             }
-            if (unknown(root, CANDIDATE_FIELDS)) return authority("/candidate");
+            List<String> unknown = unknown(root, CANDIDATE_FIELDS);
+            if (unknown.stream().anyMatch(ReviewerReportCandidateCodec::authorityField)) {
+                return authority("/candidate");
+            }
+            if (!unknown.isEmpty()) {
+                return mechanical("REVIEWER_CANDIDATE_FIELD_INVALID", "/" + unknown.getFirst(),
+                        "Reviewer 候选只能包含合同闭集字段", CANDIDATE_FIELD_ORDER);
+            }
             JsonNode findings = root.get("findings");
             JsonNode limitations = root.get("limitations");
             for (String field : List.of("title", "summary")) {
@@ -71,7 +90,15 @@ final class ReviewerReportCandidateCodec {
                     return mechanical("REVIEWER_CANDIDATE_JSON_INVALID", "/findings/" + index,
                             "Reviewer finding 必须是 JSON 对象");
                 }
-                if (unknown(finding, FINDING_FIELDS)) return authority("/findings/" + index);
+                List<String> findingUnknown = unknown(finding, FINDING_FIELDS);
+                if (findingUnknown.stream().anyMatch(ReviewerReportCandidateCodec::authorityField)) {
+                    return authority("/findings/" + index);
+                }
+                if (!findingUnknown.isEmpty()) {
+                    return mechanical("REVIEWER_CANDIDATE_FIELD_INVALID",
+                            "/findings/" + index + "/" + findingUnknown.getFirst(),
+                            "Reviewer finding 只能包含合同闭集字段", FINDING_FIELD_ORDER);
+                }
             }
             Candidate candidate = json.treeToValue(root, Candidate.class);
             if (candidate == null || candidate.findings() == null || candidate.limitations() == null) {
@@ -143,15 +170,27 @@ final class ReviewerReportCandidateCodec {
     }
 
     private static Decoded mechanical(String code, String pointer, String detail) {
-        return new Decoded(null, new MachineCandidateSubmission.Problem(
-                code, pointer, detail, List.of()), false);
+        return mechanical(code, pointer, detail, List.of());
     }
 
-    private static boolean unknown(JsonNode object, Set<String> allowed) {
+    private static Decoded mechanical(String code, String pointer, String detail, List<String> allowedValues) {
+        return new Decoded(null, new MachineCandidateSubmission.Problem(
+                code, pointer, detail, allowedValues), false);
+    }
+
+    private static List<String> unknown(JsonNode object, Set<String> allowed) {
+        List<String> result = new ArrayList<>();
         for (Map.Entry<String, JsonNode> property : object.properties()) {
-            if (!allowed.contains(property.getKey())) return true;
+            if (!allowed.contains(property.getKey())) result.add(property.getKey());
         }
-        return false;
+        return List.copyOf(result);
+    }
+
+    private static boolean authorityField(String field) {
+        if (field == null) return false;
+        String normalized = field.replace("_", "").replace("-", "").toLowerCase(Locale.ROOT);
+        return AUTHORITY_FIELDS.contains(normalized)
+                || AUTHORITY_PREFIXES.stream().anyMatch(normalized::startsWith);
     }
 
     String canonicalJson(Object value) {

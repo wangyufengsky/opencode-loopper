@@ -131,19 +131,29 @@ class AcceptanceClosedChoiceCandidatePolicyTest {
     }
 
     @Test
-    void safetyPathPermissionAndNonSelectionShapesAreNeverRetryable() {
+    void safetyPathAndPermissionFieldsAreNeverRetryable() {
         for (String candidate : List.of(
                 "{\"factAssignments\":[],\"capabilityPreferences\":[],\"allowedPaths\":[\"src/**\"]}",
-                "{\"factAssignments\":[],\"capabilityPreferences\":[],\"permissions\":\"allow\"}",
-                "{\"factAssignments\":\"not-an-enumerated-choice\",\"capabilityPreferences\":[]}")) {
+                "{\"factAssignments\":[],\"capabilityPreferences\":[],\"permissions\":\"allow\"}")) {
             CandidatePolicy.Decision decision = policy.evaluate(context(0), candidate);
             assertThat(decision.accepted()).isFalse();
             assertThat(decision.retryable()).as(candidate).isFalse();
             assertThat(decision.problems()).singleElement().satisfies(problem ->
-                    assertThat(problem.code()).isIn(
-                            "ACCEPTANCE_CANDIDATE_SECURITY_BOUNDARY",
-                            "ACCEPTANCE_CANDIDATE_CONTRACT_INVALID"));
+                    assertThat(problem.code()).isEqualTo("ACCEPTANCE_CANDIDATE_SECURITY_BOUNDARY"));
         }
+    }
+
+    @Test
+    void safeContractShapeErrorReturnsCorrectionToTheSameRun() {
+        CandidatePolicy.Decision decision = policy.evaluate(context(0),
+                "{\"factAssignments\":\"not-an-enumerated-choice\",\"capabilityPreferences\":[]}");
+
+        assertThat(decision.accepted()).isFalse();
+        assertThat(decision.retryable()).isTrue();
+        assertThat(decision.problems()).singleElement().satisfies(problem -> {
+            assertThat(problem.code()).isEqualTo("ACCEPTANCE_CANDIDATE_CONTRACT_INVALID");
+            assertThat(problem.detail()).contains("ACCEPTANCE_CLOSED_CHOICE_V7");
+        });
     }
 
     @Test

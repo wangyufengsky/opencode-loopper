@@ -230,7 +230,7 @@ final class DesignerPackageCandidateOrchestrator {
                 runId: %s
                 expectedSubmissionRevision: %d
                 MCP submissions have no count limit. On REJECTED, read only the returned
-                bounded code, JSON Pointer, and allowed values, then replace the entire candidate and retry with the
+                bounded code, JSON Pointer, detail, and allowed values, then replace the entire candidate and retry with the
                 returned submissionRevision. On ACCEPTED, stop: final assistant text is ignored. On WAITING_INPUT,
                 stop and wait for the user. On FALLBACK_REQUIRED, produce the complete controlled Markdown design
                 required above as your final response; do not call another tool. If you choose not to call the tool,

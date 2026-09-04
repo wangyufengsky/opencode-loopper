@@ -31,7 +31,7 @@ public interface PackageDesignCompilation {
     }
 
     enum Outcome { ACCEPTED, REJECTED, NEEDS_INPUT }
-    enum ProblemClass { MECHANICAL, SEMANTIC, SECURITY }
+    enum ProblemClass { MECHANICAL, CORRECTABLE, HUMAN_REQUIRED, SECURITY }
 
     record Problem(
             String code,
@@ -64,7 +64,8 @@ public interface PackageDesignCompilation {
         public boolean accepted() { return outcome == Outcome.ACCEPTED; }
         public boolean retryable() {
             return outcome == Outcome.REJECTED && !problems.isEmpty()
-                    && problems.stream().allMatch(problem -> problem.problemClass() == ProblemClass.MECHANICAL);
+                    && problems.stream().allMatch(problem -> problem.problemClass() == ProblemClass.MECHANICAL
+                            || problem.problemClass() == ProblemClass.CORRECTABLE);
         }
     }
 }

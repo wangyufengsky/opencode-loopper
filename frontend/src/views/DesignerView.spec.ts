@@ -648,7 +648,7 @@ describe('Designer draft composer', () => {
     expect(summary).toContain('MCP 候选已接受')
     expect(summary).toContain('服务端已编译')
     expect(summary).toContain('候选会话 1')
-    expect(summary).toContain('候选修正 2')
+    expect(summary).toContain('候选提交 2')
   })
 
   it('shows the persisted Markdown fallback reason in the direct-mode candidate summary', async () => {
@@ -678,7 +678,7 @@ describe('Designer draft composer', () => {
     expect(summary).toContain('Markdown 兜底')
     expect(summary).toContain('兜底原因：模型结束但未提交候选')
     expect(summary).toContain('候选会话 1')
-    expect(summary).not.toContain('候选修正')
+    expect(summary).not.toContain('候选提交')
   })
 
   it('keeps the new-design page focused and restores a history session from an explicit route', async () => {
@@ -1568,7 +1568,7 @@ describe('Designer draft composer', () => {
     expect(packageRail).toContain('服务端已编译')
     expect(packageRail).toContain('候选状态：已接受')
     expect(packageRail).toContain('候选会话 1')
-    expect(packageRail).toContain('候选修正 2')
+    expect(packageRail).toContain('候选提交 2')
     expect(wrapper.text()).not.toContain('"stages":["secret"]')
     const confirmButton = wrapper.findAll('button').find((button) => button.text().includes('确认设计并创建任务'))!
     expect(confirmButton.attributes('disabled')).toBeDefined()

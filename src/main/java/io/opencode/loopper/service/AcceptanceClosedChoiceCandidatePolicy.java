@@ -9,7 +9,7 @@ import java.util.List;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
-/** Database-read-only v7 policy; only a mechanical selection miss is retryable. */
+/** Database-read-only v7 policy; safe contract and closed-set misses are retryable. */
 final class AcceptanceClosedChoiceCandidatePolicy implements CandidatePolicy {
     static final String SELECTION_INVALID = "ACCEPTANCE_CANDIDATE_SELECTION_INVALID";
     static final String SECURITY_BOUNDARY = "ACCEPTANCE_CANDIDATE_SECURITY_BOUNDARY";
@@ -134,7 +134,7 @@ final class AcceptanceClosedChoiceCandidatePolicy implements CandidatePolicy {
     }
 
     private Decision rejected(String code, String pointer, String detail, List<String> allowedValues) {
-        return Decision.rejected(SELECTION_INVALID.equals(code), List.of(
+        return Decision.rejected(SELECTION_INVALID.equals(code) || CONTRACT_INVALID.equals(code), List.of(
                 new MachineCandidateSubmission.Problem(code, pointer, bounded(detail), allowedValues)));
     }
 

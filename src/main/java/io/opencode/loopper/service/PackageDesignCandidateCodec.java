@@ -1,8 +1,9 @@
 package io.opencode.loopper.service;
 
 import static io.opencode.loopper.service.PackageDesignCompilation.ProblemClass.MECHANICAL;
+import static io.opencode.loopper.service.PackageDesignCompilation.ProblemClass.CORRECTABLE;
+import static io.opencode.loopper.service.PackageDesignCompilation.ProblemClass.HUMAN_REQUIRED;
 import static io.opencode.loopper.service.PackageDesignCompilation.ProblemClass.SECURITY;
-import static io.opencode.loopper.service.PackageDesignCompilation.ProblemClass.SEMANTIC;
 
 import io.opencode.loopper.service.DesignerSemanticContracts.DesignGapCode;
 import java.text.Normalizer;
@@ -177,7 +178,7 @@ final class PackageDesignCandidateCodec {
                 "NEEDS_INPUT 候选必须声明至少一个闭集设计缺口", List.copyOf(allowed));
         if ("NEEDS_INPUT".equals(value.outcome()) && !value.gapCodes().isEmpty()) {
             problems.add(problem(value.gapCodes().getFirst(), "/gapCodes/0",
-                    "候选包含需要用户补充的设计语义缺口", List.copyOf(allowed), SEMANTIC, false));
+                    "候选明确声明需要用户补充设计语义", List.copyOf(allowed), HUMAN_REQUIRED, false));
         }
     }
 
@@ -355,7 +356,7 @@ final class PackageDesignCandidateCodec {
     }
 
     private static void semantic(boolean condition, Problems problems, String code, String pointer, String detail) {
-        if (!condition) problems.add(problem(code, pointer, detail, List.of(), SEMANTIC, false));
+        if (!condition) problems.add(problem(code, pointer, detail, List.of(), CORRECTABLE, false));
     }
 
     private static PackageDesignCompilation.Problem problem(String code, String pointer, String detail,

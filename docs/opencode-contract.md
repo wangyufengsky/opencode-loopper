@@ -333,9 +333,10 @@ true tie may create one
 `ACCEPTANCE_CLOSED_CHOICE_V7` run on `INTERNAL_MCP`. This profile has no built-in
 tools and no user-MCP wildcard; its sole grant is the exact generation-scoped
 `<server>_submit_candidate`. MCP submissions have no count limit in that
-same Session. Only a mechanical closed-set selection error is retryable;
-contract, path, permission, execution, topology, non-enumerable, or non-exhaustive
-failures stop at `WAITING_INPUT`. The accepted projection is database-only and
+same Session. Mechanical closed-set selection errors and safe JSON/field-shape contract errors are retryable;
+path, permission, execution, topology, security, non-enumerable, or non-exhaustive
+failures stop at `WAITING_INPUT`. Every retryable response carries bounded code, JSON Pointer, detail and
+allowed values, and the accepted projection is database-only and
 cannot expand the frozen topology, mutation ownership, verifier, or permission
 surface.
 
@@ -626,7 +627,8 @@ submission channel, external Session and runtime generation. INTERNAL_MCP submis
 idempotency replays the same safe response, while key reuse with different content fails closed. Policy
 evaluation is deterministic and accepted projection shares one short transaction with the terminal attempt.
 Rejected payload values never appear in persisted problems or safe responses: problem codes, JSON Pointers,
-and detail text are selected from server-owned static templates only.
+detail text and allowed values are selected from server-owned bounded templates only. Candidate-local semantic
+omissions may therefore receive actionable field guidance without echoing the submitted value.
 For v6 acceptance, the server preserves the Designer's 1–6 direct Stages
 or 1–3 Stages per large package; an optional one-turn Compiler fills only enumerated fact/capability holes.
 Loopper validates and persists that binding, derives all mechanical fields and stable `DS-Lxxx` source

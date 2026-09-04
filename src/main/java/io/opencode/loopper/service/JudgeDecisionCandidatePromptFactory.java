@@ -40,8 +40,9 @@ final class JudgeDecisionCandidatePromptFactory {
 
                 Submit exactly one complete candidate by calling `%s` with runId, a fresh idempotencyKey,
                 the candidate object, and expectedSubmissionRevision. candidate must be a JSON object, not a JSON-encoded string.
-                Do not return the candidate as final assistant text. If a mechanical value is rejected, replace the complete candidate and call the same tool
-                again in this Session using the returned submissionRevision. MCP submissions have no count limit.
+                Do not return the candidate as final assistant text. On REJECTED, use only the returned bounded code,
+                JSON Pointer, detail, allowed values, and returned submissionRevision to replace the complete candidate and
+                call the same tool again in this Session. MCP submissions have no count limit.
                 Stop on ACCEPTED or WAITING_INPUT.
 
                 Candidate fields are closed and all required:

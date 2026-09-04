@@ -125,7 +125,12 @@ class MachineCandidateSubmissionIntegrationTest {
                     legacy.runId(), "try-" + index, "{\"fallbackEligible\":true}", index, channel));
             assertThat(rejected.outcome()).isEqualTo(MachineCandidateOutcome.REJECTED);
             assertThat(rejected.runState()).isEqualTo(MachineCandidateRunState.OPEN);
+            assertThat(rejected.retryable()).isTrue();
             assertThat(rejected.remainingAttempts()).isNull();
+            assertThat(rejected.responseJson()).contains(
+                    "\"runState\":\"OPEN\"", "\"retryable\":true",
+                    "PACKAGE_DESIGN_INVALID", "Package design candidate is invalid",
+                    "\"submissionRevision\":" + (index + 1));
         }
         when(packageDesignCandidatePolicy.evaluate(any(CandidatePolicy.Context.class), anyString()))
                 .thenReturn(CandidatePolicy.Decision.rejected(false, List.of(new MachineCandidateSubmission.Problem(

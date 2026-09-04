@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -23,8 +24,19 @@ import tools.jackson.databind.json.JsonMapper;
 final class ProjectConventionCandidateCodec {
     private static final int MAX_CANDIDATE_BYTES = 64 * 1024;
     private static final int MAX_EVIDENCE_BYTES = 1024 * 1024;
-    private static final Set<String> FIELDS =
-            Set.of("contractVersion", "componentKeys", "commandIds", "pathIds");
+    private static final List<String> FIELD_ORDER =
+            List.of("contractVersion", "componentKeys", "commandIds", "pathIds");
+    private static final Set<String> FIELDS = Set.copyOf(FIELD_ORDER);
+    private static final Set<String> AUTHORITY_FIELDS = Set.of(
+            "runid", "taskid", "draftid", "projectconventiondraftid", "sourcerevision", "ownerversion",
+            "submissionrevision", "state", "lifecycle", "permission", "permissions", "path", "paths",
+            "allowedpaths", "forbiddenpaths", "command", "commands", "argv", "test", "tests",
+            "evidence", "evidencecatalog", "sourcesha256", "hash", "sha256", "model", "fallback",
+            "externalsessionid", "stableid");
+    private static final Set<String> AUTHORITY_PREFIXES = Set.of(
+            "runtime", "task", "draft", "source", "owner", "submission", "session", "attempt", "stage",
+            "executioncycle", "permission", "allowedpath", "forbiddenpath", "command", "argv", "testtarget",
+            "testcommand", "evidence", "hash", "sha", "fallback", "stable", "server");
     private final ObjectMapper json;
     private final ObjectMapper strictJson;
 
@@ -41,9 +53,16 @@ final class ProjectConventionCandidateCodec {
         try {
             JsonNode root = strictJson.readTree(value);
             if (root == null || !root.isObject()) return invalid();
-            if (root.properties().stream().map(Map.Entry::getKey).anyMatch(field -> !FIELDS.contains(field))) {
+            List<String> unknownFields = root.properties().stream().map(Map.Entry::getKey)
+                    .filter(field -> !FIELDS.contains(field)).toList();
+            if (unknownFields.stream().anyMatch(ProjectConventionCandidateCodec::authorityField)) {
                 return new Decoded(null, List.of(new Problem("PROJECT_CONVENTION_AUTHORITY_FIELD_FORBIDDEN",
                         "/candidate", "项目公约候选包含合同闭集之外的字段", List.of(), ProblemClass.SECURITY)));
+            }
+            if (!unknownFields.isEmpty()) {
+                return new Decoded(null, List.of(new Problem("PROJECT_CONVENTION_FIELD_INVALID",
+                        "/" + unknownFields.getFirst(), "项目公约候选只能包含合同闭集字段",
+                        FIELD_ORDER, ProblemClass.MECHANICAL)));
             }
             if (FIELDS.stream().anyMatch(field -> !root.has(field))
                     || !root.path("contractVersion").isTextual()
@@ -154,6 +173,13 @@ final class ProjectConventionCandidateCodec {
 
     private static int bytes(String value) {
         return value == null ? 0 : value.getBytes(StandardCharsets.UTF_8).length;
+    }
+
+    private static boolean authorityField(String field) {
+        if (field == null) return false;
+        String normalized = field.replace("_", "").replace("-", "").toLowerCase(Locale.ROOT);
+        return AUTHORITY_FIELDS.contains(normalized)
+                || AUTHORITY_PREFIXES.stream().anyMatch(normalized::startsWith);
     }
 
     private static Decoded invalid() {

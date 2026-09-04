@@ -182,15 +182,17 @@ class RollingPackagePlanCompilationTest {
     }
 
     @Test
-    void nonObjectAndOverlargePayloadsFailClosed() {
+    void nonObjectAndOverlargePayloadsReturnBoundedCorrections() {
         RollingPackagePlanCompilation.Result array = compilation.compileCandidate(input(), "[]");
         RollingPackagePlanCompilation.Result overlarge = compilation.compileCandidate(input(),
                 "{\"packages\":[],\"padding\":\"" + "x".repeat(70_000) + "\"}");
 
-        assertThat(array.outcome()).isEqualTo(RollingPackagePlanCompilation.Outcome.NEEDS_INPUT);
+        assertThat(array.outcome()).isEqualTo(RollingPackagePlanCompilation.Outcome.REJECTED);
+        assertThat(array.retryable()).isTrue();
         assertThat(array.problems()).extracting(RollingPackagePlanCompilation.Problem::code)
                 .containsExactly("ROLLING_PACKAGE_ROOT_INVALID");
-        assertThat(overlarge.outcome()).isEqualTo(RollingPackagePlanCompilation.Outcome.NEEDS_INPUT);
+        assertThat(overlarge.outcome()).isEqualTo(RollingPackagePlanCompilation.Outcome.REJECTED);
+        assertThat(overlarge.retryable()).isTrue();
         assertThat(overlarge.problems()).extracting(RollingPackagePlanCompilation.Problem::code)
                 .containsExactly("ROLLING_PACKAGE_CANDIDATE_TOO_LARGE");
     }

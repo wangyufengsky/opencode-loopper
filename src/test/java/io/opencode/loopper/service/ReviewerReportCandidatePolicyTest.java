@@ -31,8 +31,14 @@ class ReviewerReportCandidatePolicyTest {
         });
         assertThat(policy.evaluate(context(), candidateJson().replace("\"limitations\":[]",
                 "\"limitations\":[\"not tested\"]")).accepted()).isTrue();
-        assertThat(policy.evaluate(context(), candidateJson().replace("\"limitations\":[]",
-                "\"limitations\":[],\"contractVersion\":\"REVIEWER_REPORT_V1\"")).retryable()).isFalse();
+        CandidatePolicy.Decision extraField = policy.evaluate(context(), candidateJson().replace("\"limitations\":[]",
+                "\"limitations\":[],\"contractVersion\":\"REVIEWER_REPORT_V1\""));
+        assertThat(extraField.retryable()).isTrue();
+        assertThat(extraField.problems()).singleElement().satisfies(problem -> {
+            assertThat(problem.code()).isEqualTo("REVIEWER_CANDIDATE_FIELD_INVALID");
+            assertThat(problem.pointer()).isEqualTo("/contractVersion");
+            assertThat(problem.allowedValues()).containsExactly("title", "summary", "findings", "limitations");
+        });
     }
     private final ObjectMapper json = new ObjectMapper();
     private final ReviewerReportCompilation compilation =

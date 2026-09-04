@@ -47,8 +47,9 @@ final class DesignerAcceptanceCandidatePromptFactory {
 
                 Call %s once with runId, a new idempotencyKey, candidate containing exactly factAssignments and
                 capabilityPreferences plus optional summary/handoffSummary, and expectedSubmissionRevision. The tool
-                result is authoritative. Only when it returns REJECTED with
-                ACCEPTANCE_CANDIDATE_SELECTION_INVALID may you mechanically correct the listed selection and call the
+                result is authoritative. When it returns REJECTED with ACCEPTANCE_CANDIDATE_SELECTION_INVALID or
+                ACCEPTANCE_CANDIDATE_CONTRACT_INVALID, use only the returned bounded code, JSON Pointer, detail, allowed values,
+                and submissionRevision to correct the complete candidate and call the
                 same exact tool again with the returned submissionRevision. MCP submissions have no count limit.
                 On ACCEPTED or WAITING_INPUT stop.
                 The final text is non-authoritative and must never claim acceptance.

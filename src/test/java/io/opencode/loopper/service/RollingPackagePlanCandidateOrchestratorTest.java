@@ -63,6 +63,7 @@ class RollingPackagePlanCandidateOrchestratorTest {
         assertThat(start.prompt()).contains("base facts", credentials.exactToolName(), start.run().runId(),
                 "ROLLING_PACKAGE_PLAN_V1", "expectedSubmissionRevision",
                 "\"packageKey\":\"WP-2\"", "\"replaces\":[\"WP-2\"]", "\"requirementRefs\":[]")
+                .contains("code, JSON Pointer, detail, allowed values")
                 .contains("final assistant text is ignored")
                 .doesNotContain("MARKER", "Markdown fallback", "command", "allowedPaths");
     }

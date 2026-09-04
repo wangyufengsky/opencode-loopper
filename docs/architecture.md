@@ -494,7 +494,9 @@ V69 removes submission-count ceilings for every `INTERNAL_MCP` candidate kind.
 Retryable rejection remains `OPEN / REJECTED` regardless of the ordinal; it no longer
 triggers `WAITING_INPUT` or package Markdown fallback by count. Responses publish
 `submissionCountLimited=false` and `remainingAttempts=null` (unlimited), while unique
-attempt ordinals and submission revisions keep increasing. Exact idempotent replay
+attempt ordinals and submission revisions keep increasing. Retryable classification includes safe JSON/field
+shape errors and candidate-owned semantic omissions, not only syntax or reference mechanics; the response must
+include bounded code, JSON Pointer, actionable detail and allowed values. Exact idempotent replay
 preserves the original response, including historical numeric remaining counts.
 `max_attempts` remains immutable legacy-budget / launch-identity metadata; only
 `IN_PROCESS_LEGACY` still enforces it. V69 uses the V59 FK-safe rebuild pattern inside
@@ -669,7 +671,8 @@ fallback reason and `serverCompiled` directly from persisted server facts.
 Qualified v7 acceptance closed-choice routing uses the same authority split with
 no MCP submission-count limit. A unique optimum remains server-direct; a
 non-enumerable, non-exhaustive, path, or permission result opens no candidate run;
-only an exhaustive true tie opens one no-built-in-tools internal-MCP Session. The
+only an exhaustive true tie opens one no-built-in-tools internal-MCP Session. Within that open run, safe
+contract-shape or closed-set selection errors remain correctable; security/authority fields remain terminal. The
 production flag remains off until an isolated real-model run proves private-MCP
 use and correction after rejection in the same Session. Disabling it sends newly opened true ties through
 a fresh `IN_PROCESS_LEGACY` JSON Session without removing the adapters required to

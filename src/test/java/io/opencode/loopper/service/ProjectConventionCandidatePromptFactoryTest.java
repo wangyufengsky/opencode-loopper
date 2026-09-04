@@ -37,6 +37,7 @@ class ProjectConventionCandidatePromptFactoryTest {
                 .contains("componentKeys", "commandIds", "pathIds")
                 .contains("expectedSubmissionRevision: 7")
                 .contains("returned submissionRevision")
+                .contains("code, JSON Pointer, detail, allowed values")
                 .contains("Do not return the candidate as final assistant text")
                 .doesNotContain("fallbackAllowed: true");
     }

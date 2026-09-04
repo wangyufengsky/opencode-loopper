@@ -47,7 +47,7 @@ final class ReviewerReportCandidatePromptFactory {
                 expectedSubmissionRevision. MCP submissions have no count limit.
                 candidate must be a JSON object, not a JSON-encoded string. When a type error points at
                 /limitations, replace that value with an array of strings; never invent missing authority fields.
-                On REJECTED, use only its bounded code, JSON Pointer, allowed values, and returned
+                On REJECTED, use only its bounded code, JSON Pointer, detail, allowed values, and returned
                 submissionRevision to replace the complete candidate and retry. On ACCEPTED or WAITING_INPUT stop.
                 Never emit a compatibility payload. The final assistant text is ignored and is never authoritative.
                 """.formatted(projectRoot, requirement, run.runId(), run.version(), exactToolName, exactToolName);

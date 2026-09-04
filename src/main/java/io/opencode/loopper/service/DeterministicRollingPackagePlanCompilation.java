@@ -44,8 +44,9 @@ public final class DeterministicRollingPackagePlanCompilation implements Rolling
     public Result compileCandidate(Input input, String candidateJson) {
         validateInput(input);
         if (candidateJson == null || utf8(candidateJson) > MAX_CANDIDATE_BYTES) {
-            return closed("ROLLING_PACKAGE_CANDIDATE_TOO_LARGE", "/candidate",
-                    "候选超过 ROLLING_PACKAGE_PLAN_V1 有界输入限制");
+            return rejected(problem("ROLLING_PACKAGE_CANDIDATE_TOO_LARGE", "/candidate",
+                    "候选超过 ROLLING_PACKAGE_PLAN_V1 有界输入限制，请缩短后提交完整替换候选",
+                    List.of(String.valueOf(MAX_CANDIDATE_BYTES)), MECHANICAL));
         }
         JsonNode root;
         try {
@@ -55,8 +56,9 @@ public final class DeterministicRollingPackagePlanCompilation implements Rolling
                     "候选必须是标准 JSON object", List.of(), MECHANICAL));
         }
         if (root == null || !root.isObject()) {
-            return closed("ROLLING_PACKAGE_ROOT_INVALID", "/candidate",
-                    "候选根必须是 ROLLING_PACKAGE_PLAN_V1 JSON object");
+            return rejected(problem("ROLLING_PACKAGE_ROOT_INVALID", "/candidate",
+                    "候选根必须是只包含 packages 的 ROLLING_PACKAGE_PLAN_V1 JSON object",
+                    List.of("packages"), MECHANICAL));
         }
         if (containsAuthorityField(root)) {
             return closed("ROLLING_PACKAGE_AUTHORITY_FIELD_FORBIDDEN", "/candidate",

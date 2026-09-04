@@ -101,11 +101,14 @@ V69 起，Decomposer、验收闭集选择、工作包 Designer、滚动规划、
 通过 MCP 提交候选均不设次数上限。可修正的拒绝继续返回 `REJECTED`，响应中的
 `submissionCountLimited=false / remainingAttempts=null` 表示不限制次数；真实提交计数仍保留。
 `maxAttempts` 是冻结的 Legacy 修复预算/身份元数据，不能当作 MCP 剩余配额。精确幂等重放保留
-原响应，成功、不可修复错误及已结束运行仍按原终态处理；不会为解除次数限制而绕过权限或验收。
+原响应。可修正问题统一携带有界 `code / JSON Pointer / detail / allowedValues` 并保持 run 为 `OPEN`；
+成功、真实人工缺口、权限/安全/身份边界及已结束运行仍按原终态处理。
 
 工作包 Designer 在所属持久会话的当前回合、对应独立候选 run 内优先提交
-`PACKAGE_DESIGN_V1`。每次提交都是完整替换对象，MCP 提交不设次数上限；服务端只返回闭集问题码和
-JSON Pointer，模型可以在同一 Session 读取拒绝原因并修正。模型只拥有需求语义、场景、
+`PACKAGE_DESIGN_V1`。每次提交都是完整替换对象，MCP 提交不设次数上限；服务端返回闭集问题码、
+JSON Pointer、具体说明和允许值，模型可以在同一 Session 读取拒绝原因并修正。`READY` 候选中的
+语义缺失、覆盖不全、验收归属或验证能力歧义属于可修正问题；不得因其不是纯格式错误而结束 Session。
+模型只拥有需求语义、场景、
 交付物、评审点以及 Stage 目标/引用/依赖，不能决定命令、可写路径清单、测试命令、Verifier、
 权限、安全结论或稳定 ID。角色提示必须提供完整闭集字段模板：所有条目使用候选局部 `key`，
 场景使用 `precondition/action/observableResult/invariant/requirementRefs`，交付物使用
@@ -114,8 +117,8 @@ JSON Pointer，模型可以在同一 Session 读取拒绝原因并修正。模�
 
 冻结需求明确要求 Markdown-only 或不使用私有提交时，工作包角色必须尊重该选择，不能让后置“优先调用”提示覆盖它；该候选 Session 以零提交完成并交给既有 Markdown 路线。候选被接受后，服务端忽略 assistant 最终文本，使用规范化候选生成可审计 Markdown，并通过
 与旧 Markdown 入口共用的 `PackageDesignCompilation` 内核产生确定性结果；因此 MCP 成功只
-省去 Markdown 语义解析和独立 AI Compiler Session。模型正常完成但从未调用 MCP，或三次都
-只有允许降级的机械问题时，非空最终 Markdown 才进入既有编译路线。运行代次、路径、安全、
+省去 Markdown 语义解析和独立 AI Compiler Session。模型正常完成但从未调用 MCP 时，非空最终
+Markdown 才进入既有编译路线；可修正 MCP 拒绝不按提交次数切换兜底。运行代次、路径、安全、
 权限和修订冲突，以及超时、传输失败或停止未确认均失败关闭。
 
 隔离成品 JAR 已分别证明真实模型在同一 Session 读取 Stage 自依赖拒绝并修正到 `ACCEPTED`，
@@ -393,8 +396,9 @@ v7 消歧提示给出唯一小型对象形状和全部闭集候选。服务端�
 `safeNormalizations` 诊断，不消耗格式/语义修复预算。原始响应在规范化前扫描：路径、命令、测试目标、
 Stage 拓扑、权限或安全字段即使 Schema transport 接受也必须失败关闭。缺少必选项、越界索引、重复或冲突
 选择、修改锁定事实，以及多个不等价的有效 JSON 候选在显式关闭开关的兼容路径继续产生
-`AMBIGUOUS_ACCEPTANCE_INTENT`，不创建格式或语义修复 Session；候选开关开启后只有纯机械闭集选择错误
-可由同一候选 Session 继续通过 MCP 修正重送，不设次数上限；安全、合同和非枚举问题仍不可重试。两条路径都不得以空 binding、
+`AMBIGUOUS_ACCEPTANCE_INTENT`，不创建格式或语义修复 Session；候选开关开启后，闭集选择错误及安全的
+JSON/字段合同形状错误可由同一候选 Session 继续通过 MCP 修正重送，不设次数上限；路径、权限、执行、
+拓扑、安全和非枚举问题仍不可重试。两条路径都不得以空 binding、
 丢弃建议或 catch-all Stage 继续。无效结果保留冻结事实和
 已完成的唯一绑定，只更新失败诊断。结构缺失、依赖冲突和确定性验证能力缺失直接
 `DESIGN_INCOMPLETE`，不会为了取得一个无法改变结论的回答而调用 Compiler。

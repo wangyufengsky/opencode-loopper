@@ -56,7 +56,7 @@ public final class DeterministicPackageDesignCompilation implements PackageDesig
             return new Result(NEEDS_INPUT, canonicalJson, null, null, null, decoded.problems());
         }
         String markdown = markdownRenderer.render(candidate);
-        return compileCanonical(input, candidate, canonicalJson, markdown);
+        return compileCanonical(input, canonicalJson, markdown, true);
     }
 
     @Override
@@ -72,11 +72,11 @@ public final class DeterministicPackageDesignCompilation implements PackageDesig
         PackageDesignCandidateDocument adapter = markdownAdapter(facts);
         PackageDesignCandidateCodec.Decoded decoded = codec.decode(codec.canonicalJson(adapter), input.stageLimit());
         if (!decoded.valid()) return rejected(decoded.candidate(), decoded.problems());
-        return compileCanonical(input, decoded.candidate(), codec.canonicalJson(decoded.candidate()), canonicalMarkdown);
+        return compileCanonical(input, codec.canonicalJson(decoded.candidate()), canonicalMarkdown, false);
     }
 
-    private Result compileCanonical(Input input, PackageDesignCandidateDocument candidate,
-                                    String canonicalJson, String markdown) {
+    private Result compileCanonical(Input input, String canonicalJson, String markdown,
+                                    boolean correctionAllowed) {
         try {
             Catalog base = factExtractor.extract(input.workPackage().packageId(),
                     input.workPackage().designRevision(), markdown, CONTRACT_VERSION_V7);
@@ -85,12 +85,10 @@ public final class DeterministicPackageDesignCompilation implements PackageDesig
             var capabilities = capabilityRegistry.build(facts, input.role(), markdown);
             DesignerAcceptanceFastPathResolver.Resolution resolution = resolver.resolve(facts, capabilities);
             if (resolution.outcome() == DesignerAcceptanceFastPathResolver.Outcome.DESIGN_INCOMPLETE) {
-                return gaps(candidate, canonicalJson, markdown, resolution.designGaps());
+                return gaps(canonicalJson, markdown, resolution.designGaps(), correctionAllowed);
             }
             if (resolution.outcome() != DesignerAcceptanceFastPathResolver.Outcome.RESOLVED) {
-                return needsInput(candidate, canonicalJson, markdown, problem(
-                        "AMBIGUOUS_ACCEPTANCE_INTENT", "/stages",
-                        PackageDesignCompilation.ProblemClass.SEMANTIC));
+                return correction(canonicalJson, markdown, ambiguityProblems(resolution), correctionAllowed);
             }
             CompactAcceptanceBindingPlan binding = new CompactAcceptanceBindingPlan(
                     "服务端按 PACKAGE_DESIGN_V1 阶段关系直接编译", resolution.groupHints(), List.of(), null)
@@ -99,47 +97,55 @@ public final class DeterministicPackageDesignCompilation implements PackageDesig
                     input.workPackage(), markdown, facts, capabilities, binding, input.role(), input.scopeIn(),
                     input.scopeOut(), input.deliverables(), input.stageLimit(), input.directSoftwareMode());
             if (!"COMPILED".equals(compiled.plan().status())) {
-                return gaps(candidate, canonicalJson, markdown, compiled.plan().designGaps());
+                return gaps(canonicalJson, markdown, compiled.plan().designGaps(), correctionAllowed);
             }
             return new Result(ACCEPTED, canonicalJson, markdown, compiled.plan(), write(compiled.plan()), List.of());
         } catch (BadRequestException invalid) {
-            return needsInput(candidate, canonicalJson, markdown,
-                    problem(invalid.code(), "/candidate", classification(invalid.code())));
+            ProblemClass type = classification(invalid.code());
+            Problem problem = problem(invalid.code(), "/candidate", type);
+            return correction(canonicalJson, markdown, List.of(problem),
+                    correctionAllowed && correctable(type));
         }
     }
 
-    private Result gaps(PackageDesignCandidateDocument candidate, String canonicalJson, String markdown,
-                        List<DesignGap> gaps) {
+    private Result gaps(String canonicalJson, String markdown, List<DesignGap> gaps, boolean correctionAllowed) {
         List<Problem> problems = gaps == null ? List.of() : gaps.stream().limit(16)
-                .map(gap -> problem(gap.code().name(), "/stages", classification(gap.code().name()))).toList();
+                .map(gap -> {
+                    ProblemClass type = classification(gap.code().name());
+                    return problem(gap.code().name(), "/stages", type);
+                }).toList();
         if (problems.isEmpty()) problems = List.of(problem("PACKAGE_DESIGN_INCOMPLETE", "/candidate",
-                PackageDesignCompilation.ProblemClass.SEMANTIC));
-        return new Result(NEEDS_INPUT, canonicalJson, markdown, null, null, problems);
+                PackageDesignCompilation.ProblemClass.CORRECTABLE));
+        return correction(canonicalJson, markdown, problems, correctionAllowed);
     }
 
     private Result rejected(PackageDesignCandidateDocument candidate, List<Problem> problems) {
         String canonical = candidate == null ? null : codec.canonicalJson(candidate);
-        Outcome outcome = problems.stream().anyMatch(problem ->
-                problem.problemClass() != PackageDesignCompilation.ProblemClass.MECHANICAL)
+        Outcome outcome = problems.stream().anyMatch(problem -> !correctable(problem.problemClass()))
                 ? NEEDS_INPUT : REJECTED;
         return new Result(outcome, canonical, null, null, null, problems);
+    }
+
+    private Result correction(String canonicalJson, String markdown, List<Problem> problems,
+                              boolean correctionAllowed) {
+        boolean allCorrectable = problems.stream().allMatch(problem -> correctable(problem.problemClass()));
+        Outcome outcome = correctionAllowed && allCorrectable ? REJECTED : NEEDS_INPUT;
+        return new Result(outcome, canonicalJson, markdown, null, null, problems);
     }
 
     private Result needsInput(Problem problem) {
         return new Result(NEEDS_INPUT, null, null, null, null, List.of(problem));
     }
 
-    private Result needsInput(PackageDesignCandidateDocument candidate, String canonicalJson,
-                              String markdown, Problem problem) {
-        return new Result(NEEDS_INPUT, canonicalJson, markdown, null, null, List.of(problem));
+    private Problem problem(String code, String pointer, ProblemClass type) {
+        return problem(code, pointer, null, type);
     }
 
-    private Problem problem(String code, String pointer, ProblemClass type) {
+    private Problem problem(String code, String pointer, String suppliedDetail, ProblemClass type) {
         List<String> allowed = code.endsWith("GAP_CODE_INVALID")
                 ? java.util.Arrays.stream(DesignGapCode.values()).map(Enum::name).toList() : List.of();
-        String detail = type == ProblemClass.SECURITY
-                ? "候选触及服务端拥有的安全或执行边界"
-                : "候选存在需要修正或补充的确定性设计问题";
+        String detail = suppliedDetail == null || suppliedDetail.isBlank()
+                ? detail(safeCode(code), type) : suppliedDetail;
         return new Problem(safeCode(code), pointer, detail, allowed, type, type == ProblemClass.MECHANICAL);
     }
 
@@ -149,7 +155,45 @@ public final class DeterministicPackageDesignCompilation implements PackageDesig
                 || value.contains("MOVE") || value.contains("SECURITY") || value.contains("PERMISSION")) {
             return ProblemClass.SECURITY;
         }
-        return ProblemClass.SEMANTIC;
+        if ("LARGE_TASK_MODE_REQUIRED".equals(value)) return ProblemClass.HUMAN_REQUIRED;
+        return ProblemClass.CORRECTABLE;
+    }
+
+    private List<Problem> ambiguityProblems(DesignerAcceptanceFastPathResolver.Resolution resolution) {
+        List<Problem> result = new ArrayList<>();
+        if (!resolution.unresolvedFactIndexes().isEmpty()) {
+            result.add(problem("AMBIGUOUS_ACCEPTANCE_INTENT", "/stages",
+                    "至少一个验收事实尚未归属阶段；请确保每个 scenario/review key 在且仅在一个 stages[].includes 中出现",
+                    ProblemClass.CORRECTABLE));
+        }
+        if (!resolution.ambiguousCapabilityFactIndexes().isEmpty()) {
+            result.add(problem("AMBIGUOUS_ACCEPTANCE_INTENT", "/deliverables",
+                    "至少一个验收事实同时匹配多个验证能力；请把交付目标和验证方式描述到可唯一判定",
+                    ProblemClass.CORRECTABLE));
+        }
+        if (result.isEmpty()) result.add(problem("AMBIGUOUS_ACCEPTANCE_INTENT", "/stages",
+                ProblemClass.CORRECTABLE));
+        return List.copyOf(result.stream().limit(16).toList());
+    }
+
+    private static boolean correctable(ProblemClass type) {
+        return type == ProblemClass.MECHANICAL || type == ProblemClass.CORRECTABLE;
+    }
+
+    private static String detail(String code, ProblemClass type) {
+        if (type == ProblemClass.SECURITY) return "候选触及服务端拥有的安全或执行边界";
+        if (type == ProblemClass.HUMAN_REQUIRED) return "候选包含需要用户决策的确定性设计问题";
+        return switch (code) {
+            case "VERIFICATION_CAPABILITY_UNAVAILABLE" ->
+                    "至少一个验收场景没有可执行验证能力；请在 deliverables 中补充明确测试目标和验证方式";
+            case "AMBIGUOUS_ACCEPTANCE_INTENT" ->
+                    "验收事实的阶段归属或验证方式不唯一；请修正 stages[].includes 或 deliverables";
+            case "MISSING_OBSERVABLE_OUTCOME" -> "验收场景缺少可观察结果；请补全 observableResult";
+            case "MISSING_EXCEPTION_SEMANTICS" -> "验收场景缺少异常语义；请补全异常时的可观察结果";
+            case "MISSING_SCOPE" -> "候选缺少明确交付范围；请补全 deliverables";
+            case "MISSING_ACCEPTANCE_INTENT" -> "候选缺少可验证验收场景；请补全 scenarios";
+            default -> "候选存在可由模型修正的确定性设计问题";
+        };
     }
 
     private PackageDesignCandidateDocument markdownAdapter(Catalog facts) {

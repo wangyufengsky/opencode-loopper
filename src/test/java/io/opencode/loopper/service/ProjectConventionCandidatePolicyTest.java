@@ -53,6 +53,21 @@ class ProjectConventionCandidatePolicyTest {
     }
 
     @Test
+    void benignUnknownFieldReturnsTheAllowedContractShapeForCorrection() {
+        CandidatePolicy.Decision decision = policy.evaluate(context(), candidateJson()
+                .replace("\"pathIds\"", "\"note\":\"remove me\",\"pathIds\""));
+
+        assertThat(decision.accepted()).isFalse();
+        assertThat(decision.retryable()).isTrue();
+        assertThat(decision.problems()).singleElement().satisfies(problem -> {
+            assertThat(problem.code()).isEqualTo("PROJECT_CONVENTION_FIELD_INVALID");
+            assertThat(problem.pointer()).isEqualTo("/note");
+            assertThat(problem.allowedValues()).containsExactly(
+                    "contractVersion", "componentKeys", "commandIds", "pathIds");
+        });
+    }
+
+    @Test
     void sourceStoreCanonicalizesAndHashesTheCompleteEvidenceObjectBeforeRemoteIo() {
         LoopperMachineCandidateMapper mapper = mock(LoopperMachineCandidateMapper.class);
         when(mapper.insertProjectConventionCandidateSourceSnapshot(any())).thenReturn(1);

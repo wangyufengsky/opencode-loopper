@@ -26,7 +26,7 @@ class PackageDesignCandidatePolicyTest {
     private final PackageDesignCandidatePolicy policy = new PackageDesignCandidatePolicy(inputs, compilation);
 
     @Test
-    void mapsOnlyMechanicalProblemsToRetryAndBudgetFallback() {
+    void mapsMechanicalProblemsToRetryAndBudgetFallback() {
         CandidatePolicy.Decision decision = policy.evaluate(context(), candidate()
                 .replace("\"SC-1\",\"DEL-1\"", "\"SC-1\",\"UNKNOWN\""));
 
@@ -36,6 +36,21 @@ class PackageDesignCandidatePolicyTest {
         assertThat(decision.problems()).singleElement()
                 .extracting(MachineCandidateSubmission.Problem::code)
                 .isEqualTo("PACKAGE_DESIGN_REFERENCE_INVALID");
+    }
+
+    @Test
+    void mapsCorrectableSemanticProblemToRetryWithoutMarkdownFallback() {
+        CandidatePolicy.Decision decision = policy.evaluate(context(), candidate()
+                .replace("\"SC-1\",\"DEL-1\"", "\"SC-1\""));
+
+        assertThat(decision.accepted()).isFalse();
+        assertThat(decision.retryable()).isTrue();
+        assertThat(decision.fallbackEligible()).isFalse();
+        assertThat(decision.problems()).singleElement().satisfies(problem -> {
+            assertThat(problem.code()).isEqualTo("PACKAGE_DESIGN_COVERAGE_INCOMPLETE");
+            assertThat(problem.pointer()).isEqualTo("/stages");
+            assertThat(problem.detail()).isEqualTo("场景、交付与评审必须由阶段完整覆盖");
+        });
     }
 
     @Test

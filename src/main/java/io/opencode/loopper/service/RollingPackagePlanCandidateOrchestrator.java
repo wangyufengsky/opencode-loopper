@@ -222,7 +222,7 @@ final class RollingPackagePlanCandidateOrchestrator {
                 runId: %s
                 expectedSubmissionRevision: %d
                 MCP submissions have no count limit. On REJECTED, replace the whole
-                candidate and retry only with the returned bounded code, JSON Pointer, allowed values and returned
+                candidate and retry only with the returned bounded code, JSON Pointer, detail, allowed values and returned
                 submissionRevision. On ACCEPTED, stop; final assistant text is ignored. On WAITING_INPUT or
                 FALLBACK_REQUIRED, stop. Never return a legacy payload instead of calling the private tool.
                 """.formatted(toolName, run.runId(), run.version());

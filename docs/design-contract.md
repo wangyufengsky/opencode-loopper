@@ -721,7 +721,7 @@ persisted, built-in-tools-disabled finalizer Session for that role step. Configu
 remain available under the same additive permission rule. The finalizer uses
 bounded deduplicated evidence, counts against the global model-call budget, and
 does not consume format-repair budget. Judge finalization preserves the no-step-limit policy
-without opening built-in tools. Role timeouts, Task budgets, candidate submission limits and
+without opening built-in tools. Role timeouts, Task budgets, MCP submission-count policy and
 permission boundaries remain independent. A returned maximum-steps control notice is shown as
 a Chinese Session failure and cannot be saved as a design or enter acceptance compilation.
 Existing stored output is not rewritten; the user must rerun the affected design after the new runtime is loaded.
@@ -1100,27 +1100,28 @@ mutates the draft or creates a Task.
 
 当前只允许以下七个候选合同：
 
-- `DECOMPOSITION_PLAN_V2`：一个候选 run 最多接受 5 次提交；每次拒绝都必须返回有界、结构化、可修复的问题，超过预算或出现不可恢复问题时失败关闭。
-- `ACCEPTANCE_CLOSED_CHOICE_V7`：只允许服务端已经证明为自然可枚举、候选集合完备且存在真实机械同分的闭集选择，最多接受 2 次提交。第一次之后只有闭集选择值错误，或在其余根字段仍满足闭集且 `factAssignments` 合法时，把 `capabilityPreferences` 对象数组机械简写成非空整数数组，或把每项严格简写为整数 `{factIndex, capabilityIndex}`；以及把同一个 capability 选择同时严格机械写成非空 `factAssignments:[{factIndex, capabilityIndex}]` 与整数 `capabilityPreferences:[n]`，才可按服务端返回的完整对象数组允许值重试一次；简写候选本身永不被接受，混合项和未知字段不属于纠错面。
-- `PACKAGE_DESIGN_V1`：每次提交完整替换的工作包语义对象，包含 `READY | NEEDS_INPUT`、需求语义、场景、交付物、评审点、Stage 目标/语义引用/依赖和闭集 gap code，最多提交 3 次；Package Designer 提示必须给出精确闭集字段模板，所有跨项引用使用候选局部 `key`，不得以 `id` 冒充；命令、可写路径清单、测试命令、Verifier、权限结论和稳定 ID 属于服务端权威字段，候选一旦携带就直接拒绝。
-- `ROLLING_PACKAGE_PLAN_V1`：每次提交 1–6 个完整替换的剩余包，只允许 `packageKey/title/objective/replaces/dependencies/requirementRefs`，最多提交 3 次。替换来源、冻结需求引用以及“已冻结包或提案中更早包”的依赖均由服务端闭集校验；稳定 run ID、checkpoint、顺序、impact、路径、命令、Verifier、权限和生命周期字段一旦进入候选即失败关闭。
-- `REVIEWER_REPORT_V1`：只提交标题、必填摘要、受限 findings 和 limitations，最多提交 3 次；每条 finding 必须引用远端 I/O 前冻结的受管源码相对路径、精确行号和摘要，任一无效即整份拒绝，服务端确定性生成最终 Markdown 和证据。
-- `PROJECT_CONVENTION_V1`：只提交 `contractVersion/componentKeys/commandIds/pathIds`，最多提交 3 次；这些值必须来自远端 I/O 前冻结的服务端证据目录。原始命令、路径、Markdown、权限、生命周期、稳定 ID 和 fallback 指令均是禁止的权威字段，最终公约块由服务端确定性渲染。
-- `JUDGE_DECISION_V1`：每个 Requirement/Risk run 最多提交 2 次，只提交 `contractVersion/role/verdict/reason/evidenceIds`；角色与证据 ID 必须匹配远端 I/O 前冻结的当前评审批次，reason 为 1–4000 UTF-8 字节的单行文本。证据内容、批次、稳定 ID、权限和生命周期属于服务端权威；仅有界机械错误可在同一 Session 修正，安全或代次错误及耗尽失败关闭，正向停止证明后才能结算。
+- 七种合同在 `INTERNAL_MCP` 通道均不设提交次数上限；每次可修正拒绝必须返回有界 `code / JSON Pointer / detail / allowedValues`，保持同一 run 与远端 Session 为 `OPEN`，模型使用返回的 `submissionRevision` 提交完整替换候选。冻结的 `maxAttempts` 只约束 Legacy 修复预算，不是 MCP 配额。
+- `DECOMPOSITION_PLAN_V2`：提交完整任务拆解；合同或覆盖问题继续在同一 Session 修正。模型明确声明真实 `NEEDS_INPUT / MULTI_TASK_REQUIRED` 时进入人工边界。
+- `ACCEPTANCE_CLOSED_CHOICE_V7`：只允许服务端已证明自然可枚举、候选集合完备且存在真实机械同分的闭集选择。安全的 JSON/字段形状和闭集选择值错误均可修正；路径、权限、执行、拓扑以及不可枚举/非穷尽结果不开放候选修复面。
+- `PACKAGE_DESIGN_V1`：每次提交完整替换的工作包语义对象，包含 `READY | NEEDS_INPUT`、需求语义、场景、交付物、评审点、Stage 目标/语义引用/依赖和闭集 gap code。`READY` 的内容缺失、覆盖不全、验收归属或验证能力歧义是模型可修正问题；服务端必须保留具体缺口说明，不能只返回泛化的 `AMBIGUOUS_ACCEPTANCE_INTENT`。模型明确提交 `NEEDS_INPUT`、大型任务模式选择及路径/安全/权限边界仍需人工。命令、可写路径清单、测试命令、Verifier、权限结论和稳定 ID 属于服务端权威字段，候选不得携带。
+- `ROLLING_PACKAGE_PLAN_V1`：每次提交 1–6 个完整替换的剩余包，只允许 `packageKey/title/objective/replaces/dependencies/requirementRefs`。非法 JSON 根、载荷过大以及普通字段/闭集引用错误均返回可修正问题；稳定 run ID、checkpoint、顺序、impact、路径、命令、Verifier、权限和生命周期字段失败关闭。
+- `REVIEWER_REPORT_V1`：只提交标题、必填摘要、受限 findings 和 limitations；普通额外字段或拼写错误返回闭集字段列表供修正，真正的状态/权限/身份字段失败关闭。每条 finding 必须引用冻结的受管源码相对路径、精确行号和摘要，任一无效即整份拒绝。
+- `PROJECT_CONVENTION_V1`：只提交 `contractVersion/componentKeys/commandIds/pathIds`；普通额外字段返回闭集字段列表供修正，原始命令、路径、Markdown、权限、生命周期、稳定 ID 和 fallback 指令仍是禁止的权威字段。
+- `JUDGE_DECISION_V1`：只提交 `contractVersion/role/verdict/reason/evidenceIds`；角色与证据 ID 必须匹配冻结批次，reason 为 1–4000 UTF-8 字节的单行文本。普通合同字段错误可修正，证据内容、批次、稳定 ID、权限和生命周期字段失败关闭，正向停止证明后才能结算。
 
-工作包设计采用“双入口、单内核、单权威”。MCP 候选接受后由服务端生成规范 Markdown 作为设计历史，并直接进入确定性 `PackageDesignCompilation`，不创建独立 AI Compiler Session；模型最终自由文本被忽略。未调用 MCP，或三次均为明确可降级的机械问题时，只有远端已经 `COMPLETED` 且最终 Markdown 非空，才完整复用现有 Markdown 编译路线。冻结需求明确选择 Markdown-only 或不使用私有提交时，Package Designer 的后置候选提示必须尊重该选择，不得用“优先调用”覆盖它；该 Session 仍受候选最小权限 profile 管控，但应以零次提交正常完成并走 Markdown 兜底。`NEEDS_INPUT`、路径/安全/权限/修订/运行代次冲突、超时、传输失败和停止未确认都失败关闭，不得把可能不完整的输出当作兜底。
+工作包设计采用“双入口、单内核、单权威”。MCP 候选接受后由服务端生成规范 Markdown 作为设计历史，并直接进入确定性 `PackageDesignCompilation`，不创建独立 AI Compiler Session；模型最终自由文本被忽略。未调用 MCP 时，只有远端已经 `COMPLETED` 且最终 Markdown 非空，才完整复用现有 Markdown 编译路线；MCP 可修正拒绝不再因提交次数切换 Markdown。冻结需求明确选择 Markdown-only 或不使用私有提交时，Package Designer 的后置候选提示必须尊重该选择，不得用“优先调用”覆盖它；该 Session 仍受候选最小权限 profile 管控，但应以零次提交正常完成并走 Markdown 兜底。真实 `NEEDS_INPUT`、路径/安全/权限/修订/运行代次冲突、超时、传输失败和停止未确认都失败关闭，不得把可能不完整的输出当作兜底。
 
 Compiler v7 的既有快速路径保持不变：
 
 - 唯一最优解由服务端直接绑定，模型调用、candidate Session 和 candidate submission 均为 0。
-- 非枚举歧义、路径守卫、安全边界、权限约束或合同问题不得交给候选角色修复，保持 0 个 candidate，并由服务端失败关闭到人工输入。
+- 非枚举歧义、路径守卫、安全边界或权限约束不得交给候选角色修复，保持 0 个 candidate，并由服务端失败关闭到人工输入；已经开放的候选若只有安全合同形状错误，则在同一 run 内修正。
 - 真同分候选只允许在现有服务端路由明确 `compilerRequired=true` 且闭集证明成立后打开候选 run；不能由模型自行声称“这是闭集”。
 
 候选 OpenCode Session 必须使用独立的最小权限 profile：Decomposer、工作包设计、滚动计划、Reviewer、项目公约和 Judge 候选只保留形成仓库证据所需的 `read / glob / grep`，交互式工作包候选可额外使用 `question`，验收闭集选择不开放任何内置工具；每个 profile 都只可见精确命名的私有内部 `submit_candidate`，不可见用户 MCP。该内部 MCP 仅允许 Loopper 受管 OpenCode 通过 loopback 和代际 bearer 调用，不属于公共六工具目录。Router 的单次零工具边界不变；Legacy Requirement/Risk 继续使用既有只读 profile，`JUDGE_CANDIDATE_READ_ONLY` 获得精确私有提交工具；0.3.22 默认启用该路线不扩大文件、交互或写权限。
 
 滚动计划继续保持人工确认边界。启用 `ROLLING_PACKAGE_PLAN_V1` 后，派发前 flag 或私有 MCP 就绪证明缺失才允许创建全新的既有只读 Legacy Session；候选 Session/run 一旦存在，零提交、超时、Provider/传输、交互、安全、代次或停止不确定都不得读取 marker 输出。接受结果先以 V56 不可变行保存，只有远端完成或 abort/不存在的正向证明才与 `GENERATING -> PROPOSED` 在同一结算事务中绑定；未确认停止时保持 `GENERATING + DISCONNECTED`，不得自动确认计划或派发后续包。0.3.8 隔离成品 JAR 已证明真实模型主动调用私有工具、在前向依赖机械拒绝后于同一 Session 修正并接受，因此 0.3.9 起默认开启；显式设置 `LOOPPER_ROLLING_PACKAGE_PLAN_V1_ENABLED=false` 只把新建议送回全新 Legacy Session，不改变既有 run、接受结果和失败关闭边界。
 
-外部 `auto/http` 兼容模式不注入私有 MCP。它们继续使用 `IN_PROCESS_LEGACY` 通道，而且每个候选 run 必须新建 OpenCode Session，不能把旧 JSON 会话升级为内部 MCP 会话。受管模式可在同一候选 Session 内根据服务端拒绝结果做有界重提，但不能跨 runtime generation 继续。
+外部 `auto/http` 兼容模式不注入私有 MCP。它们继续使用 `IN_PROCESS_LEGACY` 通道，而且每个候选 run 必须新建 OpenCode Session，不能把旧 JSON 会话升级为内部 MCP 会话。受管模式可在同一候选 Session 内根据服务端可修正拒绝持续重提，但不能跨 runtime generation 继续；每次问题列表和候选载荷仍各自有界。
 
 候选 feature flag 只控制是否创建新的对应 run。关闭 flag 后不得再打开新 run；已经持久化的 run、恢复读取和兼容 adapter 必须继续可用，因此 persisted adapter 是常驻基础设施，不能通过条件 Bean 随 flag 一起消失。`PACKAGE_DESIGN_V1` 已由隔离成品 JAR 真实证明 MCP 修正接受和 Markdown-only 零提交兼容路线，生产默认开启。`ACCEPTANCE_CLOSED_CHOICE_V7` 已在 0.3.5 隔离成品 JAR 证明真实模型采用私有工具并同 Session 自修正，0.3.6 起默认开启；环境覆盖为 `false` 只把新真同分送回全新旧 JSON Session，不改变已有 run 的恢复。`ROLLING_PACKAGE_PLAN_V1` 已在 0.3.8 隔离成品 JAR 取得主动私有工具调用、机械拒绝后同 Session 自修正及 V56 结算证据，0.3.9 起默认开启；显式关闭只影响新建议。`REVIEWER_REPORT_V1` 已在 0.3.13 隔离成品 JAR 证明真实模型主动调用精确私有工具，并在同一 Session 将冻结源码范围拒绝的第 99 行修正为第 1 行；0.3.14 起默认开启，显式关闭只回滚新报告到全新 Legacy Session，不改变已有 run、源码快照、accepted result 和终止结算的恢复。
 
@@ -1149,7 +1150,7 @@ settlement certificate 原子打开 run；未知创建结果只允许 cleanup。
 `candidateSubmissions`、`compilationSource`、`fallbackReason` 和 `serverCompiled`。默认
 `DIRECT_SOFTWARE_DESIGN` 继续隐藏大型任务的审批轨道，但只要单包产生候选事实，就必须
 显示独立的单包候选摘要，并投影同一组字段；不能因为隐藏审批轨道而同时隐藏 MCP/兜底事实。
-“MCP 已接受”“MCP 修正 N 次”“Markdown 兜底”和“等待人工补充”都只能由这些字段
+“MCP 已接受”“候选提交 N 次”“Markdown 兜底”和“等待人工补充”都只能由这些字段
 驱动；前端不得用模型调用次数、消息数量或 assistant 文本反推提交次数和采用路线。
 
 ## Task review decisions and system tools (0.3.28)

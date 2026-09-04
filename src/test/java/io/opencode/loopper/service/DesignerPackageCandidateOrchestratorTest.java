@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -73,7 +74,8 @@ class DesignerPackageCandidateOrchestratorTest {
                 "\"dependencies\":[]", "Every key is a unique candidate-local reference",
                 "Never submit commands", "or stable server IDs",
                 "explicitly requests Markdown-only or no private submission",
-                "must respect that choice and do not call the private tool")
+                "must respect that choice and do not call the private tool",
+                "code, JSON Pointer, detail, and allowed values")
                 .doesNotContain("\"id\":\"STAGE-1\"");
     }
 
@@ -89,6 +91,22 @@ class DesignerPackageCandidateOrchestratorTest {
         assertThat(result.action()).isEqualTo(DesignerPackageCandidateOrchestrator.Action.ACCEPTED);
         verify(bindings).validate(accepted, MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP);
         verify(openCode).abortWithConfirmation(result.remote());
+    }
+
+    @Test
+    void openRunAfterCorrectableMcpRejectionKeepsTheSameRemoteSessionRunning() {
+        DesignWorkPackageRow workPackage = workPackage();
+        MachineCandidateSubmission.RunSnapshot open = run(workPackage, MachineCandidateRunState.OPEN, 7);
+        when(submissions.find(orchestrator.runId(workPackage))).thenReturn(Optional.of(open));
+        when(openCode.sessionStatus(any())).thenReturn(new OpenCodeClient.SessionStatus("RUNNING"));
+
+        DesignerPackageCandidateOrchestrator.Poll result = orchestrator.poll(
+                workPackage, Path.of("/tmp/project"), false);
+
+        assertThat(result.action()).isEqualTo(DesignerPackageCandidateOrchestrator.Action.RUNNING);
+        assertThat(result.run().attemptsUsed()).isEqualTo(7);
+        verify(openCode, never()).abortWithConfirmation(any());
+        verify(submissions, never()).close(any());
     }
 
     @Test

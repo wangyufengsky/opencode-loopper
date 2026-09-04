@@ -93,21 +93,23 @@ class PackageDesignCompilationTest {
         assertThat(result.outcome()).isEqualTo(PackageDesignCompilation.Outcome.NEEDS_INPUT);
         assertThat(result.problems()).singleElement().satisfies(problem -> {
             assertThat(problem.code()).isEqualTo("MISSING_EXCEPTION_SEMANTICS");
-            assertThat(problem.problemClass()).isEqualTo(PackageDesignCompilation.ProblemClass.SEMANTIC);
+            assertThat(problem.problemClass()).isEqualTo(PackageDesignCompilation.ProblemClass.HUMAN_REQUIRED);
             assertThat(problem.fallbackEligible()).isFalse();
         });
     }
 
     @Test
-    void incompleteStageCoverageIsSemanticAndCannotFallback() {
+    void incompleteStageCoverageReturnsAStaticCorrectionWithoutFallback() {
         String candidate = readyCandidate().replace("\"SC-1\", \"DEL-1\"", "\"SC-1\"");
 
         PackageDesignCompilation.Result result = compilation.compileCandidate(input(), candidate);
 
-        assertThat(result.outcome()).isEqualTo(PackageDesignCompilation.Outcome.NEEDS_INPUT);
+        assertThat(result.outcome()).isEqualTo(PackageDesignCompilation.Outcome.REJECTED);
+        assertThat(result.retryable()).isTrue();
         assertThat(result.problems()).singleElement().satisfies(problem -> {
             assertThat(problem.code()).isEqualTo("PACKAGE_DESIGN_COVERAGE_INCOMPLETE");
-            assertThat(problem.problemClass()).isEqualTo(PackageDesignCompilation.ProblemClass.SEMANTIC);
+            assertThat(problem.problemClass()).isEqualTo(PackageDesignCompilation.ProblemClass.CORRECTABLE);
+            assertThat(problem.staticDetail()).isEqualTo("场景、交付与评审必须由阶段完整覆盖");
             assertThat(problem.fallbackEligible()).isFalse();
         });
     }
