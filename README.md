@@ -7,7 +7,13 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.3.61`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.3.62`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+
+## 0.3.62 历史任务脏文件误报与取消修复
+
+- `WAITING_INPUT` 的当前原因改由最新 Task 状态转换权威给出；新转换写入 `reason_code`，旧内网数据只在当前等待轮次内从转换元数据或错误兼容推导，不再扫描整段错误历史。
+- `SOURCE_BRANCH_WORKSPACE_DIRTY` 仅在任务分支和执行目录都尚未准备时有效。已经有分支或阶段执行记录的历史任务不会再弹出空的“发现未提交文件”窗口。
+- 已经打开的旧弹窗仍可使用“取消任务并保留文件”：服务端会转入统一 `STOPPING → CANCELLED` 协议，保留现有文件、任务分支、执行目录与审计证据，不再被过期的脏文件动作守卫拒绝。
 
 ## 0.3.61 内网 Router 步数兼容修复
 
@@ -225,7 +231,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.3.61.jar
+java -jar target/opencode-loopper-0.3.62.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -360,7 +366,7 @@ Loopper 不会因为任务成功就自动提交、推送或合并。确认计划
 
 处于 `PENDING_START` 的任务可在详情页二次确认后直接取消；此时尚无队列项、写租约、任务分支、执行目录或 OpenCode Session。`READY` 只作为开始请求已经接纳后的短暂内部准备状态，前端不会要求再次点击“开始执行”。处于 `QUEUED` 的任务也可直接取消；取消只移除该任务的排队资格，不会释放或切换当前执行任务持有的项目写租约。所有未结束的执行态统一先持久化为 `STOPPING`，停止并复核当前 OpenCode Session、Judge Session 和托管验证器进程；全部确认终止后才把运行 Attempt/Stage 分别记为取消、把本轮 Execution Cycle 记为 `INTERRUPTED`，最后进入 `CANCELLED`。终止无法确认时保留 `STOPPING`、执行目录和租约，并允许“重试停止”，不会伪造终态。排队详情同时显示 holder 标题、状态、归档状态、租约状态和最近阻塞原因；普通阻断使用“重新检查并释放”，`SESSION_WRITER_UNCONFIRMED` 使用带二次确认的“终止遗留会话并释放”。两者都只提交 waiter ID，由服务端权威定位 holder，不能由客户端指定或强制转移。持有活动租约或仍为 `ADMITTED` 的终态任务必须先完成安全释放，才能归档或永久删除。
 
-任务开始前发现脏工作区时，任务会停在 `WAITING_INPUT`，详情页自动弹出具体文件列表。每个文件必须明确选择“提交到当前源分支”“暂存到 Git stash”或“移除/丢弃改动”，再点击“重新检查并继续”。处理请求绑定当前 Git 状态快照；期间文件、索引、HEAD 或分支有变化时会拒绝旧决定并刷新列表，避免把过期选择用于新内容。提交只生成本地提交，不自动推送；stash 只包含选择的路径；移除未跟踪文件或丢弃跟踪文件改动前还会二次确认。外部 Git 操作不是数据库事务，若中途某一步失败，已成功的 Git 操作不会伪装回滚，弹窗会按最新状态重新列出剩余文件。处理完成后，历史错误仍作为审计证据保留，任务会从准备状态自动继续执行，详情页不再显示“检测到未提交文件”的活动红色告警。点击“取消任务并保留文件”后在当前弹窗内二次确认，不再叠加全局确认框；即使文件列表读取失败，取消入口仍可用。确认取消会保留全部现有文件，把本轮执行记为中断并将任务转为 `CANCELLED`，不再借用任务失败路径。远端认证失败或本地/远端历史分叉仍会失败关闭。分支切换使用 10 分钟有界超时，并为 Windows 命令局部启用 Git 长路径支持。
+任务开始前发现脏工作区时，任务会停在 `WAITING_INPUT`，详情页自动弹出具体文件列表。每个文件必须明确选择“提交到当前源分支”“暂存到 Git stash”或“移除/丢弃改动”，再点击“重新检查并继续”。处理请求绑定当前 Git 状态快照；期间文件、索引、HEAD 或分支有变化时会拒绝旧决定并刷新列表，避免把过期选择用于新内容。提交只生成本地提交，不自动推送；stash 只包含选择的路径；移除未跟踪文件或丢弃跟踪文件改动前还会二次确认。外部 Git 操作不是数据库事务，若中途某一步失败，已成功的 Git 操作不会伪装回滚，弹窗会按最新状态重新列出剩余文件。处理完成后，历史错误仍作为审计证据保留，任务会从准备状态自动继续执行，详情页不再显示“检测到未提交文件”的活动红色告警。服务端按当前 `WAITING_INPUT` 状态转换读取等待原因，不会把较早轮次的脏文件错误套到已经创建任务分支或执行目录的历史任务上。点击“取消任务并保留文件”后在当前弹窗内二次确认，不再叠加全局确认框；即使文件列表读取失败，或旧页面仍保留着已经过期的脏文件弹窗，确认操作也会进入统一停止协议。确认取消会保留全部现有文件、任务分支和执行目录，把本轮执行记为中断并将任务转为 `CANCELLED`，不再借用任务失败路径。远端认证失败或本地/远端历史分叉仍会失败关闭。分支切换使用 10 分钟有界超时，并为 Windows 命令局部启用 Git 长路径支持。
 
 ### 错误层级
 
@@ -462,7 +468,7 @@ Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 或用�
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.3.61.jar`
+- `target/opencode-loopper-0.3.62.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -493,7 +499,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.3.61.jar`
+- `opencode-loopper-0.3.62.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -531,7 +537,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.3.61.jar \
+jar tf target/opencode-loopper-0.3.62.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -661,7 +667,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.3.61.jar
+java -jar target/opencode-loopper-0.3.62.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。

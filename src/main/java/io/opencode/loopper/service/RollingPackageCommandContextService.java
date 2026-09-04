@@ -26,8 +26,9 @@ public final class RollingPackageCommandContextService {
                 mapper.findTaskWaitingReasonCode(task.id()).orElse(null), run);
     }
 
-    RollingPackageCommandPolicy.Context context(TaskOverviewRow task, TaskPackageRunRow run) {
-        return context(task.id(), TaskState.valueOf(task.state()), task.waitingReasonCode(), run);
+    RollingPackageCommandPolicy.Context context(TaskOverviewRow task, String taskWaitingReason,
+                                                 TaskPackageRunRow run) {
+        return context(task.id(), TaskState.valueOf(task.state()), taskWaitingReason, run);
     }
 
     private RollingPackageCommandPolicy.Context context(String taskId, TaskState taskState,

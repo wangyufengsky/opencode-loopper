@@ -104,8 +104,9 @@ public class TaskReadService {
             List<ErrorSummary> errors = mapper.listErrors(taskId).stream().map(this::errorSummary).toList();
             List<JudgeSummary> judges = mapper.listJudgeRuns(taskId).stream().map(this::judgeSummary).toList();
             recordRows("task-overview", 1L + stages.size() + errors.size() + judges.size());
-            boolean retryAvailable = "LOOP_STAGNATION_DETECTED".equals(task.waitingReasonCode())
-                    || "LOOP_FRESH_SESSION_REQUIRED".equals(task.waitingReasonCode());
+            String waitingReasonCode = mapper.findTaskWaitingReasonCode(taskId).orElse(null);
+            boolean retryAvailable = "LOOP_STAGNATION_DETECTED".equals(waitingReasonCode)
+                    || "LOOP_FRESH_SESSION_REQUIRED".equals(waitingReasonCode);
             boolean rolling = "ROLLING_PACKAGES".equals(task.executionMode());
             String activePlanId = rolling
                     ? mapper.activeTaskPackagePlanRevision(taskId).map(row -> row.id()).orElse(null) : null;
@@ -117,11 +118,11 @@ public class TaskReadService {
             var currentPackage = rolling ? mapper.currentTaskPackageRun(taskId).orElse(null) : null;
             int frozenPackages = (int) packageRuns.stream().filter(run -> "FACT_FROZEN".equals(run.state())).count();
             PackageCapabilities packageCapabilities = rolling
-                    ? packageCapabilities(task, currentPackage) : null;
+                    ? packageCapabilities(task, waitingReasonCode, currentPackage) : null;
             return new TaskOverview(task.id(), task.projectId(), task.projectName(), task.title(), task.goal(),
                     blankToDefault(task.branchName(), "等待选择执行模式"), task.worktreePath(), task.state(),
                     task.retryCause(), task.retryOrdinal(), task.retryCreatedAt(), task.retryDueAt(),
-                    task.retryDelaySeconds(), task.waitingReasonCode(), retryAvailable,
+                    task.retryDelaySeconds(), waitingReasonCode, retryAvailable,
                     TaskState.valueOf(task.state()).cancellationAvailable(),
                     task.hasDesignHistory() == 1, task.archived() == 1, task.executionResult(),
                     task.executionCycleOrdinal(), task.checkpointState(), task.parentTaskId(), task.successorTaskId(),
@@ -134,10 +135,10 @@ public class TaskReadService {
         });
     }
 
-    private PackageCapabilities packageCapabilities(TaskOverviewRow task,
+    private PackageCapabilities packageCapabilities(TaskOverviewRow task, String waitingReasonCode,
                                                      io.opencode.loopper.persistence.TaskPackageRunRow run) {
         RollingPackageCommandPolicy.Capabilities result = packageCommands.capabilities(
-                packageCommandContexts.context(task, run));
+                packageCommandContexts.context(task, waitingReasonCode, run));
         return new PackageCapabilities(result.canDiscuss(), result.canApproveDesign(), result.canStartPackage(),
                 result.canRetryPackage(), result.canRedesignPackage(), result.canResumeDesign(),
                 result.canReplanRemaining(),

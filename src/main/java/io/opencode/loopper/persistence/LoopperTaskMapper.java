@@ -305,9 +305,43 @@ public interface LoopperTaskMapper {
     int insertError(ErrorEventRow row);
     @Select("SELECT * FROM error_event WHERE task_id=#{taskId} ORDER BY occurred_at DESC") List<ErrorEventRow> listErrors(String taskId);
     @Select("""
-            SELECT code FROM error_event WHERE task_id=#{taskId}
-              AND json_extract(evidence_json,'$.resolution')='WAITING_INPUT'
-            ORDER BY occurred_at DESC,id DESC LIMIT 1
+            WITH current_task AS (
+              SELECT id,state,branch_name,worktree_path FROM task WHERE id=#{taskId}
+            ), latest_transition AS (
+              SELECT transition.* FROM state_transition_event transition
+              JOIN current_task task ON transition.entity_id=task.id
+              WHERE transition.machine_type='TASK'
+              ORDER BY transition.sequence DESC LIMIT 1
+            ), waiting_candidate AS (
+              SELECT task.branch_name,task.worktree_path,
+                CASE
+                  WHEN task.state<>'WAITING_INPUT' THEN NULL
+                  WHEN transition.sequence IS NOT NULL AND transition.to_state<>'WAITING_INPUT' THEN NULL
+                  ELSE COALESCE(
+                    NULLIF(transition.reason_code,''),
+                    NULLIF(json_extract(transition.metadata_json,'$.reason'),''),
+                    (SELECT error.code FROM error_event error
+                      WHERE error.task_id=task.id
+                        AND json_extract(error.evidence_json,'$.resolution')='WAITING_INPUT'
+                        AND (transition.sequence IS NULL
+                          OR (error.occurred_at>=COALESCE((
+                                SELECT previous.occurred_at FROM state_transition_event previous
+                                WHERE previous.machine_type='TASK' AND previous.entity_id=task.id
+                                  AND previous.sequence<transition.sequence
+                                ORDER BY previous.sequence DESC LIMIT 1
+                              ),'')
+                              AND error.occurred_at<=transition.occurred_at))
+                      ORDER BY error.occurred_at DESC,error.id DESC LIMIT 1)
+                  )
+                END AS code
+              FROM current_task task LEFT JOIN latest_transition transition ON 1=1
+            )
+            SELECT CASE
+              WHEN code='SOURCE_BRANCH_WORKSPACE_DIRTY'
+                AND (branch_name IS NOT NULL OR worktree_path IS NOT NULL) THEN NULL
+              ELSE code
+            END
+            FROM waiting_candidate
             """)
     Optional<String> findTaskWaitingReasonCode(String taskId);
 

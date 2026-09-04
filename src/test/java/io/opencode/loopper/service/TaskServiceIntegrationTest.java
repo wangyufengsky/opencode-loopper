@@ -313,6 +313,10 @@ class TaskServiceIntegrationTest {
         assertThat(mapper.listStateTransitionsForScope("TASK", waiting.id(), 0, 100))
                 .extracting(io.opencode.loopper.persistence.StateTransitionEventRow::event)
                 .contains("REQUIRE_INPUT", "RETRY_PREPARATION", "PREPARATION_SUCCEEDED");
+        assertThat(mapper.listStateTransitionsForScope("TASK", waiting.id(), 0, 100))
+                .filteredOn(event -> "WAITING_INPUT".equals(event.toState()))
+                .extracting(io.opencode.loopper.persistence.StateTransitionEventRow::reasonCode)
+                .containsExactly("SOURCE_BRANCH_WORKSPACE_DIRTY");
     }
 
     @Test
@@ -331,6 +335,36 @@ class TaskServiceIntegrationTest {
         assertThat(tasks.errors(failed.id())).anyMatch(error ->
                 error.code().equals("SOURCE_BRANCH_WORKSPACE_CANCELLED"));
         assertThat(tasks.latestExecutionCycle(failed.id()).state()).isEqualTo("INTERRUPTED");
+    }
+
+    @Test
+    void staleDirtyWorkspaceDialogCanCancelAPreparedTaskAtItsCurrentWaitGate() throws Exception {
+        Path root = Path.of(gitProject());
+        ProjectRow project = projects.create("stale-dirty-dialog-cancel", root.toString());
+        TaskRow pending = drafts.confirm(drafts.create(spec(project.id())).id(), "取消历史脏文件误报");
+        TaskRow running = tasks.start(pending.id());
+        assertThat(running.branchName()).isNotBlank();
+
+        mapper.insertError(new ErrorEventRow("historical-dirty-wait", running.id(), null, null, null,
+                ErrorLayer.TASK.name(), "SOURCE_BRANCH_WORKSPACE_DIRTY", "历史脏文件等待", true,
+                "{\"resolution\":\"WAITING_INPUT\"}", "2026-01-01T00:00:01Z"));
+        jdbc.update("UPDATE task SET state='WAITING_INPUT',version=version+1 WHERE id=?", running.id());
+        jdbc.update("""
+                INSERT INTO state_transition_event(
+                  id,machine_type,entity_id,scope_type,scope_id,event,from_state,to_state,
+                  reason_code,metadata_json,occurred_at)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?)
+                """, "current-budget-wait", "TASK", running.id(), "TASK", running.id(), "REQUIRE_INPUT",
+                "RUNNING", "WAITING_INPUT", "TASK_BUDGET_WAITING_INPUT", "{}", "2026-01-01T00:00:02Z");
+
+        assertThat(tasks.loopRetryStatus(running.id())).isEqualTo(
+                new TaskService.LoopRetryStatus("TASK_BUDGET_WAITING_INPUT", false));
+
+        TaskRow cancelled = tasks.cancelDirtyWorkspace(running.id());
+
+        assertThat(cancelled.state()).isEqualTo("CANCELLED");
+        assertThat(cancelled.branchName()).isEqualTo(running.branchName());
+        assertThat(cancelled.worktreePath()).isEqualTo(running.worktreePath());
     }
 
     @Test
@@ -2360,7 +2394,7 @@ class TaskServiceIntegrationTest {
     }
 
     @Test
-    void loopRetryProjectionUsesTheNewestWaitingReasonOnly() throws Exception {
+    void loopRetryProjectionUsesTheCurrentWaitTransitionOnly() throws Exception {
         ProjectRow project = projects.create("waiting-reason", gitProject());
         LoopSpec stagnant = failingContentSpec(project.id(), 2, null, new LoopSpec.SessionPolicy(true, true));
         TaskRow task = drafts.confirm(drafts.create(stagnant).id(), "project current waiting reason");
@@ -2376,7 +2410,7 @@ class TaskServiceIntegrationTest {
                 "{\"resolution\":\"WAITING_INPUT\"}", "9999-12-31T23:59:59Z"));
 
         assertThat(tasks.loopRetryStatus(task.id())).isEqualTo(
-                new TaskService.LoopRetryStatus("TASK_BUDGET_WAITING_INPUT", false));
+                new TaskService.LoopRetryStatus("LOOP_STAGNATION_DETECTED", true));
     }
 
     @Test

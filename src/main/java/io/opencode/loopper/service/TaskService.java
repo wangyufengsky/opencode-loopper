@@ -996,6 +996,7 @@ public class TaskService {
                 "Existing files outside the configured allow-list require a local diff decision",
                 true, request.evidence());
         taskStates.updateTask(taskStates.taskState(task, TaskState.WAITING_INPUT), LifecycleEvent.REQUIRE_INPUT,
+                GitDiffScopeApprovalService.REQUIRED,
                 Map.of("scopeApprovalRequestId", request.requestId(), "fileCount", request.files().size()));
         events.emit(taskId, "git_diff.scope_approval_required", Map.of(
                 "requestId", request.requestId(), "fileCount", request.files().size(),
@@ -1726,7 +1727,8 @@ public class TaskService {
             evidence.put("stagnationFingerprint", handoff.stagnationFingerprint());
         }
         recordError(task, stage, attempt, null, ErrorLayer.VERIFICATION, code, message, true, evidence);
-        taskStates.updateTask(taskStates.taskState(get(task.id()), TaskState.WAITING_INPUT));
+        taskStates.updateTask(taskStates.taskState(get(task.id()), TaskState.WAITING_INPUT),
+                LifecycleEvent.REQUIRE_INPUT, code, Map.of());
         events.emit(task.id(), "task.loop_waiting_input", Map.of("state", TaskState.WAITING_INPUT.name(),
                 "code", code, "message", safeMessage(message), "stagnationCount", stagnationCount));
         return VerificationContinuation.none(task.id());
@@ -1858,18 +1860,10 @@ public class TaskService {
 
     private LoopRetryStatus loopRetryStatus(TaskRow task) {
         if (!TaskState.WAITING_INPUT.name().equals(task.state())) return new LoopRetryStatus(null, false);
-        ErrorEventRow waitingReason = mapper.listErrors(task.id()).stream()
-                .filter(error -> TaskState.WAITING_INPUT.name().equals(errorEvidenceText(error, "resolution")))
-                .findFirst().orElse(null);
-        String code = waitingReason == null ? null : waitingReason.code();
+        String code = mapper.findTaskWaitingReasonCode(task.id()).orElse(null);
         boolean available = "LOOP_STAGNATION_DETECTED".equals(code)
                 || "LOOP_FRESH_SESSION_REQUIRED".equals(code);
         return new LoopRetryStatus(code, available);
-    }
-
-    private String errorEvidenceText(ErrorEventRow error, String field) {
-        try { return json.readTree(error.evidenceJson()).path(field).asText(""); }
-        catch (Exception unreadable) { return ""; }
     }
 
     public record LoopRetryStatus(String waitingReasonCode, boolean loopRetryAvailable) { }
@@ -1908,10 +1902,20 @@ public class TaskService {
 
     /** Cancels the Task while preserving the user's dirty source workspace byte-for-byte. */
     public TaskRow cancelDirtyWorkspace(String taskId) {
-        TaskRow task = requireWorkspaceDirtyWait(taskId);
-        recordError(task, null, null, null, ErrorLayer.TASK, "SOURCE_BRANCH_WORKSPACE_CANCELLED",
-                "User cancelled source-workspace cleanup before the Task branch was created", false,
-                Map.of("localFilesPreserved", true, "resolution", TaskState.CANCELLED.name()));
+        TaskRow task = get(taskId);
+        if (!TaskState.valueOf(task.state()).cancellationAvailable()) {
+            throw new ConflictException("SOURCE_BRANCH_WORKSPACE_NOT_ACTIONABLE",
+                    "This task no longer accepts the standard cancellation command");
+        }
+        LoopRetryStatus wait = loopRetryStatus(task);
+        boolean currentDirtyWait = TaskState.WAITING_INPUT.name().equals(task.state())
+                && "SOURCE_BRANCH_WORKSPACE_DIRTY".equals(wait.waitingReasonCode())
+                && task.branchName() == null && task.worktreePath() == null;
+        if (currentDirtyWait) {
+            recordError(task, null, null, null, ErrorLayer.TASK, "SOURCE_BRANCH_WORKSPACE_CANCELLED",
+                    "User cancelled source-workspace cleanup before the Task branch was created", false,
+                    Map.of("localFilesPreserved", true, "resolution", TaskState.CANCELLED.name()));
+        }
         return cancel(taskId);
     }
 
@@ -1944,7 +1948,8 @@ public class TaskService {
         recordError(task, null, null, null, ErrorLayer.TASK, "SOURCE_BRANCH_WORKSPACE_DIRTY",
                 message, true, Map.of("resolution", TaskState.WAITING_INPUT.name(),
                         "snapshotId", workspace.snapshotId(), "files", files));
-        taskStates.updateTask(taskStates.taskState(task, TaskState.WAITING_INPUT), LifecycleEvent.REQUIRE_INPUT);
+        taskStates.updateTask(taskStates.taskState(task, TaskState.WAITING_INPUT), LifecycleEvent.REQUIRE_INPUT,
+                "SOURCE_BRANCH_WORKSPACE_DIRTY", Map.of());
         events.emit(task.id(), "task.workspace_cleanup_required",
                 Map.of("state", TaskState.WAITING_INPUT.name(), "fileCount", workspace.files().size()));
         return get(task.id());
@@ -2340,7 +2345,8 @@ public class TaskService {
         recordError(task, null, attempt, null, ErrorLayer.VERIFICATION, code, message, false,
                 Map.of("judgeRunId", judge == null ? "" : judge.id(), "judgeRole", judge == null ? "" : judge.role(),
                         "resolution", TaskState.WAITING_INPUT.name()));
-        taskStates.updateTask(taskStates.taskState(get(task.id()), TaskState.WAITING_INPUT));
+        taskStates.updateTask(taskStates.taskState(get(task.id()), TaskState.WAITING_INPUT),
+                LifecycleEvent.REQUIRE_INPUT, code, Map.of());
         events.emit(task.id(), "task.judge_waiting_input", Map.of("state", TaskState.WAITING_INPUT.name(), "code", code, "message", safeMessage(message)));
     }
 
@@ -2368,7 +2374,8 @@ public class TaskService {
                         "operation", operation));
         String nextState = task.state();
         if (!TaskState.valueOf(task.state()).terminal()) {
-            taskStates.updateTask(taskStates.taskState(task, TaskState.WAITING_INPUT));
+            taskStates.updateTask(taskStates.taskState(task, TaskState.WAITING_INPUT),
+                    LifecycleEvent.REQUIRE_INPUT, decision.code(), Map.of("operation", operation));
             nextState = TaskState.WAITING_INPUT.name();
         }
         events.emit(task.id(), "task.budget_waiting_input", Map.of("state", nextState,

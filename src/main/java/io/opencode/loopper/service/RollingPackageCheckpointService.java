@@ -368,7 +368,13 @@ final class RollingPackageCheckpointService {
                 from.worktreePath(), from.branchName(), from.sourceBranch(), from.baselineCommit(), from.createdAt(),
                 now(), from.version(), from.taskProfileId(), from.rolePackId(), from.rolePackVersion(),
                 from.executionMode(), from.workspacePolicy());
-        lifecycle.transition(taskSubject(from), from.state(), to.state(), event, null, metadata,
+        Object waitingReason = metadata.get("reason");
+        String reason = state == TaskState.WAITING_INPUT && waitingReason instanceof String value && !value.isBlank()
+                ? value : null;
+        if (state == TaskState.WAITING_INPUT && reason == null) {
+            throw new IllegalArgumentException("WAITING_INPUT transitions require a reason code");
+        }
+        lifecycle.transition(taskSubject(from), from.state(), to.state(), event, reason, metadata,
                 () -> mapper.updateTaskState(to),
                 () -> new ConflictException("TASK_VERSION_CONFLICT", "任务状态已被并发更新"));
     }

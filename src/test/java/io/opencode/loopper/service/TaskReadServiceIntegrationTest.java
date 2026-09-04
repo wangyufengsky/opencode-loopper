@@ -145,6 +145,31 @@ class TaskReadServiceIntegrationTest {
     }
 
     @Test
+    void overviewDoesNotProjectHistoricalDirtyWorkspaceReasonIntoANewerWaitEpoch() {
+        jdbc.update("UPDATE task SET state='WAITING_INPUT',branch_name='loopper/task-a',"
+                + "worktree_path='/tmp/read-model-project',version=version+1 WHERE id='task-a'");
+        jdbc.update("""
+                INSERT INTO error_event(
+                  id,task_id,layer,code,message,retryable,evidence_json,occurred_at)
+                VALUES(?,?,?,?,?,?,?,?)
+                """, "historical-dirty-wait", "task-a", "TASK", "SOURCE_BRANCH_WORKSPACE_DIRTY",
+                "历史脏文件等待", true, "{\"resolution\":\"WAITING_INPUT\"}", "2026-01-01T00:00:01Z");
+        jdbc.update("""
+                INSERT INTO state_transition_event(
+                  id,machine_type,entity_id,scope_type,scope_id,event,from_state,to_state,
+                  reason_code,metadata_json,occurred_at)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?)
+                """, "current-budget-wait", "TASK", "task-a", "TASK", "task-a", "REQUIRE_INPUT",
+                "RUNNING", "WAITING_INPUT", "TASK_BUDGET_WAITING_INPUT", "{}", "2026-01-01T00:00:02Z");
+
+        var overview = reads.overview("task-a");
+
+        assertThat(overview.waitingReasonCode()).isEqualTo("TASK_BUDGET_WAITING_INPUT");
+        assertThat(overview.loopRetryAvailable()).isFalse();
+        assertThat(overview.cancellationAvailable()).isTrue();
+    }
+
+    @Test
     void rollingOverviewProjectsPackageStateAndFailsClosedCapabilitiesFromPersistedFacts() {
         jdbc.update("INSERT INTO loop_draft(id,project_id,goal,spec_json,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",
                 "rolling-draft", "p", "Rolling", "{}", "CONFIRMED", "now", "now");
@@ -291,7 +316,7 @@ class TaskReadServiceIntegrationTest {
 
         queries.reset();
         reads.overview("task-a");
-        assertThat(queries.count()).isEqualTo(4);
+        assertThat(queries.count()).isEqualTo(5);
 
         queries.reset();
         reads.audit("task-a");

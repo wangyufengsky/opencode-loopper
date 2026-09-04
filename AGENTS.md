@@ -42,10 +42,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.3.61.jar
-   jar tf target/opencode-loopper-0.3.61.jar \
+   test -s target/opencode-loopper-0.3.62.jar
+   jar tf target/opencode-loopper-0.3.62.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.3.61.jar
+   shasum -a 256 target/opencode-loopper-0.3.62.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -95,8 +95,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.3.61`。
-- 正式产物：`target/opencode-loopper-0.3.61.jar`。
+- Maven 项目版本：`0.3.62`。
+- 正式产物：`target/opencode-loopper-0.3.62.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -423,9 +423,9 @@ Task 详情 `overview` 必须投影 `loopRetryAvailable`、`cancellationAvailabl
 
 - TypeScript 类型以 `frontend/src/types/domain.ts` 为边界，API 变更必须同步 DTO、client、store、view 和测试；Designer 保存/确认必须无损往返 Stage `workPackageId` 以及全部 LoopSpec limits、model、sessionPolicy 和 nextAttemptPromptTemplate。
 - 任务详情只为 `PENDING_START` 显示“开始执行”；该状态必须明确尚未入队、占用租约或切换分支。`READY` 是已请求执行后的短暂内部状态，只显示自动继续语义，不得再次显示开始按钮。
-- Task 等待动作以服务端 `waitingReasonCode` / `loopRetryAvailable` 投影为准，前端不得从历史错误推断当前“继续一轮”入口。
+- Task 等待动作以服务端 `waitingReasonCode` / `loopRetryAvailable` 投影为准；当前原因必须优先来自最新 Task `WAITING_INPUT` 转换的 `reason_code`，旧数据只能在该转换对应的状态轮次内从元数据或错误兼容推导，前端不得从完整历史错误推断当前“继续一轮”入口。
 - 所有 `TASK` 错误事件都作为不可变审计历史保留，但详情页红色当前告警必须跟随权威生命周期：`WAITING_INPUT` 只显示与当前 `waitingReasonCode` 精确匹配的最新错误，失败轮次 `AWAITING_DECISION` 和历史 `FAILED` 只显示最新 Task 错误；进入排队、准备、`READY`、运行、验证、重试、暂停、评审、停止中或成功/取消/接续终态后，不得把旧 Task 错误继续渲染成当前故障。`SOURCE_BRANCH_WORKSPACE_DIRTY` 同样遵守该通用规则。
-- `SOURCE_BRANCH_WORKSPACE_DIRTY` 必须打开不可静默关闭的文件处理弹窗，逐文件选择提交、stash 或移除；重新检查成功前不得制造任务分支已创建的状态，取消只能经确认后把任务标记为失败。
+- `SOURCE_BRANCH_WORKSPACE_DIRTY` 仅在 Task 尚无任务分支和执行目录时可作为当前原因，并打开不可静默关闭的文件处理弹窗，逐文件选择提交、stash 或移除；重新检查成功前不得制造任务分支已创建的状态。弹窗内确认取消必须复用统一 `STOPPING → CANCELLED` 协议；即使旧页面保留了已过期弹窗或列表读取失败，也不得因特殊入口拒绝本来可取消的 Task，且不得修改已有文件、分支或执行目录。
 - 服务端是权威状态；不要用计时器伪造阶段进度、用量、成本、Session 完成或 Judge 结果。
 - Task 实施 Session 的 OpenCode Todo 只能作为非权威进度投影：卡片以完成数/总数、分段状态和一个当前项为首屏，其他实施项允许折叠且长列表内部有界滚动；桌面端在无待回答问题时必须占用工具栏与模型输出之间的独立布局行，输出在其下方独立滚动，禁止用 sticky/fixed 覆盖输出；有问题时立即回到输出文档流让回答入口优先，窄屏始终按正常文档流展示。不得把 Todo 计数冒充 Stage 百分比或 Stage/Task 完成；键盘焦点和减少动态效果设置必须可用。
 - Designer 验收意图卡只把当前失败、待覆盖、路径待归属或路径守恒阻断显示为黄色告警；已成功归属的路径以成功样式显示为当前证明，成功编译后保留的历史消歧原因去重并折叠为中性说明，不得让历史数组继续伪装当前失败，也不得据此绕过服务端 Review Gate。
@@ -490,7 +490,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.3.61.jar
+JAR=target/opencode-loopper-0.3.62.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -601,6 +601,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-09-04 | 历史任务脏文件误报与取消修复，0.3.62 本地修复提交 | 当前 `WAITING_INPUT` 原因以最新 Task 状态转换的 `reason_code` 为权威，旧数据仅在当前等待轮次内兼容推导；已准备任务分支/执行目录时不再复用历史脏工作区错误；过期脏文件弹窗可进入统一取消协议并保留文件、分支、执行目录和证据 | TDD 红灯复现 2 个历史错误污染用例；修复后相关后端 106/106、前端 19/19 通过，最终源码 `./mvnw -q -Dmaven.test.skip=true compile` 通过；并发任务补齐其测试兼容后，2 个关键回归再次 2/2 通过。中途 `./scripts/verify.sh` 与同一工作区另一任务的 clean/编译竞争，Java 1423 项中出现 26 失败、66 个 class-load 错误（另 2 条件跳过），未形成可信完整门禁且未生成 0.3.62 JAR；由后续联合交付在工作区稳定后统一重跑完整验证和打包。未启动或替换 8080 运行实例，未做真实内网模型或浏览器验收，未推送/标签/Release |
 | 2026-09-04 | 内网 Router 最大步数兼容修复，交付 0.3.61 | Router 保持单次零工具业务分类，但改用 2 步 OpenCode 传输上限，避开 OpenCode 在首轮最终步调用前注入 `MAXIMUM STEPS REACHED` 控制提示；轮询保留具体 `OPENCODE_STEP_LIMIT_REACHED`，活动投影隐藏控制原文；同步 Router、OpenCode 与 UI 活动契约 | TDD 红灯复现 Router `steps=1`、错误码丢失和控制提示泄漏，修复后聚焦 123 项通过（0 失败、0 错误、1 条件跳过）；`./scripts/verify.sh` BUILD SUCCESS：Java 1420 项（0 失败、0 错误、2 条件跳过）、Vitest 274/274、原生 guard 6/6；JAR `target/opencode-loopper-0.3.61.jar` 为 289332824 bytes，114 个静态条目，Maven/MCP 版本均为 0.3.61，SHA-256 `15c03bc79774c18e165c820fb318636b6e608bbd61fabc300f6d37e04f7d5cf2`。未启动或替换 8080 运行实例，未做真实内网模型或浏览器验收，未推送/标签/Release |
 | 2026-09-04 | 角色专属 MCP、精确批量诊断与并发冻结幂等，交付 0.3.60 | 七种候选各用一个强类型提交 Tool、共用单一私有 Server/统一提交内核；V2 一次聚合字段与语义问题并声明完整性、截断和修复动作；冻结旧 launch 保留 `submit_candidate` 恢复兼容；相同 Convention 冻结事实的并发重复写幂等，不同事实仍失败关闭 | 0.3.58 完整门禁因 1 个旧提示断言失败且无 JAR；0.3.59 门禁通过但隔离资格发现 Convention 请求/Monitor 并发冻结唯一约束，补 TDD 回归后顺延。0.3.60 `./scripts/verify.sh` BUILD SUCCESS：Java 1418 项（0 失败、0 错误、2 条件跳过）、Vitest 274/274、原生 guard 6/6；JAR `target/opencode-loopper-0.3.60.jar` 为 289332608 bytes，114 个静态条目，Maven/MCP 版本均为 0.3.60，SHA-256 `c8c28d94265e874b382323215852f3f655a6be27180d122221ea50fb824129fb`。隔离端口 18060 的真实 `opencode/gpt-5.4` 同一只读 Session 仅获准 `submit_project_convention`：首投重复组件得到完整 V2 `/componentKeys` 诊断和 revision 1，换幂等键完整修正后 revision 2 `ACCEPTED`；Draft `READY`、launch/intent `COMPLETED`、远端 `ABORT_ACKNOWLEDGED`、来源快照仅 1、无 Task、Git 夹具干净；隔离 JVM/OpenCode 已停止。未重启 8080，未做浏览器验收，未推送/标签/Release |
 | 2026-09-04 | 故事统计 start 失败降级，交付 0.3.57 | start 明确失败后在同 Session、同编号下自动追加一次 continue；UNKNOWN/取消/continue 失败不递归；独立消息 ID 与 retry_of 保留失败链；恢复成功不通知，人工重试保留原操作；弹窗显示 continue | TDD 红灯先复现缺少 continue，聚焦故事统计 Java 46/46、弹窗及全前端 274/274、原生 guard 6/6 通过；`./scripts/verify.sh` BUILD SUCCESS：Java 1394 项（0 失败、0 错误、2 条件跳过），Vitest 274/274、原生 guard 6/6；JAR `target/opencode-loopper-0.3.57.jar` 为 289293515 bytes，113 个静态文件、Maven/MCP 版本均为 0.3.57，SHA-256 `5f4018209e025a165a150f62f478f085f4d8c4a8995e8e1336a1296d539e99a0`。未重启运行实例，未做真实插件或浏览器验收，未推送/标签/Release |

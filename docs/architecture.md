@@ -268,6 +268,16 @@ workspace/automation records use their stable fingerprints
 or rule ids. Audit metadata is bounded and must not contain prompts, tokens,
 permission payloads, content, or filesystem paths.
 
+Every new Task transition into `WAITING_INPUT` persists its current reason in
+the transition row's `reason_code`. Task detail and action guards resolve that
+latest Task transition first; older installations that did not populate the
+column are read compatibly from that transition's bounded state epoch, rather
+than from the Task's complete immutable error history. A
+`SOURCE_BRANCH_WORKSPACE_DIRTY` reason is actionable only before a task branch
+or execution worktree has been prepared. This prevents a historical source
+checkout warning from reopening the dirty-workspace dialog during a later
+budget, Judge, diff-scope, or rolling-package wait.
+
 Lifecycle transitions and ordinary optimistic-lock updates are separate APIs.
 Calling `transition` with the same source and target does not silently become a
 field update: it is rejected unless the machine declares an explicit business

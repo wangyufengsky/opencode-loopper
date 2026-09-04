@@ -93,10 +93,18 @@ final class TaskStateStore {
     }
 
     void updateTask(TaskRow row, LifecycleEvent event, Map<String, ?> metadata) {
+        updateTask(row, event, null, metadata);
+    }
+
+    void updateTask(TaskRow row, LifecycleEvent event, String reasonCode, Map<String, ?> metadata) {
+        if (TaskState.WAITING_INPUT.name().equals(row.state())
+                && (reasonCode == null || reasonCode.isBlank())) {
+            throw new IllegalArgumentException("WAITING_INPUT transitions require a reason code");
+        }
         TaskRow current = mapper.findTask(row.id())
                 .orElseThrow(() -> new NotFoundException("Task not found: " + row.id()));
         lifecycle.transition(subject(LifecycleMachineType.TASK, row.id(), row.id()), current.state(), row.state(),
-                event, null, metadata, () -> mapper.updateTaskState(row),
+                event, reasonCode, metadata, () -> mapper.updateTaskState(row),
                 () -> new ConflictException("TASK_VERSION_CONFLICT", "Task was updated concurrently"));
     }
 

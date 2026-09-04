@@ -74,9 +74,7 @@ public interface ReadModelMapper {
             SELECT t.id,t.project_id,p.name AS project_name,t.title,COALESCE(d.goal,'') AS goal,
               t.branch_name,t.worktree_path,t.state,retry.cause AS retry_cause,retry.ordinal AS retry_ordinal,
               retry.created_at AS retry_created_at,retry.due_at AS retry_due_at,retry.delay_seconds AS retry_delay_seconds,
-              (SELECT e.code FROM error_event e WHERE e.task_id=t.id
-                AND json_extract(e.evidence_json,'$.resolution')='WAITING_INPUT'
-                ORDER BY e.occurred_at DESC,e.id DESC LIMIT 1) AS waiting_reason_code,
+              NULL AS waiting_reason_code,
               CASE WHEN d.id IS NULL THEN 0 ELSE 1 END AS has_design_history,
               CASE WHEN archive.task_id IS NULL THEN 0 ELSE 1 END AS archived,
               cycle.state AS execution_result,cycle.ordinal AS execution_cycle_ordinal,
