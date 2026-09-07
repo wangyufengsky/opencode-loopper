@@ -8,7 +8,7 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 /** Narrow persistence interface for candidate submission and runtime-generation binding. */
-public interface LoopperMachineCandidateMapper {
+public interface LoopperMachineCandidateMapper extends CandidateRepairHistoryMapper {
     @Insert("""
             INSERT INTO ai_candidate_prompt_dispatch(
               id,run_id,internal_launch_id,candidate_launch_id,dispatch_kind,source_attempt_ordinal,
@@ -314,11 +314,11 @@ public interface LoopperMachineCandidateMapper {
               id,designer_session_id,task_id,project_id,owner_type,owner_id,candidate_kind,workflow_step,
               source_revision,owner_version,submission_channel,contract_version,runtime_generation_id,
               external_session_id,state,max_attempts,
-              attempts_used,terminal_attempt_id,created_at,updated_at,version,close_reason)
+              attempts_used,terminal_attempt_id,created_at,updated_at,version,close_reason,correction_limit)
             VALUES(#{id},#{designerSessionId},#{taskId},#{projectId},#{ownerType},#{ownerId},#{candidateKind},
               #{workflowStep},#{sourceRevision},#{ownerVersion},#{submissionChannel},#{contractVersion},
               #{runtimeGenerationId},#{externalSessionId},#{state},#{maxAttempts},#{attemptsUsed},
-              #{terminalAttemptId},#{createdAt},#{updatedAt},#{version},#{closeReason})
+              #{terminalAttemptId},#{createdAt},#{updatedAt},#{version},#{closeReason},#{correctionLimit})
             """)
     int insertCandidateSubmissionRun(CandidateSubmissionRunRow row);
 
@@ -359,6 +359,7 @@ public interface LoopperMachineCandidateMapper {
     @Select("SELECT * FROM ai_candidate_submission_attempt WHERE run_id=#{runId} ORDER BY ordinal")
     List<CandidateSubmissionAttemptRow> listCandidateSubmissionAttempts(String runId);
 
+
     @Select("""
             SELECT COUNT(*) FROM ai_candidate_submission_run
             WHERE owner_type='TASK_DECOMPOSITION' AND owner_id=#{taskDecompositionId}
@@ -394,9 +395,6 @@ public interface LoopperMachineCandidateMapper {
     Optional<CandidateSubmissionRunRow> findLatestCandidateSubmissionRunForWorkPackage(
             @Param("designWorkPackageId") String designWorkPackageId,
             @Param("sourceRevision") long sourceRevision);
-
-    @Select("SELECT COUNT(*) FROM ai_candidate_submission_attempt WHERE run_id=#{runId}")
-    int countCandidateSubmissionAttemptsForRun(String runId);
 
     @Insert("""
             INSERT INTO package_design_candidate_accepted_result(

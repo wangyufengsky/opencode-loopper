@@ -2050,6 +2050,14 @@ public class DesignerSessionService {
             ProjectRow project = designProject(session);
             try {
                 boolean directSoftware = directSoftwareMode(session.id());
+                var frozenProblems = PackageDesignInputPreflight.problems(new PackageDesignCompilation.Input(
+                        input, revision.requirementText(), workPackageRoles.get(input), strings(input.scopeInJson()),
+                        strings(input.scopeOutJson()), strings(input.deliverablesJson()), directSoftware ? 6 : 3, directSoftware));
+                if (!frozenProblems.isEmpty()) {
+                    packageDesignCandidateWorkflow.rejectFrozenInput(this, session, revision, input,
+                            frozenProblems.getFirst());
+                    return;
+                }
                 boolean questionRepair = replacementPrompt != null && replacementPrompt.startsWith("QUESTION_REPAIR:");
                 DesignDiscussionRevisionRow discussion = mapper.findLatestDesignDiscussionRevision(
                         session.id(), input.packageId()).filter(row -> Set.of("QUESTIONING", "DESIGNING",
@@ -2087,10 +2095,10 @@ public class DesignerSessionService {
                     return;
                 }
                 String prefix = questionRepair ? replacementPrompt.substring("QUESTION_REPAIR:".length()) : replacementPrompt;
-                String basePrompt = prefix == null
-                        ? packageDesignerPrompt(running, project, revision, designing, questionRequired, nativeQuestion)
-                        : prefix + "\n\n" + packageDesignerPrompt(running, project, revision, designing,
-                        questionRequired, nativeQuestion);
+                String basePrompt = packagePrompts.build(running, project, revision, designing,
+                        mapper.findTaskDecompositionByRevision(revision.id()).orElseThrow(),
+                        questionRequired, nativeQuestion, usePackageCandidate);
+                if (prefix != null) basePrompt = prefix + "\n\n" + basePrompt;
                 conversations.begin(remote, questionRequired ? "PACKAGE_QUESTION" : "PACKAGE_DESIGN");
                 String prompt = usePackageCandidate
                         ? packageDesignCandidates.open(designing, remote, basePrompt).prompt() : basePrompt;
@@ -4429,15 +4437,6 @@ public class DesignerSessionService {
             case REPAIRING_JSON -> decompositionRepairPrompt(row, row.lastErrorCode(), row.lastErrorDetail());
             case FINAL_JSON -> decomposerPrompt(get(row.designerSessionId()), project, revision, true);
         };
-    }
-
-    private String packageDesignerPrompt(DesignerSessionRow session, ProjectRow project,
-                                         DesignRequirementRevisionRow revision,
-                                         DesignWorkPackageRow workPackage,
-                                         boolean questionRequired, boolean nativeQuestion) {
-        TaskDecompositionRow decomposition = mapper.findTaskDecompositionByRevision(revision.id()).orElseThrow();
-        return packagePrompts.build(session, project, revision, workPackage, decomposition,
-                questionRequired, nativeQuestion);
     }
 
     private String packageCompilerPlanningPrompt(ProjectRow project, DesignRequirementRevisionRow revision,

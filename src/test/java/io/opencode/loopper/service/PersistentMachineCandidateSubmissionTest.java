@@ -71,6 +71,11 @@ class PersistentMachineCandidateSubmissionTest {
         assertThat(response.path("returnedProblemCount").asInt())
                 .isEqualTo(response.path("problemCount").asInt());
         assertThat(response.path("truncated").asBoolean()).isFalse();
+        if (kind == MachineCandidateKind.PACKAGE_DESIGN_V1) {
+            assertThat(result.problems()).noneMatch(problem -> problem.code().equals("VALUE_INVALID"));
+            org.mockito.Mockito.verify(policy, org.mockito.Mockito.never()).evaluate(any(), anyString());
+            return;
+        }
         JsonNode valueProblem = java.util.stream.StreamSupport.stream(
                         response.path("problems").spliterator(), false)
                 .filter(problem -> "VALUE_INVALID".equals(problem.path("code").asText()))
@@ -137,7 +142,7 @@ class PersistentMachineCandidateSubmissionTest {
         var submissions = new PersistentMachineCandidateSubmission(mapper, mock(LifecycleTransitionService.class),
                 JsonMapper.builder().build(), List.of(policy), List.of(), List.of());
         String candidate = JsonMapper.builder().build().writeValueAsString(
-                java.util.Map.of("contractVersion", kind.name(), "summary", "中文设计说明🙂".repeat(180)));
+                "中文设计说明🙂".repeat(180));
 
         var result = submissions.submit(new MachineCandidateSubmission.SubmitCommand(
                 "run", "next", candidate, 0, MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP,
@@ -149,11 +154,11 @@ class PersistentMachineCandidateSubmissionTest {
         JsonNode response = JsonMapper.builder().build().readTree(result.responseJson());
         JsonNode rootProblem = java.util.stream.StreamSupport.stream(
                         response.path("problems").spliterator(), false)
-                .filter(problem -> "PACKAGE_DESIGN_SEMANTIC_INVALID".equals(problem.path("code").asText()))
+                .filter(problem -> "CANDIDATE_TYPE_INVALID".equals(problem.path("code").asText()))
                 .findFirst().orElseThrow();
         assertThat(rootProblem.path("actual").asText())
-                .contains("object", "UTF-8 bytes", "top-level fields")
-                .doesNotContain("中文设计说明🙂".repeat(20));
+                .contains("string")
+                .doesNotContain("中文设计说明🙂".repeat(180));
         assertThat(rootProblem.path("actual").asText().getBytes(StandardCharsets.UTF_8))
                 .hasSizeLessThanOrEqualTo(1024);
         assertThat(response.path("action").asText()).isEqualTo("FIX_AND_RESUBMIT");

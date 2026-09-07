@@ -80,7 +80,7 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
                 command.candidateKind().name(), command.workflowStep(),
                 command.sourceRevision(), command.ownerVersion(), command.submissionChannel().name(),
                 command.contractVersion(), command.runtimeGenerationId(), command.externalSessionId(),
-                MachineCandidateRunState.OPEN.name(), command.maxAttempts(), 0, null, now, now, 0);
+                MachineCandidateRunState.OPEN.name(), command.maxAttempts(), 0, null, now, now, 0, null, command.correctionLimit());
         lifecycle.create(subject(row), row.state(), Map.of(
                         "candidateKind", row.candidateKind(), "workflowStep", row.workflowStep(),
                         "sourceRevision", row.sourceRevision(), "ownerVersion", row.ownerVersion(),
@@ -167,14 +167,19 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
     private SubmissionResult persist(SubmitCommand command, String requestSha, CandidateSubmissionRunRow run,
                                      CandidatePolicy.Context context, ValidatedDecision decision) {
         int ordinal = run.attemptsUsed() + 1;
-        boolean exhausted = remainingAttempts(run, ordinal) != null && ordinal >= run.maxAttempts();
+        boolean exhausted = remainingAttempts(run, ordinal) != null && remainingAttempts(run, ordinal) == 0;
+        var progress = CandidateRepairProgress.analyze(json, command.candidateJson(), requestSha,
+                decision.problems(), decision.diagnosticsComplete() && decision.problems().size() < MAX_PROBLEMS,
+                MachineCandidateKind.PACKAGE_DESIGN_V1.name().equals(run.candidateKind())
+                        ? mapper.recentCandidateSubmissionAttempts(run.id()) : List.of());
+        boolean stalled = run.correctionLimit() != null && progress.repeatedCandidate();
         MachineCandidateOutcome outcome;
         if (decision.accepted()) {
             outcome = MachineCandidateOutcome.ACCEPTED;
-        } else if (decision.retryable() && exhausted && decision.fallbackEligible()) {
+        } else if (decision.retryable() && exhausted && decision.fallbackEligible() && run.correctionLimit() == null) {
             outcome = MachineCandidateOutcome.FALLBACK_REQUIRED;
         } else {
-            outcome = !decision.retryable() || exhausted
+            outcome = !decision.retryable() || exhausted || stalled
                     ? MachineCandidateOutcome.WAITING_INPUT : MachineCandidateOutcome.REJECTED;
         }
         MachineCandidateRunState target = switch (outcome) {
@@ -187,7 +192,8 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
         String canonicalSha = decision.accepted() ? sha256(decision.canonicalCandidateJson()) : null;
         boolean retryable = outcome == MachineCandidateOutcome.REJECTED && decision.retryable();
         SubmissionResult result = result(run, outcome, target, ordinal, retryable, decision.problems(),
-                decision.diagnosticsComplete(), canonicalSha);
+                decision.diagnosticsComplete(), canonicalSha, progress, exhausted ? "SUBMISSION_LIMIT"
+                        : stalled ? "REPEATED_CANDIDATE" : "NONE");
         String problemsJson = boundedJson(result.problems(), "Candidate problems");
         String responseJson = result.responseJson();
         String now = Instant.now().toString();
@@ -227,7 +233,8 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
 
     private SubmissionResult result(CandidateSubmissionRunRow run, MachineCandidateOutcome outcome,
                                     MachineCandidateRunState state, int ordinal, boolean retryable,
-                                    List<Problem> problems, boolean diagnosticPassComplete, String canonicalSha) {
+                                    List<Problem> problems, boolean diagnosticPassComplete, String canonicalSha,
+                                    CandidateRepairProgress.Progress progress, String stopReason) {
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("runId", run.id());
         response.put("outcome", outcome.name());
@@ -244,6 +251,12 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
         response.put("returnedProblemCount", problems.size());
         response.put("truncated", !diagnosticsComplete);
         response.put("problems", problems);
+        if (MachineCandidateKind.PACKAGE_DESIGN_V1.name().equals(run.candidateKind())) {
+            response.put("repairProtocolVersion", "PACKAGE_REPAIR_V1");
+            response.put("correctionLimit", run.correctionLimit());
+            response.put("repairProgress", progress);
+            response.put("stopReason", outcome == MachineCandidateOutcome.ACCEPTED ? "ACCEPTED" : stopReason);
+        }
         response.put("submissionRevision", run.version() + 1);
         if (canonicalSha != null) response.put("canonicalResultSha256", canonicalSha);
         String responseJson = boundedJson(response, "Candidate response");
@@ -254,6 +267,10 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
 
     private CandidatePolicy.Decision evaluate(CandidateSubmissionRunRow run,
             CandidatePolicy.Context context, String candidateJson, SubmissionSchema submissionSchema) {
+        if (context.candidateKind() == MachineCandidateKind.PACKAGE_DESIGN_V1
+                && submissionSchema == SubmissionSchema.ROLE_SPECIFIC_V2) {
+            return PackageDesignCandidateEvaluation.evaluate(json, policy(run), context, candidateJson);
+        }
         CandidatePolicy.Decision semantic = policy(run).evaluate(context, candidateJson);
         if (submissionSchema == SubmissionSchema.LEGACY_COMPATIBLE) return semantic;
         semantic = enrich(semantic, candidateJson);
@@ -307,6 +324,7 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
 
     /** Null means unlimited, not exhausted. maxAttempts remains immutable historical contract metadata for MCP. */
     private Integer remainingAttempts(CandidateSubmissionRunRow run, int ordinal) {
+        if (run.correctionLimit() != null) return Math.max(0, run.correctionLimit() - ordinal);
         return SubmissionChannel.INTERNAL_MCP.name().equals(run.submissionChannel())
                 ? null : Math.max(0, run.maxAttempts() - ordinal);
     }
@@ -424,6 +442,11 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
                 || blank(command.externalSessionId())) {
             throw new BadRequestException("CANDIDATE_RUN_INVALID", "候选运行合同不完整");
         }
+        if (command.correctionLimit() != null && (command.correctionLimit() < 2 || command.correctionLimit() > 16
+                || command.candidateKind() != MachineCandidateKind.PACKAGE_DESIGN_V1
+                || command.submissionChannel() != SubmissionChannel.INTERNAL_MCP)) {
+            throw new BadRequestException("CANDIDATE_CORRECTION_LIMIT_INVALID", "修正上限仅适用于新工作包 MCP 运行，范围为 2–16");
+        }
         MachineCandidateProtocolPolicy.Contract protocol = MachineCandidateProtocolPolicy.contract(
                 command.candidateKind());
         if (command.scope().type() != protocol.scopeType() || command.owner().type() != protocol.ownerType()) {
@@ -461,7 +484,8 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
                 && row.contractVersion().equals(command.contractVersion())
                 && row.runtimeGenerationId().equals(command.runtimeGenerationId())
                 && row.externalSessionId().equals(command.externalSessionId())
-                && row.maxAttempts() == command.maxAttempts();
+                && row.maxAttempts() == command.maxAttempts()
+                && java.util.Objects.equals(row.correctionLimit(), command.correctionLimit());
     }
 
     private CandidateSubmissionRunRow requireRun(String id) {
@@ -481,7 +505,7 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
                 row.ownerVersion(), SubmissionChannel.valueOf(row.submissionChannel()), row.contractVersion(),
                 row.runtimeGenerationId(), row.externalSessionId(), MachineCandidateRunState.valueOf(row.state()),
                 row.maxAttempts(), row.attemptsUsed(), row.terminalAttemptId(), row.version(),
-                blank(row.closeReason()) ? null : CandidateCloseReason.valueOf(row.closeReason()));
+                blank(row.closeReason()) ? null : CandidateCloseReason.valueOf(row.closeReason()), row.correctionLimit());
     }
 
     private CandidateOwnerRef owner(CandidateSubmissionRunRow row) {
@@ -507,7 +531,8 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
                 row.ownerType(), row.ownerId(), row.candidateKind(), row.workflowStep(), row.sourceRevision(),
                 row.ownerVersion(), row.submissionChannel(), row.contractVersion(), row.runtimeGenerationId(),
                 row.externalSessionId(), state.name(), row.maxAttempts(), attemptsUsed, terminalAttemptId,
-                row.createdAt(), updatedAt, row.version(), closeReason == null ? row.closeReason() : closeReason.name());
+                row.createdAt(), updatedAt, row.version(), closeReason == null ? row.closeReason() : closeReason.name(),
+                row.correctionLimit());
     }
 
     private LifecycleTransitionService.Subject subject(CandidateSubmissionRunRow row) {

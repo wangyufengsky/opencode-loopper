@@ -54,7 +54,7 @@ class UnlimitedMcpCandidateMigrationTest {
             historyBefore = history(sql);
         }
 
-        Flyway.configure().dataSource(url, null, null).load().migrate();
+        Flyway.configure().dataSource(url, null, null).target("69").load().migrate();
 
         try (var connection = DriverManager.getConnection(url); var sql = connection.createStatement()) {
             assertThat(schema(sql)).isEqualTo(schemaBefore);

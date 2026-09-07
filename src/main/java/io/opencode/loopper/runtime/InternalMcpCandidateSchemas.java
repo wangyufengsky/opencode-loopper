@@ -92,12 +92,18 @@ final class InternalMcpCandidateSchemas {
         Map<String, Object> stage = object(
                 List.of("key", "title", "objective", "includes", "dependencies"),
                 Map.of("key", string(1, null), "title", string(1, null), "objective", string(1, null),
-                        "includes", stringArray(), "dependencies", stringArray()));
+                        "includes", described(stringArray(), "Candidate-local keys from scenarios, reviews or deliverables. "
+                                + "Include at least one scenario/review key and the deliverable keys owned by this stage. "
+                                + "Do not put titles, paths or requirement keys here. Each scenario/review belongs to exactly one stage."),
+                        "dependencies", described(stringArray(), "Candidate-local keys of earlier stages only; [] for no dependencies.")));
         return object(List.of("contractVersion", "outcome", "requirements", "scenarios", "deliverables",
                 "reviews", "stages", "gapCodes"), map(
                 "contractVersion", constant("PACKAGE_DESIGN_V1"), "outcome", enumeration("READY", "NEEDS_INPUT"),
-                "requirements", array(requirement), "scenarios", array(scenario),
-                "deliverables", array(deliverable), "reviews", array(review), "stages", array(stage),
+                "requirements", boundedArray(requirement, io.opencode.loopper.domain.PackageDesignLimits.MAX_FACTS),
+                "scenarios", boundedArray(scenario, io.opencode.loopper.domain.PackageDesignLimits.MAX_SCENARIOS),
+                "deliverables", boundedArray(deliverable, io.opencode.loopper.domain.PackageDesignLimits.MAX_FACTS),
+                "reviews", boundedArray(review, io.opencode.loopper.domain.PackageDesignLimits.MAX_FACTS),
+                "stages", boundedArray(stage, io.opencode.loopper.domain.PackageDesignLimits.MAX_STAGES),
                 "gapCodes", stringArray()));
     }
 
@@ -140,6 +146,16 @@ final class InternalMcpCandidateSchemas {
         result.put("additionalProperties", false);
         result.put("required", required);
         result.put("properties", properties);
+        return Map.copyOf(result);
+    }
+
+    private static Map<String, Object> boundedArray(Map<String, Object> items, int maximum) {
+        return Map.of("type", "array", "items", items, "maxItems", maximum);
+    }
+
+    private static Map<String, Object> described(Map<String, Object> schema, String description) {
+        Map<String, Object> result = new java.util.LinkedHashMap<>(schema);
+        result.put("description", description);
         return Map.copyOf(result);
     }
 

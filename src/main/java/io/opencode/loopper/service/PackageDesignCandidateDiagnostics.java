@@ -172,6 +172,7 @@ final class PackageDesignCandidateDiagnostics {
 
     private static String factKey(PackageDesignCandidateDocument candidate, Fact fact) {
         if (fact == null) return "UNKNOWN";
+        if (fact.candidateKey() != null) return fact.candidateKey();
         if (fact.kind() == SCENARIO) return candidate.scenarios().stream()
                 .filter(item -> same(item.title(), fact.title())).map(PackageDesignCandidateDocument.Scenario::key)
                 .findFirst().orElse("FACT-" + fact.index());
@@ -186,17 +187,24 @@ final class PackageDesignCandidateDiagnostics {
     private static String factPointer(PackageDesignCandidateDocument candidate, Fact fact, String field) {
         if (fact == null) return "/candidate";
         if (fact.kind() == SCENARIO) for (int index = 0; index < candidate.scenarios().size(); index++) {
-            if (same(candidate.scenarios().get(index).title(), fact.title())) return "/scenarios/" + index + "/" + field;
+            var item = candidate.scenarios().get(index);
+            if (matches(fact, item.key(), item.title())) return "/scenarios/" + index + "/" + field;
         }
         if (fact.kind() == REVIEW) for (int index = 0; index < candidate.reviews().size(); index++) {
-            if (same(candidate.reviews().get(index).title(), fact.title())) return "/reviews/" + index + "/" + field;
+            var item = candidate.reviews().get(index);
+            if (matches(fact, item.key(), item.title())) return "/reviews/" + index + "/" + field;
         }
         for (int index = 0; index < candidate.deliverables().size(); index++) {
-            if (same(candidate.deliverables().get(index).target(), fact.title())) {
+            var item = candidate.deliverables().get(index);
+            if (matches(fact, item.key(), item.target())) {
                 return "/deliverables/" + index + "/target";
             }
         }
         return "/candidate";
+    }
+
+    private static boolean matches(Fact fact, String key, String title) {
+        return fact.candidateKey() == null ? same(title, fact.title()) : same(key, fact.candidateKey());
     }
 
     private static List<String> stageIncludePointers(PackageDesignCandidateDocument candidate, String factKey) {

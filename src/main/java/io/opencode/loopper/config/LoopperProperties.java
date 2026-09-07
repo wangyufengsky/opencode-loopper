@@ -71,6 +71,13 @@ public class LoopperProperties {
         private boolean acceptanceClosedChoiceV7Enabled = true;
         /** Qualified package-design candidate transport is on by default and may be disabled for rollback. */
         private boolean packageDesignV1Enabled = true;
+        /** Opt-in total submissions, including the initial candidate; zero preserves unlimited runs. */
+        private int packageDesignCorrectionLimit = 0;
+        public int getPackageDesignCorrectionLimit() { return packageDesignCorrectionLimit; }
+        public void setPackageDesignCorrectionLimit(int value) {
+            if (value != 0 && (value < 2 || value > 16)) throw new IllegalArgumentException("Correction limit must be 0 or 2-16");
+            this.packageDesignCorrectionLimit = value;
+        }
         /** Qualified rolling-plan candidate transport is on by default and may be disabled for rollback. */
         private boolean rollingPackagePlanV1Enabled = true;
         /** Qualified Reviewer candidate transport is on by default and may be disabled for rollback. */

@@ -631,7 +631,7 @@ available-at-execution dependency rather than `MISSING_SCOPE`. Compiler may only
 report a dependency-related semantic gap when neither the current design nor the
 frozen predecessor contract defines the required behavior/API.
 
-All seven private candidate roles use uncapped `INTERNAL_MCP` submissions from V69 and role-specific
+By default, all seven private candidate roles use uncapped `INTERNAL_MCP` submissions from V69 and role-specific
 strongly typed tools from 0.3.60.
 On a retryable REJECTED response, correct the full object and resubmit using a fresh
 idempotency key and the returned submissionRevision. `submissionCountLimited=false`
@@ -1035,3 +1035,30 @@ Ordinary abort and accounting commands share a per-remote gate: cleanup waits fo
 受管 structured Agent 明确区分私有工具提交与 Legacy 文本/JSON 输出；服务器拒绝后的修正使用同一工具、
 新的候选内容和返回的 revision，不能把禁止重复相同参数理解为禁止正常 MCP 修正。MCP 提交仍无次数上限；
 工具循环检测、角色超时、权限和终止证明独立保留。新提示随后续调用/新受管进程生效，不热改正在运行的历史回合。
+
+
+## PACKAGE_DESIGN_V1 model-friendly compilation and repair (0.3.66)
+
+Typed package candidates now assemble semantic facts directly from fields and stable candidate-local keys;
+Markdown is a human-readable projection and DS-L provenance source. The legacy Markdown parser remains separate.
+The published shared limits are 64 scenarios, 128 total requirements/scenarios/deliverables/reviews/stages,
+and at most 6 stages (3 in decomposed packages). Frozen input conflicts are checked before model dispatch.
+Authority checks precede shape checks, and invalid shape suppresses dependent semantic diagnostics.
+
+V70 adds an optional immutable `correction_limit` for new PACKAGE_DESIGN_V1 INTERNAL_MCP runs.
+`LOOPPER_PACKAGE_DESIGN_CORRECTION_LIMIT=4` means an initial submission plus three corrections; 2–16 are valid,
+and the default 0 preserves unlimited submissions. All existing NULL limits retain V69 semantics; configuration
+changes do not rewrite active runs. `maxAttempts` remains legacy identity metadata. Exact replay returns the
+stored response without consuming budget. A finite run enters WAITING_INPUT on exhaustion or a fully diagnosed
+repeat of the same canonical candidate among the last three attempts; accepted candidates take precedence.
+No count-based Markdown fallback is introduced. Transport retry, role timeout, permissions, source/version
+guards, and positive remote-stop proof remain separate.
+
+`CANDIDATE_DIAGNOSTIC_V2` gains additive `repairProtocolVersion=PACKAGE_REPAIR_V1`, `correctionLimit`,
+`repairProgress` and `stopReason` fields. Issue identities hash stable entity key/location, code and expected
+constraint; they survive array reordering. Each issue has a zero-based problemIndex into the response problems array, avoiding duplicated long pointers and preserving the 96 KiB envelope. resolved/remaining/introduced comparisons are authoritative only
+when `comparisonComplete=true`; incomplete diagnostics never prove a problem disappeared. Rejected content
+is never persisted: only hashes and bounded existing diagnostics are stored. Progress is reconstructed from
+at most three persisted attempts and idempotent replay preserves its original response.
+
+See [three-batch implementation and qualification](mcp-design-optimization.md) for validation boundaries.

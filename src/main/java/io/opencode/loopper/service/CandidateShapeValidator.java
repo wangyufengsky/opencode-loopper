@@ -116,6 +116,12 @@ final class CandidateShapeValidator {
     @SuppressWarnings("unchecked")
     private static void validateArray(JsonNode node, Map<String, Object> schema,
             String pointer, Collector collector) {
+        if (schema.get("maxItems") instanceof Number maximum && node.size() > maximum.intValue()) {
+            collector.add(problem("CANDIDATE_ARRAY_TOO_LONG", pointer, MachineCandidateSubmission.ProblemCategory.SHAPE,
+                    "at most " + maximum.intValue() + " items", Integer.toString(node.size()),
+                    "Reduce " + pointer + " to the advertised limit while preserving requirement coverage"));
+            return;
+        }
         Object itemSchema = schema.get("items");
         if (!(itemSchema instanceof Map<?, ?> typed)) return;
         for (int index = 0; index < node.size(); index++) {

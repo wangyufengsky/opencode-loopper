@@ -1211,3 +1211,18 @@ Accounting failures are persistent Designer system messages or task events, with
 与已证明的测试目标，不携带编译器 argv/Verifier 字段。逐包闭环的后续设计使用最新 checkpoint；历史聚合设计
 中的前置 APPROVED 包仅提供执行承诺。MCP 对象输出取代通用 Markdown 格式要求，但冻结用户的 Markdown-only
 选择继续优先。候选模板明确人工评审对象与缺口码，并与生产解析器共同回归。
+
+
+## PACKAGE_DESIGN_V1 model-friendly compilation and repair (0.3.66)
+
+Typed package designs now compile directly from fields and candidate-local keys; Markdown retains human-readable
+projection and DS-L provenance. Limits are shared and advertised. Frozen input preflight blocks proven scope
+contradictions before dispatch; a referenced test command or an unclassified path alone is not a proven conflict.
+A pre-dispatch block transitions the package and Designer to WAITING_INPUT without starting another model Session.
+
+V70 freezes an optional package-only total correction limit (`LOOPPER_PACKAGE_DESIGN_CORRECTION_LIMIT`, 0 by default,
+2–16 when enabled). Existing NULL limits remain unlimited. Additive PACKAGE_REPAIR_V1 feedback reports stable issue
+identities and complete-only progress; finite runs stop on exhaustion or repeated rejected content. Idempotency,
+authority, permissions, real verification and positive remote-stop evidence retain their existing boundaries.
+See [the protocol details](opencode-contract.md#package_design_v1-model-friendly-compilation-and-repair-0366) and
+[implementation and measured limitations](mcp-design-optimization.md).

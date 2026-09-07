@@ -129,6 +129,94 @@ class PackageDesignCompilationTest {
         });
     }
 
+    @Test
+    void preservesDistinctScenarioKeysEvenWhenTitlesAreIdentical() {
+        var root = (tools.jackson.databind.node.ObjectNode) json.readTree(readyCandidate());
+        var scenarios = (tools.jackson.databind.node.ArrayNode) root.path("scenarios");
+        var second = ((tools.jackson.databind.node.ObjectNode) scenarios.get(0)).deepCopy();
+        second.put("key", "SC-2");
+        second.put("precondition", "事件类型注册后又被移除");
+        scenarios.add(second);
+        ((tools.jackson.databind.node.ArrayNode) root.path("stages").get(0).path("includes")).add("SC-2");
+
+        var result = compilation.compileCandidate(input(), json.writeValueAsString(root));
+
+        assertThat(result.problems()).isEmpty();
+        assertThat(result.accepted()).isTrue();
+        assertThat(result.compiledResultJson()).contains("事件类型尚未注册", "事件类型注册后又被移除");
+    }
+
+    @Test
+    void reportsScenarioLimitAtTheActualCollectionBeforeCompilation() {
+        var root = (tools.jackson.databind.node.ObjectNode) json.readTree(readyCandidate());
+        var scenarios = (tools.jackson.databind.node.ArrayNode) root.path("scenarios");
+        var includes = (tools.jackson.databind.node.ArrayNode) root.path("stages").get(0).path("includes");
+        for (int i = 2; i <= 65; i++) {
+            var item = ((tools.jackson.databind.node.ObjectNode) scenarios.get(0)).deepCopy();
+            item.put("key", "SC-" + i);
+            item.put("title", "边界场景 " + i);
+            scenarios.add(item);
+            includes.add("SC-" + i);
+        }
+
+        var result = compilation.compileCandidate(input(), json.writeValueAsString(root));
+
+        assertThat(result.retryable()).isTrue();
+        assertThat(result.problems()).anySatisfy(problem -> {
+            assertThat(problem.pointer()).isEqualTo("/scenarios");
+            assertThat(problem.expected()).contains("64");
+            assertThat(problem.actual()).contains("65");
+            assertThat(problem.repairHint()).isNotBlank();
+        });
+    }
+
+    @Test
+    void frozenScopeConflictCannotBeAssignedToCandidateRepair() {
+        var original = input();
+        var conflicting = new PackageDesignCompilation.Input(original.workPackage(), original.requirementText(),
+                original.role(), original.scopeIn(), original.scopeIn(), original.deliverables(), 6, true);
+
+        var result = compilation.compileCandidate(conflicting, readyCandidate());
+
+        assertThat(result.outcome()).isEqualTo(PackageDesignCompilation.Outcome.NEEDS_INPUT);
+        assertThat(result.retryable()).isFalse();
+        assertThat(result.problems()).anySatisfy(problem -> {
+            assertThat(problem.code()).isEqualTo("MUTATION_PATH_SCOPE_CONFLICT");
+            assertThat(problem.problemClass()).isEqualTo(PackageDesignCompilation.ProblemClass.HUMAN_REQUIRED);
+            assertThat(problem.repairHint()).contains("冻结");
+        });
+    }
+
+    @Test
+    void structuredScopeIsPositiveWithoutGuessingItsKindFromRenderedProse() throws Exception {
+        var candidate = (tools.jackson.databind.node.ObjectNode) json.readTree(readyCandidate());
+        var scope = ((tools.jackson.databind.node.ObjectNode) candidate.path("deliverables").get(0)).deepCopy();
+        scope.put("key", "SCOPE-1");
+        scope.put("kind", "SCOPE");
+        scope.put("description", "在唯一允许的测试文件中设计 EventBusTest 的新增单元测试范围，不涉及其他文件");
+        ((tools.jackson.databind.node.ArrayNode) candidate.path("deliverables")).add(scope);
+        ((tools.jackson.databind.node.ArrayNode) candidate.path("stages").get(0).path("includes")).add("SCOPE-1");
+        var result = compilation.compileCandidate(input(), json.writeValueAsString(candidate));
+        assertThat(result.problems()).isEmpty();
+        assertThat(result.accepted()).isTrue();
+    }
+
+    @Test
+    void preflightSeparatesAReferencedTestCommandFromContradictoryFrozenWrites() {
+        var base = input();
+        var reference = new PackageDesignCompilation.Input(base.workPackage(),
+                "聚焦测试：`python3 -m pytest tests/test_listener.py`。", base.role(), base.scopeIn(),
+                base.scopeOut(), base.deliverables(), 6, true);
+        assertThat(PackageDesignInputPreflight.problems(reference)).isEmpty();
+        var contradiction = new PackageDesignCompilation.Input(base.workPackage(),
+                "修改 `src/test/java/example/EventBusTest.java`。\n不得修改 `src/test/java/example/EventBusTest.java`。",
+                base.role(), base.scopeIn(), base.scopeOut(), base.deliverables(), 6, true);
+        assertThat(PackageDesignInputPreflight.problems(contradiction)).singleElement().satisfies(problem -> {
+            assertThat(problem.code()).isEqualTo("AMBIGUOUS_MUTATION_PATH_SCOPE");
+            assertThat(problem.problemClass()).isEqualTo(PackageDesignCompilation.ProblemClass.HUMAN_REQUIRED);
+        });
+    }
+
     private String readyCandidate() {
         return """
                 {

@@ -34,8 +34,13 @@ final class PackageDesignCandidatePromptContract {
                 a review to match this example. READY has gapCodes:[] and non-empty requirements/scenarios/deliverables/stages.
                 NEEDS_INPUT keeps all root collections, uses only supported gapCodes and requests real missing
                 design semantics; it is not a Markdown fallback or a way to escape a field error.
+                Limits: scenarios <= %d; requirements + scenarios + deliverables + reviews + stages <= %d.
+                Stages <= %d globally; follow the smaller frozen package limit stated above. Keep keys stable when
+                repairing. Change only fields implicated by diagnostics, retain other content, and submit the full object.
                 Allowed gapCodes: %s.
-                """.formatted(readyExample(), Arrays.stream(DesignerSemanticContracts.DesignGapCode.values())
+                """.formatted(readyExample(), io.opencode.loopper.domain.PackageDesignLimits.MAX_SCENARIOS,
+                io.opencode.loopper.domain.PackageDesignLimits.MAX_FACTS,
+                io.opencode.loopper.domain.PackageDesignLimits.MAX_STAGES, Arrays.stream(DesignerSemanticContracts.DesignGapCode.values())
                 .map(Enum::name).collect(Collectors.joining(", ")));
     }
 }

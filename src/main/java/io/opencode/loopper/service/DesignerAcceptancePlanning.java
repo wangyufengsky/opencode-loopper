@@ -66,7 +66,13 @@ final class DesignerAcceptancePlanning {
 
     record Fact(int index, FactKind kind, String title, String condition, String action,
                 String expected, String invariant, String detail, String sourceRef,
-                String sourceExcerpt, String sourceSha256) {
+                String sourceExcerpt, String sourceSha256, String candidateKey) {
+        Fact(int index, FactKind kind, String title, String condition, String action,
+             String expected, String invariant, String detail, String sourceRef,
+             String sourceExcerpt, String sourceSha256) {
+            this(index, kind, title, condition, action, expected, invariant, detail, sourceRef,
+                    sourceExcerpt, sourceSha256, null);
+        }
         String acceptanceText() {
             if (kind == FactKind.REVIEW) return detail;
             StringBuilder text = new StringBuilder();
@@ -80,7 +86,13 @@ final class DesignerAcceptancePlanning {
 
     record StageHint(String title, String objective, List<String> includedReferences,
                      List<String> dependencyReferences, List<Integer> factIndexes,
-                     List<Integer> dependsOnIndexes, List<String> responsiblePaths) {
+                     List<Integer> dependsOnIndexes, List<String> responsiblePaths, String candidateKey) {
+        StageHint(String title, String objective, List<String> includedReferences,
+                  List<String> dependencyReferences, List<Integer> factIndexes,
+                  List<Integer> dependsOnIndexes, List<String> responsiblePaths) {
+            this(title, objective, includedReferences, dependencyReferences, factIndexes,
+                    dependsOnIndexes, responsiblePaths, null);
+        }
         StageHint(String title, String objective, List<String> includedReferences,
                   List<String> dependencyReferences, List<Integer> factIndexes,
                   List<Integer> dependsOnIndexes) {

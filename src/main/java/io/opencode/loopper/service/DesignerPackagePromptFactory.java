@@ -26,6 +26,12 @@ final class DesignerPackagePromptFactory {
     String build(DesignerSessionRow session, ProjectRow project, DesignRequirementRevisionRow revision,
                  DesignWorkPackageRow workPackage, TaskDecompositionRow decomposition,
                  boolean questionRequired, boolean nativeQuestion) {
+        return build(session, project, revision, workPackage, decomposition, questionRequired, nativeQuestion, false);
+    }
+
+    String build(DesignerSessionRow session, ProjectRow project, DesignRequirementRevisionRow revision,
+                 DesignWorkPackageRow workPackage, TaskDecompositionRow decomposition,
+                 boolean questionRequired, boolean nativeQuestion, boolean candidateChannel) {
         WorkPackageRoleService.View packageRole = workPackageRoles.get(workPackage);
         boolean directSoftware = taskProfiles.workflowTemplateIncludingSuperseded(session.id())
                 == WorkflowTemplate.DIRECT_SOFTWARE_DESIGN;
@@ -51,12 +57,17 @@ final class DesignerPackagePromptFactory {
                 “（推荐）”. Tell the user they may answer with a choice or their own wording, then end the response.
                 The user will answer directly in Loopper's chat input.
                 """;
+        if (candidateChannel) turnContract = (questionRequired && nativeQuestion
+                ? "Before designing, call question exactly once with 1-3 concise questions and await the answers.\n"
+                : "Do not call question or ask the user anything.\n")
+                + "Produce one complete PACKAGE_DESIGN_V1 replacement through the private tool. Preserve still-valid facts. "
+                + (directSoftware ? "Use 1-6 stages." : "Use 1-3 stages.");
         return """
                 The requirement phase is complete. Follow this current package-design contract; earlier question-only instructions no longer apply. You are OpenCode Loopper Designer / 设计师 for exactly one work package in its persistent strictly
                 read-only conversation. A healthy package Session is reused across human revisions; after transport
                 loss, this prompt reconstructs the conversation from the persisted snapshots and decisions below.
                 You may use read, glob, and grep. Do not edit/write files, execute commands, ask implementation agents,
-                create tasks, emit LoopSpec fields/JSON, or redesign other packages.
+                create tasks, emit executable LoopSpec JSON, or redesign other packages.
 
                 %s
 
@@ -83,6 +94,26 @@ final class DesignerPackagePromptFactory {
 
                 %s
 
+                %s
+
+                When the current Role Pack requires a focused repository-native test, keep it in the same stage as
+                the production behavior it proves. Tests are evidence for business behavior, not a meta acceptance
+                item. In Java work, never create a final production wiring/demo Stage backed only by full-suite or
+                build commands: keep a focused Maven/Gradle TEST in every JAVA_PRODUCTION Stage or merge that wiring
+                into the related tested Stage.
+                """.formatted(MachineRoleContractCatalog.packageDesignerCard(candidateChannel) + "\n"
+                        + rolePrompts.packageDesignerInstructions(taskProfiles.current(session.id()),
+                        packageRole.rolePackId(), packageRole.executionStrategy(), packageRole.technologies(),
+                        packageRole.testPolicy()), project.rootPath(), revision.revision(), revision.requirementText(),
+                decomposition.planJson(), workPackage.packageId(), context.packageScope(workPackage),
+                context.prerequisites(revision.id(), workPackage), context.previousDesign(workPackage),
+                context.decisions(session, workPackage), repositoryContext(session.taskId() != null), turnContract,
+                candidateChannel ? "MCP OUTPUT: use candidate-local keys in includes/dependencies; titles are display text. "
+                        + "The server renders the accepted design for the user. Do not also generate design tables."
+                        : markdownContract());
+    }
+    static String markdownContract() {
+        return """
                 CONTROLLED MARKDOWN CONTRACT (section names and table columns are exact):
                 ## 目标与范围
                 State the business goal, in-scope behavior, and explicit non-scope in prose.
@@ -111,19 +142,9 @@ final class DesignerPackagePromptFactory {
                 there is no prerequisite. Do not abbreviate, fuzzily match, or refer to “all/remaining scenarios”.
                 Never emit DS-L references, WP/AC ids, JSON, LoopSpec fields, or executable command arrays.
 
-                When the current Role Pack requires a focused repository-native test, keep it in the same stage as
-                the production behavior it proves. Tests are evidence for business behavior, not a meta acceptance
-                item. In Java work, never create a final production wiring/demo Stage backed only by full-suite or
-                build commands: keep a focused Maven/Gradle TEST in every JAVA_PRODUCTION Stage or merge that wiring
-                into the related tested Stage.
-                """.formatted(MachineRoleContractCatalog.card("DESIGNER") + "\n"
-                        + rolePrompts.packageDesignerInstructions(taskProfiles.current(session.id()),
-                        packageRole.rolePackId(), packageRole.executionStrategy(), packageRole.technologies(),
-                        packageRole.testPolicy()), project.rootPath(), revision.revision(), revision.requirementText(),
-                decomposition.planJson(), workPackage.packageId(), context.packageScope(workPackage),
-                context.prerequisites(revision.id(), workPackage), context.previousDesign(workPackage),
-                context.decisions(session, workPackage), repositoryContext(session.taskId() != null), turnContract);
+                """;
     }
+
     static String repositoryContext(boolean rollingExecution) {
         return rollingExecution ? """
                 The repository is the latest read-only checkpoint snapshot of this rolling Task, including prior

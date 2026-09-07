@@ -129,6 +129,15 @@ final class DesignerPackageCandidateWorkflow {
         host.startCompilation(compilerSession, compiling, source, "MARKDOWN_FALLBACK", fallbackReason);
     }
 
+    void rejectFrozenInput(DesignerSessionService host, DesignerSessionRow session,
+            DesignRequirementRevisionRow revision, DesignWorkPackageRow input, PackageDesignCompilation.Problem problem) {
+        var waiting = host.updateWorkPackage(input, DesignWorkPackageState.WAITING_INPUT,
+                input.designerExternalSessionId(), input.designerExternalSessionState(), input.designMessageId(),
+                input.designRevision(), input.redesignCount(), input.designerTransportRetryCount(),
+                input.compilerSummary(), input.handoffSummary(), problem.code(), problem.repairHint());
+        host.waitForDesignInput(session, revision, waiting, problem.code(), problem.repairHint());
+    }
+
     void failHandoff(
             DesignerSessionService host, DesignWorkPackageRow workPackage, DesignerSessionRow session,
             String code, String detail, boolean legacyTransportRetry) {

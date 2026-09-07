@@ -8,6 +8,11 @@ import java.util.Map;
 /** Canonical human-reviewable Markdown adapter for one validated package-design candidate. */
 final class PackageDesignMarkdownRenderer {
     String render(PackageDesignCandidateDocument candidate) {
+        return project(candidate).markdown();
+    }
+
+    Projection project(PackageDesignCandidateDocument candidate) {
+        Map<String, Source> sources = new LinkedHashMap<>();
         Map<String, String> factTitles = factTitles(candidate);
         Map<String, String> stageTitles = new LinkedHashMap<>();
         candidate.stages().forEach(stage -> stageTitles.put(key(stage.key()), stage.title()));
@@ -20,6 +25,7 @@ final class PackageDesignMarkdownRenderer {
             out.append("| ").append("SCOPE".equals(deliverable.kind()) ? "范围" : "交付")
                     .append(" | ").append(cell(deliverable.target())).append(" | ")
                     .append(cell(deliverable.description())).append(" |\n");
+            capture(out, deliverable.key(), sources);
         }
         out.append("\n## 验收场景\n\n| 场景 | 前置/触发 | 操作 | 可观察结果 | 保持不变 |\n")
                 .append("| --- | --- | --- | --- | --- |\n");
@@ -28,17 +34,20 @@ final class PackageDesignMarkdownRenderer {
                     .append(" | ").append(cell(scenario.action())).append(" | ")
                     .append(cell(scenario.observableResult())).append(" | ").append(cell(scenario.invariant()))
                     .append(" |\n");
+            capture(out, scenario.key(), sources);
         }
         if (!candidate.reviews().isEmpty()) {
             out.append("\n## 人工评审项\n\n| 评审项 | 判断标准 | 仅人工原因 |\n| --- | --- | --- |\n");
             for (PackageDesignCandidateDocument.Review review : candidate.reviews()) {
                 out.append("| ").append(cell(review.title())).append(" | ").append(cell(review.criteria()))
                         .append(" | ").append(cell(review.humanOnlyReason())).append(" |\n");
+                capture(out, review.key(), sources);
             }
         }
         out.append("\n## 验收约束\n\n");
         for (PackageDesignCandidateDocument.Requirement requirement : candidate.requirements()) {
             out.append("- ").append(inline(requirement.statement())).append('\n');
+            capture(out, requirement.key(), sources);
         }
         out.append("\n## 阶段与依赖\n\n| 阶段 | 目标 | 负责路径 | 包含场景/评审/交付 | 前置阶段 |\n")
                 .append("| --- | --- | --- | --- | --- |\n");
@@ -50,9 +59,18 @@ final class PackageDesignMarkdownRenderer {
             out.append("| ").append(cell(stage.title())).append(" | ").append(cell(stage.objective()))
                     .append(" |  | ").append(cell(includes)).append(" | ")
                     .append(cell(dependencies.isBlank() ? "无" : dependencies)).append(" |\n");
+            capture(out, stage.key(), sources);
         }
-        return out.toString();
+        return new Projection(out.toString(), Map.copyOf(sources));
     }
+
+    private static void capture(StringBuilder out, String candidateKey, Map<String, Source> sources) {
+        var lines = out.toString().lines().map(String::strip).filter(line -> !line.isEmpty()).toList();
+        sources.put(key(candidateKey), new Source("DS-L%03d".formatted(lines.size()), lines.getLast()));
+    }
+
+    record Source(String ref, String excerpt) { }
+    record Projection(String markdown, Map<String, Source> sources) { }
 
     private static Map<String, String> factTitles(PackageDesignCandidateDocument value) {
         Map<String, String> result = new LinkedHashMap<>();
@@ -62,7 +80,7 @@ final class PackageDesignMarkdownRenderer {
         return result;
     }
 
-    private static String key(String value) {
+    static String key(String value) {
         return inline(value).toLowerCase(Locale.ROOT).replaceAll("[\\s_-]", "");
     }
 

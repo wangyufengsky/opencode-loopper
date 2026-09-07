@@ -45,7 +45,7 @@ final class DesignerAcceptanceFastPathResolver {
         List<ResolutionIssue> unboundReferenceIssues = new ArrayList<>();
         Map<String, Integer> stageSymbols = new LinkedHashMap<>();
         for (int index = 0; index < stages.size(); index++) {
-            String key = symbol(stages.get(index).title());
+            String key = stageSymbol(stages.get(index));
             if (key.isBlank()) {
                 issues.add(new ResolutionIssue("ACCEPTANCE_STAGE_TITLE_MISSING", index, null, null,
                         "第 " + (index + 1) + " 个阶段缺少名称"));
@@ -63,7 +63,7 @@ final class DesignerAcceptanceFastPathResolver {
         List<Fact> acceptanceFacts = catalog.facts().stream().filter(DesignerAcceptanceFastPathResolver::acceptance)
                 .toList();
         catalog.facts().stream().filter(fact -> referable(catalog, fact))
-                .forEach(fact -> factSymbols.computeIfAbsent(symbol(fact.title()), ignored -> new ArrayList<>()).add(fact));
+                .forEach(fact -> factSymbols.computeIfAbsent(factSymbol(fact), ignored -> new ArrayList<>()).add(fact));
         List<LinkedHashSet<Integer>> assignments = new ArrayList<>();
         List<List<Integer>> dependencies = new ArrayList<>();
         List<String> reasons = new ArrayList<>();
@@ -81,7 +81,7 @@ final class DesignerAcceptanceFastPathResolver {
             StageHint stage = stages.get(stageIndex);
             LinkedHashSet<Integer> stageFacts = new LinkedHashSet<>();
             for (String reference : stage.includedReferences()) {
-                List<Fact> matches = factSymbols.getOrDefault(symbol(reference), List.of());
+                List<Fact> matches = factSymbols.getOrDefault(referenceSymbol(stage, reference), List.of());
                 if (matches.size() != 1) {
                     if (CONTRACT_VERSION_V7.equals(catalog.contractVersion()) && matches.isEmpty()) {
                         reasons.add("UNLISTED_STAGE_REFERENCE_DROPPED:" + reference);
@@ -114,7 +114,7 @@ final class DesignerAcceptanceFastPathResolver {
 
             List<Integer> stageDependencies = new ArrayList<>();
             for (String reference : stage.dependencyReferences()) {
-                Integer dependency = stageSymbols.get(symbol(reference));
+                Integer dependency = stageSymbols.get(referenceSymbol(stage, reference));
                 if (dependency == null) {
                     issues.add(new ResolutionIssue("ACCEPTANCE_STAGE_DEPENDENCY_UNKNOWN",
                             stageIndex, null, reference,
@@ -311,6 +311,22 @@ final class DesignerAcceptanceFastPathResolver {
         if (value == null) return "";
         return Normalizer.normalize(value, Normalizer.Form.NFKC).trim().replaceAll("\\s+", " ")
                 .toLowerCase(Locale.ROOT);
+    }
+
+    private static String stageSymbol(StageHint stage) {
+        return stage.candidateKey() == null ? symbol(stage.title()) : candidateSymbol(stage.candidateKey());
+    }
+
+    private static String factSymbol(Fact fact) {
+        return fact.candidateKey() == null ? symbol(fact.title()) : candidateSymbol(fact.candidateKey());
+    }
+
+    private static String referenceSymbol(StageHint stage, String reference) {
+        return stage.candidateKey() == null ? symbol(reference) : candidateSymbol(reference);
+    }
+
+    private static String candidateSymbol(String value) {
+        return symbol(value).replaceAll("[\\s_-]", "");
     }
 
     private static boolean acceptance(Fact fact) {

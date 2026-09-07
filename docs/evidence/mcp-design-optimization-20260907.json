@@ -1,0 +1,1678 @@
+{
+  "date": "2026-09-07",
+  "boundary": "Isolated stdio MCP adapter and production compiler; not full HTTP workflow or active JVM qualification",
+  "model": "opencode/gpt-5.4",
+  "temperature": 0,
+  "budget": 4,
+  "baselineJarSha256": "a26a7975859d4dfa79bbbcc1f145b0a021112b4a60699aec6479e240028a689e",
+  "arms": {
+    "baseline_0_3_64": {
+      "runs": [
+        {
+          "case": "normal",
+          "repeat": 1,
+          "model": "opencode/gpt-5.4",
+          "temperature": 0,
+          "evaluationBudget": 4,
+          "outcomes": [
+            "REJECTED",
+            "ACCEPTED"
+          ],
+          "seconds": 28.32,
+          "exitCode": 0,
+          "timedOut": false,
+          "fixtureUnchanged": true,
+          "injectedFault": false,
+          "heldOut": false,
+          "attempts": [
+            {
+              "candidateSha256": "d51f25ada4f188fd0c64715fe6a34d754e09cb012de25bd1ee45f9a395efa7a7",
+              "response": {
+                "outcome": "REJECTED",
+                "retryable": true,
+                "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+                "diagnosticsComplete": true,
+                "problems": [
+                  {
+                    "code": "PACKAGE_DESIGN_REFERENCE_INVALID",
+                    "pointer": "/stages/0/includes/0",
+                    "detail": "阶段包含项“src/test/java/example/EventBusTest.java”不是候选中已声明的场景、交付项或评审 key",
+                    "allowedValues": [
+                      "scn1",
+                      "scn2",
+                      "deliv1"
+                    ],
+                    "parameter": "candidate",
+                    "category": "REFERENCE",
+                    "expected": "one value from allowedValues",
+                    "actual": "string \"src/test/java/example/EventBusTest.java\"",
+                    "repairHint": "Correct candidate/stages/0/includes/0 so that: 阶段包含项“src/test/java/example/EventBusTest.java”不是候选中已声明的场景、交付项或评审 key; then resubmit the complete candidate"
+                  },
+                  {
+                    "code": "PACKAGE_DESIGN_STAGE_ACCEPTANCE_REQUIRED",
+                    "pointer": "/stages/0/includes",
+                    "detail": "每个阶段必须包含至少一个验收场景或人工评审",
+                    "allowedValues": [],
+                    "parameter": "candidate",
+                    "category": "SHAPE",
+                    "expected": "每个阶段必须包含至少一个验收场景或人工评审",
+                    "actual": "array [\"src/test/java/example/EventBusTest.java\"]",
+                    "repairHint": "Correct candidate/stages/0/includes so that: 每个阶段必须包含至少一个验收场景或人工评审; then resubmit the complete candidate"
+                  }
+                ],
+                "action": "FIX_AND_RESUBMIT",
+                "attemptOrdinal": 1,
+                "submissionRevision": 1,
+                "remainingAttempts": 3
+              }
+            },
+            {
+              "candidateSha256": "e44fe4fa53ff0a0eddf2f34ed81270d9fc1ec52ada1ae06a605be684fd34e6c8",
+              "response": {
+                "outcome": "ACCEPTED",
+                "retryable": false,
+                "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+                "diagnosticsComplete": true,
+                "problems": [],
+                "action": "STOP_ACCEPTED",
+                "attemptOrdinal": 2,
+                "submissionRevision": 2,
+                "remainingAttempts": 2
+              }
+            }
+          ],
+          "providerStepTokens": {
+            "input": 7870,
+            "output": 1466,
+            "reasoning": 596,
+            "cacheRead": 4096,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "case": "normal",
+          "repeat": 2,
+          "model": "opencode/gpt-5.4",
+          "temperature": 0,
+          "evaluationBudget": 4,
+          "outcomes": [
+            "REJECTED",
+            "ACCEPTED"
+          ],
+          "seconds": 38.8,
+          "exitCode": 0,
+          "timedOut": false,
+          "fixtureUnchanged": true,
+          "injectedFault": false,
+          "heldOut": false,
+          "attempts": [
+            {
+              "candidateSha256": "c96ce79e1564996c2f7c95b8da43d8beb4d5bea1798e4453a1a637a6d391d4a9",
+              "response": {
+                "outcome": "REJECTED",
+                "retryable": true,
+                "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+                "diagnosticsComplete": true,
+                "problems": [
+                  {
+                    "code": "PACKAGE_DESIGN_STAGE_ACCEPTANCE_REQUIRED",
+                    "pointer": "/stages/0/includes",
+                    "detail": "每个阶段必须包含至少一个验收场景或人工评审",
+                    "allowedValues": [],
+                    "parameter": "candidate",
+                    "category": "SHAPE",
+                    "expected": "每个阶段必须包含至少一个验收场景或人工评审",
+                    "actual": "array [\"DEL-1\"]",
+                    "repairHint": "Correct candidate/stages/0/includes so that: 每个阶段必须包含至少一个验收场景或人工评审; then resubmit the complete candidate"
+                  },
+                  {
+                    "code": "PACKAGE_DESIGN_COVERAGE_INCOMPLETE",
+                    "pointer": "/requirements/3/key",
+                    "detail": "需求 REQ-4 没有被任何 scenario、deliverable 或 review 引用",
+                    "allowedValues": [],
+                    "parameter": "candidate",
+                    "category": "SEMANTIC",
+                    "expected": "需求 REQ-4 没有被任何 scenario、deliverable 或 review 引用",
+                    "actual": "string \"REQ-4\"",
+                    "repairHint": "Correct candidate/requirements/3/key so that: 需求 REQ-4 没有被任何 scenario、deliverable 或 review 引用; then resubmit the complete candidate"
+                  },
+                  {
+                    "code": "PACKAGE_DESIGN_COVERAGE_INCOMPLETE",
+                    "pointer": "/scenarios/0/key",
+                    "detail": "场景 SCN-1 没有出现在任何 stages[].includes 中",
+                    "allowedValues": [],
+                    "parameter": "candidate",
+                    "category": "SEMANTIC",
+                    "expected": "场景 SCN-1 没有出现在任何 stages[].includes 中",
+                    "actual": "string \"SCN-1\"",
+                    "repairHint": "Correct candidate/scenarios/0/key so that: 场景 SCN-1 没有出现在任何 stages[].includes 中; then resubmit the complete candidate"
+                  },
+                  {
+                    "code": "PACKAGE_DESIGN_COVERAGE_INCOMPLETE",
+                    "pointer": "/scenarios/1/key",
+                    "detail": "场景 SCN-2 没有出现在任何 stages[].includes 中",
+                    "allowedValues": [],
+                    "parameter": "candidate",
+                    "category": "SEMANTIC",
+                    "expected": "场景 SCN-2 没有出现在任何 stages[].includes 中",
+                    "actual": "string \"SCN-2\"",
+                    "repairHint": "Correct candidate/scenarios/1/key so that: 场景 SCN-2 没有出现在任何 stages[].includes 中; then resubmit the complete candidate"
+                  },
+                  {
+                    "code": "PACKAGE_DESIGN_COVERAGE_INCOMPLETE",
+                    "pointer": "/scenarios/2/key",
+                    "detail": "场景 SCN-3 没有出现在任何 stages[].includes 中",
+                    "allowedValues": [],
+                    "parameter": "candidate",
+                    "category": "SEMANTIC",
+                    "expected": "场景 SCN-3 没有出现在任何 stages[].includes 中",
+                    "actual": "string \"SCN-3\"",
+                    "repairHint": "Correct candidate/scenarios/2/key so that: 场景 SCN-3 没有出现在任何 stages[].includes 中; then resubmit the complete candidate"
+                  }
+                ],
+                "action": "FIX_AND_RESUBMIT",
+                "attemptOrdinal": 1,
+                "submissionRevision": 1,
+                "remainingAttempts": 3
+              }
+            },
+            {
+              "candidateSha256": "0d5c245a8b0b009d493c4463e86249fd74db087e3b76958d5b0619211f8ebf64",
+              "response": {
+                "outcome": "ACCEPTED",
+                "retryable": false,
+                "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+                "diagnosticsComplete": true,
+                "problems": [],
+                "action": "STOP_ACCEPTED",
+                "attemptOrdinal": 2,
+                "submissionRevision": 2,
+                "remainingAttempts": 2
+              }
+            }
+          ],
+          "providerStepTokens": {
+            "input": 9055,
+            "output": 1728,
+            "reasoning": 763,
+            "cacheRead": 4096,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "case": "duplicate_titles",
+          "repeat": 1,
+          "model": "opencode/gpt-5.4",
+          "temperature": 0,
+          "evaluationBudget": 4,
+          "outcomes": [
+            "REJECTED",
+            "REJECTED",
+            "REJECTED",
+            "REJECTED"
+          ],
+          "seconds": 73.53,
+          "exitCode": 0,
+          "timedOut": false,
+          "fixtureUnchanged": true,
+          "injectedFault": false,
+          "heldOut": false,
+          "attempts": [
+            {
+              "candidateSha256": "66abcbd2b9d4632143eb9b054bade5e30baa2eb57c249f9c1f3735f62e070bbc",
+              "response": {
+                "outcome": "REJECTED",
+                "retryable": true,
+                "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+                "diagnosticsComplete": true,
+                "problems": [
+                  {
+                    "code": "PACKAGE_DESIGN_STAGE_ACCEPTANCE_REQUIRED",
+                    "pointer": "/stages/0/includes",
+                    "detail": "每个阶段必须包含至少一个验收场景或人工评审",
+                    "allowedValues": [],
+                    "parameter": "candidate",
+                    "category": "SHAPE",
+                    "expected": "每个阶段必须包含至少一个验收场景或人工评审",
+                    "actual": "array [\"DEL-1\"]",
+                    "repairHint": "Correct candidate/stages/0/includes so that: 每个阶段必须包含至少一个验收场景或人工评审; then resubmit the complete candidate"
+                  },
+                  {
+                    "code": "PACKAGE_DESIGN_COVERAGE_INCOMPLETE",
+                    "pointer": "/scenarios/0/key",
+                    "detail": "场景 SCN-1-NEVER-REGISTERED 没有出现在任何 stages[].includes 中",
+                    "allowedValues": [],
+                    "parameter": "candidate",
+                    "category": "SEMANTIC",
+                    "expected": "场景 SCN-1-NEVER-REGISTERED 没有出现在任何 stages[].includes 中",
+                    "actual": "string \"SCN-1-NEVER-REGISTERED\"",
+                    "repairHint": "Correct candidate/scenarios/0/key so that: 场景 SCN-1-NEVER-REGISTERED 没有出现在任何 stages[].includes 中; then resubmit the complete candidate"
+                  },
+                  {
+                    "code": "PACKAGE_DESIGN_COVERAGE_INCOMPLETE",
+                    "pointer": "/scenarios/1/key",
+                    "detail": "场景 SCN-2-REMOVED-ALL-HANDLERS 没有出现在任何 stages[].includes 中",
+                    "allowedValues": [],
+                    "parameter": "candidate",
+                    "category": "SEMANTIC",
+                    "expected": "场景 SCN-2-REMOVED-ALL-HANDLERS 没有出现在任何 stages[].includes 中",
+                    "actual": "string \"SCN-2-REMOVED-ALL-HANDLERS\"",
+                    "repairHint": "Correct candidate/scenarios/1/key so that: 场景 SCN-2-REMOVED-ALL-HANDLERS 没有出现在任何 stages[].includes 中; then resubmit the complete candidate"
+                  }
+                ],
+                "action": "FIX_AND_RESUBMIT",
+                "attemptOrdinal": 1,
+                "submissionRevision": 1,
+                "remainingAttempts": 3
+              }
+            },
+            {
+              "candidateSha256": "83b182f27b7143cf346bdcb9d1876d8d1f7de9ea1ccc9f86b3f146e4a789ae43",
+              "response": {
+                "outcome": "REJECTED",
+                "retryable": true,
+                "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+                "diagnosticsComplete": true,
+                "problems": [
+                  {
+                    "code": "ACCEPTANCE_FACT_REFERENCE_INVALID",
+                    "pointer": "/stages/0/includes/1",
+                    "detail": "阶段“设计 EventBus 安全忽略场景测试”中的引用“未注册事件被安全忽略”同时匹配 2 条冻结事实",
+                    "allowedValues": [
+                      "SCN-1-NEVER-REGISTERED",
+                      "SCN-2-REMOVED-ALL-HANDLERS",
+                      "DEL-1"
+                    ],
+                    "parameter": "candidate",
+                    "category": "REFERENCE",
+                    "expected": "one candidate-local fact key from allowedValues",
+                    "actual": "reference \"未注册事件被安全忽略\" at /stages/0/includes/1 does not identify exactly one fact; submitted value: string \"SCN-1-NEVER-REGISTERED\"",
+                    "repairHint": "Replace /stages/0/includes/1 with one listed fact key and resubmit the complete candidate"
+                  },
+                  {
+                    "code": "ACCEPTANCE_FACT_REFERENCE_INVALID",
+                    "pointer": "/stages/0/includes/1",
+                    "detail": "阶段“设计 EventBus 安全忽略场景测试”中的引用“未注册事件被安全忽略”同时匹配 2 条冻结事实",
+                    "allowedValues": [
+                      "SCN-1-NEVER-REGISTERED",
+                      "SCN-2-REMOVED-ALL-HANDLERS",
+                      "DEL-1"
+                    ],
+                    "parameter": "candidate",
+                    "category": "REFERENCE",
+                    "expected": "one candidate-local fact key from allowedValues",
+                    "actual": "reference \"未注册事件被安全忽略\" at /stages/0/includes/1 does not identify exactly one fact; submitted value: string \"SCN-1-NEVER-REGISTERED\"",
+                    "repairHint": "Replace /stages/0/includes/1 with one listed fact key and resubmit the complete candidate"
+                  }
+                ],
+                "action": "FIX_AND_RESUBMIT",
+                "attemptOrdinal": 2,
+                "submissionRevision": 2,
+                "remainingAttempts": 2
+              }
+            },
+            {
+              "candidateSha256": "30ef929f0be726a927b54f40d969b8111da81ed2422c255299857cad320c83a1",
+              "response": {
+                "outcome": "REJECTED",
+                "retryable": true,
+                "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+                "diagnosticsComplete": true,
+                "problems": [
+                  {
+                    "code": "PACKAGE_DESIGN_GAP_CODE_INVALID",
+                    "pointer": "/gapCodes/0",
+                    "detail": "设计缺口必须使用服务端闭集值",
+                    "allowedValues": [
+                      "MISSING_OBSERVABLE_OUTCOME",
+                      "MISSING_EXCEPTION_SEMANTICS",
+                      "MISSING_SCOPE",
+                      "MISSING_ACCEPTANCE_INTENT",
+                      "AMBIGUOUS_ACCEPTANCE_INTENT",
+                      "VERIFICATION_CAPABILITY_UNAVAILABLE",
+                      "LARGE_TASK_MODE_REQUIRED",
+                      "REQUIRED_MUTATION_PATH_UNASSIGNED",
+                      "REQUIRED_MUTATION_PATH_FORBIDDEN"
+                    ],
+                    "parameter": "candidate",
+                    "category": "VALUE",
+                    "expected": "one value from allowedValues",
+                    "actual": "string \"DUPLICATE_SCENARIO_TITLE_STAGE_REFERENCE_BLOCKED\"",
+                    "repairHint": "Correct candidate/gapCodes/0 so that: 设计缺口必须使用服务端闭集值; then resubmit the complete candidate"
+                  }
+                ],
+                "action": "FIX_AND_RESUBMIT",
+                "attemptOrdinal": 3,
+                "submissionRevision": 3,
+                "remainingAttempts": 1
+              }
+            },
+            {
+              "candidateSha256": "63a3138fe0fa0068ec13a7bb97ee8397eb96fe786ec0ff249ef480a124ab2809",
+              "response": {
+                "outcome": "REJECTED",
+                "retryable": true,
+                "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+                "diagnosticsComplete": true,
+                "problems": [
+                  {
+                    "code": "AMBIGUOUS_ACCEPTANCE_INTENT",
+                    "pointer": "/gapCodes/0",
+                    "detail": "AMBIGUOUS_ACCEPTANCE_INTENT 属于候选自身可修正问题，不能作为人工输入出口；请修正完整候选并重新提交 READY",
+                    "allowedValues": [
+                      "MISSING_OBSERVABLE_OUTCOME",
+                      "MISSING_EXCEPTION_SEMANTICS",
+                      "MISSING_SCOPE",
+                      "MISSING_ACCEPTANCE_INTENT",
+                      "AMBIGUOUS_ACCEPTANCE_INTENT",
+                      "VERIFICATION_CAPABILITY_UNAVAILABLE",
+                      "LARGE_TASK_MODE_REQUIRED",
+                      "REQUIRED_MUTATION_PATH_UNASSIGNED",
+                      "REQUIRED_MUTATION_PATH_FORBIDDEN"
+                    ],
+                    "parameter": "candidate",
+                    "category": "SEMANTIC",
+                    "expected": "outcome READY with gapCodes [] after the candidate-owned issue is repaired",
+                    "actual": "outcome NEEDS_INPUT with /gapCodes/0=\"AMBIGUOUS_ACCEPTANCE_INTENT\"; submitted value: string \"AMBIGUOUS_ACCEPTANCE_INTENT\"",
+                    "repairHint": "Set /outcome to READY, set /gapCodes to [], repair the fields named by AMBIGUOUS_ACCEPTANCE_INTENT, and resubmit the complete candidate"
+                  }
+                ],
+                "action": "FIX_AND_RESUBMIT",
+                "attemptOrdinal": 4,
+                "submissionRevision": 4,
+                "remainingAttempts": 0
+              }
+            }
+          ],
+          "providerStepTokens": {
+            "input": 15034,
+            "output": 3093,
+            "reasoning": 4159,
+            "cacheRead": 18432,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "case": "duplicate_titles",
+          "repeat": 2,
+          "model": "opencode/gpt-5.4",
+          "temperature": 0,
+          "evaluationBudget": 4,
+          "outcomes": [
+            "REJECTED",
+            "REJECTED",
+            "REJECTED",
+            "REJECTED"
+          ],
+          "seconds": 89.09,
+          "exitCode": 0,
+          "timedOut": false,
+          "fixtureUnchanged": true,
+          "injectedFault": false,
+          "heldOut": false,
+          "attempts": [
+            {
+              "candidateSha256": "489eb13f071b116a038f9c3e28b904470a6bd7bffb3d3cbadaa3495be0db7f96",
+              "response": {
+                "outcome": "REJECTED",
+                "retryable": true,
+                "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+                "diagnosticsComplete": true,
+                "problems": [
+                  {
+                    "code": "PACKAGE_DESIGN_STAGE_ACCEPTANCE_REQUIRED",
+                    "pointer": "/stages/0/includes",
+                    "detail": "每个阶段必须包含至少一个验收场景或人工评审",
+                    "allowedValues": [],
+                    "parameter": "candidate",
+                    "category": "SHAPE",
+                    "expected": "每个阶段必须包含至少一个验收场景或人工评审",
+                    "actual": "array [\"DEL-1\"]",
+                    "repairHint": "Correct candidate/stages/0/includes so that: 每个阶段必须包含至少一个验收场景或人工评审; then resubmit the complete candidate"
+                  },
+                  {
+                    "code": "PACKAGE_DESIGN_COVERAGE_INCOMPLETE",
+                    "pointer": "/scenarios/0/key",
+                    "detail": "场景 SCN-UNREGISTERED-PUBLISH-A 没有出现在任何 stages[].includes 中",
+                    "allowedValues": [],
+                    "parameter": "candidate",
+                    "category": "SEMANTIC",
+                    "expected": "场景 SCN-UNREGISTERED-PUBLISH-A 没有出现在任何 stages[].includes 中",
+                    "actual": "string \"SCN-UNREGISTERED-PUBLISH-A\"",
+                    "repairHint": "Correct candidate/scenarios/0/key so that: 场景 SCN-UNREGISTERED-PUBLISH-A 没有出现在任何 stages[].includes 中; then resubmit the complete candidate"
+                  },
+                  {
+                    "code": "PACKAGE_DESIGN_COVERAGE_INCOMPLETE",
+                    "pointer": "/scenarios/1/key",
+                    "detail": "场景 SCN-CLEARED-HANDLERS-PUBLISH-B 没有出现在任何 stages[].includes 中",
+                    "allowedValues": [],
+                    "parameter": "candidate",
+                    "category": "SEMANTIC",
+                    "expected": "场景 SCN-CLEARED-HANDLERS-PUBLISH-B 没有出现在任何 stages[].includes 中",
+                    "actual": "string \"SCN-CLEARED-HANDLERS-PUBLISH-B\"",
+                    "repairHint": "Correct candidate/scenarios/1/key so that: 场景 SCN-CLEARED-HANDLERS-PUBLISH-B 没有出现在任何 stages[].includes 中; then resubmit the complete candidate"
+                  }
+                ],
+                "action": "FIX_AND_RESUBMIT",
+                "attemptOrdinal": 1,
+                "submissionRevision": 1,
+                "remainingAttempts": 3
+              }
+            },
+            {
+              "candidateSha256": "d259413ba879f840623ba15f0cbf634931e3cbc3019d537c18e0075f4c6c39cc",
+              "response": {
+                "outcome": "REJECTED",
+                "retryable": true,
+                "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+                "diagnosticsComplete": true,
+                "problems": [
+                  {
+                    "code": "ACCEPTANCE_FACT_REFERENCE_INVALID",
+                    "pointer": "/stages/0/includes/0",
+                    "detail": "阶段“补充 EventBus 安全忽略测试设计”中的引用“未注册事件被安全忽略”同时匹配 2 条冻结事实",
+                    "allowedValues": [
+                      "SCN-UNREGISTERED-PUBLISH-A",
+                      "SCN-CLEARED-HANDLERS-PUBLISH-B",
+                      "DEL-1"
+                    ],
+                    "parameter": "candidate",
+                    "category": "REFERENCE",
+                    "expected": "one candidate-local fact key from allowedValues",
+                    "actual": "reference \"未注册事件被安全忽略\" at /stages/0/includes/0 does not identify exactly one fact; submitted value: string \"SCN-UNREGISTERED-PUBLISH-A\"",
+                    "repairHint": "Replace /stages/0/includes/0 with one listed fact key and resubmit the complete candidate"
+                  },
+                  {
+                    "code": "ACCEPTANCE_FACT_REFERENCE_INVALID",
+                    "pointer": "/stages/0/includes/0",
+                    "detail": "阶段“补充 EventBus 安全忽略测试设计”中的引用“未注册事件被安全忽略”同时匹配 2 条冻结事实",
+                    "allowedValues": [
+                      "SCN-UNREGISTERED-PUBLISH-A",
+                      "SCN-CLEARED-HANDLERS-PUBLISH-B",
+                      "DEL-1"
+                    ],
+                    "parameter": "candidate",
+                    "category": "REFERENCE",
+                    "expected": "one candidate-local fact key from allowedValues",
+                    "actual": "reference \"未注册事件被安全忽略\" at /stages/0/includes/0 does not identify exactly one fact; submitted value: string \"SCN-UNREGISTERED-PUBLISH-A\"",
+                    "repairHint": "Replace /stages/0/includes/0 with one listed fact key and resubmit the complete candidate"
+                  }
+                ],
+                "action": "FIX_AND_RESUBMIT",
+                "attemptOrdinal": 2,
+                "submissionRevision": 2,
+                "remainingAttempts": 2
+              }
+            },
+            {
+              "candidateSha256": "52471fd122558ead8d03b3d78be576faa9aa733a8f00cf3ae01c6d52040acc18",
+              "response": {
+                "outcome": "REJECTED",
+                "retryable": true,
+                "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+                "diagnosticsComplete": true,
+                "problems": [
+                  {
+                    "code": "PACKAGE_DESIGN_GAP_CODE_INVALID",
+                    "pointer": "/gapCodes/0",
+                    "detail": "设计缺口必须使用服务端闭集值",
+                    "allowedValues": [
+                      "MISSING_OBSERVABLE_OUTCOME",
+                      "MISSING_EXCEPTION_SEMANTICS",
+                      "MISSING_SCOPE",
+                      "MISSING_ACCEPTANCE_INTENT",
+                      "AMBIGUOUS_ACCEPTANCE_INTENT",
+                      "VERIFICATION_CAPABILITY_UNAVAILABLE",
+                      "LARGE_TASK_MODE_REQUIRED",
+                      "REQUIRED_MUTATION_PATH_UNASSIGNED",
+                      "REQUIRED_MUTATION_PATH_FORBIDDEN"
+                    ],
+                    "parameter": "candidate",
+                    "category": "VALUE",
+                    "expected": "one value from allowedValues",
+                    "actual": "string \"DUPLICATE_ACCEPTANCE_TITLES_BLOCK_STAGE_REFERENCES\"",
+                    "repairHint": "Correct candidate/gapCodes/0 so that: 设计缺口必须使用服务端闭集值; then resubmit the complete candidate"
+                  }
+                ],
+                "action": "FIX_AND_RESUBMIT",
+                "attemptOrdinal": 3,
+                "submissionRevision": 3,
+                "remainingAttempts": 1
+              }
+            },
+            {
+              "candidateSha256": "7a904c93d19021eab7bafb0fafceb8e0e7476952e31911210877f73539c57acc",
+              "response": {
+                "outcome": "REJECTED",
+                "retryable": true,
+                "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+                "diagnosticsComplete": true,
+                "problems": [
+                  {
+                    "code": "AMBIGUOUS_ACCEPTANCE_INTENT",
+                    "pointer": "/gapCodes/0",
+                    "detail": "AMBIGUOUS_ACCEPTANCE_INTENT 属于候选自身可修正问题，不能作为人工输入出口；请修正完整候选并重新提交 READY",
+                    "allowedValues": [
+                      "MISSING_OBSERVABLE_OUTCOME",
+                      "MISSING_EXCEPTION_SEMANTICS",
+                      "MISSING_SCOPE",
+                      "MISSING_ACCEPTANCE_INTENT",
+                      "AMBIGUOUS_ACCEPTANCE_INTENT",
+                      "VERIFICATION_CAPABILITY_UNAVAILABLE",
+                      "LARGE_TASK_MODE_REQUIRED",
+                      "REQUIRED_MUTATION_PATH_UNASSIGNED",
+                      "REQUIRED_MUTATION_PATH_FORBIDDEN"
+                    ],
+                    "parameter": "candidate",
+                    "category": "SEMANTIC",
+                    "expected": "outcome READY with gapCodes [] after the candidate-owned issue is repaired",
+                    "actual": "outcome NEEDS_INPUT with /gapCodes/0=\"AMBIGUOUS_ACCEPTANCE_INTENT\"; submitted value: string \"AMBIGUOUS_ACCEPTANCE_INTENT\"",
+                    "repairHint": "Set /outcome to READY, set /gapCodes to [], repair the fields named by AMBIGUOUS_ACCEPTANCE_INTENT, and resubmit the complete candidate"
+                  }
+                ],
+                "action": "FIX_AND_RESUBMIT",
+                "attemptOrdinal": 4,
+                "submissionRevision": 4,
+                "remainingAttempts": 0
+              }
+            }
+          ],
+          "providerStepTokens": {
+            "input": 20782,
+            "output": 3296,
+            "reasoning": 3634,
+            "cacheRead": 47104,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "case": "heldout_empty",
+          "repeat": 1,
+          "model": "opencode/gpt-5.4",
+          "temperature": 0,
+          "evaluationBudget": 4,
+          "outcomes": [
+            "REJECTED",
+            "ACCEPTED"
+          ],
+          "seconds": 27.52,
+          "exitCode": 0,
+          "timedOut": false,
+          "fixtureUnchanged": true,
+          "injectedFault": false,
+          "heldOut": true,
+          "attempts": [
+            {
+              "candidateSha256": "43356a9b72b07269c111df0ca48cb2497f7ebd98afc58c76d9906a429d0a4798",
+              "response": {
+                "outcome": "REJECTED",
+                "retryable": true,
+                "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+                "diagnosticsComplete": true,
+                "problems": [
+                  {
+                    "code": "PACKAGE_DESIGN_STAGE_ACCEPTANCE_REQUIRED",
+                    "pointer": "/stages/0/includes",
+                    "detail": "每个阶段必须包含至少一个验收场景或人工评审",
+                    "allowedValues": [],
+                    "parameter": "candidate",
+                    "category": "SHAPE",
+                    "expected": "每个阶段必须包含至少一个验收场景或人工评审",
+                    "actual": "array [\"DELIV-1\"]",
+                    "repairHint": "Correct candidate/stages/0/includes so that: 每个阶段必须包含至少一个验收场景或人工评审; then resubmit the complete candidate"
+                  },
+                  {
+                    "code": "PACKAGE_DESIGN_COVERAGE_INCOMPLETE",
+                    "pointer": "/scenarios/0/key",
+                    "detail": "场景 SCN-1 没有出现在任何 stages[].includes 中",
+                    "allowedValues": [],
+                    "parameter": "candidate",
+                    "category": "SEMANTIC",
+                    "expected": "场景 SCN-1 没有出现在任何 stages[].includes 中",
+                    "actual": "string \"SCN-1\"",
+                    "repairHint": "Correct candidate/scenarios/0/key so that: 场景 SCN-1 没有出现在任何 stages[].includes 中; then resubmit the complete candidate"
+                  }
+                ],
+                "action": "FIX_AND_RESUBMIT",
+                "attemptOrdinal": 1,
+                "submissionRevision": 1,
+                "remainingAttempts": 3
+              }
+            },
+            {
+              "candidateSha256": "26fb04f9cde2aa3d64132bbcfdc0f3df25b16ca323930dfff27c502df1dae6f2",
+              "response": {
+                "outcome": "ACCEPTED",
+                "retryable": false,
+                "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+                "diagnosticsComplete": true,
+                "problems": [],
+                "action": "STOP_ACCEPTED",
+                "attemptOrdinal": 2,
+                "submissionRevision": 2,
+                "remainingAttempts": 2
+              }
+            }
+          ],
+          "providerStepTokens": {
+            "input": 6033,
+            "output": 1260,
+            "reasoning": 613,
+            "cacheRead": 5632,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "case": "heldout_empty",
+          "repeat": 2,
+          "model": "opencode/gpt-5.4",
+          "temperature": 0,
+          "evaluationBudget": 4,
+          "outcomes": [],
+          "seconds": 53.59,
+          "exitCode": 0,
+          "timedOut": false,
+          "fixtureUnchanged": true,
+          "injectedFault": false,
+          "heldOut": true,
+          "attempts": [],
+          "providerStepTokens": {
+            "input": 23146,
+            "output": 1713,
+            "reasoning": 665,
+            "cacheRead": 39936,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "case": "repair_reference",
+          "repeat": 1,
+          "model": "opencode/gpt-5.4",
+          "temperature": 0,
+          "evaluationBudget": 4,
+          "outcomes": [
+            "REJECTED",
+            "REJECTED",
+            "ACCEPTED"
+          ],
+          "seconds": 41.31,
+          "exitCode": 0,
+          "timedOut": false,
+          "fixtureUnchanged": true,
+          "injectedFault": true,
+          "heldOut": false,
+          "attempts": [
+            {
+              "candidateSha256": "b280f7f1aee68ac6b7440567516aa1cfb99296e9d8ab54bec6d94dab5ee50f32",
+              "response": {
+                "outcome": "REJECTED",
+                "retryable": true,
+                "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+                "diagnosticsComplete": true,
+                "problems": [
+                  {
+                    "code": "PACKAGE_DESIGN_REFERENCE_INVALID",
+                    "pointer": "/stages/0/includes/4",
+                    "detail": "阶段包含项“SC-MISSING”不是候选中已声明的场景、交付项或评审 key",
+                    "allowedValues": [
+                      "scunregisteredpublishnohandler",
+                      "scregistereddispatchunchanged",
+                      "dscopeeventbustest",
+                      "deventbustests"
+                    ],
+                    "parameter": "candidate",
+                    "category": "REFERENCE",
+                    "expected": "one value from allowedValues",
+                    "actual": "string \"SC-MISSING\"",
+                    "repairHint": "Correct candidate/stages/0/includes/4 so that: 阶段包含项“SC-MISSING”不是候选中已声明的场景、交付项或评审 key; then resubmit the complete candidate"
+                  }
+                ],
+                "action": "FIX_AND_RESUBMIT",
+                "attemptOrdinal": 1,
+                "submissionRevision": 1,
+                "remainingAttempts": 3
+              }
+            },
+            {
+              "candidateSha256": "97ac1c72ec61532d6aad3919a2775afa7e3f2c88eacbdc8a15fbdba621263a13",
+              "response": {
+                "outcome": "REJECTED",
+                "retryable": true,
+                "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+                "diagnosticsComplete": true,
+                "problems": [
+                  {
+                    "code": "AMBIGUOUS_MUTATION_PATH_SCOPE",
+                    "pointer": "/deliverables",
+                    "detail": "冻结修改路径的正负作用域存在冲突，需要先明确路径边界：AMBIGUOUS_MUTATION_PATH_SCOPE",
+                    "allowedValues": [],
+                    "parameter": "candidate",
+                    "category": "SEMANTIC",
+                    "expected": "one non-conflicting positive repository path scope",
+                    "actual": "DS-L010 \"| 交付 | src/test/java/example/EventBusTest.java | 新增聚焦 EventBusTest 的单元测试:验证未注册事件执行 publish 时可正常返回且不会调用任何处理器,并补充已注册事件仍按既有方式分发到处理器的业务结果。 |\"; SCOPE_IN:0 \"src/test/java/example/EventBusTest.java\"; submitted value: array [{\"description\":\"仅在 src/test/java/example/EventBusTest.java 设计并新增 EventBus 相关测试，不涉及生产代码或其他路径。\",\"key\":\"D-SCOPE-EVENTBUS-TEST\",\"kind\":\"SCOPE\",\"requirementRefs\":[\"REQ-TEST-FILE-ONLY\",\"REQ-UNREGISTERED-PUBLISH\"],\"target\":\"src/test/java/example/EventBusTest.java\"},{\"description\":\"新增聚焦 EventBusTest 的单元测试：验证未注册事件执行 publish 时可正常返回且不会调用任何处理器，并补充已注册事件仍按既有方式分发到处理器的业务结果。\",\"key\":\"D-EVENTBUS-TESTS\",\"kind\":\"DELIVERABLE\",\"requirementRefs\":[\"REQ-UNREGISTERED-PUBLISH\",\"REQ-NO-HANDLER-INVOKE\",\"REQ-DISPATCH-UNCHA…",
+                    "repairHint": "Align /deliverables with the frozen positive requirement path and remove contradictory scope"
+                  }
+                ],
+                "action": "FIX_AND_RESUBMIT",
+                "attemptOrdinal": 2,
+                "submissionRevision": 2,
+                "remainingAttempts": 2
+              }
+            },
+            {
+              "candidateSha256": "a506478240b31342d68406366b23e1755dff9899febd51ab6e3aadd50a215639",
+              "response": {
+                "outcome": "ACCEPTED",
+                "retryable": false,
+                "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+                "diagnosticsComplete": true,
+                "problems": [],
+                "action": "STOP_ACCEPTED",
+                "attemptOrdinal": 3,
+                "submissionRevision": 3,
+                "remainingAttempts": 1
+              }
+            }
+          ],
+          "providerStepTokens": {
+            "input": 8423,
+            "output": 2395,
+            "reasoning": 930,
+            "cacheRead": 10240,
+            "cacheWrite": 0
+          },
+          "requestedFaultObserved": true
+        },
+        {
+          "case": "repair_reference",
+          "repeat": 2,
+          "model": "opencode/gpt-5.4",
+          "temperature": 0,
+          "evaluationBudget": 4,
+          "outcomes": [
+            "REJECTED",
+            "REJECTED",
+            "ACCEPTED"
+          ],
+          "seconds": 35.18,
+          "exitCode": 0,
+          "timedOut": false,
+          "fixtureUnchanged": true,
+          "injectedFault": true,
+          "heldOut": false,
+          "attempts": [
+            {
+              "candidateSha256": "d97f5d85b26724fdf04f8c09ab79e7374f59bdde716b3b165028f8f862f1ad76",
+              "response": {
+                "outcome": "REJECTED",
+                "retryable": true,
+                "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+                "diagnosticsComplete": true,
+                "problems": [
+                  {
+                    "code": "PACKAGE_DESIGN_REFERENCE_INVALID",
+                    "pointer": "/stages/0/includes/2",
+                    "detail": "阶段包含项“SC-MISSING”不是候选中已声明的场景、交付项或评审 key",
+                    "allowedValues": [
+                      "scunregisteredpublish",
+                      "scregistereddispatch",
+                      "scopeeventbustest",
+                      "deliveventbustest"
+                    ],
+                    "parameter": "candidate",
+                    "category": "REFERENCE",
+                    "expected": "one value from allowedValues",
+                    "actual": "string \"SC-MISSING\"",
+                    "repairHint": "Correct candidate/stages/0/includes/2 so that: 阶段包含项“SC-MISSING”不是候选中已声明的场景、交付项或评审 key; then resubmit the complete candidate"
+                  }
+                ],
+                "action": "FIX_AND_RESUBMIT",
+                "attemptOrdinal": 1,
+                "submissionRevision": 1,
+                "remainingAttempts": 3
+              }
+            },
+            {
+              "candidateSha256": "9245df034ff81bb10b996cf88a94880785323b3031f62ab5dc7dea55caf6aab1",
+              "response": {
+                "outcome": "REJECTED",
+                "retryable": true,
+                "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+                "diagnosticsComplete": true,
+                "problems": [
+                  {
+                    "code": "AMBIGUOUS_MUTATION_PATH_SCOPE",
+                    "pointer": "/deliverables",
+                    "detail": "冻结修改路径的正负作用域存在冲突，需要先明确路径边界：AMBIGUOUS_MUTATION_PATH_SCOPE",
+                    "allowedValues": [],
+                    "parameter": "candidate",
+                    "category": "SEMANTIC",
+                    "expected": "one non-conflicting positive repository path scope",
+                    "actual": "DS-L008 \"| 交付 | src/test/java/example/EventBusTest.java | 在 EventBusTest 中声明 Java 单元测试:一个验证未注册事件 publish 正常返回且不调用处理器;一个验证已注册事件分发结果保持既有业务行为。 |\"; SCOPE_IN:0 \"src/test/java/example/EventBusTest.java\"; submitted value: array [{\"description\":\"唯一交付范围限定为 EventBusTest 测试文件，新增聚焦 EventBus publish 行为的单元测试，不涉及其他源码或路径。\",\"key\":\"SCOPE-EVENTBUS-TEST\",\"kind\":\"SCOPE\",\"requirementRefs\":[\"REQ-UNREGISTERED-EVENT\",\"REQ-DISPATCH-REGRESSION\"],\"target\":\"src/test/java/example/EventBusTest.java\"},{\"description\":\"在 EventBusTest 中声明 Java 单元测试：一个验证未注册事件 publish 正常返回且不调用处理器；一个验证已注册事件分发结果保持既有业务行为。\",\"key\":\"DELIV-EVENTBUS-TEST\",\"kind\":\"DELIVERABLE\",\"requirementRefs\":[\"REQ-UNREGISTERED-EVENT\",\"REQ-DISPATCH-REGRESSION\"],\"target\":\"src/test/java/example/EventBusTest.…",
+                    "repairHint": "Align /deliverables with the frozen positive requirement path and remove contradictory scope"
+                  }
+                ],
+                "action": "FIX_AND_RESUBMIT",
+                "attemptOrdinal": 2,
+                "submissionRevision": 2,
+                "remainingAttempts": 2
+              }
+            },
+            {
+              "candidateSha256": "4ae14236cb859a043b12d741dbfcc01da1c718f9cece97b0e750e6e601f18134",
+              "response": {
+                "outcome": "ACCEPTED",
+                "retryable": false,
+                "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+                "diagnosticsComplete": true,
+                "problems": [],
+                "action": "STOP_ACCEPTED",
+                "attemptOrdinal": 3,
+                "submissionRevision": 3,
+                "remainingAttempts": 1
+              }
+            }
+          ],
+          "providerStepTokens": {
+            "input": 8070,
+            "output": 2156,
+            "reasoning": 601,
+            "cacheRead": 9216,
+            "cacheWrite": 0
+          },
+          "requestedFaultObserved": true
+        }
+      ],
+      "naturalSummary": {
+        "count": 6,
+        "successAt1": 0,
+        "successWithin2": 3,
+        "successWithin4": 3,
+        "noSubmission": 1,
+        "medianSeconds": 46.195
+      }
+    },
+    "improved_compiler": {
+      "runs": [
+        {
+          "case": "normal",
+          "repeat": 1,
+          "model": "opencode/gpt-5.4",
+          "temperature": 0,
+          "evaluationBudget": 4,
+          "outcomes": [
+            "REJECTED",
+            "ACCEPTED"
+          ],
+          "seconds": 34.93,
+          "exitCode": 0,
+          "timedOut": false,
+          "fixtureUnchanged": true,
+          "injectedFault": false,
+          "heldOut": false,
+          "attempts": [
+            {
+              "candidateSha256": "da247d8e60699e4a10237e957fbc3e0f6547a5448f36b4cb98dd02b515382681",
+              "response": {
+                "outcome": "REJECTED",
+                "retryable": true,
+                "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+                "diagnosticsComplete": true,
+                "problems": [
+                  {
+                    "code": "PACKAGE_DESIGN_STAGE_ACCEPTANCE_REQUIRED",
+                    "pointer": "/stages/0/includes",
+                    "detail": "每个阶段必须包含至少一个验收场景或人工评审",
+                    "allowedValues": [],
+                    "parameter": "candidate",
+                    "category": "SHAPE",
+                    "expected": "每个阶段必须包含至少一个验收场景或人工评审",
+                    "actual": "array [\"DEL-1\"]",
+                    "repairHint": "Correct candidate/stages/0/includes so that: 每个阶段必须包含至少一个验收场景或人工评审; then resubmit the complete candidate"
+                  },
+                  {
+                    "code": "PACKAGE_DESIGN_COVERAGE_INCOMPLETE",
+                    "pointer": "/scenarios/0/key",
+                    "detail": "场景 SCN-1 没有出现在任何 stages[].includes 中",
+                    "allowedValues": [],
+                    "parameter": "candidate",
+                    "category": "SEMANTIC",
+                    "expected": "场景 SCN-1 没有出现在任何 stages[].includes 中",
+                    "actual": "string \"SCN-1\"",
+                    "repairHint": "Correct candidate/scenarios/0/key so that: 场景 SCN-1 没有出现在任何 stages[].includes 中; then resubmit the complete candidate"
+                  },
+                  {
+                    "code": "PACKAGE_DESIGN_COVERAGE_INCOMPLETE",
+                    "pointer": "/scenarios/1/key",
+                    "detail": "场景 SCN-2 没有出现在任何 stages[].includes 中",
+                    "allowedValues": [],
+                    "parameter": "candidate",
+                    "category": "SEMANTIC",
+                    "expected": "场景 SCN-2 没有出现在任何 stages[].includes 中",
+                    "actual": "string \"SCN-2\"",
+                    "repairHint": "Correct candidate/scenarios/1/key so that: 场景 SCN-2 没有出现在任何 stages[].includes 中; then resubmit the complete candidate"
+                  }
+                ],
+                "action": "FIX_AND_RESUBMIT",
+                "attemptOrdinal": 1,
+                "submissionRevision": 1,
+                "remainingAttempts": 3
+              }
+            },
+            {
+              "candidateSha256": "69777112b6df0c41fac32c2c90f1d13144d010237e1678420763e94adc586e1a",
+              "response": {
+                "outcome": "ACCEPTED",
+                "retryable": false,
+                "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+                "diagnosticsComplete": true,
+                "problems": [],
+                "action": "STOP_ACCEPTED",
+                "attemptOrdinal": 2,
+                "submissionRevision": 2,
+                "remainingAttempts": 2
+              }
+            }
+          ],
+          "providerStepTokens": {
+            "input": 7747,
+            "output": 1348,
+            "reasoning": 577,
+            "cacheRead": 4096,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "case": "normal",
+          "repeat": 2,
+          "model": "opencode/gpt-5.4",
+          "temperature": 0,
+          "evaluationBudget": 4,
+          "outcomes": [
+            "REJECTED",
+            "ACCEPTED"
+          ],
+          "seconds": 30.57,
+          "exitCode": 0,
+          "timedOut": false,
+          "fixtureUnchanged": true,
+          "injectedFault": false,
+          "heldOut": false,
+          "attempts": [
+            {
+              "candidateSha256": "9e37e44a378c39c72164527f62b2655841c0a6a011c3490a7c635f65f882b607",
+              "response": {
+                "outcome": "REJECTED",
+                "retryable": true,
+                "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+                "diagnosticsComplete": true,
+                "problems": [
+                  {
+                    "code": "PACKAGE_DESIGN_REFERENCE_INVALID",
+                    "pointer": "/stages/0/includes/0",
+                    "detail": "阶段包含项“src/test/java/example/EventBusTest.java”不是候选中已声明的场景、交付项或评审 key",
+                    "allowedValues": [
+                      "scn1",
+                      "scn2",
+                      "deliv1"
+                    ],
+                    "parameter": "candidate",
+                    "category": "REFERENCE",
+                    "expected": "one value from allowedValues",
+                    "actual": "string \"src/test/java/example/EventBusTest.java\"",
+                    "repairHint": "Correct candidate/stages/0/includes/0 so that: 阶段包含项“src/test/java/example/EventBusTest.java”不是候选中已声明的场景、交付项或评审 key; then resubmit the complete candidate"
+                  },
+                  {
+                    "code": "PACKAGE_DESIGN_STAGE_ACCEPTANCE_REQUIRED",
+                    "pointer": "/stages/0/includes",
+                    "detail": "每个阶段必须包含至少一个验收场景或人工评审",
+                    "allowedValues": [],
+                    "parameter": "candidate",
+                    "category": "SHAPE",
+                    "expected": "每个阶段必须包含至少一个验收场景或人工评审",
+                    "actual": "array [\"src/test/java/example/EventBusTest.java\"]",
+                    "repairHint": "Correct candidate/stages/0/includes so that: 每个阶段必须包含至少一个验收场景或人工评审; then resubmit the complete candidate"
+                  }
+                ],
+                "action": "FIX_AND_RESUBMIT",
+                "attemptOrdinal": 1,
+                "submissionRevision": 1,
+                "remainingAttempts": 3
+              }
+            },
+            {
+              "candidateSha256": "0cb6486d56ff5ad89d3b00e53cff921849733cac3a6637393d0947ac9f95ceda",
+              "response": {
+                "outcome": "ACCEPTED",
+                "retryable": false,
+                "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+                "diagnosticsComplete": true,
+                "problems": [],
+                "action": "STOP_ACCEPTED",
+                "attemptOrdinal": 2,
+                "submissionRevision": 2,
+                "remainingAttempts": 2
+              }
+            }
+          ],
+          "providerStepTokens": {
+            "input": 7341,
+            "output": 1635,
+            "reasoning": 558,
+            "cacheRead": 7168,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "case": "duplicate_titles",
+          "repeat": 1,
+          "model": "opencode/gpt-5.4",
+          "temperature": 0,
+          "evaluationBudget": 4,
+          "outcomes": [
+            "ACCEPTED"
+          ],
+          "seconds": 52.44,
+          "exitCode": 0,
+          "timedOut": false,
+          "fixtureUnchanged": true,
+          "injectedFault": false,
+          "heldOut": false,
+          "attempts": [
+            {
+              "candidateSha256": "7c0d24898ae05163dc143b022be22c65b6c2ae290fc54e420f05f84041c1cba8",
+              "response": {
+                "outcome": "ACCEPTED",
+                "retryable": false,
+                "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+                "diagnosticsComplete": true,
+                "problems": [],
+                "action": "STOP_ACCEPTED",
+                "attemptOrdinal": 1,
+                "submissionRevision": 1,
+                "remainingAttempts": 3
+              }
+            }
+          ],
+          "providerStepTokens": {
+            "input": 5573,
+            "output": 1050,
+            "reasoning": 845,
+            "cacheRead": 4608,
+            "cacheWrite": 0
+          },
+          "requiredDuplicateTitlesPreserved": true
+        },
+        {
+          "case": "duplicate_titles",
+          "repeat": 2,
+          "model": "opencode/gpt-5.4",
+          "temperature": 0,
+          "evaluationBudget": 4,
+          "outcomes": [
+            "REJECTED",
+            "ACCEPTED"
+          ],
+          "seconds": 31.35,
+          "exitCode": 0,
+          "timedOut": false,
+          "fixtureUnchanged": true,
+          "injectedFault": false,
+          "heldOut": false,
+          "attempts": [
+            {
+              "candidateSha256": "19de0cf4ffe303eb27b0ddfa23bbe25c8e661de39149213d26ae994f6fa7cf2e",
+              "response": {
+                "outcome": "REJECTED",
+                "retryable": true,
+                "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+                "diagnosticsComplete": true,
+                "problems": [
+                  {
+                    "code": "PACKAGE_DESIGN_REFERENCE_INVALID",
+                    "pointer": "/stages/0/includes/0",
+                    "detail": "阶段包含项“src/test/java/example/EventBusTest.java”不是候选中已声明的场景、交付项或评审 key",
+                    "allowedValues": [
+                      "scn1",
+                      "scn2",
+                      "deliv1"
+                    ],
+                    "parameter": "candidate",
+                    "category": "REFERENCE",
+                    "expected": "one value from allowedValues",
+                    "actual": "string \"src/test/java/example/EventBusTest.java\"",
+                    "repairHint": "Correct candidate/stages/0/includes/0 so that: 阶段包含项“src/test/java/example/EventBusTest.java”不是候选中已声明的场景、交付项或评审 key; then resubmit the complete candidate"
+                  },
+                  {
+                    "code": "PACKAGE_DESIGN_STAGE_ACCEPTANCE_REQUIRED",
+                    "pointer": "/stages/0/includes",
+                    "detail": "每个阶段必须包含至少一个验收场景或人工评审",
+                    "allowedValues": [],
+                    "parameter": "candidate",
+                    "category": "SHAPE",
+                    "expected": "每个阶段必须包含至少一个验收场景或人工评审",
+                    "actual": "array [\"src/test/java/example/EventBusTest.java\"]",
+                    "repairHint": "Correct candidate/stages/0/includes so that: 每个阶段必须包含至少一个验收场景或人工评审; then resubmit the complete candidate"
+                  }
+                ],
+                "action": "FIX_AND_RESUBMIT",
+                "attemptOrdinal": 1,
+                "submissionRevision": 1,
+                "remainingAttempts": 3
+              }
+            },
+            {
+              "candidateSha256": "ba8826dc8a623557f5163562a17731fd1fef6b3a9135c88950c82d7054abeaf9",
+              "response": {
+                "outcome": "ACCEPTED",
+                "retryable": false,
+                "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+                "diagnosticsComplete": true,
+                "problems": [],
+                "action": "STOP_ACCEPTED",
+                "attemptOrdinal": 2,
+                "submissionRevision": 2,
+                "remainingAttempts": 2
+              }
+            }
+          ],
+          "providerStepTokens": {
+            "input": 6812,
+            "output": 1709,
+            "reasoning": 655,
+            "cacheRead": 5632,
+            "cacheWrite": 0
+          },
+          "requiredDuplicateTitlesPreserved": true
+        },
+        {
+          "case": "heldout_empty",
+          "repeat": 1,
+          "model": "opencode/gpt-5.4",
+          "temperature": 0,
+          "evaluationBudget": 4,
+          "outcomes": [
+            "REJECTED",
+            "ACCEPTED"
+          ],
+          "seconds": 25.54,
+          "exitCode": 0,
+          "timedOut": false,
+          "fixtureUnchanged": true,
+          "injectedFault": false,
+          "heldOut": true,
+          "attempts": [
+            {
+              "candidateSha256": "8c51614b3852207c26ea0cd725865c3bb2977f1e1da46e7552bf783a0fd6ad01",
+              "response": {
+                "outcome": "REJECTED",
+                "retryable": true,
+                "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+                "diagnosticsComplete": true,
+                "problems": [
+                  {
+                    "code": "PACKAGE_DESIGN_REFERENCE_INVALID",
+                    "pointer": "/stages/0/includes/0",
+                    "detail": "阶段包含项“REQ-1”不是候选中已声明的场景、交付项或评审 key",
+                    "allowedValues": [
+                      "scn1",
+                      "deliv1"
+                    ],
+                    "parameter": "candidate",
+                    "category": "REFERENCE",
+                    "expected": "one value from allowedValues",
+                    "actual": "string \"REQ-1\"",
+                    "repairHint": "Correct candidate/stages/0/includes/0 so that: 阶段包含项“REQ-1”不是候选中已声明的场景、交付项或评审 key; then resubmit the complete candidate"
+                  },
+                  {
+                    "code": "PACKAGE_DESIGN_REFERENCE_INVALID",
+                    "pointer": "/stages/0/includes/1",
+                    "detail": "阶段包含项“REQ-2”不是候选中已声明的场景、交付项或评审 key",
+                    "allowedValues": [
+                      "scn1",
+                      "deliv1"
+                    ],
+                    "parameter": "candidate",
+                    "category": "REFERENCE",
+                    "expected": "one value from allowedValues",
+                    "actual": "string \"REQ-2\"",
+                    "repairHint": "Correct candidate/stages/0/includes/1 so that: 阶段包含项“REQ-2”不是候选中已声明的场景、交付项或评审 key; then resubmit the complete candidate"
+                  },
+                  {
+                    "code": "PACKAGE_DESIGN_REFERENCE_INVALID",
+                    "pointer": "/stages/0/includes/2",
+                    "detail": "阶段包含项“REQ-3”不是候选中已声明的场景、交付项或评审 key",
+                    "allowedValues": [
+                      "scn1",
+                      "deliv1"
+                    ],
+                    "parameter": "candidate",
+                    "category": "REFERENCE",
+                    "expected": "one value from allowedValues",
+                    "actual": "string \"REQ-3\"",
+                    "repairHint": "Correct candidate/stages/0/includes/2 so that: 阶段包含项“REQ-3”不是候选中已声明的场景、交付项或评审 key; then resubmit the complete candidate"
+                  },
+                  {
+                    "code": "PACKAGE_DESIGN_REFERENCE_INVALID",
+                    "pointer": "/stages/0/includes/3",
+                    "detail": "阶段包含项“REQ-4”不是候选中已声明的场景、交付项或评审 key",
+                    "allowedValues": [
+                      "scn1",
+                      "deliv1"
+                    ],
+                    "parameter": "candidate",
+                    "category": "REFERENCE",
+                    "expected": "one value from allowedValues",
+                    "actual": "string \"REQ-4\"",
+                    "repairHint": "Correct candidate/stages/0/includes/3 so that: 阶段包含项“REQ-4”不是候选中已声明的场景、交付项或评审 key; then resubmit the complete candidate"
+                  },
+                  {
+                    "code": "PACKAGE_DESIGN_STAGE_ACCEPTANCE_REQUIRED",
+                    "pointer": "/stages/0/includes",
+                    "detail": "每个阶段必须包含至少一个验收场景或人工评审",
+                    "allowedValues": [],
+                    "parameter": "candidate",
+                    "category": "SHAPE",
+                    "expected": "每个阶段必须包含至少一个验收场景或人工评审",
+                    "actual": "array [\"REQ-1\",\"REQ-2\",\"REQ-3\",\"REQ-4\"]",
+                    "repairHint": "Correct candidate/stages/0/includes so that: 每个阶段必须包含至少一个验收场景或人工评审; then resubmit the complete candidate"
+                  }
+                ],
+                "action": "FIX_AND_RESUBMIT",
+                "attemptOrdinal": 1,
+                "submissionRevision": 1,
+                "remainingAttempts": 3
+              }
+            },
+            {
+              "candidateSha256": "ced7d89e3f059113ea0e292828ae3b6e230093dd30297315d4516857d8d926a3",
+              "response": {
+                "outcome": "ACCEPTED",
+                "retryable": false,
+                "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+                "diagnosticsComplete": true,
+                "problems": [],
+                "action": "STOP_ACCEPTED",
+                "attemptOrdinal": 2,
+                "submissionRevision": 2,
+                "remainingAttempts": 2
+              }
+            }
+          ],
+          "providerStepTokens": {
+            "input": 6662,
+            "output": 1372,
+            "reasoning": 418,
+            "cacheRead": 5632,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "case": "heldout_empty",
+          "repeat": 2,
+          "model": "opencode/gpt-5.4",
+          "temperature": 0,
+          "evaluationBudget": 4,
+          "outcomes": [
+            "REJECTED",
+            "ACCEPTED"
+          ],
+          "seconds": 28.47,
+          "exitCode": 0,
+          "timedOut": false,
+          "fixtureUnchanged": true,
+          "injectedFault": false,
+          "heldOut": true,
+          "attempts": [
+            {
+              "candidateSha256": "1c4d6b4f7523c85cbfb057e8819759a0b9c5a903774da78d1b5a01fc69be817d",
+              "response": {
+                "outcome": "REJECTED",
+                "retryable": true,
+                "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+                "diagnosticsComplete": true,
+                "problems": [
+                  {
+                    "code": "PACKAGE_DESIGN_STAGE_ACCEPTANCE_REQUIRED",
+                    "pointer": "/stages/0/includes",
+                    "detail": "每个阶段必须包含至少一个验收场景或人工评审",
+                    "allowedValues": [],
+                    "parameter": "candidate",
+                    "category": "SHAPE",
+                    "expected": "每个阶段必须包含至少一个验收场景或人工评审",
+                    "actual": "array [\"DELIV-1\"]",
+                    "repairHint": "Correct candidate/stages/0/includes so that: 每个阶段必须包含至少一个验收场景或人工评审; then resubmit the complete candidate"
+                  },
+                  {
+                    "code": "PACKAGE_DESIGN_COVERAGE_INCOMPLETE",
+                    "pointer": "/scenarios/0/key",
+                    "detail": "场景 SCN-1 没有出现在任何 stages[].includes 中",
+                    "allowedValues": [],
+                    "parameter": "candidate",
+                    "category": "SEMANTIC",
+                    "expected": "场景 SCN-1 没有出现在任何 stages[].includes 中",
+                    "actual": "string \"SCN-1\"",
+                    "repairHint": "Correct candidate/scenarios/0/key so that: 场景 SCN-1 没有出现在任何 stages[].includes 中; then resubmit the complete candidate"
+                  }
+                ],
+                "action": "FIX_AND_RESUBMIT",
+                "attemptOrdinal": 1,
+                "submissionRevision": 1,
+                "remainingAttempts": 3
+              }
+            },
+            {
+              "candidateSha256": "66b1b2287aea2c97ab83fedecf7670aa04b1d545fcff4b3bb636469ec2453735",
+              "response": {
+                "outcome": "ACCEPTED",
+                "retryable": false,
+                "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+                "diagnosticsComplete": true,
+                "problems": [],
+                "action": "STOP_ACCEPTED",
+                "attemptOrdinal": 2,
+                "submissionRevision": 2,
+                "remainingAttempts": 2
+              }
+            }
+          ],
+          "providerStepTokens": {
+            "input": 7927,
+            "output": 1632,
+            "reasoning": 619,
+            "cacheRead": 4096,
+            "cacheWrite": 0
+          }
+        },
+        {
+          "case": "repair_reference",
+          "repeat": 1,
+          "model": "opencode/gpt-5.4",
+          "temperature": 0,
+          "evaluationBudget": 4,
+          "outcomes": [
+            "REJECTED",
+            "ACCEPTED"
+          ],
+          "seconds": 32.17,
+          "exitCode": 0,
+          "timedOut": false,
+          "fixtureUnchanged": true,
+          "injectedFault": true,
+          "heldOut": false,
+          "attempts": [
+            {
+              "candidateSha256": "03013ef0b1411f3315555d66dbdf8605be8faf862caf01be5a2efcf572c2c993",
+              "response": {
+                "outcome": "REJECTED",
+                "retryable": true,
+                "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+                "diagnosticsComplete": true,
+                "problems": [
+                  {
+                    "code": "PACKAGE_DESIGN_REFERENCE_INVALID",
+                    "pointer": "/stages/0/includes/2",
+                    "detail": "阶段包含项“SC-MISSING”不是候选中已声明的场景、交付项或评审 key",
+                    "allowedValues": [
+                      "scunregisteredpublishnoop",
+                      "scexistingdispatchunchanged",
+                      "deliveventbustest"
+                    ],
+                    "parameter": "candidate",
+                    "category": "REFERENCE",
+                    "expected": "one value from allowedValues",
+                    "actual": "string \"SC-MISSING\"",
+                    "repairHint": "Correct candidate/stages/0/includes/2 so that: 阶段包含项“SC-MISSING”不是候选中已声明的场景、交付项或评审 key; then resubmit the complete candidate"
+                  }
+                ],
+                "action": "FIX_AND_RESUBMIT",
+                "attemptOrdinal": 1,
+                "submissionRevision": 1,
+                "remainingAttempts": 3
+              }
+            },
+            {
+              "candidateSha256": "e7afe724edf7621e8e6bd4cb6c16cdae6c9f7e0eb038a076dc74dd627995a13e",
+              "response": {
+                "outcome": "ACCEPTED",
+                "retryable": false,
+                "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+                "diagnosticsComplete": true,
+                "problems": [],
+                "action": "STOP_ACCEPTED",
+                "attemptOrdinal": 2,
+                "submissionRevision": 2,
+                "remainingAttempts": 2
+              }
+            }
+          ],
+          "providerStepTokens": {
+            "input": 7408,
+            "output": 1373,
+            "reasoning": 543,
+            "cacheRead": 4096,
+            "cacheWrite": 0
+          },
+          "requestedFaultObserved": true
+        },
+        {
+          "case": "repair_reference",
+          "repeat": 2,
+          "model": "opencode/gpt-5.4",
+          "temperature": 0,
+          "evaluationBudget": 4,
+          "outcomes": [
+            "REJECTED",
+            "ACCEPTED"
+          ],
+          "seconds": 31.94,
+          "exitCode": 0,
+          "timedOut": false,
+          "fixtureUnchanged": true,
+          "injectedFault": true,
+          "heldOut": false,
+          "attempts": [
+            {
+              "candidateSha256": "156227ebdc8aa3214d9e97c20e1f0ab4bc7d62e5c320a568cc6ef75894b2579b",
+              "response": {
+                "outcome": "REJECTED",
+                "retryable": true,
+                "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+                "diagnosticsComplete": true,
+                "problems": [
+                  {
+                    "code": "PACKAGE_DESIGN_REFERENCE_INVALID",
+                    "pointer": "/stages/0/includes/3",
+                    "detail": "阶段包含项“SC-MISSING”不是候选中已声明的场景、交付项或评审 key",
+                    "allowedValues": [
+                      "scunregisterednoop",
+                      "scdispatchunchanged",
+                      "delivtest"
+                    ],
+                    "parameter": "candidate",
+                    "category": "REFERENCE",
+                    "expected": "one value from allowedValues",
+                    "actual": "string \"SC-MISSING\"",
+                    "repairHint": "Correct candidate/stages/0/includes/3 so that: 阶段包含项“SC-MISSING”不是候选中已声明的场景、交付项或评审 key; then resubmit the complete candidate"
+                  }
+                ],
+                "action": "FIX_AND_RESUBMIT",
+                "attemptOrdinal": 1,
+                "submissionRevision": 1,
+                "remainingAttempts": 3
+              }
+            },
+            {
+              "candidateSha256": "2f57fbaf200995721800ed012b741f0bfa21d8c9e6c3b124255afaa669158542",
+              "response": {
+                "outcome": "ACCEPTED",
+                "retryable": false,
+                "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+                "diagnosticsComplete": true,
+                "problems": [],
+                "action": "STOP_ACCEPTED",
+                "attemptOrdinal": 2,
+                "submissionRevision": 2,
+                "remainingAttempts": 2
+              }
+            }
+          ],
+          "providerStepTokens": {
+            "input": 7954,
+            "output": 1745,
+            "reasoning": 863,
+            "cacheRead": 8192,
+            "cacheWrite": 0
+          },
+          "requestedFaultObserved": true
+        }
+      ],
+      "naturalSummary": {
+        "count": 6,
+        "successAt1": 1,
+        "successWithin2": 6,
+        "successWithin4": 6,
+        "noSubmission": 0,
+        "medianSeconds": 30.96
+      }
+    }
+  },
+  "supplementarySchemaDescriptionCheck": {
+    "comparableWithFormalRate": false,
+    "note": "Two additional runs after adding descriptions to includes/dependencies. Both corrected uncovered requirement references on the second submission. No remaining includes/path confusion in these runs.",
+    "runs": [
+      {
+        "case": "normal",
+        "repeat": 1,
+        "model": "opencode/gpt-5.4",
+        "temperature": 0,
+        "evaluationBudget": 4,
+        "outcomes": [
+          "REJECTED",
+          "ACCEPTED"
+        ],
+        "seconds": 30.83,
+        "exitCode": 0,
+        "timedOut": false,
+        "fixtureUnchanged": true,
+        "providerStepTokens": {
+          "input": 8198,
+          "output": 1689,
+          "reasoning": 630,
+          "cacheRead": 4096,
+          "cacheWrite": 0
+        },
+        "injectedFault": false,
+        "heldOut": false,
+        "attempts": [
+          {
+            "candidateSha256": "61b3d1b22e762d7c216486821e7901b5affdfa49cfa8d439b658f6c0838a779e",
+            "response": {
+              "outcome": "REJECTED",
+              "retryable": true,
+              "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+              "diagnosticsComplete": true,
+              "problems": [
+                {
+                  "code": "PACKAGE_DESIGN_COVERAGE_INCOMPLETE",
+                  "pointer": "/requirements/1/key",
+                  "detail": "需求 REQ_UNREGISTERED_PUBLISH_RETURNS_BEHAVIOR 没有被任何 scenario、deliverable 或 review 引用",
+                  "allowedValues": [],
+                  "parameter": "candidate",
+                  "category": "SEMANTIC",
+                  "expected": "需求 REQ_UNREGISTERED_PUBLISH_RETURNS_BEHAVIOR 没有被任何 scenario、deliverable 或 review 引用",
+                  "actual": "string \"REQ_UNREGISTERED_PUBLISH_RETURNS_BEHAVIOR\"",
+                  "repairHint": "Correct candidate/requirements/1/key so that: 需求 REQ_UNREGISTERED_PUBLISH_RETURNS_BEHAVIOR 没有被任何 scenario、deliverable 或 review 引用; then resubmit the complete candidate"
+                }
+              ],
+              "action": "FIX_AND_RESUBMIT",
+              "attemptOrdinal": 1,
+              "submissionRevision": 1,
+              "remainingAttempts": 3
+            }
+          },
+          {
+            "candidateSha256": "2f247cdbb61a37c16040816fdbbe05ce72ca02daf3f490fea8adc306b933877c",
+            "response": {
+              "outcome": "ACCEPTED",
+              "retryable": false,
+              "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+              "diagnosticsComplete": true,
+              "problems": [],
+              "action": "STOP_ACCEPTED",
+              "attemptOrdinal": 2,
+              "submissionRevision": 2,
+              "remainingAttempts": 2
+            }
+          }
+        ]
+      },
+      {
+        "case": "heldout_empty",
+        "repeat": 1,
+        "model": "opencode/gpt-5.4",
+        "temperature": 0,
+        "evaluationBudget": 4,
+        "outcomes": [
+          "REJECTED",
+          "ACCEPTED"
+        ],
+        "seconds": 26.69,
+        "exitCode": 0,
+        "timedOut": false,
+        "fixtureUnchanged": true,
+        "providerStepTokens": {
+          "input": 5911,
+          "output": 1413,
+          "reasoning": 515,
+          "cacheRead": 5632,
+          "cacheWrite": 0
+        },
+        "injectedFault": false,
+        "heldOut": true,
+        "attempts": [
+          {
+            "candidateSha256": "23e6ff384b0e743621a664fdb0b82b6cdd0fa71b0e371df6e13a86b1a68a61e2",
+            "response": {
+              "outcome": "REJECTED",
+              "retryable": true,
+              "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+              "diagnosticsComplete": true,
+              "problems": [
+                {
+                  "code": "PACKAGE_DESIGN_COVERAGE_INCOMPLETE",
+                  "pointer": "/requirements/4/key",
+                  "detail": "需求 REQ-5 没有被任何 scenario、deliverable 或 review 引用",
+                  "allowedValues": [],
+                  "parameter": "candidate",
+                  "category": "SEMANTIC",
+                  "expected": "需求 REQ-5 没有被任何 scenario、deliverable 或 review 引用",
+                  "actual": "string \"REQ-5\"",
+                  "repairHint": "Correct candidate/requirements/4/key so that: 需求 REQ-5 没有被任何 scenario、deliverable 或 review 引用; then resubmit the complete candidate"
+                }
+              ],
+              "action": "FIX_AND_RESUBMIT",
+              "attemptOrdinal": 1,
+              "submissionRevision": 1,
+              "remainingAttempts": 3
+            }
+          },
+          {
+            "candidateSha256": "77e15f217044ddc5219578fb99a015ea93c9cdb8064ce8a8d5250860c48683ec",
+            "response": {
+              "outcome": "ACCEPTED",
+              "retryable": false,
+              "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+              "diagnosticsComplete": true,
+              "problems": [],
+              "action": "STOP_ACCEPTED",
+              "attemptOrdinal": 2,
+              "submissionRevision": 2,
+              "remainingAttempts": 2
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

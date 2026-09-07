@@ -53,6 +53,16 @@ final class DesignerMutationObligationExtractor {
 
     Catalog extract(Catalog base, String requirementText, List<String> scopeIn, List<String> scopeOut,
                     List<String> deliverables) {
+        return extract(base, requirementText, scopeIn, scopeOut, deliverables, false);
+    }
+
+    Catalog frozenInput(Catalog base, String requirementText, List<String> scopeIn, List<String> scopeOut,
+                        List<String> deliverables) {
+        return extract(base, requirementText, scopeIn, scopeOut, deliverables, true);
+    }
+
+    private Catalog extract(Catalog base, String requirementText, List<String> scopeIn, List<String> scopeOut,
+                            List<String> deliverables, boolean distinguishFrozenConflict) {
         LinkedHashMap<String, Draft> drafts = new LinkedHashMap<>();
         List<String> issues = new ArrayList<>();
         List<String> negativePaths = new ArrayList<>();
@@ -67,7 +77,8 @@ final class DesignerMutationObligationExtractor {
         VerifierPathPolicy.RuleRelations relations = VerifierPathPolicy.boundedRuleRelations();
         if (drafts.values().stream().anyMatch(draft -> negativePaths.stream()
                 .anyMatch(rule -> overlaps(draft, rule, relations)))) {
-            addIssue(issues, "AMBIGUOUS_MUTATION_PATH_SCOPE");
+            addIssue(issues, distinguishFrozenConflict ? "FROZEN_MUTATION_PATH_SCOPE_CONFLICT"
+                    : "AMBIGUOUS_MUTATION_PATH_SCOPE");
         }
         if (drafts.values().stream().anyMatch(draft -> excluded.stream()
                 .anyMatch(rule -> overlaps(draft, rule, relations)))) {

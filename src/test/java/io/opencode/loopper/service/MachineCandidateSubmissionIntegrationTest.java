@@ -83,6 +83,51 @@ class MachineCandidateSubmissionIntegrationTest {
     }
 
     @Test
+    void finitePackageBudgetSurvivesReloadAndStopsAfterFourDistinctSubmissions() {
+        var old = packageRun("finite-package", 3);
+        var channel = MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP;
+        var command = new MachineCandidateSubmission.OpenCommand(old.runId(), old.scope(), old.owner(),
+                old.candidateKind(), old.workflowStep(), old.sourceRevision(), old.ownerVersion(), channel,
+                old.contractVersion(), old.runtimeGenerationId(), old.externalSessionId(), 3, 4);
+        assertThat(submissions.open(command).correctionLimit()).isEqualTo(4);
+        for (int index = 0; index < 4; index++) {
+            var request = new MachineCandidateSubmission.SubmitCommand(old.runId(), "attempt-" + index,
+                    "{\"fallbackEligible\":true,\"revision\":" + index + "}", index, channel);
+            var result = submissions.submit(request);
+            assertThat(result.remainingAttempts()).isEqualTo(3 - index);
+            assertThat(result.outcome()).isEqualTo(index < 3 ? MachineCandidateOutcome.REJECTED
+                    : MachineCandidateOutcome.WAITING_INPUT);
+            assertThat(submissions.submit(request)).isEqualTo(result);
+            assertThat(mapper.findCandidateSubmissionRun(old.runId()).orElseThrow().correctionLimit()).isEqualTo(4);
+        }
+        assertThat(submissions.terminal(old.runId()).orElseThrow().responseJson()).contains("SUBMISSION_LIMIT");
+        assertThatThrownBy(() -> jdbc.update("UPDATE ai_candidate_submission_run SET correction_limit=8 WHERE id=?", old.runId()))
+                .hasMessageContaining("immutable");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM ai_candidate_submission_attempt WHERE run_id=?",
+                Integer.class, old.runId())).isEqualTo(4);
+        assertThatThrownBy(() -> jdbc.update("UPDATE ai_candidate_submission_run SET attempts_used=5 WHERE id=?", old.runId()))
+                .hasMessageContaining("CHECK constraint failed");
+        assertThat(jdbc.queryForList("PRAGMA foreign_key_check")).isEmpty();
+    }
+
+    @Test
+    void finitePackageStopsOnRepeatedContentButIdempotentReplayDoesNotConsumeAnAttempt() {
+        var old = packageRun("finite-stagnation", 3);
+        var channel = MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP;
+        submissions.open(new MachineCandidateSubmission.OpenCommand(old.runId(), old.scope(), old.owner(),
+                old.candidateKind(), old.workflowStep(), old.sourceRevision(), old.ownerVersion(), channel,
+                old.contractVersion(), old.runtimeGenerationId(), old.externalSessionId(), 3, 4));
+        var request = new MachineCandidateSubmission.SubmitCommand(old.runId(), "first", "{\"fallbackEligible\":true}", 0, channel);
+        var first = submissions.submit(request);
+        assertThat(submissions.submit(request)).isEqualTo(first);
+        var second = submissions.submit(new MachineCandidateSubmission.SubmitCommand(old.runId(), "second",
+                "{  \"fallbackEligible\":true }", 1, channel));
+        assertThat(second.outcome()).isEqualTo(MachineCandidateOutcome.WAITING_INPUT);
+        assertThat(second.attemptOrdinal()).isEqualTo(2);
+        assertThat(second.responseJson()).contains("REPEATED_CANDIDATE");
+    }
+
+    @Test
     void internalMcpCanKeepCorrectingPastTheFormerLimitAndAcceptWithIdempotentReplay() {
         var legacy = decomposerRun("mcp-unlimited", 5);
         var channel = MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP;

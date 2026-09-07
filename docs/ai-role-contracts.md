@@ -501,3 +501,18 @@ DesignerClosedChoiceContract 持有；PackageDesignCandidatePromptContract 包�
 compact evidence 为目标，最终 testTargets/Verifier 仍由服务器派生。全套测试的补充 PROCESS 证据使用 REPORT。
 Reviewer 建议具体修正但不执行；Judge 区分 PASS、可修正差距与证据阻断；提交说明只声称实际 Git 摘要支持的变化；
 合并建议保留双方独立改动；统计角色只返回本次操作的真实回执。工具循环收尾仍遵守原冻结合同和既有权限。
+
+
+## PACKAGE_DESIGN_V1 model-friendly compilation and repair (0.3.66)
+
+Typed package designs now compile directly from fields and candidate-local keys; Markdown retains human-readable
+projection and DS-L provenance. Limits are shared and advertised. Frozen input preflight blocks proven scope
+contradictions before dispatch; a referenced test command or an unclassified path alone is not a proven conflict.
+A pre-dispatch block transitions the package and Designer to WAITING_INPUT without starting another model Session.
+
+V70 freezes an optional package-only total correction limit (`LOOPPER_PACKAGE_DESIGN_CORRECTION_LIMIT`, 0 by default,
+2–16 when enabled). Existing NULL limits remain unlimited. Additive PACKAGE_REPAIR_V1 feedback reports stable issue
+identities and complete-only progress; finite runs stop on exhaustion or repeated rejected content. Idempotency,
+authority, permissions, real verification and positive remote-stop evidence retain their existing boundaries.
+See [the protocol details](opencode-contract.md#package_design_v1-model-friendly-compilation-and-repair-0366) and
+[implementation and measured limitations](mcp-design-optimization.md).

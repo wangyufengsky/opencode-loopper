@@ -25,6 +25,13 @@ public final class MachineRoleContractCatalog {
         return "Machine role contract " + CONTRACT_VERSION + ": " + card;
     }
 
+    public static String packageDesignerCard(boolean candidateChannel) {
+        return candidateChannel ? "Machine role contract PACKAGE_DESIGN_V1: submit scope, deliverables, EARS scenarios, "
+                + "optional human reviews and stage dependencies as one complete typed candidate through the private tool. "
+                + "Use candidate-local keys. Do not write executable LoopSpec JSON, server IDs or command arrays."
+                : card("DESIGNER");
+    }
+
     public static String legacyCompilerCard() {
         return "Machine role contract " + LEGACY_COMPILER_CONTRACT_VERSION
                 + ": Given frozen DesignFacts and verification capabilities, suggest dependency-ordered groups "

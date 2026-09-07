@@ -502,7 +502,7 @@ content fails closed. Rejected raw candidates are not persisted: only a digest,
 bounded problem codes/JSON Pointers and the safe response remain. Acceptance writes
 the canonical candidate and advances the owning workflow in one short transaction.
 
-V69 removes submission-count ceilings for every `INTERNAL_MCP` candidate kind.
+V69 removes submission-count ceilings for every `INTERNAL_MCP` candidate kind; the optional V70 package-only policy below is an explicit new-run exception.
 Retryable rejection remains `OPEN / REJECTED` regardless of the ordinal; it no longer
 triggers `WAITING_INPUT` or package Markdown fallback by count. Responses publish
 `submissionCountLimited=false` and `remainingAttempts=null` (unlimited), while unique
@@ -1502,3 +1502,18 @@ V67 preserves call and activity history while adding explicit retry lineage and 
 TaskExecutionPromptFactory 与验证入口使用相同的零基 Stage ordinal 读取冻结 StageSpec。提示一次包含该阶段的
 验收条款、Judge 准则、路径、Verifier 和 verificationRuntime，缺失映射在派发前失败。历史设计与 Attempt handoff
 仅解释上下文，不能覆盖结构化验收；其他阶段合同不进入当前可写会话。运行时启动、端口分配和停止仍由服务器持有。
+
+
+## PACKAGE_DESIGN_V1 model-friendly compilation and repair (0.3.66)
+
+Typed package designs now compile directly from fields and candidate-local keys; Markdown retains human-readable
+projection and DS-L provenance. Limits are shared and advertised. Frozen input preflight blocks proven scope
+contradictions before dispatch; a referenced test command or an unclassified path alone is not a proven conflict.
+A pre-dispatch block transitions the package and Designer to WAITING_INPUT without starting another model Session.
+
+V70 freezes an optional package-only total correction limit (`LOOPPER_PACKAGE_DESIGN_CORRECTION_LIMIT`, 0 by default,
+2–16 when enabled). Existing NULL limits remain unlimited. Additive PACKAGE_REPAIR_V1 feedback reports stable issue
+identities and complete-only progress; finite runs stop on exhaustion or repeated rejected content. Idempotency,
+authority, permissions, real verification and positive remote-stop evidence retain their existing boundaries.
+See [the protocol details](opencode-contract.md#package_design_v1-model-friendly-compilation-and-repair-0366) and
+[implementation and measured limitations](mcp-design-optimization.md).

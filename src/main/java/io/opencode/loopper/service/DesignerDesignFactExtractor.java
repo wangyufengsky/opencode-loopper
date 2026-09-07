@@ -24,8 +24,8 @@ import org.commonmark.parser.Parser;
 
 /** Parses controlled Designer Markdown into exact-source EARS/Gherkin-style facts. */
 final class DesignerDesignFactExtractor {
-    private static final int MAX_FACTS = 128;
-    private static final int MAX_SCENARIOS = 64;
+    private static final int MAX_FACTS = io.opencode.loopper.domain.PackageDesignLimits.MAX_FACTS;
+    private static final int MAX_SCENARIOS = io.opencode.loopper.domain.PackageDesignLimits.MAX_SCENARIOS;
     private static final List<String> REQUIRED_CONTROLLED_SECTIONS = List.of(
             "目标与范围", "影响与交付", "验收场景", "验收约束", "阶段与依赖");
     private static final List<String> OPTIONAL_CONTROLLED_SECTIONS = List.of("可选人工评审项", "人工评审项");

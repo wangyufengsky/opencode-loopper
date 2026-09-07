@@ -87,13 +87,17 @@ final class DesignerPackageCandidateOrchestrator {
         CandidateRuntimeBindingService.Binding binding = bindings.orElseThrow(() -> new ConflictException(
                         "CANDIDATE_RUNTIME_BINDING_UNAVAILABLE", "候选运行时绑定服务不可用"))
                 .bind(remote, MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP);
+        var existing = submissions.find(runId(workPackage));
+        Integer configuredLimit = properties.getInternalCandidate().getPackageDesignCorrectionLimit() == 0 ? null
+                : properties.getInternalCandidate().getPackageDesignCorrectionLimit();
         MachineCandidateSubmission.RunSnapshot run = submissions.open(new MachineCandidateSubmission.OpenCommand(
                 runId(workPackage), MachineCandidateSubmission.CandidateScope.designerSession(
                         workPackage.designerSessionId()),
                 MachineCandidateSubmission.CandidateOwnerRef.designWorkPackage(workPackage.id()),
                 MachineCandidateKind.PACKAGE_DESIGN_V1, WORKFLOW_STEP, workPackage.designRevision() + 1L,
                 workPackage.version(), MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP,
-                CONTRACT_VERSION, binding.runtimeGenerationId(), remote.id(), MAX_ATTEMPTS));
+                CONTRACT_VERSION, binding.runtimeGenerationId(), remote.id(), MAX_ATTEMPTS,
+                existing.isPresent() ? existing.get().correctionLimit() : configuredLimit));
         String privateServer = remote.internalMcpServer();
         if (privateServer == null || privateServer.isBlank()) {
             throw new ConflictException("OPENCODE_INTERNAL_MCP_NOT_READY",
@@ -214,13 +218,13 @@ final class DesignerPackageCandidateOrchestrator {
 
 
                 PACKAGE_DESIGN_V1 PRIVATE SUBMISSION CONTRACT:
-                In this same Designer turn, prefer calling the exact private tool `%s`. Submit one complete
+                In this same Designer turn, call the exact private tool `%s` unless the frozen requirement explicitly
+                requires the Markdown-only fallback described below. Submit one complete
                 replacement object with contractVersion=PACKAGE_DESIGN_V1; outcome READY or NEEDS_INPUT;
                 requirements, scenarios, deliverables, reviews, stages, and closed gapCodes. Use only candidate-local
                 keys and references. Never submit commands, writable-path allowlists, test commands/targets, verifier
                 objects, permission conclusions, or stable server IDs. The server remains authoritative for all of
-                those fields. On the private submission path, this object replaces the earlier Markdown output
-                format; the design semantics still apply. An explicit frozen Markdown-only request takes priority.
+                those fields. The primary output is the candidate object. An explicit frozen Markdown-only request takes priority.
 
                 %s
 
@@ -230,15 +234,23 @@ final class DesignerPackageCandidateOrchestrator {
 
                 runId: %s
                 expectedSubmissionRevision: %d
-                MCP submissions have no count limit. On REJECTED, require CANDIDATE_DIAGNOSTIC_V2 and repair every
+                %s On REJECTED, require CANDIDATE_DIAGNOSTIC_V2 and repair every
                 returned problem using parameter, JSON Pointer, category, expected, actual, detail, allowedValues,
                 and repairHint. Follow action; diagnosticsComplete=false or truncated=true means only the returned
                 bounded set is known. Replace the entire candidate and retry with submissionRevision. On ACCEPTED,
                 stop: final assistant text is ignored. On WAITING_INPUT,
                 stop and wait for the user. On FALLBACK_REQUIRED, produce the complete controlled Markdown design
-                required above as your final response; do not call another tool. If you choose not to call the tool,
+                required above as your final response; do not call another tool. If explicit Markdown-only instructions prevent submission,
                 your final response must still be that complete controlled Markdown design.
-                """.formatted(toolName, PackageDesignCandidatePromptContract.instructions(), run.runId(), run.version());
+                Keep existing candidate keys and unaffected fields. Use repairProgress to check resolved, remaining,
+                and introduced issue IDs; do not resend an unchanged rejected object. A finite limit includes the
+                initial submission. Transport failures and idempotent replays are separate from model corrections.
+                Only for the explicit zero-submission or server-requested Markdown fallback, use this format:
+                %s
+                """.formatted(toolName, PackageDesignCandidatePromptContract.instructions(), run.runId(), run.version(),
+                run.correctionLimit() == null ? "MCP submissions have no count limit."
+                        : "This run permits at most " + run.correctionLimit() + " total submissions including the first.",
+                DesignerPackagePromptFactory.markdownContract());
     }
 
     private static String safe(String value) {

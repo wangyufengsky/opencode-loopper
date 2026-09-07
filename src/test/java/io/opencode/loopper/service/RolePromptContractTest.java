@@ -85,6 +85,12 @@ class RolePromptContractTest {
         String rolling = factory.build(session, mock(io.opencode.loopper.persistence.ProjectRow.class),
                 mock(io.opencode.loopper.persistence.DesignRequirementRevisionRow.class), workPackage,
                 mock(io.opencode.loopper.persistence.TaskDecompositionRow.class), false, false);
+        String candidate = factory.build(session, mock(io.opencode.loopper.persistence.ProjectRow.class),
+                mock(io.opencode.loopper.persistence.DesignRequirementRevisionRow.class), workPackage,
+                mock(io.opencode.loopper.persistence.TaskDecompositionRow.class), false, false, true);
+        assertThat(candidate).contains("MCP OUTPUT", "candidate-local keys", "Use 1-3 stages", "software-java")
+                .doesNotContain("CONTROLLED MARKDOWN CONTRACT", "in the controlled Markdown sections", "complete replacement Simplified-Chinese Markdown",
+                        "inclusion column", "Never emit DS-L references, WP/AC ids, JSON");
         assertThat(rolling).contains("latest read-only checkpoint", "Use 1-3 stages", "software-java")
                 .doesNotContain("intentionally absent", "immutable pre-execution", "covers:[]", "forbidDeletes=true");
     }

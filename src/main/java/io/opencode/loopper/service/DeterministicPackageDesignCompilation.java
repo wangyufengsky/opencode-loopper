@@ -49,6 +49,8 @@ public final class DeterministicPackageDesignCompilation implements PackageDesig
 
     @Override
     public Result compileCandidate(Input input, String candidateJson) {
+        List<Problem> frozenProblems = PackageDesignInputPreflight.problems(input);
+        if (!frozenProblems.isEmpty()) return new Result(NEEDS_INPUT, null, null, null, null, frozenProblems);
         PackageDesignCandidateCodec.Decoded decoded = codec.decode(candidateJson, input.stageLimit());
         if (!decoded.valid()) return rejected(decoded.candidate(), decoded.problems());
         PackageDesignCandidateDocument candidate = decoded.candidate();
@@ -56,8 +58,9 @@ public final class DeterministicPackageDesignCompilation implements PackageDesig
         if ("NEEDS_INPUT".equals(candidate.outcome())) {
             return new Result(NEEDS_INPUT, canonicalJson, null, null, null, decoded.problems());
         }
-        String markdown = markdownRenderer.render(candidate);
-        return compileCanonical(input, candidate, canonicalJson, markdown, true);
+        var projection = markdownRenderer.project(candidate);
+        Catalog facts = new PackageDesignFactAssembler().assemble(input, candidate, projection);
+        return compileCanonical(input, candidate, canonicalJson, projection.markdown(), facts, true);
     }
 
     @Override
@@ -74,15 +77,13 @@ public final class DeterministicPackageDesignCompilation implements PackageDesig
         PackageDesignCandidateCodec.Decoded decoded = codec.decode(codec.canonicalJson(adapter), input.stageLimit());
         if (!decoded.valid()) return rejected(decoded.candidate(), decoded.problems());
         return compileCanonical(input, decoded.candidate(), codec.canonicalJson(decoded.candidate()),
-                canonicalMarkdown, false);
+                canonicalMarkdown, facts, false);
     }
 
     private Result compileCanonical(Input input, PackageDesignCandidateDocument candidate,
                                     String canonicalJson, String markdown,
-                                    boolean correctionAllowed) {
+                                    Catalog base, boolean correctionAllowed) {
         try {
-            Catalog base = factExtractor.extract(input.workPackage().packageId(),
-                    input.workPackage().designRevision(), markdown, CONTRACT_VERSION_V7);
             Catalog facts = mutationExtractor.extract(base, input.requirementText(), input.scopeIn(),
                     input.scopeOut(), input.deliverables());
             var capabilities = capabilityRegistry.build(facts, input.role(), markdown);

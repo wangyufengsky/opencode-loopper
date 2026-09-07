@@ -23,7 +23,15 @@ public interface MachineCandidateSubmission {
     record OpenCommand(
             String runId, CandidateScope scope, CandidateOwnerRef owner, MachineCandidateKind candidateKind,
             String workflowStep, long sourceRevision, long ownerVersion, SubmissionChannel submissionChannel,
-            String contractVersion, String runtimeGenerationId, String externalSessionId, int maxAttempts) { }
+            String contractVersion, String runtimeGenerationId, String externalSessionId, int maxAttempts,
+            Integer correctionLimit) {
+        public OpenCommand(String runId, CandidateScope scope, CandidateOwnerRef owner, MachineCandidateKind candidateKind,
+                String workflowStep, long sourceRevision, long ownerVersion, SubmissionChannel submissionChannel,
+                String contractVersion, String runtimeGenerationId, String externalSessionId, int maxAttempts) {
+            this(runId, scope, owner, candidateKind, workflowStep, sourceRevision, ownerVersion, submissionChannel,
+                    contractVersion, runtimeGenerationId, externalSessionId, maxAttempts, null);
+        }
+    }
 
     record SubmitCommand(String runId, String idempotencyKey, String candidateJson,
                          long expectedSubmissionRevision, SubmissionChannel submissionChannel,
@@ -123,7 +131,17 @@ public interface MachineCandidateSubmission {
             String workflowStep, long sourceRevision, long ownerVersion, SubmissionChannel submissionChannel,
             String contractVersion, String runtimeGenerationId, String externalSessionId,
             MachineCandidateRunState state, int maxAttempts, int attemptsUsed, String terminalAttemptId, long version,
-            CandidateCloseReason closeReason) {
+            CandidateCloseReason closeReason, Integer correctionLimit) {
+        public RunSnapshot(
+                String runId, CandidateScope scope, CandidateOwnerRef owner, MachineCandidateKind candidateKind,
+                String workflowStep, long sourceRevision, long ownerVersion, SubmissionChannel submissionChannel,
+                String contractVersion, String runtimeGenerationId, String externalSessionId,
+                MachineCandidateRunState state, int maxAttempts, int attemptsUsed, String terminalAttemptId,
+                long version, CandidateCloseReason closeReason) {
+            this(runId, scope, owner, candidateKind, workflowStep, sourceRevision, ownerVersion, submissionChannel,
+                    contractVersion, runtimeGenerationId, externalSessionId, state, maxAttempts, attemptsUsed,
+                    terminalAttemptId, version, closeReason, null);
+        }
         public RunSnapshot(
                 String runId, CandidateScope scope, CandidateOwnerRef owner, MachineCandidateKind candidateKind,
                 String workflowStep, long sourceRevision, long ownerVersion, SubmissionChannel submissionChannel,

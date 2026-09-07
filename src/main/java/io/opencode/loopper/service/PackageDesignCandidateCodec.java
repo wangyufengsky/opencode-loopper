@@ -100,6 +100,8 @@ final class PackageDesignCandidateCodec {
                 "候选结果必须使用闭集值", List.copyOf(OUTCOMES));
         requiredCollections(value, problems);
         if (!problems.empty()) return new Decoded(value, problems.values());
+        collectionLimits(value, problems);
+        if (!problems.empty()) return new Decoded(value, problems.values());
         validateKeysAndFields(value, problems);
         validateGapCodes(value, problems);
         if ("READY".equals(value.outcome())) validateReady(value, stageLimit, problems);
@@ -120,6 +122,22 @@ final class PackageDesignCandidateCodec {
                 "候选缺少完整替换所需集合", List.of());
         require(value.gapCodes() != null, problems, "PACKAGE_DESIGN_FIELD_REQUIRED", "/gapCodes",
                 "候选缺少完整替换所需集合", List.of());
+    }
+
+    private void collectionLimits(PackageDesignCandidateDocument value, Problems problems) {
+        int scenarios = value.scenarios().size();
+        int facts = scenarios + value.requirements().size() + value.deliverables().size()
+                + value.reviews().size() + value.stages().size();
+        limit(scenarios, io.opencode.loopper.domain.PackageDesignLimits.MAX_SCENARIOS, "/scenarios", problems);
+        limit(facts, io.opencode.loopper.domain.PackageDesignLimits.MAX_FACTS, "/candidate", problems);
+    }
+
+    private void limit(int actual, int maximum, String pointer, Problems problems) {
+        if (actual <= maximum) return;
+        problems.add(new PackageDesignCompilation.Problem("DESIGN_ACCEPTANCE_FACT_LIMIT_EXCEEDED", pointer,
+                pointer + " 数量为 " + actual + "，上限为 " + maximum, List.of(), CORRECTABLE, false,
+                "at most " + maximum, Integer.toString(actual),
+                "合并重复条目并保持所有需求和验收覆盖；总事实数为 requirements、scenarios、deliverables、reviews、stages 的数量之和"));
     }
 
     private void validateKeysAndFields(PackageDesignCandidateDocument value, Problems problems) {
@@ -392,7 +410,7 @@ final class PackageDesignCandidateCodec {
                 value.gapCodes() == null ? null : value.gapCodes().stream().map(PackageDesignCandidateCodec::upper).toList());
     }
 
-    private PackageDesignCompilation.Problem securityBoundary(JsonNode root) {
+    static PackageDesignCompilation.Problem securityBoundary(JsonNode root) {
         ArrayDeque<JsonNode> queue = new ArrayDeque<>(); queue.add(root);
         while (!queue.isEmpty()) {
             JsonNode node = queue.removeFirst();
