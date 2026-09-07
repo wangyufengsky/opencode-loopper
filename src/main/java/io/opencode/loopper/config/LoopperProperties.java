@@ -71,6 +71,10 @@ public class LoopperProperties {
         private boolean acceptanceClosedChoiceV7Enabled = true;
         /** Qualified package-design candidate transport is on by default and may be disabled for rollback. */
         private boolean packageDesignV1Enabled = true;
+        /** Evidence policy is frozen into new runs only; disabled until paired Luna qualification passes. */
+        private boolean packageDesignEvidenceEnabled = false;
+        public boolean isPackageDesignEvidenceEnabled() { return packageDesignEvidenceEnabled; }
+        public void setPackageDesignEvidenceEnabled(boolean value) { packageDesignEvidenceEnabled = value; }
         /** Opt-in total submissions, including the initial candidate; zero preserves unlimited runs. */
         private java.util.Map<io.opencode.loopper.domain.MachineCandidateKind, Integer> correctionLimits = java.util.Map.of();
         public java.util.Map<io.opencode.loopper.domain.MachineCandidateKind, Integer> getCorrectionLimits() { return correctionLimits; }

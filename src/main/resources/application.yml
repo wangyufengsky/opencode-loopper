@@ -10,7 +10,7 @@ spring:
           enabled: false
         protocol: STREAMABLE
         name: opencode-loopper
-        version: 0.3.67
+        version: 0.3.70
         type: SYNC
         instructions: >-
           Use the six Loopper tools only. Designer access is READ_ONLY; proposals synchronize
@@ -113,6 +113,7 @@ loopper:
       PROJECT_CONVENTION_V1: ${LOOPPER_PROJECT_CONVENTION_V1_CORRECTION_LIMIT:0}
       JUDGE_DECISION_V1: ${LOOPPER_JUDGE_DECISION_V1_CORRECTION_LIMIT:0}
     package-design-v1-enabled: ${LOOPPER_PACKAGE_DESIGN_CANDIDATE_V1_ENABLED:true}
+    package-design-evidence-enabled: ${LOOPPER_PACKAGE_DESIGN_EVIDENCE_ENABLED:false}
     # Qualified MCP-first acceptance selection is the default; set false for an operational rollback.
     acceptance-closed-choice-v7-enabled: ${LOOPPER_ACCEPTANCE_CLOSED_CHOICE_V7_ENABLED:true}
     # Qualified MCP-first rolling-plan submission is the default; set false for an operational rollback.

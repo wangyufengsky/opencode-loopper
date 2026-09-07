@@ -30,14 +30,17 @@ final class DesignerPackageCandidateOrchestrator {
     private final LoopperProperties properties;
     private io.opencode.loopper.persistence.LoopperMapper conversationMapper;
     private DesignerConversationCoordinator conversations;
+    private PackageDesignEvidencePreparation evidence;
 
     @org.springframework.beans.factory.annotation.Autowired
     DesignerPackageCandidateOrchestrator(MachineCandidateSubmission submissions,
             Optional<CandidateRuntimeBindingService> bindings, OpenCodeClient openCode,
             InternalMcpRuntimeAccess runtime, LoopperProperties properties,
-            io.opencode.loopper.persistence.LoopperMapper mapper, DesignerConversationCoordinator conversations) {
+            io.opencode.loopper.persistence.LoopperMapper mapper, DesignerConversationCoordinator conversations,
+            PackageDesignEvidencePreparation evidence) {
         this(submissions, bindings, openCode, runtime, properties);
         this.conversationMapper = mapper; this.conversations = conversations;
+        this.evidence = evidence;
     }
 
     DesignerPackageCandidateOrchestrator(
@@ -94,10 +97,16 @@ final class DesignerPackageCandidateOrchestrator {
                 runId(workPackage), MachineCandidateSubmission.CandidateScope.designerSession(
                         workPackage.designerSessionId()),
                 MachineCandidateSubmission.CandidateOwnerRef.designWorkPackage(workPackage.id()),
-                MachineCandidateKind.PACKAGE_DESIGN_V1, WORKFLOW_STEP, workPackage.designRevision() + 1L,
+                MachineCandidateKind.PACKAGE_DESIGN_V1,
+                PackageDesignGapPolicy.workflowStep(existing.map(MachineCandidateSubmission.RunSnapshot::workflowStep).orElse(null),
+                        properties.getInternalCandidate().isPackageDesignEvidenceEnabled()), workPackage.designRevision() + 1L,
                 workPackage.version(), MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP,
                 CONTRACT_VERSION, binding.runtimeGenerationId(), remote.id(), MAX_ATTEMPTS,
                 existing.isPresent() ? existing.get().correctionLimit() : configuredLimit));
+        if (PackageDesignGapPolicy.WORKFLOW_STEP.equals(run.workflowStep())) {
+            if (evidence == null) throw new ConflictException("PACKAGE_EVIDENCE_UNAVAILABLE", "工作包证据准备器不可用");
+            evidence.freeze(run.runId(), workPackage, remote.worktree());
+        }
         String privateServer = remote.internalMcpServer();
         if (privateServer == null || privateServer.isBlank()) {
             throw new ConflictException("OPENCODE_INTERNAL_MCP_NOT_READY",

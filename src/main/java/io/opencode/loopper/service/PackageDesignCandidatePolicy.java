@@ -1,7 +1,8 @@
 package io.opencode.loopper.service;
 
 import io.opencode.loopper.domain.MachineCandidateKind;
-import io.opencode.loopper.persistence.LoopperDesignerMapper;
+import io.opencode.loopper.persistence.LoopperMapper;
+import io.opencode.loopper.persistence.PackageDesignEvidenceMapper;
 import java.util.List;
 import tools.jackson.databind.ObjectMapper;
 
@@ -11,10 +12,12 @@ final class PackageDesignCandidatePolicy implements CandidatePolicy {
     static final int MAX_ATTEMPTS = 3;
     private final PackageDesignCompilationInputLoader inputs;
     private final PackageDesignCompilation compilation;
+    private PackageDesignEvidenceMapper evidence;
 
-    PackageDesignCandidatePolicy(LoopperDesignerMapper mapper, ObjectMapper json,
+    PackageDesignCandidatePolicy(LoopperMapper mapper, ObjectMapper json,
                                  PackageDesignCompilation compilation) {
         this(new PackageDesignCompilationInputLoader.MapperLoader(mapper, json), compilation);
+        this.evidence = mapper;
     }
 
     PackageDesignCandidatePolicy(PackageDesignCompilationInputLoader inputs,
@@ -31,7 +34,7 @@ final class PackageDesignCandidatePolicy implements CandidatePolicy {
     @Override
     public Decision evaluate(Context context, String candidateJson) {
         if (context.candidateKind() != MachineCandidateKind.PACKAGE_DESIGN_V1
-                || !WORKFLOW_STEP.equals(context.workflowStep())
+                || !(WORKFLOW_STEP.equals(context.workflowStep()) || PackageDesignGapPolicy.WORKFLOW_STEP.equals(context.workflowStep()))
                 || !PackageDesignCandidateCodec.CONTRACT_VERSION.equals(context.contractVersion())
                 || context.maxAttempts() != MAX_ATTEMPTS
                 || context.owner().type()
@@ -40,11 +43,25 @@ final class PackageDesignCandidatePolicy implements CandidatePolicy {
                     "PACKAGE_DESIGN_RUN_CONTRACT_INVALID", "/candidate",
                     "候选运行不属于 PACKAGE_DESIGN_V1 冻结合同", List.of())));
         }
-        PackageDesignCompilation.Result result = compilation.compileCandidate(inputs.load(context), candidateJson);
+        var input = inputs.load(context);
+        if (PackageDesignGapPolicy.WORKFLOW_STEP.equals(context.workflowStep())) verifyEvidence(context.runId(), input);
+        PackageDesignCompilation.Result result = compilation.compileCandidate(input, candidateJson);
+        if (PackageDesignGapPolicy.WORKFLOW_STEP.equals(context.workflowStep())) result = PackageDesignGapPolicy.apply(result);
         if (result.accepted()) return Decision.accepted(result.canonicalCandidateJson());
         boolean fallback = result.retryable() && !result.problems().isEmpty()
                 && result.problems().stream().allMatch(PackageDesignCompilation.Problem::fallbackEligible);
         return Decision.rejected(result.retryable(), fallback,
                 result.problems().stream().map(PackageDesignCompilation.Problem::submissionProblem).toList());
+    }
+
+    private void verifyEvidence(String runId, PackageDesignCompilation.Input input) {
+        if (evidence == null) throw new ConflictException("PACKAGE_EVIDENCE_UNAVAILABLE", "缺口判定需要冻结证据");
+        var row = evidence.findPackageDesignEvidence(runId)
+                .orElseThrow(() -> new ConflictException("PACKAGE_EVIDENCE_NOT_FROZEN", "候选不能在证据冻结之前校验"));
+        if (!PackageDesignGapAssessment.VERSION.equals(row.policyVersion())
+                || !PackageDesignEvidencePreparation.hash(input.requirementText().getBytes(java.nio.charset.StandardCharsets.UTF_8)).equals(row.requirementSha256())
+                || !PackageDesignEvidencePreparation.hash(row.snapshotJson().getBytes(java.nio.charset.StandardCharsets.UTF_8)).equals(row.snapshotSha256())) {
+            throw new ConflictException("PACKAGE_EVIDENCE_SOURCE_MISMATCH", "冻结证据版本或内容哈希不匹配");
+        }
     }
 }
