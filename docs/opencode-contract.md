@@ -1079,3 +1079,7 @@ round. This is diagnostic staging, not bypassing the policy. UTF-8 limits in too
 and descriptions with the compiler's whitespace rules; Unicode character length and byte length are separate.
 Judge ACCEPTED means a valid decision, including BLOCKED. Neither prompts nor repair hints may ask for PASS merely
 to pass validation. See [role changes, configuration and qualification boundaries](mcp-role-optimization.md).
+
+### V2 工作包整理与工具版本隔离
+
+新建 `PACKAGE_DESIGN_CANDIDATE_V2_READ_ONLY` / `PACKAGE_DESIGN_CANDIDATE_V2_INTERACTIVE_READ_ONLY` 持久 profile 仅允许私有 `submit_package_design_v2`；V1 profile 继续原工具。会话 profile 和候选 contractVersion 冻结，切换开关不修改旧权限。`PACKAGE_SEMANTICS` 使用 `msg_loopper_design_s_` 持久回合身份，guard 禁止 question 与所有候选提交工具；候选设计回合才恢复匹配版本工具。V73 唯一修订记录及原协调器 CAS 防止重复整理，UNKNOWN 投递走原查询恢复，停止未确认不得创建后续业务请求。Codex 离线适配与真实 OpenCode 运行结果必须单列，详见 [工作包三批优化](package-design-luna-optimization.md)。

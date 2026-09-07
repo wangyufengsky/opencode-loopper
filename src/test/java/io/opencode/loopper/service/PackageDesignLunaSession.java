@@ -24,8 +24,8 @@ final class PackageDesignLunaSession {
         var compiler = new DeterministicPackageDesignCompilation(json);
         PackageDesignCompilationInputLoader inputs = ignored -> input;
         run = new AtomicReference<>(new CandidateSubmissionRunRow("qualification", "qualification", null, null,
-                "DESIGN_WORK_PACKAGE", "package-row", "PACKAGE_DESIGN_V1", "PACKAGE_DESIGN_V1", 1, 0,
-                "INTERNAL_MCP", "PACKAGE_DESIGN_V1", "offline", "offline-session", "OPEN", 3, 0, null,
+                "DESIGN_WORK_PACKAGE", "package-row", "PACKAGE_DESIGN_V1", input.semanticContractVersion(), 1, 0,
+                "INTERNAL_MCP", input.semanticContractVersion(), "offline", "offline-session", "OPEN", 3, 0, null,
                 "now", "now", 0, null, 4));
         List<CandidateSubmissionAttemptRow> attempts = new ArrayList<>();
         when(mapper.findCandidateSubmissionRun("qualification")).thenAnswer(call -> Optional.of(run.get()));
@@ -47,8 +47,14 @@ final class PackageDesignLunaSession {
                 .when(lifecycle).mutateWithoutTransition(any(), any());
         doAnswer(call -> { ((IntSupplier) call.getArgument(5)).getAsInt(); return null; })
                 .when(lifecycle).transition(any(), anyString(), anyString(), anyString(), anyMap(), any(), any());
+        if (input.repositoryEvidence() != null) {
+            String snapshot = json.writeValueAsString(input.repositoryEvidence());
+            when(mapper.findPackageDesignEvidence("qualification")).thenReturn(Optional.of(new PackageDesignEvidenceRow(
+                    "qualification", PackageDesignGapAssessment.VERSION, input.repositoryEvidence().requirementSha256(), snapshot,
+                    PackageDesignEvidencePreparation.hash(snapshot.getBytes(java.nio.charset.StandardCharsets.UTF_8)), "now")));
+        }
         service = new PersistentMachineCandidateSubmission(mapper, lifecycle, json,
-                List.of(new PackageDesignCandidatePolicy(inputs, compiler)),
+                List.of(new PackageDesignCandidatePolicy(inputs, compiler, mapper)),
                 List.of(new PackageDesignAcceptedCandidateWriter(mapper, inputs, compiler)), List.of());
     }
 

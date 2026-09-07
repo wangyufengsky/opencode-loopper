@@ -77,7 +77,7 @@ final class DesignerPackageCandidateWorkflow {
                 }
                 host.publish(current, "PARTIAL", DesignerActor.DESIGNER, true,
                         questionSupport.markdown(openCode.sessionLiveOutput(polled.remote())),
-                        workPackage.packageId() + " 正在同一候选 Session 中生成并校验 PACKAGE_DESIGN_V1");
+                        workPackage.packageId() + " 正在同一候选 Session 中生成并校验 " + polled.run().contractVersion());
             }
             case ACCEPTED -> {
                 PackageDesignAcceptedResultRow accepted = mapper
@@ -90,13 +90,16 @@ final class DesignerPackageCandidateWorkflow {
                     polled.remote(), polled.markdown(), polled.reasonCode());
             case WAITING_INPUT -> {
                 String detail = polled.submission() == null || polled.submission().problems().isEmpty()
-                        ? "工作包设计候选明确需要补充需求信息" : candidateProblems(polled.submission());
+                        ? "工作包候选已停止，等待检查未完成事项" : candidateProblems(polled.submission());
+                String reason = polled.submission() == null ? "PACKAGE_DESIGN_NEEDS_INPUT" : polled.submission().problems().stream()
+                        .map(MachineCandidateSubmission.Problem::code).filter(code -> code.startsWith("PACKAGE_GAP_"))
+                        .findFirst().orElse("PACKAGE_DESIGN_NEEDS_INPUT");
                 DesignWorkPackageRow waiting = host.updateWorkPackage(workPackage,
                         DesignWorkPackageState.WAITING_INPUT, polled.remote().id(), "WAITING_INPUT",
                         workPackage.designMessageId(), workPackage.designRevision(), workPackage.redesignCount(),
                         workPackage.designerTransportRetryCount(), workPackage.compilerSummary(),
-                        workPackage.handoffSummary(), "PACKAGE_DESIGN_NEEDS_INPUT", safeMessage(detail));
-                host.waitForDesignInput(session, revision, waiting, "PACKAGE_DESIGN_NEEDS_INPUT", detail);
+                        workPackage.handoffSummary(), reason, safeMessage(detail));
+                host.waitForDesignInput(session, revision, waiting, reason, detail);
             }
             case FAILED -> host.failPackageDesigner(
                     workPackage, session, polled.reasonCode(), polled.detail(), false);
@@ -153,7 +156,8 @@ final class DesignerPackageCandidateWorkflow {
         DesignWorkPackageRow workPackage = host.getWorkPackage(input.id());
         DesignerSessionRow session = host.get(inputSession.id());
         if (!accepted.designWorkPackageId().equals(workPackage.id())
-                || !DesignerPackageCandidateOrchestrator.CONTRACT_VERSION.equals(accepted.contractVersion())
+                || !(DesignerPackageCandidateOrchestrator.CONTRACT_VERSION.equals(accepted.contractVersion())
+                    || PackageDesignV2Document.VERSION.equals(accepted.contractVersion()))
                 || accepted.sourceRevision() < 1
                 || accepted.sourceRevision() != workPackage.designRevision()
                 && accepted.sourceRevision() != workPackage.designRevision() + 1L) {
@@ -243,7 +247,7 @@ final class DesignerPackageCandidateWorkflow {
         }
         if (created) {
             host.appendMessage(session.id(), DesignerActor.VALIDATOR,
-                    workPackage.packageId() + " PACKAGE_DESIGN_V1 已接受；最终文本已忽略，服务端正在确定性编译。",
+                    workPackage.packageId() + " " + accepted.contractVersion() + " 已接受；最终文本已忽略，服务端正在确定性编译。",
                     "NORMALIZED", revision.revision(), workPackage.packageId());
         }
         host.publish(session, "STATUS", DesignerActor.COMPILER, true, "",

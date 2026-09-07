@@ -24,6 +24,10 @@ final class CandidateShapeValidator {
     private CandidateShapeValidator() { }
 
     static Result validate(ObjectMapper json, MachineCandidateKind kind, String candidateJson) {
+        return validate(json, InternalMcpContractCatalog.inputSchema(kind), candidateJson);
+    }
+
+    static Result validate(ObjectMapper json, Map<String, Object> requestSchema, String candidateJson) {
         Collector collector = new Collector();
         JsonNode candidate;
         try {
@@ -34,7 +38,6 @@ final class CandidateShapeValidator {
                     "invalid JSON", "Submit one syntactically valid candidate object"));
             return collector.result();
         }
-        Map<String, Object> requestSchema = InternalMcpContractCatalog.inputSchema(kind);
         Map<String, Object> schema = candidateSchema(requestSchema);
         if (candidate != null && candidate.isObject()) validateObject(candidate, schema, "", collector);
         else validateNode(candidate, schema, "/candidate", collector);

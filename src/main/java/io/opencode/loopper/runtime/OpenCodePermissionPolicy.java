@@ -36,7 +36,8 @@ final class OpenCodePermissionPolicy {
             rules.add(rule("glob", "*", "allow"));
             rules.add(rule("grep", "*", "allow"));
             if (profile == OpenCodeClient.SessionProfile.DESIGNER_INTERACTIVE_READ_ONLY
-                    || profile == OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY) {
+                    || profile == OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY
+                    || profile == OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_V2_INTERACTIVE_READ_ONLY) {
                 rules.add(rule("question", "*", "allow"));
             }
             // The managed guard makes this exception usable only by a reserved accounting message.
@@ -45,7 +46,9 @@ final class OpenCodePermissionPolicy {
                     && (profile == OpenCodeClient.SessionProfile.GENERAL_READ_ONLY
                     || profile == OpenCodeClient.SessionProfile.DESIGNER_INTERACTIVE_READ_ONLY
                     || profile == OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_READ_ONLY
-                    || profile == OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY)) {
+                    || profile == OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_V2_READ_ONLY
+                    || profile == OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY
+                    || profile == OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_V2_INTERACTIVE_READ_ONLY)) {
                 rules.add(rule("aicoding_*", "*", "allow"));
             }
             rules.add(rule("read", ".env", "deny"));
@@ -54,7 +57,9 @@ final class OpenCodePermissionPolicy {
             rules.add(rule("external_directory", "*", "deny"));
             if (profile == OpenCodeClient.SessionProfile.DECOMPOSER_CANDIDATE_READ_ONLY
                     || profile == OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_READ_ONLY
+                    || profile == OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_V2_READ_ONLY
                     || profile == OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY
+                    || profile == OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_V2_INTERACTIVE_READ_ONLY
                     || profile == OpenCodeClient.SessionProfile.ROLLING_PACKAGE_CANDIDATE_READ_ONLY
                     || profile == OpenCodeClient.SessionProfile.REVIEWER_CANDIDATE_READ_ONLY
                     || profile == OpenCodeClient.SessionProfile.PROJECT_CONVENTION_CANDIDATE_READ_ONLY

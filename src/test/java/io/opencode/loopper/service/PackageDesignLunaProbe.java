@@ -19,14 +19,14 @@ import tools.jackson.databind.ObjectMapper;
 
 /** Offline fixture adapter: real prompt/schema/compiler; no application lifecycle or writable session. */
 public final class PackageDesignLunaProbe {
-    record Fixture(String id, String requirement, String technology, String target, String symbol) { }
+    record Fixture(String id, String requirement, String technology, String target, String symbol, String contractVersion, String projectRoot) { }
     private final ObjectMapper json = new ObjectMapper();
 
     public static void main(String[] args) throws Exception { new PackageDesignLunaProbe().run(args); }
 
     private void run(String[] args) throws Exception {
-        if (args.length == 1 && args[0].equals("schema")) {
-            System.out.println(json.writeValueAsString(InternalMcpContractCatalog.inputSchema(MachineCandidateKind.PACKAGE_DESIGN_V1)));
+        if (args.length == 1 && (args[0].equals("schema") || args[0].equals("schema-v2"))) {
+            System.out.println(json.writeValueAsString(args[0].equals("schema-v2") ? InternalMcpContractCatalog.packageDesignV2InputSchema() : InternalMcpContractCatalog.inputSchema(MachineCandidateKind.PACKAGE_DESIGN_V1)));
             return;
         }
         Fixture fixture = json.readValue(Files.readString(Path.of(args[1])), Fixture.class);
@@ -45,8 +45,10 @@ public final class PackageDesignLunaProbe {
     }
 
     private PackageDesignCompilation.Input input(Fixture fixture) {
-        return new PackageDesignCompilation.Input(workPackage(fixture), fixture.requirement(), role(fixture),
+        var input = new PackageDesignCompilation.Input(workPackage(fixture), fixture.requirement(), role(fixture),
                 List.of(fixture.target()), List.of(), List.of(fixture.symbol()), 6, true);
+        return "PACKAGE_DESIGN_V2".equals(fixture.contractVersion()) ? input.withContract(fixture.contractVersion())
+                .withEvidence(PackageDesignEvidencePreparation.prepare(Path.of(fixture.projectRoot()), "requirement", fixture.requirement(), List.of(fixture.target()))) : input;
     }
 
     private WorkPackageRoleService.View role(Fixture fixture) {
@@ -96,6 +98,8 @@ public final class PackageDesignLunaProbe {
         var run = mock(MachineCandidateSubmission.RunSnapshot.class);
         when(run.runId()).thenReturn("qualification");
         when(run.correctionLimit()).thenReturn(4);
+        if ("PACKAGE_DESIGN_V2".equals(fixture.contractVersion())) return PackageDesignV2Prompt.build(base, fixture.requirement(), run,
+                "mcp__qualification__submit_package_design_v2");
         return (String) method.invoke(mock(DesignerPackageCandidateOrchestrator.class), base, run,
                 "mcp__qualification__submit_package_design");
     }

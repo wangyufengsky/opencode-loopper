@@ -42,10 +42,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.3.70.jar
-   jar tf target/opencode-loopper-0.3.70.jar \
+   test -s target/opencode-loopper-0.3.72.jar
+   jar tf target/opencode-loopper-0.3.72.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.3.70.jar
+   shasum -a 256 target/opencode-loopper-0.3.72.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -95,8 +95,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.3.70`。
-- 正式产物：`target/opencode-loopper-0.3.70.jar`。
+- Maven 项目版本：`0.3.72`。
+- 正式产物：`target/opencode-loopper-0.3.72.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -225,6 +225,7 @@ Task 详情 `overview` 必须投影 `loopRetryAvailable`、`cancellationAvailabl
 
 ### 5.3 Designer 和 LoopSpec
 
+- 0.3.72 增加默认关闭的 `LOOPPER_PACKAGE_DESIGN_V2_ENABLED`，仅新建 V2 conversation profile 打开 `submit_package_design_v2`；内部 `PACKAGE_DESIGN_V1` kind 保持角色命名空间，真正合同由冻结的 contractVersion/workflowStep 区分，旧工具不能提交 V2，Legacy/V1 不升级。V2 校验来源绑定与 all/any/unless 有界 DAG（32 节点、4 层），所有适用分支保留；原文引用和关系不证明自然语言完整性。冻结精确 scope 仅在 V2 消除重复路径歧义，不覆盖否定、安全或冲突。原始需求、仓库快照及模型整理证据分开；显式来源定位的 USER 本地反馈可作为同一需求修订的补充决定，AI 消息和候选声明不能替代用户决定。V73 持久化每包讨论修订最多一次的 PACKAGE_SEMANTICS 回合，复用会话协调器与消息身份；简单/历史/已有问题回合不增加整理，未知投递不重发，停止未确认不推进。整理输出只是有界建议；失败保留材料并沿既有停止规则处理。最终来源/关系编译进交接及验收准则，由 Implementation/Recovery/Judge 消费完整冻结 StageSpec；不得引入模型执行权限。详见 `docs/package-design-luna-optimization.md`。
 - 0.3.70 增加关闭默认的 `LOOPPER_PACKAGE_DESIGN_EVIDENCE_ENABLED`，仅新运行冻结 `PACKAGE_DESIGN_V1_EVIDENCE_V1`；历史 workflow step 及生产提交次数配置不变。V72 冻结需求来源与有界仓库证据，候选校验不得读取文件/网络/模型；未知或超限证据不得判为能力不存在。模型缺口码只作待核实声明，安全/范围证明保持阻断。Codex Luna 评测只走 ChatGPT 订阅、`gpt-5.6-luna`、medium，四次候选预算与实际模型请求预算分开；GEPA 未验证逐请求预留硬上限前不得启动。见 `docs/package-design-luna-optimization.md`。
 
 - 0.3.67 将工具模型友好度同步到七类候选：schema 的 UTF-8 字节扩展必须与生产编译器的 strip/count 语义一致，字符长度按 Unicode code point；Reviewer 报告总字节与源证据约束仍由生产编译器最终检查。所有非工作包强类型候选先执行角色策略保留值内安全/冻结事实检查，再优先返回独立形状问题，不能宣称角色语义检查完全跳过；不可重试的安全/人工输入结果优先。
@@ -501,7 +502,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.3.70.jar
+JAR=target/opencode-loopper-0.3.72.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -612,6 +613,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-09-07 | 第二批工作包 V2 与一次语义整理，交付 0.3.72 | 来源/关系/缺口声明、V2 工具权限、V73 持久化整理及恢复、用户来源补充、前端分类、生产评测 V2 适配 | 最终聚焦回归通过；完整 verify 后端 1516/0/0/2、前端通过；0.3.72 JAR 静态资源核验通过，SHA-256 f99e028c028d195c05cd7fca6f28f71e52ce554f64f7945efdb0183527a493b9；Luna 配对及独立 OpenCode 运行结论留给第三批；默认关闭，未推送、未重启 |
 | 2026-09-07 | 第一批工作包缺口证据与 Codex Luna 基线基础，交付 0.3.70 | 六类证据判定、只对新运行冻结的关闭默认策略、V72 不可变证据、生产编译器评测桥、36 例及独立语义清单 | 聚焦回归通过；完整 `./scripts/verify.sh` BUILD SUCCESS：后端 1497/0/0/2、前端 41 文件 274 测试；0.3.70 JAR 静态资源核验通过，SHA-256 `425261587fd4ea4feaf15b7050b5197caf766357554215bab4690741ab869f2d`。Luna 正式基线 36/36 完成、137 次候选；24 个可解决样本首投及四投内正确通过均为 0/24（固定语料范围），35 WAITING_INPUT、1 提前停在 REJECTED，无接受方案；独立验收三次重复和分类语义复核留给配对批。证据在 `data/qualification/luna-baseline-0.3.67-20260907/baseline-report.json`；早期回执不完整的探针已排除；GEPA 在逐请求预算可控性验证阶段停止，启动 0 请求；未推送、未重启 |
 | 2026-09-07 | 七类 MCP 候选三批次同步优化，交付 0.3.67 | schema/生产边界、六角色冻结修正配置、分层诊断与进展身份、V71 历史兼容迁移、逐角色隔离模型探针与文档 | 合并聚焦 155/155；七角色真实模型正式 14/14 接受，正常 6/7 首投、7/7 三投内，故障 7/7 第二投；Judge 保留 BLOCKED。完整 `./scripts/verify.sh` BUILD SUCCESS：Java 1477 项（0 失败、0 错误、2 条件跳过）、Vitest 274/274、原生 guard 6/6；JAR `target/opencode-loopper-0.3.67.jar` 为 289399728 bytes、含 113 个静态文件及 index/assets，Maven/MCP 均为 0.3.67，SHA-256 `eda66591d7f1ec9c26438db2e5be61ab1c4b172393f62da9e4c2ab56509719a0`。最终 JAR 编译类回放 14/14 已接受模型候选仍接受，Judge 保留 BLOCKED；`git diff --check` 通过。未运行生产 HTTP owner/停止握手或浏览器验收；不推送、不部署、不重启既有实例 |
 | 2026-09-07 | MCP 设计候选三批次优化，交付 0.3.66 | 结构化 Fact 直通、稳定 key 与来源行、共享数量限制、冻结输入预检、按通道装配提示；V70 冻结可选有限修正预算、分层诊断、哈希进展与重复/振荡检测；增加隔离真实模型对照脚本与说明 | 合并聚焦 181/181；真实模型小样本新版 6/6 两次内接受、旧版 3/6 四次内接受，故障注入新版 2/2 第二投接受。0.3.65 完整门禁发现迁移版本断言与预检兼容问题，未生成 JAR；集中修复后 `./scripts/verify.sh` 在 0.3.66 BUILD SUCCESS：Java 1439 项（0 失败、0 错误、2 条件跳过）、Vitest 274/274、原生 guard 6/6；JAR `target/opencode-loopper-0.3.66.jar` 为 289388302 bytes、含 113 个静态文件及 index/assets，Maven/MCP 均为 0.3.66，SHA-256 `7613f7847cf0be0afb7fa82d3785c5ea8b8994686a0c0655da0b61fdeb011385`。最终 JAR 编译类回放 15/15 已接受模型候选仍接受；2 次 schema 补充试跑均第二投接受，未并入正式对照。未替换应用 JVM/8080、未做新浏览器运行验收、未推送/标签/Release |

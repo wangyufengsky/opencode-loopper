@@ -63,10 +63,21 @@ final class DesignerMutationObligationExtractor {
 
     private Catalog extract(Catalog base, String requirementText, List<String> scopeIn, List<String> scopeOut,
                             List<String> deliverables, boolean distinguishFrozenConflict) {
+        return extract(base, requirementText, scopeIn, scopeOut, deliverables, distinguishFrozenConflict, false);
+    }
+
+    Catalog extractUsingFrozenScope(Catalog base, String requirementText, List<String> scopeIn, List<String> scopeOut,
+                                   List<String> deliverables, boolean frozenOnly) {
+        return extract(base, requirementText, scopeIn, scopeOut, deliverables, frozenOnly, true);
+    }
+
+    private Catalog extract(Catalog base, String requirementText, List<String> scopeIn, List<String> scopeOut,
+                            List<String> deliverables, boolean distinguishFrozenConflict, boolean resolveDeclaredScope) {
         LinkedHashMap<String, Draft> drafts = new LinkedHashMap<>();
         List<String> issues = new ArrayList<>();
         List<String> negativePaths = new ArrayList<>();
-        extractRequirement(requirementText, drafts, issues, negativePaths);
+        extractRequirement(requirementText, drafts, issues, negativePaths,
+                resolveDeclaredScope ? pathPolicy.precisePaths(scopeIn) : List.of());
         extractDesignFacts(base, drafts, issues, negativePaths);
         extractFrozenPaths(deliverables, MutationSourceKind.DESIGN_DELIVERABLE, "DELIVERABLE", drafts);
         extractFrozenPaths(scopeIn, MutationSourceKind.DESIGN_SCOPE, "SCOPE_IN", drafts);
@@ -104,7 +115,7 @@ final class DesignerMutationObligationExtractor {
     }
 
     private void extractRequirement(String requirementText, Map<String, Draft> drafts, List<String> issues,
-                                    List<String> negativePaths) {
+                                    List<String> negativePaths, List<String> frozenPositivePaths) {
         String source = requirementText == null ? "" : requirementText.replace("\r\n", "\n");
         MutationOperation contextOperation = null;
         boolean negativeContext = false;
@@ -168,6 +179,7 @@ final class DesignerMutationObligationExtractor {
                             || externalMention(clause)) throw externalPath();
                     List<String> unclassifiedPaths = tokens.stream()
                             .filter(token -> DesignerRepositoryPathSyntax.strongUnclassifiedPath(token, clause))
+                            .filter(token -> !frozenPositivePaths.contains(token.replace('\\', '/').replaceFirst("^\\./", "")))
                             .toList();
                     if (!projectRules(unclassifiedPaths).isEmpty()) {
                         addIssue(issues, "AMBIGUOUS_MUTATION_PATH_SCOPE");

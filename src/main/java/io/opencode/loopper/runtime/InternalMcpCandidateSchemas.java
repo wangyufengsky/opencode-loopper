@@ -107,6 +107,24 @@ final class InternalMcpCandidateSchemas {
                 "gapCodes", stringArray()));
     }
 
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> packageDesignV2Input() {
+        var properties = new LinkedHashMap<>((Map<String, Object>) packageDesign().get("properties"));
+        properties.put("contractVersion", constant("PACKAGE_DESIGN_V2"));
+        properties.put("sourceBindings", boundedArray(object(List.of("key", "candidateRefs", "sourceRefs"), Map.of(
+                "key", string(1, 128), "candidateRefs", boundedArray(string(1, 128), 128),
+                "sourceRefs", boundedArray(string(1, 128), 128))), 128));
+        properties.put("relations", boundedArray(object(List.of("key", "operator", "operands", "sourceRefs"), Map.of(
+                "key", string(1, 128), "operator", enumeration("all", "any", "unless"),
+                "operands", described(boundedArray(string(1, 128), 32),
+                        "2..32 different scenario/relation keys; unless has exactly base and exception. All applicable any branches require behavior and coverage. Max depth 4; no cycles."),
+                "sourceRefs", boundedArray(string(1, 128), 128))), 32));
+        properties.put("gapClaims", boundedArray(object(List.of("key", "code", "sourceRefs", "question", "alternatives"), Map.of(
+                "key", string(1, 128), "code", string(1, 128), "sourceRefs", boundedArray(string(1, 128), 128),
+                "question", utf8String(2000, true), "alternatives", boundedArray(utf8String(1000, true), 4))), 16));
+        return request(object(List.copyOf(properties.keySet()), properties));
+    }
+
     private static Map<String, Object> rollingPackagePlan() {
         Map<String, Object> packageItem = object(
                 List.of("packageKey", "title", "objective", "replaces", "dependencies", "requirementRefs"),

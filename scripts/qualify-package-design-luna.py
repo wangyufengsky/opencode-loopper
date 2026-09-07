@@ -29,7 +29,9 @@ def bridge(descriptor):
     cfg = json.loads(Path(descriptor).read_text())
     child = subprocess.Popen(cfg["java"] + ["compile", cfg["fixture"]], stdin=subprocess.PIPE,
                              stdout=subprocess.PIPE, text=True)
-    schema = json.loads(subprocess.check_output(cfg["java"] + ["schema"], text=True))
+    v2 = cfg.get("contract") == "PACKAGE_DESIGN_V2"
+    tool_name = "submit_package_design_v2" if v2 else "submit_package_design"
+    schema = json.loads(subprocess.check_output(cfg["java"] + ["schema-v2" if v2 else "schema"], text=True))
     attempts, keys, terminal = [], {}, False
     try:
         for line in sys.stdin:
@@ -41,7 +43,7 @@ def bridge(descriptor):
                 result = {"protocolVersion": request.get("params", {}).get("protocolVersion", "2024-11-05"),
                           "capabilities": {"tools": {}}, "serverInfo": {"name": "luna-qualification", "version": "1"}}
             elif method == "tools/list":
-                result = {"tools": [{"name": "submit_package_design", "description":
+                result = {"tools": [{"name": tool_name, "description":
                           "Submit a complete candidate to the production compiler. Follow the returned action.",
                           "annotations": {"readOnlyHint": True, "destructiveHint": False, "openWorldHint": False},
                           "inputSchema": schema}]}
@@ -50,7 +52,7 @@ def bridge(descriptor):
                 args = params.get("arguments", {})
                 candidate = json.dumps(args.get("candidate"), ensure_ascii=False, sort_keys=True)
                 key = args.get("idempotencyKey")
-                if params.get("name") != "submit_package_design" or not isinstance(key, str) or not key:
+                if params.get("name") != tool_name or not isinstance(key, str) or not key:
                     response = {"outcome": "INVALID_ARGUMENTS", "action": "FIX_AND_RESUBMIT"}
                 elif key in keys and keys[key][0] == candidate:
                     response = keys[key][1]
@@ -112,9 +114,11 @@ def isolated_config(directory, descriptor=None):
               '[features]\nskip_host_skill_discovery = true\n')
     config += "".join(f"{feature} = false\n" for feature in DISABLED_FEATURES)
     if descriptor:
+        descriptor_data = json.loads(Path(descriptor).read_text())
+        enabled_tool = "submit_package_design_v2" if descriptor_data.get("contract") == "PACKAGE_DESIGN_V2" else "submit_package_design"
         config += ('\n[mcp_servers.qualification]\ncommand = ' + json.dumps(sys.executable) + '\nargs = '
                    + json.dumps([str(Path(__file__).resolve()), "--bridge", str(descriptor)])
-                   + '\nenabled_tools = ["submit_package_design"]\nstartup_timeout_sec = 60\ntool_timeout_sec = 120\n')
+                   + '\nenabled_tools = ' + json.dumps([enabled_tool]) + '\nstartup_timeout_sec = 60\ntool_timeout_sec = 120\n')
     (home / "config.toml").write_text(config)
     # No inherited API keys, app thread identity, proxy/provider overrides or personal plugin settings.
     env = {key: value for key, value in os.environ.items() if key in ("PATH", "HOME", "TMPDIR", "LANG", "LC_ALL")}
@@ -201,17 +205,19 @@ def run(args):
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(case["repositoryFixture"])
             fixture = directory / "fixture.json"
-            fixture.write_text(json.dumps({key: case[key] for key in ("id", "requirement", "technology", "target", "symbol")},
-                                          ensure_ascii=False))
+            fixture_data = {key: case[key] for key in ("id", "requirement", "technology", "target", "symbol")}
+            if args.contract == "PACKAGE_DESIGN_V2":
+                fixture_data.update(contractVersion=args.contract, projectRoot=str(workspace))
+            fixture.write_text(json.dumps(fixture_data, ensure_ascii=False))
             descriptor = directory / "bridge.json"
-            descriptor.write_text(json.dumps({"java": java, "fixture": str(fixture), "ledger": str(directory / "attempts.json")}))
+            descriptor.write_text(json.dumps({"java": java, "fixture": str(fixture), "ledger": str(directory / "attempts.json"), "contract": args.contract}))
             prompt = subprocess.check_output(java + ["prompt", str(fixture), str(workspace)], text=True)
             prompt += "\nFrozen bounded repository evidence (synthetic fixture, not production implementation):\n" + case["repositoryFixture"]
             (directory / "prompt.txt").write_text(prompt)
             before = {str(path.relative_to(workspace)): digest(path.read_text()) for path in workspace.rglob("*") if path.is_file()}
             result = execute(args, directory, prompt, descriptor)
             after = {str(path.relative_to(workspace)): digest(path.read_text()) for path in workspace.rglob("*") if path.is_file()}
-            result.update(caseId=case["id"], repeat=repeat + 1, fixtureUnchanged=before == after,
+            result.update(caseId=case["id"], contract=args.contract, semanticPreparationTurns=0, repeat=repeat + 1, fixtureUnchanged=before == after,
                           submitted=(directory / "attempts.json").exists(),
                           semanticReview="PENDING_INDEPENDENT_CHECKLIST", corpusSha256=digest(Path(args.corpus).read_text()))
             (directory / "run.json").write_text(json.dumps(result, indent=2))
@@ -227,6 +233,7 @@ def main():
     parser.add_argument("--codex", default="codex")
     parser.add_argument("--java", default="java")
     parser.add_argument("--classpath")
+    parser.add_argument("--contract", choices=["PACKAGE_DESIGN_V1", "PACKAGE_DESIGN_V2"], default="PACKAGE_DESIGN_V1")
     parser.add_argument("--corpus", default="src/test/resources/package-design-luna/corpus.json")
     parser.add_argument("--output")
     parser.add_argument("--splits", default="train,dev,heldout")

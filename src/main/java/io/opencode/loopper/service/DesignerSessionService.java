@@ -122,6 +122,7 @@ public class DesignerSessionService {
     private final AcceptanceCandidateInternalParentSettlement internalParentSettlement;
     private final StoryBindingService storyBindings;
     private final DesignerConversationCoordinator conversations;
+    private final PackageSemanticPreparation semanticPreparation;
     public DesignerSessionService(LoopperMapper mapper, LifecycleTransitionService lifecycle,
                                   ProjectService projects, OpenCodeClient openCode,
                                   LoopperProperties defaults, LoopDraftService drafts, ObjectMapper json,
@@ -143,6 +144,7 @@ public class DesignerSessionService {
                                   DesignerQuestionSupport questionSupport, RollingPackageService rollingPackages,
                                   DesignerAttachmentContext attachmentContext,
                                   StoryBindingService storyBindings, DesignerConversationCoordinator conversations) {
+        this.semanticPreparation = new PackageSemanticPreparation(mapper, conversations, openCode, packageDesignCandidates, attachmentContext, json);
         this.mapper = mapper;
         this.lifecycle = lifecycle;
         this.projects = projects;
@@ -226,7 +228,7 @@ public class DesignerSessionService {
                 DesignerSessionState.PENDING_HANDOFF.name(), null, null);
         if (initialMessage != null && !initialMessage.isBlank()) {
             DesignerMessageRow user = appendMessage(session.id(), DesignerActor.USER,
-                    normalizeMessage(initialMessage), "PERSISTED", null, null);
+                    DesignerMessageText.normalize(initialMessage, MAX_MESSAGE_LENGTH), "PERSISTED", null, null);
             createDiscussion(session, "REQUIREMENT", null, 1, user.id(), 0);
         }
         TaskProfileService.View profile = taskProfiles.initialize(session.id(), initialMessage);
@@ -619,7 +621,7 @@ public class DesignerSessionService {
         // previous snapshot so it cannot consume a later monitor tick or be mistaken for the current profile.
         taskProfiles.invalidate(session.id());
         DesignerMessageRow user = appendMessage(session.id(), DesignerActor.USER,
-                normalizeMessage(content), "PERSISTED", null, null);
+                DesignerMessageText.normalize(content, MAX_MESSAGE_LENGTH), "PERSISTED", null, null);
         if (prepared != null) attachmentContext.changePrepared(new DesignerAttachmentContext.SubmitAttachmentMessage(submissionId,
                 session.id(), user.id(), DesignerAttachmentContext.AttachmentScope.requirement(), user.content()), prepared);
         DesignDiscussionRevisionRow discussion = createDiscussion(session, "REQUIREMENT", null,
@@ -638,7 +640,7 @@ public class DesignerSessionService {
             String content, String submissionId, DesignerAttachmentContext.PreparedUpload prepared) {
         DesignerMessageRow question = questionSupport.chatQuestionMessage(discussion);
         DesignerMessageRow user = appendMessage(session.id(), DesignerActor.USER,
-                normalizeMessage(content), "PERSISTED", null, null);
+                DesignerMessageText.normalize(content, MAX_MESSAGE_LENGTH), "PERSISTED", null, null);
         if (prepared != null) attachmentContext.changePrepared(new DesignerAttachmentContext.SubmitAttachmentMessage(submissionId,
                 session.id(), user.id(), DesignerAttachmentContext.AttachmentScope.requirement(), user.content()), prepared);
         DesignDiscussionRevisionRow answered = updateDiscussion(discussion, CHAT_DESIGNING,
@@ -939,7 +941,7 @@ public class DesignerSessionService {
             throw new ConflictException("WORK_PACKAGE_DISCUSSION_LIMIT_REACHED",
                     "每个工作包初稿后最多允许 5 轮人工修改");
         }
-        DesignerMessageRow user = appendMessage(session.id(), DesignerActor.USER, normalizeMessage(content),
+        DesignerMessageRow user = appendMessage(session.id(), DesignerActor.USER, DesignerMessageText.normalize(content, MAX_MESSAGE_LENGTH),
                 "PERSISTED", session.currentRequirementRevision(), packageId);
         if (prepared != null) attachmentContext.changePrepared(new DesignerAttachmentContext.SubmitAttachmentMessage(submissionId,
                 session.id(), user.id(), DesignerAttachmentContext.AttachmentScope.workPackage(packageId), user.content()), prepared);
@@ -976,7 +978,7 @@ public class DesignerSessionService {
             throw new ConflictException("WORK_PACKAGE_DESIGN_REVISION_CONFLICT", "工作包设计已更新，请刷新后重试");
         }
         DesignerMessageRow question = questionSupport.chatQuestionMessage(discussion);
-        DesignerMessageRow user = appendMessage(session.id(), DesignerActor.USER, normalizeMessage(content),
+        DesignerMessageRow user = appendMessage(session.id(), DesignerActor.USER, DesignerMessageText.normalize(content, MAX_MESSAGE_LENGTH),
                 "PERSISTED", session.currentRequirementRevision(), workPackage.packageId());
         if (prepared != null) attachmentContext.changePrepared(new DesignerAttachmentContext.SubmitAttachmentMessage(submissionId,
                 session.id(), user.id(), DesignerAttachmentContext.AttachmentScope.workPackage(workPackage.packageId()), user.content()), prepared);
@@ -2099,6 +2101,7 @@ public class DesignerSessionService {
                         mapper.findTaskDecompositionByRevision(revision.id()).orElseThrow(),
                         questionRequired, nativeQuestion, usePackageCandidate);
                 if (prefix != null) basePrompt = prefix + "\n\n" + basePrompt;
+                if (usePackageCandidate && semanticPreparation.start(designing, discussion, remote, revision.requirementText(), basePrompt)) return;
                 conversations.begin(remote, questionRequired ? "PACKAGE_QUESTION" : "PACKAGE_DESIGN");
                 String prompt = usePackageCandidate
                         ? packageDesignCandidates.open(designing, remote, basePrompt).prompt() : basePrompt;
@@ -2138,6 +2141,9 @@ public class DesignerSessionService {
             try {
                 OpenCodeClient.OpenCodeSession remote = conversations.remote(workPackage.designerExternalSessionId(), Path.of(project.rootPath()));
                 requirementDraftGuard.requireUnchanged(session, revision.sourceDraftVersion());
+                if (semanticPreparation.poll(workPackage, discussion, remote,
+                        timedOut(workPackage.updatedAt(), workPackage.designerExternalSessionId()),
+                        () -> consumeModelCall(session, revision, "WORK_PACKAGE_MODEL_CALL_LIMIT"))) return;
                 if (WAITING_CHAT_ANSWER.equals(discussion.state())) return;
                 if (!questionSupport.chatMode(discussion)) {
                     List<OpenCodeClient.PendingQuestion> pending = openCode.pendingQuestions(remote);
@@ -5301,15 +5307,6 @@ public class DesignerSessionService {
         if (timeout == null || timeout.isZero() || timeout.isNegative()) return false;
         try { return Duration.between(Instant.parse(updatedAt), StoryAccountingClock.sessionNow(mapper, remoteId, updatedAt)).compareTo(timeout) > 0; }
         catch (RuntimeException invalidTimestamp) { return false; }
-    }
-
-    private String normalizeMessage(String content) {
-        if (blank(content)) throw new BadRequestException("DESIGNER_MESSAGE_REQUIRED",
-                "Designer message content is required");
-        String normalized = content.trim();
-        if (normalized.length() > MAX_MESSAGE_LENGTH) throw new BadRequestException("DESIGNER_MESSAGE_TOO_LONG",
-                "Designer message must be at most " + MAX_MESSAGE_LENGTH + " characters");
-        return normalized;
     }
 
     private String summarizeGaps(List<DesignGap> gaps) {

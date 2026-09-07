@@ -13,6 +13,7 @@ import PendingQuestionCard from '@/components/PendingQuestionCard.vue'
 import DesignerDiscussionHistory from '@/components/DesignerDiscussionHistory.vue'
 import DesignerSystemMessageHistory from '@/components/DesignerSystemMessageHistory.vue'
 import DesignerValidatorHistory from '@/components/DesignerValidatorHistory.vue'
+import PackageGapNotice from '@/components/PackageGapNotice.vue'
 import DesignerCurrentActivity from '@/components/DesignerCurrentActivity.vue'
 import TaskProfileRouterDialog from '@/components/TaskProfileRouterDialog.vue'
 import StagedFileContextCard from '@/components/StagedFileContextCard.vue'
@@ -1661,6 +1662,7 @@ async function redesignPackage(packageId: string) {
         </section>
         <section v-if="blockedWorkflowMessage" class="designer-session-alert" role="status" aria-live="polite"><Icon icon="lucide:refresh-cw" /><div><strong>{{ largeTaskModeRequired ? '普通任务无法安全容纳当前设计' : designerSession?.state === 'WAITING_INPUT' ? '设计工作流需要人工恢复' : '设计工作流已停止' }}</strong><p>{{ userFacingError(blockedWorkflowMessage.content) }}</p><p v-if="mutationOwnershipRecoveryRequired">当前设计稿未变化，不能原样重编译；请在下方输入框补充阶段负责路径，或恢复当前包设计。</p><div class="recovery-actions"><el-button v-if="largeTaskModeRequired" type="primary" size="small" :loading="busy" @click="enableLargeTaskMode"><Icon icon="lucide:split" />改用大型任务</el-button><template v-else><el-button v-if="designerSession?.decomposition && !designerSession.activeWorkPackageId" plain size="small" :loading="busy" @click="retryDecomposition"><Icon icon="lucide:split" />重新拆解</el-button><el-button v-if="designerSession?.activeWorkPackageId" plain size="small" :loading="busy" :disabled="mutationOwnershipRecoveryRequired" @click="retryPackageCompiler(designerSession.activeWorkPackageId)"><Icon icon="lucide:braces" />重新编译当前包</el-button><el-button v-if="designerSession?.activeWorkPackageId" plain size="small" :loading="busy" @click="redesignPackage(designerSession.activeWorkPackageId)"><Icon icon="lucide:sparkles" />恢复当前包设计</el-button><template v-if="designerSession?.compiler && !designerSession?.decomposition"><el-button plain size="small" :loading="busy" @click="retryCompiler"><Icon icon="lucide:braces" />重新编译当前设计</el-button><el-button plain size="small" :loading="busy" @click="requestRedesign"><Icon icon="lucide:sparkles" />让设计师重新设计</el-button></template></template><el-button plain size="small" @click="restartDesigner"><Icon icon="lucide:rotate-ccw" />清理工作区</el-button></div></div></section>
         <section v-else-if="designerLiveError" class="designer-session-alert live-error" role="alert" aria-live="assertive"><Icon icon="lucide:triangle-alert" /><div><strong>OpenCode 实时错误</strong><p>{{ userFacingError(designerLiveError) }}</p></div></section>
+        <PackageGapNotice :code="acceptancePackage?.lastErrorCode" :detail="acceptancePackage?.lastErrorDetail" />
         <div class="designer-conversation">
           <section v-if="showDirectCandidateSummary && directCandidatePackage" class="direct-package-candidate-summary" aria-label="默认单包候选状态">
             <Icon icon="lucide:route" />

@@ -540,3 +540,7 @@ round. This is diagnostic staging, not bypassing the policy. UTF-8 limits in too
 and descriptions with the compiler's whitespace rules; Unicode character length and byte length are separate.
 Judge ACCEPTED means a valid decision, including BLOCKED. Neither prompts nor repair hints may ask for PASS merely
 to pass validation. See [role changes, configuration and qualification boundaries](mcp-role-optimization.md).
+
+### 工作包语义合同 V2（关闭默认）
+
+`PACKAGE_DESIGN_V2` 在新持久会话中冻结独立提交工具、来源绑定、32 节点/4 层 all/any/unless 关系及有依据的缺口声明。历史角色 kind 保持不变，不能从 kind 名称推导实际对象合同。原文、用户明确补充、仓库证据和模型整理分层保存；只有服务端编译后的验收准则与交接进入 Implementation/Recovery/Judge。Decomposer 的包边界与共同约束仍是冻结输入，Reviewer 不获得写权限。完整字段、提示版本与一次整理阶段的停止/恢复规则见 [工作包三批优化](package-design-luna-optimization.md)。

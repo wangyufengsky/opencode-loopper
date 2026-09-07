@@ -26,6 +26,13 @@ class PackageDesignCandidatePolicyTest {
     private final PackageDesignCandidatePolicy policy = new PackageDesignCandidatePolicy(inputs, compilation);
 
     @Test
+    void historicalCompilerNormalizationSurvivesWhileV2CannotEnterAV1Run() {
+        assertThat(policy.evaluate(context(), candidate().replace("PACKAGE_DESIGN_V1", " package_design_v1 ")).accepted()).isTrue();
+        assertThat(policy.evaluate(context(), candidate().replace("PACKAGE_DESIGN_V1", "PACKAGE_DESIGN_V2")).problems())
+                .extracting(MachineCandidateSubmission.Problem::code).contains("PACKAGE_CANDIDATE_CONTRACT_MISMATCH");
+    }
+
+    @Test
     void mapsMechanicalProblemsToRetryAndBudgetFallback() {
         CandidatePolicy.Decision decision = policy.evaluate(context(), candidate()
                 .replace("\"SC-1\",\"DEL-1\"", "\"SC-1\",\"UNKNOWN\""));

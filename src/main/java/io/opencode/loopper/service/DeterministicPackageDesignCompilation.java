@@ -49,6 +49,16 @@ public final class DeterministicPackageDesignCompilation implements PackageDesig
 
     @Override
     public Result compileCandidate(Input input, String candidateJson) {
+        try {
+            var root = json.readTree(candidateJson);
+            if (root != null && "PACKAGE_DESIGN_V2".equals(root.path("contractVersion").asText())) {
+                return new PackageDesignV2Compilation(json).compile(input.withContract("PACKAGE_DESIGN_V2"), candidateJson, this::compileCandidateV1);
+            }
+        } catch (JacksonException invalid) { /* Existing V1 codec supplies bounded parse diagnostics. */ }
+        return compileCandidateV1(input, candidateJson);
+    }
+
+    private Result compileCandidateV1(Input input, String candidateJson) {
         List<Problem> frozenProblems = PackageDesignInputPreflight.problems(input);
         if (!frozenProblems.isEmpty()) return new Result(NEEDS_INPUT, null, null, null, null, frozenProblems);
         PackageDesignCandidateCodec.Decoded decoded = codec.decode(candidateJson, input.stageLimit());
@@ -84,8 +94,9 @@ public final class DeterministicPackageDesignCompilation implements PackageDesig
                                     String canonicalJson, String markdown,
                                     Catalog base, boolean correctionAllowed) {
         try {
-            Catalog facts = mutationExtractor.extract(base, input.requirementText(), input.scopeIn(),
-                    input.scopeOut(), input.deliverables());
+            Catalog facts = "PACKAGE_DESIGN_V2".equals(input.semanticContractVersion())
+                    ? mutationExtractor.extractUsingFrozenScope(base, input.requirementText(), input.scopeIn(), input.scopeOut(), input.deliverables(), false)
+                    : mutationExtractor.extract(base, input.requirementText(), input.scopeIn(), input.scopeOut(), input.deliverables());
             var capabilities = capabilityRegistry.build(facts, input.role(), markdown);
             DesignerAcceptanceFastPathResolver.Resolution resolution = resolver.resolve(facts, capabilities);
             if (resolution.outcome() == DesignerAcceptanceFastPathResolver.Outcome.DESIGN_INCOMPLETE) {

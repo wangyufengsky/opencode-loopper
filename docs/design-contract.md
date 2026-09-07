@@ -1243,3 +1243,7 @@ round. This is diagnostic staging, not bypassing the policy. UTF-8 limits in too
 and descriptions with the compiler's whitespace rules; Unicode character length and byte length are separate.
 Judge ACCEPTED means a valid decision, including BLOCKED. Neither prompts nor repair hints may ask for PASS merely
 to pass validation. See [role changes, configuration and qualification boundaries](mcp-role-optimization.md).
+
+### V2 工作包待处理事项
+
+前端使用服务端持久化的 `PACKAGE_GAP_*` 分类展示候选表达、仓库未知、待建验证、业务待决、已证实冲突或尚未确认，不把未知错误码推断成需求缺失。普通单包继续本地反馈入口；明确业务选择可按诊断来源回复 `REQ-L001=最终行为`，原文不被覆盖。只有新建 V2 会话启用可选一次语义整理，简单任务和历史会话不增加回合；模型整理不是接受证明。字段、边界及质量门见 [工作包三批优化](package-design-luna-optimization.md)。

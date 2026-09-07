@@ -551,7 +551,9 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     private static boolean candidateProfile(SessionProfile profile) {
         return profile == SessionProfile.DECOMPOSER_CANDIDATE_READ_ONLY
                 || profile == SessionProfile.PACKAGE_DESIGN_CANDIDATE_READ_ONLY
+                    || profile == SessionProfile.PACKAGE_DESIGN_CANDIDATE_V2_READ_ONLY
                 || profile == SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY
+                    || profile == SessionProfile.PACKAGE_DESIGN_CANDIDATE_V2_INTERACTIVE_READ_ONLY
                 || profile == SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS
                 || profile == SessionProfile.ROLLING_PACKAGE_CANDIDATE_READ_ONLY
                 || profile == SessionProfile.REVIEWER_CANDIDATE_READ_ONLY

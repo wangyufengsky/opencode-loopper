@@ -26,6 +26,11 @@ final class PackageDesignCandidatePolicy implements CandidatePolicy {
         this.compilation = compilation;
     }
 
+    PackageDesignCandidatePolicy(PackageDesignCompilationInputLoader inputs, PackageDesignCompilation compilation,
+            PackageDesignEvidenceMapper evidence) {
+        this(inputs, compilation); this.evidence = evidence;
+    }
+
     @Override
     public boolean supports(MachineCandidateKind kind) {
         return kind == MachineCandidateKind.PACKAGE_DESIGN_V1;
@@ -34,8 +39,10 @@ final class PackageDesignCandidatePolicy implements CandidatePolicy {
     @Override
     public Decision evaluate(Context context, String candidateJson) {
         if (context.candidateKind() != MachineCandidateKind.PACKAGE_DESIGN_V1
-                || !(WORKFLOW_STEP.equals(context.workflowStep()) || PackageDesignGapPolicy.WORKFLOW_STEP.equals(context.workflowStep()))
-                || !PackageDesignCandidateCodec.CONTRACT_VERSION.equals(context.contractVersion())
+                || !(WORKFLOW_STEP.equals(context.workflowStep()) || PackageDesignGapPolicy.WORKFLOW_STEP.equals(context.workflowStep()) || PackageDesignV2Document.VERSION.equals(context.workflowStep()))
+                || !(PackageDesignV2Document.VERSION.equals(context.workflowStep())
+                    ? PackageDesignV2Document.VERSION.equals(context.contractVersion())
+                    : PackageDesignCandidateCodec.CONTRACT_VERSION.equals(context.contractVersion()))
                 || context.maxAttempts() != MAX_ATTEMPTS
                 || context.owner().type()
                     != MachineCandidateSubmission.CandidateOwnerType.DESIGN_WORK_PACKAGE) {
@@ -43,8 +50,17 @@ final class PackageDesignCandidatePolicy implements CandidatePolicy {
                     "PACKAGE_DESIGN_RUN_CONTRACT_INVALID", "/candidate",
                     "候选运行不属于 PACKAGE_DESIGN_V1 冻结合同", List.of())));
         }
-        var input = inputs.load(context);
-        if (PackageDesignGapPolicy.WORKFLOW_STEP.equals(context.workflowStep())) verifyEvidence(context.runId(), input);
+        try {
+            var candidate = new ObjectMapper().readTree(candidateJson);
+            String declared = candidate == null ? "" : candidate.path("contractVersion").asText();
+            boolean v2Run = PackageDesignV2Document.VERSION.equals(context.contractVersion());
+            if (v2Run ? !PackageDesignV2Document.VERSION.equals(declared)
+                    : PackageDesignV2Document.VERSION.equals(declared.strip().toUpperCase(java.util.Locale.ROOT)))
+                return Decision.rejected(true, false, List.of(new MachineCandidateSubmission.Problem(
+                        "PACKAGE_CANDIDATE_CONTRACT_MISMATCH", "/contractVersion", "候选必须匹配运行冻结的合同", List.of(context.contractVersion()))));
+        } catch (RuntimeException invalid) { /* Preserve the legacy compiler's original parse diagnostics. */ }
+        var input = inputs.load(context).withContract(context.contractVersion());
+        if (PackageDesignGapPolicy.WORKFLOW_STEP.equals(context.workflowStep()) || PackageDesignV2Document.VERSION.equals(context.workflowStep())) verifyEvidence(context.runId(), input);
         PackageDesignCompilation.Result result = compilation.compileCandidate(input, candidateJson);
         if (PackageDesignGapPolicy.WORKFLOW_STEP.equals(context.workflowStep())) result = PackageDesignGapPolicy.apply(result);
         if (result.accepted()) return Decision.accepted(result.canonicalCandidateJson());

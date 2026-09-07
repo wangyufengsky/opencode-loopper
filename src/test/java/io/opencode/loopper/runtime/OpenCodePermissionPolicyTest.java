@@ -6,6 +6,15 @@ import org.junit.jupiter.api.Test;
 
 class OpenCodePermissionPolicyTest {
     @Test
+    void v2PackageProfileOpensOnlyItsMatchingSubmissionTool() {
+        var rules = OpenCodePermissionPolicy.rules(OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_V2_READ_ONLY,
+                java.util.List.of("unrelated"), "private");
+        assertThat(rules).contains(java.util.Map.of("permission", "private_submit_package_design_v2", "pattern", "*", "action", "allow"));
+        assertThat(rules).doesNotContain(java.util.Map.of("permission", "private_submit_package_design", "pattern", "*", "action", "allow"));
+        assertThat(rules).doesNotContain(java.util.Map.of("permission", "question", "pattern", "*", "action", "allow"));
+    }
+
+    @Test
     void judgeFinalizerKeepsTheExistingNoBuiltinToolsPermissionBoundary() {
         var servers = java.util.List.of("github", "loopper_internal_generation");
         assertThat(OpenCodePermissionPolicy.rules(OpenCodeClient.SessionProfile.JUDGE_FINALIZER_NO_TOOLS,
@@ -19,7 +28,9 @@ class OpenCodePermissionPolicyTest {
         var designers = java.util.Set.of(OpenCodeClient.SessionProfile.GENERAL_READ_ONLY,
                 OpenCodeClient.SessionProfile.DESIGNER_INTERACTIVE_READ_ONLY,
                 OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_READ_ONLY,
-                OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY);
+                OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY,
+                OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_V2_READ_ONLY,
+                OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_V2_INTERACTIVE_READ_ONLY);
         for (var profile : OpenCodeClient.SessionProfile.values()) {
             var managed = OpenCodePermissionPolicy.rules(profile, java.util.List.of(), "loopper_internal_test");
             assertThat(managed.stream().anyMatch(rule -> "aicoding_*".equals(rule.get("permission"))))
@@ -233,7 +244,9 @@ class OpenCodePermissionPolicyTest {
                     || profile == OpenCodeClient.SessionProfile.REVIEWER_CANDIDATE_READ_ONLY
                     || profile == OpenCodeClient.SessionProfile.PROJECT_CONVENTION_CANDIDATE_READ_ONLY
                     || profile == OpenCodeClient.SessionProfile.JUDGE_CANDIDATE_READ_ONLY
-                    || profile == OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY) continue;
+                    || profile == OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY
+                    || profile == OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_V2_READ_ONLY
+                    || profile == OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_V2_INTERACTIVE_READ_ONLY) continue;
             var rules = OpenCodePermissionPolicy.rules(profile, java.util.List.of("project mcp"));
             assertThat(rules)
                     .as(profile.name())

@@ -91,6 +91,9 @@ final class DesignerPackageCandidateOrchestrator {
                         "CANDIDATE_RUNTIME_BINDING_UNAVAILABLE", "候选运行时绑定服务不可用"))
                 .bind(remote, MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP);
         var existing = submissions.find(runId(workPackage));
+        boolean v2 = existing.map(run -> PackageDesignV2Document.VERSION.equals(run.contractVersion()))
+                .orElseGet(() -> conversations != null && conversations.packageV2(remote.id()));
+        String version = v2 ? PackageDesignV2Document.VERSION : CONTRACT_VERSION;
         Integer configuredLimit = properties.getInternalCandidate().getPackageDesignCorrectionLimit() == 0 ? null
                 : properties.getInternalCandidate().getPackageDesignCorrectionLimit();
         MachineCandidateSubmission.RunSnapshot run = submissions.open(new MachineCandidateSubmission.OpenCommand(
@@ -98,12 +101,12 @@ final class DesignerPackageCandidateOrchestrator {
                         workPackage.designerSessionId()),
                 MachineCandidateSubmission.CandidateOwnerRef.designWorkPackage(workPackage.id()),
                 MachineCandidateKind.PACKAGE_DESIGN_V1,
-                PackageDesignGapPolicy.workflowStep(existing.map(MachineCandidateSubmission.RunSnapshot::workflowStep).orElse(null),
+                v2 ? version : PackageDesignGapPolicy.workflowStep(existing.map(MachineCandidateSubmission.RunSnapshot::workflowStep).orElse(null),
                         properties.getInternalCandidate().isPackageDesignEvidenceEnabled()), workPackage.designRevision() + 1L,
                 workPackage.version(), MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP,
-                CONTRACT_VERSION, binding.runtimeGenerationId(), remote.id(), MAX_ATTEMPTS,
+                version, binding.runtimeGenerationId(), remote.id(), MAX_ATTEMPTS,
                 existing.isPresent() ? existing.get().correctionLimit() : configuredLimit));
-        if (PackageDesignGapPolicy.WORKFLOW_STEP.equals(run.workflowStep())) {
+        if (v2 || PackageDesignGapPolicy.WORKFLOW_STEP.equals(run.workflowStep())) {
             if (evidence == null) throw new ConflictException("PACKAGE_EVIDENCE_UNAVAILABLE", "工作包证据准备器不可用");
             evidence.freeze(run.runId(), workPackage, remote.worktree());
         }
@@ -111,6 +114,11 @@ final class DesignerPackageCandidateOrchestrator {
         if (privateServer == null || privateServer.isBlank()) {
             throw new ConflictException("OPENCODE_INTERNAL_MCP_NOT_READY",
                     "工作包候选 Session 未绑定私有 MCP 名称");
+        }
+        if (v2) {
+            var requirement = conversationMapper.findDesignRequirementRevision(workPackage.requirementRevisionId()).orElseThrow();
+            return new Start(remote, run, PackageDesignV2Prompt.build(basePrompt + "\n冻结有界仓库证据：\n" + conversationMapper.findPackageDesignEvidence(run.runId()).orElseThrow().snapshotJson(), requirement.requirementText(), run,
+                    privateServer + "_" + InternalMcpContractCatalog.PACKAGE_V2_TOOL));
         }
         return new Start(remote, run, prompt(basePrompt, run,
                 privateServer + "_" + InternalMcpContractCatalog.toolName(
@@ -214,6 +222,8 @@ final class DesignerPackageCandidateOrchestrator {
 
     private Poll markdownFallback(OpenCodeClient.OpenCodeSession remote,
                                   MachineCandidateSubmission.RunSnapshot run, String reason) {
+        if (PackageDesignV2Document.VERSION.equals(run.contractVersion())) return Poll.failed(remote, run,
+                "PACKAGE_V2_SUBMISSION_REQUIRED", "V2 必须提交匹配工具的完整候选；没有使用 Markdown 绕过语义校验");
         String markdown = io.opencode.loopper.runtime.OpenCodeStepLimitNotice.requireBusinessOutput(openCode.sessionOutput(remote));
         if (markdown == null || markdown.isBlank()) {
             return Poll.failed(remote, run, "DESIGN_OUTPUT_MISSING",

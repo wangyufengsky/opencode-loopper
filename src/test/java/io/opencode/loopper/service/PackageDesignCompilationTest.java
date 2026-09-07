@@ -217,7 +217,7 @@ class PackageDesignCompilationTest {
         });
     }
 
-    private String readyCandidate() {
+    String readyCandidate() {
         return """
                 {
                   "contractVersion": "PACKAGE_DESIGN_V1",
@@ -260,7 +260,7 @@ class PackageDesignCompilationTest {
                 """;
     }
 
-    private PackageDesignCompilation.Input input() {
+    PackageDesignCompilation.Input input() {
         return new PackageDesignCompilation.Input(workPackage(), "新增事件分发安全分支",
                 new WorkPackageRoleService.View("software-java", RolePackRegistry.VERSION,
                         ExecutionStrategy.OPEN_CODE_IMPLEMENTATION, TestPolicy.REQUIRED, List.of("java")),

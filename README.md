@@ -7,7 +7,14 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.3.70`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.3.72`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+
+## 0.3.72 工作包 V2 与一次语义整理
+
+- 新建且匹配 V2 会话的运行可通过 `LOOPPER_PACKAGE_DESIGN_V2_ENABLED=true` 使用有来源的语义合同；默认关闭，旧会话/旧候选和 Role Pack 不升级。
+- 支持 `all / any / unless` 关系图（32 节点、4 层），全部适用分支继续验收。一次只读语义整理按修订持久化，简单任务与已有问题回合不增加整理请求。
+- 来源未知、待建测试、真实业务选择和已证实冲突分开处理。明确的业务选择可通过本地反馈 `REQ-L001=最终行为` 补充，原文保留；模型自述不能成为用户决定。
+- V2 提交工具与旧工具隔离，阶段合同和权限仍由服务端生成。源码/测试交付不代表 Luna 配对门槛或活动 OpenCode 链路已达标；详见[三批优化说明](docs/package-design-luna-optimization.md)。
 
 ## 0.3.70 工作包证据与 Luna 评测基础
 
@@ -263,7 +270,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.3.70.jar
+java -jar target/opencode-loopper-0.3.72.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -501,7 +508,7 @@ Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 或用�
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.3.70.jar`
+- `target/opencode-loopper-0.3.72.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -532,7 +539,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.3.70.jar`
+- `opencode-loopper-0.3.72.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -570,7 +577,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.3.70.jar \
+jar tf target/opencode-loopper-0.3.72.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -700,7 +707,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.3.70.jar
+java -jar target/opencode-loopper-0.3.72.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。

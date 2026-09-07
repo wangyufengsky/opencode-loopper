@@ -75,6 +75,22 @@ class DesignerConversationIntegrationTest {
         conversations.settle(session.id());
     }
 
+    @Test void contractProfileFreezesAcrossFeatureChangesAndSemanticTurnRestoresWithoutResend() {
+        var properties = new io.opencode.loopper.config.LoopperProperties();
+        properties.getInternalCandidate().setPackageDesignV2Enabled(true);
+        conversations = new DesignerConversationCoordinator(mapper, remote, json, properties);
+        var session = acquire("REQUIREMENT", false);
+        assertThat(conversations.packageV2(session.id())).isTrue();
+        turn(session, "PACKAGE_SEMANTICS");
+        assertThat(mapper.designerTurnForRemote(session.id()).orElseThrow().messageId()).startsWith("msg_loopper_design_s_");
+        properties.getInternalCandidate().setPackageDesignV2Enabled(false);
+        var restored = new DesignerConversationCoordinator(mapper, remote, json, properties);
+        assertThat(restored.packageV2(session.id())).isTrue();
+        restored.remote(session.id(), root);
+        verify(remote, times(1)).promptAsync(eq(session), any(OpenCodeClient.PromptRequest.class));
+        assertThat(mapper.designerConversationForRemote(session.id()).orElseThrow().profile()).isEqualTo("PACKAGE_DESIGN_CANDIDATE_V2_INTERACTIVE_READ_ONLY");
+    }
+
     @Test void waitingOnOneDesignerDoesNotBlockAnotherOwner() throws Exception {
         try (var executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
             java.util.concurrent.Future<Boolean> sameOwner;

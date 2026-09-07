@@ -14,7 +14,9 @@ final class PackageDesignCandidateEvaluation {
             if (authority != null) return CandidatePolicy.Decision.rejected(false, false,
                     CandidateDiagnosticEnricher.enrich(json, candidateJson, java.util.List.of(authority.submissionProblem())));
         } catch (tools.jackson.core.JacksonException invalid) { /* Shape validation supplies the parse diagnostic. */ }
-        var shape = CandidateShapeValidator.validate(json, context.candidateKind(), candidateJson);
+        var shape = "PACKAGE_DESIGN_V2".equals(context.contractVersion())
+                ? CandidateShapeValidator.validate(json, io.opencode.loopper.runtime.InternalMcpContractCatalog.packageDesignV2InputSchema(), candidateJson)
+                : CandidateShapeValidator.validate(json, context.candidateKind(), candidateJson);
         if (!shape.problems().isEmpty()) {
             var problems = CandidateDiagnosticEnricher.enrich(json, candidateJson, shape.problems());
             boolean repairable = problems.stream().noneMatch(problem -> problem.category() == ProblemCategory.AUTHORITY

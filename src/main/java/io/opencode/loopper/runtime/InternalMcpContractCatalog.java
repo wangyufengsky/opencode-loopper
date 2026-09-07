@@ -30,7 +30,7 @@ public final class InternalMcpContractCatalog {
                 toolName(MachineCandidateKind.REVIEWER_REPORT_V1),
                 toolName(MachineCandidateKind.PROJECT_CONVENTION_V1),
                 toolName(MachineCandidateKind.JUDGE_DECISION_V1),
-                legacyToolName());
+                PACKAGE_V2_TOOL, legacyToolName());
     }
 
     public static String toolName(MachineCandidateKind kind) {
@@ -47,6 +47,7 @@ public final class InternalMcpContractCatalog {
                     optional(MachineCandidateKind.ACCEPTANCE_CLOSED_CHOICE_V7);
             case PACKAGE_DESIGN_CANDIDATE_READ_ONLY, PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY ->
                     optional(MachineCandidateKind.PACKAGE_DESIGN_V1);
+            case PACKAGE_DESIGN_CANDIDATE_V2_READ_ONLY, PACKAGE_DESIGN_CANDIDATE_V2_INTERACTIVE_READ_ONLY -> Optional.of(PACKAGE_V2_TOOL);
             case ROLLING_PACKAGE_CANDIDATE_READ_ONLY -> optional(MachineCandidateKind.ROLLING_PACKAGE_PLAN_V1);
             case REVIEWER_CANDIDATE_READ_ONLY -> optional(MachineCandidateKind.REVIEWER_REPORT_V1);
             case PROJECT_CONVENTION_CANDIDATE_READ_ONLY -> optional(MachineCandidateKind.PROJECT_CONVENTION_V1);
@@ -66,6 +67,12 @@ public final class InternalMcpContractCatalog {
 
     public static Map<String, Object> inputSchema(MachineCandidateKind kind) {
         return InternalMcpCandidateSchemas.input(kind);
+    }
+
+    public static final String PACKAGE_V2_TOOL = "submit_package_design_v2";
+
+    public static Map<String, Object> packageDesignV2InputSchema() {
+        return InternalMcpCandidateSchemas.packageDesignV2Input();
     }
 
     private static Optional<String> optional(MachineCandidateKind kind) {

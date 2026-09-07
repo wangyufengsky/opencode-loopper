@@ -16,6 +16,7 @@ public final class DesignerConversationCoordinator {
     private final DesignerConversationMapper mapper;
     private final OpenCodeClient openCode;
     private final ObjectMapper json;
+    private io.opencode.loopper.config.LoopperProperties properties;
     private final java.util.concurrent.ConcurrentHashMap<String, OwnerGuard> ownerGuards = new java.util.concurrent.ConcurrentHashMap<>();
 
     /** Independent designers never wait on another designer's model/accounting call. */
@@ -41,6 +42,25 @@ public final class DesignerConversationCoordinator {
 
     public DesignerConversationCoordinator(LoopperMapper mapper, OpenCodeClient openCode, ObjectMapper json) {
         this.mapper = mapper; this.openCode = openCode; this.json = json;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public DesignerConversationCoordinator(LoopperMapper mapper, OpenCodeClient openCode, ObjectMapper json,
+            io.opencode.loopper.config.LoopperProperties properties) {
+        this(mapper, openCode, json); this.properties = properties;
+    }
+
+    public boolean packageV2(String remoteId) {
+        return mapper.designerConversationForRemote(remoteId)
+                .map(row -> row.profile().startsWith("PACKAGE_DESIGN_CANDIDATE_V2_")).orElse(false);
+    }
+
+    private OpenCodeClient.SessionProfile packageProfile(boolean question) {
+        boolean v2 = properties != null && properties.getInternalCandidate().isPackageDesignV2Enabled();
+        return v2 ? question ? OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_V2_INTERACTIVE_READ_ONLY
+                : OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_V2_READ_ONLY
+                : question ? OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY
+                : OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_READ_ONLY;
     }
 
     public void enable(String designerId) { mapper.enableDesignerConversations(designerId); }
@@ -117,7 +137,7 @@ public final class DesignerConversationCoordinator {
             int generation = mapper.latestDesignerConversation(designerId, scope).map(item -> item.generation() + 1).orElse(1);
             String id = UUID.randomUUID().toString();
             var profile = candidate
-                    ? question ? OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY : OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_READ_ONLY
+                    ? packageProfile(question)
                     : question ? OpenCodeClient.SessionProfile.DESIGNER_INTERACTIVE_READ_ONLY : OpenCodeClient.SessionProfile.GENERAL_READ_ONLY;
             String now = Instant.now().toString();
             row = new DesignerConversationRow(id, designerId, scope, generation, null, null, null, root.toString(),
@@ -144,7 +164,7 @@ public final class DesignerConversationCoordinator {
         if (row == null) return;
         if (!"OPEN".equals(row.state())) throw conflict("当前设计轮次已交接，请创建新轮次");
         String id = UUID.randomUUID().toString();
-        String marker = switch (phase) { case "REQUIREMENT" -> "r"; case "PACKAGE_QUESTION" -> "q"; default -> "p"; };
+        String marker = switch (phase) { case "REQUIREMENT" -> "r"; case "PACKAGE_QUESTION" -> "q"; case "PACKAGE_SEMANTICS" -> "s"; default -> "p"; };
         String now = Instant.now().toString();
         var turn = new DesignerConversationTurnRow(id, row.id(), "msg_loopper_design_" + marker + "_" + id.replace("-", ""),
                 phase, UUID.randomUUID().toString(), null, null, "PREPARED", now, now, 0);

@@ -8,11 +8,23 @@ import java.util.List;
 final class PackageDesignInputPreflight {
     private PackageDesignInputPreflight() { }
     static List<Problem> problems(PackageDesignCompilation.Input input) {
+        boolean v2 = "PACKAGE_DESIGN_V2".equals(input.semanticContractVersion());
+        if (v2 && PackageFrozenSafety.externalConflict(input.requirementText()))
+            return List.of(PackageFrozenSafety.blocked("FROZEN_EXTERNAL_WRITE_CONFLICT",
+                    "原文冻结了只读、外部写入或发布限制，同时要求执行该类外部操作"));
         Catalog empty = new Catalog(CONTRACT_VERSION_V7, input.workPackage().packageId(),
                 input.workPackage().designRevision(), "", true, List.of(), List.of(), List.of());
         try {
-            Catalog frozen = new DesignerMutationObligationExtractor().frozenInput(empty, input.requirementText(), input.scopeIn(),
-                    input.scopeOut(), input.deliverables());
+            var extractor = new DesignerMutationObligationExtractor();
+            Catalog frozen = "PACKAGE_DESIGN_V2".equals(input.semanticContractVersion())
+                    ? extractor.extractUsingFrozenScope(empty, input.requirementText(), input.scopeIn(), input.scopeOut(), input.deliverables(), true)
+                    : extractor.frozenInput(empty, input.requirementText(), input.scopeIn(), input.scopeOut(), input.deliverables());
+            if (v2) {
+                var forbidden = frozen.mutationObligations().stream().filter(item -> item.operation() == MutationOperation.DELETE_REQUEST
+                        || item.operation() == MutationOperation.MOVE_SOURCE).toList();
+                if (!forbidden.isEmpty()) return List.of(PackageFrozenSafety.blocked("REQUIRED_MUTATION_PATH_FORBIDDEN",
+                        "服务端验收编译器禁止自动授权删除或移动源端；冻结请求=" + forbidden.stream().map(item -> item.operation() + " " + item.pathRule()).toList()));
+            }
             return frozen.mutationIssues().stream()
                     .filter(code -> code.equals("MUTATION_PATH_SCOPE_CONFLICT") || code.equals("FROZEN_MUTATION_PATH_SCOPE_CONFLICT"))
                     .map(code -> new Problem(code.equals("FROZEN_MUTATION_PATH_SCOPE_CONFLICT")

@@ -1,7 +1,7 @@
 {
   "name": "opencode-loopper-frontend",
   "private": true,
-  "version": "0.3.70",
+  "version": "0.3.72",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,7 +9,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "test:accounting": "node --test ../scripts/aicoding/guard.test.mjs",
+    "test:accounting": "node --test ../scripts/aicoding/guard.test.mjs ../scripts/tests/package-semantic-guard.test.mjs",
     "typecheck": "vue-tsc -b"
   },
   "dependencies": {

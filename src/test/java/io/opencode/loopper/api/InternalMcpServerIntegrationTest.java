@@ -278,6 +278,27 @@ class InternalMcpServerIntegrationTest {
         org.mockito.Mockito.verify(submission, org.mockito.Mockito.never()).submit(org.mockito.ArgumentMatchers.any());
     }
 
+    @Test
+    void packageV2RunRejectsLegacyAndV1ToolsBeforeCallingSubmission() throws Exception {
+        runtime.close();
+        var submission = org.mockito.Mockito.mock(MachineCandidateSubmission.class);
+        var run = org.mockito.Mockito.mock(MachineCandidateSubmission.RunSnapshot.class);
+        org.mockito.Mockito.when(run.candidateKind()).thenReturn(MachineCandidateKind.PACKAGE_DESIGN_V1);
+        org.mockito.Mockito.when(run.contractVersion()).thenReturn("PACKAGE_DESIGN_V2");
+        org.mockito.Mockito.when(submission.find("run-1")).thenReturn(Optional.of(run));
+        runtime = new InternalMcpServerConfiguration().internalMcpServerRuntime(submission, new ObjectMapper(), resources, "test");
+        mvc = MockMvcBuilders.routerFunctions(runtime.routerFunction()).addFilters(new InternalMcpStreamableBearerFilter(access)).build();
+        String session = initialize();
+        for (String tool : List.of("submit_candidate", "submit_package_design")) {
+            assertThat(result(rpc(2, "tools/call", "{\"name\":\"" + tool + "\",\"arguments\":{\"runId\":\"run-1\",\"idempotencyKey\":\"key\",\"candidate\":{},\"expectedSubmissionRevision\":0}}"), session))
+                    .contains("CANDIDATE_TOOL_CONTRACT_MISMATCH");
+        }
+        org.mockito.Mockito.when(run.contractVersion()).thenReturn("PACKAGE_DESIGN_V1");
+        assertThat(result(rpc(3, "tools/call", "{\"name\":\"submit_package_design_v2\",\"arguments\":{\"runId\":\"run-1\",\"idempotencyKey\":\"key\",\"candidate\":{},\"expectedSubmissionRevision\":0}}"), session))
+                .contains("CANDIDATE_TOOL_CONTRACT_MISMATCH");
+        org.mockito.Mockito.verify(submission, org.mockito.Mockito.never()).submit(org.mockito.ArgumentMatchers.any());
+    }
+
     private MachineCandidateSubmission submissions() {
         return new MachineCandidateSubmission() {
             @Override public RunSnapshot open(OpenCommand command) { throw new UnsupportedOperationException(); }

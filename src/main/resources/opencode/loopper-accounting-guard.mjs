@@ -10,14 +10,14 @@ export const LoopperAccountingGuard = async ({ client, directory }) => {
   const parent = info => info?.parentID ?? info?.parentId
   const isStatistics = message => message.info?.id?.startsWith(prefix)
     || parent(message.info)?.startsWith(prefix)
-  const designPhase = id => /^msg_loopper_design_([rqp])_/.exec(id ?? '')?.[1]
+  const designPhase = id => /^msg_loopper_design_([rqps])_/.exec(id ?? '')?.[1]
   const submissionTools = [
-    'submit_decomposition_plan', 'submit_acceptance_choice', 'submit_package_design',
+    'submit_decomposition_plan', 'submit_acceptance_choice', 'submit_package_design', 'submit_package_design_v2',
     'submit_rolling_package_plan', 'submit_reviewer_report', 'submit_project_convention',
     'submit_judge_decision', 'submit_candidate',
   ]
   const isSubmissionTool = id => submissionTools.some(name => id?.endsWith(`_${name}`))
-  const deniedInPhase = (id, phase) => phase === 'r' && isSubmissionTool(id) || phase === 'p' && id === 'question'
+  const deniedInPhase = (id, phase) => (phase === 'r' || phase === 's') && isSubmissionTool(id) || (phase === 'p' || phase === 's') && id === 'question'
   const isAccountingTool = name => /^aicoding(?:_|$)/.test(name)
   const managedSession = async sessionID => {
     if (affected.has(sessionID)) return true

@@ -72,6 +72,12 @@ public class InternalMcpServerConfiguration {
                     .callHandler((exchange, request) -> submit(
                             submissions, json, resources, request.arguments(), kind)).build());
         }
+        var v2 = tool(InternalMcpContractCatalog.PACKAGE_V2_TOOL,
+                "Submit one complete PACKAGE_DESIGN_V2 semantic candidate for its frozen run",
+                InternalMcpContractCatalog.packageDesignV2InputSchema());
+        tools.add(McpServerFeatures.SyncToolSpecification.builder().tool(v2)
+                .callHandler((exchange, request) -> submit(submissions, json, resources, request.arguments(),
+                        MachineCandidateKind.PACKAGE_DESIGN_V1, "PACKAGE_DESIGN_V2")).build());
         McpSchema.Tool legacy = tool(InternalMcpContractCatalog.legacyToolName(),
                 "Legacy recovery tool for a frozen submit_candidate launch plan",
                 InternalMcpContractCatalog.inputSchema());
@@ -93,6 +99,13 @@ public class InternalMcpServerConfiguration {
     private static McpSchema.CallToolResult submit(
             MachineCandidateSubmission submissions, ObjectMapper json, OpenCodeAttachmentResources resources,
             Map<String, Object> arguments, MachineCandidateKind expectedKind) {
+        return submit(submissions, json, resources, arguments, expectedKind,
+                expectedKind == MachineCandidateKind.PACKAGE_DESIGN_V1 ? "PACKAGE_DESIGN_V1" : null);
+    }
+
+    private static McpSchema.CallToolResult submit(
+            MachineCandidateSubmission submissions, ObjectMapper json, OpenCodeAttachmentResources resources,
+            Map<String, Object> arguments, MachineCandidateKind expectedKind, String expectedContract) {
         try {
             InternalMcpRequestValidator.Result validation = InternalMcpRequestValidator.validate(arguments);
             if (!validation.valid()) {
@@ -112,6 +125,13 @@ public class InternalMcpServerConfiguration {
                         "Call " + expectedTool + " with this runId");
                 return diagnosticError(json, "CANDIDATE_TOOL_KIND_MISMATCH", List.of(problem),
                         "FIX_AND_RESUBMIT", null);
+            }
+            if (run.isPresent() && run.get().candidateKind() == MachineCandidateKind.PACKAGE_DESIGN_V1
+                    && ("PACKAGE_DESIGN_V2".equals(run.get().contractVersion())
+                        ? !"PACKAGE_DESIGN_V2".equals(expectedContract)
+                        : "PACKAGE_DESIGN_V2".equals(expectedContract))) {
+                return safeError(json, "CANDIDATE_TOOL_CONTRACT_MISMATCH",
+                        "Use the single package submission tool matching this run's frozen contract version");
             }
             run.ifPresent(found -> resources.awaitDelivery(found.externalSessionId()));
             MachineCandidateSubmission.SubmissionResult result = submissions.submit(
