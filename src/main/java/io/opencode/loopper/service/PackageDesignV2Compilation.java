@@ -66,6 +66,8 @@ final class PackageDesignV2Compilation {
             lines.add("关系 " + relation.key() + " " + relation.operator() + " " + relation.operands()
                     + " 来源 " + relation.sourceRefs() + "；所有叶场景=" + decoded.graph().branchScenarios().get(relation.key()));
         }
+        if (detailed && input.behaviorContract() != null) lines.add(PackageBehaviorCompilation.context(input, json));
+        else if (input.behaviorContract() != null) lines.add("有限域行为检查已通过；完整冻结义务及未建模来源见工作包交接。原文与结构化义务的对齐仍依赖独立复核，不是形式证明。");
         if (detailed) decoded.document().sourceBindings().forEach(binding -> lines.add("来源绑定 " + binding.candidateRefs() + " -> " + binding.sourceRefs()));
         return String.join("\n", lines);
     }

@@ -29,6 +29,7 @@ class CandidateRepairProgressTest {
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.CsvSource({
             "packages,packageKey,WP-1,WP-2",
+            "behaviorBranches,scenarioKey,SC-A,SC-B",
             "capabilityPreferences,factIndex,1,2",
             "findings,path,src/a.java,src/b.java"})
     void roleEntityIdentitySurvivesArrayReordering(String array, String key, String first, String second) {
@@ -43,6 +44,17 @@ class CandidateRepairProgressTest {
         assertThat(after.remaining()).containsExactly(before.issues().getFirst().id());
         assertThat(after.resolved()).isEmpty();
         assertThat(after.introduced()).isEmpty();
+    }
+
+    @Test void semanticCounterexampleIdentityDoesNotDependOnFirstAffectedBranchPosition() {
+        var p = new MachineCandidateSubmission.Problem("SEMANTIC_CONFLICT", "/behaviorBranches/0",
+                "SEM-12345678901234567890；来源=[REQ-L001]", List.of(), "candidate", null,
+                "identical effects", "counterexample={admin:true}", "fix full candidate");
+        var q = new MachineCandidateSubmission.Problem(p.code(), "/behaviorBranches/1", p.detail(), p.allowedValues(),
+                p.parameter(), p.category(), p.expected(), p.actual(), p.repairHint());
+        var before = analyze("{}", List.of(p), List.of(), true);
+        var after = analyze("{}", List.of(q), List.of(attempt(before, true)), true);
+        assertThat(after.remaining()).containsExactly(before.issues().getFirst().id());
     }
 
     @Test void detectsOscillationButDoesNotClaimProgressFromTruncatedDiagnostics() {

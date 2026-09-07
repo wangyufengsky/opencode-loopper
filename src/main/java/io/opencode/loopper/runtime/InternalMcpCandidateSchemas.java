@@ -122,7 +122,9 @@ final class InternalMcpCandidateSchemas {
         properties.put("gapClaims", boundedArray(object(List.of("key", "code", "sourceRefs", "question", "alternatives"), Map.of(
                 "key", string(1, 128), "code", string(1, 128), "sourceRefs", boundedArray(string(1, 128), 128),
                 "question", utf8String(2000, true), "alternatives", boundedArray(utf8String(1000, true), 4))), 16));
-        return request(object(List.copyOf(properties.keySet()), properties));
+        var required = List.copyOf(properties.keySet());
+        properties.put("behaviorBranches", PackageBehaviorSchemas.branches());
+        return request(object(required, properties));
     }
 
     private static Map<String, Object> rollingPackagePlan() {

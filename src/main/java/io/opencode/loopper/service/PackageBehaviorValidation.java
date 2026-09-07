@@ -23,7 +23,11 @@ final class PackageBehaviorValidation {
                     || v.values().stream().anyMatch(x -> x == null || x.isBlank() || x.length() > 80)
                     || new HashSet<>(v.values()).size() != v.values().size()) errors.add("invalid finite domain: " + v.key());
             else if ("BOOLEAN".equals(v.type()) && !new HashSet<>(v.values()).equals(Set.of("true", "false"))) errors.add("BOOLEAN domain: " + v.key());
-            else if ("INTEGER".equals(v.type()) && v.values().stream().anyMatch(x -> !x.matches("-?(0|[1-9][0-9]{0,8})"))) errors.add("INTEGER domain: " + v.key());
+            else if ("INTEGER".equals(v.type()) && v.values().stream().anyMatch(x -> !x.matches("(0|-?[1-9][0-9]{0,8})"))) errors.add("INTEGER domain: " + v.key());
+            if ("OUTPUT".equals(v.role()) && Set.of("id", "stableid", "workpackageid", "stageid", "requirementid", "criterionid",
+                    "criterionids", "command", "commands", "argv", "shell", "testcommand", "testtargets", "verifier", "verifiers",
+                    "allowedpaths", "forbiddenpaths", "responsiblepaths", "permissions", "permission", "implementationkind", "verificationruntime")
+                    .contains(v.key().toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z0-9]", ""))) errors.add("OUTPUT key reserved by server: " + v.key());
             refs(v.sourceRefs(), sources, errors);
         }
         if (vars.values().stream().noneMatch(v -> "OUTPUT".equals(v.role()))) errors.add("observable OUTPUT required");
@@ -57,6 +61,7 @@ final class PackageBehaviorValidation {
                     || new HashSet<>(b.obligationRefs()).size() != b.obligationRefs().size()) errors.add("invalid obligationRefs: " + b.scenarioKey());
             rule(b.event(), b.when(), b.effects(), vars, errors);
         }
+        if (!bound.equals(scenarios)) errors.add("every scenario needs exactly one behavior branch");
         return List.copyOf(errors);
     }
     private static void rule(String event, Expr guard, Map<String, String> effects, Map<String, Variable> vars, List<String> errors) {

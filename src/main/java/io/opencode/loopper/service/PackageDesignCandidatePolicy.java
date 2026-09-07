@@ -67,7 +67,8 @@ final class PackageDesignCandidatePolicy implements CandidatePolicy {
         boolean fallback = result.retryable() && !result.problems().isEmpty()
                 && result.problems().stream().allMatch(PackageDesignCompilation.Problem::fallbackEligible);
         return Decision.rejected(result.retryable(), fallback,
-                result.problems().stream().map(PackageDesignCompilation.Problem::submissionProblem).toList());
+                result.problems().stream().map(PackageDesignCompilation.Problem::submissionProblem).toList(),
+                result.problems().stream().noneMatch(p -> "SEMANTIC_DIAGNOSTICS_LIMIT".equals(p.code())));
     }
 
     private void verifyEvidence(String runId, PackageDesignCompilation.Input input) {

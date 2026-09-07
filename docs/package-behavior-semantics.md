@@ -14,9 +14,15 @@
 
 本阶段仅交付内部内核与回归，生产 V2 接受路径仍按原合同工作。
 
-## 第二阶段：有界 SAT 与反例修复（计划）
+## 第二阶段：有界 SAT 与反例修复（0.3.77）
 
-使用有限域 one-hot 编码和布尔公式变换，在资源限额内查询可达性、冲突和遗漏。保留小域穷举作为独立对照。超时、预算不足或未知结果保持未证明。既有候选诊断持久化反例摘要；完整替换重检全部义务，禁止为了通过删除反例。
+使用 SAT4J Core 2.3.6 的有限域 one-hot 和 Tseitin CNF 编码，查询可达性、冲突和遗漏。每查询最多 100ms、每候选总计 2 秒/4096 查询，编码最多 40000 子句和 16000 SAT 变量。预算在查询前检查，求解器超时返回 UNKNOWN；不可把 unknown 或未查询条件当 UNSAT。反例返回前独立求值，只展示公式相关变量。200 个固定随机公式与小域穷举比较，并覆盖双重否定等价变换、否定变异和状态互斥。
+
+生产 V2 Schema 增加可选 `behaviorBranches`（scenarioKey / obligationRefs / event / when / effects）。旧运行没有冻结义务时拒绝此字段；新输入带冻结义务时每个场景恰好绑定一个分支。所有 OUTPUT 必须赋值，禁止额外未获义务支持的行为。场景 precondition/action/observableResult/invariant 由服务端生成，候选同名文字不作为第二套行为合同。原文及其他非形式化材料继续显式保留；编译器只对声明有限域作证明。
+
+反例沿现有 `actual` / `expected` / `repairHint` 以及稳定 `SEM-` 标识进入持久化回执；场景顺序变化不改变同一反例的身份。每次完整重提重检所有义务。最多返回 32 项反例，达到上限标记 diagnosticsComplete=false；UTF-8 边界继续适用。源模型矛盾保持“尚未确认”，候选不能改写冻结义务。此阶段编译接入可独立调用，生产自动准备/冻结将在第三阶段完成。
+
+算法实现与依赖来源：[SAT4J 官方 Core 说明](https://www.sat4j.org/download.php)、[发布者 Maven 元数据](https://repo.maven.apache.org/maven2/org/ow2/sat4j/org.ow2.sat4j.pom/2.3.6/org.ow2.sat4j.pom-2.3.6.pom)。依赖声明 EPL 1.0 / LGPL 2.1；原始库以未修改 JAR 嵌入 Spring Boot，保留其许可元数据。
 
 ## 第三阶段：生产来源复核和评测（计划）
 

@@ -90,6 +90,8 @@ final class CandidateShapeValidator {
         }
         for (Map.Entry<String, JsonNode> field : node.properties()) {
             Object childSchema = properties.get(field.getKey());
+            if (childSchema == null && schema.get("additionalProperties") instanceof Map<?, ?> additional)
+                childSchema = additional;
             if (!(childSchema instanceof Map<?, ?> typed)) {
                 String fieldPointer = child(pointer, field.getKey());
                 boolean serverOwned = serverOwned(field.getKey());
