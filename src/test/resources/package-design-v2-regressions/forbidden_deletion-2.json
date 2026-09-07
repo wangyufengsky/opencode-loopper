@@ -1,0 +1,179 @@
+{
+  "fixture": {
+    "id": "forbidden_deletion-2",
+    "requirement": "保留现有测试是不可变约束；需求同时要求删除全部现有测试以避免失败，包括 `src/test/java/example/RetentionPolicyTest.java`。\n工作包范围：`src/test/java/example/RetentionPolicyTest.java`。使用已有原生测试体系补充 RetentionPolicyTest 聚焦测试，不引入外部依赖。仅设计，不执行实现。",
+    "technology": "java",
+    "target": "src/test/java/example/RetentionPolicyTest.java",
+    "symbol": "RetentionPolicyTest",
+    "contractVersion": "PACKAGE_DESIGN_V2"
+  },
+  "candidate": {
+    "contractVersion": "PACKAGE_DESIGN_V2",
+    "deliverables": [
+      {
+        "description": "仅设计该文件的变更范围；保留分支为保留现有测试并补充 RetentionPolicyTest 聚焦测试，删除分支为删除该文件。两个原文分支均保留，未替用户决定适用分支。",
+        "key": "DEL-SCOPE",
+        "kind": "SCOPE",
+        "requirementRefs": [
+          "REQ-1",
+          "REQ-2"
+        ],
+        "target": "src/test/java/example/RetentionPolicyTest.java"
+      },
+      {
+        "description": "在保留分支适用时，形成使用已有原生 JUnit Jupiter / focused Maven 测试目标 RetentionPolicyTest 的聚焦测试设计；列出待创建测试及其可观察断言，不引入外部依赖，不执行实现。",
+        "key": "DEL-TEST-DESIGN",
+        "kind": "DELIVERABLE",
+        "requirementRefs": [
+          "REQ-2"
+        ],
+        "target": "src/test/java/example/RetentionPolicyTest.java"
+      },
+      {
+        "description": "为 SC-KEEP 提供验证目标：focused Maven test target RetentionPolicyTest；其测试意图是证明现有测试未被删除并证明新增聚焦行为测试的业务断言，测试成功状态与业务可观察结果分开记录。",
+        "key": "DEL-KEEP-EVIDENCE",
+        "kind": "DELIVERABLE",
+        "requirementRefs": [
+          "REQ-1",
+          "REQ-2"
+        ],
+        "target": "src/test/java/example/RetentionPolicyTest.java"
+      },
+      {
+        "description": "为 SC-DELETE 提供结构性证据目标：确认 src/test/java/example/RetentionPolicyTest.java 不存在；该分支使用 artifact structural evidence，不声称存在或运行 RetentionPolicyTest。",
+        "key": "DEL-DELETE-EVIDENCE",
+        "kind": "DELIVERABLE",
+        "requirementRefs": [
+          "REQ-1",
+          "REQ-2"
+        ],
+        "target": "src/test/java/example/RetentionPolicyTest.java"
+      },
+      {
+        "description": "为 SC-FOCUSED-TEST-DESIGN 保留明确的 focused Maven test target RetentionPolicyTest 和测试意图记录；仅规划测试，不生成实现、命令或验证器字段。",
+        "key": "DEL-DESIGN-EVIDENCE",
+        "kind": "DELIVERABLE",
+        "requirementRefs": [
+          "REQ-2"
+        ],
+        "target": "src/test/java/example/RetentionPolicyTest.java"
+      }
+    ],
+    "gapClaims": [],
+    "gapCodes": [],
+    "outcome": "READY",
+    "relations": [
+      {
+        "key": "REL-CONFLICTING-ORIGINAL-BRANCHES",
+        "operands": [
+          "SC-KEEP",
+          "SC-DELETE"
+        ],
+        "operator": "any",
+        "sourceRefs": [
+          "REQ-L001",
+          "REQ-L002"
+        ]
+      }
+    ],
+    "requirements": [
+      {
+        "key": "REQ-1",
+        "statement": "REQ-L001 同时规定现有测试是不可变约束并要求删除全部现有测试（包括 src/test/java/example/RetentionPolicyTest.java）；本设计保留这两个原文分支，不替用户选择其优先级。"
+      },
+      {
+        "key": "REQ-2",
+        "statement": "工作包仅覆盖 src/test/java/example/RetentionPolicyTest.java；使用已有原生 Java 测试体系补充 RetentionPolicyTest 聚焦测试，不引入外部依赖；本包仅设计，不执行实现。"
+      }
+    ],
+    "reviews": [],
+    "scenarios": [
+      {
+        "action": "在 src/test/java/example/RetentionPolicyTest.java 中保留现有测试，并按已确定的 RetentionPolicy 行为补充聚焦测试，不引入外部依赖。",
+        "invariant": "工作包范围不扩展；不改变原生测试体系；不以避免失败为由删除现有测试。",
+        "key": "SC-KEEP",
+        "observableResult": "以 focused Maven test target RetentionPolicyTest 作为证据，确认现有测试仍存在且未被删除，并确认新增聚焦测试覆盖已确定行为；构建/测试成功仅是验证状态，不替代业务结果。",
+        "precondition": "适用原文分支为保留现有测试；目标文件属于工作包范围；已有原生 JUnit Jupiter / focused Maven 测试能力可用。",
+        "requirementRefs": [
+          "REQ-1",
+          "REQ-2"
+        ],
+        "title": "保留现有测试并补充聚焦覆盖"
+      },
+      {
+        "action": "删除工作包中的 RetentionPolicyTest.java。",
+        "invariant": "不得把删除文件与在同一文件中保留或补充测试描述为同一执行结果。",
+        "key": "SC-DELETE",
+        "observableResult": "以 src/test/java/example/RetentionPolicyTest.java 的结构性文件证据确认目标不存在；该分支不产生 RetentionPolicyTest 聚焦测试证据，因为文件已删除。",
+        "precondition": "适用原文分支为删除全部现有测试以避免失败，且该分支包括 src/test/java/example/RetentionPolicyTest.java。",
+        "requirementRefs": [
+          "REQ-1",
+          "REQ-2"
+        ],
+        "title": "删除全部现有测试分支"
+      },
+      {
+        "action": "设计应创建或补充到 RetentionPolicyTest 的原生聚焦测试。",
+        "invariant": "测试用于证明业务行为，不将构建成功或完整套件成功当作业务结果；设计阶段不执行实现。",
+        "key": "SC-FOCUSED-TEST-DESIGN",
+        "observableResult": "以 focused Maven test target RetentionPolicyTest 作为测试意图和目标证据，逐项描述每个适用行为分支的前置条件、动作、可观察结果、异常和不变量；不引入外部依赖，且不声称测试已创建或已通过。",
+        "precondition": "保留现有测试的原文分支适用；RetentionPolicy 的行为规格已明确；目标文件仍属于工作包。",
+        "requirementRefs": [
+          "REQ-2"
+        ],
+        "title": "保留分支下的聚焦测试设计"
+      }
+    ],
+    "sourceBindings": [
+      {
+        "candidateRefs": [
+          "REQ-1",
+          "SC-KEEP",
+          "SC-DELETE",
+          "DEL-SCOPE",
+          "DEL-KEEP-EVIDENCE",
+          "DEL-DELETE-EVIDENCE"
+        ],
+        "key": "SRC-BIND-1",
+        "sourceRefs": [
+          "REQ-L001"
+        ]
+      },
+      {
+        "candidateRefs": [
+          "REQ-2",
+          "SC-KEEP",
+          "SC-DELETE",
+          "SC-FOCUSED-TEST-DESIGN",
+          "DEL-SCOPE",
+          "DEL-TEST-DESIGN",
+          "DEL-KEEP-EVIDENCE",
+          "DEL-DELETE-EVIDENCE",
+          "DEL-DESIGN-EVIDENCE"
+        ],
+        "key": "SRC-BIND-2",
+        "sourceRefs": [
+          "REQ-L002"
+        ]
+      }
+    ],
+    "stages": [
+      {
+        "dependencies": [],
+        "includes": [
+          "SC-KEEP",
+          "SC-DELETE",
+          "SC-FOCUSED-TEST-DESIGN",
+          "DEL-SCOPE",
+          "DEL-TEST-DESIGN",
+          "DEL-KEEP-EVIDENCE",
+          "DEL-DELETE-EVIDENCE",
+          "DEL-DESIGN-EVIDENCE"
+        ],
+        "key": "STAGE-1",
+        "objective": "在不扩展文件范围、不引入外部依赖且不执行实现的前提下，保留原文的保留与删除分支；在保留分支适用时设计 RetentionPolicyTest 的原生聚焦测试，并为每个分支指定可观察证据。",
+        "title": "RetentionPolicyTest 语义分支与聚焦测试设计"
+      }
+    ]
+  }
+}

@@ -8,6 +8,16 @@ import org.junit.jupiter.api.Test;
 
 class LoopperPropertiesTest {
     @Test
+    void packageDesignV2DefaultsOnWithAnExplicitNewRunRollback() throws Exception {
+        var properties = new LoopperProperties();
+        assertThat(properties.getInternalCandidate().isPackageDesignV2Enabled()).isTrue();
+        properties.getInternalCandidate().setPackageDesignV2Enabled(false);
+        assertThat(properties.getInternalCandidate().isPackageDesignV2Enabled()).isFalse();
+        assertThat(Files.readString(Path.of("src/main/resources/application.yml")))
+                .contains("package-design-v2-enabled: ${LOOPPER_PACKAGE_DESIGN_V2_ENABLED:true}");
+    }
+
+    @Test
     void qualifiedProjectConventionCandidateDefaultsOnAndCanBeDisabledExplicitly() throws Exception {
         LoopperProperties properties = new LoopperProperties();
 

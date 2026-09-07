@@ -253,6 +253,8 @@ StatusProjector -> persisted read snapshots
 
 Feature flag 只能位于“是否打开新 run”的应用决策点，不能包裹持久化 adapter、恢复 reader 或通用提交 Bean。这样关闭功能后仍能恢复和收束已存在 run，也避免应用重启把持久化协议变成不可读取状态。
 
+V2 的 `PackageDesignScopeGuard` 是接受前的纯编译结果守卫：只使用冻结输入和服务端默认策略证明最终 Stage/GIT_DIFF 路径包含关系及删除保护，不从候选交付物推导授权，不执行 I/O。来源预检由 `PackageDesignInputPreflight / PackageFrozenSafety` 持有；形状、关系与缺口判定继续由既有 V2 组件负责。默认开关只影响新工作包会话，不能包裹该守卫或历史恢复入口。
+
 V49 的 owner/scope 守卫必须在复制 V47/V48 历史 run 之前就生效；迁移不得把旧库中跨作用域的 owner 静默规范化。任一历史行不匹配必须使 V49 整体失败并保留可恢复的 V48 数据。Owner 删除 trigger 只负责数据库内的同一事务级联；现有七种真实 owner 表均必须有回归，独立 accepted-result 级联只适用于 `PACKAGE_DESIGN_V1`，不得为其他 kind 虚构结果表。
 
 度量模型必须把 `candidateSessions` 与 `candidateSubmissions` 定义为两个非负独立计数，并与 `modelCalls` 分开采集；禁止从任一计数推导另一项。API/资格报告保留精确的 0，StatusProjector/界面可以隐藏 0 值，但不得把隐藏后的缺省字段当作未知或失败。

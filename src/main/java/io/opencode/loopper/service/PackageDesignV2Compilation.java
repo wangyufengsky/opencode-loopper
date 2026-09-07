@@ -36,6 +36,8 @@ final class PackageDesignV2Compilation {
         if (!compiled.accepted()) return new Result(compiled.outcome(), canonical, compiled.canonicalMarkdown(),
                 null, null, noFallback(compiled.problems()));
         var plan = compiled.compiledPlan();
+        var scopeProblems = PackageDesignScopeGuard.validate(frozenInput, plan);
+        if (!scopeProblems.isEmpty()) return rejected(Outcome.NEEDS_INPUT, canonical, scopeProblems);
         String context = semanticContext(input, decoded, false);
         if (plan.evidenceMappings().stream().anyMatch(item -> join(item.judgeRubric(), context).length() > 4000))
             return rejected(Outcome.REJECTED, canonical, List.of(new Problem("PACKAGE_RELATION_CONTEXT_LIMIT", "/relations",

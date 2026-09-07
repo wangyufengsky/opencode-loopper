@@ -10,6 +10,30 @@ final class PackageFrozenSafety {
                     + "|(?:不允许|不得)[^。；;\\n]{0,16}(?:外部|发布|推送)");
     private PackageFrozenSafety() { }
 
+    /** Collection/deictic file requests need no fabricated path resolution to prove a forbidden operation. */
+    static List<String> fileRemovalRequests(String original) {
+        if (original == null) return List.of();
+        var requests = new java.util.ArrayList<String>();
+        var removal = Pattern.compile("(?:删除|移除|移动|重命名|迁移)\\s*(?:(?:全部|所有|现有|既有|当前|该|此|本|这些|这个)\\s*)*"
+                + "(?:测试(?:文件|代码|用例)?|文件|目录|源码)");
+        var inverted = Pattern.compile("(?:将|把)\\s*(?:该|此|本|当前|这些|这个)(?:测试)?(?:文件|目录|源码)\\s*(?:删除|移除|移动|重命名|迁移)");
+        for (var clause : original.split("[。；;\\n\\r，,]|但是|不过|同时|并且")) {
+            if (DesignerMutationPolarity.negativeOrExample(clause)) continue;
+            var direct = removal.matcher(clause);
+            var reverse = inverted.matcher(clause);
+            if (direct.find() && taskAction(clause, direct.start(), direct.end())
+                    || reverse.find() && taskAction(clause, reverse.start(), reverse.end())) requests.add(clause.strip());
+        }
+        return List.copyOf(requests);
+    }
+
+    private static boolean taskAction(String clause, int start, int end) {
+        String before = clause.substring(0, start).strip();
+        String after = clause.substring(end).strip();
+        if (after.matches("^(?:的)?(?:功能|能力|逻辑|机制|接口|事件|场景|行为|测试|标记).*")) return false;
+        return before.isEmpty() || before.matches(".*(?:要求|需要|必须|应当|请|直接|并|然后|随后|且)$");
+    }
+
     static boolean externalConflict(String original) {
         if (original == null || !RESTRICTED.matcher(original).find()) return false;
         // Canonicalize named external objects, not the action/negation scope. Domain event publication is untouched.

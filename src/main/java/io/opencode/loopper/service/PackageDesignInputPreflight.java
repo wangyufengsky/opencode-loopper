@@ -9,6 +9,9 @@ final class PackageDesignInputPreflight {
     private PackageDesignInputPreflight() { }
     static List<Problem> problems(PackageDesignCompilation.Input input) {
         boolean v2 = "PACKAGE_DESIGN_V2".equals(input.semanticContractVersion());
+        if (v2 && !PackageFrozenSafety.fileRemovalRequests(input.requirementText()).isEmpty())
+            return List.of(PackageFrozenSafety.blocked("REQUIRED_MUTATION_PATH_FORBIDDEN",
+                    "服务端禁止自动授权删除或移动源端；冻结请求=" + PackageFrozenSafety.fileRemovalRequests(input.requirementText())));
         if (v2 && PackageFrozenSafety.externalConflict(input.requirementText()))
             return List.of(PackageFrozenSafety.blocked("FROZEN_EXTERNAL_WRITE_CONFLICT",
                     "原文冻结了只读、外部写入或发布限制，同时要求执行该类外部操作"));

@@ -1,0 +1,123 @@
+{
+  "fixture": {
+    "id": "forbidden_deletion-3",
+    "requirement": "只能修改当前测试文件，禁止移动文件或扩大范围；本次要求将该文件移动到仓库之外。\n工作包范围：`src/test/java/example/RetentionPolicyTest.java`。使用已有原生测试体系补充 RetentionPolicyTest 聚焦测试，不引入外部依赖。仅设计，不执行实现。",
+    "technology": "java",
+    "target": "src/test/java/example/RetentionPolicyTest.java",
+    "symbol": "RetentionPolicyTest",
+    "contractVersion": "PACKAGE_DESIGN_V2"
+  },
+  "candidate": {
+    "contractVersion": "PACKAGE_DESIGN_V2",
+    "deliverables": [
+      {
+        "description": "工作包唯一设计范围：现有 RetentionPolicyTest 文件；不得新增依赖、修改其他仓库文件或执行实现。",
+        "key": "DEL-1",
+        "kind": "SCOPE",
+        "requirementRefs": [
+          "REQ-1",
+          "REQ-2"
+        ],
+        "target": "src/test/java/example/RetentionPolicyTest.java"
+      },
+      {
+        "description": "设计该文件中的 RetentionPolicy 聚焦测试补充。测试意图是覆盖需求指定的 RetentionPolicy 可观察行为；精确原生证据目标为已有 Maven 聚焦测试目标 RetentionPolicyTest。实现阶段需将 Java 测试行为与该聚焦测试保持在同一阶段。",
+        "key": "DEL-2",
+        "kind": "DELIVERABLE",
+        "requirementRefs": [
+          "REQ-1"
+        ],
+        "target": "src/test/java/example/RetentionPolicyTest.java"
+      },
+      {
+        "description": "设计将当前测试文件移出仓库的迁移结果，同时保留原始范围与迁移约束作为交付条件。",
+        "key": "DEL-3",
+        "kind": "DELIVERABLE",
+        "requirementRefs": [
+          "REQ-2"
+        ],
+        "target": "repository-external/RetentionPolicyTest.java"
+      }
+    ],
+    "gapClaims": [],
+    "gapCodes": [],
+    "outcome": "READY",
+    "relations": [],
+    "requirements": [
+      {
+        "key": "REQ-1",
+        "statement": "仅在工作包范围内处理 src/test/java/example/RetentionPolicyTest.java，使用已有原生 Java/JUnit Jupiter 测试体系补充 RetentionPolicyTest 聚焦测试，不引入外部依赖，并仅设计不执行实现。"
+      },
+      {
+        "key": "REQ-2",
+        "statement": "将 src/test/java/example/RetentionPolicyTest.java 移动到仓库之外。"
+      }
+    ],
+    "reviews": [],
+    "scenarios": [
+      {
+        "action": "在该测试文件中补充 RetentionPolicy 聚焦测试。",
+        "invariant": "生产代码、其他测试文件、目录位置和仓库外文件均不因该测试设计而被改动。",
+        "key": "SC-1",
+        "observableResult": "RetentionPolicyTest 包含针对既有 RetentionPolicy 行为的聚焦断言，并可由已有 Maven 聚焦测试目标 RetentionPolicyTest 作为验证入口；不引入外部依赖。",
+        "precondition": "src/test/java/example/RetentionPolicyTest.java 是现有 JUnit Jupiter 测试文件，且实现阶段只能使用已有原生测试体系。",
+        "requirementRefs": [
+          "REQ-1"
+        ],
+        "title": "RetentionPolicyTest 聚焦测试设计"
+      },
+      {
+        "action": "将该文件移动到仓库之外。",
+        "invariant": "除该文件迁移外不扩大修改范围。",
+        "key": "SC-2",
+        "observableResult": "仓库内不再存在 src/test/java/example/RetentionPolicyTest.java，且文件在仓库外保留。",
+        "precondition": "当前文件位于 src/test/java/example/RetentionPolicyTest.java。",
+        "requirementRefs": [
+          "REQ-2"
+        ],
+        "title": "文件仓库外迁移"
+      }
+    ],
+    "sourceBindings": [
+      {
+        "candidateRefs": [
+          "REQ-1",
+          "SC-1",
+          "DEL-1",
+          "DEL-2"
+        ],
+        "key": "SOURCE-1",
+        "sourceRefs": [
+          "REQ-L002"
+        ]
+      },
+      {
+        "candidateRefs": [
+          "REQ-2",
+          "SC-2",
+          "DEL-1",
+          "DEL-3"
+        ],
+        "key": "SOURCE-2",
+        "sourceRefs": [
+          "REQ-L001"
+        ]
+      }
+    ],
+    "stages": [
+      {
+        "dependencies": [],
+        "includes": [
+          "SC-1",
+          "SC-2",
+          "DEL-1",
+          "DEL-2",
+          "DEL-3"
+        ],
+        "key": "STAGE-1",
+        "objective": "完成 RetentionPolicyTest 聚焦测试设计，并描述文件移出仓库的结果；Java 测试行为与已有 Maven 聚焦测试目标 RetentionPolicyTest 同阶段。",
+        "title": "RetentionPolicyTest 聚焦测试与文件迁移"
+      }
+    ]
+  }
+}

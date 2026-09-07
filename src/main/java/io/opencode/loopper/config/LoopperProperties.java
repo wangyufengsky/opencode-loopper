@@ -72,7 +72,7 @@ public class LoopperProperties {
         /** Qualified package-design candidate transport is on by default and may be disabled for rollback. */
         private boolean packageDesignV1Enabled = true;
         /** Evidence policy is frozen into new runs only; disabled until paired Luna qualification passes. */
-        private boolean packageDesignV2Enabled = false;
+        private boolean packageDesignV2Enabled = true;
         public boolean isPackageDesignV2Enabled() { return packageDesignV2Enabled; }
         public void setPackageDesignV2Enabled(boolean value) { packageDesignV2Enabled = value; }
         private boolean packageDesignEvidenceEnabled = false;

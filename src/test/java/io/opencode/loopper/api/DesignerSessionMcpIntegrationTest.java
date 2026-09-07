@@ -154,6 +154,7 @@ class DesignerSessionMcpIntegrationTest {
         properties.getInternalCandidate().setDecomposerEnabled(false);
         properties.getInternalCandidate().setAcceptanceClosedChoiceV7Enabled(false);
         properties.getInternalCandidate().setPackageDesignV1Enabled(false);
+        properties.getInternalCandidate().setPackageDesignV2Enabled(false);
         properties.getInternalCandidate().setRollingPackagePlanV1Enabled(false);
         properties.getInternalCandidate().setReviewerReportV1Enabled(false);
         properties.getInternalCandidate().setProjectConventionV1Enabled(false);
@@ -4194,9 +4195,11 @@ class DesignerSessionMcpIntegrationTest {
         }
     }
 
-    @Test
-    void packageDesignCandidateRepairsInOneSessionAndSkipsTheAiCompiler() throws Exception {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void packageDesignCandidateRepairsInOneSessionAndSkipsTheAiCompiler(boolean v2) throws Exception {
         properties.getInternalCandidate().setPackageDesignV1Enabled(true);
+        properties.getInternalCandidate().setPackageDesignV2Enabled(v2);
         InternalMcpCredentialProvider.Credentials credentials = activateManagedCandidateRuntime();
         holdPackageCandidateProfiles(true);
         ProjectRow project = project("package-design-candidate-accepted");
@@ -4209,24 +4212,37 @@ class DesignerSessionMcpIntegrationTest {
         designerSessions.confirmRequirement(reviewing.id(), reviewing.discussionRevision());
         String runId = pollUntilPackageCandidateRun(reviewing.id());
         assertThat(candidateUsage(reviewing.id(), "PACKAGE_DESIGN_V1",
-                OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY,
-                OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_READ_ONLY))
+                v2 ? OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_V2_INTERACTIVE_READ_ONLY : OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY,
+                v2 ? OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_V2_READ_ONLY : OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_READ_ONLY))
                 .isEqualTo(new CandidateUsage(1, 1, 0));
         String remoteId = jdbc.queryForObject(
                 "SELECT external_session_id FROM ai_candidate_submission_run WHERE id=?",
                 String.class, runId);
         assertThat(fake().promptForSession(remoteId))
-                .contains(credentials.exactToolName(MachineCandidateKind.PACKAGE_DESIGN_V1),
-                        "PACKAGE_DESIGN_V1", "expectedSubmissionRevision")
+                .contains(v2 ? credentials.serverName() + "_" + InternalMcpContractCatalog.PACKAGE_V2_TOOL
+                                : credentials.exactToolName(MachineCandidateKind.PACKAGE_DESIGN_V1),
+                        v2 ? "PACKAGE_DESIGN_V2" : "PACKAGE_DESIGN_V1", "expectedSubmissionRevision")
                 .doesNotContain("allowedPaths", "testCommand");
 
+        String candidate = packageDesignCandidate();
+        if (v2) {
+            var root = (tools.jackson.databind.node.ObjectNode) json.readTree(candidate);
+            root.put("contractVersion", "PACKAGE_DESIGN_V2");
+            var sources = java.util.regex.Pattern.compile("\\[(REQ-L[0-9]{3})\\]")
+                    .matcher(fake().promptForSession(remoteId)).results().map(match -> match.group(1)).distinct().toList();
+            root.set("sourceBindings", json.valueToTree(List.of(Map.of("key", "SOURCE-1",
+                    "candidateRefs", List.of("REQ-1", "SC-1", "DEL-1"), "sourceRefs", sources))));
+            root.set("relations", json.createArrayNode()); root.set("gapClaims", json.createArrayNode());
+            candidate = json.writeValueAsString(root);
+            assertThat(mapper.findPackageDesignEvidence(runId)).isPresent();
+        }
         String mcpSession = initializeInternalMcp(credentials);
         long revision = jdbc.queryForObject(
                 "SELECT version FROM ai_candidate_submission_run WHERE id=?", Long.class, runId);
         MvcResult rejected = mvc.perform(internalMcp(credentials,
                         rpc(101, "tools/call", packageCandidateCall(MachineCandidateKind.PACKAGE_DESIGN_V1,
                                 runId, "package-invalid",
-                                packageDesignCandidate().replace("\"dependencies\": []",
+                                candidate.replace("\"dependencies\": []",
                                         "\"dependencies\":[\"STAGE-1\"]")
                                         .replace("\"dependencies\":[]",
                                                 "\"dependencies\":[\"STAGE-1\"]"), revision)), mcpSession))
@@ -4241,7 +4257,7 @@ class DesignerSessionMcpIntegrationTest {
         MvcResult accepted = mvc.perform(internalMcp(credentials,
                         rpc(102, "tools/call", packageCandidateCall(MachineCandidateKind.PACKAGE_DESIGN_V1,
                                 runId, "package-accepted",
-                                packageDesignCandidate(), retryRevision)), mcpSession))
+                                candidate, retryRevision)), mcpSession))
                 .andExpect(request().asyncStarted()).andReturn();
         mvc.perform(asyncDispatch(accepted)).andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("ACCEPTED")));
@@ -4255,8 +4271,8 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(compilation.externalSessionId()).isNull();
         assertThat(compilation.externalSessionState()).isEqualTo("COMPLETED");
         assertThat(candidateUsage(reviewing.id(), "PACKAGE_DESIGN_V1",
-                OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY,
-                OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_READ_ONLY))
+                v2 ? OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_V2_INTERACTIVE_READ_ONLY : OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY,
+                v2 ? OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_V2_READ_ONLY : OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_READ_ONLY))
                 .isEqualTo(new CandidateUsage(1, 1, 2));
         assertThat(mapper.findPackageDesignAcceptedResult(runId)).hasValueSatisfying(result ->
                 assertThat(result.settledCompilationId()).isEqualTo(compilation.id()));
@@ -6128,7 +6144,8 @@ class DesignerSessionMcpIntegrationTest {
         Set<OpenCodeClient.SessionProfile> expected = Set.of(profiles);
         int modelCalls = (int) fake().promptHistory().stream()
                 .filter(call -> expected.contains(fake().profileForSession(call.sessionId())))
-                .filter(call -> !"PACKAGE_DESIGN_V1".equals(candidateKind) || call.prompt().contains("PACKAGE_DESIGN_V1"))
+                .filter(call -> !"PACKAGE_DESIGN_V1".equals(candidateKind)
+                        || call.prompt().contains("PACKAGE_DESIGN_V1") || call.prompt().contains("PACKAGE_DESIGN_V2"))
                 .count();
         int candidateSessions = jdbc.queryForObject("""
                 SELECT COUNT(DISTINCT external_session_id) FROM ai_candidate_submission_run
@@ -6151,6 +6168,8 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     private void holdPackageCandidateProfiles(boolean hold) {
+        fake().holdProfileOpen(OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_V2_READ_ONLY, hold);
+        fake().holdProfileOpen(OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_V2_INTERACTIVE_READ_ONLY, hold);
         fake().holdProfileOpen(OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_READ_ONLY, hold);
         fake().holdProfileOpen(OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY, hold);
     }
@@ -6179,7 +6198,8 @@ class DesignerSessionMcpIntegrationTest {
         arguments.put("candidate", json.readValue(candidateJson, Map.class));
         arguments.put("expectedSubmissionRevision", expectedRevision);
         return json.writeValueAsString(Map.of(
-                "name", InternalMcpContractCatalog.toolName(kind), "arguments", arguments));
+                "name", candidateJson.contains("PACKAGE_DESIGN_V2") ? InternalMcpContractCatalog.PACKAGE_V2_TOOL
+                        : InternalMcpContractCatalog.toolName(kind), "arguments", arguments));
     }
 
     private String packageDesignCandidate() {

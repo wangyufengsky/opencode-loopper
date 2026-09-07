@@ -1083,3 +1083,7 @@ to pass validation. See [role changes, configuration and qualification boundarie
 ### V2 工作包整理与工具版本隔离
 
 新建 `PACKAGE_DESIGN_CANDIDATE_V2_READ_ONLY` / `PACKAGE_DESIGN_CANDIDATE_V2_INTERACTIVE_READ_ONLY` 持久 profile 仅允许私有 `submit_package_design_v2`；V1 profile 继续原工具。会话 profile 和候选 contractVersion 冻结，切换开关不修改旧权限。`PACKAGE_SEMANTICS` 使用 `msg_loopper_design_s_` 持久回合身份，guard 禁止 question 与所有候选提交工具；候选设计回合才恢复匹配版本工具。V73 唯一修订记录及原协调器 CAS 防止重复整理，UNKNOWN 投递走原查询恢复，停止未确认不得创建后续业务请求。Codex 离线适配与真实 OpenCode 运行结果必须单列，详见 [工作包三批优化](package-design-luna-optimization.md)。
+
+## 工作包 V2 默认启用（0.3.75）
+
+新建持久会话默认冻结 V2 profile 与唯一 `submit_package_design_v2` 工具，旧 V1 会话不升级，显式关闭只控制新会话。V2 自动准备冻结证据；编译后的 Stage/GIT_DIFF 路径必须为冻结工作包范围的子集，并保留禁止删除约束。集合删除和指代文件移动不能经候选分支绕过。兼容、诊断及验证边界见 [V2 加固与启用](package-design-v2-enablement.md)。

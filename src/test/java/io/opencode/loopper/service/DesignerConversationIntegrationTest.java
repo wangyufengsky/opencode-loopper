@@ -91,6 +91,19 @@ class DesignerConversationIntegrationTest {
         assertThat(mapper.designerConversationForRemote(session.id()).orElseThrow().profile()).isEqualTo("PACKAGE_DESIGN_CANDIDATE_V2_INTERACTIVE_READ_ONLY");
     }
 
+    @Test void enablingV2DoesNotUpgradeExistingV1ConversationAndDefaultsApplyToNewOwners() {
+        var properties = new io.opencode.loopper.config.LoopperProperties();
+        properties.getInternalCandidate().setPackageDesignV2Enabled(false);
+        conversations = new DesignerConversationCoordinator(mapper, remote, json, properties);
+        var legacy = acquire("REQUIREMENT", false);
+        assertThat(conversations.packageV2(legacy.id())).isFalse();
+        properties.getInternalCandidate().setPackageDesignV2Enabled(true);
+        assertThat(acquire("REQUIREMENT", false).id()).isEqualTo(legacy.id());
+        assertThat(conversations.packageV2(legacy.id())).isFalse();
+        var fresh = acquire("WP-NEW", false);
+        assertThat(conversations.packageV2(fresh.id())).isTrue();
+    }
+
     @Test void waitingOnOneDesignerDoesNotBlockAnotherOwner() throws Exception {
         try (var executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
             java.util.concurrent.Future<Boolean> sameOwner;

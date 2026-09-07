@@ -1247,3 +1247,7 @@ to pass validation. See [role changes, configuration and qualification boundarie
 ### V2 工作包待处理事项
 
 前端使用服务端持久化的 `PACKAGE_GAP_*` 分类展示候选表达、仓库未知、待建验证、业务待决、已证实冲突或尚未确认，不把未知错误码推断成需求缺失。普通单包继续本地反馈入口；明确业务选择可按诊断来源回复 `REQ-L001=最终行为`，原文不被覆盖。只有新建 V2 会话启用可选一次语义整理，简单任务和历史会话不增加回合；模型整理不是接受证明。字段、边界及质量门见 [工作包三批优化](package-design-luna-optimization.md)。
+
+## 工作包 V2 默认启用（0.3.75）
+
+新建持久会话默认冻结 V2 profile 与唯一 `submit_package_design_v2` 工具，旧 V1 会话不升级，显式关闭只控制新会话。V2 自动准备冻结证据；编译后的 Stage/GIT_DIFF 路径必须为冻结工作包范围的子集，并保留禁止删除约束。集合删除和指代文件移动不能经候选分支绕过。兼容、诊断及验证边界见 [V2 加固与启用](package-design-v2-enablement.md)。
