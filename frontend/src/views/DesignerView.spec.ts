@@ -1,4 +1,4 @@
-import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
+import { enableAutoUnmount, flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import ElementPlus, { ElMessage, ElMessageBox } from 'element-plus'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -12,6 +12,9 @@ import DesignerValidatorHistory from '@/components/DesignerValidatorHistory.vue'
 import { api, ApiError } from '@/api/client'
 import { useTaskStore } from '@/stores/taskStore'
 import type { AppSettings, DesignerSession, LoopDraft, LoopSpec, Project, Task, TaskProfileRouterRun } from '@/types/domain'
+
+// Stop each mounted page's polling before mocks and the DOM environment are restored.
+enableAutoUnmount(afterEach)
 
 const { routerPush, routeQuery, routeLeave } = vi.hoisted(() => ({
   routerPush: vi.fn(),

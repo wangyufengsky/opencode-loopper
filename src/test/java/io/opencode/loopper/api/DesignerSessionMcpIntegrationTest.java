@@ -4287,6 +4287,86 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     @Test
+    void reviewedBehaviorFreezesBeforeHttpSubmissionAndCounterexampleRepairsInSameSession() throws Exception {
+        properties.getInternalCandidate().setPackageDesignV1Enabled(true);
+        properties.getInternalCandidate().setPackageDesignV2Enabled(true);
+        properties.getInternalCandidate().setPackageBehaviorEnabled(true);
+        var credentials = activateManagedCandidateRuntime(); holdPackageCandidateProfiles(true);
+        ProjectRow project = project("package-behavior-http");
+        Files.writeString(Path.of(project.rootPath()).resolve("pom.xml"), "<project/>\n");
+        var draft = drafts.create(legacySpec(project.id()));
+        var reviewing = prepareReviewingSession(project.id(), draft.id(),
+                "新增 Java EventBus 安全分支：注册且未禁用时分发，否则忽略；使用 EventBusTest 聚焦验证。");
+        designerSessions.confirmRequirement(reviewing.id(), reviewing.discussionRevision());
+        for (int i = 0; i < 20 && jdbc.queryForObject("SELECT count(*) FROM package_behavior_preparation", Integer.class) == 0; i++)
+            designerSessions.pollActiveHandoffs();
+        var data = jdbc.queryForMap("SELECT * FROM package_behavior_preparation");
+        String packageId = (String) data.get("design_work_package_id");
+        var owner = mapper.findDesignWorkPackage(packageId).orElseThrow();
+        String original = mapper.findDesignRequirementRevision(owner.requirementRevisionId()).orElseThrow().requirementText();
+        var refs = new java.util.ArrayList<String>(); var sourceText = new java.util.ArrayList<String>();
+        String[] lines = original.split("\n", -1);
+        for (int i = 0; i < lines.length; i++) if (!lines[i].isBlank()) { refs.add("REQ-L%03d".formatted(i+1)); sourceText.add(lines[i]); }
+        var allow = io.opencode.loopper.service.PackageBehaviorContract.Expr.eq("applicable", "true");
+        var deny = io.opencode.loopper.service.PackageBehaviorContract.Expr.not(allow);
+        var book = new io.opencode.loopper.service.PackageBehaviorContract("PACKAGE_BEHAVIOR_V1", List.of(
+                new io.opencode.loopper.service.PackageBehaviorContract.Variable("applicable", "BOOLEAN", "INPUT", List.of("false", "true"), refs),
+                new io.opencode.loopper.service.PackageBehaviorContract.Variable("result", "ENUM", "OUTPUT", List.of("IGNORED", "DISPATCHED"), refs)),
+                List.of(new io.opencode.loopper.service.PackageBehaviorContract.Obligation("IGNORE", refs, "publish", deny, Map.of("result", "IGNORED")),
+                        new io.opencode.loopper.service.PackageBehaviorContract.Obligation("DISPATCH", refs, "publish", allow, Map.of("result", "DISPATCHED"))), List.of(), List.of());
+        String bookJson = json.writeValueAsString(book);
+        setPackageDesignerOutput("WP-1", bookJson); fake().setJudgeOutput("DESIGNER", bookJson);
+        String designerRemote = owner.designerExternalSessionId(); fake().setSessionState(designerRemote, "COMPLETED");
+        designerSessions.pollActiveHandoffs();
+        data = jdbc.queryForMap("SELECT * FROM package_behavior_preparation");
+        assertThat(data.get("state")).isEqualTo("REVIEWING");
+        String reviewRemote = (String) data.get("review_remote_id");
+        assertThat(reviewRemote).isNotEqualTo(designerRemote);
+        assertThat(fake().profileForSession(reviewRemote)).isEqualTo(OpenCodeClient.SessionProfile.GENERAL_READ_ONLY);
+        var sourceChecks = new java.util.ArrayList<Map<String, Object>>();
+        for (int i = 0; i < refs.size(); i++) sourceChecks.add(Map.of("sourceRef", refs.get(i), "quote", sourceText.get(i),
+                "disposition", "MODELED", "obligationRefs", List.of("IGNORE", "DISPATCH"), "reason", "传输测试：applicable 表示注册且未禁用，覆盖两种结果；不作为真实模型语义验收"));
+        String review = json.writeValueAsString(Map.of("version", "PACKAGE_SOURCE_REVIEW_V1", "sourceSha256", data.get("requirement_sha256"),
+                "extractionSha256", sha256((String) data.get("extraction")), "contextSha256", sha256((String) data.get("context_json")), "book", book,
+                "sourceChecks", sourceChecks, "findings", List.of()));
+        fake().setJudgeOutput("DESIGNER", review);
+        designerSessions.pollActiveHandoffs();
+        assertThat(jdbc.queryForMap("SELECT * FROM package_behavior_preparation")).as(designerSessions.get(reviewing.id()).toString()).containsEntry("state", "DISPATCHED");
+        String runId = pollUntilPackageCandidateRun(reviewing.id());
+        assertThat(jdbc.queryForObject("SELECT workflow_step FROM ai_candidate_submission_run WHERE id=?", String.class, runId)).isEqualTo("PACKAGE_DESIGN_V2_BEHAVIOR_V1");
+        assertThat(mapper.behaviorForRun(runId)).isPresent();
+        var candidate = (tools.jackson.databind.node.ObjectNode) json.readTree(packageDesignCandidate());
+        candidate.put("contractVersion", "PACKAGE_DESIGN_V2");
+        var second = ((tools.jackson.databind.node.ObjectNode) candidate.path("scenarios").get(0)).deepCopy();
+        second.put("key", "SC-2"); second.put("title", "已注册且未禁用的事件被分发");
+        ((tools.jackson.databind.node.ArrayNode) candidate.path("scenarios")).add(second);
+        ((tools.jackson.databind.node.ArrayNode) candidate.path("stages").get(0).path("includes")).add("SC-2");
+        candidate.set("sourceBindings", json.valueToTree(List.of(Map.of("key", "SOURCE-1", "candidateRefs", List.of("REQ-1", "SC-1", "SC-2", "DEL-1"), "sourceRefs", refs))));
+        candidate.set("relations", json.createArrayNode()); candidate.set("gapClaims", json.createArrayNode());
+        candidate.set("behaviorBranches", json.valueToTree(List.of(
+                new io.opencode.loopper.service.PackageBehaviorContract.Branch("SC-1", List.of("IGNORE"), "publish", deny, Map.of("result", "IGNORED")),
+                new io.opencode.loopper.service.PackageBehaviorContract.Branch("SC-2", List.of("DISPATCH"), "publish", allow, Map.of("result", "DISPATCHED")))));
+        String correct = json.writeValueAsString(candidate);
+        ((tools.jackson.databind.node.ObjectNode) candidate.path("behaviorBranches").get(0).path("effects")).put("result", "DISPATCHED");
+        String mcp = initializeInternalMcp(credentials);
+        MvcResult rejected = mvc.perform(internalMcp(credentials, rpc(601, "tools/call", packageCandidateCall(MachineCandidateKind.PACKAGE_DESIGN_V1,
+                runId, "semantic-bad", json.writeValueAsString(candidate), 0)), mcp)).andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(asyncDispatch(rejected)).andExpect(status().isOk()).andExpect(content().string(org.hamcrest.Matchers.containsString("counterexample=")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("REJECTED")));
+        MvcResult accepted = mvc.perform(internalMcp(credentials, rpc(602, "tools/call", packageCandidateCall(MachineCandidateKind.PACKAGE_DESIGN_V1,
+                runId, "semantic-fixed", correct, 1)), mcp)).andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(asyncDispatch(accepted)).andExpect(status().isOk()).andExpect(content().string(org.hamcrest.Matchers.containsString("ACCEPTED")));
+        assertThat(mapper.findPackageDesignAcceptedResult(runId).orElseThrow().compiledResultJson()).contains("PACKAGE_BEHAVIOR_V1", "result = DISPATCHED");
+        assertThat(jdbc.queryForObject("SELECT external_session_id FROM ai_candidate_submission_run WHERE id=?", String.class, runId)).isEqualTo(designerRemote);
+        String preparationId = (String) data.get("id");
+        assertThatThrownBy(() -> jdbc.update("UPDATE package_behavior_preparation SET book_json='{}' WHERE id=?", preparationId)).hasMessageContaining("immutable");
+    }
+
+    private static String sha256(String text) throws Exception {
+        return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(text.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+    }
+
+    @Test
     void nativePackageQuestionDoesNotInvalidateTheCurrentCandidateOwner() throws Exception {
         properties.getInternalCandidate().setPackageDesignV1Enabled(true);
         var credentials = activateManagedCandidateRuntime();

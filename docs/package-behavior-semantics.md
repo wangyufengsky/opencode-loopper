@@ -24,8 +24,26 @@
 
 算法实现与依赖来源：[SAT4J 官方 Core 说明](https://www.sat4j.org/download.php)、[发布者 Maven 元数据](https://repo.maven.apache.org/maven2/org/ow2/sat4j/org.ow2.sat4j.pom/2.3.6/org.ow2.sat4j.pom-2.3.6.pom)。依赖声明 EPL 1.0 / LGPL 2.1；原始库以未修改 JAR 嵌入 Spring Boot，保留其许可元数据。
 
-## 第三阶段：生产来源复核和评测（计划）
+## 第三阶段：生产来源复核和评测（0.3.79）
 
-新运行冻结语义策略；历史会话及已接受合同保持原规则。复杂工作包最多一次结构化整理，加最多一次独立只读来源复核（用户已授权）；简单包不增加调用。来源复核只核对原文与义务的对应、遗漏和矛盾，不产生执行权限。准备、复核、候选校验分别持久化，文件/网络/模型操作不进入纯校验策略。
+V74 追加冻结策略、准备记录与 run/book 绑定，不回填历史会话。新策略随新建 V2 会话冻结；关闭开关仅影响后续新会话，不能改变已有运行。正式默认值和实测结论见本目录的 `package-behavior-qualification.md`。
 
-同步 MCP Schema、固定 Prompt、服务端编译、下游角色交接和诊断展示。新独立案例覆盖变异、语义等价写法、来源遗漏及恢复/停止；Luna 结果绑定候选与清单，实际请求数不可得仍为 null，GEPA 不绕过 200 次实际请求前置门禁。生产性能和自然语言正确率只有实测后才能报告。
+无需包内提问的复杂 V2 修订先在工作包原会话整理一次，再创建独立 GENERAL_READ_ONLY 来源复核会话，最后回到原工作包会话提交候选。简单包跳过新增两回合。仍需原生/兼容模式包内提问的修订保持原设计路径，不在用户回答前冻结行为义务；本次没有把这类运行纳入新的语义通过率声明。原文中的明确未定业务选择在准备前进入既有本地反馈入口。新增策略不改变生产纠错次数，离线评测单独限定四份候选。
+
+准备行冻结 Prompt 版本；后续新增版本必须保留旧版本生成器，不得用新提示续跑旧准备。固定 `PACKAGE_BEHAVIOR_PROMPT_20260907_R3` 同时包含完整行为模型及带 NON_BEHAVIOR 来源行的复核例子，全部经生产解析器测试。复核 `PACKAGE_SOURCE_REVIEW_V1` 必须绑定原文、整理内容和工作包范围/已确认决策的 SHA-256；逐原文来源保留精确片段、义务关联和理由。每个义务/不变量必须被复核。复核者可在唯一一轮内纠正模型；未知语义、未定选择和无法表达的内容保留 findings，禁止靠空引用省略。范围和测试策略可明确标为 NON_BEHAVIOR，由既有合同检查。
+
+模型复核只是来源对齐证据，不是自然语言证明。验证器能拒绝伪造引用、缺少条目、结构错误和形式矛盾，不能确定模型是否把业务行错误标为 NON_BEHAVIOR，或为布尔抽象赋予了错误含义。独立语义清单继续逐项检查原文与接受结果，禁止以模型自己说“已覆盖”作为成功。
+
+准备状态为 EXTRACTING → EXTRACT_READY → REVIEW_DISPATCHING → REVIEWING → READY → DESIGN_DISPATCHING → DISPATCHED；失败保留 FAILED/UNCONFIRMED/STOPPED。CAS 与唯一 owner/revision 约束在发送前记录领取，重启不重复扣费或发送。发送是否发生无法确认时停在原状态并显示原因，不启动第二次整理/复核。材料限制为整理 32 KiB、复核 64 KiB、最终义务 32 KiB，超限拒绝，不截断逻辑形成有效模型。原有超时仍生效；停止必须确认原工作包与独立复核两个远端，abort=false/传输失败不能伪装成停止成功。
+
+冻结模型通过后，`PACKAGE_DESIGN_V2_BEHAVIOR_V1` run 绑定不可变 book 哈希。提交策略只读取和检查已冻结证据，不进行仓库读取、网络或模型调用。任何 run/owner/会话/来源/模型哈希不一致均拒绝。候选不能修改 book；反例修复沿现有 MCP 完整重提和 revision 协议进行。历史 V1/V2 没有 book 的运行保留原 Schema 兼容路径。
+
+编译后的场景文字、验收标准与阶段 Judge rubric 来自服务端，Implementation/Recovery/Judge 消费原有冻结 StageSpec；完整有限域模型加入交接摘要。Decomposer 的包边界和共同约束仍来自冻结分解，Reviewer 保留只读证据权限。形式模型中的输出名不得冒充 argv、权限、路径或 Stage/Verifier ID。前端将来源未确认、准备冲突和超时显示为不同问题，不混入业务待决标签。
+
+### 离线重现与证据
+
+`qualify-package-design-luna.py --contract PACKAGE_DESIGN_V2 --behavior` 使用生产整理/复核 Prompt、MCP Schema、编译器与诊断。复核使用全新 Codex 会话，候选 resume 原整理会话，脚本不代改候选；已知业务待决/权限冲突在生产来源预检阻断。使用无个人规则/插件/其他工具的只读目录及 ChatGPT 订阅 Luna medium。临时登录副本在成功、失败和终止后删除。
+
+新增 `src/test/resources/package-behavior-luna/heldout.json` 的 12 个需求族在模型评测前冻结，其中 8 个复杂、4 个简单。提示选择只使用原有已知案例；独立验收为每配置每案例三次，基线为同一冻结核心上的 V2 兼容路径，优化组增加新来源复核。它们不代表历史服务真实流量或 OpenCode 生产模型首投率。
+
+记录候选次数、准备/复核回合、Token、时间、源码/语料/候选哈希、错误与独立清单。`actualModelRequests=null` 表示 Codex CLI 未提供可靠请求计数，不以会话数代替。GEPA 因缺少每次真实请求发起前的预算拦截能力停止在适配器验证，额外优化请求为 0。

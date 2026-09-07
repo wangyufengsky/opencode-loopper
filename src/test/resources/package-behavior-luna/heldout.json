@@ -1,0 +1,426 @@
+{
+  "version": "PACKAGE_BEHAVIOR_HOLDOUT_20260907_V1",
+  "notes": "十二个新需求族；在任何本轮模型评测前冻结，不用于提示选择。简单案例检验无额外回合。真实缺口与权限冲突另用历史回归集，不能伪称新的独立族。",
+  "cases": [
+    {
+      "id": "bounded_queue",
+      "family": "bounded_queue",
+      "split": "heldout",
+      "expectedClass": "RESOLVABLE",
+      "technology": "java",
+      "target": "src/test/java/example/BoundedQueueTest.java",
+      "symbol": "BoundedQueueTest",
+      "title": "bounded_queue",
+      "requirement": "队列接收：未关闭且仍有容量时追加元素；关闭或无容量均拒绝且保持队列不变。读取：有元素时取出最早元素，关闭不影响读取；空队列返回 EMPTY。跨阶段保持 FIFO 不变量。\n工作包范围：`src/test/java/example/BoundedQueueTest.java`。使用已有原生测试体系补充 BoundedQueueTest 聚焦测试，不引入外部依赖。仅设计，不执行实现。",
+      "repositoryFixture": "package example;\n// Existing JUnit Jupiter test; focused Maven target BoundedQueueTest.\nclass BoundedQueueTest {}\n",
+      "semanticChecklist": [
+        {
+          "id": "bounded_queue-G1",
+          "assertion": "未关闭且有容量接收"
+        },
+        {
+          "id": "bounded_queue-G2",
+          "assertion": "关闭但有容量仍拒绝"
+        },
+        {
+          "id": "bounded_queue-G3",
+          "assertion": "未关闭且无容量拒绝"
+        },
+        {
+          "id": "bounded_queue-G4",
+          "assertion": "拒绝保持队列不变"
+        },
+        {
+          "id": "bounded_queue-G5",
+          "assertion": "有元素读取最早元素，包括关闭队列"
+        },
+        {
+          "id": "bounded_queue-G6",
+          "assertion": "空队列返回 EMPTY"
+        },
+        {
+          "id": "bounded_queue-G7",
+          "assertion": "FIFO 顺序不变量"
+        }
+      ]
+    },
+    {
+      "id": "atomic_import",
+      "family": "atomic_import",
+      "split": "heldout",
+      "expectedClass": "RESOLVABLE",
+      "technology": "java",
+      "target": "src/test/java/example/AtomicImportTest.java",
+      "symbol": "AtomicImportTest",
+      "title": "atomic_import",
+      "requirement": "导入批次的解析成功且校验成功才替换索引，并将版本递增一次；任一失败均保留旧索引和旧版本。索引替换与版本递增必须原子完成。对于已成功且内容相同的批次重放，直接复用原结果，不重新解析且不再递增版本；保持跨阶段原子性和重放幂等。\n工作包范围：`src/test/java/example/AtomicImportTest.java`。使用已有原生测试体系补充 AtomicImportTest 聚焦测试，不引入外部依赖。仅设计，不执行实现。",
+      "repositoryFixture": "package example;\n// Existing JUnit Jupiter test; focused Maven target AtomicImportTest.\nclass AtomicImportTest {}\n",
+      "semanticChecklist": [
+        {
+          "id": "atomic_import-G1",
+          "assertion": "解析和校验成功首次原子更新"
+        },
+        {
+          "id": "atomic_import-G2",
+          "assertion": "解析失败保留索引版本"
+        },
+        {
+          "id": "atomic_import-G3",
+          "assertion": "校验失败保留索引版本"
+        },
+        {
+          "id": "atomic_import-G4",
+          "assertion": "不得部分更新"
+        },
+        {
+          "id": "atomic_import-G5",
+          "assertion": "相同成功批次重放直接复用"
+        },
+        {
+          "id": "atomic_import-G6",
+          "assertion": "重放不解析不递增"
+        }
+      ]
+    },
+    {
+      "id": "bounded_retry",
+      "family": "bounded_retry",
+      "split": "heldout",
+      "expectedClass": "RESOLVABLE",
+      "technology": "java",
+      "target": "src/test/java/example/BoundedRetryTest.java",
+      "symbol": "BoundedRetryTest",
+      "title": "bounded_retry",
+      "requirement": "错误类型仅为临时或永久，剩余重试次数仅为0、1、2。永久错误或剩余0次时立即停止并保留剩余次数。临时错误且剩余2次时安排1秒后重试并减为1次；临时错误且剩余1次时安排2秒后重试并减为0次。停止时不得安排重试。\n工作包范围：`src/test/java/example/BoundedRetryTest.java`。使用已有原生测试体系补充 BoundedRetryTest 聚焦测试，不引入外部依赖。仅设计，不执行实现。",
+      "repositoryFixture": "package example;\n// Existing JUnit Jupiter test; focused Maven target BoundedRetryTest.\nclass BoundedRetryTest {}\n",
+      "semanticChecklist": [
+        {
+          "id": "bounded_retry-G1",
+          "assertion": "永久错误所有次数停止"
+        },
+        {
+          "id": "bounded_retry-G2",
+          "assertion": "临时错误0次停止"
+        },
+        {
+          "id": "bounded_retry-G3",
+          "assertion": "停止保留次数不安排重试"
+        },
+        {
+          "id": "bounded_retry-G4",
+          "assertion": "临时2次延迟1秒且余1"
+        },
+        {
+          "id": "bounded_retry-G5",
+          "assertion": "临时1次延迟2秒且余0"
+        }
+      ]
+    },
+    {
+      "id": "buffer_flush",
+      "family": "buffer_flush",
+      "split": "heldout",
+      "expectedClass": "RESOLVABLE",
+      "technology": "node",
+      "target": "test/buffer_flush.test.js",
+      "symbol": "test/buffer_flush.test.js",
+      "title": "buffer_flush",
+      "requirement": "缓冲刷新：离线时保留全部缓冲且不调用进程内接收器；在线且缓冲非空时调用接收器，成功才清空，失败保留全部缓冲；在线但缓冲为空不调用。成功后的重复刷新保持空且不再次调用，保证幂等；原输入数组不变。\n工作包范围：`test/buffer_flush.test.js`。使用已有原生测试体系补充 test/buffer_flush.test.js 聚焦测试，不引入外部依赖。仅设计，不执行实现。",
+      "repositoryFixture": "// Existing node:test target; project uses npm test.\n",
+      "semanticChecklist": [
+        {
+          "id": "buffer_flush-G1",
+          "assertion": "离线非空不调用不清空"
+        },
+        {
+          "id": "buffer_flush-G2",
+          "assertion": "离线空也不调用"
+        },
+        {
+          "id": "buffer_flush-G3",
+          "assertion": "在线非空成功调用清空"
+        },
+        {
+          "id": "buffer_flush-G4",
+          "assertion": "在线非空失败调用但保留"
+        },
+        {
+          "id": "buffer_flush-G5",
+          "assertion": "在线空不调用"
+        },
+        {
+          "id": "buffer_flush-G6",
+          "assertion": "成功后重复幂等"
+        },
+        {
+          "id": "buffer_flush-G7",
+          "assertion": "输入数组不变"
+        }
+      ]
+    },
+    {
+      "id": "config_precedence",
+      "family": "config_precedence",
+      "split": "heldout",
+      "expectedClass": "RESOLVABLE",
+      "technology": "python",
+      "target": "tests/test_config_precedence.py",
+      "symbol": "tests/test_config_precedence.py",
+      "title": "config_precedence",
+      "requirement": "配置值与环境默认各只可能为 None、空字符串或 safe。优先选配置，只有配置为 None 才选环境，二者都为 None 才选内置 safe。strict 为真且最终选中空字符串时报错，不得回退；strict 为假时空字符串原样返回。其他情况返回最终选中值。\n工作包范围：`tests/test_config_precedence.py`。使用已有原生测试体系补充 tests/test_config_precedence.py 聚焦测试，不引入外部依赖。仅设计，不执行实现。",
+      "repositoryFixture": "# Existing pytest target; project uses pytest.\n",
+      "semanticChecklist": [
+        {
+          "id": "config_precedence-G1",
+          "assertion": "配置优先包括空字符串"
+        },
+        {
+          "id": "config_precedence-G2",
+          "assertion": "配置 None 才选环境"
+        },
+        {
+          "id": "config_precedence-G3",
+          "assertion": "两者 None 内置 safe"
+        },
+        {
+          "id": "config_precedence-G4",
+          "assertion": "strict真空值报错不回退"
+        },
+        {
+          "id": "config_precedence-G5",
+          "assertion": "strict假空值返回"
+        },
+        {
+          "id": "config_precedence-G6",
+          "assertion": "safe原样返回且不受环境覆盖"
+        }
+      ]
+    },
+    {
+      "id": "stable_key_merge",
+      "family": "stable_key_merge",
+      "split": "heldout",
+      "expectedClass": "RESOLVABLE",
+      "technology": "python",
+      "target": "tests/test_stable_key_merge.py",
+      "symbol": "tests/test_stable_key_merge.py",
+      "title": "stable_key_merge",
+      "requirement": "合并批次时新键追加；相同键相同值的重复项忽略，strict 开关均如此；相同键不同值且 strict 为真时拒绝整个批次，不返回部分结果，否则采用最后值并保留该键首次出现的位置。输入保持不变，合并阶段与输出阶段保持键顺序不变量。\n工作包范围：`tests/test_stable_key_merge.py`。使用已有原生测试体系补充 tests/test_stable_key_merge.py 聚焦测试，不引入外部依赖。仅设计，不执行实现。",
+      "repositoryFixture": "# Existing pytest target; project uses pytest.\n",
+      "semanticChecklist": [
+        {
+          "id": "stable_key_merge-G1",
+          "assertion": "新键追加"
+        },
+        {
+          "id": "stable_key_merge-G2",
+          "assertion": "同键同值重复忽略含strict真"
+        },
+        {
+          "id": "stable_key_merge-G3",
+          "assertion": "同键异值strict真整批拒绝"
+        },
+        {
+          "id": "stable_key_merge-G4",
+          "assertion": "拒绝不能返回部分结果"
+        },
+        {
+          "id": "stable_key_merge-G5",
+          "assertion": "strict假最后值首次键位置"
+        },
+        {
+          "id": "stable_key_merge-G6",
+          "assertion": "输入不变"
+        },
+        {
+          "id": "stable_key_merge-G7",
+          "assertion": "跨阶段键序不变量"
+        }
+      ]
+    },
+    {
+      "id": "cache_staleness",
+      "family": "cache_staleness",
+      "split": "heldout",
+      "expectedClass": "RESOLVABLE",
+      "technology": "java",
+      "target": "src/test/java/example/CacheStalenessTest.java",
+      "symbol": "CacheStalenessTest",
+      "title": "cache_staleness",
+      "requirement": "缓存查询只涉及新鲜、过期、缺失三种状态。新鲜时直接返回缓存且不计算；过期且允许陈旧值时也直接返回缓存且不计算；过期但不允许陈旧或缺失时重新计算。计算成功返回新值并更新缓存，失败返回错误并保持原缓存状态。\n工作包范围：`src/test/java/example/CacheStalenessTest.java`。使用已有原生测试体系补充 CacheStalenessTest 聚焦测试，不引入外部依赖。仅设计，不执行实现。",
+      "repositoryFixture": "package example;\n// Existing JUnit Jupiter test; focused Maven target CacheStalenessTest.\nclass CacheStalenessTest {}\n",
+      "semanticChecklist": [
+        {
+          "id": "cache_staleness-G1",
+          "assertion": "新鲜直接返回不计算"
+        },
+        {
+          "id": "cache_staleness-G2",
+          "assertion": "允许陈旧时过期直接返回不计算"
+        },
+        {
+          "id": "cache_staleness-G3",
+          "assertion": "禁止陈旧时过期计算"
+        },
+        {
+          "id": "cache_staleness-G4",
+          "assertion": "缺失无论允许陈旧与否都计算"
+        },
+        {
+          "id": "cache_staleness-G5",
+          "assertion": "计算成功更新返回"
+        },
+        {
+          "id": "cache_staleness-G6",
+          "assertion": "计算失败错误保留原状态"
+        }
+      ]
+    },
+    {
+      "id": "readiness_barrier",
+      "family": "readiness_barrier",
+      "split": "heldout",
+      "expectedClass": "RESOLVABLE",
+      "technology": "node",
+      "target": "test/readiness_barrier.test.js",
+      "symbol": "test/readiness_barrier.test.js",
+      "title": "readiness_barrier",
+      "requirement": "就绪屏障有 OPEN、READY、FAILED 三种状态。OPEN 收到成功信号且所有成员已成功时进入 READY，否则保持 OPEN；OPEN 收到失败信号进入 FAILED。READY 或 FAILED 收到任意重复信号都保持原终态且不再次通知，保证终态通知幂等。进入终态时恰好通知一次，保持跨阶段终态不可逆。\n工作包范围：`test/readiness_barrier.test.js`。使用已有原生测试体系补充 test/readiness_barrier.test.js 聚焦测试，不引入外部依赖。仅设计，不执行实现。",
+      "repositoryFixture": "// Existing node:test target; project uses npm test.\n",
+      "semanticChecklist": [
+        {
+          "id": "readiness_barrier-G1",
+          "assertion": "OPEN未全成功保持不通知"
+        },
+        {
+          "id": "readiness_barrier-G2",
+          "assertion": "OPEN全成功进入READY通知1次"
+        },
+        {
+          "id": "readiness_barrier-G3",
+          "assertion": "OPEN失败进入FAILED通知1次"
+        },
+        {
+          "id": "readiness_barrier-G4",
+          "assertion": "READY重复任何信号不变不通知"
+        },
+        {
+          "id": "readiness_barrier-G5",
+          "assertion": "FAILED重复任何信号不变不通知"
+        },
+        {
+          "id": "readiness_barrier-G6",
+          "assertion": "终态不可逆"
+        }
+      ]
+    },
+    {
+      "id": "fixed_status_label",
+      "family": "fixed_status_label",
+      "split": "heldout",
+      "expectedClass": "RESOLVABLE",
+      "technology": "java",
+      "target": "src/test/java/example/FixedStatusLabelTest.java",
+      "symbol": "FixedStatusLabelTest",
+      "title": "fixed_status_label",
+      "requirement": "状态标签只有 SUCCESS、FAILURE 两种输入，分别返回固定中文“成功”和“失败”。仅补充这两个映射的聚焦测试。\n工作包范围：`src/test/java/example/FixedStatusLabelTest.java`。使用已有原生测试体系补充 FixedStatusLabelTest 聚焦测试，不引入外部依赖。仅设计，不执行实现。",
+      "repositoryFixture": "package example;\n// Existing JUnit Jupiter test; focused Maven target FixedStatusLabelTest.\nclass FixedStatusLabelTest {}\n",
+      "semanticChecklist": [
+        {
+          "id": "fixed_status_label-G1",
+          "assertion": "SUCCESS返回成功"
+        },
+        {
+          "id": "fixed_status_label-G2",
+          "assertion": "FAILURE返回失败"
+        },
+        {
+          "id": "fixed_status_label-G3",
+          "assertion": "只有两个映射无额外行为"
+        }
+      ]
+    },
+    {
+      "id": "literal_suffix",
+      "family": "literal_suffix",
+      "split": "heldout",
+      "expectedClass": "RESOLVABLE",
+      "technology": "node",
+      "target": "test/literal_suffix.test.js",
+      "symbol": "test/literal_suffix.test.js",
+      "title": "literal_suffix",
+      "requirement": "给字符串添加固定后缀 .done，空字符串也直接得到 .done；只做字符串拼接，不解析路径、不检查文件。\n工作包范围：`test/literal_suffix.test.js`。使用已有原生测试体系补充 test/literal_suffix.test.js 聚焦测试，不引入外部依赖。仅设计，不执行实现。",
+      "repositoryFixture": "// Existing node:test target; project uses npm test.\n",
+      "semanticChecklist": [
+        {
+          "id": "literal_suffix-G1",
+          "assertion": "非空字符串追加.done"
+        },
+        {
+          "id": "literal_suffix-G2",
+          "assertion": "空字符串结果.done"
+        },
+        {
+          "id": "literal_suffix-G3",
+          "assertion": "不解析路径不访问文件"
+        }
+      ]
+    },
+    {
+      "id": "boolean_flip",
+      "family": "boolean_flip",
+      "split": "heldout",
+      "expectedClass": "RESOLVABLE",
+      "technology": "python",
+      "target": "tests/test_boolean_flip.py",
+      "symbol": "tests/test_boolean_flip.py",
+      "title": "boolean_flip",
+      "requirement": "输入只接受布尔值 True 或 False，返回其逻辑反值；不转换字符串或数字。\n工作包范围：`tests/test_boolean_flip.py`。使用已有原生测试体系补充 tests/test_boolean_flip.py 聚焦测试，不引入外部依赖。仅设计，不执行实现。",
+      "repositoryFixture": "# Existing pytest target; project uses pytest.\n",
+      "semanticChecklist": [
+        {
+          "id": "boolean_flip-G1",
+          "assertion": "True变False"
+        },
+        {
+          "id": "boolean_flip-G2",
+          "assertion": "False变True"
+        },
+        {
+          "id": "boolean_flip-G3",
+          "assertion": "不增加字符串数字转换"
+        }
+      ]
+    },
+    {
+      "id": "fixed_pair_swap",
+      "family": "fixed_pair_swap",
+      "split": "heldout",
+      "expectedClass": "RESOLVABLE",
+      "technology": "java",
+      "target": "src/test/java/example/FixedPairSwapTest.java",
+      "symbol": "FixedPairSwapTest",
+      "title": "fixed_pair_swap",
+      "requirement": "输入是恰好两个整数的不可变值对，返回元素交换后的新值对，原值对保持不变；相同元素也返回新值对。\n工作包范围：`src/test/java/example/FixedPairSwapTest.java`。使用已有原生测试体系补充 FixedPairSwapTest 聚焦测试，不引入外部依赖。仅设计，不执行实现。",
+      "repositoryFixture": "package example;\n// Existing JUnit Jupiter test; focused Maven target FixedPairSwapTest.\nclass FixedPairSwapTest {}\n",
+      "semanticChecklist": [
+        {
+          "id": "fixed_pair_swap-G1",
+          "assertion": "两个元素交换"
+        },
+        {
+          "id": "fixed_pair_swap-G2",
+          "assertion": "返回新值对"
+        },
+        {
+          "id": "fixed_pair_swap-G3",
+          "assertion": "原输入不变"
+        },
+        {
+          "id": "fixed_pair_swap-G4",
+          "assertion": "同元素仍返回新值对"
+        }
+      ]
+    }
+  ]
+}

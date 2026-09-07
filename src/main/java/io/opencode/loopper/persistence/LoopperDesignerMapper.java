@@ -561,6 +561,8 @@ public interface LoopperDesignerMapper {
                   AND (dispatch.termination_proof IS NOT NULL
                     OR dispatch.claim_owner IS NOT NULL AND dispatch.claim_expires_at>
                       strftime('%Y-%m-%dT%H:%M:%fZ','now')))
+            UNION SELECT external_session_id FROM designer_conversation WHERE designer_session_id=#{sessionId}
+              AND scope_key LIKE 'BEHAVIOR_REVIEW:%' AND state='OPEN' AND external_session_id IS NOT NULL
             UNION SELECT external_session_id FROM analysis_report
             WHERE designer_session_id=#{sessionId} AND state IN ('RUNNING','VALIDATING')
               AND external_session_id IS NOT NULL

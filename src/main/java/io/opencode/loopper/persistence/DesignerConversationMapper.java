@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Optional;
 import org.apache.ibatis.annotations.*;
 
-public interface DesignerConversationMapper {
+public interface DesignerConversationMapper extends PackageBehaviorMapper {
     @Select("SELECT snapshot_markdown FROM design_discussion_revision WHERE designer_session_id=#{id} AND scope_key='REQUIREMENT' AND revision<#{revision} AND trim(coalesce(snapshot_markdown,''))!='' ORDER BY revision DESC LIMIT 1")
     Optional<String> previousRequirementSnapshot(@Param("id") String id, @Param("revision") int revision);
     @Select("SELECT COUNT(DISTINCT external_session_id) FROM ai_candidate_submission_run WHERE owner_type='DESIGN_WORK_PACKAGE' AND owner_id=#{id}")

@@ -55,6 +55,8 @@ public final class DesignerConversationCoordinator {
                 .map(row -> row.profile().startsWith("PACKAGE_DESIGN_CANDIDATE_V2_")).orElse(false);
     }
 
+    public boolean behaviorV1(String remoteId) { return mapper.behaviorPolicyForRemote(remoteId); }
+
     private OpenCodeClient.SessionProfile packageProfile(boolean question) {
         boolean v2 = properties != null && properties.getInternalCandidate().isPackageDesignV2Enabled();
         return v2 ? question ? OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_V2_INTERACTIVE_READ_ONLY
@@ -143,7 +145,9 @@ public final class DesignerConversationCoordinator {
             row = new DesignerConversationRow(id, designerId, scope, generation, null, null, null, root.toString(),
                     profile.name(), json.writeValueAsString(model), "CREATING", null, now, now, 0);
             mapper.insertDesignerConversation(row); // Unique active scope claims creation before network I/O.
-            String title = "REQUIREMENT".equals(scope) ? "OpenCode Loopper Requirement Designer (READ_ONLY)"
+            if (profile.name().startsWith("PACKAGE_DESIGN_CANDIDATE_V2_") && properties != null
+                    && properties.getInternalCandidate().isPackageBehaviorEnabled()) mapper.freezeBehaviorPolicy(id);
+            String title = scope.startsWith("BEHAVIOR_REVIEW:") ? "OpenCode Loopper source semantic review (READ_ONLY)" : "REQUIREMENT".equals(scope) ? "OpenCode Loopper Requirement Designer (READ_ONLY)"
                     : "OpenCode Loopper package Designer " + mapper.designerConversationPackageName(scope).orElse(scope) + " (READ_ONLY)";
             OpenCodeClient.OpenCodeSession remote;
             try { remote = openCode.createSession(root, title, model, profile); }

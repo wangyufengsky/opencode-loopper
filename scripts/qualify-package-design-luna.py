@@ -138,7 +138,7 @@ def codex_command(args, directory, thread=None, preparation=False):
     return command + ["-"]
 
 
-def execute(args, directory, prompt, descriptor=None, preparation=None):
+def execute(args, directory, prompt, descriptor=None, preparation=None, behavior=False):
     env, auth, config = isolated_config(directory, descriptor)
     start = time.monotonic()
     child = None
@@ -146,6 +146,8 @@ def execute(args, directory, prompt, descriptor=None, preparation=None):
     def phase(name, text, command):
         nonlocal child
         phase_start = time.monotonic()
+        final_message = directory / (name + "-final.txt")
+        command = command[:-1] + ["--output-last-message", str(final_message)] + command[-1:]
         (directory / (name + "-command.json")).write_text(json.dumps(command))
         with (directory / (name + ".jsonl")).open("w") as out, (directory / (name + "-stderr.log")).open("w") as err:
             child = subprocess.Popen(command, env=env, cwd=directory / "workspace", stdin=subprocess.PIPE,
@@ -168,25 +170,50 @@ def execute(args, directory, prompt, descriptor=None, preparation=None):
             raise RuntimeError("ChatGPT subscription login not confirmed; no fallback attempted")
         (directory / "effective-config.toml").write_text(config)
         thread = None
+        source_review = None
+        candidate_dispatched = False
         if preparation and preparation["enabled"]:
             (directory / "preparation.json").write_text(json.dumps(preparation, ensure_ascii=False, indent=2))
             events, first = phase("preparation-events", preparation["prompt"], codex_command(args, directory, preparation=True))
             if len(set(first["threadIds"])) != 1:
                 raise RuntimeError("Cannot prove exact conversation identity; design was not dispatched")
             thread = first["threadIds"][0]
-            material = "\n".join(event.get("item", {}).get("text", "") for event in events
-                                 if event.get("type") == "item.completed" and event.get("item", {}).get("type") == "agent_message")
+            material = (directory / "preparation-events-final.txt").read_text()
             if len(material.encode()) > 32768:
                 material = "整理超过32KiB，未截断逻辑作为有效材料；按冻结原文继续。"
             (directory / "preparation-material.txt").write_text(material)
             prompt += "\n上一轮整理仅作建议，冻结原文仍为权威。以下有界材料不证明语义正确：\n" + material
-        _, last = phase("events", prompt, codex_command(args, directory, thread=thread))
-        if thread and set(last["threadIds"]) != {thread}:
+        if behavior and thread:
+            cfg = json.loads(Path(descriptor).read_text())
+            review_prompt = subprocess.check_output(cfg["java"] + ["behavior-review-prompt", cfg["fixture"], str(directory / "preparation-material.txt")], text=True)
+            (directory / "source-review-prompt.txt").write_text(review_prompt)
+            review_events, review_phase = phase("source-review-events", review_prompt, codex_command(args, directory, preparation=True))
+            if len(set(review_phase["threadIds"])) != 1 or thread in review_phase["threadIds"]:
+                raise RuntimeError("Independent review did not use a distinct conversation")
+            review_output = (directory / "source-review-events-final.txt").read_text()
+            (directory / "source-review-output.txt").write_text(review_output)
+            source_review = json.loads(subprocess.check_output(cfg["java"] + ["behavior-review", cfg["fixture"],
+                str(directory / "preparation-material.txt"), str(directory / "source-review-output.txt")], text=True))
+            (directory / "source-review-validation.json").write_text(json.dumps(source_review, ensure_ascii=False, indent=2))
+            if source_review["accepted"]:
+                evidence = {"extraction": material, "review": source_review["reviewJson"]}
+                (directory / "behavior-review.json").write_text(json.dumps(evidence, ensure_ascii=False, indent=2))
+                prompt = subprocess.check_output(cfg["java"] + ["prompt", cfg["fixture"], str(directory / "workspace")], text=True)
+                (directory / "behavior-candidate-prompt.txt").write_text(prompt)
+        if source_review is None or source_review["accepted"]:
+            _, last = phase("events", prompt, codex_command(args, directory, thread=thread))
+            candidate_dispatched = True
+        else:
+            last = phases[-1]
+        if candidate_dispatched and thread and set(last["threadIds"]) != {thread}:
             raise RuntimeError("Resume did not preserve the exact conversation identity")
         result = {"exitCode": last["exitCode"], "elapsedSeconds": round(time.monotonic() - start, 3),
                   "turnUsage": [usage for item in phases for usage in item["usage"]], "phases": phases,
                   "actualModelRequests": None, "requestCountAvailable": False,
                   "semanticPreparationTurns": 1 if thread else 0,
+                  "sourceReviewTurns": 1 if source_review is not None else 0,
+                  "sourceReviewAccepted": None if source_review is None else source_review["accepted"],
+                  "candidateDispatched": candidate_dispatched,
                   "configSha256": digest(config),
                   "configTemplateSha256": digest(config.replace(str(directory), "<RUN_DIRECTORY>")),
                   "promptSha256": digest(prompt),
@@ -242,6 +269,8 @@ def run(args):
             fixture_data = {key: case[key] for key in ("id", "requirement", "technology", "target", "symbol")}
             if args.contract == "PACKAGE_DESIGN_V2":
                 fixture_data.update(contractVersion=args.contract, projectRoot=str(workspace))
+            if args.behavior:
+                fixture_data["behaviorReviewFile"] = str(directory / "behavior-review.json")
             fixture.write_text(json.dumps(fixture_data, ensure_ascii=False))
             descriptor = directory / "bridge.json"
             descriptor.write_text(json.dumps({"java": java, "fixture": str(fixture), "ledger": str(directory / "attempts.json"), "contract": args.contract}))
@@ -251,9 +280,16 @@ def run(args):
             before = {str(path.relative_to(workspace)): digest(path.read_text()) for path in workspace.rglob("*") if path.is_file()}
             preparation = None
             if args.contract == "PACKAGE_DESIGN_V2":
-                preparation = json.loads(subprocess.check_output(java + ["prepare", str(fixture)], text=True))
+                preparation = json.loads(subprocess.check_output(java + ["behavior-prepare" if args.behavior else "prepare", str(fixture)], text=True))
                 preparation["prompt"] += "\nFrozen bounded repository evidence (synthetic fixture):\n" + case["repositoryFixture"]
-            result = execute(args, directory, prompt, descriptor, preparation)
+            if preparation and preparation.get("blocked"):
+                result = {"exitCode":0, "elapsedSeconds":0, "actualModelRequests":0, "requestCountAvailable":True,
+                          "semanticPreparationTurns":0, "sourceReviewTurns":0, "candidateDispatched":False,
+                          "reasonCode":preparation["reasonCode"], "phases":[], "turnUsage":[],
+                          "model":"gpt-5.6-luna", "reasoningEffort":"medium", "authMode":"chatgpt"}
+                (directory / "source-preflight.json").write_text(json.dumps(preparation, ensure_ascii=False, indent=2))
+            else:
+                result = execute(args, directory, prompt, descriptor, preparation, behavior=args.behavior)
             after = {str(path.relative_to(workspace)): digest(path.read_text()) for path in workspace.rglob("*") if path.is_file()}
             result.update(caseId=case["id"], contract=args.contract, repeat=repeat + 1, fixtureUnchanged=before == after,
                           submitted=(directory / "attempts.json").exists(),
@@ -280,12 +316,15 @@ def main():
     parser.add_argument("--timeout", type=int, default=240)
     parser.add_argument("--preflight", action="store_true")
     parser.add_argument("--gepa", action="store_true")
+    parser.add_argument("--behavior", action="store_true", help="Use production extraction and independent source review before V2 candidates")
     args = parser.parse_args()
     if args.bridge:
         bridge(args.bridge)
         return 0
     if not args.output:
         parser.error("--output is required")
+    if args.behavior and args.contract != "PACKAGE_DESIGN_V2":
+        parser.error("--behavior requires --contract PACKAGE_DESIGN_V2")
     return run(args)
 
 

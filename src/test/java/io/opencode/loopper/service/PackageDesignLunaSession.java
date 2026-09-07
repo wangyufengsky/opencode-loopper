@@ -24,7 +24,7 @@ final class PackageDesignLunaSession {
         var compiler = new DeterministicPackageDesignCompilation(json);
         PackageDesignCompilationInputLoader inputs = ignored -> input;
         run = new AtomicReference<>(new CandidateSubmissionRunRow("qualification", "qualification", null, null,
-                "DESIGN_WORK_PACKAGE", "package-row", "PACKAGE_DESIGN_V1", input.semanticContractVersion(), 1, 0,
+                "DESIGN_WORK_PACKAGE", "package-row", "PACKAGE_DESIGN_V1", input.behaviorContract() == null ? input.semanticContractVersion() : PackageBehaviorRuns.WORKFLOW, 1, 0,
                 "INTERNAL_MCP", input.semanticContractVersion(), "offline", "offline-session", "OPEN", 3, 0, null,
                 "now", "now", 0, null, 4));
         List<CandidateSubmissionAttemptRow> attempts = new ArrayList<>();

@@ -215,6 +215,9 @@ public final class DesignerTerminationService {
         stopWorkPackages(session, stoppedAt);
         stopCompilations(session, stoppedAt);
         stopReports(sessionId, stoppedAt);
+        mapper.stopBehaviorPreparations(sessionId);
+        mapper.designerConversations(sessionId).stream().filter(c -> c.scopeKey().startsWith("BEHAVIOR_REVIEW:"))
+                .forEach(c -> mapper.retireDesignerConversation(c.id(), "DESIGNER_STOPPED", stoppedAt));
         DesignerSessionRow cancelled = copySession(session, DesignerSessionState.CANCELLED, "ABORTED", stoppedAt);
         lifecycle.transition(sessionSubject(session), session.state(), cancelled.state(), LifecycleEvent.FINISH,
                 "REMOTE_SESSIONS_STOPPED", Map.of(), () -> mapper.updateDesignerSession(cancelled), sessionConflict());

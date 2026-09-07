@@ -11,6 +11,12 @@ describe('PackageGapNotice', () => {
     expect(wrapper.text()).toContain('业务选择待确认')
     expect(wrapper.text()).toContain('不同选择对应的行为')
   })
+  it('does not turn a source-review failure into a business decision', () => {
+    const view = mount(PackageGapNotice, { props: { code: 'PACKAGE_SOURCE_UNCONFIRMED', detail: 'REQ-L001 例外尚未对齐' } })
+    expect(view.text()).toContain('来源语义尚未确认')
+    expect(view.text()).toContain('不足以确认缺少需求或能力')
+    expect(view.text()).not.toContain('业务选择待确认')
+  })
   it('does not manufacture a classification for legacy or unknown codes', () => {
     expect(mount(PackageGapNotice, { props: { code: 'PACKAGE_DESIGN_NEEDS_INPUT' } }).find('aside').exists()).toBe(false)
   })

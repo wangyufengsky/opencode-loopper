@@ -75,6 +75,11 @@ public class LoopperProperties {
         private boolean packageDesignV2Enabled = true;
         public boolean isPackageDesignV2Enabled() { return packageDesignV2Enabled; }
         public void setPackageDesignV2Enabled(boolean value) { packageDesignV2Enabled = value; }
+        /** New-conversation behavior extraction and independent source review; explicit rollback preserves existing policies. */
+        // Opt-in until independent semantics passes the qualification gate. Existing V2 remains enabled.
+        private boolean packageBehaviorEnabled = false;
+        public boolean isPackageBehaviorEnabled() { return packageBehaviorEnabled; }
+        public void setPackageBehaviorEnabled(boolean value) { packageBehaviorEnabled = value; }
         private boolean packageDesignEvidenceEnabled = false;
         public boolean isPackageDesignEvidenceEnabled() { return packageDesignEvidenceEnabled; }
         public void setPackageDesignEvidenceEnabled(boolean value) { packageDesignEvidenceEnabled = value; }
