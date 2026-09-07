@@ -68,6 +68,12 @@ final class CandidateRepairProgress {
                 String key = Normalizer.normalize(item.path("key").asText(), Normalizer.Form.NFKC)
                         .toLowerCase(Locale.ROOT).replaceAll("[\\s_-]", "");
                 parts[2] = "@" + hash(key);
+            } else if (item.path("packageKey").isString()) {
+                parts[2] = "@" + hash(item.path("packageKey").asText());
+            } else if (item.path("factIndex").isIntegralNumber()) {
+                parts[2] = "@fact-" + item.path("factIndex").asText();
+            } else if (item.path("path").isString() && item.path("line").isIntegralNumber()) {
+                parts[2] = "@" + hash(item.path("path").asText() + ":" + item.path("line").asText());
             }
         }
         return String.join("/", parts);

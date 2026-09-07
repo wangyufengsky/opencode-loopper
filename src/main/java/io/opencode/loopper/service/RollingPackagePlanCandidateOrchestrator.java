@@ -222,13 +222,13 @@ final class RollingPackagePlanCandidateOrchestrator {
 
                 runId: %s
                 expectedSubmissionRevision: %d
-                MCP submissions have no count limit. On REJECTED, require CANDIDATE_DIAGNOSTIC_V2 and repair every
+                %s On REJECTED, require CANDIDATE_DIAGNOSTIC_V2 and repair every
                 returned problem using parameter, JSON Pointer, category, expected, actual, detail, allowedValues,
                 and repairHint. Follow action; diagnosticsComplete=false or truncated=true means only the returned
                 bounded set is known. Replace the whole candidate and retry with submissionRevision. On ACCEPTED,
                 stop; final assistant text is ignored. On WAITING_INPUT or
                 FALLBACK_REQUIRED, stop. Never return a legacy payload instead of calling the private tool.
-                """.formatted(toolName, run.runId(), run.version());
+                """.formatted(toolName, run.runId(), run.version(), CandidateCorrectionPolicy.prompt(run));
     }
 
     private String code(RuntimeException failure) {

@@ -135,17 +135,27 @@ final class CandidateShapeValidator {
         String value = node.textValue();
         int minimum = number(schema.get("minLength"), 0);
         Integer maximum = schema.get("maxLength") instanceof Number number ? number.intValue() : null;
-        if (value.length() < minimum) {
+        if (value.codePointCount(0, value.length()) < minimum && !schema.containsKey("x-loopper-maxUtf8Bytes")) {
             collector.add(problem("CANDIDATE_STRING_TOO_SHORT", pointer,
                     MachineCandidateSubmission.ProblemCategory.VALUE,
                     "string length of at least " + minimum, "shorter string",
                     "Provide a non-empty value at " + pointer));
         }
-        if (maximum != null && value.length() > maximum) {
+        if (maximum != null && value.codePointCount(0, value.length()) > maximum) {
             collector.add(problem("CANDIDATE_STRING_TOO_LONG", pointer,
                     MachineCandidateSubmission.ProblemCategory.VALUE,
                     "string length no greater than " + maximum, "longer string",
                     "Shorten the value at " + pointer));
+        }
+        if (schema.get("x-loopper-maxUtf8Bytes") instanceof Number byteLimit) {
+            String counted = Boolean.TRUE.equals(schema.get("x-loopper-stripBeforeByteCount")) ? value.strip() : value;
+            int bytes = counted.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+            if (counted.isBlank() || bytes > byteLimit.intValue()) {
+                collector.add(problem("CANDIDATE_UTF8_LENGTH_INVALID", pointer,
+                        MachineCandidateSubmission.ProblemCategory.VALUE,
+                        "nonblank text of at most " + byteLimit.intValue() + " UTF-8 bytes", bytes + " UTF-8 bytes",
+                        "Rewrite " + pointer + " concisely within the byte limit; preserve its meaning and verdict"));
+            }
         }
         if (schema.containsKey("const") && !String.valueOf(schema.get("const")).equals(value)) {
             collector.add(new MachineCandidateSubmission.Problem(
@@ -166,6 +176,12 @@ final class CandidateShapeValidator {
 
     private static void validateInteger(JsonNode node, Map<String, Object> schema,
             String pointer, Collector collector) {
+        if (schema.get("maximum") instanceof Number maximum && node.longValue() > maximum.longValue()) {
+            collector.add(problem("CANDIDATE_INTEGER_TOO_LARGE", pointer,
+                    MachineCandidateSubmission.ProblemCategory.VALUE,
+                    "integer no greater than " + maximum.longValue(), node.toString(),
+                    "Use an observed value within the allowed range at " + pointer));
+        }
         if (schema.get("minimum") instanceof Number minimum && node.longValue() < minimum.longValue()) {
             collector.add(problem("CANDIDATE_INTEGER_TOO_SMALL", pointer,
                     MachineCandidateSubmission.ProblemCategory.VALUE,

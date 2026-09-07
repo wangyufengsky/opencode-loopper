@@ -83,6 +83,38 @@ class MachineCandidateSubmissionIntegrationTest {
     }
 
     @Test
+    void configuredDecomposerLimitIsFrozenAndAcceptedLastSubmissionWins() {
+        var properties = new io.opencode.loopper.config.LoopperProperties();
+        properties.getInternalCandidate().setCorrectionLimits(java.util.Map.of(MachineCandidateKind.DECOMPOSITION_PLAN_V2, 4));
+        ((PersistentMachineCandidateSubmission) submissions).configureCorrectionLimits(properties);
+        try {
+            var old = decomposerRun("finite-decomposer", 5);
+            var channel = MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP;
+            var command = new MachineCandidateSubmission.OpenCommand(old.runId(), old.scope(), old.owner(),
+                    old.candidateKind(), old.workflowStep(), old.sourceRevision(), old.ownerVersion(), channel,
+                    old.contractVersion(), old.runtimeGenerationId(), old.externalSessionId(), 5);
+            assertThat(submissions.open(command).correctionLimit()).isEqualTo(4);
+            properties.getInternalCandidate().setCorrectionLimits(java.util.Map.of(MachineCandidateKind.DECOMPOSITION_PLAN_V2, 2));
+            assertThat(submissions.open(command).correctionLimit()).isEqualTo(4);
+            for (int index = 0; index < 3; index++) {
+                var response = submissions.submit(new MachineCandidateSubmission.SubmitCommand(old.runId(), "bad-" + index,
+                        "{\"valid\":false,\"n\":" + index + "}", index, channel));
+                assertThat(response.outcome()).isEqualTo(MachineCandidateOutcome.REJECTED);
+                assertThat(response.remainingAttempts()).isEqualTo(3 - index);
+                assertThat(response.responseJson()).contains("CANDIDATE_REPAIR_V1", "repairProgress");
+            }
+            var request = new MachineCandidateSubmission.SubmitCommand(old.runId(), "good", "{\"valid\":true}", 3, channel);
+            var accepted = submissions.submit(request);
+            assertThat(accepted.outcome()).isEqualTo(MachineCandidateOutcome.ACCEPTED);
+            assertThat(accepted.remainingAttempts()).isZero();
+            assertThat(submissions.submit(request)).isEqualTo(accepted);
+            assertThatThrownBy(() -> jdbc.update("UPDATE ai_candidate_submission_run SET correction_limit=8 WHERE id=?", old.runId()))
+                    .hasMessageContaining("immutable");
+            assertThat(jdbc.queryForList("PRAGMA foreign_key_check")).isEmpty();
+        } finally { ((PersistentMachineCandidateSubmission) submissions).configureCorrectionLimits(new io.opencode.loopper.config.LoopperProperties()); }
+    }
+
+    @Test
     void finitePackageBudgetSurvivesReloadAndStopsAfterFourDistinctSubmissions() {
         var old = packageRun("finite-package", 3);
         var channel = MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP;

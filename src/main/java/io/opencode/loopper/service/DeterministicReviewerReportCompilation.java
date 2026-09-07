@@ -190,7 +190,8 @@ public final class DeterministicReviewerReportCompilation implements ReviewerRep
         String normalized = strip(value);
         if (normalized == null || normalized.isBlank() || bytes(normalized) > maxBytes
                 || (singleLine && (normalized.indexOf('\n') >= 0 || normalized.indexOf('\r') >= 0))) {
-            problems.add(problem(code, pointer, "字段必须非空、格式正确且不超过有界 UTF-8 长度",
+            problems.add(problem(code, pointer, "字段须非空且不超过 " + maxBytes + " UTF-8 字节；实际 " + bytes(normalized)
+                            + " 字节" + (singleLine ? "；必须为单行文本" : ""),
                     List.of(), MECHANICAL));
         }
         return normalized;

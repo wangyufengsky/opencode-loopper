@@ -52,12 +52,12 @@ final class DesignerAcceptanceCandidatePromptFactory {
                 problem using parameter, JSON Pointer, category, expected, actual, detail, allowedValues, and
                 repairHint. Follow action and submissionRevision; diagnosticsComplete=false or truncated=true
                 means only the bounded returned set is known. Call the same exact tool again with the returned
-                submissionRevision. MCP submissions have no count limit.
+                submissionRevision. %s
                 On ACCEPTED or WAITING_INPUT stop.
                 The final text is non-authoritative and must never claim acceptance.
                 """.formatted(facts(planning, routing), capabilities(planning, routing),
                 contract.resolution(routing.resolution()), DesignerClosedChoiceContract.outputContract(), run.runId(), run.version(), run.contractVersion(),
-                exactToolName, exactToolName);
+                exactToolName, exactToolName, CandidateCorrectionPolicy.prompt(run));
     }
 
     String legacy(DesignAcceptancePlanningRow planning,

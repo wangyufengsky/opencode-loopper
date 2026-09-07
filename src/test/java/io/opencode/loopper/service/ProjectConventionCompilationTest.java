@@ -11,6 +11,19 @@ class ProjectConventionCompilationTest {
             new DeterministicProjectConventionCompilation(new ObjectMapper(), new ProjectConventionDocumentStore());
 
     @Test
+    void malformedLargeReferenceListsStayWithinSubmissionDiagnosticEnvelope() {
+        var invalidIds = java.util.Collections.nCopies(130, "");
+        String candidate = new ObjectMapper().writeValueAsString(java.util.Map.of(
+                "contractVersion", "PROJECT_CONVENTION_V1", "componentKeys", invalidIds,
+                "commandIds", invalidIds, "pathIds", invalidIds));
+        var result = compilation.compileCandidate(new ProjectConventionCompilation.Input("", javaEvidence()), candidate);
+        assertThat(result.accepted()).isFalse();
+        assertThat(result.retryable()).isTrue();
+        assertThat(result.problems()).hasSize(64);
+        assertThat(result.problems().getFirst().pointer()).isEqualTo("/componentKeys");
+    }
+
+    @Test
     void legacyAndMcpEntriesProduceTheSameAuthoritativeConvention() {
         ProjectConventionCompilation.Input input = new ProjectConventionCompilation.Input(
                 "# Human rule\n", javaEvidence());

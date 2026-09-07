@@ -69,18 +69,28 @@ final class ProjectConventionCandidateCodec {
                     || !stringArray(root.path("componentKeys"))
                     || !stringArray(root.path("commandIds"))
                     || !stringArray(root.path("pathIds"))) return invalid();
-            if (root.path("componentKeys").size() > 64 || root.path("commandIds").size() > 64
-                    || root.path("pathIds").size() > 128
-                    || root.path("componentKeys").valueStream().anyMatch(item -> invalidText(item, 256))
-                    || root.path("commandIds").valueStream().anyMatch(item -> invalidText(item, 256))
-                    || root.path("pathIds").valueStream().anyMatch(item -> invalidText(item, 512))) {
-                return new Decoded(null, List.of(new Problem("PROJECT_CONVENTION_CANDIDATE_SIZE_INVALID",
-                        "/candidate", "项目公约候选字段数量或 UTF-8 长度超过闭集边界",
-                        List.of(), ProblemClass.MECHANICAL)));
-            }
+            List<Problem> sizeProblems = new java.util.ArrayList<>();
+            checkSize(root, "componentKeys", 64, 256, sizeProblems);
+            checkSize(root, "commandIds", 64, 256, sizeProblems);
+            checkSize(root, "pathIds", 128, 512, sizeProblems);
+            if (!sizeProblems.isEmpty()) return new Decoded(null, List.copyOf(sizeProblems));
             return new Decoded(json.treeToValue(root, Candidate.class), List.of());
         } catch (RuntimeException invalid) {
             return invalid();
+        }
+    }
+
+    private static void checkSize(JsonNode root, String field, int maxItems, int maxBytes, List<Problem> problems) {
+        JsonNode items = root.path(field);
+        if (items.size() > maxItems && problems.size() < 64) {
+            problems.add(new Problem("PROJECT_CONVENTION_CANDIDATE_SIZE_INVALID", "/" + field,
+                    field + " 最多 " + maxItems + " 项；实际 " + items.size() + " 项", List.of(), ProblemClass.MECHANICAL));
+        }
+        for (int index = 0; index < items.size() && problems.size() < 64; index++) {
+            if (invalidText(items.get(index), maxBytes)) {
+                problems.add(new Problem("PROJECT_CONVENTION_CANDIDATE_SIZE_INVALID", "/" + field + "/" + index,
+                        "引用须非空且不超过 " + maxBytes + " UTF-8 字节；请从冻结目录选择准确 ID", List.of(), ProblemClass.MECHANICAL));
+            }
         }
     }
 

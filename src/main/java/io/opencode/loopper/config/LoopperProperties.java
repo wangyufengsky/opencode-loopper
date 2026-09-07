@@ -72,6 +72,18 @@ public class LoopperProperties {
         /** Qualified package-design candidate transport is on by default and may be disabled for rollback. */
         private boolean packageDesignV1Enabled = true;
         /** Opt-in total submissions, including the initial candidate; zero preserves unlimited runs. */
+        private java.util.Map<io.opencode.loopper.domain.MachineCandidateKind, Integer> correctionLimits = java.util.Map.of();
+        public java.util.Map<io.opencode.loopper.domain.MachineCandidateKind, Integer> getCorrectionLimits() { return correctionLimits; }
+        public void setCorrectionLimits(java.util.Map<io.opencode.loopper.domain.MachineCandidateKind, Integer> values) {
+            if (values == null) { correctionLimits = java.util.Map.of(); return; }
+            values.forEach((kind, value) -> {
+                if (kind == null || kind == io.opencode.loopper.domain.MachineCandidateKind.PACKAGE_DESIGN_V1
+                        || value == null || value != 0 && (value < 2 || value > 16)) {
+                    throw new IllegalArgumentException("Role correction limits must be 0 or 2-16; package uses its own setting");
+                }
+            });
+            correctionLimits = java.util.Map.copyOf(values);
+        }
         private int packageDesignCorrectionLimit = 0;
         public int getPackageDesignCorrectionLimit() { return packageDesignCorrectionLimit; }
         public void setPackageDesignCorrectionLimit(int value) {

@@ -19,6 +19,48 @@ class CandidateShapeValidatorTest {
             MachineCandidateKind.PROJECT_CONVENTION_V1, 4,
             MachineCandidateKind.JUDGE_DECISION_V1, 5);
 
+    @Test
+    void conventionReportsTheExactOversizedArrayBeforeTheModelHasToGuess() {
+        var json = JsonMapper.builder().build();
+        String candidate = json.writeValueAsString(Map.of("contractVersion", "PROJECT_CONVENTION_V1",
+                "componentKeys", java.util.Collections.nCopies(65, "component"), "commandIds", java.util.List.of(),
+                "pathIds", java.util.List.of()));
+        assertThat(CandidateShapeValidator.validate(json, MachineCandidateKind.PROJECT_CONVENTION_V1, candidate).problems())
+                .singleElement().satisfies(problem -> {
+                    assertThat(problem.pointer()).isEqualTo("/componentKeys");
+                    assertThat(problem.expected()).contains("64");
+                    assertThat(problem.actual()).isEqualTo("65");
+                });
+    }
+
+    @Test
+    void chineseJudgeReasonUsesActualUtf8BytesAndAllowsCompilerWhitespaceNormalization() {
+        var json = JsonMapper.builder().build();
+        var candidate = new java.util.LinkedHashMap<String, Object>(Map.of("contractVersion", "JUDGE_DECISION_V1",
+                "role", "REQUIREMENT", "verdict", "REVISE", "reason", "中".repeat(2000), "evidenceIds", java.util.List.of("test")));
+        var result = CandidateShapeValidator.validate(json, MachineCandidateKind.JUDGE_DECISION_V1, json.writeValueAsString(candidate));
+        assertThat(result.problems()).singleElement().satisfies(problem -> {
+            assertThat(problem.pointer()).isEqualTo("/reason");
+            assertThat(problem.expected()).contains("4000 UTF-8 bytes");
+            assertThat(problem.actual()).isEqualTo("6000 UTF-8 bytes");
+            assertThat(problem.repairHint()).contains("verdict");
+        });
+        candidate.put("reason", " ".repeat(5000) + "需修正");
+        assertThat(CandidateShapeValidator.validate(json, MachineCandidateKind.JUDGE_DECISION_V1,
+                json.writeValueAsString(candidate)).problems()).isEmpty();
+    }
+
+    @Test
+    void reviewerLimitsRemainCompatibleWithEmptyFindingsAndReportAllIndependentTextErrors() {
+        var json = JsonMapper.builder().build();
+        String candidate = json.writeValueAsString(Map.of("title", "中".repeat(100), "summary", "中".repeat(3000),
+                "findings", java.util.List.of(), "limitations", java.util.Collections.nCopies(33, "限制")));
+        assertThat(CandidateShapeValidator.validate(json, MachineCandidateKind.REVIEWER_REPORT_V1, candidate).problems())
+                .extracting(MachineCandidateSubmission.Problem::pointer).containsExactlyInAnyOrder("/title", "/summary", "/limitations");
+        assertThat(CandidateShapeValidator.validate(json, MachineCandidateKind.REVIEWER_REPORT_V1,
+                "{\"title\":\"审查\",\"summary\":\"无已确认问题\",\"findings\":[],\"limitations\":[]}").problems()).isEmpty();
+    }
+
     @ParameterizedTest
     @EnumSource(MachineCandidateKind.class)
     void reportsEveryMissingRequiredRootFieldForEveryRoleInOneCompletePass(MachineCandidateKind kind) {

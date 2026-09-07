@@ -76,18 +76,9 @@ class PersistentMachineCandidateSubmissionTest {
             org.mockito.Mockito.verify(policy, org.mockito.Mockito.never()).evaluate(any(), anyString());
             return;
         }
-        JsonNode valueProblem = java.util.stream.StreamSupport.stream(
-                        response.path("problems").spliterator(), false)
-                .filter(problem -> "VALUE_INVALID".equals(problem.path("code").asText()))
-                .findFirst().orElseThrow();
-        assertThat(valueProblem.path("parameter").asText()).isEqualTo("candidate");
-        assertThat(valueProblem.path("category").asText()).isEqualTo("VALUE");
-        assertThat(valueProblem.path("expected").asText()).isEqualTo("Use the active role contract version");
-        assertThat(valueProblem.path("actual").asText()).isEqualTo("string \"WRONG\"");
-        assertThat(valueProblem.path("repairHint").asText())
-                .contains("/contractVersion", "Use the active role contract version");
-        assertThat(valueProblem.toString()).doesNotContain(
-                "value satisfying", "does not satisfy the declared contract", "Replace candidate");
+        assertThat(result.problems()).noneMatch(problem -> problem.code().equals("VALUE_INVALID"));
+        assertThat(response.path("repairProtocolVersion").asText()).isEqualTo("CANDIDATE_REPAIR_V1");
+        assertThat(response.path("repairProgress").path("issues").size()).isEqualTo(result.problems().size());
     }
 
     @Test
@@ -187,7 +178,7 @@ class PersistentMachineCandidateSubmissionTest {
                 JsonMapper.builder().build(), List.of(policy), List.of(), List.of());
 
         var result = submissions.submit(new MachineCandidateSubmission.SubmitCommand(
-                "run", "next", "{\"summary\":\"短值\"}", 0,
+                "run", "next", "{\"title\":\"审查\",\"summary\":\"短值\",\"findings\":[],\"limitations\":[]}", 0,
                 MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP,
                 MachineCandidateSubmission.SubmissionSchema.ROLE_SPECIFIC_V2));
 

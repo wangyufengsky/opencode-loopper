@@ -44,7 +44,7 @@ final class JudgeDecisionCandidatePromptFactory {
                 CANDIDATE_DIAGNOSTIC_V2 and repair every returned problem using parameter, JSON Pointer, category,
                 expected, actual, detail, allowedValues, and repairHint. Follow action; diagnosticsComplete=false
                 or truncated=true means only the returned bounded set is known. Use submissionRevision to replace the complete candidate and
-                call the same tool again in this Session. MCP submissions have no count limit.
+                call the same tool again in this Session. %s
                 Stop on ACCEPTED or WAITING_INPUT.
 
                 Candidate fields are closed and all required:
@@ -68,7 +68,7 @@ final class JudgeDecisionCandidatePromptFactory {
                 ownerVersion: %d
                 fallbackAllowed: false
                 frozenEvidenceCatalog: %s
-                """.formatted(exactSubmitTool, role, run.runId(), run.version(), run.sourceRevision(),
+                """.formatted(exactSubmitTool, CandidateCorrectionPolicy.prompt(run), role, run.runId(), run.version(), run.sourceRevision(),
                 run.ownerVersion(), codec.canonical(evidence));
         if (prompt.getBytes(StandardCharsets.UTF_8).length > MAX_PROMPT_BYTES) {
             throw tooLarge();

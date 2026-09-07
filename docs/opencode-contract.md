@@ -1062,3 +1062,20 @@ is never persisted: only hashes and bounded existing diagnostics are stored. Pro
 at most three persisted attempts and idempotent replay preserves its original response.
 
 See [three-batch implementation and qualification](mcp-design-optimization.md) for validation boundaries.
+
+
+## Seven-role candidate correction contract (0.3.67)
+
+V71 extends optional immutable correction limits to every new INTERNAL_MCP role, retaining existing NULL/unlimited
+runs, Legacy budgets and the package-specific setting. Six other roles resolve `internal-candidate.correction-limits`
+only at open time; 0 is unlimited, 2–16 includes the initial submission. Reopening keeps the frozen value.
+All internal roles expose repair progress; non-package responses use CANDIDATE_REPAIR_V1 and package responses keep
+PACKAGE_REPAIR_V1. Finite limits retain exact idempotent replay, acceptance precedence, repeated-content detection
+and WAITING_INPUT on exhaustion; timeouts, permission, source/version and positive stop proof remain independent.
+
+Non-package typed evaluation still invokes the role policy to preserve safety within values and frozen facts.
+Nonretryable decisions take precedence; otherwise shape failures suppress derivative semantic feedback for that
+round. This is diagnostic staging, not bypassing the policy. UTF-8 limits in tool schema use explicit extensions
+and descriptions with the compiler's whitespace rules; Unicode character length and byte length are separate.
+Judge ACCEPTED means a valid decision, including BLOCKED. Neither prompts nor repair hints may ask for PASS merely
+to pass validation. See [role changes, configuration and qualification boundaries](mcp-role-optimization.md).

@@ -62,7 +62,8 @@ public final class DeterministicJudgeDecisionCompilation implements JudgeDecisio
                     "Judge reason 不得包含控制字符"));
         } else if (reason == null || reason.isBlank() || bytes(reason) > 4_000) {
             problems.add(mechanical("JUDGE_DECISION_REASON_INVALID", "/reason",
-                    "reason 必须为 1..4000 UTF-8 字节", List.of()));
+                    "reason 必须为 1..4000 UTF-8 字节；实际 " + bytes(reason)
+                            + " 字节。请精简理由并保持证据支持的 verdict", List.of()));
         } else if (rawReason.chars().anyMatch(value -> value == '\r' || value == '\n' || value == '\t')) {
             problems.add(mechanical("JUDGE_DECISION_REASON_LINE_BREAK_INVALID", "/reason",
                     "Judge reason 必须为不含 CR、LF 或 TAB 的单行文本；请将换行和制表符改为空格或分号，"

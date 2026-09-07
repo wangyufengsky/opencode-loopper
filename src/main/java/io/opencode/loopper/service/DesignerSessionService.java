@@ -1659,7 +1659,7 @@ public class DesignerSessionService {
         }
         String tool = remote.internalMcpServer() + "_" + InternalMcpContractCatalog.toolName(io.opencode.loopper.domain.MachineCandidateKind.DECOMPOSITION_PLAN_V2);
         modelPrompts.submit(remote, decompositionPrompts.candidate(revision, project.rootPath(), run.runId(),
-                run.version(), run.contractVersion(), tool), ModelResponseMode.TEXT_MARKER.name(), null, session.id(), null);
+                run.version(), run.contractVersion(), tool, run.correctionLimit()), ModelResponseMode.TEXT_MARKER.name(), null, session.id(), null);
         publish(session, "STATUS", DesignerActor.DECOMPOSER, true, "", "任务规划师正在同一只读 Session 中提交并修正候选；工具提交不计模型调用");
         return appendMessage(session.id(), DesignerActor.SYSTEM,
                 "完整需求版本 R" + revision.revision() + " 已冻结并交给内部 MCP 候选校验回路。", "PENDING_HANDOFF", revision.revision(), null);

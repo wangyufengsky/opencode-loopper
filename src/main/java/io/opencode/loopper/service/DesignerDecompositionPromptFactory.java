@@ -25,6 +25,13 @@ final class DesignerDecompositionPromptFactory {
 
     String candidate(DesignRequirementRevisionRow revision, String projectRoot, String runId,
                      long expectedSubmissionRevision, String contractVersion, String submitCandidateToolId) {
+        return candidate(revision, projectRoot, runId, expectedSubmissionRevision, contractVersion,
+                submitCandidateToolId, null);
+    }
+
+    String candidate(DesignRequirementRevisionRow revision, String projectRoot, String runId,
+                     long expectedSubmissionRevision, String contractVersion, String submitCandidateToolId,
+                     Integer correctionLimit) {
         return """
                 You are OpenCode Loopper Task Decomposer in one strictly read-only Session.
                 You may use only read, glob, and grep for repository evidence, plus the exact internal tool named
@@ -59,7 +66,7 @@ final class DesignerDecompositionPromptFactory {
                 diagnosticsComplete states whether this pass returned the full problem set; truncated=true means
                 only the bounded returned set is known. Follow action and call again with submissionRevision;
                 on ACCEPTED or WAITING_INPUT, stop immediately.
-                MCP submissions have no count limit. The final text is non-authoritative and must not claim acceptance.
+                %s The final text is non-authoritative and must not claim acceptance.
 
                 %s
 
@@ -78,7 +85,7 @@ final class DesignerDecompositionPromptFactory {
                 """.formatted(rolePrompts.decomposerInstructions(taskProfiles.current(revision.designerSessionId())),
                 projectRoot, revision.revision(), numberedSegments(revision),
                 revision.requirementText(), runId, expectedSubmissionRevision, contractVersion,
-                submitCandidateToolId, submitCandidateToolId, gapContract());
+                submitCandidateToolId, submitCandidateToolId, CandidateCorrectionPolicy.prompt(correctionLimit), gapContract());
     }
 
     String planning(DesignerSessionRow session, ProjectRow project,

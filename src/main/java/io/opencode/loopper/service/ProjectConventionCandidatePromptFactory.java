@@ -33,7 +33,7 @@ final class ProjectConventionCandidatePromptFactory {
                 expected, actual, detail, allowedValues, and repairHint. Follow action; diagnosticsComplete=false
                 or truncated=true means only the returned bounded set is known. Use submissionRevision to correct the complete candidate
                 and call the same tool again in this Session. A successful tool
-                result ends your work. MCP submissions have no count limit. Stop on ACCEPTED or WAITING_INPUT;
+                result ends your work. %s Stop on ACCEPTED or WAITING_INPUT;
                 never interpret an error as acceptance.
 
                 Candidate JSON fields are closed and required:
@@ -57,7 +57,7 @@ final class ProjectConventionCandidatePromptFactory {
                 allowed componentKeys: %s
                 allowed commandIds: %s
                 allowed pathIds: %s
-                """.formatted(exactSubmitTool, run.runId(), run.version(), run.sourceRevision(), run.ownerVersion(),
+                """.formatted(exactSubmitTool, CandidateCorrectionPolicy.prompt(run), run.runId(), run.version(), run.sourceRevision(), run.ownerVersion(),
                 ids(evidence.components().stream()
                         .map(ProjectConventionCompilation.ComponentEvidence::key).toList()),
                 ids(evidence.commands().stream()

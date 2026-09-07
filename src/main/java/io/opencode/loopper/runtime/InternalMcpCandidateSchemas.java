@@ -43,17 +43,17 @@ final class InternalMcpCandidateSchemas {
                         "scopeIn", stringArray(), "scopeOut", stringArray(), "deliverables", stringArray(),
                         "acceptanceIntent", stringArray(), "dependsOn", array(object(
                                 List.of("packageIndex", "rationale"), Map.of(
-                                        "packageIndex", integer(0), "rationale", string(1, null))))));
+                                        "packageIndex", described(integer(0), "Zero-based index of an earlier workPackages item; never a package ID"), "rationale", string(1, null))))));
         return object(List.of("outcome", "normalizedGoal", "globalConstraints", "workPackages", "coverage",
                 "designGaps", "reason"), Map.of(
                 "outcome", enumeration("READY", "NEEDS_INPUT", "MULTI_TASK_REQUIRED"),
                 "normalizedGoal", nullableString(),
                 "globalConstraints", array(object(List.of("text"), Map.of("text", string(1, null)))),
-                "workPackages", array(workPackage),
+                "workPackages", boundedArray(workPackage, 6),
                 "coverage", array(object(List.of("requirementRef", "targetType", "targetIndex"),
                         Map.of("requirementRef", string(1, null),
                                 "targetType", enumeration("GLOBAL_CONSTRAINT", "WORK_PACKAGE"),
-                                "targetIndex", integer(0), "rationale", string(0, null)))),
+                                "targetIndex", described(integer(0), "Zero-based index into globalConstraints or workPackages selected by targetType"), "rationale", string(0, null)))),
                 "designGaps", array(object(List.of("code", "detail"), Map.of(
                         "code", string(1, null), "detail", string(1, null)))),
                 "reason", nullableString()));
@@ -61,9 +61,9 @@ final class InternalMcpCandidateSchemas {
 
     private static Map<String, Object> acceptanceChoice() {
         Map<String, Object> assignment = object(List.of("factIndex", "stageIndex"), Map.of(
-                "factIndex", integer(0), "stageIndex", integer(0)));
+                "factIndex", described(integer(0), "Exact zero-based fact index from the frozen resolution; never invent an index"), "stageIndex", integer(0)));
         Map<String, Object> preference = object(List.of("factIndex", "capabilityIndexes"), Map.of(
-                "factIndex", integer(0), "capabilityIndexes", integerArray()));
+                "factIndex", described(integer(0), "Exact zero-based fact index from the frozen resolution; never invent an index"), "capabilityIndexes", described(integerArray(), "Array of frozen capability indexes belonging to one complete allowed optimum; never a scalar")));
         return object(List.of("factAssignments", "capabilityPreferences"), Map.of(
                 "factAssignments", array(assignment),
                 "capabilityPreferences", array(preference),
@@ -111,8 +111,9 @@ final class InternalMcpCandidateSchemas {
         Map<String, Object> packageItem = object(
                 List.of("packageKey", "title", "objective", "replaces", "dependencies", "requirementRefs"),
                 Map.of("packageKey", string(1, null), "title", string(1, null),
-                        "objective", string(1, null), "replaces", stringArray(),
-                        "dependencies", stringArray(), "requirementRefs", stringArray()));
+                        "objective", string(1, null), "replaces", described(stringArray(), "Existing replaceable package keys from the frozen unfinished suffix"),
+                        "dependencies", described(stringArray(), "Frozen retained package keys or earlier candidate packageKey values; no self or forward references"),
+                        "requirementRefs", described(stringArray(), "Exact frozen requirement references; preserve required coverage")));
         return object(List.of("packages"), Map.of("packages", array(packageItem)));
     }
 
@@ -120,24 +121,28 @@ final class InternalMcpCandidateSchemas {
         Map<String, Object> finding = object(
                 List.of("severity", "title", "detail", "path", "line", "recommendation"),
                 Map.of("severity", enumeration("CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"),
-                        "title", string(1, null), "detail", string(1, null), "path", string(1, null),
-                        "line", integer(1), "recommendation", string(1, null)));
+                        "title", utf8String(300, true), "detail", utf8String(4000, true), "path", described(utf8String(1024, true), "Managed relative source path observed in the frozen manifest; no absolute or protected path"),
+                        "line", described(schema("integer", Map.of("minimum", 1, "maximum", 10000000)), "Exact one-based observed source line within that frozen file"), "recommendation", utf8String(4000, true)));
         return object(List.of("title", "summary", "findings", "limitations"), Map.of(
-                "title", string(1, null), "summary", string(1, null),
-                "findings", array(finding), "limitations", stringArray()));
+                "title", utf8String(200, true), "summary", utf8String(8000, true),
+                "findings", described(boundedArray(finding, 128), "0..128 evidence-grounded findings; [] is valid when none is confirmed. Rendered report must fit 64 KiB"),
+                "limitations", boundedArray(utf8String(2000, true), 32)));
     }
 
     private static Map<String, Object> projectConvention() {
         return object(List.of("contractVersion", "componentKeys", "commandIds", "pathIds"), Map.of(
                 "contractVersion", constant("PROJECT_CONVENTION_V1"),
-                "componentKeys", stringArray(), "commandIds", stringArray(), "pathIds", stringArray()));
+                "componentKeys", described(boundedArray(utf8String(256, false), 64), "Select at least one unique frozen component key"),
+                "commandIds", described(boundedArray(utf8String(256, false), 64), "Unique frozen command IDs relevant to selected components; [] allowed, never raw commands"),
+                "pathIds", described(boundedArray(utf8String(512, false), 128), "Unique frozen path IDs relevant to selected components; [] allowed, never raw paths")));
     }
 
     private static Map<String, Object> judgeDecision() {
         return object(List.of("contractVersion", "role", "verdict", "reason", "evidenceIds"), Map.of(
-                "contractVersion", constant("JUDGE_DECISION_V1"), "role", string(1, null),
+                "contractVersion", constant("JUDGE_DECISION_V1"), "role", described(enumeration("REQUIREMENT", "RISK"), "Must equal this run frozen owner role"),
                 "verdict", enumeration("PASS", "REVISE", "BLOCKED"),
-                "reason", string(1, 4000), "evidenceIds", stringArray()));
+                "reason", described(utf8String(4000, true), "Nonblank single-line reason, at most 4000 UTF-8 bytes after stripping outer whitespace; no CR/LF/TAB or control characters. Preserve the evidence-grounded verdict"),
+                "evidenceIds", described(stringArray(), "One or more unique exact IDs from the frozen evidence catalog")));
     }
 
     private static Map<String, Object> object(List<String> required, Map<String, Object> properties) {
@@ -149,13 +154,19 @@ final class InternalMcpCandidateSchemas {
         return Map.copyOf(result);
     }
 
+    private static Map<String, Object> utf8String(int maximum, boolean strip) {
+        return schema("string", Map.of("minLength", 1, "x-loopper-maxUtf8Bytes", maximum,
+                "x-loopper-stripBeforeByteCount", strip,
+                "description", "Nonblank text, maximum " + maximum + " UTF-8 bytes"));
+    }
+
     private static Map<String, Object> boundedArray(Map<String, Object> items, int maximum) {
         return Map.of("type", "array", "items", items, "maxItems", maximum);
     }
 
     private static Map<String, Object> described(Map<String, Object> schema, String description) {
         Map<String, Object> result = new java.util.LinkedHashMap<>(schema);
-        result.put("description", description);
+        result.put("description", schema.containsKey("description") ? schema.get("description") + ". " + description : description);
         return Map.copyOf(result);
     }
 

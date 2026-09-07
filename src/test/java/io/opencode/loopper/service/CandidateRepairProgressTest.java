@@ -26,6 +26,25 @@ class CandidateRepairProgressTest {
         assertThat(fixed.resolved()).hasSize(2);
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+            "packages,packageKey,WP-1,WP-2",
+            "capabilityPreferences,factIndex,1,2",
+            "findings,path,src/a.java,src/b.java"})
+    void roleEntityIdentitySurvivesArrayReordering(String array, String key, String first, String second) {
+        Object a = key.equals("factIndex") ? Integer.valueOf(first) : first;
+        Object b = key.equals("factIndex") ? Integer.valueOf(second) : second;
+        var itemA = Map.of(key, a, "line", 1);
+        var itemB = Map.of(key, b, "line", 1);
+        String beforeJson = json.writeValueAsString(Map.of(array, List.of(itemA, itemB)));
+        String afterJson = json.writeValueAsString(Map.of(array, List.of(itemB, itemA)));
+        var before = analyze(beforeJson, List.of(problem("/" + array + "/0/detail")), List.of(), true);
+        var after = analyze(afterJson, List.of(problem("/" + array + "/1/detail")), List.of(attempt(before, true)), true);
+        assertThat(after.remaining()).containsExactly(before.issues().getFirst().id());
+        assertThat(after.resolved()).isEmpty();
+        assertThat(after.introduced()).isEmpty();
+    }
+
     @Test void detectsOscillationButDoesNotClaimProgressFromTruncatedDiagnostics() {
         var first = analyze("{\"a\":1,\"b\":2}", List.of(problem("/a")), List.of(), true);
         var next = analyze("{\"a\":2}", List.of(problem("/a")), List.of(attempt(first, true)), true);

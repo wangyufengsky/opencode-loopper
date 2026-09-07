@@ -1,0 +1,2140 @@
+{
+  "date": "2026-09-07",
+  "scope": "Synthetic MCP adapter plus production schemas and compiler kernels; not HTTP owner lifecycle qualification",
+  "baselineCommit": "c15ca4ab8df1891b6e3c6b6838a4f5f6d2bf61b0",
+  "formal": [
+    {
+      "summary": {
+        "kind": "DECOMPOSITION_PLAN_V2",
+        "case": "normal",
+        "repeat": 1,
+        "model": "opencode/gpt-5.4",
+        "temperature": 0,
+        "evaluationBudget": 4,
+        "outcomes": [
+          "ACCEPTED"
+        ],
+        "seconds": 29.17,
+        "exitCode": 0,
+        "timedOut": false,
+        "fixtureUnchanged": true,
+        "providerStepTokens": {
+          "input": 7040,
+          "output": 1332,
+          "reasoning": 1060,
+          "cacheRead": 3072,
+          "cacheWrite": 0
+        },
+        "injectedFault": false,
+        "heldOut": false,
+        "acceptedVerdict": null,
+        "faultObserved": false
+      },
+      "attempts": [
+        {
+          "candidateSha256": "87dbbe644d1d7375c79da65c17d19bc8a5401fedde7c71311d142e9f410b80f6",
+          "response": {
+            "outcome": "ACCEPTED",
+            "retryable": false,
+            "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+            "diagnosticsComplete": true,
+            "problems": [],
+            "repairProgress": {
+              "contentSha256": "969c78958c43789f8f563f141e052389ab35e41f452ac44dae69d3e1e42835a8",
+              "issues": [],
+              "comparisonComplete": false,
+              "resolved": [],
+              "remaining": [],
+              "introduced": [],
+              "repeatedCandidate": false
+            },
+            "action": "STOP_ACCEPTED",
+            "canonicalCandidate": {
+              "status": "DECOMPOSED",
+              "normalizedGoal": "将冻结需求拆分为两个纵向业务包：先在 loopback-only 边界内完成候选校验，再仅对已接受结果执行持久化。",
+              "globalConstraints": [
+                {
+                  "text": "RQ-1: 保持 loopback-only。",
+                  "requirementRefs": [
+                    "RQ-1"
+                  ]
+                },
+                {
+                  "text": "RQ-2: 校验候选。",
+                  "requirementRefs": [
+                    "RQ-2"
+                  ]
+                },
+                {
+                  "text": "RQ-3: 仅持久化接受结果。",
+                  "requirementRefs": [
+                    "RQ-3"
+                  ]
+                }
+              ],
+              "workPackages": [
+                {
+                  "id": "WP-1",
+                  "title": "候选接入与校验闭环",
+                  "objective": "在 loopback-only 边界内完成候选接收、结构与业务校验，并为后续接受决策提供明确的已校验结果。",
+                  "scopeIn": [
+                    "限定候选接入路径维持 loopback-only。",
+                    "定义候选的必填性、一致性与可接受性校验。",
+                    "对校验失败候选给出非持久化的拒绝/返回路径。",
+                    "输出可被后续接受流程消费的已校验候选结果。"
+                  ],
+                  "scopeOut": [
+                    "新增非 loopback 网络暴露。",
+                    "绕过校验直接进入接受或持久化。",
+                    "引入与候选校验无关的运营或审计扩展。"
+                  ],
+                  "dependencies": [],
+                  "deliverables": [
+                    "loopback-only 候选接入边界定义。",
+                    "候选校验规则与结果模型。",
+                    "校验失败不落盘的处理分流说明。"
+                  ],
+                  "acceptanceIntent": [
+                    "所有候选都先经过校验再进入后续流程。",
+                    "候选接入仍限定在 loopback-only。",
+                    "校验失败不会产生持久化结果。"
+                  ],
+                  "requirementRefs": [
+                    "RQ-1",
+                    "RQ-2"
+                  ]
+                },
+                {
+                  "id": "WP-2",
+                  "title": "接受决策与接受结果持久化",
+                  "objective": "基于已校验候选完成接受决策，并确保只有接受结果被持久化。",
+                  "scopeIn": [
+                    "消费包 0 输出的已校验候选。",
+                    "建立接受/不接受决策分支。",
+                    "仅对接受结果执行持久化。",
+                    "阻断拒绝、未校验或未决结果的持久化。"
+                  ],
+                  "scopeOut": [
+                    "重写包 0 的校验规则。",
+                    "持久化拒绝结果或中间态。",
+                    "扩展到候选处理之外的数据域。"
+                  ],
+                  "dependencies": [
+                    "WP-1"
+                  ],
+                  "deliverables": [
+                    "接受决策状态流定义。",
+                    "仅接受结果持久化的写入约束。",
+                    "非接受结果不落盘的防护说明。"
+                  ],
+                  "acceptanceIntent": [
+                    "只有已校验且被接受的结果会被持久化。",
+                    "拒绝、未校验或未决结果不会被持久化。",
+                    "持久化流程不削弱 loopback-only 与先校验约束。"
+                  ],
+                  "requirementRefs": [
+                    "RQ-2",
+                    "RQ-3"
+                  ]
+                }
+              ],
+              "coverageMappings": [
+                {
+                  "requirementRef": "RQ-1",
+                  "targetType": "GLOBAL_CONSTRAINT",
+                  "targetId": "GC-1",
+                  "rationale": "冻结需求要求保持 loopback-only，两个业务包都不得引入非回环暴露。"
+                },
+                {
+                  "requirementRef": "RQ-2",
+                  "targetType": "GLOBAL_CONSTRAINT",
+                  "targetId": "GC-2",
+                  "rationale": "冻结需求要求候选必须先校验，后续接受与持久化都以校验结果为前置。"
+                },
+                {
+                  "requirementRef": "RQ-3",
+                  "targetType": "GLOBAL_CONSTRAINT",
+                  "targetId": "GC-3",
+                  "rationale": "冻结需求要求仅持久化接受结果，拒绝或未决结果不得落盘。"
+                },
+                {
+                  "requirementRef": "RQ-1",
+                  "targetType": "WORK_PACKAGE",
+                  "targetId": "WP-1",
+                  "rationale": "包 0 建立 loopback-only 的候选接入与校验路径。"
+                },
+                {
+                  "requirementRef": "RQ-2",
+                  "targetType": "WORK_PACKAGE",
+                  "targetId": "WP-1",
+                  "rationale": "包 0 覆盖候选校验规则与校验失败分流。"
+                },
+                {
+                  "requirementRef": "RQ-2",
+                  "targetType": "WORK_PACKAGE",
+                  "targetId": "WP-2",
+                  "rationale": "包 1 仅消费包 0 的已校验候选，避免绕过校验进入持久化。"
+                },
+                {
+                  "requirementRef": "RQ-3",
+                  "targetType": "WORK_PACKAGE",
+                  "targetId": "WP-2",
+                  "rationale": "包 1 负责接受决策后的持久化，并明确排除非接受结果写入。"
+                }
+              ],
+              "dependencyEvidence": [
+                {
+                  "workPackageId": "WP-2",
+                  "dependsOn": "WP-1",
+                  "rationale": "接受决策与持久化必须建立在包 0 产出的已校验候选之上，才能满足先校验与仅持久化接受结果。"
+                }
+              ],
+              "designGaps": [],
+              "reason": null
+            },
+            "attemptOrdinal": 1,
+            "submissionRevision": 1,
+            "remainingAttempts": 3
+          }
+        }
+      ]
+    },
+    {
+      "summary": {
+        "kind": "DECOMPOSITION_PLAN_V2",
+        "case": "repair_shape",
+        "repeat": 1,
+        "model": "opencode/gpt-5.4",
+        "temperature": 0,
+        "evaluationBudget": 4,
+        "outcomes": [
+          "REJECTED",
+          "ACCEPTED"
+        ],
+        "seconds": 24.22,
+        "exitCode": 0,
+        "timedOut": false,
+        "fixtureUnchanged": true,
+        "providerStepTokens": {
+          "input": 8044,
+          "output": 1964,
+          "reasoning": 571,
+          "cacheRead": 4096,
+          "cacheWrite": 0
+        },
+        "injectedFault": true,
+        "heldOut": false,
+        "acceptedVerdict": null,
+        "faultObserved": true
+      },
+      "attempts": [
+        {
+          "candidateSha256": "0c2fa9cc1a8db923461131a902f2c2c415156256eb58c6da4ec8d484f7ae1cfc",
+          "response": {
+            "outcome": "REJECTED",
+            "retryable": true,
+            "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+            "diagnosticsComplete": true,
+            "problems": [
+              {
+                "code": "CANDIDATE_FIELD_UNKNOWN",
+                "pointer": "/note",
+                "detail": "Candidate contains a field outside the role contract",
+                "allowedValues": [
+                  "reason",
+                  "globalConstraints",
+                  "outcome",
+                  "designGaps",
+                  "workPackages",
+                  "coverage",
+                  "normalizedGoal"
+                ],
+                "parameter": "candidate",
+                "category": "SHAPE",
+                "expected": "only fields listed in allowedValues",
+                "actual": "undeclared field at /note; submitted value: string \"qualification\"",
+                "repairHint": "Remove /note and resubmit the complete candidate object"
+              }
+            ],
+            "repairProgress": {
+              "contentSha256": "086bf860e06a4deb110dc51680ebe7eaa62d008072ba64684f133af89206c3a3",
+              "issues": [
+                {
+                  "id": "5a0da9e22617cf8735182752ce8ef996512940af63b92543ba6f01c4c17c93c0",
+                  "problemIndex": 0,
+                  "layer": "SHAPE"
+                }
+              ],
+              "comparisonComplete": false,
+              "resolved": [],
+              "remaining": [
+                "5a0da9e22617cf8735182752ce8ef996512940af63b92543ba6f01c4c17c93c0"
+              ],
+              "introduced": [],
+              "repeatedCandidate": false
+            },
+            "action": "FIX_AND_RESUBMIT",
+            "attemptOrdinal": 1,
+            "submissionRevision": 1,
+            "remainingAttempts": 3
+          }
+        },
+        {
+          "candidateSha256": "fe86d54e20cb21eb017fa21acb4464af237cd698f6831d06750e3dffda890ed2",
+          "response": {
+            "outcome": "ACCEPTED",
+            "retryable": false,
+            "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+            "diagnosticsComplete": true,
+            "problems": [],
+            "repairProgress": {
+              "contentSha256": "99c3616bcdf960be71169db7db2b6e078291c57588afc0c6371449bc21b7a4df",
+              "issues": [],
+              "comparisonComplete": true,
+              "resolved": [
+                "5a0da9e22617cf8735182752ce8ef996512940af63b92543ba6f01c4c17c93c0"
+              ],
+              "remaining": [],
+              "introduced": [],
+              "repeatedCandidate": false
+            },
+            "action": "STOP_ACCEPTED",
+            "canonicalCandidate": {
+              "status": "DECOMPOSED",
+              "normalizedGoal": "在保持 loopback-only 的前提下，建立候选校验与接受结果持久化流程，并确保仅将通过接受判定的结果持久化。",
+              "globalConstraints": [
+                {
+                  "text": "RQ-1：方案必须保持 loopback-only，所有通信与绑定范围限定在本机回环接口。",
+                  "requirementRefs": [
+                    "RQ-1"
+                  ]
+                },
+                {
+                  "text": "RQ-2：方案必须对候选进行校验，仅允许通过校验的候选进入接受判定。",
+                  "requirementRefs": [
+                    "RQ-2"
+                  ]
+                },
+                {
+                  "text": "RQ-3：方案仅持久化被接受的结果，未接受或校验失败的结果不得落盘。",
+                  "requirementRefs": [
+                    "RQ-3"
+                  ]
+                }
+              ],
+              "workPackages": [
+                {
+                  "id": "WP-1",
+                  "title": "候选接入与校验闭环",
+                  "objective": "在 loopback-only 边界内完成候选接入、基础规则校验与接受前闸门控制，确保只有有效候选进入接受判定。",
+                  "scopeIn": [
+                    "定义候选输入模型与必填字段规则",
+                    "在本机回环接口范围内接收候选",
+                    "执行候选格式、完整性与业务规则校验",
+                    "对校验失败候选进行拒绝并阻断后续接受流程"
+                  ],
+                  "scopeOut": [
+                    "远程网络暴露或非 loopback 接入",
+                    "人工审批流程",
+                    "结果持久化实现"
+                  ],
+                  "dependencies": [],
+                  "deliverables": [
+                    "候选接入与校验流程设计",
+                    "校验规则清单与失败分流规则",
+                    "接受前闸门接口约定"
+                  ],
+                  "acceptanceIntent": [
+                    "能够说明候选仅通过 loopback-only 路径进入流程",
+                    "能够区分校验通过与校验失败候选",
+                    "能够证明校验失败候选不会进入接受结果处理"
+                  ],
+                  "requirementRefs": [
+                    "RQ-1",
+                    "RQ-2"
+                  ]
+                },
+                {
+                  "id": "WP-2",
+                  "title": "接受判定与受理结果持久化",
+                  "objective": "对通过校验的候选执行接受判定，并仅将被接受的结果持久化。",
+                  "scopeIn": [
+                    "消费已通过校验的候选",
+                    "执行接受/不接受判定",
+                    "仅对接受结果进行持久化",
+                    "明确未接受结果与校验失败结果不落盘"
+                  ],
+                  "scopeOut": [
+                    "修改前序校验规则",
+                    "持久化未接受、待定或失败结果",
+                    "跨主机或外部服务同步"
+                  ],
+                  "dependencies": [
+                    "WP-1"
+                  ],
+                  "deliverables": [
+                    "接受判定流程设计",
+                    "接受结果持久化规则",
+                    "非接受结果丢弃/不落盘策略"
+                  ],
+                  "acceptanceIntent": [
+                    "能够证明仅有通过校验的候选会进入接受判定",
+                    "能够证明仅有接受结果会被持久化",
+                    "能够证明未接受结果不会被持久化"
+                  ],
+                  "requirementRefs": [
+                    "RQ-1",
+                    "RQ-3"
+                  ]
+                }
+              ],
+              "coverageMappings": [
+                {
+                  "requirementRef": "RQ-1",
+                  "targetType": "GLOBAL_CONSTRAINT",
+                  "targetId": "GC-1",
+                  "rationale": "Requirement is owned by GC-1"
+                },
+                {
+                  "requirementRef": "RQ-2",
+                  "targetType": "GLOBAL_CONSTRAINT",
+                  "targetId": "GC-2",
+                  "rationale": "Requirement is owned by GC-2"
+                },
+                {
+                  "requirementRef": "RQ-3",
+                  "targetType": "GLOBAL_CONSTRAINT",
+                  "targetId": "GC-3",
+                  "rationale": "Requirement is owned by GC-3"
+                },
+                {
+                  "requirementRef": "RQ-1",
+                  "targetType": "WORK_PACKAGE",
+                  "targetId": "WP-1",
+                  "rationale": "入口接入与校验链路在本机回环范围内接收和处理候选，并在进入后续流程前完成校验。"
+                },
+                {
+                  "requirementRef": "RQ-2",
+                  "targetType": "WORK_PACKAGE",
+                  "targetId": "WP-1",
+                  "rationale": "该包建立候选接收、格式/规则校验与接受前闸门。"
+                },
+                {
+                  "requirementRef": "RQ-1",
+                  "targetType": "WORK_PACKAGE",
+                  "targetId": "WP-2",
+                  "rationale": "接受结果落盘能力延续本机回环边界，不引入非 loopback 存储交互路径。"
+                },
+                {
+                  "requirementRef": "RQ-3",
+                  "targetType": "WORK_PACKAGE",
+                  "targetId": "WP-2",
+                  "rationale": "该包只对已接受结果执行持久化，并显式排除其他结果。"
+                }
+              ],
+              "dependencyEvidence": [
+                {
+                  "workPackageId": "WP-2",
+                  "dependsOn": "WP-1",
+                  "rationale": "只有前序包完成候选校验与闸门控制后，后续包才能基于有效候选执行接受判定与选择性持久化。"
+                }
+              ],
+              "designGaps": [],
+              "reason": null
+            },
+            "attemptOrdinal": 2,
+            "submissionRevision": 2,
+            "remainingAttempts": 2
+          }
+        }
+      ]
+    },
+    {
+      "summary": {
+        "kind": "ACCEPTANCE_CLOSED_CHOICE_V7",
+        "case": "normal",
+        "repeat": 1,
+        "model": "opencode/gpt-5.4",
+        "temperature": 0,
+        "evaluationBudget": 4,
+        "outcomes": [
+          "ACCEPTED"
+        ],
+        "seconds": 7.33,
+        "exitCode": 0,
+        "timedOut": false,
+        "fixtureUnchanged": true,
+        "providerStepTokens": {
+          "input": 2954,
+          "output": 100,
+          "reasoning": 142,
+          "cacheRead": 0,
+          "cacheWrite": 0
+        },
+        "injectedFault": false,
+        "heldOut": false,
+        "acceptedVerdict": null,
+        "faultObserved": false
+      },
+      "attempts": [
+        {
+          "candidateSha256": "3d8a826e37b1d1c51ff0af5c807d46a7f9039ddd370439a61ccc99d561d08898",
+          "response": {
+            "outcome": "ACCEPTED",
+            "retryable": false,
+            "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+            "diagnosticsComplete": true,
+            "problems": [],
+            "repairProgress": {
+              "contentSha256": "dcead7d6d1a6b7e4c89e063871994c6c326cfb4e59edd78a6524f0daf86b6d23",
+              "issues": [],
+              "comparisonComplete": false,
+              "resolved": [],
+              "remaining": [],
+              "introduced": [],
+              "repeatedCandidate": false
+            },
+            "action": "STOP_ACCEPTED",
+            "canonicalCandidate": {
+              "summary": "Selected one complete optimal capability set for frozen factIndex 0.",
+              "groupHints": [
+                {
+                  "title": "实现",
+                  "objective": "实现行为",
+                  "factIndexes": [
+                    0
+                  ],
+                  "dependsOnHintIndexes": []
+                }
+              ],
+              "capabilityPreferences": [
+                {
+                  "factIndex": 0,
+                  "capabilityIndexes": [
+                    0
+                  ]
+                }
+              ],
+              "handoffSummary": null
+            },
+            "attemptOrdinal": 1,
+            "submissionRevision": 1,
+            "remainingAttempts": 3
+          }
+        }
+      ]
+    },
+    {
+      "summary": {
+        "kind": "ACCEPTANCE_CLOSED_CHOICE_V7",
+        "case": "repair_shape",
+        "repeat": 1,
+        "model": "opencode/gpt-5.4",
+        "temperature": 0,
+        "evaluationBudget": 4,
+        "outcomes": [
+          "REJECTED",
+          "ACCEPTED"
+        ],
+        "seconds": 12.78,
+        "exitCode": 0,
+        "timedOut": false,
+        "fixtureUnchanged": true,
+        "providerStepTokens": {
+          "input": 4324,
+          "output": 151,
+          "reasoning": 415,
+          "cacheRead": 1536,
+          "cacheWrite": 0
+        },
+        "injectedFault": true,
+        "heldOut": false,
+        "acceptedVerdict": null,
+        "faultObserved": true
+      },
+      "attempts": [
+        {
+          "candidateSha256": "b9356a67c5031c25c80d13ed0409b237224602f46d0dfa9ed03e674914557fee",
+          "response": {
+            "outcome": "REJECTED",
+            "retryable": true,
+            "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+            "diagnosticsComplete": true,
+            "problems": [
+              {
+                "code": "CANDIDATE_FIELD_UNKNOWN",
+                "pointer": "/note",
+                "detail": "Candidate contains a field outside the role contract",
+                "allowedValues": [
+                  "factAssignments",
+                  "summary",
+                  "handoffSummary",
+                  "capabilityPreferences"
+                ],
+                "parameter": "candidate",
+                "category": "SHAPE",
+                "expected": "only fields listed in allowedValues",
+                "actual": "undeclared field at /note; submitted value: string \"qualification\"",
+                "repairHint": "Remove /note and resubmit the complete candidate object"
+              }
+            ],
+            "repairProgress": {
+              "contentSha256": "4e015940c742b8ff3ba03f11de42a2a9b39c2af89b75a35c009dba1001e0baa5",
+              "issues": [
+                {
+                  "id": "5a0da9e22617cf8735182752ce8ef996512940af63b92543ba6f01c4c17c93c0",
+                  "problemIndex": 0,
+                  "layer": "SHAPE"
+                }
+              ],
+              "comparisonComplete": false,
+              "resolved": [],
+              "remaining": [
+                "5a0da9e22617cf8735182752ce8ef996512940af63b92543ba6f01c4c17c93c0"
+              ],
+              "introduced": [],
+              "repeatedCandidate": false
+            },
+            "action": "FIX_AND_RESUBMIT",
+            "attemptOrdinal": 1,
+            "submissionRevision": 1,
+            "remainingAttempts": 3
+          }
+        },
+        {
+          "candidateSha256": "52737f19ef255d228f962a29a88f12a45ff4ba05b2fb0e299754314db4ced033",
+          "response": {
+            "outcome": "ACCEPTED",
+            "retryable": false,
+            "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+            "diagnosticsComplete": true,
+            "problems": [],
+            "repairProgress": {
+              "contentSha256": "7474c458f710395950deabf95e6c8b88797a5ba8338100bfd8aad63f92012a77",
+              "issues": [],
+              "comparisonComplete": true,
+              "resolved": [
+                "5a0da9e22617cf8735182752ce8ef996512940af63b92543ba6f01c4c17c93c0"
+              ],
+              "remaining": [],
+              "introduced": [],
+              "repeatedCandidate": false
+            },
+            "action": "STOP_ACCEPTED",
+            "canonicalCandidate": {
+              "summary": null,
+              "groupHints": [
+                {
+                  "title": "实现",
+                  "objective": "实现行为",
+                  "factIndexes": [
+                    0
+                  ],
+                  "dependsOnHintIndexes": []
+                }
+              ],
+              "capabilityPreferences": [
+                {
+                  "factIndex": 0,
+                  "capabilityIndexes": [
+                    0
+                  ]
+                }
+              ],
+              "handoffSummary": null
+            },
+            "attemptOrdinal": 2,
+            "submissionRevision": 2,
+            "remainingAttempts": 2
+          }
+        }
+      ]
+    },
+    {
+      "summary": {
+        "kind": "PACKAGE_DESIGN_V1",
+        "case": "normal",
+        "repeat": 1,
+        "model": "opencode/gpt-5.4",
+        "temperature": 0,
+        "evaluationBudget": 4,
+        "outcomes": [
+          "REJECTED",
+          "REJECTED",
+          "ACCEPTED"
+        ],
+        "seconds": 29.19,
+        "exitCode": 0,
+        "timedOut": false,
+        "fixtureUnchanged": true,
+        "providerStepTokens": {
+          "input": 11313,
+          "output": 1685,
+          "reasoning": 768,
+          "cacheRead": 7680,
+          "cacheWrite": 0
+        },
+        "injectedFault": false,
+        "heldOut": false,
+        "acceptedVerdict": null,
+        "faultObserved": false
+      },
+      "attempts": [
+        {
+          "candidateSha256": "b3b90fe5df4c8fe364adce75a882265d8ef6b8b3eb95a05fb9c615fe5278eedf",
+          "response": {
+            "outcome": "REJECTED",
+            "retryable": true,
+            "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+            "diagnosticsComplete": true,
+            "problems": [
+              {
+                "code": "PACKAGE_DESIGN_GAP_CODE_INVALID",
+                "pointer": "/gapCodes/0",
+                "detail": "设计缺口必须使用服务端闭集值",
+                "allowedValues": [
+                  "MISSING_OBSERVABLE_OUTCOME",
+                  "MISSING_EXCEPTION_SEMANTICS",
+                  "MISSING_SCOPE",
+                  "MISSING_ACCEPTANCE_INTENT",
+                  "AMBIGUOUS_ACCEPTANCE_INTENT",
+                  "VERIFICATION_CAPABILITY_UNAVAILABLE",
+                  "LARGE_TASK_MODE_REQUIRED",
+                  "REQUIRED_MUTATION_PATH_UNASSIGNED",
+                  "REQUIRED_MUTATION_PATH_FORBIDDEN"
+                ],
+                "parameter": "candidate",
+                "category": "VALUE",
+                "expected": "one value from allowedValues",
+                "actual": "string \"EVENTBUS_API_MISSING\"",
+                "repairHint": "Correct candidate/gapCodes/0 so that: 设计缺口必须使用服务端闭集值; then resubmit the complete candidate"
+              }
+            ],
+            "repairProgress": {
+              "contentSha256": "187d163159677a3a8b0aa8cd78850a17b9e852857defd79161981ac901130dfc",
+              "issues": [
+                {
+                  "id": "c4c9d1f618f3348eab21951bd542279ec23bf9030c70cefda09885ba37e566dd",
+                  "problemIndex": 0,
+                  "layer": "SHAPE"
+                }
+              ],
+              "comparisonComplete": false,
+              "resolved": [],
+              "remaining": [
+                "c4c9d1f618f3348eab21951bd542279ec23bf9030c70cefda09885ba37e566dd"
+              ],
+              "introduced": [],
+              "repeatedCandidate": false
+            },
+            "action": "FIX_AND_RESUBMIT",
+            "attemptOrdinal": 1,
+            "submissionRevision": 1,
+            "remainingAttempts": 3
+          }
+        },
+        {
+          "candidateSha256": "3a67a323a222825f40eca971e0a78a30804e1e24961f33861ce983109715fca6",
+          "response": {
+            "outcome": "REJECTED",
+            "retryable": true,
+            "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+            "diagnosticsComplete": true,
+            "problems": [
+              {
+                "code": "VERIFICATION_CAPABILITY_UNAVAILABLE",
+                "pointer": "/gapCodes/0",
+                "detail": "VERIFICATION_CAPABILITY_UNAVAILABLE 属于候选自身可修正问题，不能作为人工输入出口；请修正完整候选并重新提交 READY",
+                "allowedValues": [
+                  "MISSING_OBSERVABLE_OUTCOME",
+                  "MISSING_EXCEPTION_SEMANTICS",
+                  "MISSING_SCOPE",
+                  "MISSING_ACCEPTANCE_INTENT",
+                  "AMBIGUOUS_ACCEPTANCE_INTENT",
+                  "VERIFICATION_CAPABILITY_UNAVAILABLE",
+                  "LARGE_TASK_MODE_REQUIRED",
+                  "REQUIRED_MUTATION_PATH_UNASSIGNED",
+                  "REQUIRED_MUTATION_PATH_FORBIDDEN"
+                ],
+                "parameter": "candidate",
+                "category": "SEMANTIC",
+                "expected": "outcome READY with gapCodes [] after the candidate-owned issue is repaired",
+                "actual": "outcome NEEDS_INPUT with /gapCodes/0=\"VERIFICATION_CAPABILITY_UNAVAILABLE\"; submitted value: string \"VERIFICATION_CAPABILITY_UNAVAILABLE\"",
+                "repairHint": "Set /outcome to READY, set /gapCodes to [], repair the fields named by VERIFICATION_CAPABILITY_UNAVAILABLE, and resubmit the complete candidate"
+              }
+            ],
+            "repairProgress": {
+              "contentSha256": "563fade4d7b2a6b020827f9c2f98fb3b2424c682a16290f719e9842b9bd4a7a8",
+              "issues": [
+                {
+                  "id": "59f5b7aeb55cf3f73d5be6be89f27ac2fcb39cae3b3458b6decb27040cae528f",
+                  "problemIndex": 0,
+                  "layer": "SEMANTIC_OR_COMPILE"
+                }
+              ],
+              "comparisonComplete": true,
+              "resolved": [
+                "c4c9d1f618f3348eab21951bd542279ec23bf9030c70cefda09885ba37e566dd"
+              ],
+              "remaining": [],
+              "introduced": [
+                "59f5b7aeb55cf3f73d5be6be89f27ac2fcb39cae3b3458b6decb27040cae528f"
+              ],
+              "repeatedCandidate": false
+            },
+            "action": "FIX_AND_RESUBMIT",
+            "attemptOrdinal": 2,
+            "submissionRevision": 2,
+            "remainingAttempts": 2
+          }
+        },
+        {
+          "candidateSha256": "acf2cae672d1b8aa993e729b12838b65a47bdac87252d934b55c5b3ae086cb28",
+          "response": {
+            "outcome": "ACCEPTED",
+            "retryable": false,
+            "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+            "diagnosticsComplete": true,
+            "problems": [],
+            "repairProgress": {
+              "contentSha256": "01d01f32fdf942d2ca68e02e08150df22978529f854348e629b6801b62eeb5fd",
+              "issues": [],
+              "comparisonComplete": true,
+              "resolved": [
+                "59f5b7aeb55cf3f73d5be6be89f27ac2fcb39cae3b3458b6decb27040cae528f"
+              ],
+              "remaining": [],
+              "introduced": [],
+              "repeatedCandidate": false
+            },
+            "action": "STOP_ACCEPTED",
+            "canonicalCandidate": {
+              "contractVersion": "PACKAGE_DESIGN_V1",
+              "outcome": "READY",
+              "requirements": [
+                {
+                  "key": "REQ-1",
+                  "statement": "交付 Java 单元测试文件 src/test/java/example/EventBusTest.java,聚焦目标 EventBusTest。"
+                },
+                {
+                  "key": "REQ-2",
+                  "statement": "为 EventBus 未注册事件补充单元测试。"
+                },
+                {
+                  "key": "REQ-3",
+                  "statement": "测试应覆盖 publish 正常返回且无处理器调用,并保持既有行为不变。"
+                }
+              ],
+              "scenarios": [
+                {
+                  "key": "SCN-1",
+                  "title": "未注册事件发布不会触发处理器",
+                  "precondition": "现有仓库测试目标为 src/test/java/example/EventBusTest.java,新增覆盖限定在该文件内完成。",
+                  "action": "扩展 src/test/java/example/EventBusTest.java,为未注册事件场景添加单元测试断言。",
+                  "observableResult": "EventBusTest 新增未注册事件用例,明确校验 publish 在无对应订阅/处理器时正常返回,并且处理器调用次数保持为 0;除新增测试外不改变既有行为。",
+                  "invariant": "交付范围仅限 EventBusTest 测试补充,不要求修改生产行为。",
+                  "requirementRefs": [
+                    "REQ-1",
+                    "REQ-2",
+                    "REQ-3"
+                  ]
+                }
+              ],
+              "deliverables": [
+                {
+                  "key": "DEL-1",
+                  "kind": "DELIVERABLE",
+                  "target": "src/test/java/example/EventBusTest.java",
+                  "description": "在现有 EventBusTest 中补充一个 Java 单元测试,覆盖未注册事件发布时 publish 正常返回且不会调用任何处理器的行为。",
+                  "requirementRefs": [
+                    "REQ-1",
+                    "REQ-2",
+                    "REQ-3"
+                  ]
+                }
+              ],
+              "reviews": [],
+              "stages": [
+                {
+                  "key": "STAGE-1",
+                  "title": "补充未注册事件单元测试",
+                  "objective": "在单一阶段内完成 EventBus 未注册事件场景的测试补充设计。",
+                  "includes": [
+                    "DEL-1",
+                    "SCN-1"
+                  ],
+                  "dependencies": []
+                }
+              ],
+              "gapCodes": []
+            },
+            "attemptOrdinal": 3,
+            "submissionRevision": 3,
+            "remainingAttempts": 1
+          }
+        }
+      ]
+    },
+    {
+      "summary": {
+        "kind": "PACKAGE_DESIGN_V1",
+        "case": "repair_shape",
+        "repeat": 1,
+        "model": "opencode/gpt-5.4",
+        "temperature": 0,
+        "evaluationBudget": 4,
+        "outcomes": [
+          "REJECTED",
+          "ACCEPTED"
+        ],
+        "seconds": 27.9,
+        "exitCode": 0,
+        "timedOut": false,
+        "fixtureUnchanged": true,
+        "providerStepTokens": {
+          "input": 8203,
+          "output": 1240,
+          "reasoning": 587,
+          "cacheRead": 7168,
+          "cacheWrite": 0
+        },
+        "injectedFault": true,
+        "heldOut": false,
+        "acceptedVerdict": null,
+        "faultObserved": true
+      },
+      "attempts": [
+        {
+          "candidateSha256": "3cb6e45509d2bc66be45483b9dc30fd60b5f0390f4e17d9233ba17146c0786ba",
+          "response": {
+            "outcome": "REJECTED",
+            "retryable": true,
+            "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+            "diagnosticsComplete": true,
+            "problems": [
+              {
+                "code": "CANDIDATE_FIELD_UNKNOWN",
+                "pointer": "/note",
+                "detail": "Candidate contains a field outside the role contract",
+                "allowedValues": [
+                  "requirements",
+                  "gapCodes",
+                  "outcome",
+                  "scenarios",
+                  "deliverables",
+                  "stages",
+                  "contractVersion",
+                  "reviews"
+                ],
+                "parameter": "candidate",
+                "category": "SHAPE",
+                "expected": "only fields listed in allowedValues",
+                "actual": "undeclared field at /note; submitted value: string \"qualification\"",
+                "repairHint": "Remove /note and resubmit the complete candidate object"
+              }
+            ],
+            "repairProgress": {
+              "contentSha256": "1eca0a6cdd54a14d4d8a400b1df6d4434247526cf82453f6dc89c54ede73974c",
+              "issues": [
+                {
+                  "id": "5a0da9e22617cf8735182752ce8ef996512940af63b92543ba6f01c4c17c93c0",
+                  "problemIndex": 0,
+                  "layer": "SHAPE"
+                }
+              ],
+              "comparisonComplete": false,
+              "resolved": [],
+              "remaining": [
+                "5a0da9e22617cf8735182752ce8ef996512940af63b92543ba6f01c4c17c93c0"
+              ],
+              "introduced": [],
+              "repeatedCandidate": false
+            },
+            "action": "FIX_AND_RESUBMIT",
+            "attemptOrdinal": 1,
+            "submissionRevision": 1,
+            "remainingAttempts": 3
+          }
+        },
+        {
+          "candidateSha256": "1c07faa1fa86c5cbc65645b276e38cbff9b331ec2c5b3718e4151bee33965257",
+          "response": {
+            "outcome": "ACCEPTED",
+            "retryable": false,
+            "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+            "diagnosticsComplete": true,
+            "problems": [],
+            "repairProgress": {
+              "contentSha256": "7fc1588262fdf17b34f0edf81395609c91b46cc7767f83e9a729012faeafb1aa",
+              "issues": [],
+              "comparisonComplete": true,
+              "resolved": [
+                "5a0da9e22617cf8735182752ce8ef996512940af63b92543ba6f01c4c17c93c0"
+              ],
+              "remaining": [],
+              "introduced": [],
+              "repeatedCandidate": false
+            },
+            "action": "STOP_ACCEPTED",
+            "canonicalCandidate": {
+              "contractVersion": "PACKAGE_DESIGN_V1",
+              "outcome": "READY",
+              "requirements": [
+                {
+                  "key": "REQ-1",
+                  "statement": "在 Java 测试中为 EventBus 的未注册事件场景补充单元测试。"
+                },
+                {
+                  "key": "REQ-2",
+                  "statement": "验证 publish 在未注册事件时正常返回,不抛出异常。"
+                },
+                {
+                  "key": "REQ-3",
+                  "statement": "验证未注册事件发布时不会调用任何处理器。"
+                },
+                {
+                  "key": "REQ-4",
+                  "statement": "保持既有行为不变,仅交付并聚焦 src/test/java/example/EventBusTest.java。"
+                }
+              ],
+              "scenarios": [
+                {
+                  "key": "SCN-1",
+                  "title": "未注册事件发布无处理器调用",
+                  "precondition": "EventBus 存在可发布事件的入口,且测试中构造的目标事件没有注册任何处理器。",
+                  "action": "在 EventBusTest 中发布该未注册事件,并通过可观察探针确认没有处理器被执行。",
+                  "observableResult": "publish 正常返回,测试不观察到异常,且没有任何处理器调用痕迹。",
+                  "invariant": "仅通过 EventBusTest 为未注册事件增加回归覆盖,不引入行为变更。",
+                  "requirementRefs": [
+                    "REQ-1",
+                    "REQ-2",
+                    "REQ-3",
+                    "REQ-4"
+                  ]
+                }
+              ],
+              "deliverables": [
+                {
+                  "key": "DEL-1",
+                  "kind": "DELIVERABLE",
+                  "target": "src/test/java/example/EventBusTest.java",
+                  "description": "补充针对未注册事件的 Java 单元测试,验证 publish 正常返回且无处理器调用。",
+                  "requirementRefs": [
+                    "REQ-1",
+                    "REQ-2",
+                    "REQ-3",
+                    "REQ-4"
+                  ]
+                }
+              ],
+              "reviews": [],
+              "stages": [
+                {
+                  "key": "STG-1",
+                  "title": "补充未注册事件测试覆盖",
+                  "objective": "在单一阶段内完成 EventBus 未注册事件场景的测试设计并覆盖全部冻结需求。",
+                  "includes": [
+                    "SCN-1",
+                    "DEL-1"
+                  ],
+                  "dependencies": []
+                }
+              ],
+              "gapCodes": []
+            },
+            "attemptOrdinal": 2,
+            "submissionRevision": 2,
+            "remainingAttempts": 2
+          }
+        }
+      ]
+    },
+    {
+      "summary": {
+        "kind": "ROLLING_PACKAGE_PLAN_V1",
+        "case": "normal",
+        "repeat": 1,
+        "model": "opencode/gpt-5.4",
+        "temperature": 0,
+        "evaluationBudget": 4,
+        "outcomes": [
+          "ACCEPTED"
+        ],
+        "seconds": 15.4,
+        "exitCode": 0,
+        "timedOut": false,
+        "fixtureUnchanged": true,
+        "providerStepTokens": {
+          "input": 3382,
+          "output": 196,
+          "reasoning": 371,
+          "cacheRead": 0,
+          "cacheWrite": 0
+        },
+        "injectedFault": false,
+        "heldOut": false,
+        "acceptedVerdict": null,
+        "faultObserved": false
+      },
+      "attempts": [
+        {
+          "candidateSha256": "02087c79c8ca555d0adee1af570195eca857b4fb28a1bc1590ee658aa43365bd",
+          "response": {
+            "outcome": "ACCEPTED",
+            "retryable": false,
+            "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+            "diagnosticsComplete": true,
+            "problems": [],
+            "repairProgress": {
+              "contentSha256": "f4454358c82fa9b13bf678f97e8b3f4f402fff784cd4f2fddfcd4fbc687eea75",
+              "issues": [],
+              "comparisonComplete": false,
+              "resolved": [],
+              "remaining": [],
+              "introduced": [],
+              "repeatedCandidate": false
+            },
+            "action": "STOP_ACCEPTED",
+            "canonicalCandidate": {
+              "packages": [
+                {
+                  "packageKey": "WP-2",
+                  "title": "RQ-2 implementation package",
+                  "objective": "Implement the remaining scope for RQ-2 on top of preserved package WP-1.",
+                  "replaces": [
+                    "WP-2"
+                  ],
+                  "dependencies": [
+                    "WP-1"
+                  ],
+                  "requirementRefs": [
+                    "RQ-2"
+                  ]
+                },
+                {
+                  "packageKey": "WP-3",
+                  "title": "RQ-3 implementation package",
+                  "objective": "Implement the remaining scope for RQ-3 on top of WP-2 while preserving compatibility with WP-1.",
+                  "replaces": [
+                    "WP-3"
+                  ],
+                  "dependencies": [
+                    "WP-2"
+                  ],
+                  "requirementRefs": [
+                    "RQ-3"
+                  ]
+                }
+              ]
+            },
+            "attemptOrdinal": 1,
+            "submissionRevision": 1,
+            "remainingAttempts": 3
+          }
+        }
+      ]
+    },
+    {
+      "summary": {
+        "kind": "ROLLING_PACKAGE_PLAN_V1",
+        "case": "repair_shape",
+        "repeat": 1,
+        "model": "opencode/gpt-5.4",
+        "temperature": 0,
+        "evaluationBudget": 4,
+        "outcomes": [
+          "REJECTED",
+          "ACCEPTED"
+        ],
+        "seconds": 14.85,
+        "exitCode": 0,
+        "timedOut": false,
+        "fixtureUnchanged": true,
+        "providerStepTokens": {
+          "input": 4743,
+          "output": 285,
+          "reasoning": 498,
+          "cacheRead": 1536,
+          "cacheWrite": 0
+        },
+        "injectedFault": true,
+        "heldOut": false,
+        "acceptedVerdict": null,
+        "faultObserved": true
+      },
+      "attempts": [
+        {
+          "candidateSha256": "94d601722d263c1859ff478bbe02fa1dda258d620668f6952aa6798e6b7c37d1",
+          "response": {
+            "outcome": "REJECTED",
+            "retryable": true,
+            "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+            "diagnosticsComplete": true,
+            "problems": [
+              {
+                "code": "CANDIDATE_FIELD_UNKNOWN",
+                "pointer": "/note",
+                "detail": "Candidate contains a field outside the role contract",
+                "allowedValues": [
+                  "packages"
+                ],
+                "parameter": "candidate",
+                "category": "SHAPE",
+                "expected": "only fields listed in allowedValues",
+                "actual": "undeclared field at /note; submitted value: string \"qualification\"",
+                "repairHint": "Remove /note and resubmit the complete candidate object"
+              }
+            ],
+            "repairProgress": {
+              "contentSha256": "b2921d897537fc3f020ec9e929a7d5c3ceb31cff4fd1e8c013ec669766355893",
+              "issues": [
+                {
+                  "id": "5a0da9e22617cf8735182752ce8ef996512940af63b92543ba6f01c4c17c93c0",
+                  "problemIndex": 0,
+                  "layer": "SHAPE"
+                }
+              ],
+              "comparisonComplete": false,
+              "resolved": [],
+              "remaining": [
+                "5a0da9e22617cf8735182752ce8ef996512940af63b92543ba6f01c4c17c93c0"
+              ],
+              "introduced": [],
+              "repeatedCandidate": false
+            },
+            "action": "FIX_AND_RESUBMIT",
+            "attemptOrdinal": 1,
+            "submissionRevision": 1,
+            "remainingAttempts": 3
+          }
+        },
+        {
+          "candidateSha256": "322c101d08b8768c2415db4f4eb2ad421e5094d8b357654a8a0d85ef0aa42236",
+          "response": {
+            "outcome": "ACCEPTED",
+            "retryable": false,
+            "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+            "diagnosticsComplete": true,
+            "problems": [],
+            "repairProgress": {
+              "contentSha256": "de587698386a56286c874c6992c9791c0e259d8e689dae38703211788116f145",
+              "issues": [],
+              "comparisonComplete": true,
+              "resolved": [
+                "5a0da9e22617cf8735182752ce8ef996512940af63b92543ba6f01c4c17c93c0"
+              ],
+              "remaining": [],
+              "introduced": [],
+              "repeatedCandidate": false
+            },
+            "action": "STOP_ACCEPTED",
+            "canonicalCandidate": {
+              "packages": [
+                {
+                  "packageKey": "WP-2-3",
+                  "title": "Implement dependent requirements on top of WP-1",
+                  "objective": "Deliver the remaining dependent scope by building on WP-1 and covering both RQ-2 and RQ-3 in one package.",
+                  "replaces": [
+                    "WP-2",
+                    "WP-3"
+                  ],
+                  "dependencies": [
+                    "WP-1"
+                  ],
+                  "requirementRefs": [
+                    "RQ-2",
+                    "RQ-3"
+                  ]
+                }
+              ]
+            },
+            "attemptOrdinal": 2,
+            "submissionRevision": 2,
+            "remainingAttempts": 2
+          }
+        }
+      ]
+    },
+    {
+      "summary": {
+        "kind": "REVIEWER_REPORT_V1",
+        "case": "normal",
+        "repeat": 1,
+        "model": "opencode/gpt-5.4",
+        "temperature": 0,
+        "evaluationBudget": 4,
+        "outcomes": [
+          "ACCEPTED"
+        ],
+        "seconds": 13.33,
+        "exitCode": 0,
+        "timedOut": false,
+        "fixtureUnchanged": true,
+        "providerStepTokens": {
+          "input": 4714,
+          "output": 174,
+          "reasoning": 46,
+          "cacheRead": 0,
+          "cacheWrite": 0
+        },
+        "injectedFault": false,
+        "heldOut": false,
+        "acceptedVerdict": null,
+        "faultObserved": false
+      },
+      "attempts": [
+        {
+          "candidateSha256": "0ea4197d73c34e349023ea0eccaba56a52c12f6f937a13dbcfc766501bad477a",
+          "response": {
+            "outcome": "ACCEPTED",
+            "retryable": false,
+            "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+            "diagnosticsComplete": true,
+            "problems": [],
+            "repairProgress": {
+              "contentSha256": "0f4e7b7c66cc726bc84060def76f62c9a8c6e192f09310922353f0a35f2c8254",
+              "issues": [],
+              "comparisonComplete": false,
+              "resolved": [],
+              "remaining": [],
+              "introduced": [],
+              "repeatedCandidate": false
+            },
+            "action": "STOP_ACCEPTED",
+            "canonicalCandidate": {
+              "title": "未发现真实缺陷",
+              "summary": "已审查冻结文件 src/example.java。文件仅包含单行类定义，基于可见证据未发现可确认的真实缺陷。",
+              "findings": [],
+              "limitations": [
+                "审查范围仅限冻结文件 src/example.java 的当前内容。"
+              ]
+            },
+            "attemptOrdinal": 1,
+            "submissionRevision": 1,
+            "remainingAttempts": 3
+          }
+        }
+      ]
+    },
+    {
+      "summary": {
+        "kind": "REVIEWER_REPORT_V1",
+        "case": "repair_shape",
+        "repeat": 1,
+        "model": "opencode/gpt-5.4",
+        "temperature": 0,
+        "evaluationBudget": 4,
+        "outcomes": [
+          "REJECTED",
+          "ACCEPTED"
+        ],
+        "seconds": 11.69,
+        "exitCode": 0,
+        "timedOut": false,
+        "fixtureUnchanged": true,
+        "providerStepTokens": {
+          "input": 4394,
+          "output": 227,
+          "reasoning": 235,
+          "cacheRead": 1536,
+          "cacheWrite": 0
+        },
+        "injectedFault": true,
+        "heldOut": false,
+        "acceptedVerdict": null,
+        "faultObserved": true
+      },
+      "attempts": [
+        {
+          "candidateSha256": "995c99e637d3c80e1d67324e303850ea79048387c59c079f07d8abfdf7ec2117",
+          "response": {
+            "outcome": "REJECTED",
+            "retryable": true,
+            "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+            "diagnosticsComplete": true,
+            "problems": [
+              {
+                "code": "CANDIDATE_FIELD_UNKNOWN",
+                "pointer": "/note",
+                "detail": "Candidate contains a field outside the role contract",
+                "allowedValues": [
+                  "summary",
+                  "title",
+                  "limitations",
+                  "findings"
+                ],
+                "parameter": "candidate",
+                "category": "SHAPE",
+                "expected": "only fields listed in allowedValues",
+                "actual": "undeclared field at /note; submitted value: string \"qualification\"",
+                "repairHint": "Remove /note and resubmit the complete candidate object"
+              }
+            ],
+            "repairProgress": {
+              "contentSha256": "79f1c20f354ffc47214165e0e56c3f6230f6a9c5580c9da53ca4fe2e99aa21e7",
+              "issues": [
+                {
+                  "id": "5a0da9e22617cf8735182752ce8ef996512940af63b92543ba6f01c4c17c93c0",
+                  "problemIndex": 0,
+                  "layer": "SHAPE"
+                }
+              ],
+              "comparisonComplete": false,
+              "resolved": [],
+              "remaining": [
+                "5a0da9e22617cf8735182752ce8ef996512940af63b92543ba6f01c4c17c93c0"
+              ],
+              "introduced": [],
+              "repeatedCandidate": false
+            },
+            "action": "FIX_AND_RESUBMIT",
+            "attemptOrdinal": 1,
+            "submissionRevision": 1,
+            "remainingAttempts": 3
+          }
+        },
+        {
+          "candidateSha256": "447abe8dc2e035d8103bb3b3e7abf3279fcbe6a5c740e8746d5888646cfd97a5",
+          "response": {
+            "outcome": "ACCEPTED",
+            "retryable": false,
+            "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+            "diagnosticsComplete": true,
+            "problems": [],
+            "repairProgress": {
+              "contentSha256": "e657ae31e32148f2c6fdcd398a04a06fbbe9c42a768fec85b60a71541de7cfa4",
+              "issues": [],
+              "comparisonComplete": true,
+              "resolved": [
+                "5a0da9e22617cf8735182752ce8ef996512940af63b92543ba6f01c4c17c93c0"
+              ],
+              "remaining": [],
+              "introduced": [],
+              "repeatedCandidate": false
+            },
+            "action": "STOP_ACCEPTED",
+            "canonicalCandidate": {
+              "title": "No confirmed defects in src/example.java",
+              "summary": "Reviewed the single-line frozen file src/example.java and found no evidence of a real defect.",
+              "findings": [],
+              "limitations": [
+                "Review limited to the provided frozen file content: src/example.java contains a single line, `class Example {}`."
+              ]
+            },
+            "attemptOrdinal": 2,
+            "submissionRevision": 2,
+            "remainingAttempts": 2
+          }
+        }
+      ]
+    },
+    {
+      "summary": {
+        "kind": "PROJECT_CONVENTION_V1",
+        "case": "normal",
+        "repeat": 1,
+        "model": "opencode/gpt-5.4",
+        "temperature": 0,
+        "evaluationBudget": 4,
+        "outcomes": [
+          "ACCEPTED"
+        ],
+        "seconds": 9.06,
+        "exitCode": 0,
+        "timedOut": false,
+        "fixtureUnchanged": true,
+        "providerStepTokens": {
+          "input": 3061,
+          "output": 105,
+          "reasoning": 231,
+          "cacheRead": 0,
+          "cacheWrite": 0
+        },
+        "injectedFault": false,
+        "heldOut": false,
+        "acceptedVerdict": null,
+        "faultObserved": false
+      },
+      "attempts": [
+        {
+          "candidateSha256": "8a8e32f3f65a757d6a0434d578387f503866fe2229d37d3f69c22156263e2cdb",
+          "response": {
+            "outcome": "ACCEPTED",
+            "retryable": false,
+            "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+            "diagnosticsComplete": true,
+            "problems": [],
+            "repairProgress": {
+              "contentSha256": "7e4d2c22213f662f5f25c329bc510a24de5452bb982b4ecf0fd5dd176cc1dd6e",
+              "issues": [],
+              "comparisonComplete": false,
+              "resolved": [],
+              "remaining": [],
+              "introduced": [],
+              "repeatedCandidate": false
+            },
+            "action": "STOP_ACCEPTED",
+            "canonicalCandidate": {
+              "contractVersion": "PROJECT_CONVENTION_V1",
+              "componentKeys": [
+                "java-root"
+              ],
+              "commandIds": [
+                "java-root:test"
+              ],
+              "pathIds": [
+                "java-root:root",
+                "java-root:manifest:pom.xml"
+              ]
+            },
+            "attemptOrdinal": 1,
+            "submissionRevision": 1,
+            "remainingAttempts": 3
+          }
+        }
+      ]
+    },
+    {
+      "summary": {
+        "kind": "PROJECT_CONVENTION_V1",
+        "case": "repair_shape",
+        "repeat": 1,
+        "model": "opencode/gpt-5.4",
+        "temperature": 0,
+        "evaluationBudget": 4,
+        "outcomes": [
+          "REJECTED",
+          "ACCEPTED"
+        ],
+        "seconds": 11.79,
+        "exitCode": 0,
+        "timedOut": false,
+        "fixtureUnchanged": true,
+        "providerStepTokens": {
+          "input": 3843,
+          "output": 189,
+          "reasoning": 123,
+          "cacheRead": 1536,
+          "cacheWrite": 0
+        },
+        "injectedFault": true,
+        "heldOut": false,
+        "acceptedVerdict": null,
+        "faultObserved": true
+      },
+      "attempts": [
+        {
+          "candidateSha256": "8ca27a0eca1e6508444b560ca2d912db506b2262b8b307c5be93d48205d25c6d",
+          "response": {
+            "outcome": "REJECTED",
+            "retryable": true,
+            "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+            "diagnosticsComplete": true,
+            "problems": [
+              {
+                "code": "CANDIDATE_FIELD_UNKNOWN",
+                "pointer": "/note",
+                "detail": "Candidate contains a field outside the role contract",
+                "allowedValues": [
+                  "pathIds",
+                  "commandIds",
+                  "contractVersion",
+                  "componentKeys"
+                ],
+                "parameter": "candidate",
+                "category": "SHAPE",
+                "expected": "only fields listed in allowedValues",
+                "actual": "undeclared field at /note; submitted value: string \"qualification\"",
+                "repairHint": "Remove /note and resubmit the complete candidate object"
+              }
+            ],
+            "repairProgress": {
+              "contentSha256": "74969c5cf6867c04c02fc0543aacc92035dfe8d2052329986528fe56df18360d",
+              "issues": [
+                {
+                  "id": "5a0da9e22617cf8735182752ce8ef996512940af63b92543ba6f01c4c17c93c0",
+                  "problemIndex": 0,
+                  "layer": "SHAPE"
+                }
+              ],
+              "comparisonComplete": false,
+              "resolved": [],
+              "remaining": [
+                "5a0da9e22617cf8735182752ce8ef996512940af63b92543ba6f01c4c17c93c0"
+              ],
+              "introduced": [],
+              "repeatedCandidate": false
+            },
+            "action": "FIX_AND_RESUBMIT",
+            "attemptOrdinal": 1,
+            "submissionRevision": 1,
+            "remainingAttempts": 3
+          }
+        },
+        {
+          "candidateSha256": "8a8e32f3f65a757d6a0434d578387f503866fe2229d37d3f69c22156263e2cdb",
+          "response": {
+            "outcome": "ACCEPTED",
+            "retryable": false,
+            "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+            "diagnosticsComplete": true,
+            "problems": [],
+            "repairProgress": {
+              "contentSha256": "7e4d2c22213f662f5f25c329bc510a24de5452bb982b4ecf0fd5dd176cc1dd6e",
+              "issues": [],
+              "comparisonComplete": true,
+              "resolved": [
+                "5a0da9e22617cf8735182752ce8ef996512940af63b92543ba6f01c4c17c93c0"
+              ],
+              "remaining": [],
+              "introduced": [],
+              "repeatedCandidate": false
+            },
+            "action": "STOP_ACCEPTED",
+            "canonicalCandidate": {
+              "contractVersion": "PROJECT_CONVENTION_V1",
+              "componentKeys": [
+                "java-root"
+              ],
+              "commandIds": [
+                "java-root:test"
+              ],
+              "pathIds": [
+                "java-root:root",
+                "java-root:manifest:pom.xml"
+              ]
+            },
+            "attemptOrdinal": 2,
+            "submissionRevision": 2,
+            "remainingAttempts": 2
+          }
+        }
+      ]
+    },
+    {
+      "summary": {
+        "kind": "JUDGE_DECISION_V1",
+        "case": "normal",
+        "repeat": 1,
+        "model": "opencode/gpt-5.4",
+        "temperature": 0,
+        "evaluationBudget": 4,
+        "outcomes": [
+          "ACCEPTED"
+        ],
+        "seconds": 8.01,
+        "exitCode": 0,
+        "timedOut": false,
+        "fixtureUnchanged": true,
+        "providerStepTokens": {
+          "input": 2907,
+          "output": 108,
+          "reasoning": 71,
+          "cacheRead": 0,
+          "cacheWrite": 0
+        },
+        "injectedFault": false,
+        "heldOut": false,
+        "acceptedVerdict": "BLOCKED",
+        "faultObserved": false
+      },
+      "attempts": [
+        {
+          "candidateSha256": "d4e2a6599fb608b6e8443a1d0d3f29ee868a5016b33834db0e9a84adbd2f7bb7",
+          "response": {
+            "outcome": "ACCEPTED",
+            "retryable": false,
+            "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+            "diagnosticsComplete": true,
+            "problems": [],
+            "repairProgress": {
+              "contentSha256": "cb5c9f3b36caf4ad2da4eabb43b63a4381cf6a6e79394fc214ff297df9b79de5",
+              "issues": [],
+              "comparisonComplete": false,
+              "resolved": [],
+              "remaining": [],
+              "introduced": [],
+              "repeatedCandidate": false
+            },
+            "action": "STOP_ACCEPTED",
+            "canonicalCandidate": {
+              "contractVersion": "JUDGE_DECISION_V1",
+              "role": "RISK",
+              "verdict": "BLOCKED",
+              "reason": "基于证据，差异仍存在未解决风险，故判定为阻塞。",
+              "evidenceIds": [
+                "risk"
+              ]
+            },
+            "attemptOrdinal": 1,
+            "submissionRevision": 1,
+            "remainingAttempts": 3
+          }
+        }
+      ]
+    },
+    {
+      "summary": {
+        "kind": "JUDGE_DECISION_V1",
+        "case": "repair_shape",
+        "repeat": 1,
+        "model": "opencode/gpt-5.4",
+        "temperature": 0,
+        "evaluationBudget": 4,
+        "outcomes": [
+          "REJECTED",
+          "ACCEPTED"
+        ],
+        "seconds": 12.01,
+        "exitCode": 0,
+        "timedOut": false,
+        "fixtureUnchanged": true,
+        "providerStepTokens": {
+          "input": 5655,
+          "output": 201,
+          "reasoning": 257,
+          "cacheRead": 0,
+          "cacheWrite": 0
+        },
+        "injectedFault": true,
+        "heldOut": false,
+        "acceptedVerdict": "BLOCKED",
+        "faultObserved": true
+      },
+      "attempts": [
+        {
+          "candidateSha256": "baf902046d49a52d17182438910e8822e5f8a5394fa54523e1cab9c1d88b7f50",
+          "response": {
+            "outcome": "REJECTED",
+            "retryable": true,
+            "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+            "diagnosticsComplete": true,
+            "problems": [
+              {
+                "code": "CANDIDATE_FIELD_UNKNOWN",
+                "pointer": "/note",
+                "detail": "Candidate contains a field outside the role contract",
+                "allowedValues": [
+                  "contractVersion",
+                  "evidenceIds",
+                  "role",
+                  "verdict",
+                  "reason"
+                ],
+                "parameter": "candidate",
+                "category": "SHAPE",
+                "expected": "only fields listed in allowedValues",
+                "actual": "undeclared field at /note; submitted value: string \"qualification\"",
+                "repairHint": "Remove /note and resubmit the complete candidate object"
+              }
+            ],
+            "repairProgress": {
+              "contentSha256": "7ec3b232a68fc11004db2d8cdb4efb059e5d8eaeaa46f93cb327e87f0acc7fe6",
+              "issues": [
+                {
+                  "id": "5a0da9e22617cf8735182752ce8ef996512940af63b92543ba6f01c4c17c93c0",
+                  "problemIndex": 0,
+                  "layer": "SHAPE"
+                }
+              ],
+              "comparisonComplete": false,
+              "resolved": [],
+              "remaining": [
+                "5a0da9e22617cf8735182752ce8ef996512940af63b92543ba6f01c4c17c93c0"
+              ],
+              "introduced": [],
+              "repeatedCandidate": false
+            },
+            "action": "FIX_AND_RESUBMIT",
+            "attemptOrdinal": 1,
+            "submissionRevision": 1,
+            "remainingAttempts": 3
+          }
+        },
+        {
+          "candidateSha256": "b377ae6c190a004464fe7bf8ec0635f8e8833ae69bc3f91e4e68e6db27cfe3a3",
+          "response": {
+            "outcome": "ACCEPTED",
+            "retryable": false,
+            "diagnosticVersion": "CANDIDATE_DIAGNOSTIC_V2",
+            "diagnosticsComplete": true,
+            "problems": [],
+            "repairProgress": {
+              "contentSha256": "e097a4a5efc83f95a64b561bc51311d86e486d3e3814074d87fc98645eb916fd",
+              "issues": [],
+              "comparisonComplete": true,
+              "resolved": [
+                "5a0da9e22617cf8735182752ce8ef996512940af63b92543ba6f01c4c17c93c0"
+              ],
+              "remaining": [],
+              "introduced": [],
+              "repeatedCandidate": false
+            },
+            "action": "STOP_ACCEPTED",
+            "canonicalCandidate": {
+              "contractVersion": "JUDGE_DECISION_V1",
+              "role": "RISK",
+              "verdict": "BLOCKED",
+              "reason": "差异仍存在未解决风险，故判定为阻塞。",
+              "evidenceIds": [
+                "risk"
+              ]
+            },
+            "attemptOrdinal": 2,
+            "submissionRevision": 2,
+            "remainingAttempts": 2
+          }
+        }
+      ]
+    }
+  ],
+  "pilot": [
+    {
+      "kind": "DECOMPOSITION_PLAN_V2",
+      "case": "normal",
+      "repeat": 1,
+      "model": "opencode/gpt-5.4",
+      "temperature": 0,
+      "evaluationBudget": 4,
+      "outcomes": [
+        "ACCEPTED"
+      ],
+      "seconds": 26.44,
+      "exitCode": 0,
+      "timedOut": false,
+      "fixtureUnchanged": true,
+      "providerStepTokens": {
+        "input": 8027,
+        "output": 1175,
+        "reasoning": 933,
+        "cacheRead": 1536,
+        "cacheWrite": 0
+      },
+      "injectedFault": false,
+      "heldOut": false
+    },
+    {
+      "kind": "DECOMPOSITION_PLAN_V2",
+      "case": "repair_shape",
+      "repeat": 1,
+      "model": "opencode/gpt-5.4",
+      "temperature": 0,
+      "evaluationBudget": 4,
+      "outcomes": [
+        "REJECTED",
+        "ACCEPTED"
+      ],
+      "seconds": 22.89,
+      "exitCode": 0,
+      "timedOut": false,
+      "fixtureUnchanged": true,
+      "providerStepTokens": {
+        "input": 7035,
+        "output": 1519,
+        "reasoning": 587,
+        "cacheRead": 4096,
+        "cacheWrite": 0
+      },
+      "injectedFault": true,
+      "heldOut": false
+    },
+    {
+      "kind": "ACCEPTANCE_CLOSED_CHOICE_V7",
+      "case": "normal",
+      "repeat": 1,
+      "model": "opencode/gpt-5.4",
+      "temperature": 0,
+      "evaluationBudget": 4,
+      "outcomes": [
+        "ACCEPTED"
+      ],
+      "seconds": 9.79,
+      "exitCode": 0,
+      "timedOut": false,
+      "fixtureUnchanged": true,
+      "providerStepTokens": {
+        "input": 2906,
+        "output": 95,
+        "reasoning": 123,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "injectedFault": false,
+      "heldOut": false
+    },
+    {
+      "kind": "ACCEPTANCE_CLOSED_CHOICE_V7",
+      "case": "repair_shape",
+      "repeat": 1,
+      "model": "opencode/gpt-5.4",
+      "temperature": 0,
+      "evaluationBudget": 4,
+      "outcomes": [
+        "REJECTED",
+        "ACCEPTED"
+      ],
+      "seconds": 10.91,
+      "exitCode": 0,
+      "timedOut": false,
+      "fixtureUnchanged": true,
+      "providerStepTokens": {
+        "input": 4038,
+        "output": 152,
+        "reasoning": 275,
+        "cacheRead": 1536,
+        "cacheWrite": 0
+      },
+      "injectedFault": true,
+      "heldOut": false
+    },
+    {
+      "kind": "PACKAGE_DESIGN_V1",
+      "case": "normal",
+      "repeat": 1,
+      "model": "opencode/gpt-5.4",
+      "temperature": 0,
+      "evaluationBudget": 4,
+      "outcomes": [
+        "REJECTED",
+        "REJECTED",
+        "REJECTED",
+        "WAITING_INPUT"
+      ],
+      "seconds": 49.73,
+      "exitCode": 0,
+      "timedOut": false,
+      "fixtureUnchanged": true,
+      "providerStepTokens": {
+        "input": 11206,
+        "output": 2224,
+        "reasoning": 2512,
+        "cacheRead": 16896,
+        "cacheWrite": 0
+      },
+      "injectedFault": false,
+      "heldOut": false
+    },
+    {
+      "kind": "PACKAGE_DESIGN_V1",
+      "case": "repair_shape",
+      "repeat": 1,
+      "model": "opencode/gpt-5.4",
+      "temperature": 0,
+      "evaluationBudget": 4,
+      "outcomes": [],
+      "seconds": 35.7,
+      "exitCode": 0,
+      "timedOut": false,
+      "fixtureUnchanged": true,
+      "providerStepTokens": {
+        "input": 3697,
+        "output": 718,
+        "reasoning": 2595,
+        "cacheRead": 3072,
+        "cacheWrite": 0
+      },
+      "injectedFault": true,
+      "heldOut": false
+    },
+    {
+      "kind": "ROLLING_PACKAGE_PLAN_V1",
+      "case": "normal",
+      "repeat": 1,
+      "model": "opencode/gpt-5.4",
+      "temperature": 0,
+      "evaluationBudget": 4,
+      "outcomes": [
+        "ACCEPTED"
+      ],
+      "seconds": 15.2,
+      "exitCode": 0,
+      "timedOut": false,
+      "fixtureUnchanged": true,
+      "providerStepTokens": {
+        "input": 5290,
+        "output": 296,
+        "reasoning": 592,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "injectedFault": false,
+      "heldOut": false
+    },
+    {
+      "kind": "ROLLING_PACKAGE_PLAN_V1",
+      "case": "repair_shape",
+      "repeat": 1,
+      "model": "opencode/gpt-5.4",
+      "temperature": 0,
+      "evaluationBudget": 4,
+      "outcomes": [
+        "REJECTED",
+        "ACCEPTED"
+      ],
+      "seconds": 14.9,
+      "exitCode": 0,
+      "timedOut": false,
+      "fixtureUnchanged": true,
+      "providerStepTokens": {
+        "input": 4967,
+        "output": 366,
+        "reasoning": 529,
+        "cacheRead": 1536,
+        "cacheWrite": 0
+      },
+      "injectedFault": true,
+      "heldOut": false
+    },
+    {
+      "kind": "REVIEWER_REPORT_V1",
+      "case": "normal",
+      "repeat": 1,
+      "model": "opencode/gpt-5.4",
+      "temperature": 0,
+      "evaluationBudget": 4,
+      "outcomes": [],
+      "seconds": 42.72,
+      "exitCode": 0,
+      "timedOut": false,
+      "fixtureUnchanged": true,
+      "providerStepTokens": {
+        "input": 15889,
+        "output": 1067,
+        "reasoning": 415,
+        "cacheRead": 13312,
+        "cacheWrite": 0
+      },
+      "injectedFault": false,
+      "heldOut": false
+    },
+    {
+      "kind": "REVIEWER_REPORT_V1",
+      "case": "repair_shape",
+      "repeat": 1,
+      "model": "opencode/gpt-5.4",
+      "temperature": 0,
+      "evaluationBudget": 4,
+      "outcomes": [
+        "REJECTED",
+        "ACCEPTED"
+      ],
+      "seconds": 16.84,
+      "exitCode": 0,
+      "timedOut": false,
+      "fixtureUnchanged": true,
+      "providerStepTokens": {
+        "input": 4727,
+        "output": 346,
+        "reasoning": 189,
+        "cacheRead": 3072,
+        "cacheWrite": 0
+      },
+      "injectedFault": true,
+      "heldOut": false
+    },
+    {
+      "kind": "PROJECT_CONVENTION_V1",
+      "case": "normal",
+      "repeat": 1,
+      "model": "opencode/gpt-5.4",
+      "temperature": 0,
+      "evaluationBudget": 4,
+      "outcomes": [
+        "ACCEPTED"
+      ],
+      "seconds": 7.78,
+      "exitCode": 0,
+      "timedOut": false,
+      "fixtureUnchanged": true,
+      "providerStepTokens": {
+        "input": 2916,
+        "output": 102,
+        "reasoning": 91,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "injectedFault": false,
+      "heldOut": false
+    },
+    {
+      "kind": "PROJECT_CONVENTION_V1",
+      "case": "repair_shape",
+      "repeat": 1,
+      "model": "opencode/gpt-5.4",
+      "temperature": 0,
+      "evaluationBudget": 4,
+      "outcomes": [
+        "REJECTED",
+        "ACCEPTED"
+      ],
+      "seconds": 10.61,
+      "exitCode": 0,
+      "timedOut": false,
+      "fixtureUnchanged": true,
+      "providerStepTokens": {
+        "input": 4007,
+        "output": 192,
+        "reasoning": 207,
+        "cacheRead": 1536,
+        "cacheWrite": 0
+      },
+      "injectedFault": true,
+      "heldOut": false
+    },
+    {
+      "kind": "JUDGE_DECISION_V1",
+      "case": "normal",
+      "repeat": 1,
+      "model": "opencode/gpt-5.4",
+      "temperature": 0,
+      "evaluationBudget": 4,
+      "outcomes": [
+        "ACCEPTED"
+      ],
+      "seconds": 9.77,
+      "exitCode": 0,
+      "timedOut": false,
+      "fixtureUnchanged": true,
+      "providerStepTokens": {
+        "input": 2912,
+        "output": 123,
+        "reasoning": 66,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "injectedFault": false,
+      "heldOut": false
+    },
+    {
+      "kind": "JUDGE_DECISION_V1",
+      "case": "repair_shape",
+      "repeat": 1,
+      "model": "opencode/gpt-5.4",
+      "temperature": 0,
+      "evaluationBudget": 4,
+      "outcomes": [
+        "REJECTED",
+        "ACCEPTED"
+      ],
+      "seconds": 10.81,
+      "exitCode": 0,
+      "timedOut": false,
+      "fixtureUnchanged": true,
+      "providerStepTokens": {
+        "input": 4022,
+        "output": 190,
+        "reasoning": 220,
+        "cacheRead": 1536,
+        "cacheWrite": 0
+      },
+      "injectedFault": true,
+      "heldOut": false
+    }
+  ],
+  "notes": [
+    "Pilot package frozen fixture mixed business requirements and prompt metadata; corrected before formal qualification.",
+    "Pilot included a no-submission run and an MCP connection-closed run; both retained as unsuccessful.",
+    "Formal uses immutable classpath copy; no matched old-version full-role control, no production pass-rate estimate.",
+    "One convention diagnostic 64-item bounding guard was tightened after the class snapshot; separately covered by final unit/full verification."
+  ]
+}

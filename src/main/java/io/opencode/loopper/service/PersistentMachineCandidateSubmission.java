@@ -50,6 +50,10 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
     private final List<CandidatePolicy> policies;
     private final List<AcceptedCandidateWriter> writers;
     private final List<CandidateRunGuard> guards;
+    private io.opencode.loopper.config.LoopperProperties properties = new io.opencode.loopper.config.LoopperProperties();
+
+    @org.springframework.beans.factory.annotation.Autowired
+    void configureCorrectionLimits(io.opencode.loopper.config.LoopperProperties value) { properties = value; }
 
     public PersistentMachineCandidateSubmission(
             LoopperMapper mapper, LifecycleTransitionService lifecycle, ObjectMapper json,
@@ -80,7 +84,8 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
                 command.candidateKind().name(), command.workflowStep(),
                 command.sourceRevision(), command.ownerVersion(), command.submissionChannel().name(),
                 command.contractVersion(), command.runtimeGenerationId(), command.externalSessionId(),
-                MachineCandidateRunState.OPEN.name(), command.maxAttempts(), 0, null, now, now, 0, null, command.correctionLimit());
+                MachineCandidateRunState.OPEN.name(), command.maxAttempts(), 0, null, now, now, 0, null,
+                CandidateCorrectionPolicy.limit(command, properties));
         lifecycle.create(subject(row), row.state(), Map.of(
                         "candidateKind", row.candidateKind(), "workflowStep", row.workflowStep(),
                         "sourceRevision", row.sourceRevision(), "ownerVersion", row.ownerVersion(),
@@ -170,7 +175,8 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
         boolean exhausted = remainingAttempts(run, ordinal) != null && remainingAttempts(run, ordinal) == 0;
         var progress = CandidateRepairProgress.analyze(json, command.candidateJson(), requestSha,
                 decision.problems(), decision.diagnosticsComplete() && decision.problems().size() < MAX_PROBLEMS,
-                MachineCandidateKind.PACKAGE_DESIGN_V1.name().equals(run.candidateKind())
+                (SubmissionChannel.INTERNAL_MCP.name().equals(run.submissionChannel())
+                        || MachineCandidateKind.PACKAGE_DESIGN_V1.name().equals(run.candidateKind()))
                         ? mapper.recentCandidateSubmissionAttempts(run.id()) : List.of());
         boolean stalled = run.correctionLimit() != null && progress.repeatedCandidate();
         MachineCandidateOutcome outcome;
@@ -251,8 +257,10 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
         response.put("returnedProblemCount", problems.size());
         response.put("truncated", !diagnosticsComplete);
         response.put("problems", problems);
-        if (MachineCandidateKind.PACKAGE_DESIGN_V1.name().equals(run.candidateKind())) {
-            response.put("repairProtocolVersion", "PACKAGE_REPAIR_V1");
+        if (SubmissionChannel.INTERNAL_MCP.name().equals(run.submissionChannel())
+                || MachineCandidateKind.PACKAGE_DESIGN_V1.name().equals(run.candidateKind())) {
+            response.put("repairProtocolVersion", MachineCandidateKind.PACKAGE_DESIGN_V1.name().equals(run.candidateKind())
+                    ? "PACKAGE_REPAIR_V1" : "CANDIDATE_REPAIR_V1");
             response.put("correctionLimit", run.correctionLimit());
             response.put("repairProgress", progress);
             response.put("stopReason", outcome == MachineCandidateOutcome.ACCEPTED ? "ACCEPTED" : stopReason);
@@ -271,46 +279,9 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
                 && submissionSchema == SubmissionSchema.ROLE_SPECIFIC_V2) {
             return PackageDesignCandidateEvaluation.evaluate(json, policy(run), context, candidateJson);
         }
-        CandidatePolicy.Decision semantic = policy(run).evaluate(context, candidateJson);
-        if (submissionSchema == SubmissionSchema.LEGACY_COMPATIBLE) return semantic;
-        semantic = enrich(semantic, candidateJson);
-        CandidateShapeValidator.Result shape = CandidateShapeValidator.validate(
-                json, context.candidateKind(), candidateJson);
-        List<Problem> shapeProblems = CandidateDiagnosticEnricher.enrich(
-                json, candidateJson, shape.problems());
-        if (shapeProblems.isEmpty()) {
-            return new CandidatePolicy.Decision(semantic.accepted(), semantic.canonicalCandidateJson(),
-                    semantic.retryable(), semantic.fallbackEligible(), semantic.problems(),
-                    semantic.diagnosticsComplete() && semantic.problems().size() < MAX_PROBLEMS);
-        }
-        List<Problem> merged = new ArrayList<>();
-        boolean complete = appendDistinct(merged, shapeProblems);
-        complete &= appendDistinct(merged, semantic.problems());
-        complete &= shape.complete() && semantic.diagnosticsComplete();
-        boolean safeShape = shapeProblems.stream().noneMatch(problem ->
-                problem.category() == ProblemCategory.AUTHORITY
-                        || problem.category() == ProblemCategory.SECURITY);
-        boolean retryable = safeShape && (semantic.accepted() || semantic.retryable());
-        return CandidatePolicy.Decision.rejected(retryable,
-                semantic.fallbackEligible() && retryable, merged, complete);
-    }
-
-    private CandidatePolicy.Decision enrich(CandidatePolicy.Decision decision, String candidateJson) {
-        List<Problem> problems = CandidateDiagnosticEnricher.enrich(json, candidateJson, decision.problems());
-        return new CandidatePolicy.Decision(decision.accepted(), decision.canonicalCandidateJson(),
-                decision.retryable(), decision.fallbackEligible(), problems, decision.diagnosticsComplete());
-    }
-
-    private static boolean appendDistinct(List<Problem> target, List<Problem> source) {
-        boolean complete = true;
-        for (Problem problem : source) {
-            boolean duplicate = target.stream().anyMatch(existing -> existing.code().equals(problem.code())
-                    && existing.pointer().equals(problem.pointer()));
-            if (duplicate) continue;
-            if (target.size() < MAX_PROBLEMS) target.add(problem);
-            else complete = false;
-        }
-        return complete;
+        if (submissionSchema == SubmissionSchema.LEGACY_COMPATIBLE) return policy(run).evaluate(context, candidateJson);
+        return CandidateDiagnosticStages.evaluate(json, context.candidateKind(), candidateJson,
+                () -> policy(run).evaluate(context, candidateJson));
     }
 
     private static String action(MachineCandidateOutcome outcome) {
@@ -443,9 +414,8 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
             throw new BadRequestException("CANDIDATE_RUN_INVALID", "候选运行合同不完整");
         }
         if (command.correctionLimit() != null && (command.correctionLimit() < 2 || command.correctionLimit() > 16
-                || command.candidateKind() != MachineCandidateKind.PACKAGE_DESIGN_V1
                 || command.submissionChannel() != SubmissionChannel.INTERNAL_MCP)) {
-            throw new BadRequestException("CANDIDATE_CORRECTION_LIMIT_INVALID", "修正上限仅适用于新工作包 MCP 运行，范围为 2–16");
+            throw new BadRequestException("CANDIDATE_CORRECTION_LIMIT_INVALID", "修正上限仅适用于新 MCP 运行，范围为 2–16");
         }
         MachineCandidateProtocolPolicy.Contract protocol = MachineCandidateProtocolPolicy.contract(
                 command.candidateKind());
@@ -485,7 +455,8 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
                 && row.runtimeGenerationId().equals(command.runtimeGenerationId())
                 && row.externalSessionId().equals(command.externalSessionId())
                 && row.maxAttempts() == command.maxAttempts()
-                && java.util.Objects.equals(row.correctionLimit(), command.correctionLimit());
+                && (command.correctionLimit() == null && command.candidateKind() != MachineCandidateKind.PACKAGE_DESIGN_V1
+                    || java.util.Objects.equals(row.correctionLimit(), command.correctionLimit()));
     }
 
     private CandidateSubmissionRunRow requireRun(String id) {

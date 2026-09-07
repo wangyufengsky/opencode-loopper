@@ -42,10 +42,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.3.66.jar
-   jar tf target/opencode-loopper-0.3.66.jar \
+   test -s target/opencode-loopper-0.3.67.jar
+   jar tf target/opencode-loopper-0.3.67.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.3.66.jar
+   shasum -a 256 target/opencode-loopper-0.3.67.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -95,8 +95,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.3.66`。
-- 正式产物：`target/opencode-loopper-0.3.66.jar`。
+- Maven 项目版本：`0.3.67`。
+- 正式产物：`target/opencode-loopper-0.3.67.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -224,6 +224,10 @@ Task 详情 `overview` 必须投影 `loopRetryAvailable`、`cancellationAvailabl
 所有新 Task 进入 `COMPLETED / SUPERSEDED / CANCELLED` 前必须经过统一聚合终态守卫：非终态 PackageRun、Attempt、Stage、Execution Cycle 和 Designer 子流程必须已收束或在同一短事务内收束，Queue/Lease 必须无活动占用。远端停止未确认、乐观锁冲突、活动 writer/Verifier/Judge 或 Queue/Lease 混合状态一律失败关闭并保持父 Task 非终态；历史 `SUCCEEDED/FAILED` 只能读取，不得作为新建状态或新转换目标。
 
 ### 5.3 Designer 和 LoopSpec
+
+- 0.3.67 将工具模型友好度同步到七类候选：schema 的 UTF-8 字节扩展必须与生产编译器的 strip/count 语义一致，字符长度按 Unicode code point；Reviewer 报告总字节与源证据约束仍由生产编译器最终检查。所有非工作包强类型候选先执行角色策略保留值内安全/冻结事实检查，再优先返回独立形状问题，不能宣称角色语义检查完全跳过；不可重试的安全/人工输入结果优先。
+- V71 允许所有新 INTERNAL_MCP 角色冻结可选 2–16 次 `correction_limit`。工作包沿用专用配置，其余六类使用 `internal-candidate.correction-limits.<KIND>`，默认 0；配置仅在新 run 打开时读取，重开和重启沿用持久化值，Legacy 不继承新配置。公共修正提示读取同一冻结预算。非工作包内部回执追加 `CANDIDATE_REPAIR_V1`，工作包保留 `PACKAGE_REPAIR_V1`；实体 key、packageKey、factIndex、Reviewer path+line 用于问题身份，形状修复后仍可能揭示下一层语义错误。预算耗尽/已完整诊断的候选重复进入 WAITING_INPUT，接受优先，幂等重放不收费。Judge 的 ACCEPTED 仅表示判定合同有效，允许并保留 BLOCKED；不得引导改判 PASS。
+- `scripts/qualify-all-role-model.py` 与 `AllRoleModelProbe` 使用隔离只读夹具和真实生产编译内核，夹具须先经 `AllRoleModelProbeTest` 校验；冻结业务需求与工具提示元数据分开。探针不证明完整生产角色提示、HTTP launch、拥有者原子结算或远端停止握手，真实模型小样本不得作为生产通过率。
 
 - 0.3.66 的 `PACKAGE_DESIGN_V1` 直接从强类型候选组装 Fact/StageHint，候选 key 用于引用，标题仅作展示；Markdown 只提供可读投影和精确 DS-L 行证据，Legacy Markdown 入口保留原解析。共享上限为场景 64、总事实（requirements + scenarios + deliverables + reviews + stages）128、阶段最多 6（分包最多 3）。冻结输入在模型调度前预检；冻结需求/范围冲突属于人工输入，不能要求模型修改候选绕过。
 - V70 为新工作包 MCP 运行增加可选且不可变 `correction_limit`；`LOOPPER_PACKAGE_DESIGN_CORRECTION_LIMIT=4` 表示首投加最多三次修正，允许 2–16，默认 0 继续无限语义。已有运行保持冻结值，历史 NULL 不受配置变更影响，`maxAttempts` 仍是旧合同身份。四次预算耗尽或有完整诊断证明最近三次内重复相同规范候选时进入 WAITING_INPUT，不强制 Markdown 兜底；ACCEPTED 优先，幂等重放不计数。角色超时、Provider 传输、权限和正向远端停止证明保持独立。
@@ -495,7 +499,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.3.66.jar
+JAR=target/opencode-loopper-0.3.67.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -606,6 +610,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-09-07 | 七类 MCP 候选三批次同步优化，交付 0.3.67 | schema/生产边界、六角色冻结修正配置、分层诊断与进展身份、V71 历史兼容迁移、逐角色隔离模型探针与文档 | 合并聚焦 155/155；七角色真实模型正式 14/14 接受，正常 6/7 首投、7/7 三投内，故障 7/7 第二投；Judge 保留 BLOCKED。完整 `./scripts/verify.sh` BUILD SUCCESS：Java 1477 项（0 失败、0 错误、2 条件跳过）、Vitest 274/274、原生 guard 6/6；JAR `target/opencode-loopper-0.3.67.jar` 为 289399728 bytes、含 113 个静态文件及 index/assets，Maven/MCP 均为 0.3.67，SHA-256 `eda66591d7f1ec9c26438db2e5be61ab1c4b172393f62da9e4c2ab56509719a0`。最终 JAR 编译类回放 14/14 已接受模型候选仍接受，Judge 保留 BLOCKED；`git diff --check` 通过。未运行生产 HTTP owner/停止握手或浏览器验收；不推送、不部署、不重启既有实例 |
 | 2026-09-07 | MCP 设计候选三批次优化，交付 0.3.66 | 结构化 Fact 直通、稳定 key 与来源行、共享数量限制、冻结输入预检、按通道装配提示；V70 冻结可选有限修正预算、分层诊断、哈希进展与重复/振荡检测；增加隔离真实模型对照脚本与说明 | 合并聚焦 181/181；真实模型小样本新版 6/6 两次内接受、旧版 3/6 四次内接受，故障注入新版 2/2 第二投接受。0.3.65 完整门禁发现迁移版本断言与预检兼容问题，未生成 JAR；集中修复后 `./scripts/verify.sh` 在 0.3.66 BUILD SUCCESS：Java 1439 项（0 失败、0 错误、2 条件跳过）、Vitest 274/274、原生 guard 6/6；JAR `target/opencode-loopper-0.3.66.jar` 为 289388302 bytes、含 113 个静态文件及 index/assets，Maven/MCP 均为 0.3.66，SHA-256 `7613f7847cf0be0afb7fa82d3785c5ea8b8994686a0c0655da0b61fdeb011385`。最终 JAR 编译类回放 15/15 已接受模型候选仍接受；2 次 schema 补充试跑均第二投接受，未并入正式对照。未替换应用 JVM/8080、未做新浏览器运行验收、未推送/标签/Release |
 | 2026-09-04 | MCP 中文长候选诊断字节边界修复，交付 0.3.64 | 候选正文继续使用独立 128 KiB UTF-8 上限；服务端生成或策略返回的诊断统一按协议 UTF-8 字节上限做 code-point 安全收束，根对象/数组只返回类型、字节数和有界顶层字段摘要；任何诊断截断均声明 `diagnosticsComplete=false`、`truncated=true`，并继续返回 `FIX_AND_RESUBMIT`，不再升级为内部提交失败；同步 README、架构、OpenCode 与 AI 角色合同 | TDD 红灯以中文与 emoji 长候选稳定复现 `Candidate policy returned an invalid problem` 2/2 错误，修复后目标类 10/10、MCP/策略/结构/打包聚焦回归 49/49；`./scripts/verify.sh` BUILD SUCCESS：Java 1429 项（0 失败、0 错误、2 条件跳过）、Vitest 274/274、原生 guard 6/6；JAR `target/opencode-loopper-0.3.64.jar` 为 289360276 bytes、114 个静态条目，Maven/MCP 版本均为 0.3.64，SHA-256 `a26a7975859d4dfa79bbbcc1f145b0a021112b4a60699aec6479e240028a689e`。未启动或替换 8080 运行实例，未做真实内网模型或浏览器验收，未推送/标签/Release |
 | 2026-09-04 | MCP 精确批量诊断、人工输入边界与历史任务等待原因联合交付，0.3.63 | 七个角色专属候选 Tool 继续共享统一提交内核；V2 诊断一次返回全部独立问题，并定位到参数、精确 JSON Pointer、候选实际值、相关 key/title/原句、期望和可执行修复；工作包验收另由深层事实适配器解释能力缺失、重复归属和覆盖错误；候选可修正的歧义、能力与路径归属不再伪装成人工语义缺口；Legacy 保持静态脱敏。当前 `WAITING_INPUT` 原因继续以最新状态转换为权威，等待策略抽离后 `TaskService` 保持历史结构上限 | MCP/Package/Decomposition/全角色指针聚焦回归通过，结构门禁及历史任务当前等待原因 4/4 通过；单进程 `./scripts/verify.sh` BUILD SUCCESS：Java 1427 项（0 失败、0 错误、2 条件跳过）、Vitest 274/274、原生 guard 6/6；JAR `target/opencode-loopper-0.3.63.jar` 为 289355649 bytes、113 个静态文件，Maven/MCP 版本均为 0.3.63，SHA-256 `5a29efdb256c02cef2520ca0eef30f2e9b03f0194e33b3ebdfdf5c51c26f86e8`。未启动或替换 8080 运行实例，未做真实内网模型或浏览器验收；发布证据在标签工作流完成后回读 |
