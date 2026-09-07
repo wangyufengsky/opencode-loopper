@@ -31,6 +31,12 @@ public final class PackageDesignLunaProbe {
         }
         Fixture fixture = json.readValue(Files.readString(Path.of(args[1])), Fixture.class);
         if (args[0].equals("prompt")) { System.out.println(prompt(fixture, args[2])); return; }
+        if (args[0].equals("prepare")) {
+            var reasons = PackageSemanticPreparation.reasons(fixture.requirement());
+            System.out.println(json.writeValueAsString(java.util.Map.of("enabled", !reasons.isEmpty(),
+                    "reasons", reasons, "prompt", PackageSemanticPreparation.prompt(fixture.requirement(), reasons))));
+            return;
+        }
         var session = new PackageDesignLunaSession(json, input(fixture));
         try (var reader = new BufferedReader(new InputStreamReader(System.in))) {
             for (String line; (line = reader.readLine()) != null;) {

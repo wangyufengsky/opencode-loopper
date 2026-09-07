@@ -36,9 +36,11 @@ class PackageDesignLunaCorpusTest {
     }
 
     @Test void isolatedHarnessBudgetAndReplayTestsRunWithoutAnyModel() throws Exception {
-        var process = new ProcessBuilder("python3", "scripts/test-qualify-package-design-luna.py").redirectErrorStream(true).start();
-        String output = new String(process.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
-        assertThat(process.waitFor()).as(output).isZero();
-        assertThat(output).contains("Ran 3 tests", "OK");
+        for (String script : java.util.List.of("scripts/test-qualify-package-design-luna.py", "scripts/test-report-package-design-luna.py")) {
+            var process = new ProcessBuilder("python3", script).redirectErrorStream(true).start();
+            String output = new String(process.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            assertThat(process.waitFor()).as(script + "\n" + output).isZero();
+            assertThat(output).contains("OK").containsPattern("Ran [1-9][0-9]* tests?");
+        }
     }
 }

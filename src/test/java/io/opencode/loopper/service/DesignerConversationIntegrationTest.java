@@ -187,7 +187,12 @@ class DesignerConversationIntegrationTest {
         verify(remote, times(1)).promptAsync(any(), any(OpenCodeClient.PromptRequest.class));
     }
 
-    @Test void restartRestoresExactTurnAndNeverResendsUnknownRequest() {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void restartRestoresExactTurnAndNeverResendsUnknownRequest(boolean v2) {
+        var properties = new io.opencode.loopper.config.LoopperProperties();
+        properties.getInternalCandidate().setPackageDesignV2Enabled(v2);
+        conversations = new DesignerConversationCoordinator(mapper, remote, json, properties);
         var session = acquire("REQUIREMENT", false);
         conversations.begin(session, "REQUIREMENT");
         conversations.send(session, OpenCodeClient.PromptRequest.text("first"));
@@ -217,7 +222,12 @@ class DesignerConversationIntegrationTest {
         verify(remote, never()).promptAsync(any(), any(OpenCodeClient.PromptRequest.class));
     }
 
-    @Test void replacementRequiresPositiveStopAndPreservesOriginalOnFailure() {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void replacementRequiresPositiveStopAndPreservesOriginalOnFailure(boolean v2) {
+        var properties = new io.opencode.loopper.config.LoopperProperties();
+        properties.getInternalCandidate().setPackageDesignV2Enabled(v2);
+        conversations = new DesignerConversationCoordinator(mapper, remote, json, properties);
         var original = acquire("REQUIREMENT", false);
         turn(original, "REQUIREMENT");
         doThrow(new io.opencode.loopper.domain.SessionFailure("STOP_UNKNOWN", "unknown"))

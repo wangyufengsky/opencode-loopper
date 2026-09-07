@@ -1201,11 +1201,16 @@ class MachineCandidateSubmissionIntegrationTest {
                 String.class)).isEqualTo("GENERATING");
     }
 
-    @Test
-    void packageAcceptedResultSupportsRecoveryReadsAndConcurrentSingleWinnerSettlement() throws Exception {
-        submissions.open(packageRun("accepted-package-run", 3));
+    @ParameterizedTest
+    @ValueSource(strings = {"PACKAGE_DESIGN_V1", "PACKAGE_DESIGN_V2"})
+    void packageAcceptedResultSupportsRecoveryReadsAndConcurrentSingleWinnerSettlement(String contract) throws Exception {
+        var old = packageRun("accepted-package-run", 3);
+        submissions.open(new MachineCandidateSubmission.OpenCommand(old.runId(), old.scope(), old.owner(),
+                old.candidateKind(), contract, old.sourceRevision(), old.ownerVersion(),
+                MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP, contract,
+                old.runtimeGenerationId(), old.externalSessionId(), 3));
         PackageDesignAcceptedResultRow row = new PackageDesignAcceptedResultRow(
-                "accepted-package-run", "wp", 1, 0, "PACKAGE_DESIGN_V1",
+                "accepted-package-run", "wp", 1, 0, contract,
                 "{\"design\":\"canonical\"}", "# Canonical package design",
                 "{\"compiled\":true}", "d".repeat(64), null,
                 "2026-08-31T00:00:00Z", "2026-08-31T00:00:00Z", 0);

@@ -42,10 +42,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.3.72.jar
-   jar tf target/opencode-loopper-0.3.72.jar \
+   test -s target/opencode-loopper-0.3.74.jar
+   jar tf target/opencode-loopper-0.3.74.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.3.72.jar
+   shasum -a 256 target/opencode-loopper-0.3.74.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -95,8 +95,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.3.72`。
-- 正式产物：`target/opencode-loopper-0.3.72.jar`。
+- Maven 项目版本：`0.3.74`。
+- 正式产物：`target/opencode-loopper-0.3.74.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -502,7 +502,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.3.72.jar
+JAR=target/opencode-loopper-0.3.74.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -607,12 +607,16 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 - 统计 Agent 权限必须按 `* deny`、`aicoding* allow` 顺序序列化，禁止用无序 Map.of 生成有优先级的规则。受管运行时安装 `loopper-accounting` Agent 及 `loopper-accounting-guard.mjs`；guard 不实现 aicoding，只按保留消息 ID 隔离模型上下文并阻止统计回合调用业务工具。受管 Designer 的 Session 权限增加仅供统计回合使用的 aicoding_* 例外，避免 Session deny-all 覆盖统计 Agent；guard 以每条消息的 tools 禁用业务回合的统计工具、统计回合的 question/业务工具，且在工具执行前再次按归属拦截，不覆盖 Session 原有读写/路径权限；其候选提交识别必须覆盖七个角色专属 Tool 及恢复专用 `submit_candidate`，不能只匹配旧后缀。普通 OpenCode 手动会话不受此保护插件限制。业务提示显式恢复业务 Agent/模型；BEGIN 屏障期间对业务投影 RUNNING 与空问题列表，HTTP 读模型同样排除统计消息及子回复，不把统计结果送入必须提问检查。
 - 开发模拟插件、接收服务与资格脚本位于 `scripts/aicoding/`，只运行于隔离端口/数据/XDG 目录，不访问内网统计平台；模拟成功不能替代内网插件回执和并行语义验证。详见 `docs/story-binding.md`。
 
+
+- Luna 离线复杂回合必须使用精确 Codex task ID 续跑，整理阶段禁用提交工具；报告必须绑定候选 SHA 并覆盖独立固定语义清单，编译 ACCEPTED 不自动计为正确。实际模型请求数不可得时保留 null，GEPA 在请求前预算接口验证阶段停止；隔离 HTTP/SQLite 测试不得宣称真实 OpenCode Provider 已通过。
+
 ## 12. 维护记录
 
 本表必须由每次实际修改代码的 Agent 在结束前追加或更新。保持简短；详细证据放在任务回复或对应契约文档中。
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-09-07 | 第三批 Luna 配对验收与隔离运行验证，交付 0.3.74 | 同会话只读整理/精确续跑、独立语义复核报告、V2 恢复/停止及并发结果持久化 | 聚焦隔离运行 135 项通过，Python 适配/语义汇总 5 项通过；配对各 60 次完成：独立可解决四投 0/18→17/18，但有 1 语义遗漏及训练集 2 冲突错误放行，quality gate FAILED 保持关闭；初次完整验证仅旧 Python 测试计数断言失败，已改为非零测试/进程成功并合入语义汇总测试；最终 ./scripts/verify.sh BUILD SUCCESS：后端 1519/0/0/2，前端 42 文件 276 项、guard 7 项通过；0.3.74 JAR 静态资源通过，1588 个生产类与评测核心 0.3.72 字节相同，SHA-256 ecc0fea1cc149c5ebc66131fc092e7a6daf6b14822b6d25f2f89dc42878ab5b9；GEPA 0 请求，默认关闭，未推送、未重启 |
 | 2026-09-07 | 第二批工作包 V2 与一次语义整理，交付 0.3.72 | 来源/关系/缺口声明、V2 工具权限、V73 持久化整理及恢复、用户来源补充、前端分类、生产评测 V2 适配 | 最终聚焦回归通过；完整 verify 后端 1516/0/0/2、前端通过；0.3.72 JAR 静态资源核验通过，SHA-256 f99e028c028d195c05cd7fca6f28f71e52ce554f64f7945efdb0183527a493b9；Luna 配对及独立 OpenCode 运行结论留给第三批；默认关闭，未推送、未重启 |
 | 2026-09-07 | 第一批工作包缺口证据与 Codex Luna 基线基础，交付 0.3.70 | 六类证据判定、只对新运行冻结的关闭默认策略、V72 不可变证据、生产编译器评测桥、36 例及独立语义清单 | 聚焦回归通过；完整 `./scripts/verify.sh` BUILD SUCCESS：后端 1497/0/0/2、前端 41 文件 274 测试；0.3.70 JAR 静态资源核验通过，SHA-256 `425261587fd4ea4feaf15b7050b5197caf766357554215bab4690741ab869f2d`。Luna 正式基线 36/36 完成、137 次候选；24 个可解决样本首投及四投内正确通过均为 0/24（固定语料范围），35 WAITING_INPUT、1 提前停在 REJECTED，无接受方案；独立验收三次重复和分类语义复核留给配对批。证据在 `data/qualification/luna-baseline-0.3.67-20260907/baseline-report.json`；早期回执不完整的探针已排除；GEPA 在逐请求预算可控性验证阶段停止，启动 0 请求；未推送、未重启 |
 | 2026-09-07 | 七类 MCP 候选三批次同步优化，交付 0.3.67 | schema/生产边界、六角色冻结修正配置、分层诊断与进展身份、V71 历史兼容迁移、逐角色隔离模型探针与文档 | 合并聚焦 155/155；七角色真实模型正式 14/14 接受，正常 6/7 首投、7/7 三投内，故障 7/7 第二投；Judge 保留 BLOCKED。完整 `./scripts/verify.sh` BUILD SUCCESS：Java 1477 项（0 失败、0 错误、2 条件跳过）、Vitest 274/274、原生 guard 6/6；JAR `target/opencode-loopper-0.3.67.jar` 为 289399728 bytes、含 113 个静态文件及 index/assets，Maven/MCP 均为 0.3.67，SHA-256 `eda66591d7f1ec9c26438db2e5be61ab1c4b172393f62da9e4c2ab56509719a0`。最终 JAR 编译类回放 14/14 已接受模型候选仍接受，Judge 保留 BLOCKED；`git diff --check` 通过。未运行生产 HTTP owner/停止握手或浏览器验收；不推送、不部署、不重启既有实例 |

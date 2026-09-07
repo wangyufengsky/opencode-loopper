@@ -126,34 +126,67 @@ def isolated_config(directory, descriptor=None):
     return env, auth, config
 
 
-def execute(args, directory, prompt, descriptor=None):
+def codex_command(args, directory, thread=None, preparation=False):
+    common = ["--strict-config", "--ignore-rules", "--skip-git-repo-check", "--json"]
+    if thread:
+        return [args.codex, "exec", "resume"] + common + [thread, "-"]
+    command = [args.codex, "exec"] + common + ["-C", str(directory / "workspace")]
+    if preparation:
+        command += ["-c", "mcp_servers.qualification.enabled=false"]
+    else:
+        command += ["--ephemeral"]
+    return command + ["-"]
+
+
+def execute(args, directory, prompt, descriptor=None, preparation=None):
     env, auth, config = isolated_config(directory, descriptor)
     start = time.monotonic()
     child = None
+    phases = []
+    def phase(name, text, command):
+        nonlocal child
+        phase_start = time.monotonic()
+        (directory / (name + "-command.json")).write_text(json.dumps(command))
+        with (directory / (name + ".jsonl")).open("w") as out, (directory / (name + "-stderr.log")).open("w") as err:
+            child = subprocess.Popen(command, env=env, cwd=directory / "workspace", stdin=subprocess.PIPE,
+                                     stdout=out, stderr=err, text=True, start_new_session=True)
+            try:
+                child.communicate(text, timeout=args.timeout)
+            except subprocess.TimeoutExpired:
+                raise RuntimeError("Codex evaluation timed out; process group will be stopped")
+        events = [json.loads(line) for line in (directory / (name + ".jsonl")).read_text().splitlines() if line.startswith("{")]
+        record = {"phase": name, "exitCode": child.returncode, "elapsedSeconds": round(time.monotonic()-phase_start, 3),
+                  "usage": [event["usage"] for event in events if event.get("type") == "turn.completed"],
+                  "threadIds": [event["thread_id"] for event in events if event.get("type") == "thread.started"]}
+        phases.append(record)
+        if child.returncode:
+            raise RuntimeError("Codex phase failed; no retry, model, API or credit fallback")
+        return events, record
     try:
         login = subprocess.run([args.codex, "login", "status"], env=env, capture_output=True, text=True, timeout=30)
         if login.returncode or "Logged in using ChatGPT" not in login.stdout + login.stderr:
             raise RuntimeError("ChatGPT subscription login not confirmed; no fallback attempted")
         (directory / "effective-config.toml").write_text(config)
-        command = [args.codex, "exec", "--strict-config", "--ephemeral", "--ignore-rules", "--skip-git-repo-check",
-                   "-C", str(directory / "workspace"), "--json", "-"]
-        with (directory / "events.jsonl").open("w") as out, (directory / "stderr.log").open("w") as err:
-            child = subprocess.Popen(command, env=env, stdin=subprocess.PIPE, stdout=out, stderr=err, text=True,
-                                     start_new_session=True)
-            try:
-                child.communicate(prompt, timeout=args.timeout)
-            except subprocess.TimeoutExpired:
-                os.killpg(child.pid, signal.SIGTERM)
-                try:
-                    child.wait(timeout=10)
-                except subprocess.TimeoutExpired:
-                    os.killpg(child.pid, signal.SIGKILL)
-                    child.wait(timeout=5)
-                raise RuntimeError("Codex evaluation timed out; process group stopped")
-        events = [json.loads(line) for line in (directory / "events.jsonl").read_text().splitlines() if line.startswith("{")]
-        usage = [event["usage"] for event in events if event.get("type") == "turn.completed"]
-        result = {"exitCode": child.returncode, "elapsedSeconds": round(time.monotonic() - start, 3),
-                  "turnUsage": usage, "actualModelRequests": None, "requestCountAvailable": False,
+        thread = None
+        if preparation and preparation["enabled"]:
+            (directory / "preparation.json").write_text(json.dumps(preparation, ensure_ascii=False, indent=2))
+            events, first = phase("preparation-events", preparation["prompt"], codex_command(args, directory, preparation=True))
+            if len(set(first["threadIds"])) != 1:
+                raise RuntimeError("Cannot prove exact conversation identity; design was not dispatched")
+            thread = first["threadIds"][0]
+            material = "\n".join(event.get("item", {}).get("text", "") for event in events
+                                 if event.get("type") == "item.completed" and event.get("item", {}).get("type") == "agent_message")
+            if len(material.encode()) > 32768:
+                material = "整理超过32KiB，未截断逻辑作为有效材料；按冻结原文继续。"
+            (directory / "preparation-material.txt").write_text(material)
+            prompt += "\n上一轮整理仅作建议，冻结原文仍为权威。以下有界材料不证明语义正确：\n" + material
+        _, last = phase("events", prompt, codex_command(args, directory, thread=thread))
+        if thread and set(last["threadIds"]) != {thread}:
+            raise RuntimeError("Resume did not preserve the exact conversation identity")
+        result = {"exitCode": last["exitCode"], "elapsedSeconds": round(time.monotonic() - start, 3),
+                  "turnUsage": [usage for item in phases for usage in item["usage"]], "phases": phases,
+                  "actualModelRequests": None, "requestCountAvailable": False,
+                  "semanticPreparationTurns": 1 if thread else 0,
                   "configSha256": digest(config),
                   "configTemplateSha256": digest(config.replace(str(directory), "<RUN_DIRECTORY>")),
                   "promptSha256": digest(prompt),
@@ -161,6 +194,7 @@ def execute(args, directory, prompt, descriptor=None):
         (directory / "run.json").write_text(json.dumps(result, indent=2))
         return result
     finally:
+        (directory / "phase-ledger.json").write_text(json.dumps(phases, indent=2))
         if child is not None and child.poll() is None:
             os.killpg(child.pid, signal.SIGTERM)
             try:
@@ -215,9 +249,13 @@ def run(args):
             prompt += "\nFrozen bounded repository evidence (synthetic fixture, not production implementation):\n" + case["repositoryFixture"]
             (directory / "prompt.txt").write_text(prompt)
             before = {str(path.relative_to(workspace)): digest(path.read_text()) for path in workspace.rglob("*") if path.is_file()}
-            result = execute(args, directory, prompt, descriptor)
+            preparation = None
+            if args.contract == "PACKAGE_DESIGN_V2":
+                preparation = json.loads(subprocess.check_output(java + ["prepare", str(fixture)], text=True))
+                preparation["prompt"] += "\nFrozen bounded repository evidence (synthetic fixture):\n" + case["repositoryFixture"]
+            result = execute(args, directory, prompt, descriptor, preparation)
             after = {str(path.relative_to(workspace)): digest(path.read_text()) for path in workspace.rglob("*") if path.is_file()}
-            result.update(caseId=case["id"], contract=args.contract, semanticPreparationTurns=0, repeat=repeat + 1, fixtureUnchanged=before == after,
+            result.update(caseId=case["id"], contract=args.contract, repeat=repeat + 1, fixtureUnchanged=before == after,
                           submitted=(directory / "attempts.json").exists(),
                           semanticReview="PENDING_INDEPENDENT_CHECKLIST", corpusSha256=digest(Path(args.corpus).read_text()))
             (directory / "run.json").write_text(json.dumps(result, indent=2))

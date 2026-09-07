@@ -18,6 +18,19 @@ spec.loader.exec_module(luna)
 
 
 class QualificationProtocolTest(unittest.TestCase):
+    def test_preparation_disables_mcp_then_resumes_exact_conversation(self):
+        from types import SimpleNamespace
+        args = SimpleNamespace(codex="codex")
+        directory = Path("/isolated/case")
+        prepare = luna.codex_command(args, directory, preparation=True)
+        self.assertIn("mcp_servers.qualification.enabled=false", prepare)
+        self.assertNotIn("--ephemeral", prepare)
+        resume = luna.codex_command(args, directory, thread="exact-thread-id")
+        self.assertEqual(resume[:3], ["codex", "exec", "resume"])
+        self.assertEqual(resume[-2:], ["exact-thread-id", "-"])
+        self.assertNotIn("--last", resume)
+        self.assertIn("--ephemeral", luna.codex_command(args, directory))
+
     def test_actual_request_budget_is_not_replaced_by_a_session_budget(self):
         with tempfile.TemporaryDirectory() as tmp:
             result = subprocess.run([sys.executable, str(SCRIPT), "--gepa", "--output", tmp], capture_output=True, text=True)
