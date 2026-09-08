@@ -36,6 +36,8 @@ class TaskReadServiceIntegrationTest {
     @Autowired private Flyway flyway;
     @Autowired private JdbcTemplate jdbc;
     @Autowired private TaskReadService reads;
+    @Autowired private io.opencode.loopper.persistence.LoopperMapper mapper;
+    @Autowired private org.apache.ibatis.session.SqlSessionFactory sqlSessions;
     @Autowired private RollingPackageReadService rollingReads;
     @Autowired private DesignerReadService designerReads;
     @Autowired private ProjectReadService projectReads;
@@ -68,6 +70,27 @@ class TaskReadServiceIntegrationTest {
                 "artifact-a", "task-a", "attempt-a", "LOG", "attempt-handoff-1", "text/plain",
                 "y".repeat(32_000), "{}", "2026-01-01T00:01:00Z");
         queries.reset();
+    }
+
+    @Test
+    void overviewUsesMetadataColumnsAndSchedulerSelectsOnlyActionableTasks() {
+        jdbc.update("INSERT INTO error_event(id,task_id,layer,code,message,retryable,evidence_json,occurred_at) VALUES(?,?,?,?,?,?,?,?)",
+                "large-error", "task-a", "TASK", "FAILURE", "summary", false, "x".repeat(100_000), "now");
+        jdbc.update("INSERT INTO judge_run(id,task_id,attempt_id,role,ordinal,state,raw_output,created_at) VALUES(?,?,?,?,?,?,?,?)",
+                "large-judge", "task-a", "attempt-a", "RISK", 1, "COMPLETED", "y".repeat(100_000), "now");
+        var view = reads.overview("task-a");
+        assertThat(view.errors()).singleElement().extracting(TaskReadService.ErrorSummary::message).isEqualTo("summary");
+        assertThat(view.judges()).singleElement().extracting(TaskReadService.JudgeSummary::hasRawOutput).isEqualTo(true);
+        var config = sqlSessions.getConfiguration();
+        String errorSql = config.getMappedStatement("io.opencode.loopper.persistence.ReadModelMapper.taskErrorSummaries")
+                .getBoundSql("task-a").getSql().toLowerCase();
+        assertThat(errorSql).doesNotContain("evidence_json", "select *");
+        String judgeSql = config.getMappedStatement("io.opencode.loopper.persistence.ReadModelMapper.taskJudgeSummaries")
+                .getBoundSql("task-a").getSql().toLowerCase();
+        assertThat(judgeSql).contains("as has_raw_output").doesNotContain("select *");
+        assertThat(mapper.tasksForMonitoring()).extracting(io.opencode.loopper.persistence.TaskRow::id).containsExactly("task-a");
+        jdbc.update("UPDATE task SET state='COMPLETED' WHERE id='task-a'");
+        assertThat(mapper.tasksForMonitoring()).isEmpty();
     }
 
     @Test
@@ -336,7 +359,7 @@ class TaskReadServiceIntegrationTest {
 
         queries.reset();
         automationController.workspace();
-        assertThat(queries.count()).isEqualTo(4);
+        assertThat(queries.count()).isEqualTo(5); // one batched detection-health query, independent of rule count
     }
 
     @Test

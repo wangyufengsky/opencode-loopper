@@ -37,10 +37,67 @@ class AutomationServiceIntegrationTest {
     @Autowired private AutomationService automation;
     @Autowired private LoopperMapper mapper;
     @Autowired private ObjectMapper json;
+    @Autowired private AutomationPollHealthService health;
+    @Autowired private org.springframework.jdbc.core.JdbcTemplate jdbc;
+    @MockitoSpyBean private io.opencode.loopper.runtime.SafeProcessRunner processRunner;
     @MockitoSpyBean private LoopDraftService drafts;
     @TempDir Path temp;
 
     @BeforeEach void reset() { flyway.clean(); flyway.migrate(); }
+
+    @Test
+    void reconciliationAndDeduplicationDoNotMaterializeHistoricalRuns() throws Exception {
+        ProjectRow project = projects.create("history-selection", gitProject("history-selection"));
+        var template = templates.create("history template", "");
+        var version = templates.createVersion(template.id(), spec(project.id()), false);
+        var rule = automation.create(new AutomationService.RuleInput("history rule", project.id(), version.id(),
+                AutomationTriggerType.MANUAL, Map.of(), null, null)).rule();
+        jdbc.update("INSERT INTO task(id,project_id,title,state,created_at,updated_at) VALUES(?,?,?,?,?,?)",
+                "history-task", project.id(), "fixture", "COMPLETED", "now", "now");
+        var values = new java.util.ArrayList<Object[]>();
+        for (int i = 0; i < 500; i++) values.add(new Object[]{"historical-" + i, rule.id(), "key-" + i});
+        jdbc.batchUpdate("INSERT INTO automation_run(id,rule_id,trigger_type,idempotency_key,state,task_id,evidence_json,detected_at) "
+                + "VALUES(?,?,'MANUAL',?,'SUCCEEDED','history-task','{}','now')", values);
+        jdbc.update("INSERT INTO automation_run(id,rule_id,trigger_type,idempotency_key,state,task_id,evidence_json,detected_at) "
+                + "VALUES(?,?,'MANUAL',?,'RUNNING','history-task','{}','now')", "active-run", rule.id(), "active-key");
+        assertThat(mapper.automationRunsForReconciliation(rule.id()))
+                .extracting(io.opencode.loopper.persistence.AutomationRunRow::id).containsExactly("active-run");
+        assertThat(mapper.findAutomationRunByKey("key-499")).get()
+                .extracting(io.opencode.loopper.persistence.AutomationRunRow::id).isEqualTo("historical-499");
+    }
+
+    @Test
+    void pollFailureIsDurableBoundedAndRecoversWithoutChangingRuleAuthority() throws Exception {
+        ProjectRow project = projects.create("poll-health", gitProject("health"));
+        var template = templates.create("health template", "");
+        var version = templates.createVersion(template.id(), spec(project.id()), false);
+        var created = automation.create(new AutomationService.RuleInput("Git 检查", project.id(), version.id(),
+                AutomationTriggerType.GIT_HEAD_CHANGED, Map.of(), null, null));
+        var enabled = automation.update(created.rule().id(), new AutomationService.RuleInput("Git 检查", project.id(), version.id(),
+                AutomationTriggerType.GIT_HEAD_CHANGED, Map.of(), "ENABLED", AutomationApprovalMode.REVIEW_REQUIRED), created.rule().version());
+        org.mockito.Mockito.doReturn(new io.opencode.loopper.runtime.ProcessResult(-1, "secret-must-not-persist", true))
+                .when(processRunner).run(eq(Path.of(project.rootPath())), eq(List.of("git", "rev-parse", "HEAD")), any(java.time.Duration.class));
+        automation.poll();
+        automation.poll();
+        var failed = automation.ruleById(enabled.id());
+        assertThat(failed.version()).isEqualTo(enabled.version());
+        assertThat(failed.state()).isEqualTo("ENABLED");
+        assertThat(failed.health().status()).isEqualTo("FAILED");
+        assertThat(failed.health().consecutiveFailures()).isEqualTo(2);
+        assertThat(failed.health().errorCode()).isEqualTo("GIT_HEAD_TIMEOUT");
+        assertThat(json.writeValueAsString(failed.health())).doesNotContain("secret-must-not-persist");
+        assertThat(automation.runs(enabled.id())).isEmpty();
+        org.mockito.Mockito.doReturn(new io.opencode.loopper.runtime.ProcessResult(0, "first-head", false))
+                .when(processRunner).run(eq(Path.of(project.rootPath())), eq(List.of("git", "rev-parse", "HEAD")), any(java.time.Duration.class));
+        automation.poll();
+        var recovered = automation.ruleById(enabled.id());
+        assertThat(recovered.health().status()).isEqualTo("CHECKED");
+        assertThat(recovered.health().consecutiveFailures()).isZero();
+        assertThat(recovered.health().lastSuccessAt()).isNotBlank();
+        assertThat(recovered.health().errorMessage()).isNull();
+        health.failure(enabled.id(), enabled.version(), AutomationPollHealthService.Failure.DETECTION_FAILED);
+        assertThat(automation.ruleById(enabled.id()).health().status()).isEqualTo("CHECKED");
+    }
 
     @Test
     void creationIsDisabledAndWebhookIsLoopbackTokenProtectedAndDedupedByDelivery() throws Exception {

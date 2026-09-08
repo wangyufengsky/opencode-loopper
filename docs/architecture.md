@@ -152,6 +152,19 @@ Rolling overviews additionally require `executionMode`, workspace policy, curren
 package/frozen counts, and the complete package capability object. Missing capability
 fields fail the frontend adapter and trigger the full-detail fallback; clients may
 not infer package actions from Task or package enums.
+Task overview reads error/Judge metadata through dedicated projections, with no evidence or raw-output
+column materialization. Task monitoring selects only RUNNING/JUDGING/STOPPING rows;
+terminal writer cleanup remains an independent ledger scan. Automation reconciliation selects only
+nonterminal runs with a Task, and delivery deduplication uses the unique idempotency-key lookup.
+Task-list filters invalidate the previous request before the debounce interval, reset the cursor,
+and bind append requests to the same query. Overview/audit requests have per-task generations;
+older overview versions cannot replace newer snapshots. Subscription switches clear both timer
+handles and invalidate callbacks/in-flight reads from the previous scope.
+Project Git inspection shares in-flight futures per normalized root, admits at most four workers
+and 64 queued inspections, and returns PROJECT_INSPECTION_BUSY when saturated. Completed
+inspections have a five-second TTL measured after completion; the cache holds at most 512 roots.
+Shutdown settles pending futures. A rejected/failed inspection never becomes proven DIRECT/READY.
+
 Runtime data is requested only on its own route; SSE invalidates overview and
 audit independently with a short coalescing window. JSON/text responses above
 2 KiB are compressed, Inbox responses use shallow ETags, and read-model metrics

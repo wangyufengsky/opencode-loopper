@@ -955,7 +955,17 @@ export interface LoopSpecTemplate {
   version: number
 }
 
+export interface AutomationPollHealth {
+  status: 'CHECKED' | 'FAILED'
+  lastCheckedAt: string
+  lastSuccessAt?: string
+  consecutiveFailures: number
+  errorCode?: string
+  errorMessage?: string
+}
+
 interface AutomationRuleBase {
+  health?: AutomationPollHealth
   id: string
   name: string
   projectId: string

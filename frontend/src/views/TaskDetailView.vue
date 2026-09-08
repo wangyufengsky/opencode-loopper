@@ -126,16 +126,21 @@ const nextAction = computed(() => {
   return '任务正在推进；实时会话和阶段状态会自动更新。'
 })
 
+let loadGeneration = 0
 async function load() {
-  await store.loadTask(id.value)
+  const generation = ++loadGeneration
+  const taskId = id.value
+  store.stopWatching()
+  await store.loadTask(taskId)
+  if (generation !== loadGeneration || id.value !== taskId) return
   await loadQueue()
-  if (!store.usingDemo) store.watchTask(id.value)
+  if (generation === loadGeneration && id.value === taskId && !store.usingDemo) store.watchTask(taskId)
 }
 onMounted(() => { clockTimer = setInterval(() => { clock.value = Date.now() }, 1000); void load() })
 watch(id, load)
 watch(() => task.value?.status, () => { void loadQueue() })
 watch(waitingForWorkspaceCleanup, (waiting) => { dirtyWorkspaceDialogOpen.value = waiting }, { immediate: true })
-onBeforeUnmount(() => { if (clockTimer) clearInterval(clockTimer); store.stopWatching() })
+onBeforeUnmount(() => { loadGeneration += 1; queueGeneration += 1; if (clockTimer) clearInterval(clockTimer); store.stopWatching() })
 
 const queueReleaseDetail = computed(() => {
   const reason = queueStatus.value?.releaseReason
@@ -154,7 +159,10 @@ const queueReleaseDetail = computed(() => {
   return reasons[reason] ?? displayLabel(reason)
 })
 
+let queueGeneration = 0
 async function loadQueue() {
+  const generation = ++queueGeneration
+  const taskId = id.value
   queueError.value = ''
   if (store.usingDemo || task.value?.status !== 'QUEUED') {
     queueStatus.value = undefined
@@ -162,11 +170,12 @@ async function loadQueue() {
   }
   queueLoading.value = true
   try {
-    queueStatus.value = await api.getTaskQueue(id.value)
+    const next = await api.getTaskQueue(taskId)
+    if (generation === queueGeneration && id.value === taskId) queueStatus.value = next
   } catch (error) {
-    queueError.value = userFacingError(error, '队列状态加载失败')
+    if (generation === queueGeneration && id.value === taskId) queueError.value = userFacingError(error, '队列状态加载失败')
   } finally {
-    queueLoading.value = false
+    if (generation === queueGeneration) queueLoading.value = false
   }
 }
 

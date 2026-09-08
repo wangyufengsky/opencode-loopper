@@ -1165,3 +1165,14 @@ describe('Loopper REST contract adapter', () => {
     }))
   })
 })
+
+
+describe('automation detection health', () => {
+  const rule = { id: 'r', name: '检测', projectId: 'p', templateVersionId: 'v', triggerType: 'GIT_HEAD_CHANGED', triggerConfig: {}, state: 'ENABLED' }
+  it('preserves detection errors and recovery timestamps without inventing unchecked success', () => {
+    expect(normalizeAutomationRule(rule).health).toBeUndefined()
+    expect(normalizeAutomationRule({ ...rule, health: { status: 'FAILED', lastCheckedAt: 'now', lastSuccessAt: 'before', consecutiveFailures: 2, errorCode: 'GIT_HEAD_TIMEOUT', errorMessage: '检查超时' } }).health)
+      .toEqual({ status: 'FAILED', lastCheckedAt: 'now', lastSuccessAt: 'before', consecutiveFailures: 2, errorCode: 'GIT_HEAD_TIMEOUT', errorMessage: '检查超时' })
+    expect(() => normalizeAutomationRule({ ...rule, health: { status: 'UNKNOWN' } })).toThrow()
+  })
+})

@@ -170,6 +170,19 @@ public interface ReadModelMapper {
     List<TaskAuditAttemptRow> taskAuditAttempts(String taskId);
 
     @Select("""
+            SELECT id,layer,code,message,retryable,stage_id,attempt_id,session_id,occurred_at
+            FROM error_event WHERE task_id=#{taskId} ORDER BY occurred_at DESC,id
+            """)
+    List<ErrorSummaryRow> taskErrorSummaries(String taskId);
+
+    @Select("""
+            SELECT id,role,ordinal,state,verdict,reason,external_session_id,created_at,ended_at,
+              CASE WHEN raw_output IS NOT NULL AND raw_output!='' AND trim(raw_output, char(9)||char(10)||char(11)||char(12)||char(13)||' ')!='' THEN 1 ELSE 0 END AS has_raw_output
+            FROM judge_run WHERE task_id=#{taskId} ORDER BY created_at,role,ordinal
+            """)
+    List<JudgeSummaryRow> taskJudgeSummaries(String taskId);
+
+    @Select("""
             SELECT 'TASK' AS entry_type,NULL AS payload_json FROM task WHERE id=#{taskId}
             UNION ALL
             SELECT 'ERROR',json_object(

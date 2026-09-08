@@ -1256,6 +1256,20 @@ function normalizeMergeRequestDraft(value: unknown): MergeRequestDraft {
   }
 }
 
+function normalizeAutomationHealth(value: unknown): AutomationRule['health'] {
+  if (value == null) return undefined
+  const raw = asRecord(value)
+  if (raw.status !== 'CHECKED' && raw.status !== 'FAILED') throw new TypeError('Automation health status is invalid')
+  return {
+    status: raw.status,
+    lastCheckedAt: requiredString(raw, 'lastCheckedAt', 'Automation health'),
+    lastSuccessAt: asString(raw.lastSuccessAt) || undefined,
+    consecutiveFailures: asNonNegativeInteger(raw.consecutiveFailures),
+    errorCode: asString(raw.errorCode) || undefined,
+    errorMessage: asString(raw.errorMessage) || undefined,
+  }
+}
+
 export function normalizeAutomationRule(value: unknown): AutomationRule {
   const raw = asRecord(value)
   const state: 'DISABLED' | 'ENABLED' = raw.state === 'ENABLED' ? 'ENABLED' : 'DISABLED'
@@ -1269,6 +1283,7 @@ export function normalizeAutomationRule(value: unknown): AutomationRule {
     approvalMode,
     updatedAt: asString(raw.updatedAt),
     version: asNumber(raw.version),
+    health: normalizeAutomationHealth(raw.health),
   }
   const config = asRecord(raw.triggerConfig)
   switch (asString(raw.triggerType).toUpperCase()) {

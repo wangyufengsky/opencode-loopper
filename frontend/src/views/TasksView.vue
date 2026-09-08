@@ -41,6 +41,7 @@ onMounted(async () => {
   await reloadTasks()
 })
 onBeforeUnmount(() => {
+  store.invalidateTaskSummaries()
   if (clockTimer) clearInterval(clockTimer)
   if (reloadTimer) window.clearTimeout(reloadTimer)
 })
@@ -132,6 +133,7 @@ watch([filter, projectFilter, timeOrder, archiveFilter, search, groupByProject],
 })
 watch([filter, projectFilter, timeOrder, archiveFilter, search], () => {
   if (!ready.value || store.usingDemo) return
+  store.invalidateTaskSummaries()
   if (reloadTimer) window.clearTimeout(reloadTimer)
   reloadTimer = window.setTimeout(() => { void reloadTasks() }, 180)
 })

@@ -93,6 +93,20 @@ class CodeStructureContractTest {
         assertThat(violations).as("Domain stays independent; scope policy has no direct I/O; workflow uses its narrow Port").isEmpty();
     }
 
+    @Test
+    void readPathCollaboratorsKeepNarrowConstructionBoundaries() {
+        for (Class<?> type : java.util.List.of(
+                io.opencode.loopper.service.ProjectInspectionCache.class,
+                io.opencode.loopper.service.ProjectReadService.class,
+                io.opencode.loopper.service.AutomationPollHealthService.class)) {
+            for (var constructor : type.getDeclaredConstructors()) {
+                assertThat(constructor.getParameterCount()).as(type.getSimpleName() + " constructor dependencies").isLessThanOrEqualTo(8);
+                assertThat(java.util.Arrays.stream(constructor.getParameterTypes()).map(Class::getSimpleName))
+                        .doesNotContain("TaskService", "DesignerSessionService", "AutomationService");
+            }
+        }
+    }
+
     private static int lineCount(Path path) {
         try (var lines = Files.lines(path)) {
             return Math.toIntExact(lines.count());

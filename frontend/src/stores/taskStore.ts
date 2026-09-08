@@ -1,9 +1,10 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { api, ApiError, subscribeTaskEvents, type TaskEventStream, type TaskSummaryQuery } from '@/api/client'
+import { api, ApiError, type TaskSummaryQuery } from '@/api/client'
 import { demoArtifacts, demoProjects, demoRuntime, demoTasks, demoTaskStatusGroups } from '@/mock/demoData'
 import type { Artifact, DirtyWorkspaceAction, Project, RuntimeInfo, Task, TaskEvent, TaskStatus } from '@/types/domain'
 import { STAGE_STATUSES, TASK_STATUSES, requirePublicState } from '@/types/states'
+import { createTaskEventSubscription } from './taskEventSubscription'
 import { displayLabel } from '@/utils/displayLabels'
 
 function copy<T>(value: T): T {
@@ -63,17 +64,34 @@ export const useTaskStore = defineStore('task', () => {
   const taskFacets = ref<Record<string, number>>({})
   const error = ref<string>()
   const usingDemo = ref(import.meta.env.VITE_DEMO === 'true')
-  const stream = ref<TaskEventStream>()
   const taskNotices = ref<Record<string, string[]>>({})
   const streamState = ref<'connected' | 'reconnecting' | 'idle'>('idle')
-  // This is a browser SPA timer; keep it as a numeric DOM handle even though
-  // Node's ambient types are available to Vitest and Maven's typecheck.
-  let snapshotTimer: number | undefined
-  let auditTimer: number | undefined
+  let summaryGeneration = 0
+  let summaryQuery = ''
+  let watchedTaskId: string | undefined
+  const overviewRequests = new Map<string, number>()
+  const auditRequests = new Map<string, number>()
+  const nextRequest = (requests: Map<string, number>, id: string) => {
+    const next = (requests.get(id) ?? 0) + 1
+    requests.set(id, next)
+    return next
+  }
+  function invalidateTaskReads(id: string) {
+    nextRequest(overviewRequests, id)
+    nextRequest(auditRequests, id)
+    auditLoading.value[id] = false
+  }
+  function invalidateTaskSummaries() {
+    summaryGeneration += 1
+    taskNextCursor.value = undefined
+    loading.value = false
+  }
 
   const selectedTask = (id: string) => computed(() => tasks.value.find((task) => task.id === id))
 
   function activateDemo() {
+    stopWatching()
+    invalidateTaskSummaries()
     usingDemo.value = true
     projects.value = copy(demoProjects)
     tasks.value = copy(demoTasks)
@@ -135,6 +153,11 @@ export const useTaskStore = defineStore('task', () => {
   }
 
   async function loadTaskSummaries(query: TaskSummaryQuery = {}, append = false) {
+    const queryKey = JSON.stringify(query)
+    if (append && (loading.value || !taskNextCursor.value || queryKey !== summaryQuery)) return
+    const generation = ++summaryGeneration
+    summaryQuery = queryKey
+    if (!append) taskNextCursor.value = undefined
     loading.value = true
     error.value = undefined
     if (usingDemo.value) {
@@ -145,27 +168,36 @@ export const useTaskStore = defineStore('task', () => {
     }
     try {
       const page = await api.getTaskSummaries({ ...query, ...(append ? { cursor: taskNextCursor.value } : {}) })
-      tasks.value = append ? [...tasks.value, ...page.items] : page.items
+      if (generation !== summaryGeneration || usingDemo.value) return
+      tasks.value = append ? [...tasks.value, ...page.items.filter(item => !tasks.value.some(task => task.id === item.id))] : page.items
       taskNextCursor.value = page.nextCursor
       taskFacets.value = page.facets
     } catch (cause) {
-      error.value = cause instanceof ApiError ? cause.message : '任务列表加载失败'
+      if (generation === summaryGeneration) error.value = cause instanceof ApiError ? cause.message : '任务列表加载失败'
     } finally {
-      loading.value = false
+      if (generation === summaryGeneration) loading.value = false
     }
   }
 
   async function loadTaskOverview(id: string) {
     if (usingDemo.value) return tasks.value.find((task) => task.id === id)
-    const overview = await api.getTaskOverview(id)
+    const request = nextRequest(overviewRequests, id)
+    let overview: Task
+    try { overview = await api.getTaskOverview(id) }
+    catch (cause) {
+      if (request !== overviewRequests.get(id) || usingDemo.value) return tasks.value.find(task => task.id === id)
+      throw cause
+    }
+    if (request !== overviewRequests.get(id) || usingDemo.value) return tasks.value.find(task => task.id === id)
     const index = tasks.value.findIndex((task) => task.id === id)
     const previous = index < 0 ? undefined : tasks.value[index]
+    if (previous?.version !== undefined && overview.version !== undefined && overview.version < previous.version) return previous
     const detail = previous ? {
       ...overview,
       attempts: previous.attempts,
       artifacts: previous.artifacts,
-      errors: overview.errors?.length ? overview.errors : previous.errors,
-      judges: overview.judges?.length ? overview.judges : previous.judges,
+      errors: overview.errors ?? previous.errors,
+      judges: overview.judges ?? previous.judges,
     } : overview
     if (index === -1) tasks.value.push(detail)
     else tasks.value[index] = detail
@@ -174,28 +206,34 @@ export const useTaskStore = defineStore('task', () => {
 
   async function loadTaskAudit(id: string) {
     if (usingDemo.value) return
+    const request = nextRequest(auditRequests, id)
     auditLoading.value[id] = true
     delete auditErrors.value[id]
     try {
       const audit = await api.getTaskAudit(id)
+      if (request !== auditRequests.get(id) || usingDemo.value) return
       artifacts.value = [...artifacts.value.filter((artifact) => artifact.taskId !== id), ...(audit.artifacts ?? [])]
       tasks.value = tasks.value.map((task) => task.id === id ? { ...task, ...audit } : task)
     } catch (cause) {
-      auditErrors.value[id] = cause instanceof Error ? cause.message : '审计信息加载失败'
+      if (request === auditRequests.get(id)) auditErrors.value[id] = cause instanceof Error ? cause.message : '审计信息加载失败'
     } finally {
-      auditLoading.value[id] = false
+      if (request === auditRequests.get(id)) auditLoading.value[id] = false
     }
   }
 
   async function loadTask(id: string) {
     if (usingDemo.value) return tasks.value.find((task) => task.id === id)
+    const expected = (overviewRequests.get(id) ?? 0) + 1
     try {
       const detail = await loadTaskOverview(id)
+      if (overviewRequests.get(id) !== expected || usingDemo.value) return detail
       void loadTaskAudit(id)
       return detail
     } catch (cause) {
+      if (overviewRequests.get(id) !== expected || usingDemo.value) return tasks.value.find(task => task.id === id)
       try {
         const legacy = await api.getTask(id)
+        if (overviewRequests.get(id) !== expected || usingDemo.value) return tasks.value.find(task => task.id === id)
         const index = tasks.value.findIndex((task) => task.id === id)
         if (index === -1) tasks.value.push(legacy)
         else tasks.value[index] = legacy
@@ -220,6 +258,7 @@ export const useTaskStore = defineStore('task', () => {
     error.value = undefined
     try {
       const changed = await update(id)
+      invalidateTaskReads(id)
       tasks.value = tasks.value.map((task) => task.id === id ? changed : task)
     } catch (cause) {
       error.value = cause instanceof Error ? cause.message : '任务操作失败'
@@ -347,44 +386,29 @@ export const useTaskStore = defineStore('task', () => {
     }
   }
 
-  function watchTask(id: string) {
-    stream.value?.close()
-    if (snapshotTimer) window.clearTimeout(snapshotTimer)
-    if (auditTimer) window.clearTimeout(auditTimer)
-    streamState.value = 'reconnecting'
-    stream.value = subscribeTaskEvents(id, (event) => {
-      tasks.value = tasks.value.map((task) => task.id === id ? reduceTaskEvent(task, event) : task)
+  const subscription = createTaskEventSubscription({
+    receive(id, event) {
+      tasks.value = tasks.value.map(task => task.id === id ? reduceTaskEvent(task, event) : task)
       const notice = aiOutputNotice(event)
-      if (notice) {
-        // SSE replays persisted events on every subscription. Notices are a bounded
-        // projection of distinct explanations, not a log of delivery attempts.
-        taskNotices.value[id] = [...new Set([...(taskNotices.value[id] ?? []), notice])].slice(-4)
-      }
-      if (requiresTaskSnapshot(event.type) && !snapshotTimer) {
-        // Events can arrive in short bursts (session + attempt + verification).
-        // Coalesce them into one REST read after the persistence transaction ends.
-        snapshotTimer = window.setTimeout(() => {
-          snapshotTimer = undefined
-          void loadTaskOverview(id)
-        }, 180)
-      }
-      if (/^(attempt|session|verification|judge|error|artifact)\./.test(event.type) && !auditTimer) {
-        auditTimer = window.setTimeout(() => {
-          auditTimer = undefined
-          void loadTaskAudit(id)
-        }, 180)
-      }
-    }, (state) => { streamState.value = state })
+      if (notice) taskNotices.value[id] = [...new Set([...(taskNotices.value[id] ?? []), notice])].slice(-4)
+    },
+    overview: loadTaskOverview,
+    audit: loadTaskAudit,
+    needsOverview: requiresTaskSnapshot,
+    state: state => { streamState.value = state },
+    error: cause => { error.value = cause instanceof Error ? cause.message : '任务状态刷新失败，请重新打开任务。' },
+  })
+
+  function watchTask(id: string) {
+    if (watchedTaskId) invalidateTaskReads(watchedTaskId)
+    watchedTaskId = id
+    subscription.watch(id)
   }
 
   function stopWatching() {
-    stream.value?.close()
-    stream.value = undefined
-    if (snapshotTimer) window.clearTimeout(snapshotTimer)
-    if (auditTimer) window.clearTimeout(auditTimer)
-    snapshotTimer = undefined
-    auditTimer = undefined
-    streamState.value = 'idle'
+    if (watchedTaskId) invalidateTaskReads(watchedTaskId)
+    watchedTaskId = undefined
+    subscription.stop()
   }
 
   async function refreshRuntime() {
@@ -423,7 +447,7 @@ export const useTaskStore = defineStore('task', () => {
 
   return { projects, tasks, runtime, artifacts, taskNotices, loading, auditLoading, auditErrors,
     taskNextCursor, taskFacets, error, usingDemo, streamState, selectedTask, activateDemo,
-    deactivateDemo, loadOverview, loadProjects, loadTaskSummaries, loadTaskOverview, loadTaskAudit, loadTask,
+    deactivateDemo, loadOverview, loadProjects, loadTaskSummaries, invalidateTaskSummaries, loadTaskOverview, loadTaskAudit, loadTask,
     updateTask, retryJudges, retryWaitingLoop, resolveDirtyWorkspace, cancelDirtyWorkspace, reworkTask,
     setTaskArchived, deleteArchivedTask, watchTask, stopWatching, refreshRuntime, restartRuntime, startRuntime }
 })

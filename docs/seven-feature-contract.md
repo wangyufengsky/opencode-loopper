@@ -415,6 +415,15 @@ same `PENDING_START -> REQUEST_START -> QUEUED` boundary, permissions, verifiers
 and both Judges. A review-required detection creates only a draft; its explicit
 approval confirms the Task and immediately invokes that same Start boundary.
 
+V76 records automation detection health separately from rule/run lifecycle. Enabled scheduled
+rules expose the latest check, last successful check, consecutive failures and bounded Chinese
+failure reason; an unchecked rule has no health row. Success means the detection completed,
+not that a Task succeeded. Failure before run creation is still visible. Failed Task admission
+continues to use the existing run history. Checks neither enable rules nor approve AUTO_START.
+Health writes compare the checked rule version; configuration changes hide old-version health
+and reject late results. Raw Git output and exception messages are never stored in this projection.
+Rule list reads load health in one batch. Disabled rules retain reconciliation obligations.
+
 ## Cancellation checkout and advisory review (0.3.28)
 
 A stopped cancelled Git holder preserves dirty content in the existing durable checkpoint/stash

@@ -35,7 +35,7 @@ class TaskMonitor {
                 // Another poll/operator transition may have resolved the same row.
             }
         }
-        for (TaskRow task : mapper.listTasks()) {
+        for (TaskRow task : mapper.tasksForMonitoring()) {
             if (TaskState.STOPPING.name().equals(task.state())) {
                 try { tasks.continueCancellation(task.id()); }
                 catch (RuntimeException ignoredConcurrentCancellation) {

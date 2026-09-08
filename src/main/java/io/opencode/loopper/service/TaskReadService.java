@@ -7,8 +7,8 @@ import io.opencode.loopper.api.CursorPage;
 import io.opencode.loopper.domain.TaskState;
 import io.opencode.loopper.domain.TaskStatusGroup;
 import io.opencode.loopper.domain.WorkPackageAggregateState;
-import io.opencode.loopper.persistence.ErrorEventRow;
-import io.opencode.loopper.persistence.JudgeRunRow;
+import io.opencode.loopper.persistence.ErrorSummaryRow;
+import io.opencode.loopper.persistence.JudgeSummaryRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.ReadModelMapper;
 import io.opencode.loopper.persistence.StageRow;
@@ -101,8 +101,8 @@ public class TaskReadService {
             TaskOverviewRow task = reads.taskOverview(taskId)
                     .orElseThrow(() -> new NotFoundException("Task not found: " + taskId));
             List<TaskStageReadRow> stages = reads.taskOverviewStages(taskId);
-            List<ErrorSummary> errors = mapper.listErrors(taskId).stream().map(this::errorSummary).toList();
-            List<JudgeSummary> judges = mapper.listJudgeRuns(taskId).stream().map(this::judgeSummary).toList();
+            List<ErrorSummary> errors = reads.taskErrorSummaries(taskId).stream().map(this::errorSummary).toList();
+            List<JudgeSummary> judges = reads.taskJudgeSummaries(taskId).stream().map(this::judgeSummary).toList();
             recordRows("task-overview", 1L + stages.size() + errors.size() + judges.size());
             String waitingReasonCode = mapper.findTaskWaitingReasonCode(taskId).orElse(null);
             boolean retryAvailable = "LOOP_STAGNATION_DETECTED".equals(waitingReasonCode)
@@ -226,14 +226,14 @@ public class TaskReadService {
                 row.summary(), node(row.evidenceSummaryJson()), row.createdAt());
     }
 
-    private ErrorSummary errorSummary(ErrorEventRow row) {
+    private ErrorSummary errorSummary(ErrorSummaryRow row) {
         return new ErrorSummary(row.id(), row.layer(), row.code(), row.message(), row.retryable(), row.stageId(),
                 row.attemptId(), row.sessionId(), row.occurredAt());
     }
 
-    private JudgeSummary judgeSummary(JudgeRunRow row) {
+    private JudgeSummary judgeSummary(JudgeSummaryRow row) {
         return new JudgeSummary(row.id(), row.role(), row.ordinal(), row.state(), row.verdict(), row.reason(),
-                row.externalSessionId(), row.createdAt(), row.endedAt(), row.rawOutput() != null && !row.rawOutput().isBlank());
+                row.externalSessionId(), row.createdAt(), row.endedAt(), row.hasRawOutput() == 1);
     }
 
     private ArtifactSummary artifactSummary(TaskArtifactSummaryRow row) {

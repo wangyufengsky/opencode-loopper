@@ -1,7 +1,8 @@
 import { createPinia, setActivePinia } from 'pinia'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { demoProjects, demoRuntime, demoTasks } from '@/mock/demoData'
 import { aiOutputNotice, reduceTaskEvent, requiresTaskSnapshot, useTaskStore } from '@/stores/taskStore'
+import type { Task, TaskEvent } from '@/types/domain'
 import { subscribeTaskEvents } from '@/api/client'
 
 const apiMocks = vi.hoisted(() => ({
@@ -14,6 +15,8 @@ const apiMocks = vi.hoisted(() => ({
   getTask: vi.fn(),
   getTaskOverview: vi.fn(),
   getRuntime: vi.fn(),
+  getTaskSummaries: vi.fn(),
+  getTaskAudit: vi.fn(),
 }))
 
 vi.mock('@/api/client', () => ({
@@ -22,10 +25,18 @@ vi.mock('@/api/client', () => ({
   subscribeTaskEvents: vi.fn(),
 }))
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason: unknown) => void
+  const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no })
+  return { promise, resolve, reject }
+}
+afterEach(() => vi.useRealTimers())
+
 describe('task SSE reducer', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
-    vi.clearAllMocks()
+    vi.resetAllMocks()
   })
   it('updates task state from a persisted status event', () => {
     const next = reduceTaskEvent(demoTasks[0]!, { id: 'evt-1', type: 'task.status', at: '2026-08-04T10:20:00+08:00', data: { status: 'VERIFYING' } })
@@ -179,4 +190,106 @@ describe('task SSE reducer', () => {
     expect(apiMocks.getTasks).toHaveBeenCalledOnce()
     expect(apiMocks.getRuntime).toHaveBeenCalledOnce()
   })
+  it('keeps the newest query, facets and cursor when responses arrive out of order', async () => {
+    const store = useTaskStore()
+    const old = deferred<{ items: Task[]; nextCursor: string; facets: Record<string, number> }>()
+    const fresh = deferred<{ items: Task[]; nextCursor: string; facets: Record<string, number> }>()
+    apiMocks.getTaskSummaries.mockReturnValueOnce(old.promise).mockReturnValueOnce(fresh.promise)
+    const first = store.loadTaskSummaries({ q: 'old' })
+    const second = store.loadTaskSummaries({ q: 'new' })
+    fresh.resolve({ items: [{ ...demoTasks[0]!, id: 'new' }], nextCursor: 'new-cursor', facets: { TOTAL: 1 } })
+    await second
+    old.resolve({ items: [{ ...demoTasks[0]!, id: 'old' }], nextCursor: 'old-cursor', facets: { TOTAL: 9 } })
+    await first
+    expect(store.tasks.map(task => task.id)).toEqual(['new'])
+    expect(store.taskNextCursor).toBe('new-cursor')
+    expect(store.taskFacets).toEqual({ TOTAL: 1 })
+  })
+
+  it('invalidates an old page before the debounced replacement is issued', async () => {
+    const store = useTaskStore()
+    apiMocks.getTaskSummaries.mockResolvedValueOnce({ items: [], nextCursor: 'old-page', facets: {} })
+    await store.loadTaskSummaries({ q: 'old' })
+    const pending = deferred<{ items: Task[]; facets: Record<string, number> }>()
+    apiMocks.getTaskSummaries.mockReturnValueOnce(pending.promise)
+    const append = store.loadTaskSummaries({ q: 'old' }, true)
+    store.invalidateTaskSummaries()
+    pending.resolve({ items: [demoTasks[0]!], facets: { TOTAL: 9 } })
+    await append
+    await store.loadTaskSummaries({ q: 'new' }, true)
+    expect(store.tasks).toEqual([])
+    expect(store.taskNextCursor).toBeUndefined()
+    expect(apiMocks.getTaskSummaries).toHaveBeenCalledTimes(2)
+  })
+
+  it('rejects older overview requests and lower server versions and clears authoritative empty history', async () => {
+    const store = useTaskStore()
+    const old = deferred<Task>(), fresh = deferred<Task>()
+    apiMocks.getTaskOverview.mockReturnValueOnce(old.promise).mockReturnValueOnce(fresh.promise)
+    const first = store.loadTaskOverview('same'), second = store.loadTaskOverview('same')
+    fresh.resolve({ ...demoTasks[0]!, id: 'same', status: 'COMPLETED', version: 2, errors: [], judges: [] })
+    await second
+    old.resolve({ ...demoTasks[0]!, id: 'same', status: 'RUNNING', version: 1 })
+    await first
+    apiMocks.getTaskOverview.mockResolvedValueOnce({ ...demoTasks[0]!, id: 'same', status: 'RUNNING', version: 1 })
+    await store.loadTaskOverview('same')
+    expect(store.tasks[0]).toMatchObject({ status: 'COMPLETED', version: 2, errors: [], judges: [] })
+  })
+
+  it('keeps audit from the latest request and ignores late errors', async () => {
+    const store = useTaskStore()
+    store.tasks = [{ ...demoTasks[0]!, id: 'same' }]
+    const old = deferred<unknown>()
+    apiMocks.getTaskAudit.mockReturnValueOnce(old.promise).mockResolvedValueOnce({ artifacts: [], attempts: [], errors: [], judges: [] })
+    const first = store.loadTaskAudit('same')
+    await store.loadTaskAudit('same')
+    old.reject(new Error('stale failure'))
+    await first
+    expect(store.auditErrors.same).toBeUndefined()
+    expect(store.auditLoading.same).toBe(false)
+    expect(store.tasks[0]?.attempts).toEqual([])
+  })
+
+  it('restarts both SSE timers after switching and rejects callbacks from the closed stream', async () => {
+    vi.useFakeTimers()
+    const receivers: Array<(event: TaskEvent) => void> = []
+    vi.mocked(subscribeTaskEvents).mockImplementation((_id, receive) => {
+      receivers.push(receive)
+      return { close: vi.fn() }
+    })
+    apiMocks.getTaskOverview.mockResolvedValue({ ...demoTasks[0]!, id: 'two' })
+    apiMocks.getTaskAudit.mockResolvedValue({ artifacts: [] })
+    const store = useTaskStore()
+    store.watchTask('one')
+    const event = { id: 'evt', type: 'session.failed', at: 'now', data: {} }
+    receivers[0]!(event)
+    store.watchTask('two')
+    receivers[0]!(event)
+    receivers[1]!(event)
+    await vi.advanceTimersByTimeAsync(180)
+    expect(apiMocks.getTaskOverview).toHaveBeenCalledExactlyOnceWith('two')
+    expect(apiMocks.getTaskAudit).toHaveBeenCalledExactlyOnceWith('two')
+    store.stopWatching()
+    receivers[1]!(event)
+    await vi.advanceTimersByTimeAsync(200)
+    expect(apiMocks.getTaskOverview).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports SSE refresh failure and accepts a later recovery event', async () => {
+    vi.useFakeTimers()
+    let receive!: (event: TaskEvent) => void
+    vi.mocked(subscribeTaskEvents).mockImplementation((_id, callback) => { receive = callback; return { close: vi.fn() } })
+    apiMocks.getTaskOverview.mockRejectedValueOnce(new Error('读取失败')).mockResolvedValueOnce({ ...demoTasks[0]!, id: 'same' })
+    const store = useTaskStore()
+    store.watchTask('same')
+    const event = { id: 'evt', type: 'task.status', at: 'now', data: {} }
+    receive(event)
+    await vi.advanceTimersByTimeAsync(180)
+    expect(store.error).toBe('读取失败')
+    receive(event)
+    await vi.advanceTimersByTimeAsync(180)
+    expect(store.tasks[0]?.id).toBe('same')
+    store.stopWatching()
+  })
+
 })

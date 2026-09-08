@@ -283,3 +283,15 @@ Story accounting is owned by `StoryAccountingCoordinator` and `StoryBindingServi
 `CodeStructureContractTest` 除物理行数外，使用 JDK `jdeps` 检查编译后的直接类型依赖（含方法体）：`domain` 不反向依赖应用/适配包；`DesignerAcceptanceCandidateWorkflow` 不依赖完整 `DesignerSessionService`；`PackageDesignScopeGuard` 不直接依赖 runtime/persistence/API、网络/SQL、Files 或 ProcessBuilder；仅允许其既有冻结输入值 `DesignWorkPackageRow`，不允许 Mapper 或其他数据库适配器。规则针对已有明确边界，不要求为了模式而增加层次。
 
 这些检查不证明传递依赖完全纯净，也不覆盖反射、动态加载或所有 I/O API。修改上述边界时补充有意义的反例和行为测试；规模通过不能替代依赖审查，依赖通过也不能替代权限、事务与恢复验证。
+
+## Read-path optimization boundaries
+
+`ProjectInspectionCache` owns bounded Git worker admission, coalescing, TTL and shutdown;
+`ProjectReadService` only assembles read projections. `AutomationMapper` owns rule/run SQL,
+`MonitorReadMapper` owns scheduler selection, and `AutomationPollHealthService` owns the
+independent detection-health projection. These collaborators must not depend on lifecycle
+facades; constructor dependencies stay at or below eight. The targeted structure test enforces
+this limit without increasing any existing legacy cap.
+Frontend `taskEventSubscription` owns subscription generations and coalescing timer disposal;
+the task store owns persisted snapshot reconciliation. Request generations and server versions
+serve different purposes and cannot replace each other.

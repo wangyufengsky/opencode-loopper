@@ -13,6 +13,9 @@ import io.opencode.loopper.domain.LifecycleScopeType;
 import io.opencode.loopper.domain.TaskState;
 import io.opencode.loopper.lifecycle.LifecycleTransitionService;
 import io.opencode.loopper.persistence.AutomationRuleRow;
+import io.opencode.loopper.persistence.AutomationPollHealthRow;
+import io.opencode.loopper.service.AutomationPollHealthService.Failure;
+import io.opencode.loopper.service.AutomationPollHealthService.DetectionFailure;
 import io.opencode.loopper.persistence.AutomationRunRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.ProjectRow;
@@ -52,14 +55,16 @@ public class AutomationService {
     private final SafeProcessRunner runner;
     private final AutomationRunPersistence runPersistence;
     private final ReadModelMapper reads;
+    private final AutomationPollHealthService pollHealth;
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(AutomationService.class);
     private final Map<String, WorkspacePreview> importPreviews = new ConcurrentHashMap<>();
 
     public AutomationService(LoopperMapper mapper, LifecycleTransitionService lifecycle,
                              ObjectMapper json, LoopSpecTemplateService templates, ProjectService projects,
                              LoopDraftService drafts, TaskService tasks, SafeProcessRunner runner,
-                             AutomationRunPersistence runPersistence, ReadModelMapper reads) {
+                             AutomationRunPersistence runPersistence, ReadModelMapper reads, AutomationPollHealthService pollHealth) {
         this.mapper = mapper; this.lifecycle = lifecycle; this.json = json; this.templates = templates; this.projects = projects;
-        this.drafts = drafts; this.tasks = tasks; this.runner = runner; this.runPersistence = runPersistence; this.reads = reads;
+        this.drafts = drafts; this.tasks = tasks; this.runner = runner; this.runPersistence = runPersistence; this.reads = reads; this.pollHealth = pollHealth;
     }
 
     /** Creation is deliberately inert even if a caller submits ENABLED or AUTO_START. */
@@ -101,7 +106,10 @@ public class AutomationService {
         return rule(getRule(id));
     }
 
-    public List<RuleView> rules() { return mapper.listAutomationRules().stream().map(this::rule).toList(); }
+    public List<RuleView> rules() {
+        var health = pollHealth.current();
+        return mapper.listAutomationRules().stream().map(row -> rule(row, health.get(row.id()))).toList();
+    }
     public RuleView ruleById(String id) { return rule(getRule(id)); }
     public List<RunView> runs(String ruleId) { getRule(ruleId); return mapper.listAutomationRuns(ruleId).stream().map(this::run).toList(); }
     public RunFeed allRuns() { return new RunFeed(reads.allAutomationRuns().stream().map(this::run).toList(), now()); }
@@ -202,48 +210,68 @@ public class AutomationService {
     }
 
     @Scheduled(fixedDelayString = "${loopper.automation-monitor-delay:15s}")
-    public void poll() {
+    public synchronized void poll() {
         for (AutomationRuleRow rule : mapper.listAutomationRules()) {
+            try { reconcile(rule); }
+            catch (RuntimeException failure) { recordPollFailure(rule, Failure.RECONCILIATION_FAILED); continue; }
+            if (!AutomationRuleState.ENABLED.name().equals(rule.state())) continue;
             try {
-                reconcile(rule);
-                if (!AutomationRuleState.ENABLED.name().equals(rule.state())) continue;
                 AutomationTriggerType trigger = requiredTrigger(rule.triggerType());
-                if (trigger == AutomationTriggerType.GIT_HEAD_CHANGED) pollGitHead(rule);
-                else if (trigger == AutomationTriggerType.CRON) pollCron(rule);
-            } catch (RuntimeException ignored) { /* durable run history is authoritative; a later poll retries safe detection */ }
+                if (trigger == AutomationTriggerType.GIT_HEAD_CHANGED) {
+                    long checkedVersion = pollGitHead(rule);
+                    pollHealth.success(rule.id(), checkedVersion);
+                } else if (trigger == AutomationTriggerType.CRON) {
+                    pollCron(rule);
+                    pollHealth.success(rule.id(), rule.version());
+                }
+            } catch (RuntimeException failure) {
+                Failure reason = failure instanceof DetectionFailure detected ? detected.reason()
+                        : "CRON".equals(rule.triggerType()) ? Failure.CRON_DETECTION_FAILED : Failure.DETECTION_FAILED;
+                recordPollFailure(rule, reason);
+            }
+        }
+    }
+
+    private void recordPollFailure(AutomationRuleRow rule, Failure reason) {
+        try { pollHealth.failure(rule.id(), rule.version(), reason); }
+        catch (RuntimeException persistenceFailure) {
+            // No raw exception/message: provider or filesystem errors may contain secrets.
+            LOG.warn("Automation detection health could not be persisted for rule {} ({})", rule.id(), reason);
         }
     }
 
     public void recoverAfterRestart() { poll(); }
 
-    private void pollGitHead(AutomationRuleRow rule) {
+    private long pollGitHead(AutomationRuleRow rule) {
         ProjectRow project = projects.get(rule.projectId());
         ProcessResult result = runner.run(Path.of(project.rootPath()), List.of("git", "rev-parse", "HEAD"), GIT_TIMEOUT);
-        if (result.timedOut() || result.outputTruncated() || result.exitCode() != 0 || result.output().isBlank()) return;
+        if (result.timedOut()) throw new DetectionFailure(Failure.GIT_HEAD_TIMEOUT);
+        if (result.outputTruncated() || result.exitCode() != 0 || result.output().isBlank()) {
+            throw new DetectionFailure(Failure.GIT_HEAD_UNAVAILABLE);
+        }
         String head = result.output().trim();
-        if (rule.lastObservedHead() == null || rule.lastObservedHead().isBlank()) { updateLastHead(rule, head); return; }
-        if (head.equals(rule.lastObservedHead())) return;
-        trigger(rule.id(), AutomationTriggerType.GIT_HEAD_CHANGED, "git-head:" + head, Map.of("head", head));
+        if (head.equals(rule.lastObservedHead())) return rule.version();
+        if (rule.lastObservedHead() != null && !rule.lastObservedHead().isBlank()) {
+            trigger(rule.id(), AutomationTriggerType.GIT_HEAD_CHANGED, "git-head:" + head, Map.of("head", head));
+        }
         updateLastHead(rule, head);
+        return rule.version() + 1;
     }
 
     private void pollCron(AutomationRuleRow rule) {
         Map<String, Object> config = config(rule);
         String expression = string(config.get("expression"));
         if (expression == null) expression = string(config.get("cron")); // migration compatibility only
-        if (expression == null) return;
-        try {
-            org.springframework.scheduling.support.CronExpression cron = org.springframework.scheduling.support.CronExpression.parse(normalizeCron(expression));
-            java.time.ZoneId zone = java.time.ZoneId.of(string(config.get("timezone")) == null ? "UTC" : string(config.get("timezone")));
-            java.time.ZonedDateTime now = java.time.ZonedDateTime.now(zone);
-            java.time.ZonedDateTime scheduled = null;
-            java.time.ZonedDateTime candidate = cron.next(now.minusMinutes(2));
-            while (candidate != null && !candidate.isAfter(now)) { scheduled = candidate; candidate = cron.next(candidate); }
-            if (scheduled == null) return;
-            String bucket = scheduled.toInstant().toString();
-            trigger(rule.id(), AutomationTriggerType.CRON, "cron:" + bucket, Map.of("expression", expression, "timezone", zone.getId(), "scheduledAt", bucket));
-        }
-        catch (RuntimeException invalid) { return; }
+        if (expression == null) throw new DetectionFailure(Failure.CRON_DETECTION_FAILED);
+        org.springframework.scheduling.support.CronExpression cron = org.springframework.scheduling.support.CronExpression.parse(normalizeCron(expression));
+        java.time.ZoneId zone = java.time.ZoneId.of(string(config.get("timezone")) == null ? "UTC" : string(config.get("timezone")));
+        java.time.ZonedDateTime now = java.time.ZonedDateTime.now(zone);
+        java.time.ZonedDateTime scheduled = null;
+        java.time.ZonedDateTime candidate = cron.next(now.minusMinutes(2));
+        while (candidate != null && !candidate.isAfter(now)) { scheduled = candidate; candidate = cron.next(candidate); }
+        if (scheduled == null) return;
+        String bucket = scheduled.toInstant().toString();
+        trigger(rule.id(), AutomationTriggerType.CRON, "cron:" + bucket, Map.of("expression", expression, "timezone", zone.getId(), "scheduledAt", bucket));
     }
 
     private RunView trigger(String ruleId, AutomationTriggerType actual, String scopedKey, Map<String, Object> evidence) {
@@ -253,17 +281,15 @@ public class AutomationService {
         }
         if (requiredTrigger(rule.triggerType()) != actual) throw new BadRequestException("AUTOMATION_TRIGGER_MISMATCH", "Trigger type does not match the rule");
         String key = rule.id() + ":" + scopedKey;
-        if (mapper.listAutomationRuns(rule.id()).stream().anyMatch(run -> key.equals(run.idempotencyKey()))) {
-            return mapper.listAutomationRuns(rule.id()).stream().filter(run -> key.equals(run.idempotencyKey())).findFirst().map(this::run).orElseThrow();
-        }
+        var previous = mapper.findAutomationRunByKey(key);
+        if (previous.isPresent()) return run(previous.get());
         String detected = now();
         AutomationRunRow detectedRun = new AutomationRunRow(UUID.randomUUID().toString(), rule.id(), actual.name(), key,
                 AutomationRunState.DETECTED.name(), null, null, write(evidence), detected, null, null, 0);
         try {
             runPersistence.insert(detectedRun);
         } catch (RuntimeException duplicate) {
-            AutomationRunRow existing = mapper.listAutomationRuns(rule.id()).stream()
-                    .filter(run -> key.equals(run.idempotencyKey())).findFirst().orElse(null);
+            AutomationRunRow existing = mapper.findAutomationRunByKey(key).orElse(null);
             if (existing != null) return run(existing);
             throw duplicate;
         }
@@ -306,7 +332,7 @@ public class AutomationService {
     }
 
     private void reconcile(AutomationRuleRow rule) {
-        for (AutomationRunRow run : mapper.listAutomationRuns(rule.id())) {
+        for (AutomationRunRow run : mapper.automationRunsForReconciliation(rule.id())) {
             if (run.taskId() == null || terminalRun(run.state())) continue;
             TaskRow task = tasks.get(run.taskId());
             AutomationRunState state = stateFor(task);
@@ -414,7 +440,8 @@ public class AutomationService {
         if (type == AutomationTriggerType.GIT_HEAD_CHANGED || type == AutomationTriggerType.MANUAL || type == AutomationTriggerType.WEBHOOK) return Map.of();
         throw new BadRequestException("AUTOMATION_TRIGGER_INVALID", "Unsupported automation trigger");
     }
-    private RuleView rule(AutomationRuleRow row) { return new RuleView(row.id(), row.name(), row.projectId(), row.templateVersionId(), requiredTrigger(row.triggerType()), config(row), row.state(), AutomationApprovalMode.valueOf(row.approvalMode()), row.updatedAt(), row.version()); }
+    private RuleView rule(AutomationRuleRow row) { return rule(row, pollHealth.current(row.id())); }
+    private RuleView rule(AutomationRuleRow row, AutomationPollHealthRow health) { return new RuleView(row.id(), row.name(), row.projectId(), row.templateVersionId(), requiredTrigger(row.triggerType()), config(row), row.state(), AutomationApprovalMode.valueOf(row.approvalMode()), row.updatedAt(), row.version(), health != null && health.ruleVersion() == row.version() ? health : null); }
     private RunView run(AutomationRunRow row) { return new RunView(row.id(), row.ruleId(), row.triggerType(), row.state(), row.draftId(), row.taskId(), evidence(row), row.detectedAt(), row.startedAt(), row.endedAt()); }
     private AutomationRuleRow getRule(String id) { return mapper.findAutomationRule(id).orElseThrow(() -> new NotFoundException("Automation rule not found: " + id)); }
     private Map<String, Object> config(AutomationRuleRow row) { try { return json.readValue(row.triggerConfigJson(), new TypeReference<>() {}); } catch (JacksonException invalid) { throw new ConflictException("AUTOMATION_CONFIG_INVALID", "Stored automation config is invalid"); } }
@@ -448,7 +475,7 @@ public class AutomationService {
     private String writeSpec(LoopSpec spec) { try { return json.writeValueAsString(spec); } catch (JacksonException failure) { throw new BadRequestException("AUTOMATION_IMPORT_INVALID", "Imported LoopSpec cannot be serialized"); } }
 
     public record RuleInput(String name, String projectId, String templateVersionId, AutomationTriggerType triggerType, Map<String, Object> triggerConfig, String state, AutomationApprovalMode approvalMode) { }
-    public record RuleView(String id, String name, String projectId, String templateVersionId, AutomationTriggerType triggerType, Map<String, Object> triggerConfig, String state, AutomationApprovalMode approvalMode, String updatedAt, long version) { }
+    public record RuleView(String id, String name, String projectId, String templateVersionId, AutomationTriggerType triggerType, Map<String, Object> triggerConfig, String state, AutomationApprovalMode approvalMode, String updatedAt, long version, AutomationPollHealthRow health) { }
     public record RuleMutation(RuleView rule, String webhookToken, String webhookPath) { }
     public record RunView(String id, String ruleId, String triggerType, String state, String draftId, String taskId, Map<String, Object> evidence, String detectedAt, String startedAt, String endedAt) { }
     public record WorkspaceExport(int formatVersion, List<WorkspaceTemplate> templates, List<WorkspaceRule> rules) {
