@@ -49,23 +49,27 @@ test('planning updates all release fields without writing or rewriting history a
   assert.throws(() => prepareRelease(root, '0.0.1'), /must increase/);
 });
 
-test('drift, absent fields and local version collisions stop a release', t => {
-  const root = fixture(t);
-  const path = join(root, 'frontend/package.json');
-  const original = readFileSync(path, 'utf8');
-  writeFileSync(path, original.replace(/"version": "[^"]+"/, '"version": "0.0.0"'));
-  assert.throws(() => prepareRelease(root, '9.99.99'), /version drift/);
-  writeFileSync(path, original.replace(/  "version": "[^"]+",\n/, ''));
-  assert.throws(() => planVersion(root), /missing or ambiguous/);
-  writeFileSync(path, original);
-  mkdirSync(join(root, 'target'));
-  writeFileSync(join(root, 'target/opencode-loopper-9.99.99.jar'), 'occupied');
-  assert.throws(() => prepareRelease(root, '9.99.99'), /local JAR/);
-  rmSync(join(root, 'target/opencode-loopper-9.99.99.jar'));
-  execFileSync('git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '--allow-empty', '-qm', 'fixture'], { cwd: root });
-  execFileSync('git', ['tag', 'v9.99.99'], { cwd: root });
-  assert.throws(() => prepareRelease(root, '9.99.99'), /local tag/);
-});
+for (const [ending, newline] of [['LF', '\n'], ['CRLF', '\r\n']]) {
+  test(`drift, absent fields and local version collisions stop a release (${ending})`, t => {
+    const root = fixture(t);
+    const path = join(root, 'frontend/package.json');
+    const original = readFileSync(path, 'utf8').replace(/\r?\n/g, newline);
+    writeFileSync(path, original.replace(/"version": "[^"]+"/, '"version": "0.0.0"'));
+    assert.throws(() => prepareRelease(root, '9.99.99'), /version drift/);
+    const missingVersion = original.replace(/  "version": "[^"]+",\r?\n/, '');
+    assert.equal(Object.hasOwn(JSON.parse(missingVersion), 'version'), false);
+    writeFileSync(path, missingVersion);
+    assert.throws(() => planVersion(root), /missing or ambiguous/);
+    writeFileSync(path, original);
+    mkdirSync(join(root, 'target'));
+    writeFileSync(join(root, 'target/opencode-loopper-9.99.99.jar'), 'occupied');
+    assert.throws(() => prepareRelease(root, '9.99.99'), /local JAR/);
+    rmSync(join(root, 'target/opencode-loopper-9.99.99.jar'));
+    execFileSync('git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '--allow-empty', '-qm', 'fixture'], { cwd: root });
+    execFileSync('git', ['tag', 'v9.99.99'], { cwd: root });
+    assert.throws(() => prepareRelease(root, '9.99.99'), /local tag/);
+  });
+}
 
 test('instruction size and routed file links fail closed', t => {
   const root = mkdtempSync(join(tmpdir(), 'loopper-docs-'));
