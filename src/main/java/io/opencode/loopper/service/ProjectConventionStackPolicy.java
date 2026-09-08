@@ -2,7 +2,6 @@ package io.opencode.loopper.service;
 
 import io.opencode.loopper.persistence.ProjectConventionDraftRow;
 import io.opencode.loopper.persistence.ProjectRow;
-import java.util.List;
 import java.util.Objects;
 import org.springframework.stereotype.Component;
 

@@ -13,9 +13,7 @@ import io.opencode.loopper.runtime.OpenCodeClient;
 import io.opencode.loopper.runtime.SafeProcessRunner;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Pattern;
@@ -298,10 +296,6 @@ public class TaskPublicationService {
 
     private TaskPublicationRow observe(TaskRow task, PublicationStatus status) {
         return publicationTracker.observe(task, status);
-    }
-
-    private TaskPublicationRow createPublication(TaskRow task, PublicationStatus status, TaskPublicationState initial) {
-        return publicationTracker.create(task, status, initial);
     }
 
     private TaskPublicationRow transitionPublication(TaskPublicationRow row, TaskPublicationState target,

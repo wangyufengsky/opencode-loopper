@@ -632,7 +632,7 @@ report a dependency-related semantic gap when neither the current design nor the
 frozen predecessor contract defines the required behavior/API.
 
 By default, all seven private candidate roles use uncapped `INTERNAL_MCP` submissions from V69 and role-specific
-strongly typed tools from 0.3.60.
+strongly typed tools from 0.3.60. V70/V71 can freeze a 2–16 total-submission limit for any new role run; existing runs retain their frozen policy. The uncapped ordinal behavior below applies only without that limit.
 On a retryable REJECTED response, correct the full object and resubmit using a fresh
 idempotency key and the returned submissionRevision. `submissionCountLimited=false`
 and `remainingAttempts=null` mean no count limit; ACCEPTED and WAITING_INPUT still

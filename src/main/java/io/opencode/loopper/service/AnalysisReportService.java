@@ -106,8 +106,6 @@ public class AnalysisReportService {
         }
     }
 
-    public View generateFromDesignerSnapshot(String sessionId) { return startReviewer(sessionId); }
-
     public List<PollResult> pollActive() {
         List<PollResult> results = new ArrayList<>();
         for (AnalysisReportRow row : mapper.activeAnalysisReports()) {

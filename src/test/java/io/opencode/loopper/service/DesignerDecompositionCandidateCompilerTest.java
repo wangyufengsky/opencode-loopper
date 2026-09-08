@@ -3,7 +3,6 @@ package io.opencode.loopper.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.opencode.loopper.persistence.DesignRequirementRevisionRow;
-import java.util.List;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;

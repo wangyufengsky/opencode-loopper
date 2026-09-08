@@ -97,8 +97,6 @@ public final class FeatureContracts {
             rules = rules == null ? List.of() : List.copyOf(rules);
         }
     }
-    public record WorkspacePreviewDto(String previewId, int templateCount, int ruleCount,
-                                      WorkspaceExportDto exported, String expiresAt) { }
 
     public record CreateAutomationRuleRequest(@NotBlank String name, @NotBlank String projectId,
                                               @NotBlank String templateVersionId,
@@ -140,5 +138,4 @@ public final class FeatureContracts {
 
     public record ConfirmAutomationRunRequest(String title) { }
 
-    public record TaskSseEvent(long sequence, String type, String at, JsonNode data) { }
 }

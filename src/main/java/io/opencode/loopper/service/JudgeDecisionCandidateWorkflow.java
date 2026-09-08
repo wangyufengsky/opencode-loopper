@@ -1,7 +1,6 @@
 package io.opencode.loopper.service;
 
 import io.opencode.loopper.domain.GenericCandidateInternalLaunchState;
-import io.opencode.loopper.domain.GenericCandidateInternalTerminationIntentState;
 import io.opencode.loopper.domain.JudgeRunState;
 import io.opencode.loopper.domain.MachineCandidateKind;
 import io.opencode.loopper.domain.MachineCandidateRunState;

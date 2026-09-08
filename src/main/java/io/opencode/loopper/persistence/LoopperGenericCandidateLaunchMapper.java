@@ -39,9 +39,6 @@ public interface LoopperGenericCandidateLaunchMapper {
     @Select("SELECT * FROM ai_candidate_internal_launch WHERE id=#{id}")
     Optional<GenericCandidateInternalLaunchRow> findGenericCandidateInternalLaunch(String id);
 
-    @Select("SELECT * FROM ai_candidate_internal_launch WHERE candidate_run_id=#{runId}")
-    Optional<GenericCandidateInternalLaunchRow> findGenericCandidateInternalLaunchForRun(String runId);
-
     @Select("SELECT * FROM ai_candidate_internal_launch WHERE analysis_report_id=#{reportId} ORDER BY created_at DESC,id LIMIT 1")
     Optional<GenericCandidateInternalLaunchRow> findGenericCandidateInternalLaunchForAnalysisReport(String reportId);
 

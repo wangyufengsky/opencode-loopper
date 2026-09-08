@@ -2,7 +2,6 @@ package io.opencode.loopper.service;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
-import io.opencode.loopper.domain.MachineCandidateKind;
 import io.opencode.loopper.lifecycle.LifecycleTransitionService;
 import io.opencode.loopper.persistence.*;
 import java.util.ArrayList;

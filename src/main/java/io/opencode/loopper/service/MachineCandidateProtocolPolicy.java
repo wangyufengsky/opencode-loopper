@@ -35,10 +35,6 @@ final class MachineCandidateProtocolPolicy {
                 owner, fallbackAllowed, integrated);
     }
 
-    private static Contract task(MachineCandidateSubmission.CandidateOwnerType owner) {
-        return new Contract(MachineCandidateSubmission.CandidateScopeType.TASK, owner, false, false);
-    }
-
     private static Contract project(MachineCandidateSubmission.CandidateOwnerType owner) {
         return new Contract(MachineCandidateSubmission.CandidateScopeType.PROJECT, owner, false, true);
     }

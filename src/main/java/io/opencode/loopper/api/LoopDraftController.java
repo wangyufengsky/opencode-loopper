@@ -2,7 +2,6 @@ package io.opencode.loopper.api;
 
 import io.opencode.loopper.domain.LoopSpec;
 import io.opencode.loopper.persistence.LoopDraftRow;
-import io.opencode.loopper.persistence.TaskRow;
 import io.opencode.loopper.service.LoopDraftService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;

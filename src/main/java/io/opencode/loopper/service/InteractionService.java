@@ -136,12 +136,6 @@ public class InteractionService {
         }
     }
 
-    public void refreshActiveSessions() {
-        synchronized (interactionLock) {
-            refreshActiveSessionsLocked();
-        }
-    }
-
     private void refreshActiveSessionsLocked() {
         // A provider request is actionable only while its owning Task or Designer handoff is one
         // of the same locally active sessions that can be refreshed below. Reconcile both owner

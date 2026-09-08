@@ -5,8 +5,6 @@ import io.opencode.loopper.service.ConflictException;
 import io.opencode.loopper.service.NotFoundException;
 import io.opencode.loopper.service.ServiceUnavailableException;
 import io.opencode.loopper.lifecycle.PersistedStateInvalidException;
-import jakarta.servlet.http.HttpServletRequest;
-import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;

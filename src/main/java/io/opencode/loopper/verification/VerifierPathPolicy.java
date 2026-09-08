@@ -18,11 +18,6 @@ public final class VerifierPathPolicy {
 
     private VerifierPathPolicy() {}
 
-    /** Uses the same bounded matcher as runtime GIT_DIFF verification for one path/rule pair. */
-    public static boolean matchesChangedPath(String path, String rule) {
-        return matches(path, rule, new SlashGlobMatcher.WorkBudget(PATH_POLICY_WORK_BUDGET));
-    }
-
     /** Applies the runtime slash and leading-dot normalization used for path-policy comparison. */
     public static String normalizePathRule(String rule) {
         return normalized(rule);

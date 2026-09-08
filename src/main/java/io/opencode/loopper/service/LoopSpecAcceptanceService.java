@@ -7,7 +7,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -314,12 +313,6 @@ public class LoopSpecAcceptanceService {
             stages.add(new StageAssessment(stageIndex, List.of(), List.copyOf(verifiers)));
         }
         return List.copyOf(stages);
-    }
-
-    private String baseName(String executable) {
-        if (executable == null) return "";
-        String normalized = executable.replace('\\', '/').toLowerCase(Locale.ROOT);
-        return normalized.substring(normalized.lastIndexOf('/') + 1);
     }
 
     private boolean blank(String value) { return value == null || value.isBlank(); }

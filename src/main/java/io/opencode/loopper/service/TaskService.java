@@ -2,7 +2,6 @@ package io.opencode.loopper.service;
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.JsonNode;
 import io.opencode.loopper.config.LoopperProperties;
 import io.opencode.loopper.domain.AttemptState;
 import io.opencode.loopper.domain.ErrorLayer;

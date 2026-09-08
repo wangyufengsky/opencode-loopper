@@ -30,10 +30,6 @@ class GenericCandidateInternalLaunchStore {
                 owner.type().name(), owner.id(), workflowStep);
     }
 
-    Optional<GenericCandidateInternalLaunchRow> findForRun(String runId) {
-        return mapper.findGenericCandidateInternalLaunchForRun(runId);
-    }
-
     @Transactional
     GenericCandidateInternalLaunchRow insert(GenericCandidateInternalLaunchRow row) {
         lifecycle.create(subject(row), row.state(), Map.of("candidateKind", row.candidateKind()),

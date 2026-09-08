@@ -55,13 +55,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
-import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 /** Coordinates read-only model roles; only the server validator may synchronize the bound draft. */
 @Service
@@ -72,7 +70,6 @@ public class DesignerSessionService {
     private static final int MAX_HANDOFF_SUMMARY_LENGTH = 4 * 1024;
     private static final int MAX_DECOMPOSER_REPAIRS = 2;
     private static final int MAX_MODEL_CALLS = 96;
-    private static final int MAX_WORK_PACKAGES = 6;
     private static final int MAX_PACKAGE_STAGES = 3;
     private static final int MAX_DIRECT_SOFTWARE_STAGES = 6;
     private static final int MAX_TOTAL_STAGES = 18;
@@ -2378,16 +2375,6 @@ public class DesignerSessionService {
                 responseModel(ModelResponseMode.TEXT_MARKER), rejected, unopenedProof);
     }
 
-    private void startAcceptanceLegacyHandoff(LoopSpecCompilationRow compilation,
-            DesignerSessionRow session, DesignRequirementRevisionRow revision,
-            DesignWorkPackageRow workPackage, DesignAcceptancePlanningRow planning,
-            DesignerAcceptanceWorkflow.RoutingResult routing, OpenCodeClient.OpenCodeSession oldRemote,
-            String recoveredProof) {
-        acceptanceCandidateWorkflow.startLegacyHandoff(
-                acceptanceCandidatePort, compilation, session, revision, workPackage, planning, routing,
-                responseModel(ModelResponseMode.TEXT_MARKER), oldRemote, recoveredProof);
-    }
-
     private void runServerDirectCompilation(LoopSpecCompilationRow pending, DesignerSessionRow session,
                                     DesignWorkPackageRow workPackage, String design,
                                     WorkPackageRoleService.View role) {
@@ -4576,15 +4563,6 @@ public class DesignerSessionService {
 
     private String compilerRepairPrompt(LoopSpecCompilationRow compilation, String code, String detail) {
         return conversationPrompts.compilerRepair(compilation.repairCount(), MAX_COMPILER_REPAIRS, code, detail);
-    }
-
-    private DesignerMessageRow latestDesign(String sessionId) {
-        return mapper.listDesignerMessages(sessionId).stream()
-                .filter(message -> DesignerActor.DESIGNER.name().equals(message.actor()))
-                .filter(message -> "PERSISTED".equals(message.deliveryState()))
-                .reduce((first, second) -> second)
-                .orElseThrow(() -> new ConflictException("DESIGN_SOURCE_MISSING",
-                        "No frozen Designer Markdown is available"));
     }
 
     private void requireBoundDraft(DesignerSessionRow session) {

@@ -32,7 +32,6 @@ import io.opencode.loopper.persistence.TaskWorkspaceCheckpointRow;
 import io.opencode.loopper.persistence.WorkPackageRoleProfileRow;
 import io.opencode.loopper.runtime.GitWorktreeManager;
 import java.nio.file.Path;
-import java.util.Set;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;

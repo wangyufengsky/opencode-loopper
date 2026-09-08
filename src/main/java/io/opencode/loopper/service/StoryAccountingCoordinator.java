@@ -10,7 +10,6 @@ import io.opencode.loopper.runtime.OpenCodeClient;
 import jakarta.annotation.PreDestroy;
 import java.time.Instant;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;

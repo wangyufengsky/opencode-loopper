@@ -42,11 +42,6 @@ class GenericCandidateInternalLaunchService {
                 .orElseThrow(GenericCandidateInternalLaunchService::stale);
     }
 
-    GenericCandidateInternalLaunchRow requireForRun(String runId) {
-        return mapper.findGenericCandidateInternalLaunchForRun(runId)
-                .orElseThrow(GenericCandidateInternalLaunchService::stale);
-    }
-
     OpenCodeClient.SessionCreationPlan plan(GenericCandidateInternalLaunchRow row) {
         return plans.decode(row);
     }

@@ -93,7 +93,6 @@ final class AcceptanceCandidateInternalTerminationWorkflow {
         }
     }
 
-    boolean hasActive(String designerSessionId) { return intents.hasActiveForDesigner(designerSessionId); }
     boolean ownsExternalSession(String externalSessionId) { return intents.ownsExternalSession(externalSessionId); }
 
     boolean archiveRequested(String designerSessionId) {

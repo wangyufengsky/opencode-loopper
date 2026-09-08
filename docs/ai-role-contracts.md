@@ -108,7 +108,7 @@ Monitor 可在重启后继续；AI 完成只形成候选，不能确认计划、
 反馈修订和重新设计都直接返回 1–6 Stage 的完整替代设计。
 
 V69 起，Decomposer、验收闭集选择、工作包 Designer、滚动规划、Reviewer、项目公约及双 Judge
-通过 MCP 提交候选均不设次数上限。可修正的拒绝继续返回 `REJECTED`，响应中的
+通过 MCP 提交候选默认不设次数上限；V70/V71 允许为新运行冻结 2–16 次总提交上限，旧运行沿用冻结值。未冻结次数上限时，可修正的拒绝继续返回 `REJECTED`，响应中的
 `submissionCountLimited=false / remainingAttempts=null` 表示不限制次数；真实提交计数仍保留。
 `maxAttempts` 是冻结的 Legacy 修复预算/身份元数据，不能当作 MCP 剩余配额。精确幂等重放保留
 原响应。可修正问题统一携带有界 `parameter / code / JSON Pointer / category / expected / actual / detail /

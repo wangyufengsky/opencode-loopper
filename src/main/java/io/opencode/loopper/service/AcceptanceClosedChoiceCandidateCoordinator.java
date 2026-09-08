@@ -109,16 +109,6 @@ final class AcceptanceClosedChoiceCandidateCoordinator {
                 CONTRACT_VERSION, request.runtimeGenerationId(), request.externalSessionId(), MAX_ATTEMPTS));
     }
 
-    MachineCandidateSubmission.RunSnapshot openInternal(
-            LoopSpecCompilationRow compilation, DesignAcceptancePlanningRow planning,
-            DesignerAcceptanceWorkflow.RoutingResult routing, OpenCodeClient.OpenCodeSession remote) {
-        CandidateRuntimeBindingService.Binding binding = binding(remote,
-                MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP);
-        return open(new OpenRequest(runId(compilation.id(),
-                MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP), compilation, planning, routing,
-                binding.runtimeGenerationId(), remote.id()));
-    }
-
     MachineCandidateSubmission.RunSnapshot openLegacy(
             LoopSpecCompilationRow compilation, DesignAcceptancePlanningRow planning,
             DesignerAcceptanceWorkflow.RoutingResult routing, OpenCodeClient.OpenCodeSession remote) {

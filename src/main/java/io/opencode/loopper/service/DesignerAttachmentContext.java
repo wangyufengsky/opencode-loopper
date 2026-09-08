@@ -138,11 +138,6 @@ public class DesignerAttachmentContext {
         }
     }
 
-    public FrozenManifest freezeForTask(FreezeForTask command) {
-        PreparedFreeze prepared = prepareFreeze(command.designerSessionId());
-        return transactions.execute(status -> freezePrepared(command, prepared));
-    }
-
     /** File integrity is verified before the caller opens its short task-confirmation transaction. */
     PreparedFreeze prepareFreeze(String designerSessionId) {
         List<DesignerAttachmentRow> active = mapper.listActiveDesignerAttachments(designerSessionId);

@@ -7,7 +7,6 @@ import io.opencode.loopper.domain.LoopSpec;
 import io.opencode.loopper.domain.StageState;
 import io.opencode.loopper.domain.TaskFailure;
 import io.opencode.loopper.domain.TaskPackageRunState;
-import io.opencode.loopper.domain.TaskState;
 import io.opencode.loopper.persistence.AttemptRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.TaskPackageRunRow;

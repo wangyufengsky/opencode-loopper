@@ -20,7 +20,6 @@ public final class ProcessCommandPolicy {
     private static final Set<String> GRADLE_EXECUTABLES = Set.of(
             "gradle", "gradle.cmd", "gradle.bat", "gradle.exe",
             "gradlew", "gradlew.cmd", "gradlew.bat", "gradlew.exe");
-    private static final Set<String> NPM_EXECUTABLES = Set.of("npm", "npm.cmd", "npm.exe");
     private static final Set<String> MAVEN_PHASES = Set.of(
             "pre-clean", "clean", "post-clean",
             "validate", "initialize", "generate-sources", "process-sources",
@@ -276,46 +275,6 @@ public final class ProcessCommandPolicy {
         if (executable == null) return "";
         String normalized = executable.replace('\\', '/').toLowerCase(Locale.ROOT);
         return normalized.substring(normalized.lastIndexOf('/') + 1);
-    }
-
-    private static boolean skipsTests(String executable, List<String> args) {
-        if (MAVEN_EXECUTABLES.contains(executable)) {
-            return args.stream().map(value -> value.replace(" ", ""))
-                    .anyMatch(value -> value.equals("-dskiptests") || value.equals("-dskiptests=true")
-                            || value.equals("-dmaven.test.skip") || value.equals("-dmaven.test.skip=true")
-                            || value.equals("--skiptests")
-                            || value.equals("--skip-tests") || value.equals("-dskipits")
-                            || value.equals("-dskipits=true")
-                            || value.equals("-dsurefire.failifnospecifiedtests=false")
-                            || value.equals("-dfailsafe.failifnospecifiedtests=false"));
-        }
-        if (GRADLE_EXECUTABLES.contains(executable)) {
-            for (int index = 0; index < args.size(); index++) {
-                String argument = args.get(index);
-                if ((argument.equals("-x") || argument.equals("--exclude-task")) && index + 1 < args.size()
-                        && isGradleTestTask(args.get(index + 1))) {
-                    return true;
-                }
-                if (argument.startsWith("--exclude-task=")
-                        && isGradleTestTask(argument.substring("--exclude-task=".length()))) {
-                    return true;
-                }
-                if (argument.startsWith("-x") && argument.length() > 2) {
-                    String excluded = argument.substring(2);
-                    if (excluded.startsWith("=")) excluded = excluded.substring(1);
-                    if (isGradleTestTask(excluded)) return true;
-                }
-            }
-            return false;
-        }
-        return NPM_EXECUTABLES.contains(executable)
-                && args.stream().anyMatch(value -> value.equals("--if-present") || value.equals("--ignore-scripts"));
-    }
-
-    private static boolean isGradleTestTask(String value) {
-        if (value == null) return false;
-        String task = value.toLowerCase(Locale.ROOT);
-        return task.equals("test") || task.equals("check") || task.endsWith(":test") || task.endsWith(":check");
     }
 
     private static int firstWhitespace(String value) {

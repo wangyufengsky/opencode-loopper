@@ -71,11 +71,6 @@ final class DesignerAcceptanceCandidateOrchestrator {
                 OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS);
     }
 
-    OpenCodeClient.SessionLookup findLegacy(Path projectRoot, OpenCodeClient.OpenCodeModel model, String title) {
-        return openCode.findSessionsByExactTitle(projectRoot, title, model,
-                OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS);
-    }
-
     CandidateRuntimeBindingService.Binding bindLegacy(OpenCodeClient.SessionAttestation attestation) {
         return candidates.bindLegacy(attestation);
     }

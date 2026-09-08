@@ -17,9 +17,9 @@ class CodeStructureContractTest {
      * Files leave this map as soon as they are at or below the default limit.
      */
     private static final Map<String, Integer> LEGACY_RATCHET = Map.of(
-            "io/opencode/loopper/service/DesignerSessionService.java", 5_399,
-            "io/opencode/loopper/service/TaskService.java", 2_727,
-            "io/opencode/loopper/service/LocalSyncConflictService.java", 1_160);
+            "io/opencode/loopper/service/DesignerSessionService.java", 5_373,
+            "io/opencode/loopper/service/TaskService.java", 2_726,
+            "io/opencode/loopper/service/LocalSyncConflictService.java", 1_159);
 
     @Test
     void productionJavaFilesRespectDefaultLimitOrLegacyRatchet() throws IOException {

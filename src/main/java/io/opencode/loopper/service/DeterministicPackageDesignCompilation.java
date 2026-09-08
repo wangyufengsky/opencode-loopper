@@ -13,7 +13,6 @@ import io.opencode.loopper.service.DesignerAcceptancePlanning.Catalog;
 import io.opencode.loopper.service.DesignerAcceptancePlanning.Fact;
 import io.opencode.loopper.service.DesignerAcceptancePlanning.StageHint;
 import io.opencode.loopper.service.DesignerSemanticContracts.CompactAcceptanceBindingPlan;
-import io.opencode.loopper.service.DesignerSemanticContracts.DesignGap;
 import io.opencode.loopper.service.DesignerSemanticContracts.DesignGapCode;
 import io.opencode.loopper.service.DesignerSemanticContracts.PackageCompilationPlanEnvelope;
 import java.util.ArrayList;

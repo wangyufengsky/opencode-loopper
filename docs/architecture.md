@@ -502,7 +502,7 @@ content fails closed. Rejected raw candidates are not persisted: only a digest,
 bounded problem codes/JSON Pointers and the safe response remain. Acceptance writes
 the canonical candidate and advances the owning workflow in one short transaction.
 
-V69 removes submission-count ceilings for every `INTERNAL_MCP` candidate kind; the optional V70 package-only policy below is an explicit new-run exception.
+V69 removes default submission-count ceilings for every `INTERNAL_MCP` candidate kind. V70/V71 allow all seven roles to freeze an optional 2–16 total-submission limit when a new run opens; existing NULL limits remain unlimited. The following uncapped behavior applies only when no correction limit is frozen.
 Retryable rejection remains `OPEN / REJECTED` regardless of the ordinal; it no longer
 triggers `WAITING_INPUT` or package Markdown fallback by count. Responses publish
 `submissionCountLimited=false` and `remainingAttempts=null` (unlimited), while unique

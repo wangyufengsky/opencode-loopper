@@ -3,7 +3,6 @@ package io.opencode.loopper.service;
 import io.opencode.loopper.domain.LoopSpec;
 import io.opencode.loopper.domain.SessionState;
 import io.opencode.loopper.domain.TaskState;
-import io.opencode.loopper.persistence.AttemptRow;
 import io.opencode.loopper.persistence.ExecutionSessionRow;
 import io.opencode.loopper.persistence.LoopDraftRow;
 import io.opencode.loopper.persistence.LoopperMapper;

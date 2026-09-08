@@ -4,7 +4,6 @@ import io.opencode.loopper.LoopperApplication;
 import io.opencode.loopper.domain.TaskFailure;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.ProjectRow;
-import io.opencode.loopper.persistence.TaskQueueRow;
 import io.opencode.loopper.persistence.TaskRow;
 import io.opencode.loopper.persistence.WorkspaceLeaseRow;
 import java.nio.file.Files;
