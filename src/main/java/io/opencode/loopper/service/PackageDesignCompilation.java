@@ -20,13 +20,7 @@ public interface PackageDesignCompilation {
             boolean directSoftwareMode,
             String semanticContractVersion,
             PackageDesignEvidencePreparation.Snapshot repositoryEvidence,
-            java.util.Map<String, String> confirmedDecisions, PackageBehaviorContract behaviorContract) {
-        public Input(DesignWorkPackageRow workPackage, String requirementText, WorkPackageRoleService.View role,
-                List<String> scopeIn, List<String> scopeOut, List<String> deliverables, int stageLimit, boolean directSoftwareMode,
-                String semanticContractVersion, PackageDesignEvidencePreparation.Snapshot repositoryEvidence, java.util.Map<String, String> confirmedDecisions) {
-            this(workPackage, requirementText, role, scopeIn, scopeOut, deliverables, stageLimit, directSoftwareMode,
-                    semanticContractVersion, repositoryEvidence, confirmedDecisions, null);
-        }
+            java.util.Map<String, String> confirmedDecisions) {
         public Input(DesignWorkPackageRow workPackage, String requirementText, WorkPackageRoleService.View role,
                 List<String> scopeIn, List<String> scopeOut, List<String> deliverables, int stageLimit,
                 boolean directSoftwareMode, String semanticContractVersion) {
@@ -37,18 +31,14 @@ public interface PackageDesignCompilation {
             this(workPackage, requirementText, role, scopeIn, scopeOut, deliverables, stageLimit, directSoftwareMode, "PACKAGE_DESIGN_V1", null, java.util.Map.of());
         }
         Input withContract(String version) {
-            return new Input(workPackage, requirementText, role, scopeIn, scopeOut, deliverables, stageLimit, directSoftwareMode, version, repositoryEvidence, confirmedDecisions, behaviorContract);
+            return new Input(workPackage, requirementText, role, scopeIn, scopeOut, deliverables, stageLimit, directSoftwareMode, version, repositoryEvidence, confirmedDecisions);
         }
         Input withEvidence(PackageDesignEvidencePreparation.Snapshot value) {
-            return new Input(workPackage, requirementText, role, scopeIn, scopeOut, deliverables, stageLimit, directSoftwareMode, semanticContractVersion, value, confirmedDecisions, behaviorContract);
+            return new Input(workPackage, requirementText, role, scopeIn, scopeOut, deliverables, stageLimit, directSoftwareMode, semanticContractVersion, value, confirmedDecisions);
         }
         Input withDecisions(java.util.Map<String, String> decisions) {
             return new Input(workPackage, requirementText, role, scopeIn, scopeOut, deliverables, stageLimit, directSoftwareMode,
-                    semanticContractVersion, repositoryEvidence, decisions, behaviorContract);
-        }
-        Input withBehavior(PackageBehaviorContract book) {
-            return new Input(workPackage, requirementText, role, scopeIn, scopeOut, deliverables, stageLimit, directSoftwareMode,
-                    semanticContractVersion, repositoryEvidence, confirmedDecisions, book);
+                    semanticContractVersion, repositoryEvidence, decisions);
         }
         public Input {
             confirmedDecisions = confirmedDecisions == null ? java.util.Map.of() : java.util.Collections.unmodifiableMap(new java.util.TreeMap<>(confirmedDecisions));

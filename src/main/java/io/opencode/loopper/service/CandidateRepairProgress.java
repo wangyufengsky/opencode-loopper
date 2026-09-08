@@ -25,8 +25,7 @@ final class CandidateRepairProgress {
         String contentSha = candidate == null ? requestSha : hash(json.writeValueAsString(canonical(candidate)));
         List<Issue> issues = java.util.stream.IntStream.range(0, problems.size()).mapToObj(index -> {
             var problem = problems.get(index);
-            String identity = problem.detail().matches("(?s)^SEM-[0-9a-f]{20}；.*")
-                    ? problem.detail().substring(0, 24) : stablePointer(candidate, problem.pointer());
+            String identity = stablePointer(candidate, problem.pointer());
             String id = hash(problem.code() + "\n" + identity + "\n" + problem.expected());
             return new Issue(id, index, layer(problem));
         }).toList();
@@ -69,8 +68,6 @@ final class CandidateRepairProgress {
                 String key = Normalizer.normalize(item.path("key").asText(), Normalizer.Form.NFKC)
                         .toLowerCase(Locale.ROOT).replaceAll("[\\s_-]", "");
                 parts[2] = "@" + hash(key);
-            } else if ("behaviorBranches".equals(parts[1]) && item.path("scenarioKey").isString()) {
-                parts[2] = "@" + hash(item.path("scenarioKey").asText());
             } else if (item.path("packageKey").isString()) {
                 parts[2] = "@" + hash(item.path("packageKey").asText());
             } else if (item.path("factIndex").isIntegralNumber()) {

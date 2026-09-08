@@ -146,9 +146,7 @@ final class DesignerPackageCandidateWorkflow {
             String code, String detail, boolean legacyTransportRetry) {
         boolean candidateRun = candidateRuns.find(workPackage).isPresent();
         if (candidateRun) candidateRuns.closeQuietly(workPackage);
-        boolean behaviorPreparation = mapper.behaviorForRemote(workPackage.id(), workPackage.designerExternalSessionId()).isPresent();
-        // Preparation failures are already durably claimed. Never turn them into a fresh legacy transport round.
-        host.failPackageDesigner(workPackage, session, code, detail, legacyTransportRetry && !candidateRun && !behaviorPreparation);
+        host.failPackageDesigner(workPackage, session, code, detail, legacyTransportRetry && !candidateRun);
     }
 
     private void settle(

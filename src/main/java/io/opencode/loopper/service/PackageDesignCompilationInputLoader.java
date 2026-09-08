@@ -67,12 +67,6 @@ interface PackageDesignCompilationInputLoader {
             }
             if ("PACKAGE_DESIGN_V2".equals(context.contractVersion())) input = input.withDecisions(
                     PackageDesignConfirmedDecisions.load(mapper, owner, requirement.requirementText(), requirement.revision()));
-            if (PackageBehaviorRuns.WORKFLOW.equals(context.workflowStep())) {
-                if (!(mapper instanceof io.opencode.loopper.persistence.PackageBehaviorMapper behavior))
-                    throw new ConflictException("PACKAGE_BEHAVIOR_UNAVAILABLE", "冻结行为存储不可用");
-                input = input.withBehavior(PackageBehaviorRuns.load(behavior, context.runId(), input.requirementText(),
-                        owner.id(), owner.designerExternalSessionId(), json));
-            }
             return input;
         }
 

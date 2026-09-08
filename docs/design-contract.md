@@ -1251,7 +1251,3 @@ to pass validation. See [role changes, configuration and qualification boundarie
 ## 工作包 V2 默认启用（0.3.75）
 
 新建持久会话默认冻结 V2 profile 与唯一 `submit_package_design_v2` 工具，旧 V1 会话不升级，显式关闭只控制新会话。V2 自动准备冻结证据；编译后的 Stage/GIT_DIFF 路径必须为冻结工作包范围的子集，并保留禁止删除约束。集合删除和指代文件移动不能经候选分支绕过。兼容、诊断及验证边界见 [V2 加固与启用](package-design-v2-enablement.md)。
-
-## 有界行为义务与独立来源复核（0.3.79）
-
-新策略可为无需包内提问的复杂 V2 修订安排一次原会话整理和一次独立只读来源复核。原文、范围、已确认决策、模型与复核证据分别冻结；`PACKAGE_DESIGN_V2_BEHAVIOR_V1` 运行绑定已复核模型，候选只提交分支，服务端生成最终 StageSpec。简单和历史运行不增加新回合，权限与生产纠错预算保持既有规则。来源复核不能代替自然语言完整性证明，UNKNOWN/来源未确认不作为通过。状态、边界、启用门槛与评测证据见 [工作包语义一致性](package-behavior-semantics.md)。

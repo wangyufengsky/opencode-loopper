@@ -19,7 +19,7 @@ import tools.jackson.databind.ObjectMapper;
 
 /** Offline fixture adapter: real prompt/schema/compiler; no application lifecycle or writable session. */
 public final class PackageDesignLunaProbe {
-    record Fixture(String id, String requirement, String technology, String target, String symbol, String contractVersion, String projectRoot, String behaviorReviewFile) { }
+    record Fixture(String id, String requirement, String technology, String target, String symbol, String contractVersion, String projectRoot) { }
     private final ObjectMapper json = new ObjectMapper();
 
     public static void main(String[] args) throws Exception { new PackageDesignLunaProbe().run(args); }
@@ -37,25 +37,6 @@ public final class PackageDesignLunaProbe {
                     "reasons", reasons, "prompt", PackageSemanticPreparation.prompt(fixture.requirement(), reasons))));
             return;
         }
-        if (args[0].equals("behavior-prepare")) {
-            var blocking = PackageDesignInputPreflight.problems(input(fixture));
-            if (blocking.isEmpty()) blocking = new PackageDesignSourceGapAssessment().sourceProblems(fixture.requirement(), java.util.Map.of());
-            if (!blocking.isEmpty()) {
-                System.out.println(json.writeValueAsString(java.util.Map.of("enabled", false, "blocked", true, "reasonCode",
-                        blocking.getFirst().code().equals("PACKAGE_GAP_BUSINESS_DECISION") ? "PACKAGE_GAP_BUSINESS_DECISION" : "PACKAGE_GAP_PROVEN_CONFLICT",
-                        "problems", blocking, "prompt", ""))); return;
-            }
-            var reasons = PackageBehaviorPreparation.reasons(fixture.requirement());
-            System.out.println(json.writeValueAsString(java.util.Map.of("enabled", !reasons.isEmpty(), "reasons", reasons,
-                    "prompt", PackageBehaviorPrompts.extract(fixture.requirement(), scope(fixture))))); return;
-        }
-        if (args[0].equals("behavior-review-prompt")) {
-            System.out.println(PackageBehaviorPrompts.review(fixture.requirement(), Files.readString(Path.of(args[2])), scope(fixture), json)); return;
-        }
-        if (args[0].equals("behavior-review")) {
-            System.out.println(json.writeValueAsString(new PackageBehaviorSourceReview(json).validate(fixture.requirement(),
-                    Files.readString(Path.of(args[2])), scope(fixture), Files.readString(Path.of(args[3]))))); return;
-        }
         var session = new PackageDesignLunaSession(json, input(fixture));
         try (var reader = new BufferedReader(new InputStreamReader(System.in))) {
             for (String line; (line = reader.readLine()) != null;) {
@@ -72,23 +53,8 @@ public final class PackageDesignLunaProbe {
     private PackageDesignCompilation.Input input(Fixture fixture) {
         var input = new PackageDesignCompilation.Input(workPackage(fixture), fixture.requirement(), role(fixture),
                 List.of(fixture.target()), List.of(), List.of(fixture.symbol()), 6, true);
-        return "PACKAGE_DESIGN_V2".equals(fixture.contractVersion()) ? input.withContract(fixture.contractVersion()).withBehavior(reviewedBook(fixture))
+        return "PACKAGE_DESIGN_V2".equals(fixture.contractVersion()) ? input.withContract(fixture.contractVersion())
                 .withEvidence(PackageDesignEvidencePreparation.prepare(Path.of(fixture.projectRoot()), "requirement", fixture.requirement(), List.of(fixture.target()))) : input;
-    }
-
-    private String scope(Fixture fixture) {
-        return json.writeValueAsString(new java.util.TreeMap<>(java.util.Map.of("scopeIn", json.writeValueAsString(List.of(fixture.target())),
-                "scopeOut", "[]", "deliverables", json.writeValueAsString(List.of(fixture.symbol())), "confirmedDecisions", java.util.Map.of())));
-    }
-    private PackageBehaviorContract reviewedBook(Fixture fixture) {
-        if (fixture.behaviorReviewFile() == null || !Files.exists(Path.of(fixture.behaviorReviewFile()))) return null;
-        try {
-            var evidence = json.readTree(Files.readString(Path.of(fixture.behaviorReviewFile())));
-            var result = new PackageBehaviorSourceReview(json).validate(fixture.requirement(), evidence.path("extraction").asText(),
-                    scope(fixture), evidence.path("review").asText(), false);
-            if (!result.accepted()) throw new IllegalStateException("Frozen offline source review invalid: " + result.problems());
-            return json.readValue(result.bookJson(), PackageBehaviorContract.class);
-        } catch (java.io.IOException failure) { throw new java.io.UncheckedIOException(failure); }
     }
 
     private WorkPackageRoleService.View role(Fixture fixture) {
@@ -139,7 +105,7 @@ public final class PackageDesignLunaProbe {
         when(run.runId()).thenReturn("qualification");
         when(run.correctionLimit()).thenReturn(4);
         if ("PACKAGE_DESIGN_V2".equals(fixture.contractVersion())) return PackageDesignV2Prompt.build(base, fixture.requirement(), run,
-                "mcp__qualification__submit_package_design_v2") + (reviewedBook(fixture) == null ? "" : PackageBehaviorPrompts.candidate(json.writeValueAsString(reviewedBook(fixture)), json));
+                "mcp__qualification__submit_package_design_v2");
         return (String) method.invoke(mock(DesignerPackageCandidateOrchestrator.class), base, run,
                 "mcp__qualification__submit_package_design");
     }

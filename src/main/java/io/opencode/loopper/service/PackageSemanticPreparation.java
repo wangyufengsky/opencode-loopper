@@ -20,19 +20,16 @@ final class PackageSemanticPreparation {
     private final DesignerPackageCandidateOrchestrator candidates;
     private final DesignerAttachmentContext attachments;
     private final ObjectMapper json;
-    private final PackageBehaviorPreparation behavior;
 
     PackageSemanticPreparation(LoopperMapper mapper, DesignerConversationCoordinator conversations,
             OpenCodeClient openCode, DesignerPackageCandidateOrchestrator candidates,
             DesignerAttachmentContext attachments, ObjectMapper json) {
         this.mapper = mapper; this.conversations = conversations; this.openCode = openCode;
         this.candidates = candidates; this.attachments = attachments; this.json = json;
-        this.behavior = new PackageBehaviorPreparation(mapper, conversations, openCode, candidates, attachments, json);
     }
 
     boolean start(DesignWorkPackageRow owner, DesignDiscussionRevisionRow discussion,
             OpenCodeClient.OpenCodeSession remote, String original, String basePrompt) {
-        if (conversations.behaviorV1(remote.id())) return behavior.start(owner, discussion, remote, original, basePrompt);
         if (!conversations.packageV2(remote.id()) || discussion.questionRequired()) return false;
         var reasons = reasons(original);
         if (reasons.isEmpty()) return false;
@@ -52,7 +49,6 @@ final class PackageSemanticPreparation {
 
     boolean poll(DesignWorkPackageRow owner, DesignDiscussionRevisionRow discussion,
             OpenCodeClient.OpenCodeSession remote, boolean timedOut, BooleanSupplier consumeBudget) {
-        if (behavior.present(owner, discussion)) return behavior.poll(owner, discussion, remote, timedOut, consumeBudget);
         var row = mapper.findPackageSemanticPreparation(owner.id(), discussion.revision()).orElse(null);
         if (row == null || "DISPATCHED".equals(row.state())) return false;
         var original = mapper.findDesignRequirementRevision(owner.requirementRevisionId()).orElseThrow(() -> conflict("冻结原始需求不存在"));

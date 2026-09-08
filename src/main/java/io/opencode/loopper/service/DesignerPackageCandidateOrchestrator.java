@@ -94,8 +94,6 @@ final class DesignerPackageCandidateOrchestrator {
         boolean v2 = existing.map(run -> PackageDesignV2Document.VERSION.equals(run.contractVersion()))
                 .orElseGet(() -> conversations != null && conversations.packageV2(remote.id()));
         String version = v2 ? PackageDesignV2Document.VERSION : CONTRACT_VERSION;
-        var behavior = v2 && conversationMapper != null ? PackageBehaviorRuns.prepared(conversationMapper, workPackage, remote.id()) : null;
-        boolean behaviorRun = existing.map(r -> PackageBehaviorRuns.WORKFLOW.equals(r.workflowStep())).orElse(behavior != null);
         Integer configuredLimit = properties.getInternalCandidate().getPackageDesignCorrectionLimit() == 0 ? null
                 : properties.getInternalCandidate().getPackageDesignCorrectionLimit();
         MachineCandidateSubmission.RunSnapshot run = submissions.open(new MachineCandidateSubmission.OpenCommand(
@@ -103,16 +101,11 @@ final class DesignerPackageCandidateOrchestrator {
                         workPackage.designerSessionId()),
                 MachineCandidateSubmission.CandidateOwnerRef.designWorkPackage(workPackage.id()),
                 MachineCandidateKind.PACKAGE_DESIGN_V1,
-                behaviorRun ? PackageBehaviorRuns.WORKFLOW : v2 ? version : PackageDesignGapPolicy.workflowStep(existing.map(MachineCandidateSubmission.RunSnapshot::workflowStep).orElse(null),
+                v2 ? version : PackageDesignGapPolicy.workflowStep(existing.map(MachineCandidateSubmission.RunSnapshot::workflowStep).orElse(null),
                         properties.getInternalCandidate().isPackageDesignEvidenceEnabled()), workPackage.designRevision() + 1L,
                 workPackage.version(), MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP,
                 version, binding.runtimeGenerationId(), remote.id(), MAX_ATTEMPTS,
                 existing.isPresent() ? existing.get().correctionLimit() : configuredLimit));
-        if (behaviorRun) {
-            if (behavior == null) throw new ConflictException("PACKAGE_BEHAVIOR_NOT_FROZEN", "运行缺少已复核语义模型");
-            conversationMapper.bindBehaviorRun(run.runId(), behavior.id(), behavior.bookSha256());
-            PackageBehaviorRuns.load(conversationMapper, run.runId(), conversationMapper.findDesignRequirementRevision(workPackage.requirementRevisionId()).orElseThrow().requirementText(), workPackage.id(), remote.id(), new tools.jackson.databind.ObjectMapper());
-        }
         if (v2 || PackageDesignGapPolicy.WORKFLOW_STEP.equals(run.workflowStep())) {
             if (evidence == null) throw new ConflictException("PACKAGE_EVIDENCE_UNAVAILABLE", "工作包证据准备器不可用");
             evidence.freeze(run.runId(), workPackage, remote.worktree());
@@ -125,8 +118,7 @@ final class DesignerPackageCandidateOrchestrator {
         if (v2) {
             var requirement = conversationMapper.findDesignRequirementRevision(workPackage.requirementRevisionId()).orElseThrow();
             return new Start(remote, run, PackageDesignV2Prompt.build(basePrompt + "\n冻结有界仓库证据：\n" + conversationMapper.findPackageDesignEvidence(run.runId()).orElseThrow().snapshotJson(), requirement.requirementText(), run,
-                    privateServer + "_" + InternalMcpContractCatalog.PACKAGE_V2_TOOL)
-                    + (behaviorRun ? PackageBehaviorPrompts.candidate(behavior.bookJson(), new tools.jackson.databind.ObjectMapper()) : ""));
+                    privateServer + "_" + InternalMcpContractCatalog.PACKAGE_V2_TOOL));
         }
         return new Start(remote, run, prompt(basePrompt, run,
                 privateServer + "_" + InternalMcpContractCatalog.toolName(

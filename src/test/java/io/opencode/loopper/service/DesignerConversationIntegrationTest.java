@@ -255,36 +255,6 @@ class DesignerConversationIntegrationTest {
         assertThat(mapper.designerConversationForRemote(original.id()).orElseThrow().reason()).isEqualTo("CONTEXT_REPLACED");
     }
 
-    @Test void behaviorPolicyFreezesOnlyNewConversationsAndSurvivesRollback() {
-        var config = new io.opencode.loopper.config.LoopperProperties();
-        config.getInternalCandidate().setPackageDesignV2Enabled(true);
-        config.getInternalCandidate().setPackageBehaviorEnabled(false);
-        conversations = new DesignerConversationCoordinator(mapper, remote, json, config);
-        var historical = acquire("OLD", false);
-        config.getInternalCandidate().setPackageBehaviorEnabled(true);
-        assertThat(conversations.behaviorV1(historical.id())).isFalse();
-        var fresh = acquire("NEW", false);
-        assertThat(conversations.behaviorV1(fresh.id())).isTrue();
-        config.getInternalCandidate().setPackageBehaviorEnabled(false);
-        var restored = new DesignerConversationCoordinator(mapper, remote, json, config);
-        assertThat(restored.behaviorV1(fresh.id())).isTrue();
-        assertThatThrownBy(() -> jdbc.update("UPDATE package_behavior_policy SET policy_version=policy_version")).hasMessageContaining("immutable");
-    }
-
-    @Test void independentReviewUsesReadOnlyProfileIsDiscoverableForStopAndCannotSendAfterOwnerStops() {
-        var review = conversations.acquire(owner, "BEHAVIOR_REVIEW:fixture", root,
-                new OpenCodeClient.OpenCodeModel("test", "test", null), false, false, false, false);
-        assertThat(mapper.designerConversationForRemote(review.id()).orElseThrow().profile()).isEqualTo("GENERAL_READ_ONLY");
-        assertThat(mapper.listDesignerRemoteSessionIds(owner)).contains(review.id());
-        conversations.begin(review, "PACKAGE_SEMANTICS");
-        jdbc.update("UPDATE designer_session SET state='STOPPING' WHERE id=?", owner);
-        assertThatThrownBy(() -> conversations.send(review, OpenCodeClient.PromptRequest.text("must not send"))).hasMessageContaining("owner has stopped");
-        verify(remote, never()).promptAsync(any(), any(OpenCodeClient.PromptRequest.class));
-        assertThatThrownBy(() -> conversations.acquire(owner, "BEHAVIOR_REVIEW:second", root, null, false, false, false, false))
-                .hasMessageContaining("owner is not running");
-        assertThat(created).hasValue(1);
-    }
-
     @Test void migratedDesignerWithoutOptInKeepsLegacyPolicy() {
         jdbc.update("DELETE FROM designer_conversation_policy WHERE designer_session_id=?", owner);
         assertThat(conversations.enabled(owner)).isFalse();

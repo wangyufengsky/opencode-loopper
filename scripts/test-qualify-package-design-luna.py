@@ -31,46 +31,6 @@ class QualificationProtocolTest(unittest.TestCase):
         self.assertNotIn("--last", resume)
         self.assertIn("--ephemeral", luna.codex_command(args, directory))
 
-    def test_independent_review_uses_new_thread_and_unconfirmed_review_prevents_candidate(self):
-        from types import SimpleNamespace
-        for approved in (True, False):
-            with tempfile.TemporaryDirectory() as tmp:
-                base = Path(tmp)
-                personal = base / "personal"
-                personal.mkdir()
-                (personal / "auth.json").write_text('{"synthetic":true}')
-                run = base / "run"
-                run.mkdir()
-                (run / "workspace").mkdir()
-                codex = base / "fake-codex"
-                codex.write_text("#!/usr/bin/env python3\nimport json,sys\n"
-                    "if sys.argv[1:3]==['login','status']: print('Logged in using ChatGPT'); sys.exit(0)\n"
-                    "text=sys.stdin.read().strip()\n"
-                    "from pathlib import Path\nPath(sys.argv[sys.argv.index('--output-last-message')+1]).write_text('material')\n"
-                    "thread='review-thread' if text=='review prompt' else 'main-thread'\n"
-                    "print(json.dumps({'type':'thread.started','thread_id':thread}))\n"
-                    "print(json.dumps({'type':'item.completed','item':{'type':'agent_message','text':'commentary that is not final JSON'}}))\n"
-                    "print(json.dumps({'type':'turn.completed','usage':{'input_tokens':1,'output_tokens':1}}))\n")
-                codex.chmod(0o700)
-                java = base / "fake-java.py"
-                java.write_text("import json,sys\n"
-                    "if sys.argv[1]=='behavior-review-prompt': print('review prompt')\n"
-                    f"elif sys.argv[1]=='behavior-review': print(json.dumps({{'accepted':{approved!r},'reviewJson':'review'}}))\n"
-                    "elif sys.argv[1]=='prompt': print('candidate prompt')\n")
-                descriptor = run / "bridge.json"
-                descriptor.write_text(json.dumps({"java":[sys.executable,str(java)], "fixture":"fixture", "contract":"PACKAGE_DESIGN_V2"}))
-                args = SimpleNamespace(codex=str(codex), timeout=15)
-                with patch.dict(os.environ, {"CODEX_HOME":str(personal)}):
-                    result = luna.execute(args, run, "candidate prompt", descriptor,
-                        {"enabled":True,"prompt":"extract prompt"}, behavior=True)
-                self.assertEqual((run / "source-review-output.txt").read_text(), "material")
-                self.assertEqual(result["sourceReviewTurns"], 1)
-                self.assertEqual(result["candidateDispatched"], approved)
-                self.assertIsNone(result["actualModelRequests"])
-                self.assertEqual(len(result["phases"]), 3 if approved else 2)
-                self.assertNotEqual(result["phases"][0]["threadIds"], result["phases"][1]["threadIds"])
-                self.assertFalse((run / "codex-config" / "auth.json").exists())
-
     def test_actual_request_budget_is_not_replaced_by_a_session_budget(self):
         with tempfile.TemporaryDirectory() as tmp:
             result = subprocess.run([sys.executable, str(SCRIPT), "--gepa", "--output", tmp], capture_output=True, text=True)

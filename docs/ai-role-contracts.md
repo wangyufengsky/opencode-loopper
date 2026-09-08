@@ -546,9 +546,3 @@ to pass validation. See [role changes, configuration and qualification boundarie
 `PACKAGE_DESIGN_V2` 在新持久会话中冻结独立提交工具、来源绑定、32 节点/4 层 all/any/unless 关系及有依据的缺口声明。历史角色 kind 保持不变，不能从 kind 名称推导实际对象合同。原文、用户明确补充、仓库证据和模型整理分层保存；只有服务端编译后的验收准则与交接进入 Implementation/Recovery/Judge。Decomposer 的包边界与共同约束仍是冻结输入，Reviewer 不获得写权限。完整字段、提示版本与一次整理阶段的停止/恢复规则见 [工作包三批优化](package-design-luna-optimization.md)。
 
 V2 默认启用和确定性范围检查见 [V2 加固与启用](package-design-v2-enablement.md)。固定 Prompt 使用 `PACKAGE_PROMPT_V2_20260907_R2`，约束优先级与首次状态转换必须完整表达；候选关系不授予权限。
-
-V2 可选有限域行为合同、SAT 预算、反例诊断及服务端生成场景文字见 [三阶段语义检查](package-behavior-semantics.md)。无冻结义务的历史 V2 不接受该扩展；Implementation/Recovery/Judge 消费编译后场景与交接中的冻结义务，不能将辅助文字提升为执行权限。
-
-## 有界行为义务与独立来源复核（0.3.79）
-
-新策略可为无需包内提问的复杂 V2 修订安排一次原会话整理和一次独立只读来源复核。原文、范围、已确认决策、模型与复核证据分别冻结；`PACKAGE_DESIGN_V2_BEHAVIOR_V1` 运行绑定已复核模型，候选只提交分支，服务端生成最终 StageSpec。简单和历史运行不增加新回合，权限与生产纠错预算保持既有规则。来源复核不能代替自然语言完整性证明，UNKNOWN/来源未确认不作为通过。状态、边界、启用门槛与评测证据见 [工作包语义一致性](package-behavior-semantics.md)。

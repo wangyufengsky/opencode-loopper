@@ -25,6 +25,15 @@ class PackageDesignV2CompilationTest {
         root.set("relations", json.createArrayNode()); root.set("gapClaims", json.createArrayNode());
         return root;
     }
+    @Test void removedBehaviorExtensionCannotBeSilentlyAcceptedAsOrdinaryV2() {
+        var root = candidate(); root.set("behaviorBranches", json.createArrayNode());
+        var result = compiler.compileCandidate(input("工作包范围：`src/test/java/example/EventBusTest.java`。补充 EventBusTest 聚焦测试。"), json.writeValueAsString(root));
+        assertThat(result.accepted()).isFalse();
+        assertThat(result.problems()).anySatisfy(problem -> {
+            assertThat(problem.code()).isEqualTo("CANDIDATE_FIELD_UNKNOWN");
+            assertThat(problem.pointer()).isEqualTo("/behaviorBranches");
+        });
+    }
     @Test void frozenExactScopeResolvesV2AmbiguityButLeavesV1AndNegativeConflictsUntouched() {
         String original = "工作包范围：`src/test/java/example/EventBusTest.java`。补充 EventBusTest 聚焦测试。";
         var v1 = compiler.compileCandidate(input(original), fixture.readyCandidate());

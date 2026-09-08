@@ -42,10 +42,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.3.79.jar
-   jar tf target/opencode-loopper-0.3.79.jar \
+   test -s target/opencode-loopper-0.3.80.jar
+   jar tf target/opencode-loopper-0.3.80.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.3.79.jar
+   shasum -a 256 target/opencode-loopper-0.3.80.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -95,8 +95,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.3.79`。
-- 正式产物：`target/opencode-loopper-0.3.79.jar`。
+- Maven 项目版本：`0.3.80`。
+- 正式产物：`target/opencode-loopper-0.3.80.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -225,10 +225,9 @@ Task 详情 `overview` 必须投影 `loopRetryAvailable`、`cancellationAvailabl
 
 ### 5.3 Designer 和 LoopSpec
 
-- 0.3.79 的新工作包行为策略经 V74 独立冻结，只适用于无需包内提问的复杂 V2 修订。一次原会话整理、一次独立 GENERAL_READ_ONLY 来源复核后回原会话提交；简单包不增加回合，交互问题修订保持旧路径。准备行冻结 Prompt 版本，追加新 Prompt 时必须保留旧生成器；原文/范围/决策/整理/复核/义务哈希和 run 绑定不能改写。CAS 先领取再发送，结果未知不重发；停止必须包含独立复核远端且取得正向确认。纯候选策略不得调用文件、网络或模型。场景行为文字和 StageSpec 继续由服务端生成，sourceChecks 不能作为自然语言完备证明。默认值按 `docs/package-behavior-qualification.md` 的实测门槛决定；V2 自身继续默认开启。详见 `docs/package-behavior-semantics.md`。
+- 0.3.80 按用户要求撤回 0.3.76–0.3.79 未达标的有限域/SAT/独立来源复核实验，生产 Java、工作包 Schema 和 Prompt 恢复 0.3.75；V2 继续默认开启。V74 保留原文与校验和，V75 只允许无实验策略/义务/run/复核会话的数据库继续启动，不自动删除数据、修改合同或确认远端停止。含实验记录的库须继续使用 0.3.79 处理；禁止直接删表或修复迁移历史绕过。历史评测文档仅作证据，不能用于当前功能声明。详见 `docs/package-behavior-rollback.md`。
 
-
-- 0.3.79 新建工作包会话默认 V2，显式 false 仅回滚新会话；V2 自动冻结证据，不依赖独立 V1 evidence 开关。接受前必须用纯 `PackageDesignScopeGuard` 从冻结范围证明 Stage/GIT_DIFF 允许规则包含关系和删除保护；候选路径不得反向成为授权。原文集合删除、指代文件移动和既有显式删除/移动均在来源预检阻断；候选 ANY 不能解除硬冲突。固定 Prompt R2 区分首次转换/重复请求及优先级例外；不得把词面规则或来源图宣称为自然语言完备检查。详见 `docs/package-design-v2-enablement.md`。
+- 0.3.80 新建工作包会话默认 V2，显式 false 仅回滚新会话；V2 自动冻结证据，不依赖独立 V1 evidence 开关。接受前必须用纯 `PackageDesignScopeGuard` 从冻结范围证明 Stage/GIT_DIFF 允许规则包含关系和删除保护；候选路径不得反向成为授权。原文集合删除、指代文件移动和既有显式删除/移动均在来源预检阻断；候选 ANY 不能解除硬冲突。固定 Prompt R2 区分首次转换/重复请求及优先级例外；不得把词面规则或来源图宣称为自然语言完备检查。详见 `docs/package-design-v2-enablement.md`。
 
 - 0.3.72 增加默认关闭的 `LOOPPER_PACKAGE_DESIGN_V2_ENABLED`，仅新建 V2 conversation profile 打开 `submit_package_design_v2`；内部 `PACKAGE_DESIGN_V1` kind 保持角色命名空间，真正合同由冻结的 contractVersion/workflowStep 区分，旧工具不能提交 V2，Legacy/V1 不升级。V2 校验来源绑定与 all/any/unless 有界 DAG（32 节点、4 层），所有适用分支保留；原文引用和关系不证明自然语言完整性。冻结精确 scope 仅在 V2 消除重复路径歧义，不覆盖否定、安全或冲突。原始需求、仓库快照及模型整理证据分开；显式来源定位的 USER 本地反馈可作为同一需求修订的补充决定，AI 消息和候选声明不能替代用户决定。V73 持久化每包讨论修订最多一次的 PACKAGE_SEMANTICS 回合，复用会话协调器与消息身份；简单/历史/已有问题回合不增加整理，未知投递不重发，停止未确认不推进。整理输出只是有界建议；失败保留材料并沿既有停止规则处理。最终来源/关系编译进交接及验收准则，由 Implementation/Recovery/Judge 消费完整冻结 StageSpec；不得引入模型执行权限。详见 `docs/package-design-luna-optimization.md`。
 - 0.3.70 增加关闭默认的 `LOOPPER_PACKAGE_DESIGN_EVIDENCE_ENABLED`，仅新运行冻结 `PACKAGE_DESIGN_V1_EVIDENCE_V1`；历史 workflow step 及生产提交次数配置不变。V72 冻结需求来源与有界仓库证据，候选校验不得读取文件/网络/模型；未知或超限证据不得判为能力不存在。模型缺口码只作待核实声明，安全/范围证明保持阻断。Codex Luna 评测只走 ChatGPT 订阅、`gpt-5.6-luna`、medium，四次候选预算与实际模型请求预算分开；GEPA 未验证逐请求预留硬上限前不得启动。见 `docs/package-design-luna-optimization.md`。
@@ -507,7 +506,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.3.79.jar
+JAR=target/opencode-loopper-0.3.80.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -615,16 +614,13 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 - Luna 离线复杂回合必须使用精确 Codex task ID 续跑，整理阶段禁用提交工具；报告必须绑定候选 SHA 并覆盖独立固定语义清单，编译 ACCEPTED 不自动计为正确。实际模型请求数不可得时保留 null，GEPA 在请求前预算接口验证阶段停止；隔离 HTTP/SQLite 测试不得宣称真实 OpenCode Provider 已通过。
 
-- 有限域语义检查使用 `PackageBehaviorContract`：INPUT/OUTPUT 分离，冻结义务与候选分支分离，显式未建模来源不能冒充证明。检查器纯计算，最多 32 变量、每变量 32 值、64 义务/分支、32 不变量；表达式深度 6/128 节点。枚举超过 4096 个赋值返回未知，禁止当作通过。来源模型自身冲突须单列，不能误判为用户需求缺失。分阶段接入规则见 `docs/package-behavior-semantics.md`。
-
-- 有界 SAT 后端固定 SAT4J Core 2.3.6，one-hot + Tseitin CNF，单查询最多 100ms、每候选 2 秒/4096 查询、40000 子句/16000 变量限额；未知不通过，反例独立求值。V2 可选 behaviorBranches 仅在存在冻结义务时准入，所有场景绑定且文字由服务端生成，历史 V2 不允许自行添加。稳定反例标识进入现有修复进度；诊断上限不得宣称完整。
-
 ## 12. 维护记录
 
 本表必须由每次实际修改代码的 Agent 在结束前追加或更新。保持简短；详细证据放在任务回复或对应契约文档中。
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-09-08 | 回退未达标语义实验，0.3.80 | 工作包生产 Java/Schema/Prompt 恢复 0.3.75；V2 保持开启，移除 SAT 与独立复核；保留 V74，V75 拒绝含实验合同的数据库；保留历史验收证据和页面测试清理 | 聚焦后端 139 项、前端 42 文件 276 项、guard 7 项通过；./scripts/verify.sh BUILD SUCCESS：后端 1531/0/0/2，前端 42 文件 276 项、guard 7 项；JAR 289500696 bytes，1589 生产类、114 静态条目，V2 true 且无实验类/SAT4J；V74 原样与 V75 守卫核验通过；SHA-256 221896d3b723197c806bf0666afa6c25b7c96fcff17ff4657f1db3bfa9504d1e；未部署、未重启 |
 | 2026-09-07 | 语义优化第三阶段，0.3.79 | V74 冻结策略/Prompt/原文与义务；一次独立只读来源复核、CAS 恢复/停止、生产 MCP 修复链及 Luna 对照 | 聚焦后端/HTTP/前端/Python 回归通过；72 次 Luna 独立验收，复杂四投 15/24→9/24，门槛失败；V2 默认 true，新行为策略 false，GEPA 0 请求；0.3.78 完整验证后端 1574/0/0/2、前端 277 断言通过但页面测试卸载遗漏产生异步异常；补统一清理后递增 0.3.79，./scripts/verify.sh BUILD SUCCESS：后端 1574/0/0/2，前端 42 文件 277 项、guard 7 项；新 JAR 290021470 bytes，静态资源/V74/SAT4J/默认值核验通过；SHA-256 06041cf3ce51f287684adb6e849092a3b9fb70f7798a1e9373c2fddc3c71003e；未推送、未重启 |
 | 2026-09-07 | 语义优化第二阶段，0.3.77 | 有界 SAT、V2 可选行为 Schema、服务端场景编译、稳定反例诊断；生产冻结接入留第三阶段 | 聚焦内核/编译/修复/结构测试通过；200 固定公式与穷举对照一致；./scripts/verify.sh BUILD SUCCESS：后端 1552/0/0/2，前端 42 文件 276 项、guard 7 项；JAR 静态资源、SAT 内核及 2.3.6 依赖核验通过；SHA-256 4a552b971787a57cd66ae66ddd3c0b3e1da8341a16e965ad0004864b14a2b342；未推送、未重启 |
 | 2026-09-07 | 语义优化第一阶段，0.3.76 | 有限域义务/分支模型、冲突/覆盖/可达性/不变量反例内核；暂未接入生产提交 | 聚焦 PackageBehaviorCheckerTest 12 项通过；./scripts/verify.sh BUILD SUCCESS：后端 1540/0/0/2，前端 42 文件 276 项、guard 7 项；JAR 静态资源及内核类核验通过；SHA-256 ba42e8492d5671cdd2fc5e7603d3cb797a8208f7c95eb48a4fdb7ca07fb403f8；未推送、未重启 |

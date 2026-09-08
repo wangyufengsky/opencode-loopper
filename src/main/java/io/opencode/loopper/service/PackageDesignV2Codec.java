@@ -34,16 +34,14 @@ final class PackageDesignV2Codec {
         if (!(root instanceof ObjectNode object)) return failed("PACKAGE_V2_OBJECT_REQUIRED", "/candidate", "提交完整 V2 对象");
         var authority = PackageDesignCandidateCodec.securityBoundary(root);
         if (authority != null) return new Decoded(null, null, null, List.of(authority));
-        for (var field : object.properties()) if (!FIELDS.contains(field.getKey()) && !"behaviorBranches".equals(field.getKey())) return failed("PACKAGE_V2_FIELD_UNKNOWN", "/" + field.getKey(), "该字段不属于 V2 语义合同");
+        for (var field : object.properties()) if (!FIELDS.contains(field.getKey())) return failed("PACKAGE_V2_FIELD_UNKNOWN", "/" + field.getKey(), "该字段不属于 V2 语义合同");
         for (String field : FIELDS) if (!object.hasNonNull(field)) return failed("PACKAGE_V2_FIELD_REQUIRED", "/" + field, "字段必须存在；无内容的集合使用空数组");
-        var behaviorProblems = new PackageBehaviorCompilation(json).prepare(input, object);
-        if (!behaviorProblems.isEmpty()) return new Decoded(null, null, null, behaviorProblems);
         PackageDesignV2Document value;
         try { value = json.treeToValue(root, PackageDesignV2Document.class); }
         catch (RuntimeException malformed) { return failed("PACKAGE_V2_SHAPE_INVALID", "/candidate", "字段类型与 V2 Schema 不一致"); }
         if (!PackageDesignV2Document.VERSION.equals(value.contractVersion())) return failed("PACKAGE_V2_VERSION_INVALID", "/contractVersion", "当前运行只接受 PACKAGE_DESIGN_V2");
         var lowered = object.deepCopy();
-        lowered.remove("sourceBindings"); lowered.remove("relations"); lowered.remove("gapClaims"); lowered.remove("behaviorBranches");
+        lowered.remove("sourceBindings"); lowered.remove("relations"); lowered.remove("gapClaims");
         lowered.put("contractVersion", "PACKAGE_DESIGN_V1");
         var base = new PackageDesignCandidateCodec(json).decode(json.writeValueAsString(lowered), input.stageLimit());
         List<PackageDesignCompilation.Problem> problems = new ArrayList<>(base.problems().stream()

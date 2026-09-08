@@ -39,8 +39,8 @@ final class PackageDesignCandidatePolicy implements CandidatePolicy {
     @Override
     public Decision evaluate(Context context, String candidateJson) {
         if (context.candidateKind() != MachineCandidateKind.PACKAGE_DESIGN_V1
-                || !(WORKFLOW_STEP.equals(context.workflowStep()) || PackageDesignGapPolicy.WORKFLOW_STEP.equals(context.workflowStep()) || PackageDesignV2Document.VERSION.equals(context.workflowStep()) || PackageBehaviorRuns.WORKFLOW.equals(context.workflowStep()))
-                || !( (PackageDesignV2Document.VERSION.equals(context.workflowStep()) || PackageBehaviorRuns.WORKFLOW.equals(context.workflowStep()))
+                || !(WORKFLOW_STEP.equals(context.workflowStep()) || PackageDesignGapPolicy.WORKFLOW_STEP.equals(context.workflowStep()) || PackageDesignV2Document.VERSION.equals(context.workflowStep()))
+                || !(PackageDesignV2Document.VERSION.equals(context.workflowStep())
                     ? PackageDesignV2Document.VERSION.equals(context.contractVersion())
                     : PackageDesignCandidateCodec.CONTRACT_VERSION.equals(context.contractVersion()))
                 || context.maxAttempts() != MAX_ATTEMPTS
@@ -60,15 +60,14 @@ final class PackageDesignCandidatePolicy implements CandidatePolicy {
                         "PACKAGE_CANDIDATE_CONTRACT_MISMATCH", "/contractVersion", "候选必须匹配运行冻结的合同", List.of(context.contractVersion()))));
         } catch (RuntimeException invalid) { /* Preserve the legacy compiler's original parse diagnostics. */ }
         var input = inputs.load(context).withContract(context.contractVersion());
-        if (PackageDesignGapPolicy.WORKFLOW_STEP.equals(context.workflowStep()) || PackageDesignV2Document.VERSION.equals(context.workflowStep()) || PackageBehaviorRuns.WORKFLOW.equals(context.workflowStep())) verifyEvidence(context.runId(), input);
+        if (PackageDesignGapPolicy.WORKFLOW_STEP.equals(context.workflowStep()) || PackageDesignV2Document.VERSION.equals(context.workflowStep())) verifyEvidence(context.runId(), input);
         PackageDesignCompilation.Result result = compilation.compileCandidate(input, candidateJson);
         if (PackageDesignGapPolicy.WORKFLOW_STEP.equals(context.workflowStep())) result = PackageDesignGapPolicy.apply(result);
         if (result.accepted()) return Decision.accepted(result.canonicalCandidateJson());
         boolean fallback = result.retryable() && !result.problems().isEmpty()
                 && result.problems().stream().allMatch(PackageDesignCompilation.Problem::fallbackEligible);
         return Decision.rejected(result.retryable(), fallback,
-                result.problems().stream().map(PackageDesignCompilation.Problem::submissionProblem).toList(),
-                result.problems().stream().noneMatch(p -> "SEMANTIC_DIAGNOSTICS_LIMIT".equals(p.code())));
+                result.problems().stream().map(PackageDesignCompilation.Problem::submissionProblem).toList());
     }
 
     private void verifyEvidence(String runId, PackageDesignCompilation.Input input) {

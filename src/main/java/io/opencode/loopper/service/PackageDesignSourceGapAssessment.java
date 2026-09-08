@@ -11,25 +11,11 @@ final class PackageDesignSourceGapAssessment {
     private static final Pattern RESOLVED = Pattern.compile("(?:已|已经)(?:决定|确定|确认)|不(?:再|存在).{0,8}(?:未定|待决)");
 
     List<PackageDesignCompilation.Problem> problems(PackageDesignCompilation.Input input, PackageDesignV2Document candidate) {
-        List<PackageDesignCompilation.Problem> problems = new ArrayList<>(sourceProblems(input.requirementText(), input.confirmedDecisions()));
-        if (!problems.isEmpty()) return List.copyOf(problems);
-        for (int i = 0; i < candidate.gapClaims().size(); i++) {
-            var claim = candidate.gapClaims().get(i);
-            var assessment = new PackageDesignGapAssessment().assess(claim.code(), evidence(input, claim));
-            problems.add(problem("/gapClaims/" + i, assessment));
-        }
-        if ("NEEDS_INPUT".equals(candidate.outcome()) && problems.isEmpty()) {
-            problems.add(problem("/gapClaims", new PackageDesignGapAssessment().assess("UNSUPPORTED_GAP", List.of())));
-        }
-        return List.copyOf(problems);
-    }
-
-    List<PackageDesignCompilation.Problem> sourceProblems(String original, java.util.Map<String, String> decisions) {
-        var sources = PackageRequirementSources.index(original);
+        var sources = PackageRequirementSources.index(input.requirementText());
         List<PackageDesignCompilation.Problem> problems = new ArrayList<>();
         // Only explicit unresolved alternative behavior in the frozen source is a proven user decision.
         for (var source : sources.values()) {
-            if (decisions.containsKey(source.ref()) && java.util.Arrays.stream(source.text().split("[。；;\\n]"))
+            if (input.confirmedDecisions().containsKey(source.ref()) && java.util.Arrays.stream(source.text().split("[。；;\\n]"))
                     .filter(sentence -> UNDECIDED.matcher(sentence).find() && CHOICE.matcher(sentence).find()).count() == 1) continue;
             for (String sentence : source.text().split("[。；;\\n]")) {
                 if (UNDECIDED.matcher(sentence).find() && CHOICE.matcher(sentence).find()
@@ -39,6 +25,15 @@ final class PackageDesignSourceGapAssessment {
                     problems.add(problem("/gapClaims", new PackageDesignGapAssessment().assess("SOURCE_BUSINESS_CHOICE", List.of(evidence))));
                 }
             }
+        }
+        if (!problems.isEmpty()) return List.copyOf(problems);
+        for (int i = 0; i < candidate.gapClaims().size(); i++) {
+            var claim = candidate.gapClaims().get(i);
+            var assessment = new PackageDesignGapAssessment().assess(claim.code(), evidence(input, claim));
+            problems.add(problem("/gapClaims/" + i, assessment));
+        }
+        if ("NEEDS_INPUT".equals(candidate.outcome()) && problems.isEmpty()) {
+            problems.add(problem("/gapClaims", new PackageDesignGapAssessment().assess("UNSUPPORTED_GAP", List.of())));
         }
         return List.copyOf(problems);
     }

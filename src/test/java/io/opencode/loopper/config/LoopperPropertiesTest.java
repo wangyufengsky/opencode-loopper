@@ -8,17 +8,6 @@ import org.junit.jupiter.api.Test;
 
 class LoopperPropertiesTest {
     @Test
-    void behaviorQualificationGateDoesNotDisableExistingV2() throws Exception {
-        var properties = new LoopperProperties();
-        assertThat(properties.getInternalCandidate().isPackageDesignV2Enabled()).isTrue();
-        assertThat(properties.getInternalCandidate().isPackageBehaviorEnabled()).isFalse();
-        properties.getInternalCandidate().setPackageBehaviorEnabled(true);
-        assertThat(properties.getInternalCandidate().isPackageBehaviorEnabled()).isTrue();
-        assertThat(Files.readString(Path.of("src/main/resources/application.yml")))
-                .contains("package-behavior-enabled: ${LOOPPER_PACKAGE_BEHAVIOR_ENABLED:false}");
-    }
-
-    @Test
     void packageDesignV2DefaultsOnWithAnExplicitNewRunRollback() throws Exception {
         var properties = new LoopperProperties();
         assertThat(properties.getInternalCandidate().isPackageDesignV2Enabled()).isTrue();
