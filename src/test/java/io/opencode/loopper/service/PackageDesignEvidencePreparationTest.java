@@ -33,6 +33,17 @@ class PackageDesignEvidencePreparationTest {
         assertThat(many.complete()).isFalse();
     }
 
+    @Test void rejectsWildcardScopeBeforeAnyFilesystemResolution() {
+        var snapshot = PackageDesignEvidencePreparation.prepare(root.resolve("missing-root"), "R1", "text",
+                List.of("*.java", "src/**/*.java"));
+        assertThat(snapshot.files()).allSatisfy(file -> {
+            assertThat(file.status()).isEqualTo("OUTSIDE_BOUNDED_SCOPE");
+            assertThat(file.excerpt()).isNull();
+            assertThat(file.sha256()).isNull();
+        });
+        assertThat(snapshot.complete()).isFalse();
+    }
+
     @Test void rejectsSymlinkAndInvalidUtf8RatherThanReadingOutsideOrReplacingBytes() throws Exception {
         Files.write(root.resolve("invalid"), new byte[]{(byte) 0xff});
         Files.createSymbolicLink(root.resolve("link"), root.resolve("invalid"));

@@ -66,11 +66,11 @@ final class PackageDesignEvidencePreparation {
 
     private static FileEvidence read(Path root, String relative, int index) {
         String ref = "repository:" + index;
-        if (!boundedPath(relative)) return unknown(ref, safePath(relative), "OUTSIDE_BOUNDED_SCOPE");
+        if (!boundedPath(relative) || relative.contains("*")) return unknown(ref, safePath(relative), "OUTSIDE_BOUNDED_SCOPE");
         try {
             Path base = root.toRealPath();
             Path target = base.resolve(relative).normalize();
-            if (Path.of(relative).isAbsolute() || !target.startsWith(base) || relative.contains("*")) return unknown(ref, relative, "OUTSIDE_BOUNDED_SCOPE");
+            if (Path.of(relative).isAbsolute() || !target.startsWith(base)) return unknown(ref, relative, "OUTSIDE_BOUNDED_SCOPE");
             // Refuse symlinks at every component; a missing/read-denied path proves no absence of a capability.
             Path cursor = base;
             for (Path part : base.relativize(target)) {

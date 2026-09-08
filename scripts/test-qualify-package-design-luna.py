@@ -48,11 +48,16 @@ class QualificationProtocolTest(unittest.TestCase):
             (user / "AGENTS.md").write_text("must never be copied")
             run = base / "run"
             run.mkdir()
-            with patch.dict(os.environ, {"CODEX_HOME": str(user), "OPENAI_API_KEY": "synthetic", "CODEX_THREAD_ID": "personal"}):
+            with patch.dict(os.environ, {"CODEX_HOME": str(user), "OPENAI_API_KEY": "synthetic", "CODEX_THREAD_ID": "personal"}), \
+                    patch.object(os, "chmod", wraps=os.chmod) as chmod:
                 env, auth, config = luna.isolated_config(run)
             self.assertNotIn("OPENAI_API_KEY", env)
             self.assertNotIn("CODEX_THREAD_ID", env)
-            self.assertEqual(auth.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(chmod.call_args.args[:2], (auth, 0o600))
+            # Windows chmod does not expose POSIX owner/group permission bits.
+            if os.name != "nt":
+                self.assertEqual(auth.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(auth.read_text(), '{"synthetic":true}')
             self.assertFalse((auth.parent / "AGENTS.md").exists())
             self.assertIn('forced_login_method = "chatgpt"', config)
             self.assertIn('model_reasoning_effort = "medium"', config)
