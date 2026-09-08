@@ -249,13 +249,13 @@ StatusProjector -> persisted read snapshots
 
 七类 `INTERNAL_MCP` 候选默认不设提交次数上限（V69），V70/V71 可在新运行打开时冻结 2–16 次总提交上限；持久化提交计数与幂等/版本守卫继续有效。新运行使用 `CANDIDATE_DIAGNOSTIC_V2`，每项问题必须有 `parameter / pointer / category / expected / actual / detail / allowedValues / repairHint`，信封必须有 `diagnosticsComplete / problemCount / returnedProblemCount / truncated / action / submissionRevision`；独立的请求形状与角色语义问题应在一次确定性检查中尽量完整返回，达到有界上限时必须显式声明不完整，不能用泛化异常让模型猜测。每个 policy 必须区分 `CORRECTABLE / HUMAN_REQUIRED / SECURITY`：安全的 JSON/字段形状、候选拥有的语义遗漏和闭集引用错误保持 `OPEN / REJECTED`；模型明确请求真实输入、路径/权限/身份/执行权威或服务端运行冲突才可进入人工/终止边界。只有 `PACKAGE_DESIGN_V1` 支持显式 Markdown fallback；非 MCP 历史兼容运行继续使用原有各角色格式修复预算。Reviewer 的 Legacy/MCP 入口只能做 transport 解码，不能另行过滤 finding、渲染 Markdown 或计算业务接受结果；任一 finding 证据失败必须使整份候选无结果。Convention 的 Legacy/MCP 入口同样只能调用 `ProjectConventionCompilation`，模型只可选择冻结证据 ID，安全 argv、路径、Markdown、内容哈希与应用边界属于服务端；accepted writer 只能从 DB 冻结事实写不可变结果，Session 停止证明落定前不能推进 owner。Judge 的 Legacy/MCP 入口只能调用 `JudgeDecisionCompilation`，评审批次、角色、证据目录、稳定 ID、状态与跨角色聚合属于服务端；accepted writer 只可保存当前冻结批次的规范结果，正向停止证明前不得完成 Judge。滚动计划的候选/手工入口必须共用 `RollingPackagePlanCompilation`。唯一解、非枚举、安全或路径问题必须在 candidate 层之外由服务端直接处理并失败关闭，不能为追求重试率而扩大模型权限。
 
-候选 profile 的 MCP 权限只允许与角色一一对应的精确私有 Tool：`submit_decomposition_plan / submit_acceptance_choice / submit_package_design / submit_rolling_package_plan / submit_reviewer_report / submit_project_convention / submit_judge_decision`，不允许通用 `submit_candidate`、其他角色 Tool 或用户 MCP；Decomposer、Reviewer 与 Convention 另外保留只读仓库证据工具，验收闭集选择保持零内置工具。七个 Tool 共用一个私有 MCP Server 和一个 `MachineCandidateSubmission` 内核，不得拆成七套生命周期、持久化或服务端权威。每次调用提交完整替换对象，不增加逐字段 mutation Tool。冻结历史 launch 可按其持久化 permission 继续使用 `submit_candidate`；该兼容 Tool 不得授予新 launch。Router 继续零工具；Judge Candidate 使用角色专属提交工具，Legacy Judge 不获得该权限。外部 `auto/http` 通过新 Session 使用 `IN_PROCESS_LEGACY`，不能依赖受管 runtime 的私有凭据或 generation。
+候选 profile 的 MCP 权限只允许与角色一一对应的精确私有 Tool：`submit_decomposition_plan / submit_acceptance_choice / submit_package_design（V2 为 submit_package_design_v2） / submit_rolling_package_plan / submit_reviewer_report / submit_project_convention / submit_judge_decision`，不允许通用 `submit_candidate`、其他角色 Tool 或用户 MCP；Decomposer、Reviewer 与 Convention 另外保留只读仓库证据工具，验收闭集选择保持零内置工具。七类角色的 Tool 共用一个私有 MCP Server 和一个 `MachineCandidateSubmission` 内核，不得拆成七套生命周期、持久化或服务端权威。每次调用提交完整替换对象，不增加逐字段 mutation Tool。冻结历史 launch 可按其持久化 permission 继续使用 `submit_candidate`；该兼容 Tool 不得授予新 launch。Router 继续零工具；Judge Candidate 使用角色专属提交工具，Legacy Judge 不获得该权限。外部 `auto/http` 通过新 Session 使用 `IN_PROCESS_LEGACY`，不能依赖受管 runtime 的私有凭据或 generation。
 
 Feature flag 只能位于“是否打开新 run”的应用决策点，不能包裹持久化 adapter、恢复 reader 或通用提交 Bean。这样关闭功能后仍能恢复和收束已存在 run，也避免应用重启把持久化协议变成不可读取状态。
 
 V2 的 `PackageDesignScopeGuard` 是接受前的纯编译结果守卫：只使用冻结输入和服务端默认策略证明最终 Stage/GIT_DIFF 路径包含关系及删除保护，不从候选交付物推导授权，不执行 I/O。来源预检由 `PackageDesignInputPreflight / PackageFrozenSafety` 持有；形状、关系与缺口判定继续由既有 V2 组件负责。默认开关只影响新工作包会话，不能包裹该守卫或历史恢复入口。
 
-V49 的 owner/scope 守卫必须在复制 V47/V48 历史 run 之前就生效；迁移不得把旧库中跨作用域的 owner 静默规范化。任一历史行不匹配必须使 V49 整体失败并保留可恢复的 V48 数据。Owner 删除 trigger 只负责数据库内的同一事务级联；现有七种真实 owner 表均必须有回归，独立 accepted-result 级联只适用于 `PACKAGE_DESIGN_V1`，不得为其他 kind 虚构结果表。
+V49 的 owner/scope 守卫必须在复制 V47/V48 历史 run 之前就生效；迁移不得把旧库中跨作用域的 owner 静默规范化。任一历史行不匹配必须使 V49 整体失败并保留可恢复的 V48 数据。Owner 删除 trigger 只负责数据库内的同一事务级联；现有七种真实 owner 表均必须有回归，V49 当时仅 `PACKAGE_DESIGN_V1` 有独立 accepted-result 表；后续 V56、V62、V63 分别增加滚动计划、公约与 Judge 的持久化结果。当前级联须覆盖实际存在的结果表和各自 owner，不能把 V49 的历史范围作为新 kind 的禁令，也不得虚构不存在的表。
 
 度量模型必须把 `candidateSessions` 与 `candidateSubmissions` 定义为两个非负独立计数，并与 `modelCalls` 分开采集；禁止从任一计数推导另一项。API/资格报告保留精确的 0，StatusProjector/界面可以隐藏 0 值，但不得把隐藏后的缺省字段当作未知或失败。
 
@@ -277,3 +277,9 @@ frontend discussion card as active requirements rather than interpreting Markdow
 Story accounting is owned by `StoryAccountingCoordinator` and `StoryBindingService`; `StoryAccountingActivityService` owns the bounded live-output/acknowledgement read model and `StoryAccountingClock` unions statistics waits for business budgets, independently of Task/Designer error transitions. The coordinator alone owns the explicit start-failure-to-continue transition and its durable call chain. Native command transport and identity filtering remain in runtime collaborators; the orchestration facades do not parse command replies or implement accounting retries.
 
 `OpenCodeSessionCommandGate` coordinates native statistics requests and ordinary abort for one remote, with identity-specific release on explicit cancellation. `StoryAccountingRetryPolicy` shares the authoritative eligibility decision between activity projection and the transactional retry claim; automatic fallback and retry endpoints append fresh rows and never overwrite historical calls.
+
+## 可执行依赖门禁
+
+`CodeStructureContractTest` 除物理行数外，使用 JDK `jdeps` 检查编译后的直接类型依赖（含方法体）：`domain` 不反向依赖应用/适配包；`DesignerAcceptanceCandidateWorkflow` 不依赖完整 `DesignerSessionService`；`PackageDesignScopeGuard` 不直接依赖 runtime/persistence/API、网络/SQL、Files 或 ProcessBuilder；仅允许其既有冻结输入值 `DesignWorkPackageRow`，不允许 Mapper 或其他数据库适配器。规则针对已有明确边界，不要求为了模式而增加层次。
+
+这些检查不证明传递依赖完全纯净，也不覆盖反射、动态加载或所有 I/O API。修改上述边界时补充有意义的反例和行为测试；规模通过不能替代依赖审查，依赖通过也不能替代权限、事务与恢复验证。

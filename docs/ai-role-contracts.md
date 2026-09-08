@@ -9,7 +9,9 @@ LoopSpec v2 权威校验为准；文档和提示示例都不能替代这些运�
 
 ## 设计原则
 
-工作包证据策略的第一批实现由 `LOOPPER_PACKAGE_DESIGN_EVIDENCE_ENABLED` 控制，默认关闭。
+当前新工作包默认 V2（`LOOPPER_PACKAGE_DESIGN_V2_ENABLED=true`），自动冻结证据；显式 false 只影响新会话，历史按冻结合同恢复。V2 不依赖下面的 V1 evidence 开关；有限域/SAT/独立来源复核实验已撤回，见 [V2 启用](package-design-v2-enablement.md) 与 [回退边界](package-behavior-rollback.md)。
+
+V1 独立证据策略由 `LOOPPER_PACKAGE_DESIGN_EVIDENCE_ENABLED` 控制，默认关闭。
 新运行可冻结 `PACKAGE_DESIGN_V1_EVIDENCE_V1`，候选数据仍遵守 V1；已有运行保持原策略。
 模型的 gap code 不是用户缺失需求的证明，只有可信来源证据支持时才能作业务待决或冲突结论。
 无证据声明保留为“尚未确认”，返回补充依据的修复动作，不能要求编造答案。确定性安全错误不降级。
@@ -121,7 +123,7 @@ allowedValues / repairHint`；`actual` 必须来自该 Pointer 的候选局部�
 `diagnosticsComplete=false / truncated=true`，但不得把原本可修正的拒绝升级为内部错误或停止同 Session 续投。
 
 工作包 Designer 在所属持久会话的当前回合、对应独立候选 run 内优先提交
-`PACKAGE_DESIGN_V1`。每次提交都是完整替换对象，MCP 提交不设次数上限；服务端返回闭集问题码、
+`PACKAGE_DESIGN_V1`。每次提交都是完整替换对象，MCP 提交默认不设次数上限；新 run 可冻结 V70/V71 有限修正策略，详见 OpenCode 合同的预算矩阵；服务端返回闭集问题码、
 JSON Pointer、具体说明和允许值，模型可以在同一 Session 读取拒绝原因并修正。`READY` 候选中的
 语义缺失、覆盖不全、验收归属或验证能力歧义属于可修正问题；不得因其不是纯格式错误而结束 Session。
 模型只拥有需求语义、场景、

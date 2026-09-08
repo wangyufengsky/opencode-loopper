@@ -1,5 +1,21 @@
 # OpenCode Loopper design contract
 
+## 当前授权与冻结范围
+
+“全自动”是特定 Designer 会话的授权，不是产品所有动作的授权。服务端持有动作能力，前端不得从一个总开关推导全部许可。
+
+| 流程 | 普通模式 | 已授权 Designer 全自动 |
+| --- | --- | --- |
+| 普通任务的任务设置、推荐答案、需求/最终设计与 Task Start | 经对应人工确认后推进 | 安全且没有必须人工处理的问题时，可沿普通流程确认并 Start |
+| 滚动软件任务的 Router、拆包、只读候选设计 | 经对应人工动作推进 | 可自动推进到只读候选设计 |
+| 滚动软件首包与后续包的设计确认、开始包执行 | 每包人工确认 | 仍为每包人工确认；`ROLLING_PACKAGE_MANUAL_APPROVAL_REQUIRED` 不被总开关覆盖 |
+| 历史聚合流程 | 按冻结流程恢复 | 不把历史流程静默升级成普通或滚动流程 |
+| 危险权限、执行期决定、结果认定、提交/推送/发布、冲突写回 | 对应本地人工动作 | Designer 授权不覆盖这些动作 |
+
+普通设计确认事务本身仍只创建 `PENDING_START`，随后 Start 是独立动作。自动模式可以代行已授权动作，不能把两个事务与证据合并。
+
+已冻结 Task/Stage/Recovery 使用原合同与画像。`WorkPackageRoleService.get` 的既有兼容修复仅针对设计工作包：父画像是 `DIRECT_SOFTWARE_DESIGN` 且 intent 为软件/历史软件，已存包 rolePackId 缺失或不是 `software-` 时，按已确认父画像重新赋予包角色。该修复不授权随项目重析改写已冻结执行 Stage、历史证据或 Recovery；其他不一致须按具体迁移/修复合同处理。
+
 The UI is a desktop-first developer console. Figma is the visual source of
 truth; Vue components must expose the same states and terminology as the Figma
 component variants.
@@ -695,7 +711,7 @@ safety policy is rejected. Missing, duplicate, conflicting, or out-of-range sele
 non-equivalent valid JSON candidates remain blocking. A rejected response preserves the immutable fact
 catalog and already completed server bindings.
 
-The compact Decomposer/Compiler steps prefer stable OpenCode JSON Schemas; current v7 acceptance uses
+On the compatibility channel, compact Decomposer/Compiler steps prefer stable OpenCode JSON Schemas; managed INTERNAL_MCP uses the frozen role tool input schema and never treats final assistant text as the accepted object. Current v7 acceptance uses
 `PACKAGE_ACCEPTANCE_CLOSED_CHOICE_V7`, while frozen v6 rows keep
 `PACKAGE_ACCEPTANCE_DISAMBIGUATION_V6`.
 the final Judge contract has its own schema. Legacy final schemas remain for

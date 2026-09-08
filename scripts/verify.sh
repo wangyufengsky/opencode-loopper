@@ -9,4 +9,4 @@ if [[ "$(uname -s)" == "Darwin" ]] && [[ -x /usr/libexec/java_home ]]; then
 fi
 
 cd "${PROJECT_DIR}"
-./mvnw clean verify
+./mvnw -P'!backend-dev' -Dloopper.frontend.skip=false clean verify

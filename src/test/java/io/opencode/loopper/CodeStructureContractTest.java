@@ -3,10 +3,13 @@ package io.opencode.loopper;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.spi.ToolProvider;
 import org.junit.jupiter.api.Test;
 
 class CodeStructureContractTest {
@@ -52,6 +55,42 @@ class CodeStructureContractTest {
         assertThat(stale)
                 .as("Remove files at or below the default limit and never raise a legacy cap")
                 .isEmpty();
+    }
+
+    @Test
+    void compiledDomainAndSelectedCollaboratorsKeepDependencyDirection() throws Exception {
+        // Inspect actual direct bytecode dependencies, including method bodies;
+        // imports/comments and a class staying under 600 lines cannot prove this.
+        Path classes = Path.of(io.opencode.loopper.domain.LoopSpec.class.getProtectionDomain()
+                .getCodeSource().getLocation().toURI());
+        StringWriter output = new StringWriter();
+        int result = ToolProvider.findFirst("jdeps").orElseThrow().run(
+                new PrintWriter(output), new PrintWriter(output), "--ignore-missing-deps",
+                "-verbose:class", "-filter:none", "-include",
+                "io\\.opencode\\.loopper\\.(domain\\..*|service\\.(PackageDesignScopeGuard|DesignerAcceptanceCandidateWorkflow)(\\$.*)?)",
+                classes.toString());
+        assertThat(result).as("jdeps must successfully inspect the compiled classes: %s", output).isZero();
+        Map<String, String> violations = new LinkedHashMap<>();
+        int inspected = 0;
+        for (String line : output.toString().lines().toList()) {
+            String[] fields = line.trim().split("\\s+");
+            if (fields.length < 3 || !fields[1].equals("->") || !fields[0].startsWith("io.opencode.loopper.")) continue;
+            inspected++;
+            String from = fields[0], to = fields[2];
+            boolean reverseDomain = from.startsWith("io.opencode.loopper.domain.")
+                    && to.matches("io\\.opencode\\.loopper\\.(api|config|lifecycle|persistence|runtime|service|verification|web)\\..*");
+            boolean facadeCoupling = from.startsWith("io.opencode.loopper.service.DesignerAcceptanceCandidateWorkflow")
+                    && to.equals("io.opencode.loopper.service.DesignerSessionService");
+            boolean scopeIo = from.startsWith("io.opencode.loopper.service.PackageDesignScopeGuard")
+                    // Frozen input exposes this immutable Row value; it is not a DB adapter.
+                    && !to.equals("io.opencode.loopper.persistence.DesignWorkPackageRow")
+                    && (to.matches("io\\.opencode\\.loopper\\.(api|persistence|runtime)\\..*")
+                    || to.matches("java\\.(net|sql)\\..*") || to.equals("java.nio.file.Files")
+                    || to.equals("java.lang.ProcessBuilder"));
+            if (reverseDomain || facadeCoupling || scopeIo) violations.put(from + " -> " + to, line.trim());
+        }
+        assertThat(inspected).as("Dependency inspection must not silently match no classes").isPositive();
+        assertThat(violations).as("Domain stays independent; scope policy has no direct I/O; workflow uses its narrow Port").isEmpty();
     }
 
     private static int lineCount(Path path) {

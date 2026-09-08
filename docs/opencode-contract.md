@@ -1,5 +1,22 @@
 # OpenCode 1.18.23 contract evidence
 
+## 当前通道与预算矩阵
+
+此表汇总当前默认与明确例外；下面带版本的章节说明协议演进。恢复必须使用持久化的通道、合同和预算，不能因为新默认改写旧 run。
+
+| 维度 | 当前规则 | 不能推导的结论 |
+| --- | --- | --- |
+| 传输与候选 | 新受管候选使用角色私有 MCP Tool；工作包 V2 使用 `submit_package_design_v2`。兼容通道按能力选择 Schema/marker，Router 固定 marker | Schema 可用不等于 MCP run 可以改用最终文本结算 |
+| 单次外部请求 | HTTP/进程请求按各自连接、请求和输出边界执行 | 单次超时不等于整个角色已终止 |
+| Router 总时限 | 未持久化外部 Session ID 前默认 240 秒；连接后等待真实终态或用户取消 | 不能补设连接后的墙钟/无活动超时 |
+| 公约生成总时限 | 已连接后无墙钟或无活动自动终止，等待真实终态或用户取消 | 不受通用“所有角色必须有限时”推导约束 |
+| 故事统计总时限 | 等待真实消息结果，不因本地轮询耗时自动认定失败；人工取消和消息隔离见 [统计合同](story-binding.md) | 统计失败/控制提示不是业务失败/业务输出 |
+| OpenCode 步数 | Designer（含工作包）、Implementation、Reviewer、Judge 免固定上限；Decomposer、Compiler、滚动规划、公约及普通非 Judge finalizer 为 24；Router 和统计为 2 个传输步 | Router 仍只有一次业务分类；步数不等于模型调用数或 MCP 提交次数 |
+| MCP 提交次数 | 七类角色默认无限；V70/V71 新 run 可冻结 2–16 次总提交。首投计入、幂等重放不计入；历史 NULL 保持无限 | 不覆盖角色时限、权限、停滞、取消和正向停止证明 |
+| Task/Attempt/费用 | 各自冻结的次数、时长、Token/成本和停滞策略独立计算 | 一个轴无限不能解除其他轴 |
+
+非豁免角色继续使用各自现有总时限。Provider `RETRY` 只在原 Session 内自恢复，不能证明停止，也不能暂停已有适用硬边界。
+
 The base HTTP contract was verified locally on 2026-08-04 with OpenCode 1.18.12.
 The managed MCP overlay, merge, bearer, reconnect, tool-name and Session-generation
 claims below were re-verified on 2026-08-31 with OpenCode 1.18.23 in isolated
@@ -703,7 +720,7 @@ runtime remains operator-owned and must expose the same variant for its selected
 DeepSeek model to get the direct schema path; otherwise the existing fresh-Session
 marker fallback remains the safe compatibility path.
 
-New Decomposer and current v7/frozen-v6 disambiguation records prefer JSON Schema unless capability is known
+Only compatibility-channel Decomposer and current v7/frozen-v6 disambiguation records prefer JSON Schema unless capability is known
 unavailable. OpenCode 1.18.12 through 1.18.18 are deterministically quarantined
 to marker mode because both endpoints of that patch range were verified to
 accept `prompt_async` and then reject their own stored Schema during message
@@ -732,8 +749,8 @@ polling the same Session and does not create a replacement local execution row,
 consume a Loopper retry budget, or persist a Session failure. Designer
 additionally keeps its workflow `RUNNING`, and an authorized auto mode is not
 blocked by that transient projection. Existing Designer, machine-role,
-Implementation, Judge, project-convention, publication, and local-sync timeouts
-remain authoritative. `RETRY` is not a terminal observation and cannot prove
+Implementation, Judge, publication, and local-sync timeouts
+remain authoritative where applicable; connected Router and project-convention runs retain the explicit no-wall-clock exceptions above. `RETRY` is not a terminal observation and cannot prove
 that a mutating writer stopped. A
 failed `StructuredOutput` tool part is the same explicit
 structured-output failure. Loopper also counts assistant/step-start records after

@@ -1,5 +1,9 @@
 # Seven-feature contract v1
 
+## 当前路径验收边界
+
+Stage 允许路径提示、OpenCode 执行权限、canonical containment 与 `GIT_DIFF` 结果验收分别生效。`allowedPaths` 不是所有文件变化的统一硬白名单：当前显式 GIT_DIFF 对范围外新增保留审计并自动允许，对范围外已有文件修改/删除/重命名转入本地逐文件决定。`forbiddenPaths`、删除保护、基线与 containment 始终阻断，不能通过人工范围放行绕过。V2 编译前范围守卫证明的是冻结授权与编译结果关系，不改变此运行期语义；详见本文件 GIT_DIFF 章节。
+
 This contract freezes the first local macOS/SQLite release of recovery, direct
 workspace admission, interactions, native verifiers, session checkpoints,
 insights and automation. Server state is authoritative; the browser never

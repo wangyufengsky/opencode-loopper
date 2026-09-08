@@ -7,11 +7,11 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.3.81`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.3.82`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 当前版本说明
 
-0.3.81 清理无调用方代码和重复的旧测试判定，修正候选提交次数的过时说明，并将已完成工单、历史发布和维护记录集中归档。软件行为与工作包 V2 默认设置保持。
+本次交付精简根公约、按目录加载开发规则，并提供隔离后端聚焦验证和版本/文档门禁。软件行为与工作包 V2 默认设置保持；开发方式见 [开发与交付](docs/development.md)。
 
 新建工作包设计默认使用 V2，自动冻结证据；`LOOPPER_PACKAGE_DESIGN_V2_ENABLED=false` 仅回退新会话。Stage/GIT_DIFF 的允许范围与删除保护由服务端校验，来源图不证明自然语言覆盖完整，详见 [V2 范围与启用说明](docs/package-design-v2-enablement.md)。
 
@@ -56,7 +56,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 - **原项目任务分支执行**：有 Git HEAD 的项目先检查登记目录；若存在未提交/未跟踪文件，任务进入人工处理弹窗，逐文件选择提交、stash 或移除，重新检查干净后再非交互 fetch 并切换到 `loopper/<任务名>` 分支。IDE 内 AgentBridge、OpenCode 和验证器因此共享同一目录与分支。其他项目在登记目录中直接执行，并保留私有基线用于差异检查。
 - **确定性验收**：支持进程、文件、Git 差异、HTTP、JSON、JUnit、浏览器和 SQLite 查询等验证器。
 - **按任务选择验收**：统一 `TestFrameworkPolicy` 识别 Maven、Gradle、npm、pytest 和 unittest 的聚焦目标与跳过参数。Java 生产代码继续强制聚焦测试；已有测试框架的软件变更或用户明确要求测试时使用 `PROCESS TEST`；无测试体系的独立 Python 脚本可使用 `SELF_CHECK` 加原生文件/数据断言；文档和一次性数据转换不生成 `PROCESS TEST`，分别使用 `DOCUMENT_STRUCTURE` 和 `TABULAR_DATA`。
-- **独立双评审**：确定性验证通过后，由只读需求评审员和风险评审员独立评审；两者必须来自同一冻结证据批次并都明确 `PASS` 才能成功。V63 的 MCP 路线只允许模型提交 `verdict / reason / evidenceIds`，证据 ID 来自服务端闭集，角色、批次、运行代次、最终状态与稳定 ID 均由服务端决定；机械错误可在同一 Session 继续通过 MCP 修正，不设提交次数上限；派发后零提交、超时、交互、传输、安全、停止不确定或跨代冲突失败关闭，不读取最终自由文本，也不自动回退 Legacy。
+- **独立双评审**：确定性验证通过后，由只读需求评审员和风险评审员独立评审；自动通过要求两者来自同一冻结证据批次并都明确 `PASS`。确定性执行通过且所有相关 Session 已停止后，用户可通过独立的本地人工认定进入结果处置；原 Judge verdict 保持不变。V63 的 MCP 路线只允许模型提交 `verdict / reason / evidenceIds`，证据 ID 来自服务端闭集，角色、批次、运行代次、最终状态与稳定 ID 均由服务端决定；机械错误可在同一 Session 继续通过 MCP 修正，默认不限次数，新 run 可冻结有限修正策略；派发后零提交、超时、交互、传输、安全、停止不确定或跨代冲突失败关闭，不读取最终自由文本，也不自动回退 Legacy。
 - **人工待办**：集中处理 Designer 或任务 Session 提出的 Question、Permission 和安全阻断，不把人工输入伪装成普通任务状态。
 - **失败恢复**：区分字段、验证、Session 和 Task 四层错误；可恢复的 Session 失败会创建新 Session，终止任务可派生 Recovery。
 - **证据与洞察**：保留阶段、尝试、Session、验证结果、评审、用量、成本和状态迁移记录。
@@ -140,7 +140,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.3.81.jar
+java -jar target/opencode-loopper-0.3.82.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -378,7 +378,7 @@ Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 或用�
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.3.81.jar`
+- `target/opencode-loopper-0.3.82.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -409,7 +409,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.3.81.jar`
+- `opencode-loopper-0.3.82.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -447,7 +447,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.3.81.jar \
+jar tf target/opencode-loopper-0.3.82.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -504,8 +504,9 @@ Windows PowerShell：
 ./scripts/verify.sh
 ```
 
-它执行 `./mvnw clean verify`，包括：
+它显式关闭开发 profile 后执行 Maven `clean verify`，包括：
 
+- 公约体积、文档文件链接、发布版本引用与工具回归检查；
 - Java 编译与测试；
 - 固定 Node.js `v22.14.0` 和 npm `10.9.2` 工具链准备；
 - `npm ci`、Vue/TypeScript 类型检查、Vitest 与 Vite 正式构建；
@@ -521,7 +522,7 @@ Windows PowerShell：
 
 生成的脱敏 JSON 只落在 `target/`：corpus 报告仅记录版本化预期并明确 `authoritativeGate=false`；同一冻结输入经过生产编译链得到的只读 shadow 是权威实测，但明确不是完整资格；只有 22 个精确生产 guard、7 个补充指标 guard 与 1 个同输入实测共同通过，并校验它们发布的有界实际计数后，qualification 报告才可标记 `authoritativeGate=true`。其中 4 条候选工作流还必须分别证明唯一最优 `0/0/0`、真实同分 `1/1/1..2`、不可枚举 `0/0/0`、路径安全阻断 `0/0/0` 的 `modelCalls / candidateSessions / candidateSubmissions`。三类报告都与真实弱模型/JAR 回放严格分开。样本范围、指标定义和失败条件见 [Compiler v7 评估合同](docs/weak-model-compiler-v7-evaluation.md)。
 
-生产代码同时遵守 [代码设计契约](docs/code-design-contract.md)：单一职责、组合优先、策略/工厂/适配器只用于真实变化轴，生产 Java 文件默认不超过 600 行。`CodeStructureContractTest` 对仍在拆分的历史大类使用只能下降的上限；修改这些文件时必须同步降低上限，不能用扩大阈值让构建通过。
+生产代码同时遵守 [代码设计契约](docs/code-design-contract.md)：单一职责、组合优先、策略/工厂/适配器只用于真实变化轴，生产 Java 文件默认不超过 600 行。`CodeStructureContractTest` 对仍在拆分的历史大类使用只能下降的上限；普通修改保持既有上限，职责拆分时降低上限；不能用扩大阈值让构建通过。聚焦命令与交付分类见 [开发流程](docs/development.md)。
 
 ### 版本发布
 
@@ -534,14 +535,7 @@ Windows PowerShell：
 - `start-windows.bat`；
 - `SHA256SUMS`。
 
-例如发布下一版本：
-
-```bash
-VERSION=0.3.44
-git tag "v$VERSION"
-git push origin main
-git push origin "v$VERSION"
-```
+版本准备使用 `node scripts/release-version.mjs next` 和 `set <version> --write`，先检查远端版本占用再完整验证。只有明确收到发版授权后才推送提交和标签，步骤见 [开发与交付](docs/development.md)。
 
 标签必须指向已经包含全部版本修改的提交，且不得复用或强制移动已发布标签。
 
@@ -577,7 +571,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.3.81.jar
+java -jar target/opencode-loopper-0.3.82.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。
