@@ -38,6 +38,23 @@ describe('task SSE reducer', () => {
     setActivePinia(createPinia())
     vi.resetAllMocks()
   })
+
+  it('binds server attempts to stages after audit and subsequent overview refreshes', async () => {
+    const original = structuredClone(demoTasks[0]!)
+    const stage = original.stages![0]!
+    const attempt = { ...stage.attempts[0]!, id: 'server-attempt', stageId: stage.id, sessionId: undefined }
+    const overview = { ...original, attempts: [], stages: [{ ...stage, attempts: [] }] }
+    apiMocks.getTaskOverview.mockResolvedValue(overview)
+    apiMocks.getTaskAudit.mockResolvedValue({ attempts: [attempt], errors: [], judges: [], artifacts: [] })
+    const store = useTaskStore()
+    store.usingDemo = false
+    store.tasks = []
+    await store.loadTaskOverview(original.id)
+    await store.loadTaskAudit(original.id)
+    expect(store.tasks[0]!.stages![0]!.attempts).toEqual([attempt])
+    await store.loadTaskOverview(original.id)
+    expect(store.tasks[0]!.stages![0]!.attempts).toEqual([attempt])
+  })
   it('updates task state from a persisted status event', () => {
     const next = reduceTaskEvent(demoTasks[0]!, { id: 'evt-1', type: 'task.status', at: '2026-08-04T10:20:00+08:00', data: { status: 'VERIFYING' } })
     expect(next.status).toBe('VERIFYING')

@@ -588,12 +588,14 @@ describe('Loopper REST contract adapter', () => {
   })
 
   it.each([
+    ['DOCUMENT_AUTHORING', 'OPEN_CODE_IMPLEMENTATION', { type: 'DOCUMENT_STRUCTURE', path: 'docs/design.md', documentAssertions: [{ type: 'TEXT_NON_EMPTY' }, { type: 'LOCAL_LINKS_VALID' }], criterionIds: ['WP-1-AC-1'] }],
     ['DOCUMENT_MATERIALIZATION', 'SERVER_DOCUMENT_MATERIALIZATION', { type: 'DOCUMENT_STRUCTURE', path: 'docs/design.md', documentAssertions: [{ type: 'TEXT_EXISTS', value: '设计' }, { type: 'TABLE_COUNT', expectedCount: 0 }], criterionIds: ['WP-1-AC-1'] }],
     ['TABULAR_CONVERSION', 'SERVER_TABULAR_CONVERSION', { type: 'TABULAR_DATA', path: 'output/table.md', tabularAssertions: [{ type: 'EQUIVALENT_TO', sourcePath: 'input.csv' }, { type: 'CELL_EQUALS', row: 0, column: 0, expectedValue: '' }], criterionIds: ['WP-1-AC-1'] }],
   ] as const)('preserves %s contracts through read, validation and save', async (stageKind, executionStrategy, verifier) => {
     const artifactSpec = { ...spec, schemaVersion: 'v2', stages: [{
       objective: '生成制品', allowedPaths: [verifier.path], forbiddenPaths: [], deliverables: [verifier.path],
-      implementationKind: 'NON_JAVA', workPackageId: 'WP-1', stageKind, executionStrategy, artifactPlanId: 'frozen-plan',
+      implementationKind: 'NON_JAVA', workPackageId: 'WP-1', stageKind, executionStrategy,
+      ...(stageKind === 'DOCUMENT_AUTHORING' ? {} : { artifactPlanId: 'frozen-plan' }),
       acceptanceCriteria: [{ id: 'WP-1-AC-1', description: '制品符合冻结计划', verificationMode: 'MACHINE' }], verifiers: [verifier],
     }] }
     const response = { id: 'artifact-draft', status: 'DRAFT_READY', updatedAt: 'now', spec: artifactSpec }

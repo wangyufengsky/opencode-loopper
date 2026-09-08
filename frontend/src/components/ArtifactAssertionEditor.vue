@@ -11,7 +11,7 @@ defineProps<{ verifier: LoopVerifierSpec }>()
       <div v-for="(assertion, index) in verifier.documentAssertions" :key="index" class="assertion-row">
         <el-select v-model="assertion.type" :aria-label="`文档断言 ${index + 1} 类型`">
           <el-option label="包含标题" value="HEADING_EXISTS" /><el-option label="包含正文" value="TEXT_EXISTS" />
-          <el-option label="表格数量" value="TABLE_COUNT" /><el-option label="本地链接有效" value="LOCAL_LINKS_VALID" />
+          <el-option label="文本非空" value="TEXT_NON_EMPTY" /><el-option label="表格数量" value="TABLE_COUNT" /><el-option label="本地链接有效" value="LOCAL_LINKS_VALID" />
         </el-select>
         <el-input v-if="['HEADING_EXISTS', 'TEXT_EXISTS'].includes(assertion.type)" v-model="assertion.value" :aria-label="`文档断言 ${index + 1} 期望文本`" placeholder="期望文本" />
         <el-input-number v-if="assertion.type === 'HEADING_EXISTS'" v-model="assertion.headingLevel" :min="1" :max="4" :aria-label="`文档断言 ${index + 1} 标题级别`" placeholder="任意级别" />

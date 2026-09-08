@@ -248,7 +248,9 @@ supplemental report but never covers a criterion or satisfies the focused
 Java-production gate.
 
 `DOCUMENT_STRUCTURE` parses only bounded Markdown or DOCX and supports heading,
-text, table-count, and local-link assertions. `TABULAR_DATA` parses bounded XLSX,
+text, nonempty-text (`TEXT_NON_EMPTY`), table-count, and local-link assertions.
+Nonempty/format checks do not establish semantic completeness; document authoring also
+requires its frozen JUDGE content criterion. `TABULAR_DATA` parses bounded XLSX,
 CSV, TSV, or Markdown tables and supports Sheet, row/column, header, cell, and
 source-equivalence assertions. Assertion DTOs contain no scripts, expressions, or
 formula evaluators. OOXML rejects macro formats, encryption, external relationships,

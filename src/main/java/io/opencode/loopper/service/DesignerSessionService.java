@@ -437,7 +437,7 @@ public class DesignerSessionService {
                 DesignWorkflowPhase.FINAL_REVIEW, null, "COMPLETED", session.designRevision() + 1,
                 session.redesignCount(), null, null);
         appendMessage(sessionId, DesignerActor.COMPILER,
-                "专属 Role Pack 已生成隐式工作包或有序章节包；服务端已确定性聚合、校验并冻结执行合同，尚未执行或写入目标文件。",
+                "执行目标、范围和验收条件已校验并冻结。最终确认并开始执行后生成交付物；需求确认稿不代表交付物已完成。",
                 "COMPLETED", null, "WP-1");
         publish(reviewing, "FINAL_REVIEW", DesignerActor.VALIDATOR, true, "", "直接制品方案等待最终确认");
     }

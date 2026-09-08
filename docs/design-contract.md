@@ -316,13 +316,21 @@ Historical `BLOCKED + TASK_PROFILE_DECISION_REQUIRED` rows use one bounded `RESU
 then apply the same auto-recommended profile decision on the next monitor tick. A manual
 override also resumes that obsolete blocker immediately without a second authorization.
 
-Simple Markdown/DOCX and one-shot tabular conversion still require the ordinary
+Markdown/DOCX authoring and one-shot tabular conversion still require the ordinary
 Designer question, then compile one implicit `WP-1` and enter `FINAL_REVIEW` without an
-AI Decomposer or repeated package Designer. Review Gate shows Markdown content, a DOCX
-structure summary, or source/target table conversion rules. No target file exists until
-the confirmed Task is explicitly started. A large document must expose 2–6 `##` sections;
-the server preserves those ordered structured fragments and aggregates the final plan
-deterministically. Simple maintenance likewise uses implicit `WP-1`, but Review Gate only
+AI Decomposer or repeated package Designer. For new document Tasks, Review Gate presents
+the frozen writing requirements, target format/path and separate format/content acceptance;
+the requirement discussion is never treated as finished document content. Both simple and
+multi-section documents use `DOCUMENT_AUTHORING / OPEN_CODE_IMPLEMENTATION`: only formal
+Start creates the authoring Session, which reads authorized sources and writes the requested
+complete document. Native verification requires parseable nonempty text and valid local links;
+a separate JUDGE criterion requires complete, source-accurate prose rather than a requirement
+snapshot, outline or plan. The existing dual-Judge and manual-decision boundaries remain intact.
+Requirement heading counts do not impose a 2–6 chapter limit on the final document.
+Tabular conversion retains the frozen server conversion plan. Existing frozen
+`SERVER_DOCUMENT_MATERIALIZATION` Tasks keep their original execution/recovery contract;
+new authoring behavior does not rewrite historical plans or artifacts. No target file exists until
+the confirmed Task is explicitly started. Simple maintenance likewise uses implicit `WP-1`, but Review Gate only
 becomes confirmable when exact relative targets and a no-delete `GIT_DIFF` are present.
 Read-only review/research ends at a report
 card with file/line/hash freshness and a “convert to design” action; that action creates

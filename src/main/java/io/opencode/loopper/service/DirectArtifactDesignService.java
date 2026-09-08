@@ -56,7 +56,7 @@ public class DirectArtifactDesignService {
         ProjectRow project = projects.get(session.projectId());
         return profile.intent() == TaskIntent.DATA_CONVERSION
                 ? compileTabular(session, profile, discussion.snapshotMarkdown(), draft, project)
-                : compileDocument(session, profile, discussion.snapshotMarkdown(), draft);
+                : compileDocument(profile, discussion.snapshotMarkdown(), draft);
     }
 
     public Result compilePackagedDocument(String sessionId, TaskProfileService.View profile) {
@@ -64,65 +64,30 @@ public class DirectArtifactDesignService {
                 || profile.workflowTemplate() != io.opencode.loopper.domain.WorkflowTemplate.PACKAGED_ARTIFACT) {
             throw new ConflictException("PACKAGED_DOCUMENT_PROFILE_INVALID", "当前画像不是大型分包文档");
         }
-        DesignDiscussionRevisionRow discussion = mapper.findLatestDesignDiscussionRevision(sessionId, "REQUIREMENT")
-                .orElseThrow(() -> new ConflictException("REQUIREMENT_DISCUSSION_MISSING", "需求讨论快照不存在"));
-        long sections = discussion.snapshotMarkdown().lines().filter(line -> line.matches("^##\\s+.+")).count();
-        if (sections < 2 || sections > 6) {
-            throw new BadRequestException("PACKAGED_DOCUMENT_SECTION_LIMIT",
-                    "大型文档必须在确认稿中包含 2-6 个二级章节；每章作为冻结结构化片段后由服务端按顺序聚合");
-        }
-        DesignerSessionRow session = mapper.findDesignerSession(sessionId)
-                .orElseThrow(() -> new NotFoundException("Designer session not found: " + sessionId));
-        if (profile.id() == null || !"FROZEN".equals(profile.state())) {
-            throw new ConflictException("TASK_PROFILE_NOT_FROZEN", "分包文档方案只能从冻结任务画像生成");
-        }
-        LoopDraftRow draft = drafts.get(session.loopDraftId());
-        String markdown = discussion.snapshotMarkdown();
-        boolean docx = profile.artifactKinds().contains(ArtifactKind.DOCX);
-        String target = paths(markdown).stream()
-                .filter(value -> docx ? extension(value).equals("docx") : List.of("md", "markdown").contains(extension(value)))
-                .findFirst().orElse(docx ? "output/document.docx" : "output/document.md");
-        String title = title(markdown, draft.goal());
-        PackagedDocument packaged = packagedDocument(markdown, title);
-        ArtifactPlanRow plan = artifacts.registerDocumentPlan(session.id(), profile.id(),
-                new ArtifactMaterializationService.DocumentPlan(target, docx ? "DOCX" : "MARKDOWN", title,
-                        packaged.preamble(), packaged.chapters()));
-        artifacts.freeze(plan.id());
-        List<String> criterionIds = packaged.chapters().stream()
-                .map(chapter -> chapter.workPackageId() + "-AC-1").toList();
-        List<LoopSpec.DocumentAssertion> assertions = packaged.chapters().stream()
-                .map(chapter -> new LoopSpec.DocumentAssertion("HEADING_EXISTS", chapter.title(), null, 2)).toList();
-        LoopSpec.VerifierSpec verifier = verifier("DOCUMENT_STRUCTURE", target, criterionIds, assertions, List.of());
-        List<LoopSpec.AcceptanceCriterion> criteria = packaged.chapters().stream()
-                .map(chapter -> new LoopSpec.AcceptanceCriterion(chapter.workPackageId() + "-AC-1",
-                        "聚合文档包含已冻结章节：" + chapter.title())).toList();
-        LoopSpec.StageSpec stage = new LoopSpec.StageSpec("按冻结章节包顺序聚合并验收 " + target,
-                List.of(target), List.of(), List.of(target), List.of(verifier), criteria,
-                null, ImplementationKind.NON_JAVA, "WP-1", StageKind.DOCUMENT_MATERIALIZATION,
-                ExecutionStrategy.SERVER_DOCUMENT_MATERIALIZATION, plan.id());
-        return updateDraft(draft, title, markdown, stage, plan.id());
+        return compile(sessionId, profile);
     }
 
-    private Result compileDocument(DesignerSessionRow session, TaskProfileService.View profile, String markdown,
+    private Result compileDocument(TaskProfileService.View profile, String markdown,
                                    LoopDraftRow draft) {
         boolean docx = profile.artifactKinds().contains(ArtifactKind.DOCX);
         String target = paths(markdown).stream()
                 .filter(value -> docx ? extension(value).equals("docx") : List.of("md", "markdown").contains(extension(value)))
                 .findFirst().orElse(docx ? "output/document.docx" : "output/document.md");
-        String title = title(markdown, draft.goal());
-        List<ArtifactMaterializationService.DocumentBlock> blocks = documentBlocks(markdown, title);
-        ArtifactPlanRow plan = artifacts.registerDocumentPlan(session.id(), profile.id(),
-                new ArtifactMaterializationService.DocumentPlan(target, docx ? "DOCX" : "MARKDOWN", title, blocks));
-        artifacts.freeze(plan.id());
         String criterionId = "WP-1-AC-1";
         LoopSpec.VerifierSpec verifier = verifier("DOCUMENT_STRUCTURE", target, List.of(criterionId),
-                List.of(new LoopSpec.DocumentAssertion("TEXT_EXISTS", title, null, null)), List.of());
-        LoopSpec.StageSpec stage = new LoopSpec.StageSpec("按冻结文档方案生成并验收 " + target,
-                List.of(target), List.of(), List.of(target), List.of(verifier),
-                List.of(new LoopSpec.AcceptanceCriterion(criterionId, "生成的文档包含已确认标题和正文结构")),
-                null, ImplementationKind.NON_JAVA, "WP-1", StageKind.DOCUMENT_MATERIALIZATION,
-                ExecutionStrategy.SERVER_DOCUMENT_MATERIALIZATION, plan.id());
-        return updateDraft(draft, title, markdown, stage, plan.id());
+                List.of(new LoopSpec.DocumentAssertion("TEXT_NON_EMPTY", null, null, null),
+                        new LoopSpec.DocumentAssertion("LOCAL_LINKS_VALID", null, null, null)), List.of());
+        List<LoopSpec.AcceptanceCriterion> criteria = List.of(
+                new LoopSpec.AcceptanceCriterion(criterionId, "交付文档可解析、文本非空且本地链接有效"),
+                new LoopSpec.AcceptanceCriterion("WP-1-AC-2", "正文完整满足冻结需求中的范围、深度、事实来源和验收意向",
+                        "JUDGE", "逐项对照冻结需求审阅实际交付正文；需要依据仓库资料的结论必须与来源核对。"
+                        + "需求快照、写作计划、章节提纲或仅罗列要求均不能替代成品正文；结构检查通过不能证明内容完成。",
+                        "通用格式检查不能证明自然语言内容的完整性与事实准确性"));
+        LoopSpec.StageSpec stage = new LoopSpec.StageSpec("依据冻结需求读取相关资料并撰写完整文档 " + target,
+                List.of(target), List.of(), List.of(target), List.of(verifier), criteria,
+                null, ImplementationKind.NON_JAVA, "WP-1", StageKind.DOCUMENT_AUTHORING,
+                ExecutionStrategy.OPEN_CODE_IMPLEMENTATION, null);
+        return updateDraft(draft, draft.goal(), markdown, stage, null);
     }
 
     private Result compileTabular(DesignerSessionRow session, TaskProfileService.View profile, String markdown,
@@ -188,123 +153,5 @@ public class DirectArtifactDesignService {
         return dot < 0 ? "" : path.substring(dot + 1).toLowerCase(Locale.ROOT);
     }
 
-    private static String title(String markdown, String fallback) {
-        for (String line : markdown.split("\\R")) {
-            String value = line.trim();
-            if (value.startsWith("# ") && value.length() > 2) return value.substring(2).trim();
-        }
-        return fallback == null || fallback.isBlank() ? "文档" : fallback.trim();
-    }
-
-    private static List<ArtifactMaterializationService.DocumentBlock> documentBlocks(String markdown, String title) {
-        List<ArtifactMaterializationService.DocumentBlock> blocks = new ArrayList<>();
-        List<String> paragraph = new ArrayList<>();
-        List<String> items = new ArrayList<>();
-        boolean code = false;
-        StringBuilder codeText = new StringBuilder();
-        String[] sourceLines = markdown.split("\\R", -1);
-        for (int lineIndex = 0; lineIndex < sourceLines.length; lineIndex++) {
-            String line = sourceLines[lineIndex];
-            if (line.trim().startsWith("```")) {
-                flushParagraph(blocks, paragraph); flushList(blocks, items);
-                if (code) { blocks.add(new ArtifactMaterializationService.DocumentBlock("CODE", 0, codeText.toString(), List.of(), List.of())); codeText.setLength(0); }
-                code = !code; continue;
-            }
-            if (code) { if (!codeText.isEmpty()) codeText.append('\n'); codeText.append(line); continue; }
-            if (tableStart(sourceLines, lineIndex)) {
-                flushParagraph(blocks, paragraph); flushList(blocks, items);
-                List<List<String>> rows = new ArrayList<>();
-                rows.add(tableCells(line));
-                lineIndex += 2;
-                while (lineIndex < sourceLines.length && sourceLines[lineIndex].contains("|")) {
-                    rows.add(tableCells(sourceLines[lineIndex]));
-                    lineIndex++;
-                }
-                lineIndex--;
-                blocks.add(new ArtifactMaterializationService.DocumentBlock("TABLE", 0, "", List.of(), rows));
-                continue;
-            }
-            Matcher heading = Pattern.compile("^(#{1,4})\\s+(.+)$").matcher(line.trim());
-            if (heading.matches()) {
-                flushParagraph(blocks, paragraph); flushList(blocks, items);
-                String value = heading.group(2).trim();
-                if (!(heading.group(1).length() == 1 && value.equals(title))) {
-                    blocks.add(new ArtifactMaterializationService.DocumentBlock("HEADING", heading.group(1).length(), value, List.of(), List.of()));
-                }
-            } else if (line.trim().matches("^[-*+]\\s+.+")) {
-                flushParagraph(blocks, paragraph); items.add(line.trim().substring(2).trim());
-            } else if (line.isBlank()) {
-                flushParagraph(blocks, paragraph); flushList(blocks, items);
-            } else {
-                flushList(blocks, items); paragraph.add(line.trim());
-            }
-        }
-        flushParagraph(blocks, paragraph); flushList(blocks, items);
-        if (code && !codeText.isEmpty()) blocks.add(new ArtifactMaterializationService.DocumentBlock("CODE", 0, codeText.toString(), List.of(), List.of()));
-        if (blocks.isEmpty()) blocks.add(new ArtifactMaterializationService.DocumentBlock("PARAGRAPH", 0, title, List.of(), List.of()));
-        return List.copyOf(blocks);
-    }
-
-    private static boolean tableStart(String[] lines, int index) {
-        if (index + 1 >= lines.length || !lines[index].contains("|")) return false;
-        String separator = lines[index + 1].trim();
-        if (separator.startsWith("|")) separator = separator.substring(1);
-        if (separator.endsWith("|")) separator = separator.substring(0, separator.length() - 1);
-        String[] cells = separator.split("\\|", -1);
-        return cells.length > 0 && java.util.Arrays.stream(cells)
-                .allMatch(value -> value.trim().matches(":?-{3,}:?"));
-    }
-
-    private static List<String> tableCells(String line) {
-        String value = line.strip();
-        if (value.startsWith("|")) value = value.substring(1);
-        if (value.endsWith("|")) value = value.substring(0, value.length() - 1);
-        List<String> cells = new ArrayList<>();
-        for (String cell : value.split("(?<!\\\\)\\|", -1)) {
-            cells.add(cell.strip().replace("\\|", "|").replace("\\\\", "\\"));
-        }
-        return List.copyOf(cells);
-    }
-
-    private static PackagedDocument packagedDocument(String markdown, String title) {
-        List<String> preamble = new ArrayList<>();
-        List<ArtifactMaterializationService.DocumentChapter> chapters = new ArrayList<>();
-        String chapterTitle = null;
-        List<String> chapterLines = new ArrayList<>();
-        for (String line : markdown.split("\\R", -1)) {
-            Matcher heading = Pattern.compile("^##\\s+(.+)$").matcher(line.trim());
-            if (heading.matches()) {
-                if (chapterTitle != null) {
-                    chapters.add(new ArtifactMaterializationService.DocumentChapter("WP-" + (chapters.size() + 1),
-                            chapterTitle, documentBlocks(String.join("\n", chapterLines), chapterTitle)));
-                }
-                chapterTitle = heading.group(1).trim();
-                chapterLines = new ArrayList<>();
-            } else if (chapterTitle == null) preamble.add(line);
-            else chapterLines.add(line);
-        }
-        if (chapterTitle != null) {
-            chapters.add(new ArtifactMaterializationService.DocumentChapter("WP-" + (chapters.size() + 1),
-                    chapterTitle, documentBlocks(String.join("\n", chapterLines), chapterTitle)));
-        }
-        return new PackagedDocument(documentBlocks(String.join("\n", preamble), title), List.copyOf(chapters));
-    }
-
-    private static void flushParagraph(List<ArtifactMaterializationService.DocumentBlock> blocks, List<String> lines) {
-        if (!lines.isEmpty()) {
-            blocks.add(new ArtifactMaterializationService.DocumentBlock("PARAGRAPH", 0, String.join(" ", lines), List.of(), List.of()));
-            lines.clear();
-        }
-    }
-
-    private static void flushList(List<ArtifactMaterializationService.DocumentBlock> blocks, List<String> items) {
-        if (!items.isEmpty()) {
-            blocks.add(new ArtifactMaterializationService.DocumentBlock("LIST", 0, "", List.copyOf(items), List.of()));
-            items.clear();
-        }
-    }
-
     public record Result(String artifactPlanId, LoopSpec loopSpec) { }
-    private record PackagedDocument(List<ArtifactMaterializationService.DocumentBlock> preamble,
-                                    List<ArtifactMaterializationService.DocumentChapter> chapters) { }
 }

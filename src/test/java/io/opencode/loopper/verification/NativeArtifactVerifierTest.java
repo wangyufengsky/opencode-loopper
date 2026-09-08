@@ -19,6 +19,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class NativeArtifactVerifierTest {
     @TempDir Path root;
 
+    @Test void documentTextMustBeNonEmptyWithoutPretendingToVerifyItsMeaning() throws Exception {
+        LoopSpec.VerifierSpec spec = verifier("DOCUMENT_STRUCTURE", "target.md",
+                List.of(new LoopSpec.DocumentAssertion("TEXT_NON_EMPTY", null, null, null)), List.of());
+        Files.writeString(root.resolve("target.md"), "  \n\n");
+        assertThat(new NativeVerifierRegistry().verify(context(), spec).state()).isEqualTo(VerificationState.FAIL);
+        Files.writeString(root.resolve("target.md"), "# 实际文档\n\n正文仍须独立评审。\n");
+        assertThat(new NativeVerifierRegistry().verify(context(), spec).state()).isEqualTo(VerificationState.PASS);
+    }
+
     @Test void validatesMarkdownStructureAndLocalLinks() throws Exception {
         Files.writeString(root.resolve("target.md"), "# Title\n\n## Scope\n\nBody\n\n[local](source.md)\n\n| A |\n| --- |\n| 1 |\n");
         Files.writeString(root.resolve("source.md"), "source");

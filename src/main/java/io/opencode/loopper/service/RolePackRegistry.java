@@ -41,7 +41,7 @@ public final class RolePackRegistry {
         }
         if (intent == TaskIntent.DOCUMENT_AUTHORING) {
             return new RolePack("document-markdown-docx", VERSION, "文档制品设计师",
-                    ExecutionStrategy.SERVER_DOCUMENT_MATERIALIZATION, TestPolicy.NOT_APPLICABLE);
+                    ExecutionStrategy.OPEN_CODE_IMPLEMENTATION, TestPolicy.NOT_APPLICABLE);
         }
         if (intent == TaskIntent.DATA_CONVERSION) {
             return new RolePack("tabular-conversion", VERSION, "表格转换设计师",

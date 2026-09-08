@@ -73,6 +73,7 @@ public final class RolePromptComposer {
             case "software-node" -> "Use package.json scripts and the detected Node/Vue conventions. A required test must use a focused npm target and cannot be replaced by build output.";
             case "software-mixed" -> "Respect each frozen technology boundary. Use only its repository-native test framework and keep cross-stack business acceptance separate from build evidence.";
             case "software-generic" -> "Use only the frozen repository-native runtime and test conventions. Do not infer Java, Maven, Node, or Python commands from generic software wording.";
+            case "document-markdown-docx" -> "Act as the document author. Read the relevant authorized repository sources and write the complete deliverable at the frozen path in its requested format. The requirement snapshot is an instruction, not finished document content: never copy it as the deliverable. Cover every requested topic at the required depth, verify factual claims against sources, and identify assumptions. Do not modify source code, configuration or tests, install dependencies, publish, or run unrelated builds/tests. A Markdown file is not a DOCX file; use available local tooling for a genuine DOCX or report a blocker.";
             case "local-maintenance" -> "Modify only the exact frozen files. Never delete files, control services, publish Git state, or write to external systems.";
             default -> "Follow the frozen verifier contract and repository conventions without assuming Java or Maven.";
         };

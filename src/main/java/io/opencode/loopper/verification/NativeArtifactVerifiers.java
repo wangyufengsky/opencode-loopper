@@ -52,6 +52,7 @@ final class DocumentStructureVerifier implements NativeVerifierHandler {
                 case "HEADING_EXISTS" -> snapshot.headings().stream().anyMatch(heading ->
                         (assertion.headingLevel() == null || heading.level() == assertion.headingLevel())
                                 && assertion.value() != null && heading.text().contains(assertion.value()));
+                case "TEXT_NON_EMPTY" -> !snapshot.text().isBlank();
                 case "TEXT_EXISTS" -> assertion.value() != null && snapshot.text().contains(assertion.value());
                 case "TABLE_COUNT" -> snapshot.tableCount() == (assertion.expectedCount() == null ? 0 : assertion.expectedCount());
                 case "LOCAL_LINKS_VALID" -> snapshot.invalidLocalLinks().isEmpty();

@@ -216,6 +216,7 @@ export interface Stage {
   testPolicy?: 'REQUIRED' | 'OPTIONAL' | 'NOT_APPLICABLE'
   technologies?: string[]
   status: StageStatus
+  attemptCount?: number
   attempts: Attempt[]
 }
 
@@ -802,7 +803,7 @@ export interface BrowserAssertion {
   expectedCount?: number
   attribute?: string
 }
-export interface DocumentAssertion { type: 'HEADING_EXISTS' | 'TEXT_EXISTS' | 'TABLE_COUNT' | 'LOCAL_LINKS_VALID'; value?: string; expectedCount?: number; headingLevel?: number }
+export interface DocumentAssertion { type: 'HEADING_EXISTS' | 'TEXT_EXISTS' | 'TEXT_NON_EMPTY' | 'TABLE_COUNT' | 'LOCAL_LINKS_VALID'; value?: string; expectedCount?: number; headingLevel?: number }
 export interface TabularAssertion { type: 'SHEET_EXISTS' | 'ROW_COUNT' | 'COLUMN_COUNT' | 'HEADER_EQUALS' | 'CELL_EQUALS' | 'EQUIVALENT_TO'; sheet?: string; row?: number; column?: number; expectedValue?: string; expectedCount?: number; sourcePath?: string }
 
 interface LoopVerifierFields {
@@ -856,7 +857,7 @@ export interface LoopSpec {
   context: string
   stages: Array<{
     workPackageId?: string
-    stageKind?: 'SOFTWARE_IMPLEMENTATION' | 'DOCUMENT_MATERIALIZATION' | 'TABULAR_CONVERSION' | 'READ_ONLY_ANALYSIS' | 'LOCAL_MAINTENANCE' | 'LEGACY_SOFTWARE'
+    stageKind?: 'SOFTWARE_IMPLEMENTATION' | 'DOCUMENT_AUTHORING' | 'DOCUMENT_MATERIALIZATION' | 'TABULAR_CONVERSION' | 'READ_ONLY_ANALYSIS' | 'LOCAL_MAINTENANCE' | 'LEGACY_SOFTWARE'
     executionStrategy?: 'OPEN_CODE_IMPLEMENTATION' | 'SERVER_DOCUMENT_MATERIALIZATION' | 'SERVER_TABULAR_CONVERSION' | 'READ_ONLY_REPORT'
     artifactPlanId?: string
     objective: string

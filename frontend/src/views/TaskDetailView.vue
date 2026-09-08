@@ -50,10 +50,15 @@ const taskErrors = computed<ErrorEvent[]>(() => {
 const judges = computed(() => task.value?.judges ?? [])
 const artifacts = computed(() => task.value?.artifacts ?? store.artifacts.filter((artifact) => artifact.taskId === id.value))
 const verificationRows = computed(() => attempts.value.flatMap((attempt) => attempt.verifiers))
-const changedFiles = computed(() => new Set(verificationRows.value.flatMap((verifier) => {
-  const paths = verifier.evidence?.changedPaths
-  return Array.isArray(paths) ? paths.filter((path): path is string => typeof path === 'string') : []
-})).size)
+const changedFiles = computed(() => {
+  const diff = artifacts.value.find(artifact => artifact.kind === 'DIFF' && artifact.title === 'task-diff.json')
+  const paths = diff?.metadata?.changedPaths
+  if (Array.isArray(paths)) return new Set(paths.filter((path): path is string => typeof path === 'string')).size
+  return new Set(verificationRows.value.flatMap(verifier => {
+    const observed = verifier.evidence?.changedPaths
+    return Array.isArray(observed) ? observed.filter((path): path is string => typeof path === 'string') : []
+  })).size
+})
 const passedVerifications = computed(() => verificationRows.value.filter((verifier) => verifier.status === 'PASS').length)
 const judgeRetrying = ref(false)
 const loopRetrying = ref(false)

@@ -105,6 +105,7 @@ public interface ReadModelMapper {
     @Select("""
             SELECT s.id,s.ordinal,s.objective,s.state,s.allowed_paths_json,s.forbidden_paths_json,
               s.deliverables_json,s.verifiers_json,s.created_at,s.updated_at,s.work_package_id,
+              s.stage_kind,s.execution_strategy,s.role_pack_id,s.role_pack_version,s.test_policy,s.technologies_json,
               COUNT(a.id) AS attempt_count
             FROM stage s LEFT JOIN attempt a ON a.stage_id=s.id
             WHERE s.task_id=#{taskId} GROUP BY s.id ORDER BY s.ordinal
@@ -198,7 +199,11 @@ public interface ReadModelMapper {
             UNION ALL
             SELECT 'ARTIFACT',json_object(
               'id',id,'kind',kind,'name',name,'contentType',content_type,
-              'metadataSummaryJson',CASE WHEN kind='DIFF' THEN metadata_json ELSE '{}' END,
+              'metadataSummaryJson',CASE WHEN kind IN ('DIFF','GIT_DIFF') THEN json_object(
+                'changedPaths',json_extract(metadata_json,'$.changedPaths'),
+                'untrackedPaths',json_extract(metadata_json,'$.untrackedPaths'),
+                'changeTypes',json_extract(metadata_json,'$.changeTypes'),
+                'baselineScope',json_extract(metadata_json,'$.baselineScope')) ELSE '{}' END,
               'contentBytes',length(CAST(content AS BLOB)),'attemptId',attempt_id,
               'judgeRunId',judge_run_id,'createdAt',created_at)
             FROM task_artifact WHERE task_id=#{taskId}
@@ -207,7 +212,11 @@ public interface ReadModelMapper {
 
     @Select("""
             SELECT id,task_id,attempt_id,judge_run_id,kind,name,content_type,
-              CASE WHEN kind='DIFF' THEN metadata_json ELSE '{}' END AS metadata_summary_json,
+              CASE WHEN kind IN ('DIFF','GIT_DIFF') THEN json_object(
+                'changedPaths',json_extract(metadata_json,'$.changedPaths'),
+                'untrackedPaths',json_extract(metadata_json,'$.untrackedPaths'),
+                'changeTypes',json_extract(metadata_json,'$.changeTypes'),
+                'baselineScope',json_extract(metadata_json,'$.baselineScope')) ELSE '{}' END AS metadata_summary_json,
               length(CAST(content AS BLOB)) AS content_bytes,created_at
             FROM task_artifact WHERE task_id=#{taskId} ORDER BY created_at DESC
             """)

@@ -10,6 +10,12 @@ import org.junit.jupiter.api.Test;
 class RolePackRegistryTest {
     private final RolePackRegistry registry = new RolePackRegistry();
 
+    @Test void newDocumentProfilesRequireAnAuthoringSessionEvenInJavaProjects() {
+        var pack = registry.resolve(TaskIntent.DOCUMENT_AUTHORING, List.of("java"), List.of(ArtifactKind.DOCX));
+        assertThat(pack.executionStrategy().name()).isEqualTo("OPEN_CODE_IMPLEMENTATION");
+        assertThat(pack.defaultTestPolicy().name()).isEqualTo("NOT_APPLICABLE");
+    }
+
     @Test void aliasesFromOneTechnologyFamilyDoNotBecomeMixedStack() {
         RolePackRegistry.RolePack pack = registry.resolve(TaskIntent.SOFTWARE_CHANGE,
                 List.of("java", "Java 8", "Spring Boot", "Maven", "JUnit 5", "Surefire"),

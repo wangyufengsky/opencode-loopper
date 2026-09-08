@@ -1552,6 +1552,58 @@ class DesignerSessionMcpIntegrationTest {
                 .isEqualTo("OPEN_CODE_IMPLEMENTATION");
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"md", "docx"})
+    void documentRequirementStartsAuthoringInsteadOfDeliveringTheRequirementSnapshot(String extension) throws Exception {
+        ProjectRow project = project("document-authoring");
+        LoopDraftRow draft = drafts.create(v2DocumentationSpec(project.id()));
+        String requirement = "# 需求快照：框架详细设计\n\n交付 `docs/detail-design." + extension + "`，阅读仓库资料，撰写类职责、方法语义和时序；本稿只是写作要求。";
+        fake().setDesignerOutput(requirement);
+        DesignerSessionRow session = prepareReviewingSession(project.id(), draft.id(),
+                "编写 " + (extension.equals("docx") ? "DOCX" : "Markdown") + " 详细设计文档 `docs/detail-design." + extension + "`");
+        TaskProfileService.View profile = taskProfiles.freeze(session.id());
+        directArtifacts.compile(session.id(), profile);
+        designerSessions.completeDirectArtifactDesign(session.id());
+        LoopSpec spec = drafts.spec(drafts.get(draft.id()));
+        assertThat(spec.context()).contains("本稿只是写作要求");
+        assertThat(spec.stages()).singleElement().satisfies(stage -> {
+            assertThat(stage.executionStrategy().name()).isEqualTo("OPEN_CODE_IMPLEMENTATION");
+            assertThat(stage.artifactPlanId()).isNull();
+            assertThat(stage.acceptanceCriteria()).anySatisfy(criterion -> {
+                assertThat(criterion.verificationMode()).isEqualTo("JUDGE");
+                assertThat(criterion.judgeRubric()).contains("需求快照");
+            });
+        });
+        TaskRow task = drafts.confirm(draft.id(), "文档撰写回归");
+        assertThat(Path.of(project.rootPath()).resolve("docs/detail-design." + extension)).doesNotExist();
+        tasks.start(task.id());
+        assertThat(mapper.listSessions(task.id())).singleElement().satisfies(writer -> {
+            assertThat(writer.externalSessionId()).isNotBlank();
+            assertThat(fake().promptForSession(writer.externalSessionId())).contains("本稿只是写作要求");
+        });
+        assertThat(tasks.get(task.id()).state()).isEqualTo("RUNNING");
+        assertThat(mapper.listTaskArtifacts(task.id())).noneMatch(artifact ->
+                "SERVER_MATERIALIZATION".equals(artifact.kind()) || "JUDGE_RESULT".equals(artifact.kind()));
+        var writer = mapper.listSessions(task.id()).getFirst();
+        fake().setSessionStatus(writer.externalSessionId(), "RUNNING", "正在撰写正文");
+        assertThatThrownBy(() -> tasks.verify(task.id())).isInstanceOf(ConflictException.class);
+        assertThat(tasks.judges(task.id())).isEmpty();
+        Path output = Path.of(tasks.get(task.id()).worktreePath()).resolve("docs/detail-design." + extension);
+        Files.createDirectories(output.getParent());
+        String body = "# 框架详细设计\n\n## 类职责与方法语义\n\n这是根据项目资料撰写的正文。\n\n## 时序\n\n调用方依次进入处理器与结果汇总。\n";
+        if (extension.equals("docx")) {
+            try (var document = new org.apache.poi.xwpf.usermodel.XWPFDocument(); var stream = Files.newOutputStream(output)) {
+                document.createParagraph().createRun().setText(body);
+                document.write(stream);
+            }
+        } else Files.writeString(output, body);
+        fake().setSessionStatus(writer.externalSessionId(), "COMPLETED", null);
+        tasks.verify(task.id());
+        assertThat(tasks.verifications(tasks.attempts(task.id()).getFirst().id())).singleElement()
+                .satisfies(result -> assertThat(result.state()).isEqualTo("PASS"));
+        assertThat(tasks.judges(task.id())).hasSize(2);
+    }
+
     @Test
     void largeDocumentAndSafeMaintenanceUseDedicatedImplicitPackageFlows() throws Exception {
         ProjectRow documentProject = project("packaged-document");
@@ -1566,22 +1618,12 @@ class DesignerSessionMcpIntegrationTest {
         LoopSpec documentSpec = drafts.spec(drafts.get(documentDraft.id()));
         assertThat(documentProfile.workflowTemplate().name()).isEqualTo("PACKAGED_ARTIFACT");
         assertThat(documentSpec.stages()).singleElement().satisfies(stage -> {
-            assertThat(stage.stageKind().name()).isEqualTo("DOCUMENT_MATERIALIZATION");
+            assertThat(stage.stageKind().name()).isEqualTo("DOCUMENT_AUTHORING");
+            assertThat(stage.executionStrategy().name()).isEqualTo("OPEN_CODE_IMPLEMENTATION");
             assertThat(stage.verifiers()).extracting(LoopSpec.VerifierSpec::type)
                     .containsExactly("DOCUMENT_STRUCTURE");
-            try {
-                var storedPlan = mapper.findArtifactPlan(stage.artifactPlanId()).orElseThrow();
-                var plan = json.readValue(storedPlan.planJson(),
-                        io.opencode.loopper.verification.ArtifactMaterializationService.DocumentPlan.class);
-                assertThat(plan.chapters()).extracting(
-                        io.opencode.loopper.verification.ArtifactMaterializationService.DocumentChapter::workPackageId)
-                        .containsExactly("WP-1", "WP-2");
-                assertThat(plan.chapters()).extracting(
-                        io.opencode.loopper.verification.ArtifactMaterializationService.DocumentChapter::title)
-                        .containsExactly("安装", "运维");
-            } catch (Exception failure) {
-                throw new AssertionError(failure);
-            }
+            assertThat(stage.artifactPlanId()).isNull();
+            assertThat(documentSpec.context()).contains("安装说明", "运维说明");
         });
 
         ProjectRow maintenanceProject = project("safe-maintenance");

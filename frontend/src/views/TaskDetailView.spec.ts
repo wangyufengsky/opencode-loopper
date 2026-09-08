@@ -60,6 +60,22 @@ describe('TaskDetailView judge action', () => {
     })
   })
 
+  it('counts the persisted task diff when a document verifier has no changedPaths', async () => {
+    store.tasks = [{ ...reviewTask, artifacts: [{ id: 'document-diff', kind: 'DIFF', title: 'task-diff.json',
+      createdAt: 'now', content: '', metadata: { changedPaths: ['docs/detail-design.md'] } }] }]
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/tasks/:id', component: { template: '<div />' } }] })
+    await router.push('/tasks/task-review')
+    await router.isReady()
+    const wrapper = mount(TaskDetailView, { global: { plugins: [router, ElementPlus], stubs: {
+      Icon: true, PageHeader: true, StatusBadge: true, StageRail: true, AttemptTimeline: true,
+      LayeredErrorPanel: true, SessionMonitorPanel: true, JudgeReviewCard: true,
+      TaskAuditEvidencePanel: true, TaskPublicationActions: true,
+    } } })
+    await flushPromises()
+    const count = wrapper.findAll('dl > div').find(item => item.find('dt').text() === '文件变更')
+    expect(count?.find('dd').text()).toBe('1')
+  })
+
   it('offers a confirmed cancel action while the task is waiting for input', async () => {
     const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/tasks/:id', component: { template: '<div />' } }] })
     await router.push('/tasks/task-review')

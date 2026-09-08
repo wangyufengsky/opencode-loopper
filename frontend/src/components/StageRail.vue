@@ -58,7 +58,7 @@ function stageIcon(status: Stage['status']) {
           </div>
           <footer>
             <span v-if="stage.rolePackId"><Icon icon="lucide:package-check" width="12" />{{ rolePackLabel(stage.rolePackId) }}<template v-if="stage.testPolicy"> · {{ testPolicyLabel(stage.testPolicy) }}</template></span>
-            <span><Icon icon="lucide:rotate-cw" width="12" />{{ stage.attempts.length ? `${stage.attempts.length} 次尝试` : '尚未尝试' }}</span>
+            <span><Icon icon="lucide:rotate-cw" width="12" />{{ (stage.attemptCount ?? stage.attempts.length) ? `${stage.attemptCount ?? stage.attempts.length} 次尝试` : '尚未尝试' }}</span>
           </footer>
         </article>
       </div>

@@ -194,6 +194,7 @@ export const useTaskStore = defineStore('task', () => {
     if (previous?.version !== undefined && overview.version !== undefined && overview.version < previous.version) return previous
     const detail = previous ? {
       ...overview,
+      stages: overview.stages?.map(stage => ({ ...stage, attempts: (previous.attempts ?? []).filter(attempt => attempt.stageId === stage.id) })),
       attempts: previous.attempts,
       artifacts: previous.artifacts,
       errors: overview.errors ?? previous.errors,
@@ -213,7 +214,9 @@ export const useTaskStore = defineStore('task', () => {
       const audit = await api.getTaskAudit(id)
       if (request !== auditRequests.get(id) || usingDemo.value) return
       artifacts.value = [...artifacts.value.filter((artifact) => artifact.taskId !== id), ...(audit.artifacts ?? [])]
-      tasks.value = tasks.value.map((task) => task.id === id ? { ...task, ...audit } : task)
+      tasks.value = tasks.value.map((task) => task.id === id ? { ...task, ...audit,
+        stages: task.stages?.map(stage => ({ ...stage, attempts: (audit.attempts ?? []).filter(attempt => attempt.stageId === stage.id) })),
+      } : task)
     } catch (cause) {
       if (request === auditRequests.get(id)) auditErrors.value[id] = cause instanceof Error ? cause.message : '审计信息加载失败'
     } finally {

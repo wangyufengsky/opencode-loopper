@@ -144,6 +144,7 @@ class TaskReadServiceIntegrationTest {
         var audit = reads.audit("task-a");
 
         assertThat(overview.attemptCount()).isEqualTo(1);
+        assertThat(overview.stages().getFirst().attemptCount()).isEqualTo(1);
         assertThat(audit.attempts()).hasSize(1);
         assertThat(audit.attempts().getFirst().verifications().getFirst().evidenceSummary().has("output")).isFalse();
         assertThat(audit.artifacts().getFirst().contentBytes()).isEqualTo(32_000);
@@ -151,6 +152,19 @@ class TaskReadServiceIntegrationTest {
         assertThat(reads.artifactContent("task-a", "artifact-a").content()).hasSize(32_000);
         assertThatThrownBy(() -> reads.verificationEvidence("task-b", "verification-a"))
                 .isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void gitDiffSummaryExposesChangedPathsWithoutLoadingBodyOrUnrelatedMetadata() {
+        jdbc.update("INSERT INTO task_artifact(id,task_id,attempt_id,kind,name,content_type,content,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
+                "artifact-diff", "task-a", "attempt-a", "GIT_DIFF", "task-diff.json", "application/json",
+                "body must stay lazy", "{\"changedPaths\":[\"docs/design.md\"],\"untrackedPaths\":[\"docs/design.md\"],\"changeTypes\":{\"docs/design.md\":\"NEW\"},\"output\":\"excluded\"}", "now");
+        assertThat(reads.audit("task-a").artifacts()).filteredOn(artifact -> artifact.kind().equals("GIT_DIFF"))
+                .singleElement().satisfies(artifact -> {
+                    assertThat(artifact.metadataSummary().path("changedPaths").get(0).asText()).isEqualTo("docs/design.md");
+                    assertThat(artifact.metadataSummary().has("output")).isFalse();
+                    assertThat(json.writeValueAsString(artifact)).doesNotContain("body must stay lazy");
+                });
     }
 
     @Test

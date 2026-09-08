@@ -175,13 +175,13 @@ function parseLoopSpec(value: unknown): LoopSpec {
       const item = asRecord(stage)
       const runtime = asRecord(item.verificationRuntime)
       const readiness = asRecord(runtime.readiness)
-      checkOptionalEnum(item.stageKind, ['SOFTWARE_IMPLEMENTATION', 'DOCUMENT_MATERIALIZATION', 'TABULAR_CONVERSION', 'READ_ONLY_ANALYSIS', 'LOCAL_MAINTENANCE', 'LEGACY_SOFTWARE'], '阶段类型')
+      checkOptionalEnum(item.stageKind, ['SOFTWARE_IMPLEMENTATION', 'DOCUMENT_AUTHORING', 'DOCUMENT_MATERIALIZATION', 'TABULAR_CONVERSION', 'READ_ONLY_ANALYSIS', 'LOCAL_MAINTENANCE', 'LEGACY_SOFTWARE'], '阶段类型')
       checkOptionalEnum(item.executionStrategy, ['OPEN_CODE_IMPLEMENTATION', 'SERVER_DOCUMENT_MATERIALIZATION', 'SERVER_TABULAR_CONVERSION', 'READ_ONLY_REPORT'], '执行方式')
       checkOptionalEnum(item.implementationKind, ['JAVA_PRODUCTION', 'JAVA_TEST_ONLY', 'NON_JAVA'], '实施类型')
       checkOptionalEnum(readiness.matchMode, ['EXISTS', 'EXACT', 'CONTAINS'], '就绪检查匹配方式')
       return {
         ...(asString(item.workPackageId) ? { workPackageId: asString(item.workPackageId) } : {}),
-        ...(['SOFTWARE_IMPLEMENTATION', 'DOCUMENT_MATERIALIZATION', 'TABULAR_CONVERSION', 'READ_ONLY_ANALYSIS', 'LOCAL_MAINTENANCE', 'LEGACY_SOFTWARE'].includes(asString(item.stageKind)) ? { stageKind: asString(item.stageKind) as NonNullable<LoopSpec['stages'][number]['stageKind']> } : {}),
+        ...(['SOFTWARE_IMPLEMENTATION', 'DOCUMENT_AUTHORING', 'DOCUMENT_MATERIALIZATION', 'TABULAR_CONVERSION', 'READ_ONLY_ANALYSIS', 'LOCAL_MAINTENANCE', 'LEGACY_SOFTWARE'].includes(asString(item.stageKind)) ? { stageKind: asString(item.stageKind) as NonNullable<LoopSpec['stages'][number]['stageKind']> } : {}),
         ...(['OPEN_CODE_IMPLEMENTATION', 'SERVER_DOCUMENT_MATERIALIZATION', 'SERVER_TABULAR_CONVERSION', 'READ_ONLY_REPORT'].includes(asString(item.executionStrategy)) ? { executionStrategy: asString(item.executionStrategy) as NonNullable<LoopSpec['stages'][number]['executionStrategy']> } : {}),
         ...(asString(item.artifactPlanId) ? { artifactPlanId: asString(item.artifactPlanId) } : {}),
         objective: asString(item.objective), allowedPaths: asArray(item.allowedPaths).map(String), forbiddenPaths: asArray(item.forbiddenPaths).map(String), deliverables: asArray(item.deliverables).map(String), verifiers: asArray(item.verifiers).map(parseVerifier),
@@ -374,7 +374,7 @@ function normalizeStage(value: unknown, attempts: Attempt[]): Stage {
   const testPolicy = asString(raw.testPolicy)
   return {
     id, ordinal: asNumber(raw.ordinal) + 1, workPackageId: asString(raw.workPackageId) || undefined,
-    objective: asString(raw.objective), status, attempts: attempts.filter((attempt) => attempt.stageId === id),
+    objective: asString(raw.objective), status, attemptCount: typeof raw.attemptCount === 'number' ? raw.attemptCount : undefined, attempts: attempts.filter((attempt) => attempt.stageId === id),
     stageKind: asString(raw.stageKind) || undefined, executionStrategy: asString(raw.executionStrategy) || undefined,
     rolePackId: asString(raw.rolePackId) || undefined, rolePackVersion: asString(raw.rolePackVersion) || undefined,
     testPolicy: (['REQUIRED', 'OPTIONAL', 'NOT_APPLICABLE'].includes(testPolicy) ? testPolicy : undefined) as Stage['testPolicy'],

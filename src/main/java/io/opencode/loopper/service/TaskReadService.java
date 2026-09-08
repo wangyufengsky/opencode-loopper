@@ -11,7 +11,6 @@ import io.opencode.loopper.persistence.ErrorSummaryRow;
 import io.opencode.loopper.persistence.JudgeSummaryRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.ReadModelMapper;
-import io.opencode.loopper.persistence.StageRow;
 import io.opencode.loopper.persistence.TaskAuditAttemptRow;
 import io.opencode.loopper.persistence.TaskAuditEntryRow;
 import io.opencode.loopper.persistence.TaskArtifactSummaryRow;
@@ -209,16 +208,12 @@ public class TaskReadService {
                 row.createdAt(), row.updatedAt());
     }
 
-    private StageSummary stage(StageRow row) {
-        return new StageSummary(row.id(), row.ordinal(), row.objective(), row.state(), node(row.allowedPathsJson()),
-                node(row.forbiddenPathsJson()), node(row.deliverablesJson()), node(row.verifiersJson()),
-                row.createdAt(), row.updatedAt(), row.workPackageId());
-    }
-
     private StageSummary stage(TaskStageReadRow row) {
         return new StageSummary(row.id(), row.ordinal(), row.objective(), row.state(), node(row.allowedPathsJson()),
                 node(row.forbiddenPathsJson()), node(row.deliverablesJson()), node(row.verifiersJson()),
-                row.createdAt(), row.updatedAt(), row.workPackageId());
+                row.createdAt(), row.updatedAt(), row.workPackageId(), row.attemptCount(),
+                row.stageKind(), row.executionStrategy(), row.rolePackId(), row.rolePackVersion(),
+                row.testPolicy(), node(row.technologiesJson()));
     }
 
     private VerificationSummary verificationSummary(VerificationSummaryRow row) {
@@ -256,7 +251,8 @@ public class TaskReadService {
 
     private ArtifactSummary artifactSummary(JsonNode row) {
         return new ArtifactSummary(text(row, "id"), text(row, "kind"), text(row, "name"),
-                text(row, "contentType"), node(text(row, "metadataSummaryJson")),
+                text(row, "contentType"), row.path("metadataSummaryJson").isObject()
+                        ? row.path("metadataSummaryJson") : node(text(row, "metadataSummaryJson")),
                 row.path("contentBytes").asLong(), text(row, "attemptId"), text(row, "judgeRunId"),
                 text(row, "createdAt"));
     }
@@ -371,7 +367,9 @@ public class TaskReadService {
                                       boolean canReplanRemaining, boolean canAddCorrectionPackage) { }
     public record StageSummary(String id, int ordinal, String objective, String status, JsonNode allowedPaths,
                                JsonNode forbiddenPaths, JsonNode deliverables, JsonNode verifiers,
-                               String startedAt, String updatedAt, String workPackageId) { }
+                               String startedAt, String updatedAt, String workPackageId, int attemptCount,
+                               String stageKind, String executionStrategy, String rolePackId, String rolePackVersion,
+                               String testPolicy, JsonNode technologies) { }
     public record WorkPackageSummary(String id, int ordinal, String status, int stageCount,
                                      int completedStages, int attemptCount, int attemptLimit) { }
     public record TaskAudit(List<AttemptSummary> attempts, List<ErrorSummary> errors,

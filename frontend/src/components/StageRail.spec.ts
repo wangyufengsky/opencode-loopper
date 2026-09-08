@@ -4,6 +4,13 @@ import StageRail from '@/components/StageRail.vue'
 import type { Stage } from '@/types/domain'
 
 describe('StageRail', () => {
+  it('shows the persisted attempt count before audit details have loaded', () => {
+    const wrapper = mount(StageRail, { props: { stages: [{ id: 'document', ordinal: 1,
+      objective: '撰写文档', status: 'SUCCEEDED', attemptCount: 1, attempts: [] }] },
+      global: { stubs: { Icon: true } } })
+    expect(wrapper.text()).toContain('1 次尝试')
+    expect(wrapper.text()).not.toContain('尚未尝试')
+  })
   it('shows complete stage objectives in separate cards connected by a full circuit segment', () => {
     const stages: Stage[] = [
       { id: 'stage-1', ordinal: 1, objective: '实现完整功能，不截断任何阶段目标内容', status: 'SUCCEEDED', attempts: [{ id: 'a1' } as Stage['attempts'][number]] },

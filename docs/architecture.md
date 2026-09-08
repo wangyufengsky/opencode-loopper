@@ -222,14 +222,16 @@ until confirmation or override; equivalent later reroutes may carry forward the 
 choice. Profile references are copied to
 requirement/decomposition/package/Task and Recovery reuses the frozen values.
 
-The server owns five workflow templates. Software and complex maintenance use the full
-package lifecycle. Simple documents and tabular conversions compile an implicit `WP-1`
-and frozen `artifact_plan` without Decomposer or package Designer repetition. A normal
-Attempt is created only after Start; `SERVER_DOCUMENT_MATERIALIZATION` and
-`SERVER_TABULAR_CONVERSION` write atomically and proceed directly to native verification
-without an OpenCode Session. Large documents require 2–6 level-two sections; their bounded
-structured blocks are kept in source order and deterministically aggregated into one
-frozen plan. Every decomposed software package freezes its own detected technology list,
+Workflow selection remains server-owned. Documents and tabular conversions compile an
+implicit `WP-1` without Decomposer or package Designer repetition. New Markdown/DOCX
+Tasks freeze writing requirements and `DOCUMENT_AUTHORING / OPEN_CODE_IMPLEMENTATION`,
+not a document plan made from the requirement snapshot. Formal Start creates an authoring
+Session under the ordinary budget, lease, workspace, retry and confirmed-stop rules;
+verification and dual review follow only after the writer has completed. Format evidence is
+separate from semantic content acceptance. Simple and multi-section document routes share
+this authoring behavior. Existing frozen `SERVER_DOCUMENT_MATERIALIZATION` plans and
+`SERVER_TABULAR_CONVERSION` still write atomically and proceed to native verification
+without an OpenCode Session. Every decomposed software package freezes its own detected technology list,
 Role Pack version, execution strategy and test policy before its Designer/Compiler prompt.
 Current Role Pack `2026-08-dynamic-v7` inherits the v6 grouping of normalized technology aliases into
 Java, Python, Node and Other software families. Node matching precedes Java so JavaScript is not Java;
@@ -461,7 +463,8 @@ synchronization outside model calls.
 
 V21 also stores an immutable Stage-start production-Java path/hash baseline.
 That baseline and its focused-test gate apply only to OpenCode software implementation stages;
-server-owned document and tabular stages proceed directly from materialization to their native verifier.
+historical server-owned document and tabular stages proceed directly from materialization to their native verifier.
+New document authoring stages use NON_JAVA and the normal writer-stop proof before verification.
 For v2 `JAVA_PRODUCTION`, added, modified, or rename-target production `.java`
 files require a successful focused Maven/Gradle test from the same Stage. Test
 trees and generated `target`/`build` trees are excluded; deletion alone remains
