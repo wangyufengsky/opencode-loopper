@@ -82,6 +82,13 @@ resource errors remain observable as HTTP 404 responses.
    fresh Session will continue the Loop.
 4. Task failures stop scheduling and use the red terminal treatment.
 
+Designer 的读取、编辑、创建、校验与保存必须无损保留全部验收器断言，以及 Stage 的
+`stageKind`、`executionStrategy`、`artifactPlanId` 和 `workPackageId`。文档与表格断言
+使用结构化控件展示；缺少断言时明确指出阶段、验收器及补充动作。遇到当前版本未知的
+阶段、执行、实施、验收或命令用途枚举时阻断读取，不丢弃字段或回退到默认策略。
+时长接受整数秒数和可转换为整数秒的 `P1D`、`PT2H` 等格式；无效输入在提交前报错，
+不得静默替换成默认超时。服务端继续负责规则、数值范围与执行身份的最终校验。
+
 ## Designer 附件交互
 
 Designer 起始页和会话工作台的完整内容区都接受文件拖放；拖放只把文件加入当前 composer 的暂存区。未暂存文件时只显示“添加上下文文件”轻量入口，不渲染空卡或常驻限制说明；暂存后必须在输入框下方显示独立“文件上下文”卡片，表头显示当前“整体需求”或具体工作包作用域及数量，每个文件按行显示名称、类型、大小和移除操作，移除最后一个文件后整卡隐藏。文件选择按钮与拖放等价；正文为空时禁止发送纯附件消息。一次最多 10 个文件，卡片内提供 20 MiB/文件与失败保留提示，服务端仍是 50 MiB/会话等限制的权威门禁。

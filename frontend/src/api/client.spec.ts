@@ -587,6 +587,86 @@ describe('Loopper REST contract adapter', () => {
     expect(fetchMock.mock.calls[2]?.[0]).toBe('/api/loop-drafts/validate')
   })
 
+  it.each([
+    ['DOCUMENT_MATERIALIZATION', 'SERVER_DOCUMENT_MATERIALIZATION', { type: 'DOCUMENT_STRUCTURE', path: 'docs/design.md', documentAssertions: [{ type: 'TEXT_EXISTS', value: '设计' }, { type: 'TABLE_COUNT', expectedCount: 0 }], criterionIds: ['WP-1-AC-1'] }],
+    ['TABULAR_CONVERSION', 'SERVER_TABULAR_CONVERSION', { type: 'TABULAR_DATA', path: 'output/table.md', tabularAssertions: [{ type: 'EQUIVALENT_TO', sourcePath: 'input.csv' }, { type: 'CELL_EQUALS', row: 0, column: 0, expectedValue: '' }], criterionIds: ['WP-1-AC-1'] }],
+  ] as const)('preserves %s contracts through read, validation and save', async (stageKind, executionStrategy, verifier) => {
+    const artifactSpec = { ...spec, schemaVersion: 'v2', stages: [{
+      objective: '生成制品', allowedPaths: [verifier.path], forbiddenPaths: [], deliverables: [verifier.path],
+      implementationKind: 'NON_JAVA', workPackageId: 'WP-1', stageKind, executionStrategy, artifactPlanId: 'frozen-plan',
+      acceptanceCriteria: [{ id: 'WP-1-AC-1', description: '制品符合冻结计划', verificationMode: 'MACHINE' }], verifiers: [verifier],
+    }] }
+    const response = { id: 'artifact-draft', status: 'DRAFT_READY', updatedAt: 'now', spec: artifactSpec }
+    const fetchMock = vi.fn().mockResolvedValueOnce(json(response))
+      .mockResolvedValueOnce(json({ valid: true, errors: [] })).mockResolvedValueOnce(json(response))
+    vi.stubGlobal('fetch', fetchMock)
+    const draft = await api.getDraft('artifact-draft')
+    await api.validateDraft(draft.spec)
+    await api.updateDraft(draft.id, draft.spec)
+    for (const call of fetchMock.mock.calls.slice(1)) {
+      expect(JSON.parse(String(call[1]?.body)).spec.stages[0]).toEqual(artifactSpec.stages[0])
+    }
+  })
+
+  it('round-trips all 13 native verifier types without dropping zero, false or exact text', async () => {
+    const verifiers = [
+      { type: 'PROCESS', command: ['node', 'check.js'], processPurpose: 'SELF_CHECK', outputContains: 'ok', testTargets: ['check.js'] },
+      { type: 'FILE_EXISTS', path: 'legacy.txt' }, { type: 'FILE_NOT_EXISTS', path: 'forbidden.txt' },
+      { type: 'GIT_DIFF', requireChanges: false, forbidDeletes: false, allowedPaths: ['docs/**'], forbiddenPaths: ['.env'] },
+      { type: 'HTTP_STATUS', url: 'http://127.0.0.1/health', httpMethod: 'HEAD', expectedStatus: 204 },
+      { type: 'JSON_PATH', url: 'http://127.0.0.1/data', jsonPath: '$.name', expectedValue: '', matchMode: 'EXACT' },
+      { type: 'FILE_CONTENT', path: 'exact.txt', expectedContent: '  exact text\n', matchMode: 'EXACT' },
+      { type: 'FILE_HASH', path: 'data.bin', expectedSha256: 'a'.repeat(64) }, { type: 'JUNIT_XML', path: 'tests.xml' },
+      { type: 'BROWSER', url: 'http://127.0.0.1/', assertions: [{ type: 'COUNT', selector: '.error', expectedCount: 0 }, { type: 'ATTRIBUTE_EQUALS', selector: 'a', attribute: 'href', value: '/docs' }] },
+      { type: 'DATABASE_QUERY', path: 'data.db', sql: 'SELECT * FROM items', expectedRowCount: 0 },
+      { type: 'DOCUMENT_STRUCTURE', path: 'docs/output.md', documentAssertions: [{ type: 'HEADING_EXISTS', value: '标题', headingLevel: 2 }, { type: 'TABLE_COUNT', expectedCount: 0 }, { type: 'LOCAL_LINKS_VALID' }] },
+      { type: 'TABULAR_DATA', path: 'output.csv', tabularAssertions: [{ type: 'SHEET_EXISTS', sheet: 'Sheet1' }, { type: 'ROW_COUNT', expectedCount: 0 }, { type: 'COLUMN_COUNT', expectedCount: 2 }, { type: 'HEADER_EQUALS', expectedValue: 'a|b' }, { type: 'CELL_EQUALS', row: 0, column: 0, expectedValue: '' }, { type: 'EQUIVALENT_TO', sourcePath: 'input.csv' }] },
+    ].map(verifier => ({ ...verifier, criterionIds: ['AC-1'] }))
+    const wire = { ...spec, budget: { maxTotalTokens: 12345, maxCostAmount: '0.50', currency: 'USD' }, stages: [{ ...spec.stages[0], verifiers }] }
+    const response = { id: 'all-types', status: 'DRAFT_READY', updatedAt: 'now', spec: wire }
+    const fetchMock = vi.fn().mockImplementation(async () => json(response))
+    vi.stubGlobal('fetch', fetchMock)
+    const draft = await api.getDraft('all-types')
+    await api.createDraft(draft.spec)
+    await api.validateDraft(draft.spec)
+    await api.updateDraft(draft.id, draft.spec)
+    for (const call of fetchMock.mock.calls.slice(1)) {
+      const sent = JSON.parse(String(call[1]?.body)).spec
+      expect(sent.stages[0].verifiers).toEqual(verifiers)
+      expect(sent.budget).toEqual(wire.budget)
+    }
+  })
+
+  it.each(['stageKind', 'executionStrategy', 'implementationKind'])('rejects unknown %s instead of dropping execution policy', async field => {
+    const wire = structuredClone(spec)
+    Object.assign(wire.stages[0]!, { [field]: 'FUTURE_POLICY' })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({ id: 'unknown', status: 'DRAFT_READY', spec: wire })))
+    await expect(api.getDraft('unknown')).rejects.toThrow('原规范未修改')
+  })
+
+  it.each(['processPurpose', 'verificationMode', 'readinessMatchMode'])('rejects unknown %s instead of selecting a default', async field => {
+    const wire = structuredClone(spec)
+    if (field === 'processPurpose') Object.assign(wire.stages[0]!.verifiers[0]!, { processPurpose: 'FUTURE_POLICY' })
+    if (field === 'verificationMode') Object.assign(wire.stages[0]!, { acceptanceCriteria: [{ id: 'AC-1', description: 'valid', verificationMode: 'FUTURE_POLICY' }] })
+    if (field === 'readinessMatchMode') Object.assign(wire.stages[0]!, { verificationRuntime: { startCommand: ['node', 'server.js'], readiness: { path: '/health', matchMode: 'FUTURE_POLICY' } } })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({ id: 'unknown', status: 'DRAFT_READY', spec: wire })))
+    await expect(api.getDraft('unknown')).rejects.toThrow('原规范未修改')
+  })
+
+  it.each([['P1D', 86400], [' PT2H ', 7200], ['P1DT30M', 88200], [' 123 ', 123]])('preserves duration %s in seconds', async (duration, seconds) => {
+    const fetchMock = vi.fn().mockResolvedValue(json({ valid: true }))
+    vi.stubGlobal('fetch', fetchMock)
+    await api.validateDraft({ ...spec, limits: { ...spec.limits, maxDuration: String(duration) } })
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)).spec.limits.maxDurationSeconds).toBe(seconds)
+  })
+
+  it.each(['nonsense', '', 'PT', 'P', 'P1DT', '-1'])('rejects invalid duration %s without submitting defaults', async duration => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(api.validateDraft({ ...spec, limits: { ...spec.limits, attemptTimeout: duration } })).rejects.toThrow('单次尝试超时格式无效')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('reads legacy PROCESS argv without writing the alias back', async () => {
     const legacy = structuredClone(spec) as unknown as { stages: Array<{ verifiers: unknown[] }> }
     legacy.stages[0]!.verifiers = [{ type: 'PROCESS', argv: ['mvn', 'test'] }]

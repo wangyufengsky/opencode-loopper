@@ -215,7 +215,7 @@ function containsChinese(value: string) {
   return /[\u3400-\u9fff]/.test(value)
 }
 
-export function userFacingError(value: unknown, fallback = '操作未完成，请重试') {
+export function userFacingError(value: unknown, fallback = '操作未完成，请重试'): string {
   const raw = value instanceof Error ? value.message : typeof value === 'string' ? value : ''
   if (!raw.trim()) return fallback
   const envelope = raw.match(/^\s*SYSTEM_ERROR\[(FIELD|VERIFICATION|SESSION|TASK)\]\s*:?\s*/)
@@ -223,6 +223,13 @@ export function userFacingError(value: unknown, fallback = '操作未完成，�
   if (/'file part media type [a-z0-9.+\/-]+' functionality not supported\./i.test(detail)) {
     return '当前模型不支持直接读取此附件格式。请升级 Loopper 或换用支持该格式的模型后新建设计；无需清理项目文件。'
   }
+  const artifactErrors = [...detail.matchAll(/stages\[(\d+)\]\.verifiers\[(\d+)\]\.(documentAssertions|tabularAssertions): (?:DOCUMENT_STRUCTURE|TABULAR_DATA) requires bounded assertions/g)]
+  if (artifactErrors.length) return detail.split(/[；\n]/).filter(part => part.trim()).map(part => {
+    const match = artifactErrors.find(error => part.includes(error[0]))
+    return match
+      ? `阶段 ${Number(match[1]) + 1} 的验收器 ${Number(match[2]) + 1} 缺少${match[3] === 'documentAssertions' ? '文档' : '表格'}断言，请在验收器中添加至少一项检查后重试。`
+      : userFacingError(part, '另有输入校验错误，请检查执行规范')
+  }).join('；')
   const codes = detail.match(/\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/g) ?? []
   const attachmentCode = codes.find(code => code.startsWith('ATTACHMENT_MCP_'))
   if (attachmentCode) return errorRecoveryMessages[attachmentCode] ?? '附件资源读取失败，请检查运行环境和文件后重试。'

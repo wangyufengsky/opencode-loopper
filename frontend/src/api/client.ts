@@ -106,6 +106,7 @@ function parseVerifier(value: unknown): LoopVerifierSpec {
   const rawMatchMode = asString(raw.matchMode).toUpperCase()
   if (rawMatchMode && rawMatchMode !== 'EXISTS' && rawMatchMode !== 'EXACT' && rawMatchMode !== 'CONTAINS') throw new TypeError(`Unsupported JSON match mode: ${rawMatchMode}`)
   const matchMode: 'EXISTS' | 'EXACT' | 'CONTAINS' | undefined = rawMatchMode === 'EXISTS' || rawMatchMode === 'EXACT' || rawMatchMode === 'CONTAINS' ? rawMatchMode : undefined
+  checkOptionalEnum(raw.processPurpose, ['BUILD', 'TEST', 'SELF_CHECK'], '验收命令用途')
   const common = {
     ...(httpMethod ? { httpMethod } : {}),
     ...(typeof raw.requireChanges === 'boolean' ? { requireChanges: raw.requireChanges } : {}),
@@ -157,6 +158,12 @@ function parseVerifier(value: unknown): LoopVerifierSpec {
   }
 }
 
+function checkOptionalEnum(value: unknown, choices: readonly string[], field: string) {
+  if (value !== undefined && value !== null && !choices.includes(asString(value))) {
+    throw new TypeError(`${field} 含有当前版本不支持的选项，请升级后重试，原规范未修改`)
+  }
+}
+
 function parseLoopSpec(value: unknown): LoopSpec {
   const raw = asRecord(value)
   const limits = asRecord(raw.limits)
@@ -168,6 +175,10 @@ function parseLoopSpec(value: unknown): LoopSpec {
       const item = asRecord(stage)
       const runtime = asRecord(item.verificationRuntime)
       const readiness = asRecord(runtime.readiness)
+      checkOptionalEnum(item.stageKind, ['SOFTWARE_IMPLEMENTATION', 'DOCUMENT_MATERIALIZATION', 'TABULAR_CONVERSION', 'READ_ONLY_ANALYSIS', 'LOCAL_MAINTENANCE', 'LEGACY_SOFTWARE'], '阶段类型')
+      checkOptionalEnum(item.executionStrategy, ['OPEN_CODE_IMPLEMENTATION', 'SERVER_DOCUMENT_MATERIALIZATION', 'SERVER_TABULAR_CONVERSION', 'READ_ONLY_REPORT'], '执行方式')
+      checkOptionalEnum(item.implementationKind, ['JAVA_PRODUCTION', 'JAVA_TEST_ONLY', 'NON_JAVA'], '实施类型')
+      checkOptionalEnum(readiness.matchMode, ['EXISTS', 'EXACT', 'CONTAINS'], '就绪检查匹配方式')
       return {
         ...(asString(item.workPackageId) ? { workPackageId: asString(item.workPackageId) } : {}),
         ...(['SOFTWARE_IMPLEMENTATION', 'DOCUMENT_MATERIALIZATION', 'TABULAR_CONVERSION', 'READ_ONLY_ANALYSIS', 'LOCAL_MAINTENANCE', 'LEGACY_SOFTWARE'].includes(asString(item.stageKind)) ? { stageKind: asString(item.stageKind) as NonNullable<LoopSpec['stages'][number]['stageKind']> } : {}),
@@ -177,6 +188,7 @@ function parseLoopSpec(value: unknown): LoopSpec {
         ...(['JAVA_PRODUCTION', 'JAVA_TEST_ONLY', 'NON_JAVA'].includes(asString(item.implementationKind)) ? { implementationKind: asString(item.implementationKind) as 'JAVA_PRODUCTION' | 'JAVA_TEST_ONLY' | 'NON_JAVA' } : {}),
         acceptanceCriteria: asArray(item.acceptanceCriteria).map((criterion) => {
           const rawCriterion = asRecord(criterion)
+          checkOptionalEnum(rawCriterion.verificationMode, ['MACHINE', 'JUDGE', 'BOTH'], '验收方式')
           const mode = asString(rawCriterion.verificationMode, 'MACHINE')
           return {
             id: asString(rawCriterion.id),
@@ -1072,10 +1084,15 @@ function normalizeDesignerStreamEvent(value: unknown): DesignerStreamEvent {
   }
 }
 
-function durationSeconds(value: string, fallback: number): number {
-  if (/^\d+$/.test(value)) return Number(value)
-  const match = /^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/i.exec(value)
-  return match ? Number(match[1] ?? 0) * 3600 + Number(match[2] ?? 0) * 60 + Number(match[3] ?? 0) : fallback
+function durationSeconds(value: string, field: string): number {
+  const input = value.trim()
+  if (/^\d+$/.test(input) && Number.isSafeInteger(Number(input))) return Number(input)
+  const match = /^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/i.exec(input)
+  if (match && match.slice(1).some(part => part !== undefined) && !/T$/i.test(input)) {
+    const seconds = Number(match[1] ?? 0) * 86400 + Number(match[2] ?? 0) * 3600 + Number(match[3] ?? 0) * 60 + Number(match[4] ?? 0)
+    if (Number.isSafeInteger(seconds)) return seconds
+  }
+  throw new TypeError(`${field}格式无效，请填写整数秒数或 ISO-8601 时长（例如 PT2H、P1D）`)
 }
 
 function backendLoopSpec(spec: LoopSpec): JsonRecord {
@@ -1086,6 +1103,9 @@ function backendLoopSpec(spec: LoopSpec): JsonRecord {
     context: spec.context,
     stages: spec.stages.map((stage) => ({
       ...(stage.workPackageId ? { workPackageId: stage.workPackageId } : {}),
+      ...(stage.stageKind ? { stageKind: stage.stageKind } : {}),
+      ...(stage.executionStrategy ? { executionStrategy: stage.executionStrategy } : {}),
+      ...(stage.artifactPlanId ? { artifactPlanId: stage.artifactPlanId } : {}),
       objective: stage.objective,
       allowedPaths: stage.allowedPaths,
       forbiddenPaths: stage.forbiddenPaths,
@@ -1108,13 +1128,15 @@ function backendLoopSpec(spec: LoopSpec): JsonRecord {
         ...(verifier.httpMethod ? { httpMethod: verifier.httpMethod } : {}),
         ...(typeof verifier.expectedStatus === 'number' ? { expectedStatus: verifier.expectedStatus } : {}),
         ...(verifier.jsonPath ? { jsonPath: verifier.jsonPath } : {}),
-        ...(verifier.expectedValue ? { expectedValue: verifier.expectedValue } : {}),
+        ...(typeof verifier.expectedValue === 'string' ? { expectedValue: verifier.expectedValue } : {}),
         ...(verifier.matchMode ? { matchMode: verifier.matchMode } : {}),
         ...(verifier.expectedContent ? { expectedContent: verifier.expectedContent } : {}),
         ...(verifier.expectedSha256 ? { expectedSha256: verifier.expectedSha256 } : {}),
         ...(verifier.sql ? { sql: verifier.sql } : {}),
         ...(typeof verifier.expectedRowCount === 'number' ? { expectedRowCount: verifier.expectedRowCount } : {}),
         ...(verifier.assertions?.length ? { assertions: verifier.assertions } : {}),
+        ...(verifier.documentAssertions?.length ? { documentAssertions: verifier.documentAssertions } : {}),
+        ...(verifier.tabularAssertions?.length ? { tabularAssertions: verifier.tabularAssertions } : {}),
         ...(verifier.criterionIds?.length ? { criterionIds: verifier.criterionIds } : {}),
         ...(verifier.processPurpose ? { processPurpose: verifier.processPurpose } : {}),
         ...(verifier.testTargets?.length ? { testTargets: verifier.testTargets } : {}),
@@ -1125,9 +1147,9 @@ function backendLoopSpec(spec: LoopSpec): JsonRecord {
       maxTaskAttempts: spec.limits.maxTaskAttempts,
       sessionErrorLimit: spec.limits.sessionErrorLimit ?? 3,
       stagnationLimit: spec.limits.stagnationLimit ?? 2,
-      maxDurationSeconds: durationSeconds(spec.limits.maxDuration, 7200),
-      attemptTimeoutSeconds: durationSeconds(spec.limits.attemptTimeout, 1800),
-      verifierTimeoutSeconds: durationSeconds(spec.limits.verifierTimeout ?? '600', 600),
+      maxDurationSeconds: durationSeconds(spec.limits.maxDuration, '任务最长运行时间'),
+      attemptTimeoutSeconds: durationSeconds(spec.limits.attemptTimeout, '单次尝试超时'),
+      verifierTimeoutSeconds: durationSeconds(spec.limits.verifierTimeout ?? '600', '验收器超时'),
     },
     model: spec.model ?? {},
     sessionPolicy: spec.sessionPolicy ?? { reuseHealthySession: true, createFreshOnVerifierFailure: true },

@@ -1,5 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
-import ElementPlus, { ElInput, ElInputNumber, ElOption } from 'element-plus'
+import ElementPlus, { ElInput, ElInputNumber, ElOption, ElSelect } from 'element-plus'
 import { describe, expect, it } from 'vitest'
 import LoopSpecEditor from '@/components/LoopSpecEditor.vue'
 
@@ -85,7 +85,7 @@ describe('LoopSpecEditor', () => {
 
     expect(verifierOptions).toEqual(expect.arrayContaining([
       'PROCESS', 'HTTP_STATUS', 'JSON_PATH', 'BROWSER', 'DATABASE_QUERY', 'FILE_CONTENT', 'FILE_HASH',
-      'JUNIT_XML', 'GIT_DIFF', 'FILE_NOT_EXISTS', 'FILE_EXISTS',
+      'JUNIT_XML', 'GIT_DIFF', 'FILE_NOT_EXISTS', 'FILE_EXISTS', 'DOCUMENT_STRUCTURE', 'TABULAR_DATA',
     ]))
   })
 
@@ -116,6 +116,42 @@ describe('LoopSpecEditor', () => {
     expect(numberInputs.find((input) => input.attributes('data-testid') === 'runtime-startup-timeout')?.props('max')).toBe(300)
     expect(numberInputs.find((input) => input.attributes('data-testid') === 'runtime-shutdown-timeout')?.props('max')).toBe(60)
     expect(numberInputs.find((input) => input.attributes('data-testid') === 'max-stage-attempts')?.props('max')).toBe(20)
+  })
+
+  it('shows and edits artifact assertions while retaining the frozen execution identity', async () => {
+    const parsed = JSON.parse(source)
+    Object.assign(parsed.stages[0], { stageKind: 'DOCUMENT_MATERIALIZATION', executionStrategy: 'SERVER_DOCUMENT_MATERIALIZATION', artifactPlanId: 'frozen-plan',
+      verifiers: [
+        { type: 'DOCUMENT_STRUCTURE', path: 'docs/design.md', documentAssertions: [{ type: 'TEXT_EXISTS', value: '旧标题' }] },
+        { type: 'TABULAR_DATA', path: 'output/table.md', tabularAssertions: [{ type: 'EQUIVALENT_TO', sourcePath: 'input.csv' }] },
+      ],
+    })
+    const wrapper = mount(LoopSpecEditor, { props: { modelValue: JSON.stringify(parsed) }, global: { plugins: [ElementPlus], stubs: { Icon: true } } })
+    await wrapper.get('input[aria-label="文档断言 1 期望文本"]').setValue('新标题')
+    await wrapper.get('input[aria-label="表格断言 1 源文件路径"]').setValue('source.xlsx')
+    await flushPromises()
+    const edited = JSON.parse(wrapper.emitted('update:modelValue')!.at(-1)![0] as string)
+    expect(edited.stages[0]).toMatchObject({ stageKind: 'DOCUMENT_MATERIALIZATION', executionStrategy: 'SERVER_DOCUMENT_MATERIALIZATION', artifactPlanId: 'frozen-plan',
+      verifiers: [{ documentAssertions: [{ type: 'TEXT_EXISTS', value: '新标题' }] }, { tabularAssertions: [{ type: 'EQUIVALENT_TO', sourcePath: 'source.xlsx' }] }],
+    })
+    await wrapper.get('button[aria-label="删除文档断言 1"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('input[aria-label="文档断言 1 期望文本"]').exists()).toBe(false)
+    await wrapper.findAll('button').find(button => button.text() === '添加文档断言')!.trigger('click')
+    expect(wrapper.find('input[aria-label="文档断言 1 期望文本"]').exists()).toBe(true)
+  })
+
+  it('clears incompatible command fields when explicitly changing to a document verifier', async () => {
+    const parsed = JSON.parse(source)
+    parsed.stages[0].verifiers = [{ type: 'PROCESS', command: ['node', 'check.js'], outputContains: 'ok', processPurpose: 'SELF_CHECK', criterionIds: ['AC-1'] }]
+    const wrapper = mount(LoopSpecEditor, { props: { modelValue: JSON.stringify(parsed) }, global: { plugins: [ElementPlus], stubs: { Icon: true } } })
+    const select = wrapper.findAllComponents(ElSelect).find(component => component.props('ariaLabel') === '阶段 1 验收器 1 类型')!
+    select.vm.$emit('update:modelValue', 'DOCUMENT_STRUCTURE')
+    select.vm.$emit('change', 'DOCUMENT_STRUCTURE')
+    await flushPromises()
+    const changed = JSON.parse(wrapper.emitted('update:modelValue')!.at(-1)![0] as string).stages[0].verifiers[0]
+    expect(changed).toEqual({ type: 'DOCUMENT_STRUCTURE', path: '', documentAssertions: [{ type: 'TEXT_EXISTS', value: '' }], criterionIds: ['AC-1'] })
+    expect(wrapper.find('input[aria-label="文档断言 1 期望文本"]').exists()).toBe(true)
   })
 
   it('follows external JSON updates without losing the structured view', async () => {

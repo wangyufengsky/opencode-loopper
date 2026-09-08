@@ -16,6 +16,14 @@ describe('displayLabels', () => {
     expect(message).not.toContain('ATTEMPT_LIMIT_EXHAUSTED')
   })
 
+  it('identifies every artifact assertion field that blocks confirmation', () => {
+    const message = userFacingError('stages[0].verifiers[0].documentAssertions: DOCUMENT_STRUCTURE requires bounded assertions；stages[1].verifiers[2].tabularAssertions: TABULAR_DATA requires bounded assertions；任务目标不能为空')
+    expect(message).toContain('阶段 1 的验收器 1 缺少文档断言')
+    expect(message).toContain('阶段 2 的验收器 3 缺少表格断言')
+    expect(message).toContain('添加至少一项检查')
+    expect(message).toContain('任务目标不能为空')
+  })
+
   it('uses a safe Chinese fallback for unknown machine values', () => {
     expect(displayLabel('BRAND_NEW_INTERNAL_CODE')).toBe('未知')
     expect(userFacingError(new Error('connection reset'))).toBe('操作未完成，请重试')

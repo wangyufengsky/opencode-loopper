@@ -299,3 +299,54 @@ test('只开启全自动后无需人工审批即可进入已启动任务', async
   await expect(page).toHaveURL(/\/tasks\/task-auto-e2e$/, { timeout: 10_000 })
   await expect(page.getByText('全自动设计任务')).toBeVisible()
 })
+
+for (const kind of ['document', 'table'] as const) {
+  test(`${kind} 制品确认保留断言与冻结执行身份`, async ({ page }) => {
+    await installDesignerApi(page)
+    const verifier = kind === 'document'
+      ? { type: 'DOCUMENT_STRUCTURE', path: 'docs/design.md', documentAssertions: [{ type: 'TEXT_EXISTS', value: '详细设计' }], criterionIds: ['WP-1-AC-1'] }
+      : { type: 'TABULAR_DATA', path: 'output/table.md', tabularAssertions: [{ type: 'EQUIVALENT_TO', sourcePath: 'input.csv' }], criterionIds: ['WP-1-AC-1'] }
+    const stage = { ...finalSpec.stages[0], verifiers: [verifier],
+      stageKind: kind === 'document' ? 'DOCUMENT_MATERIALIZATION' : 'TABULAR_CONVERSION',
+      executionStrategy: kind === 'document' ? 'SERVER_DOCUMENT_MATERIALIZATION' : 'SERVER_TABULAR_CONVERSION', artifactPlanId: 'frozen-plan',
+    }
+    const artifactSpec = { ...finalSpec, stages: [stage] }
+    const currentDraft = { ...draft(), spec: artifactSpec }
+    const artifactSession = { ...session('final-review'), draft: currentDraft, workPackages: [],
+      taskProfile: { ...session('final-review').taskProfile, intent: kind === 'document' ? 'DOCUMENT_AUTHORING' : 'DATA_CONVERSION',
+        workflowTemplate: 'DIRECT_ARTIFACT', testPolicy: 'NOT_APPLICABLE', executionStrategy: stage.executionStrategy,
+        artifactKinds: ['MARKDOWN'], mutationMode: 'WRITE_ARTIFACT', largeTaskMode: false },
+    }
+    let saved = false
+    let confirmed = false
+    await page.route('**/api/designer-sessions/designer-e2e', route => route.fulfill({ json: artifactSession }))
+    await page.route('**/api/loop-drafts/validate', async route => {
+      expect(route.request().postDataJSON().spec.stages[0]).toEqual(stage)
+      await route.fulfill({ json: acceptanceAssessment })
+    })
+    await page.route('**/api/loop-drafts/draft-e2e', async route => {
+      if (route.request().method() === 'PUT') {
+        expect(route.request().postDataJSON().spec.stages[0]).toEqual(stage)
+        saved = true
+      }
+      await route.fulfill({ json: { ...currentDraft, status: confirmed ? 'CONFIRMED' : 'DRAFT_READY' } })
+    })
+    await page.route('**/api/loop-drafts/draft-e2e/confirm', async route => {
+      expect(saved).toBe(true)
+      confirmed = true
+      await route.fulfill({ json: { taskId: 'task-e2e' } })
+    })
+    await page.addInitScript(() => sessionStorage.setItem('opencode-loopper.designer-workspace', JSON.stringify({ sessionId: 'designer-e2e', draftId: 'draft-e2e' })))
+    await page.goto('/designer')
+    const assertions = page.locator('[aria-label="制品验收断言"]')
+    await expect(assertions).toBeVisible()
+    await assertions.screenshot({ path: test.info().outputPath(`${kind}-assertions-desktop.png`) })
+    await page.setViewportSize({ width: 640, height: 900 })
+    await assertions.screenshot({ path: test.info().outputPath(`${kind}-assertions-narrow.png`) })
+    await page.setViewportSize({ width: 1280, height: 720 })
+    await page.getByRole('button', { name: '确认设计并创建任务' }).last().click()
+    await expect(page).toHaveURL(/\/tasks\/task-e2e$/)
+    await expect(page.getByRole('button', { name: '开始执行' })).toBeVisible()
+    expect(confirmed).toBe(true)
+  })
+}
