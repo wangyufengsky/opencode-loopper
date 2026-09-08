@@ -1552,6 +1552,45 @@ class DesignerSessionMcpIntegrationTest {
                 .isEqualTo("OPEN_CODE_IMPLEMENTATION");
     }
 
+    @Test
+    void documentConfirmationCannotBypassDesignOrRemoveContentReview() throws Exception {
+        ProjectRow project = project("document-confirmation-gate");
+        LoopDraftRow draft = drafts.create(v2DocumentationSpec(project.id()));
+        fake().setDesignerOutput("# 详细设计需求\n\n参考资料：`README.md`。最终交付文件：`docs/design.md`，撰写完整正文。");
+        DesignerSessionRow session = prepareReviewingSession(project.id(), draft.id(), "编写 Markdown 详细设计文档");
+        mvc.perform(post("/api/loop-drafts/{id}/confirm", draft.id())).andExpect(status().isConflict());
+        assertThat(mapper.findTaskByDraft(draft.id())).isEmpty();
+        mvc.perform(post("/api/designer-sessions/{id}/requirement/confirm", session.id())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("expectedDiscussionRevision", session.discussionRevision()))))
+                .andExpect(status().isAccepted());
+        LoopSpec compiled = drafts.spec(drafts.get(draft.id()));
+        assertThat(compiled.stages().getFirst().deliverables()).containsExactly("docs/design.md");
+        var edited = (tools.jackson.databind.node.ObjectNode) json.valueToTree(compiled);
+        ((tools.jackson.databind.node.ArrayNode) edited.path("stages").get(0).path("acceptanceCriteria")).remove(1);
+        mvc.perform(put("/api/loop-drafts/{id}", draft.id()).contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("spec", edited)))).andExpect(status().isConflict());
+        assertThat(drafts.spec(drafts.get(draft.id())).stages().getFirst().acceptanceCriteria()).hasSize(2);
+        // Reproduce an invalid draft persisted by an older version, then repair it through the public API.
+        LoopDraftRow stored = drafts.get(draft.id());
+        mapper.updateDraftContent(new LoopDraftRow(stored.id(), stored.projectId(), stored.goal(),
+                json.writeValueAsString(edited), stored.status(), stored.createdAt(), stored.updatedAt(), stored.version()));
+        mvc.perform(get("/api/designer-sessions/{id}", session.id()))
+                .andExpect(jsonPath("$.finalConfirmationEligible").value(false))
+                .andExpect(jsonPath("$.confirmationBlocker").isNotEmpty());
+        mvc.perform(post("/api/loop-drafts/{id}/confirm", draft.id())).andExpect(status().isConflict());
+        assertThat(mapper.findTaskByDraft(draft.id())).isEmpty();
+        mvc.perform(put("/api/loop-drafts/{id}", draft.id()).contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("spec", compiled)))).andExpect(status().isOk());
+        mvc.perform(get("/api/designer-sessions/{id}", session.id()))
+                .andExpect(jsonPath("$.finalConfirmationEligible").value(true));
+        String taskId = json.readTree(mvc.perform(post("/api/loop-drafts/{id}/confirm", draft.id()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).path("taskId").asText();
+        assertThat(tasks.get(taskId).state()).isEqualTo("PENDING_START");
+        mvc.perform(post("/api/loop-drafts/{id}/confirm", draft.id()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.taskId").value(taskId));
+    }
+
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(strings = {"md", "docx"})
     void documentRequirementStartsAuthoringInsteadOfDeliveringTheRequirementSnapshot(String extension) throws Exception {
@@ -3033,7 +3072,8 @@ class DesignerSessionMcpIntegrationTest {
             });
             assertThat(mapper.countTasksForProject(project.id())).isZero();
             assertThatThrownBy(() -> drafts.confirm(draft.id(), "不可确认"))
-                    .hasMessageContaining("every work package is approved");
+                    .isInstanceOfSatisfying(ConflictException.class, failure ->
+                            assertThat(failure.code()).isEqualTo("DESIGN_WORKFLOW_NOT_COMPLETED"));
         }
     }
 

@@ -23,7 +23,7 @@ public final class DesignerSessionViews {
                                      Integer requirementRevision, String activeWorkPackageId,
                                      String discussionScope, int discussionRevision,
                                      DesignerSessionService.CandidateStatus candidate,
-                                     boolean finalConfirmationEligible, boolean archived,
+                                     boolean finalConfirmationEligible, String confirmationBlocker, boolean archived,
                                      DesignerAutoModeService.View autoMode,
                                      TaskProfileService.View taskProfile,
                                      TaskProfileRouterRunService.RouterRunView routerRun,

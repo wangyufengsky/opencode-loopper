@@ -106,6 +106,7 @@ class TaskServiceIntegrationTest {
                 List.of(new DesignerAttachmentContext.IncomingFile(
                         "contract.txt", "text/plain", "frozen bytes".getBytes(java.nio.charset.StandardCharsets.UTF_8))));
 
+        ApprovedDesignerFixture.prepare(mapper, jdbc, designer, draft);
         TaskRow task = drafts.confirm(draft.id(), "freeze attachment context");
 
         assertThat(mapper.listTaskDesignAttachments(task.id())).singleElement().satisfies(frozen -> {
@@ -1748,6 +1749,7 @@ class TaskServiceIntegrationTest {
                         DesignerAttachmentContext.AttachmentScope.requirement(), attachmentMessage.content()),
                 List.of(new DesignerAttachmentContext.IncomingFile(
                         "acceptance.txt", "text/plain", "approved boundary".getBytes(java.nio.charset.StandardCharsets.UTF_8))));
+        ApprovedDesignerFixture.prepare(mapper, jdbc, designer, designDraft);
         TaskRow task = drafts.confirm(designDraft.id(), "two judges");
         tasks.start(task.id());
         String implementationSessionId = mapper.activeSessions(task.id()).getFirst().externalSessionId();

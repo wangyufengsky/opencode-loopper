@@ -1698,6 +1698,7 @@ describe('Designer draft composer', () => {
     }
     vi.spyOn(api, 'createDraft').mockResolvedValue(readyDraft)
     vi.spyOn(api, 'createDesignerSession').mockResolvedValue({ ...session, draft: readyDraft })
+    vi.spyOn(api, 'getDesignerSession').mockResolvedValue({ ...session, draft: readyDraft })
     vi.spyOn(api, 'updateDraft').mockResolvedValue(readyDraft)
     vi.spyOn(api, 'confirmDraft').mockResolvedValue({ taskId: failedTask.id })
     vi.spyOn(api, 'getDraft').mockResolvedValue(confirmedDraft)
@@ -1741,6 +1742,7 @@ describe('Designer draft composer', () => {
     const readyDraft = draftFrom(invalidSpec)
     vi.spyOn(api, 'createDraft').mockResolvedValue(readyDraft)
     vi.spyOn(api, 'createDesignerSession').mockResolvedValue({ ...session, draft: readyDraft })
+    vi.spyOn(api, 'getDesignerSession').mockResolvedValue({ ...session, draft: readyDraft })
     vi.mocked(api.validateDraft).mockResolvedValueOnce({
       valid: false, schemaVersion: 'v2', legacy: false,
       errors: ['stages[0].acceptanceCriteria[AC-1]: no valid BEHAVIOR verifier covers this criterion'],
@@ -1769,6 +1771,80 @@ describe('Designer draft composer', () => {
     expect(criterionRow.get('.matrix-criterion-statuses').findAll('em, b')).toHaveLength(3)
     expect(matrix.text()).toContain('机器：不适用')
     expect(matrix.text()).toContain('BUILD')
+  })
+
+  it('refreshes confirmation eligibility after save and displays the server blocker without creating a task', async () => {
+    routeQuery.sessionId = session.id
+    const current = { ...session, state: 'REVIEWING' as const, workflowPhase: 'FINAL_REVIEW' as const,
+      draft: draftFrom({ schemaVersion: 'v2', projectId: project.id, goal: '撰写文档', context: '',
+        stages: [{ objective: '撰写正文', implementationKind: 'NON_JAVA', allowedPaths: ['docs/design.md'], forbiddenPaths: [],
+          deliverables: ['docs/design.md'], acceptanceCriteria: [{ id: 'AC-1', description: '格式有效' }],
+          verifiers: [{ type: 'DOCUMENT_STRUCTURE', path: 'docs/design.md', criterionIds: ['AC-1'],
+            documentAssertions: [{ type: 'TEXT_NON_EMPTY' }] }] }],
+        limits: { maxStageAttempts: 3, maxTaskAttempts: 12, maxDuration: '7200', attemptTimeout: '1800' } }) }
+    const getSession = vi.spyOn(api, 'getDesignerSession').mockResolvedValue(current)
+    vi.spyOn(api, 'updateDraft').mockResolvedValue(current.draft)
+    const confirm = vi.spyOn(api, 'confirmDraft')
+    const wrapper = mountDesigner()
+    await flushPromises()
+    getSession.mockResolvedValue({ ...current, finalConfirmationEligible: false,
+      confirmationBlocker: '正文 AI 评审缺失，请修复后保存。' })
+    await wrapper.findAll('button').find((button) => button.text().includes('确认设计并创建任务'))!.trigger('click')
+    await flushPromises()
+    expect(confirm).not.toHaveBeenCalled()
+    expect(wrapper.get('[role="alert"]').text()).toContain('正文 AI 评审缺失')
+    expect(wrapper.findAll('button').filter((button) => button.text().includes('确认设计并创建任务'))
+      .every((button) => button.attributes('disabled') !== undefined)).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('shows a restored invalid design blocker and refreshes eligibility after a successful repair save', async () => {
+    routeQuery.sessionId = session.id
+    const current = { ...session, state: 'REVIEWING' as const, workflowPhase: 'FINAL_REVIEW' as const,
+      draft: draftFrom({ schemaVersion: 'v2', projectId: project.id, goal: '撰写文档', context: '',
+        stages: [{ objective: '撰写正文', implementationKind: 'NON_JAVA', allowedPaths: ['docs/design.md'], forbiddenPaths: [],
+          deliverables: ['docs/design.md'], acceptanceCriteria: [{ id: 'AC-1', description: '格式有效' }],
+          verifiers: [{ type: 'DOCUMENT_STRUCTURE', path: 'docs/design.md', criterionIds: ['AC-1'],
+            documentAssertions: [{ type: 'TEXT_NON_EMPTY' }] }] }],
+        limits: { maxStageAttempts: 3, maxTaskAttempts: 12, maxDuration: '7200', attemptTimeout: '1800' } }) }
+    const getSession = vi.spyOn(api, 'getDesignerSession').mockResolvedValue({ ...current, finalConfirmationEligible: false,
+      confirmationBlocker: '正文 AI 评审缺失，请修复后保存。' })
+    vi.spyOn(api, 'updateDraft').mockResolvedValue(current.draft)
+    const wrapper = mountDesigner()
+    await flushPromises()
+    expect(wrapper.get('[role="alert"]').text()).toContain('正文 AI 评审缺失')
+    getSession.mockResolvedValue({ ...current, finalConfirmationEligible: true })
+    await wrapper.findAll('button').find((button) => button.text() === '保存')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+    expect(wrapper.findAll('button').filter((button) => button.text().includes('确认设计并创建任务'))
+      .every((button) => button.attributes('disabled') === undefined)).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('keeps creation blocked when the eligibility refresh fails after a persisted save', async () => {
+    routeQuery.sessionId = session.id
+    const ready = draftFrom({ schemaVersion: 'v2', projectId: project.id, goal: '撰写文档', context: '',
+      stages: [{ objective: '撰写正文', implementationKind: 'NON_JAVA', allowedPaths: ['docs/design.md'], forbiddenPaths: [],
+        deliverables: ['docs/design.md'], acceptanceCriteria: [{ id: 'AC-1', description: '格式有效' }],
+        verifiers: [{ type: 'DOCUMENT_STRUCTURE', path: 'docs/design.md', criterionIds: ['AC-1'],
+          documentAssertions: [{ type: 'TEXT_NON_EMPTY' }] }] }],
+      limits: { maxStageAttempts: 3, maxTaskAttempts: 12, maxDuration: '7200', attemptTimeout: '1800' } })
+    const read = vi.spyOn(api, 'getDesignerSession').mockResolvedValue({ ...session, state: 'REVIEWING',
+      workflowPhase: 'FINAL_REVIEW', draft: ready })
+    const update = vi.spyOn(api, 'updateDraft').mockResolvedValue(ready)
+    const confirm = vi.spyOn(api, 'confirmDraft')
+    const wrapper = mountDesigner()
+    await flushPromises()
+    read.mockRejectedValue(new Error('连接失败'))
+    await wrapper.findAll('button').find((button) => button.text().includes('确认设计并创建任务'))!.trigger('click')
+    await flushPromises()
+    expect(update).toHaveBeenCalled()
+    expect(confirm).not.toHaveBeenCalled()
+    expect(wrapper.get('[role="alert"]').text()).toContain('执行规范已保存')
+    expect(wrapper.findAll('button').filter((button) => button.text().includes('确认设计并创建任务'))
+      .every((button) => button.attributes('disabled') !== undefined)).toBe(true)
+    wrapper.unmount()
   })
 
   it.each(['DIRECT_ARTIFACT', 'PACKAGED_ARTIFACT'] as const)(

@@ -126,6 +126,11 @@ public class LoopDraftService {
         }
         if (aggregateWorkPackageIds == null) preserveAggregatedWorkPackageMapping(oldSpec, spec);
         reject(assessment(spec, true, true).errors());
+        mapper.findLatestDesignerSessionByDraft(id).filter(session -> Set.of("FINAL_REVIEW", "COMPLETED").contains(session.workflowPhase()))
+                .ifPresent(session -> {
+                    DesignerConfirmationGate.assess(mapper, session, spec).requireEligible();
+                    validateFrozenProfileContract(old, spec);
+                });
         if (LoopDraftStatus.CONFIRMED.name().equals(old.status())) throw new ConflictException("DRAFT_CONFIRMED", "Confirmed LoopSpec is immutable; create a new draft");
         if (!old.projectId().equals(spec.projectId())) throw new BadRequestException("DRAFT_PROJECT_MISMATCH", "LoopSpec projectId cannot be changed");
         LoopDraftRow changed = new LoopDraftRow(old.id(), old.projectId(), spec.goal(), write(spec), LoopDraftStatus.DRAFT_READY.name(), old.createdAt(), Instant.now().toString(), old.version());
@@ -157,19 +162,17 @@ public class LoopDraftService {
         LoopDraftRow draft = get(id);
         if (LoopDraftStatus.CONFIRMED.name().equals(draft.status())) return mapper.findTaskByDraft(id).orElseThrow(() -> new ConflictException("DRAFT_TASK_MISSING", "Confirmed draft has no associated task"));
         mapper.findLatestDesignerSessionByDraft(id).ifPresent(session -> {
-            if (session.currentRequirementRevision() != null
-                    && !java.util.Set.of(io.opencode.loopper.domain.DesignWorkflowPhase.FINAL_REVIEW.name(),
-                    io.opencode.loopper.domain.DesignWorkflowPhase.COMPLETED.name())
-                    .contains(session.workflowPhase())) {
-                throw new ConflictException("DESIGN_WORKFLOW_NOT_COMPLETED",
-                        "Review Gate cannot be confirmed until every work package is approved and aggregation is stable");
-            }
+            DesignerConfirmationGate.assess(mapper, session, spec(draft)).requireEligible();
             validateCompletedWorkPackageMapping(session.id(), spec(draft));
         });
         LoopSpec confirmedSpec = spec(draft);
         validateExecutionContract(confirmedSpec);
         validateFrozenProfileContract(draft, confirmedSpec);
         return tasks.createAndConfirmFromDraft(draft, title, admissionSource, isolatedBaseline);
+    }
+
+    public String confirmationBlocker(io.opencode.loopper.persistence.DesignerSessionRow session) {
+        return DesignerConfirmationGate.assess(mapper, session, spec(get(session.loopDraftId()))).detail();
     }
 
     private void validateFrozenProfileContract(LoopDraftRow draft, LoopSpec spec) {

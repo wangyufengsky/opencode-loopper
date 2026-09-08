@@ -330,6 +330,11 @@ Final confirmation eligibility for these authoring stages uses the frozen docume
 OpenCode execution strategy, document-format verifier and planned content review; it does not
 require an `artifactPlanId`. Both direct and packaged document templates use that same gate,
 including designs already waiting at `FINAL_REVIEW`. Confirmation creates only `PENDING_START`.
+保存最终规范、读取确认资格和创建任务共用服务端设计门禁；直接制品也必须进入总体确认，不能因没有工作包需求修订而绕过。
+创建事务在落库前再次检查设计门禁；已确认草稿仍幂等返回原任务。删除正文 AI 评审或改坏阶段执行合同的保存会被拒绝，保留原有效草稿。
+读取接口返回具体确认阻断原因，页面在保存后重新读取资格；读取失败时阻断创建并提示重试。旧版本已保存的无效草稿可在编辑器修复保存，无须修改历史数据库。
+文档输出优先采用明确的输出、交付或目标文件声明，排除参考、来源及可选改名；多个候选输出或格式/路径冲突须修正需求。
+需求未指定输出时使用可见默认路径 `output/document.md` 或 `output/document.docx`，不得将仅供参考的文件当作交付目标。
 Requirement heading counts do not impose a 2–6 chapter limit on the final document.
 Tabular conversion retains the frozen server conversion plan. Existing frozen
 `SERVER_DOCUMENT_MATERIALIZATION` Tasks keep their original execution/recovery contract;

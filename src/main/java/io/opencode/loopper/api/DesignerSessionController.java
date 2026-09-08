@@ -448,6 +448,7 @@ public class DesignerSessionController {
     private DesignerSessionDto dto(DesignerSessionRow row) {
         ProjectRow project = service.project(row.id());
         LoopDraftRow draft = service.draft(row.id());
+        String confirmationBlocker = service.finalConfirmationBlocker(row.id());
         return new DesignerSessionDto(row.id(), row.taskId(), row.projectId(), project.name(), row.state(), row.workflowPhase(),
                 service.activeActor(row), row.accessMode(), true,
                 "Designer conversations remain read-only across questions and revisions. Only the deterministic server validator may aggregate and synchronize the bound draft.",
@@ -461,7 +462,7 @@ public class DesignerSessionController {
                 service.decompositionStatus(row.id()), service.workPackageStatuses(row.id()),
                 row.currentRequirementRevision(), row.activeWorkPackageId(), row.discussionScope(),
                 row.discussionRevision(), service.candidateStatus(row.id()),
-                service.finalConfirmationEligible(row.id()), service.archived(row.id()), autoMode.get(row.id()),
+                confirmationBlocker == null, confirmationBlocker, service.archived(row.id()), autoMode.get(row.id()),
                 profiles.current(row.id()), profiles.routerRun(row.id()),
                 List.of(TaskIntent.values()), List.of(ArtifactKind.values()),
                 reports.list(row.id()), storyBindings.configurationForDesigner(row.id()), conversations.views(row.id()));

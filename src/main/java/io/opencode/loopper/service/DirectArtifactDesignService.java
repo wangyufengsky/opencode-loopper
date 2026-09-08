@@ -70,9 +70,7 @@ public class DirectArtifactDesignService {
     private Result compileDocument(TaskProfileService.View profile, String markdown,
                                    LoopDraftRow draft) {
         boolean docx = profile.artifactKinds().contains(ArtifactKind.DOCX);
-        String target = paths(markdown).stream()
-                .filter(value -> docx ? extension(value).equals("docx") : List.of("md", "markdown").contains(extension(value)))
-                .findFirst().orElse(docx ? "output/document.docx" : "output/document.md");
+        String target = DocumentOutputPathResolver.resolve(markdown, docx);
         String criterionId = "WP-1-AC-1";
         LoopSpec.VerifierSpec verifier = verifier("DOCUMENT_STRUCTURE", target, List.of(criterionId),
                 List.of(new LoopSpec.DocumentAssertion("TEXT_NON_EMPTY", null, null, null),

@@ -86,6 +86,7 @@ class RecoveryServiceIntegrationTest {
                         DesignerAttachmentContext.AttachmentScope.requirement(), message.content()),
                 List.of(new DesignerAttachmentContext.IncomingFile(
                         "recovery.txt", "text/plain", "frozen recovery context".getBytes(java.nio.charset.StandardCharsets.UTF_8))));
+        ApprovedDesignerFixture.prepare(mapper, new org.springframework.jdbc.core.JdbcTemplate(dataSource), designer, draft);
         TaskRow parent = drafts.confirm(draft.id(), "attachment parent");
         tasks.cancel(parent.id());
 

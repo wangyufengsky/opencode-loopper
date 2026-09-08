@@ -61,6 +61,7 @@ class DirectArtifactConfirmationPolicyTest {
         for (StageKind kind : List.of(StageKind.DOCUMENT_MATERIALIZATION, StageKind.TABULAR_CONVERSION)) {
             ExecutionStrategy strategy = kind == StageKind.TABULAR_CONVERSION
                     ? ExecutionStrategy.SERVER_TABULAR_CONVERSION : ExecutionStrategy.SERVER_DOCUMENT_MATERIALIZATION;
+            when(profile.executionStrategy()).thenReturn(strategy);
             var stage = stage(kind, strategy, "frozen-plan", List.of());
             assertThat(eligible(stage)).isTrue();
             assertThat(DirectArtifactConfirmationPolicy.eligible(profile, spec(stage), id -> false)).isFalse();

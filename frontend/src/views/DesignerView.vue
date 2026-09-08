@@ -267,7 +267,7 @@ const isFinalReview = computed(() => ['FINAL_REVIEW', 'COMPLETED'].includes(
   designerSession.value?.workflowPhase ?? '',
 ))
 const confirmationReady = computed(() => store.usingDemo || designerSession.value?.finalConfirmationEligible === true
-  || designerSession.value?.workflowPhase === 'COMPLETED')
+  || draft.value?.status === 'CONFIRMED')
 const directSoftwareMode = computed(() => designerSession.value?.taskProfile.workflowTemplate === 'DIRECT_SOFTWARE_DESIGN')
 const workflowStep = computed(() => {
   if (directSoftwareMode.value) {
@@ -1163,6 +1163,7 @@ async function saveDraft(): Promise<boolean> {
   if (!spec || !draft.value) return false
   busy.value = true
   designerLiveError.value = ''
+  let saved = false
   try {
     if (!store.usingDemo) {
       const assessment = await api.validateDraft(spec)
@@ -1170,12 +1171,20 @@ async function saveDraft(): Promise<boolean> {
       if (!assessment.valid) throw new Error(assessment.errors.join('；'))
     }
     draft.value = store.usingDemo ? { ...draft.value, spec, updatedAt: new Date().toISOString() } : await api.updateDraft(draft.value.id, spec)
+    saved = true
     editorValue.value = JSON.stringify(draft.value.spec, null, 2)
     fieldError.value = undefined
-    ElMessage.success('执行规范已保存并通过基础校验')
+    if (!store.usingDemo && designerSession.value) {
+      designerSession.value = { ...designerSession.value, finalConfirmationEligible: false,
+        confirmationBlocker: '执行规范已保存，正在更新确认状态；更新失败时请重试保存。' }
+      designerSession.value = await api.getDesignerSession(designerSession.value.id)
+    }
+    ElMessage.success('执行规范已保存')
     return true
   } catch (error) {
-    fieldError.value = { id: 'field-api', layer: 'FIELD', code: 'LOOPSPEC_SAVE_FAILED', message: userFacingError(error, '保存失败'), retryable: true, occurredAt: '刚刚' }
+    fieldError.value = { id: 'field-api', layer: 'FIELD', code: 'LOOPSPEC_SAVE_FAILED', message: saved
+      ? `执行规范已保存，但无法更新确认状态，请重试保存。${userFacingError(error)}`
+      : userFacingError(error, '保存失败'), retryable: true, occurredAt: '刚刚' }
     return false
   } finally { busy.value = false }
 }
@@ -1201,6 +1210,7 @@ async function confirm() {
   if (!draft.value) return
   if (autoModeActive.value) return
   if (draft.value.status !== 'CONFIRMED' && !await saveDraft()) return
+  if (!confirmationReady.value) return
   busy.value = true
   try {
     if (store.usingDemo) { draft.value = { ...draft.value, status: 'CONFIRMED' }; ElMessage.success('演示任务已创建') }
@@ -1794,7 +1804,7 @@ async function redesignPackage(packageId: string) {
         </LoopSpecEditor>
         <LayeredErrorPanel v-if="fieldError" :error="fieldError" style="margin-top: 12px" />
         <div v-if="isFinalReview && draft.status !== 'CONFIRMED'" class="final-review-action">
-          <div><strong>设计已进入总体确认</strong></div>
+          <div><strong>设计已进入总体确认</strong><p v-if="!confirmationReady" role="alert">{{ designerSession?.confirmationBlocker || '当前设计尚不满足确认条件，请检查任务设置与最终执行规范。' }}</p></div>
           <el-button v-if="directSoftwareMode && designerSession?.workPackages?.[0]?.approvedDesignRevision" plain :loading="busy" @click="reopenPackage('WP-1')"><Icon icon="lucide:message-circle" />重新讨论设计</el-button>
           <el-button type="primary" size="large" :loading="busy" :disabled="!confirmationReady || autoModeActive" @click="confirm"><Icon icon="lucide:circle-check-big" />{{ autoModeActive ? '等待全自动确认并启动' : '确认设计并创建任务' }}</el-button>
         </div>

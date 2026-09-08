@@ -1349,6 +1349,7 @@ export interface DesignerSession {
   discussionScope: string
   discussionRevision: number
   candidate?: DesignerCandidateStatus
+  confirmationBlocker?: string
   finalConfirmationEligible: boolean
   autoMode: DesignerAutoMode
   taskProfile: DesignerTaskProfile

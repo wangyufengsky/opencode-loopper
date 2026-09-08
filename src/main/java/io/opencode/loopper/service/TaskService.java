@@ -65,7 +65,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
-
 /**
  * Execution facade and owner of ordinary Task orchestration. Cancellation state closure and
  * writer termination proof are delegated to narrow collaborators; TaskFailure still becomes a
@@ -204,7 +203,6 @@ public class TaskService {
         }
         return pending;
     }
-
     private TaskCreation persistTaskCreation(LoopDraftRow inputDraft, LoopSpec spec, ProjectRow project,
                                              String title, String admissionSource, String isolatedBaseline,
                                              boolean confirmDraft,
@@ -219,6 +217,8 @@ public class TaskService {
             if (confirmDraft) confirmDraft(draft);
             return new TaskCreation(existing.id(), true);
         }
+        if (confirmDraft) mapper.findLatestDesignerSessionByDraft(draft.id()).ifPresent(session ->
+                DesignerConfirmationGate.assess(mapper, session, spec).requireEligible());
         String timestamp = now();
         String taskId = UUID.randomUUID().toString();
         io.opencode.loopper.persistence.DesignerTaskProfileRow profile = mapper.findFrozenTaskProfileByDraft(draft.id()).orElse(null);

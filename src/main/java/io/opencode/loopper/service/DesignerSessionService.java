@@ -334,19 +334,11 @@ public class DesignerSessionService {
     }
 
     public boolean finalConfirmationEligible(String sessionId) {
-        DesignerSessionRow session = get(sessionId);
-        if (!DesignWorkflowPhase.FINAL_REVIEW.name().equals(session.workflowPhase())) return false;
-        if (session.currentRequirementRevision() == null) {
-            TaskProfileService.View profile = taskProfiles.current(sessionId);
-            LoopSpec spec = drafts.spec(drafts.get(session.loopDraftId()));
-            return DirectArtifactConfirmationPolicy.eligible(profile, spec, planId ->
-                    mapper.findArtifactPlan(planId).map(row -> "FROZEN".equals(row.state())).orElse(false));
-        }
-        DesignRequirementRevisionRow revision = currentRequirement(sessionId);
-        List<DesignWorkPackageRow> packages = mapper.listDesignWorkPackages(revision.id());
-        return !packages.isEmpty() && packages.stream()
-                .allMatch(row -> DesignWorkPackageState.APPROVED.name().equals(row.state())
-                        && row.approvedDesignRevision() != null);
+        return finalConfirmationBlocker(sessionId) == null;
+    }
+
+    public String finalConfirmationBlocker(String sessionId) {
+        return drafts.confirmationBlocker(get(sessionId));
     }
 
     public void recordAutoModeNotice(String sessionId, String content, String deliveryState) {

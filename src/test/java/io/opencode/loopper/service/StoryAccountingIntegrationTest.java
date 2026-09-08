@@ -372,6 +372,7 @@ class StoryAccountingIntegrationTest {
         var draft = drafts.create(spec);
         String designer = fixture("inherit", true);
         jdbc.update("UPDATE designer_session SET loop_draft_id=? WHERE id=?", draft.id(), designer);
+        ApprovedDesignerFixture.prepare(mapper, jdbc, designers.get(designer), draft);
         var task = drafts.confirm(draft.id(), "story binding fixture");
         assertThat(mapper.findTaskStoryBinding(task.id())).isEqualTo(mapper.findDesignerStoryBinding(designer));
         tasks.cancel(task.id());

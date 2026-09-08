@@ -71,6 +71,7 @@ public class DesignerReadService {
             ProjectRow project = sessions.project(id);
             LoopDraftRow draft = sessions.draft(id);
             DesignerSessionService.CandidateStatus candidate = sessions.candidateStatus(id);
+            String confirmationBlocker = sessions.finalConfirmationBlocker(id);
             Overview result = new Overview(row.id(), row.projectId(), project.name(), row.state(), row.workflowPhase(),
                     sessions.activeActor(row), row.accessMode(), row.createdAt(), row.updatedAt(),
                     draft == null ? null : new DraftSummary(draft.id(), draft.status(), draft.goal(), draft.updatedAt()),
@@ -80,7 +81,7 @@ public class DesignerReadService {
                     row.discussionRevision(), candidate == null ? null : new CandidateSummary(
                             candidate.syncState(), candidate.discussionRevision(), candidate.workPackageId(),
                             candidate.detail(), candidate.spec() != null),
-                    sessions.finalConfirmationEligible(id), sessions.archived(id));
+                    confirmationBlocker == null, confirmationBlocker, sessions.archived(id));
             recordRows("designer.overview", 1);
             return result;
         });
@@ -161,7 +162,7 @@ public class DesignerReadService {
                            List<DesignerSessionService.WorkPackageStatus> workPackages,
                            Integer requirementRevision, String activeWorkPackageId, String discussionScope,
                            int discussionRevision, CandidateSummary candidate,
-                           boolean finalConfirmationEligible, boolean archived) { }
+                           boolean finalConfirmationEligible, String confirmationBlocker, boolean archived) { }
     public record MessageItem(String id, int ordinal, String role, String actor, String content,
                               String deliveryState, String createdAt, Integer requirementRevision,
                               String workPackageId) {

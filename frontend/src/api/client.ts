@@ -979,6 +979,7 @@ function normalizeDesignerSession(value: unknown): DesignerSession {
     discussionRevision: asNumber(raw.discussionRevision),
     candidate: raw.candidate ? (() => { const item = asRecord(raw.candidate); const state = asString(item.syncState); return { syncState: (['NONE', 'SYNCING', 'SYNCED', 'FAILED'].includes(state) ? state : 'NONE') as NonNullable<DesignerSession['candidate']>['syncState'], discussionRevision: asNumber(item.discussionRevision), workPackageId: asString(item.workPackageId) || undefined, spec: item.spec ? parseLoopSpec(item.spec) : undefined, detail: asString(item.detail) || undefined } })() : undefined,
     finalConfirmationEligible: raw.finalConfirmationEligible === true,
+    confirmationBlocker: asString(raw.confirmationBlocker) || undefined,
     taskProfile: (() => { const item = asRecord(raw.taskProfile); return {
       id: asString(item.id) || undefined, state: asString(item.state), decisionState: asString(item.decisionState, 'CONFIRMED') as DesignerSession['taskProfile']['decisionState'], confirmationReady: item.confirmationReady === true, intent: asString(item.intent, 'LEGACY_SOFTWARE') as DesignerSession['taskProfile']['intent'],
       workflowTemplate: asString(item.workflowTemplate, 'FULL_PACKAGE_DESIGN') as DesignerSession['taskProfile']['workflowTemplate'], mutationMode: asString(item.mutationMode, 'WRITE_CODE') as DesignerSession['taskProfile']['mutationMode'],
