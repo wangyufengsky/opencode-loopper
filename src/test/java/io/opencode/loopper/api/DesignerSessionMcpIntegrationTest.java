@@ -1561,9 +1561,10 @@ class DesignerSessionMcpIntegrationTest {
         fake().setDesignerOutput(requirement);
         DesignerSessionRow session = prepareReviewingSession(project.id(), draft.id(),
                 "编写 " + (extension.equals("docx") ? "DOCX" : "Markdown") + " 详细设计文档 `docs/detail-design." + extension + "`");
-        TaskProfileService.View profile = taskProfiles.freeze(session.id());
-        directArtifacts.compile(session.id(), profile);
-        designerSessions.completeDirectArtifactDesign(session.id());
+        mvc.perform(post("/api/designer-sessions/{id}/requirement/confirm", session.id())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("expectedDiscussionRevision", session.discussionRevision()))))
+                .andExpect(status().isAccepted());
         LoopSpec spec = drafts.spec(drafts.get(draft.id()));
         assertThat(spec.context()).contains("本稿只是写作要求");
         assertThat(spec.stages()).singleElement().satisfies(stage -> {
@@ -1574,7 +1575,14 @@ class DesignerSessionMcpIntegrationTest {
                 assertThat(criterion.judgeRubric()).contains("需求快照");
             });
         });
-        TaskRow task = drafts.confirm(draft.id(), "文档撰写回归");
+        mvc.perform(get("/api/designer-sessions/{id}", session.id()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.finalConfirmationEligible").value(true));
+        String taskId = json.readTree(mvc.perform(post("/api/loop-drafts/{id}/confirm", draft.id()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).path("taskId").asText();
+        TaskRow task = tasks.get(taskId);
+        assertThat(task.state()).isEqualTo("PENDING_START");
+        assertThat(mapper.listSessions(task.id())).isEmpty();
         assertThat(Path.of(project.rootPath()).resolve("docs/detail-design." + extension)).doesNotExist();
         tasks.start(task.id());
         assertThat(mapper.listSessions(task.id())).singleElement().satisfies(writer -> {
@@ -1615,6 +1623,7 @@ class DesignerSessionMcpIntegrationTest {
         directArtifacts.compilePackagedDocument(documentSession.id(), documentProfile);
         designerSessions.completeDirectArtifactDesign(documentSession.id());
 
+        assertThat(designerSessions.finalConfirmationEligible(documentSession.id())).isTrue();
         LoopSpec documentSpec = drafts.spec(drafts.get(documentDraft.id()));
         assertThat(documentProfile.workflowTemplate().name()).isEqualTo("PACKAGED_ARTIFACT");
         assertThat(documentSpec.stages()).singleElement().satisfies(stage -> {

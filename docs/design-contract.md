@@ -326,6 +326,10 @@ Start creates the authoring Session, which reads authorized sources and writes t
 complete document. Native verification requires parseable nonempty text and valid local links;
 a separate JUDGE criterion requires complete, source-accurate prose rather than a requirement
 snapshot, outline or plan. The existing dual-Judge and manual-decision boundaries remain intact.
+Final confirmation eligibility for these authoring stages uses the frozen document profile,
+OpenCode execution strategy, document-format verifier and planned content review; it does not
+require an `artifactPlanId`. Both direct and packaged document templates use that same gate,
+including designs already waiting at `FINAL_REVIEW`. Confirmation creates only `PENDING_START`.
 Requirement heading counts do not impose a 2–6 chapter limit on the final document.
 Tabular conversion retains the frozen server conversion plan. Existing frozen
 `SERVER_DOCUMENT_MATERIALIZATION` Tasks keep their original execution/recovery contract;

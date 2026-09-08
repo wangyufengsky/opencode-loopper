@@ -339,18 +339,8 @@ public class DesignerSessionService {
         if (session.currentRequirementRevision() == null) {
             TaskProfileService.View profile = taskProfiles.current(sessionId);
             LoopSpec spec = drafts.spec(drafts.get(session.loopDraftId()));
-            if (spec.stages().size() != 1) return false;
-            if (profile.workflowTemplate() == io.opencode.loopper.domain.WorkflowTemplate.LOCAL_MAINTENANCE) {
-                LoopSpec.StageSpec stage = spec.stages().getFirst();
-                return stage.stageKind() == io.opencode.loopper.domain.StageKind.LOCAL_MAINTENANCE
-                        && stage.verifiers().stream().anyMatch(verifier -> "GIT_DIFF".equals(verifier.type())
-                        && Boolean.TRUE.equals(verifier.forbidDeletes()));
-            }
-            if (!Set.of(io.opencode.loopper.domain.WorkflowTemplate.DIRECT_ARTIFACT,
-                    io.opencode.loopper.domain.WorkflowTemplate.PACKAGED_ARTIFACT).contains(profile.workflowTemplate())) return false;
-            return spec.stages().getFirst().artifactPlanId() != null
-                    && mapper.findArtifactPlan(spec.stages().getFirst().artifactPlanId())
-                    .map(row -> "FROZEN".equals(row.state())).orElse(false);
+            return DirectArtifactConfirmationPolicy.eligible(profile, spec, planId ->
+                    mapper.findArtifactPlan(planId).map(row -> "FROZEN".equals(row.state())).orElse(false));
         }
         DesignRequirementRevisionRow revision = currentRequirement(sessionId);
         List<DesignWorkPackageRow> packages = mapper.listDesignWorkPackages(revision.id());

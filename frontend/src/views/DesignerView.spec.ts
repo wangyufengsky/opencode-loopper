@@ -1771,6 +1771,47 @@ describe('Designer draft composer', () => {
     expect(matrix.text()).toContain('BUILD')
   })
 
+  it.each(['DIRECT_ARTIFACT', 'PACKAGED_ARTIFACT'] as const)(
+    'confirms a %s document from FINAL_REVIEW using server eligibility without an artifact plan', async (workflowTemplate) => {
+      const spec: LoopSpec = {
+        schemaVersion: 'v2', projectId: project.id, goal: '撰写详细设计文档', context: '按来源撰写正文',
+        stages: [{ objective: '撰写正文', stageKind: 'DOCUMENT_AUTHORING', executionStrategy: 'OPEN_CODE_IMPLEMENTATION',
+          workPackageId: 'WP-1', implementationKind: 'NON_JAVA', allowedPaths: ['docs/design.md'], forbiddenPaths: [],
+          deliverables: ['docs/design.md'], verifiers: [{ type: 'DOCUMENT_STRUCTURE', path: 'docs/design.md',
+            criterionIds: ['AC-1'], documentAssertions: [{ type: 'TEXT_NON_EMPTY' }] }],
+          acceptanceCriteria: [{ id: 'AC-1', description: '格式有效' },
+            { id: 'AC-2', description: '正文完整', verificationMode: 'JUDGE', judgeRubric: '逐项核对来源', judgeOnlyReason: '需要内容评审' }] }],
+        limits: { maxStageAttempts: 3, maxTaskAttempts: 12, maxDuration: '7200', attemptTimeout: '1800' },
+      }
+      const ready = draftFrom(spec)
+      const pending: Task = { id: 'document-task', projectId: project.id, projectName: project.name, title: spec.goal,
+        goal: spec.goal, branch: '', worktreePath: '', status: 'PENDING_START', attemptCount: 0, maxAttempts: 12,
+        createdAt: 'now', updatedAt: 'now', errors: [] }
+      routeQuery.sessionId = session.id
+      vi.spyOn(api, 'getDesignerSession').mockResolvedValue({ ...session, state: 'REVIEWING', workflowPhase: 'FINAL_REVIEW',
+        finalConfirmationEligible: true, draft: ready, taskProfile: { ...session.taskProfile,
+          workflowTemplate, intent: 'DOCUMENT_AUTHORING', testPolicy: 'NOT_APPLICABLE', artifactKinds: ['MARKDOWN'] } })
+      vi.spyOn(api, 'updateDraft').mockResolvedValue(ready)
+      vi.spyOn(api, 'confirmDraft').mockResolvedValue({ taskId: pending.id })
+      vi.spyOn(api, 'getDraft').mockResolvedValue({ ...ready, status: 'CONFIRMED' })
+      vi.spyOn(api, 'getTask').mockResolvedValue(pending)
+      const wrapper = mountDesigner()
+      await flushPromises()
+      const buttons = wrapper.findAll('button').filter((button) => button.text().includes('确认设计并创建任务'))
+      expect(buttons).toHaveLength(2)
+      for (const button of buttons) expect(button.attributes('disabled')).toBeUndefined()
+      await buttons[0]!.trigger('click')
+      await flushPromises()
+      expect(api.confirmDraft).toHaveBeenCalledWith(ready.id)
+      expect(api.updateDraft).toHaveBeenCalledWith(ready.id, expect.objectContaining({
+        stages: [expect.objectContaining({ stageKind: 'DOCUMENT_AUTHORING', executionStrategy: 'OPEN_CODE_IMPLEMENTATION' })],
+      }))
+      expect(useTaskStore().tasks).toContainEqual(pending)
+      expect(routerPush).toHaveBeenCalledWith(`/tasks/${pending.id}`)
+      wrapper.unmount()
+    },
+  )
+
   it('reopens an already confirmed draft idempotently without trying to modify the immutable LoopSpec', async () => {
     const loopSpec: LoopSpec = {
       schemaVersion: 'v1', projectId: project.id, goal: '重新打开已确认交接', context: '',
