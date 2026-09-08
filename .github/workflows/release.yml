@@ -45,33 +45,14 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "jar_name=opencode-loopper-$VERSION.jar" >> "$GITHUB_OUTPUT"
 
-      - name: Verify and package
-        run: ./mvnw -B clean verify
-
-      - name: Prepare release assets
-        shell: bash
-        run: |
-          JAR="target/${{ steps.version.outputs.jar_name }}"
-          test -s "$JAR"
-          bash -n scripts/start-linux.sh
-          mkdir -p target/release
-          cp "$JAR" target/release/
-          cp scripts/start-linux.sh target/release/
-          cp scripts/start-windows.bat target/release/
-          (
-            cd target/release
-            sha256sum "${{ steps.version.outputs.jar_name }}" start-linux.sh start-windows.bat > SHA256SUMS
-          )
+      - name: Verify and package all six distributions
+        run: ./scripts/verify.sh
 
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            "target/release/${{ steps.version.outputs.jar_name }}#OpenCode Loopper ${{ steps.version.outputs.version }} executable JAR" \
-            "target/release/start-linux.sh#Linux intranet startup script" \
-            "target/release/start-windows.bat#Windows startup script" \
-            "target/release/SHA256SUMS#SHA-256 checksums" \
+          gh release create "$GITHUB_REF_NAME" target/release/* \
             --verify-tag \
             --title "OpenCode Loopper ${{ steps.version.outputs.version }}" \
             --generate-notes

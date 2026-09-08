@@ -12,11 +12,13 @@ fi
 
 set -Eeuo pipefail
 
-# 内网 Linux 默认 JDK 目录。也可以在启动时用 LOOPPER_JAVA_HOME 覆盖。
+# 兼容旧的独立脚本部署；完整发行包优先使用包内 JDK。
 DEFAULT_JAVA_HOME="/opt/jdk-21"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [[ -f "${SCRIPT_DIR}/../pom.xml" ]]; then
+if [[ -d "${SCRIPT_DIR}/jdk21" ]]; then
+  APP_HOME="${SCRIPT_DIR}"
+elif [[ -f "${SCRIPT_DIR}/../pom.xml" ]]; then
   APP_HOME="$(cd "${SCRIPT_DIR}/.." && pwd)"
 else
   # 允许把本脚本和成品 JAR 一起复制到独立部署目录。
@@ -85,6 +87,12 @@ export OPENCODE_ENABLE_QUESTION_TOOL="${OPENCODE_ENABLE_QUESTION_TOOL:-true}"
 if [[ -n "${LOOPPER_JAVA_HOME:-}" ]]; then
   JAVA_HOME="${LOOPPER_JAVA_HOME}"
   JAVA_HOME_SOURCE="LOOPPER_JAVA_HOME"
+elif [[ -d "${APP_HOME}/jdk21" ]]; then
+  JAVA_HOME="${APP_HOME}/jdk21"
+  if [[ -d "${JAVA_HOME}/Contents/Home" ]]; then
+    JAVA_HOME="${JAVA_HOME}/Contents/Home"
+  fi
+  JAVA_HOME_SOURCE="bundled jdk21"
 else
   # 不继承系统中可能残留的 JDK 8 JAVA_HOME；脚本内配置必须确定生效。
   JAVA_HOME="${DEFAULT_JAVA_HOME}"
@@ -98,7 +106,7 @@ fail() {
 }
 
 if [[ ! -x "${JAVA_BIN}" ]]; then
-  fail "找不到可执行的 Java：${JAVA_BIN}。请修改 DEFAULT_JAVA_HOME，或设置 LOOPPER_JAVA_HOME=/实际/jdk目录。"
+  fail "找不到可执行的 Java：${JAVA_BIN}。请重新解压匹配系统和 CPU 的完整发行包，或设置 LOOPPER_JAVA_HOME=/实际/jdk目录。"
 fi
 
 JAVA_VERSION_LINE="$("${JAVA_BIN}" -version 2>&1 | head -n 1)"
@@ -116,12 +124,12 @@ fi
 
 if [[ -n "${LOOPPER_JAR_PATH:-}" ]]; then
   JAR_PATH="${LOOPPER_JAR_PATH}"
-elif [[ -f "${APP_HOME}/target/opencode-loopper-0.3.91.jar" ]]; then
-  JAR_PATH="${APP_HOME}/target/opencode-loopper-0.3.91.jar"
-elif [[ -f "${APP_HOME}/opencode-loopper-0.3.91.jar" ]]; then
-  JAR_PATH="${APP_HOME}/opencode-loopper-0.3.91.jar"
+elif [[ -f "${APP_HOME}/target/opencode-loopper-0.3.92.jar" ]]; then
+  JAR_PATH="${APP_HOME}/target/opencode-loopper-0.3.92.jar"
+elif [[ -f "${APP_HOME}/opencode-loopper-0.3.92.jar" ]]; then
+  JAR_PATH="${APP_HOME}/opencode-loopper-0.3.92.jar"
 else
-  fail "找不到成品 JAR。请把 opencode-loopper-0.3.91.jar 放到 ${APP_HOME}，或设置 LOOPPER_JAR_PATH。"
+  fail "找不到成品 JAR。请把 opencode-loopper-0.3.92.jar 放到 ${APP_HOME}，或设置 LOOPPER_JAR_PATH。"
 fi
 
 [[ -f "${JAR_PATH}" ]] || fail "JAR 不存在：${JAR_PATH}"
@@ -278,7 +286,7 @@ if [[ "${LOOPPER_OPENCODE_MODE}" == "managed" || "${LOOPPER_OPENCODE_MODE}" == "
   export OPENCODE_EXECUTABLE="${OPENCODE_CLI_PATH}"
 fi
 
-if [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
+if [[ "$(uname -s)" == "Darwin" || -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
   JAVA_AWT_HEADLESS="false"
   JAVA_AWT_MODE="图形模式（允许打开桌面文件夹选择器）"
 else
@@ -313,13 +321,19 @@ fi
 open_browser_when_ready() {
   [[ "${LOOPPER_OPEN_BROWSER:-true}" == "true" ]] || return 0
   command -v curl >/dev/null 2>&1 || return 0
-  command -v xdg-open >/dev/null 2>&1 || return 0
-  [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] || return 0
+  local browser_command
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    browser_command="open"
+  else
+    browser_command="xdg-open"
+    [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] || return 0
+  fi
+  command -v "${browser_command}" >/dev/null 2>&1 || return 0
 
   local attempt
   for attempt in {1..60}; do
     if curl --fail --silent --max-time 1 "${APP_URL}/actuator/health" | grep -q '"status"[[:space:]]*:[[:space:]]*"UP"'; then
-      xdg-open "${APP_URL}" >/dev/null 2>&1 || true
+      "${browser_command}" "${APP_URL}" >/dev/null 2>&1 || true
       return 0
     fi
     sleep 1

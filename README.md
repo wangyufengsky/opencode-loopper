@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.3.91`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.3.92`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 当前版本说明
 
@@ -114,13 +114,13 @@ Loopper 把四类事实分开保存和展示：
 
 | 依赖 | 要求 | 用途 |
 | --- | --- | --- |
-| JDK | 21 或更高 | 构建并运行 Spring Boot |
+| JDK | 成品包内置 21；源码构建需 21 或更高 | 运行 Spring Boot，无需为成品另装 Java |
 | Git | 可从 `PATH` 使用 | 原项目任务分支切换、差异与发布 |
 | OpenCode CLI | 1.18.x 或兼容版本 | Designer、实施 Session 与 Judge |
 | Node.js / npm | 仅前端热开发需要 | Maven 正式构建会准备固定版本的 Node/npm |
 | Chrome / Chromium | 可选 | 只在使用 `BROWSER` 验证器时需要 |
 
-先确认基础命令可用，并在 OpenCode 中完成所选模型提供方的认证：
+源码构建前确认以下命令可用；成品用户只需准备 Git、OpenCode，并在 OpenCode 中完成所选模型提供方的认证：
 
 ```bash
 java -version
@@ -140,7 +140,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.3.91.jar
+java -jar target/opencode-loopper-0.3.92.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -349,8 +349,8 @@ Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 或用�
 | `LOOPPER_JUDGE_DECISION_CANDIDATE_V1_ENABLED` | `true` | Requirement/Risk 均已完成真实模型同 Session 拒绝修正资格；`false` 仅让新评审走 Legacy，不改变既有候选恢复、同批次聚合、最小权限和失败关闭边界 |
 | `LOOPPER_CHROME_EXECUTABLE` | 自动检测 | `BROWSER` 验证器使用的 Chrome/Chromium 绝对路径 |
 | `LOOPPER_MCP_BEARER_TOKEN` | 每次启动随机生成 | `/api/mcp-streamable` 和 `/api/mcp` 的 Bearer Token |
-| `LOOPPER_JAVA_HOME` | Linux 脚本默认 `/opt/jdk-21`；Windows 依次回退到 `JAVA_HOME`、`PATH` | 启动脚本使用的 JDK 目录 |
-| `LOOPPER_JAR_PATH` | 自动查找当前版本 JAR | Linux/Windows 启动脚本使用的成品 JAR 路径 |
+| `LOOPPER_JAVA_HOME` | 完整发行包自动使用同目录 `jdk21` | 可选的显式 JDK 覆盖，一般无需设置 |
+| `LOOPPER_JAR_PATH` | 自动查找当前版本 JAR | Linux/macOS/Windows 启动脚本使用的成品 JAR 路径 |
 | `LOOPPER_PUBLICATION_HTTP_WEB_HOSTS` | 成品启动脚本包含 `gitlab.spdb.com`；直接运行 JAR 时为空 | 逗号分隔的精确 Git 主机白名单；命中后强制使用 HTTP MR/PR 网页地址，包括显式 HTTPS remote，但不改写 remote 或推送协议 |
 | `LOOPPER_GITLAB_HOST` | 成品启动脚本为 `gitlab.spdb.com` | 允许自动核对合并状态的精确 GitLab 主机 |
 | `LOOPPER_GITLAB_API_BASE_URL` | 成品启动脚本为 `http://gitlab.spdb.com/api/v4` | GitLab API v4 基础地址；主机必须与 `LOOPPER_GITLAB_HOST` 完全一致 |
@@ -360,7 +360,7 @@ Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 或用�
 | `LOOPPER_RETRY_SESSION_BASE` / `MAX` | `10s` / `60s` | 普通 Session 错误的指数退避起始值和上限 |
 | `LOOPPER_RETRY_VERIFICATION_BASE` / `MAX` | `5s` / `30s` | 验证失败后的指数退避起始值和上限 |
 
-`/settings` 将非敏感设置按运行环境、OpenCode、执行上限、`RETRY_WAIT` 和发布网络分区。保存时，完整配置写入 SQLite，并原子生成 `${LOOPPER_DATA_DIR}/config/startup-overrides.properties`；数据库或文件任一步失败都会恢复旧文件，不应用半套配置。Linux/Windows 启动器只逐项读取固定白名单，不执行文件内容，优先级为“显式环境变量 > 页面保存值 > 脚本默认值”；未知键告警忽略，已知键格式非法则终止启动。启动器默认导出 `OPENCODE_ENABLE_QUESTION_TOOL=true`，受管 OpenCode 子进程也会被强制注入该值。数据目录、Java Home、JAR 路径、MCP/OpenCode/GitLab 密钥不进入页面或该文件，监听地址继续固定为 loopback。页面会分别标明立即生效、下一次 Session/Task 生效和重启生效，保存不会自动重启服务。
+`/settings` 将非敏感设置按运行环境、OpenCode、执行上限、`RETRY_WAIT` 和发布网络分区。保存时，完整配置写入 SQLite，并原子生成 `${LOOPPER_DATA_DIR}/config/startup-overrides.properties`；数据库或文件任一步失败都会恢复旧文件，不应用半套配置。Linux/macOS/Windows 启动器只逐项读取固定白名单，不执行文件内容，优先级为“显式环境变量 > 页面保存值 > 脚本默认值”；未知键告警忽略，已知键格式非法则终止启动。启动器默认导出 `OPENCODE_ENABLE_QUESTION_TOOL=true`，受管 OpenCode 子进程也会被强制注入该值。数据目录、Java Home、JAR 路径、MCP/OpenCode/GitLab 密钥不进入页面或该文件，监听地址继续固定为 loopback。页面会分别标明立即生效、下一次 Session/Task 生效和重启生效，保存不会自动重启服务。
 
 全局 Stage/Task/Session 次数和时长限制是安全上限，与 LoopSpec 明确值取较小值。生产环境默认启用 `loopper.scheduling.enabled` 和 `loopper.startup-recovery.enabled`，后者统一恢复中断任务、本地同步与自动化状态。
 
@@ -370,25 +370,42 @@ Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 或用�
 - `http`：只连接已有的 OpenCode 服务，Loopper 不启动也不终止它。出于本地安全边界，只接受 loopback 端点。
 - `fake`：确定性测试适配器，不应在真实任务中使用。
 
-## Linux 与 Windows 部署
+## Linux、Windows 与 macOS 部署
 
-正式 JAR 已包含前端静态资源和运行所需的 SQLite JDBC 原生库。运行成品不需要 Maven、Node 或 npm。
+正式成品按操作系统和 CPU 分为六个独立包，每个包包含完整 JDK 21、已含前端和 SQLite JDBC 原生库的 JAR、启动脚本、使用说明及 JDK 来源信息。解压整个目录即可运行，无需安装 Java、Maven、Node 或 npm，也无需指定 JDK/JAR 目录。Git、OpenCode CLI 与模型认证仍需自行准备。
+
+| 系统 | CPU | 文件名后缀 | 启动入口 |
+| --- | --- | --- | --- |
+| Linux | Intel/AMD 64 位 | `linux-amd64.tar.gz` | `./start-linux.sh` |
+| Linux | ARM 64 位 | `linux-arm64.tar.gz` | `./start-linux.sh` |
+| Windows | Intel/AMD 64 位 | `windows-amd64.zip` | `start-windows.bat` |
+| Windows | ARM 64 位 | `windows-arm64.zip` | `start-windows.bat` |
+| macOS | Apple Silicon（M 系列） | `macos-apple.tar.gz` | `start-macos.command` |
+| macOS | Intel | `macos-intel.tar.gz` | `start-macos.command` |
+
+完整文件名为 `opencode-loopper-<version>-<后缀>`。Linux 包面向 glibc 发行版，不适用于 Alpine/musl。所有包保留 JDK 原始许可证；包内 `distribution.json` 记录 JDK 的下载地址、版本、架构、原始 SHA-256 和 JAR SHA-256。
 
 ### Linux / 内网
 
-将下面两个文件复制到同一个可写目录：
-
-- `target/opencode-loopper-0.3.91.jar`
-- `scripts/start-linux.sh`
-
-然后以前台方式启动：
+解压匹配 CPU 的 `.tar.gz`，进入解压目录并运行：
 
 ```bash
-chmod +x start-linux.sh
-LOOPPER_JAVA_HOME=/opt/java/jdk-21 ./start-linux.sh
+./start-linux.sh
 ```
 
-脚本也允许误用 `sh start-linux.sh`，它会先切换到 Bash。JDK 选择顺序是 `LOOPPER_JAVA_HOME`，然后是脚本内的 `DEFAULT_JAVA_HOME=/opt/jdk-21`；脚本故意忽略继承的 `JAVA_HOME`，避免旧 JDK 8 覆盖指定版本。
+脚本也允许 `sh start-linux.sh`，会先切换到 Bash。JDK 选择顺序为显式 `LOOPPER_JAVA_HOME`、包内 `jdk21`；只有旧式独立脚本部署且不存在 `jdk21` 目录时，才使用 `/opt/jdk-21`。不会被系统残留的旧 `JAVA_HOME` 覆盖。包内 JDK 不完整时直接报错，请重新解压。
+
+### macOS
+
+解压 Apple Silicon 或 Intel 包，双击 `start-macos.command`，或在终端运行：
+
+```bash
+./start-macos.command
+```
+
+脚本通过自身位置找到 `jdk21/Contents/Home` 和 JAR，支持从其他工作目录调用以及解压路径包含空格。它共用 Unix 启动逻辑，图形会话支持目录选择，健康检查通过后使用 macOS `open` 打开浏览器。若 macOS 对下载的脚本或 JDK 提示安全确认，请按系统界面确认来源后允许打开。
+
+### OpenCode 连接
 
 Linux 启动脚本默认使用 `managed`，先把 `opencode` 解析为确定的可执行文件路径，再由 Loopper 在新的动态 loopback 端口启动独立进程；它不会扫描或接管当前主机上已有的 OpenCode。只有显式选择 `auto/http` 时，脚本才会读取命令行中的 `--port`，并通过 `lsof` 或 `ss` 解析已有进程的实际监听端口；候选仍必须由 loopback `/global/health` 精确验真。脚本和受管进程默认启用 `OPENCODE_ENABLE_QUESTION_TOOL=true`。复用外部进程时，该进程不会继承新环境；Loopper 会降级为普通消息提问，直到操作者在外部 OpenCode 自身环境中启用该变量并重启。
 
@@ -407,12 +424,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 ### Windows
 
-从同一个 GitHub Release 下载并放在同一目录：
-
-- `opencode-loopper-0.3.91.jar`
-- `start-windows.bat`
-
-确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
+下载匹配 CPU 的 Windows ZIP，解压整个目录。确认 Git 和 OpenCode CLI 已安装，然后双击 `start-windows.bat`，或在 CMD 中运行：
 
 ```bat
 start-windows.bat
@@ -424,12 +436,11 @@ PowerShell 默认不会从当前目录搜索命令，必须带 `./` 或 `.\`：
 .\start-windows.bat
 ```
 
-脚本按 `LOOPPER_JAVA_HOME`、`JAVA_HOME`、`PATH` 的顺序查找 Java，并拒绝低于 21 的版本。默认 `managed` 直接由 Loopper 在动态 loopback 端口启动独立 OpenCode，不扫描已有进程。显式选择 `auto/http` 时才通过 Windows 进程信息读取 `opencode serve --port ...` 候选并要求 `/global/health` 精确验真。
+脚本按显式 `LOOPPER_JAVA_HOME`、包内 `jdk21` 的顺序查找 Java；只有旧式独立脚本部署且不存在 `jdk21` 目录时才回退到 `JAVA_HOME`、`PATH`，并拒绝低于 21 的版本。默认 `managed` 直接由 Loopper 在动态 loopback 端口启动独立 OpenCode，不扫描已有进程。显式选择 `auto/http` 时才通过 Windows 进程信息读取 `opencode serve --port ...` 候选并要求 `/global/health` 精确验真。
 
 需要固定路径或端口时，可先设置环境变量：
 
 ```bat
-set "LOOPPER_JAVA_HOME=C:\Program Files\Java\jdk-21"
 set "OPENCODE_EXECUTABLE=C:\Tools\opencode.exe"
 set "SERVER_PORT=8080"
 start-windows.bat
@@ -447,7 +458,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.3.91.jar \
+jar tf target/opencode-loopper-0.3.92.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -528,12 +539,11 @@ Windows PowerShell：
 
 每个可交付的新 JAR 必须使用一个未发布过且递增的 SemVer 版本。版本号需要同时更新 Maven、前端 package、MCP 配置、README、`AGENTS.md`、Linux 与 Windows 启动脚本，然后在该版本下重新执行完整验证。
 
-推送与 Maven 版本完全一致的 `v<version>` 标签会触发 [Release 工作流](.github/workflows/release.yml)。工作流在标签提交上使用 JDK 21 重新执行 `clean verify`，拒绝 SNAPSHOT 或标签不匹配的构建，并自动发布：
+推送与 Maven 版本完全一致的 `v<version>` 标签会触发 [Release 工作流](.github/workflows/release.yml)。工作流在标签提交上使用 JDK 21 重新执行 `clean verify`，拒绝 SNAPSHOT 或标签不匹配的构建，并通过与本地相同的 `verify.sh` 生成和发布：
 
-- `opencode-loopper-<version>.jar`；
-- `start-linux.sh`；
-- `start-windows.bat`；
-- `SHA256SUMS`。
+- 上表六个内置 JDK 21 的平台压缩包；
+- `opencode-loopper-<version>.jar`（保留供自备 Java 的用户使用）；
+- `SHA256SUMS`（覆盖六个压缩包和独立 JAR）。
 
 版本准备使用 `node scripts/release-version.mjs next` 和 `set <version> --write`，先检查远端版本占用再完整验证。只有明确收到发版授权后才推送提交和标签，步骤见 [开发与交付](docs/development.md)。
 
@@ -571,7 +581,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.3.91.jar
+java -jar target/opencode-loopper-0.3.92.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。

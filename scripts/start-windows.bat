@@ -19,7 +19,9 @@ if /I "%~1"=="--validate" (
 )
 
 set "SCRIPT_DIR=%~dp0"
-if exist "%SCRIPT_DIR%..\pom.xml" (
+if exist "%SCRIPT_DIR%jdk21\" (
+  for %%I in ("%SCRIPT_DIR%.") do set "APP_HOME=%%~fI"
+) else if exist "%SCRIPT_DIR%..\pom.xml" (
   for %%I in ("%SCRIPT_DIR%..") do set "APP_HOME=%%~fI"
 ) else (
   for %%I in ("%SCRIPT_DIR%.") do set "APP_HOME=%%~fI"
@@ -76,12 +78,18 @@ if not defined LOOPPER_RETRY_VERIFICATION_MAX set "LOOPPER_RETRY_VERIFICATION_MA
 if not defined LOOPPER_OPENCODE_MODE set "LOOPPER_OPENCODE_MODE=managed"
 
 if defined LOOPPER_JAVA_HOME goto java_from_loopper
+if exist "%APP_HOME%\jdk21\" goto java_from_bundle
 if defined JAVA_HOME goto java_from_java_home
 goto java_from_path
 
 :java_from_loopper
 set "JAVA_BIN=%LOOPPER_JAVA_HOME%\bin\java.exe"
 set "JAVA_SOURCE=LOOPPER_JAVA_HOME"
+goto java_ready
+
+:java_from_bundle
+set "JAVA_BIN=%APP_HOME%\jdk21\bin\java.exe"
+set "JAVA_SOURCE=bundled jdk21"
 goto java_ready
 
 :java_from_java_home
@@ -99,7 +107,7 @@ if not defined JAVA_BIN goto java_missing
 if not exist "%JAVA_BIN%" goto java_missing
 
 set "JAVA_VERSION_LINE="
-for /f "delims=" %%V in ('"%JAVA_BIN%" -version 2^>^&1') do if not defined JAVA_VERSION_LINE set "JAVA_VERSION_LINE=%%V"
+for /f "delims=" %%V in ('""%JAVA_BIN%" -version 2^>^&1"') do if not defined JAVA_VERSION_LINE set "JAVA_VERSION_LINE=%%V"
 if not defined JAVA_VERSION_LINE goto java_version_unknown
 for /f "tokens=3" %%V in ("%JAVA_VERSION_LINE%") do set "JAVA_VERSION=%%~V"
 if not defined JAVA_VERSION goto java_version_unknown
@@ -110,14 +118,17 @@ for /f "tokens=1,2 delims=." %%M in ("%JAVA_VERSION%") do (
 set /a JAVA_MAJOR_NUMBER=%JAVA_MAJOR% 2>nul
 if errorlevel 1 goto java_version_unknown
 if %JAVA_MAJOR_NUMBER% LSS 21 goto java_too_old
+for %%I in ("%JAVA_BIN%") do set "JAVA_BIN_DIR=%%~dpI"
+for %%I in ("%JAVA_BIN_DIR%..") do set "JAVA_HOME=%%~fI"
+set "PATH=%JAVA_HOME%\bin;%PATH%"
 
 if defined LOOPPER_JAR_PATH goto jar_from_environment
-if exist "%APP_HOME%\target\opencode-loopper-0.3.91.jar" (
-  set "JAR_PATH=%APP_HOME%\target\opencode-loopper-0.3.91.jar"
+if exist "%APP_HOME%\target\opencode-loopper-0.3.92.jar" (
+  set "JAR_PATH=%APP_HOME%\target\opencode-loopper-0.3.92.jar"
   goto jar_ready
 )
-if exist "%APP_HOME%\opencode-loopper-0.3.91.jar" (
-  set "JAR_PATH=%APP_HOME%\opencode-loopper-0.3.91.jar"
+if exist "%APP_HOME%\opencode-loopper-0.3.92.jar" (
+  set "JAR_PATH=%APP_HOME%\opencode-loopper-0.3.92.jar"
   goto jar_ready
 )
 goto jar_missing
@@ -213,7 +224,7 @@ if not defined DISCOVERED_OPENCODE_BASE_URL set "DISCOVERED_OPENCODE_BASE_URL=%~
 exit /b 0
 
 :java_missing
-echo [Loopper] ERROR: Java was not found. Set LOOPPER_JAVA_HOME to a JDK 21 directory, or configure JAVA_HOME/PATH. 1>&2
+echo [Loopper] ERROR: Java was not found. Extract the complete release archive for this OS/CPU, or set LOOPPER_JAVA_HOME. 1>&2
 exit /b 1
 
 :java_version_unknown
@@ -225,7 +236,7 @@ echo [Loopper] ERROR: JDK 21 or newer is required. Current version: %JAVA_VERSIO
 exit /b 1
 
 :jar_missing
-echo [Loopper] ERROR: opencode-loopper-0.3.91.jar was not found under "%APP_HOME%". Put the release JAR beside this script or set LOOPPER_JAR_PATH. 1>&2
+echo [Loopper] ERROR: opencode-loopper-0.3.92.jar was not found under "%APP_HOME%". Put the release JAR beside this script or set LOOPPER_JAR_PATH. 1>&2
 exit /b 1
 
 :data_dir_failed

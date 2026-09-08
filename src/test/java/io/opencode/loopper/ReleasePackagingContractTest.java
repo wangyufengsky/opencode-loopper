@@ -24,17 +24,15 @@ class ReleasePackagingContractTest {
     Path tempDir;
 
     @Test
-    void releasePublishesBothPlatformStartupScriptsWithChecksums() throws IOException {
+    void releasePublishesSixBundledDistributionsWithChecksums() throws IOException {
         String workflow = Files.readString(PROJECT_ROOT.resolve(".github/workflows/release.yml"));
-
+        String verify = Files.readString(PROJECT_ROOT.resolve("scripts/verify.sh"));
         assertThat(workflow)
-                .contains("bash -n scripts/start-linux.sh")
                 .contains("scripts\\start-windows.bat --validate")
-                .contains("cp scripts/start-linux.sh target/release/")
-                .contains("cp scripts/start-windows.bat target/release/")
-                .contains("sha256sum \"${{ steps.version.outputs.jar_name }}\" start-linux.sh start-windows.bat")
-                .contains("target/release/start-linux.sh#Linux intranet startup script")
-                .contains("target/release/start-windows.bat#Windows startup script");
+                .contains("./scripts/verify.sh")
+                .contains("target/release/*")
+                .contains("--verify-tag");
+        assertThat(verify).contains("python3 scripts/package-distributions.py");
     }
 
     @Test

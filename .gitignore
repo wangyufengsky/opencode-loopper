@@ -16,3 +16,5 @@ data/
 !.env.example
 playwright-report/
 test-results/
+
+__pycache__/
