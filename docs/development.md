@@ -32,11 +32,13 @@ npm --prefix frontend ci
 
 Windows 可用 `mvnw.cmd -Pbackend-dev -Dtest=CodeStructureContractTest test` 取得相同反馈。前端快捷命令使用本机 Node/npm；正式 Maven 门禁始终准备 `pom.xml` 固定的工具链。不同输出目录仍共享源码和前端目录，同一 checkout 不并发运行构建。
 
-正式打包还需要 Python 3.12+ 与 curl。最终的 `verify.sh` 在 Maven 门禁通过后，执行 `scripts/package-distributions.py` 生成六个平台包及独立 JAR、`SHA256SUMS` 至 `target/release/`。Linux/Windows 各有 amd64 与 arm64，macOS 分 Apple Silicon 和 Intel。下载使用 `scripts/jdk21-lock.json` 中固定的 Temurin JDK 21 URL、大小及 SHA-256，并核对解压后的 Java 版本、CPU、系统、编译器和许可证。完整 JDK（包括 legal）保留，macOS 保留 Contents/Home 布局。
+默认 `verify.sh` 只执行完整 Maven 门禁并生成可执行 JAR，不下载或组装 JDK。GitHub Release 发布独立 JAR、Linux/Windows 启动脚本与校验文件。
 
-JDK 缓存位于 `~/.cache/opencode-loopper/jdk21`，每次复核大小和 SHA-256；首次构建需要联网下载六套 JDK，之后可复用已校验缓存。`python3 scripts/package-distributions.py --download-only` 可预取。`--platform <平台名>` 可单独打包，`--cache <目录>` 可指定离线缓存，`--output <新目录>` 可指定输出；默认始终六包。已有输出目录会拒绝覆盖，失败不发布部分成品，升级 JDK 时更新锁文件并重新验证。
+仅在明确需要内置 JDK 的平台包时，先完成完整门禁，再手动执行 `python3 scripts/package-distributions.py`，生成六个平台包及独立 JAR、`SHA256SUMS` 至 `target/release/`。此可选步骤需要 Python 3.12+ 与 curl。Linux/Windows 各有 amd64 与 arm64，macOS 分 Apple Silicon 和 Intel。下载使用 `scripts/jdk21-lock.json` 中固定的 Temurin JDK 21 URL、大小及 SHA-256，并核对解压后的 Java 版本、CPU、系统、编译器和许可证。完整 JDK（包括 legal）保留，macOS 保留 Contents/Home 布局。
 
-正式 `verify.sh` 显式关闭 `backend-dev`，恢复前端构建并执行 `clean verify`。CI 的默认 Maven `clean verify` 执行代码门禁，Release 使用 `verify.sh` 再生成六包。Maven 完整链路包含：工具链安装、`npm ci`、项目文档/工具检查、`vue-tsc -b && vite build`、Vitest、Node 工具测试和全部 Java 测试。类型检查已包含在 `build` 中，不再单独重复执行一次。
+JDK 缓存位于 `~/.cache/opencode-loopper/jdk21`，每次复核大小和 SHA-256；首次手动组装需要联网下载六套 JDK，之后可复用已校验缓存。`python3 scripts/package-distributions.py --download-only` 可预取。`--platform <平台名>` 可单独打包，`--cache <目录>` 可指定离线缓存，`--output <新目录>` 可指定输出；手动命令默认生成六包。已有输出目录会拒绝覆盖，失败不发布部分成品，升级 JDK 时更新锁文件并重新验证。
+
+正式 `verify.sh` 显式关闭 `backend-dev`，恢复前端构建并执行 `clean verify`。CI 与 Release 均使用 Maven `clean verify` 执行完整门禁，不调用平台包组装工具。Maven 完整链路包含：工具链安装、`npm ci`、项目文档/工具检查、`vue-tsc -b && vite build`、Vitest、Node 工具测试和全部 Java 测试。类型检查已包含在 `build` 中，不再单独重复执行一次。
 
 `check-project.mjs` 的机械覆盖范围是：三份公约的 UTF-8 字节上限、它们直接链接到的 Markdown 文档及这些文档中的相对文件链接、指定发布字段的一致性。它不验证 Markdown 锚点、反引号中的路径、远端 URL 或合同语义，不递归遍历历史。源码的依赖方向由 `CodeStructureContractTest` 的指定字节码规则补充验证；规模门禁继续保持 600 行和既有债务上限。检查不是对整体架构正确性的证明。
 
@@ -61,11 +63,11 @@ node scripts/release-version.mjs set <version> --write
 
 ## 交付和发布证据
 
-正式门禁后检查 `target/opencode-loopper-<version>.jar` 非空，用 `jar tf` 核验 `BOOT-INF/classes/static/index.html` 与 assets，再计算 SHA-256。核对 `target/release/SHA256SUMS`、六包内 JDK/JAR/入口及权限；在可用宿主系统上从含空格的解压目录执行启动脚本，以独立端口和数据核验健康端点及前端，其他系统的实际启动明确列为未覆盖。
+正式门禁后检查 `target/opencode-loopper-<version>.jar` 非空，用 `jar tf` 核验 `BOOT-INF/classes/static/index.html` 与 assets，再计算 SHA-256。只有交付内置 JDK 平台包时，才另行核对 `target/release/SHA256SUMS`、包内 JDK/JAR/入口及权限；在可用宿主系统上从含空格的解压目录执行启动脚本，以独立端口和数据核验健康端点及前端，其他系统的实际启动明确列为未覆盖。
 
 记录写入 `docs/deliveries/<version>.md`，包括范围、验证命令/结果、JAR 路径/哈希和未执行项；只回填这些结果不递归打包。提交号放在最终回复，避免为了把提交号写进自身提交而反复提交。
 
-没有发布授权时止于本地提交。收到发版授权后：复查提交包含已核验交付，确认版本未被占用，推送该提交及不可移动的 `v<version>` 标签，等待 Release Actions 完成，回读六个平台包、独立 JAR、SHA256SUMS 与远端 digest。远端重建产物与本地 JAR 分别记录，不能假定字节相同。部署、活动 JVM 和浏览器加载另行核验。
+没有发布授权时止于本地提交。收到发版授权后：复查提交包含已核验交付，确认版本未被占用，推送该提交及不可移动的 `v<version>` 标签，等待 Release Actions 完成，回读独立 JAR、Linux/Windows 启动脚本、SHA256SUMS 与远端 digest。远端重建产物与本地 JAR 分别记录，不能假定字节相同。部署、活动 JVM 和浏览器加载另行核验。
 
 ## 公约迁移与维护
 

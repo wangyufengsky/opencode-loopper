@@ -10,5 +10,3 @@ fi
 
 cd "${PROJECT_DIR}"
 ./mvnw -P'!backend-dev' -Dloopper.frontend.skip=false clean verify
-
-python3 scripts/package-distributions.py

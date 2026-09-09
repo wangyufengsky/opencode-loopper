@@ -24,15 +24,22 @@ class ReleasePackagingContractTest {
     Path tempDir;
 
     @Test
-    void releasePublishesSixBundledDistributionsWithChecksums() throws IOException {
+    void releasePublishesStandaloneJarAndScriptsWithoutBundlingJdks() throws IOException {
         String workflow = Files.readString(PROJECT_ROOT.resolve(".github/workflows/release.yml"));
         String verify = Files.readString(PROJECT_ROOT.resolve("scripts/verify.sh"));
         assertThat(workflow)
                 .contains("scripts\\start-windows.bat --validate")
-                .contains("./scripts/verify.sh")
-                .contains("target/release/*")
+                .contains("./mvnw -B clean verify")
+                .contains("target/release/${{ steps.version.outputs.jar_name }}#")
+                .contains("target/release/start-linux.sh#")
+                .contains("target/release/start-windows.bat#")
+                .contains("target/release/SHA256SUMS#")
+                .contains("sha256sum \"${{ steps.version.outputs.jar_name }}\" start-linux.sh start-windows.bat > SHA256SUMS")
+                .doesNotContain("package-distributions.py", "target/release/*", "./scripts/verify.sh")
                 .contains("--verify-tag");
-        assertThat(verify).contains("python3 scripts/package-distributions.py");
+        assertThat(verify)
+                .contains("./mvnw -P'!backend-dev' -Dloopper.frontend.skip=false clean verify")
+                .doesNotContain("package-distributions.py");
     }
 
     @Test
