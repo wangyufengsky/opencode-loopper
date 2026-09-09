@@ -72,7 +72,7 @@ class PackageDesignV2SafetyTest {
         assertThat(PackageDesignScopeGuard.validate(broad, result.compiledPlan())).isEmpty();
     }
 
-    @Test void normalDirectPackageUsesFrozenRoleFallbackWithoutLettingCandidateExpandIt() {
+    @Test void semanticDirectScopeDoesNotMistakeJavaFallbackForUserAuthorization() {
         var old = fixture.input("补充事件安全测试。");
         var input = new Input(old.workPackage(), old.requirementText(), old.role(),
                 List.of("当前完整软件需求"), List.of(), List.of("完成当前需求的软件变更"), 6, true, "PACKAGE_DESIGN_V2");
@@ -80,9 +80,37 @@ class PackageDesignV2SafetyTest {
         assertThat(good.problems()).isEmpty();
         assertThat(good.accepted()).isTrue();
         var outside = fixture.candidate();
-        ((ObjectNode) outside.path("deliverables").get(0)).put("target", "private/EventBusTest.java");
-        var bad = fixture.compiler.compileCandidate(input, json.writeValueAsString(outside));
-        assertThat(bad.problems()).extracting(Problem::code).contains("PACKAGE_COMPILED_SCOPE_EXPANSION");
+        ((ObjectNode) outside.path("deliverables").get(0)).put("target", "module/src/test/java/EventBusTest.java");
+        var module = fixture.compiler.compileCandidate(input, json.writeValueAsString(outside));
+        assertThat(module.problems()).isEmpty();
+        var plan = (ObjectNode) json.valueToTree(good.compiledPlan());
+        ((ObjectNode) plan.path("stages").get(0)).set("allowedPaths",
+                json.valueToTree(List.of("arch/index.html", "src/main/resources/config.properties")));
+        assertThat(PackageDesignScopeGuard.validate(input, json.treeToValue(plan,
+                DesignerSemanticContracts.PackageCompilationPlanEnvelope.class))).isEmpty();
+        for (String unsafe : List.of("../outside.txt", "/tmp/outside.txt", ".git/config", "config/.env.production")) {
+            ((ObjectNode) plan.path("stages").get(0)).set("allowedPaths", json.valueToTree(List.of(unsafe)));
+            assertThat(PackageDesignScopeGuard.validate(input, json.treeToValue(plan,
+                    DesignerSemanticContracts.PackageCompilationPlanEnvelope.class)))
+                    .extracting(Problem::code).contains("PACKAGE_COMPILED_SCOPE_EXPANSION");
+        }
+    }
+
+    @Test void explicitUserOnlyConstraintStillRejectsAdditionalFiles() {
+        var old = fixture.input("只修改 `src/test/java/example/EventBusTest.java`。");
+        var input = new Input(old.workPackage(), old.requirementText(), old.role(),
+                List.of("当前完整软件需求"), List.of(), List.of(), 6, true, "PACKAGE_DESIGN_V2");
+        var good = fixture.compiler.compileCandidate(input, json.writeValueAsString(fixture.candidate()));
+        assertThat(good.accepted()).as(good.problems().toString()).isTrue();
+        var tree = (ObjectNode) json.valueToTree(good.compiledPlan());
+        ((ObjectNode) tree.path("stages").get(0)).set("allowedPaths", json.valueToTree(List.of("arch/index.html")));
+        assertThat(PackageDesignScopeGuard.validate(input, json.treeToValue(tree,
+                DesignerSemanticContracts.PackageCompilationPlanEnvelope.class)))
+                .anySatisfy(problem -> {
+                    assertThat(problem.code()).isEqualTo("PACKAGE_COMPILED_SCOPE_EXPANSION");
+                    assertThat(problem.pointer()).isEqualTo("/stages/0/allowedPaths/0");
+                    assertThat(problem.actual()).isEqualTo("arch/index.html");
+                });
     }
 
     @Test void safetyLoweringDoesNotTrustACompilerResultWithDeletionProtectionRemoved() {

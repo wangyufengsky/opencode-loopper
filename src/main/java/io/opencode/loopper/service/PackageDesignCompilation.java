@@ -54,7 +54,7 @@ public interface PackageDesignCompilation {
     }
 
     enum Outcome { ACCEPTED, REJECTED, NEEDS_INPUT }
-    enum ProblemClass { MECHANICAL, CORRECTABLE, HUMAN_REQUIRED, SECURITY }
+    enum ProblemClass { MECHANICAL, CORRECTABLE, HUMAN_REQUIRED, SECURITY, SYSTEM }
 
     record Problem(
             String code,
@@ -79,7 +79,9 @@ public interface PackageDesignCompilation {
 
         MachineCandidateSubmission.Problem submissionProblem() {
             return new MachineCandidateSubmission.Problem(code, pointer, staticDetail, allowedValues,
-                    "candidate", null, expected, actual, repairHint);
+                    problemClass == ProblemClass.SYSTEM ? "compiledPlan" : "candidate",
+                    problemClass == ProblemClass.SYSTEM ? MachineCandidateSubmission.ProblemCategory.INTERNAL : null,
+                    expected, actual, repairHint);
         }
     }
 

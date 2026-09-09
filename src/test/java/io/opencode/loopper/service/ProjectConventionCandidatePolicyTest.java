@@ -32,7 +32,7 @@ class ProjectConventionCandidatePolicyTest {
             new ProjectConventionCandidatePolicy(inputs, compilation);
 
     @Test
-    void retriesOnlyClosedMechanicalProblemsAtThreeAttemptContractAndNeverFallsBack() {
+    void rejectsCandidateAuthorityButAllowsCorrectionWithoutFallback() {
         CandidatePolicy.Decision mechanical = policy.evaluate(context(), candidateJson()
                 .replace("root:test", "missing-command"));
         CandidatePolicy.Decision security = policy.evaluate(context(), candidateJson()
@@ -46,7 +46,7 @@ class ProjectConventionCandidatePolicyTest {
             assertThat(problem.allowedValues()).containsExactly("root:test");
         });
         assertThat(security.accepted()).isFalse();
-        assertThat(security.retryable()).isFalse();
+        assertThat(security.retryable()).isTrue();
         assertThat(security.fallbackEligible()).isFalse();
         assertThat(security.problems()).singleElement()
                 .extracting(MachineCandidateSubmission.Problem::code)

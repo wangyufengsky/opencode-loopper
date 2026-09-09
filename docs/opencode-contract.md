@@ -1083,6 +1083,10 @@ See [three-batch implementation and qualification](mcp-design-optimization.md) f
 
 ## Seven-role candidate correction contract (0.3.67)
 
+拒绝候选的严重性与作者能否修正分开。模型提交了服务端专属字段、Judge 候选版本/角色或控制字符错误、Reviewer 证据路径不合规、工作包候选路径超界时，仍拒绝整个候选，但允许删除或修正错误内容后在同一 run/session 完整重提。候选不得因此获得权限、改写服务器身份或改变证据支持的 verdict。明确闭集以外的非重试错误不会自动转为可重试；真实 owner/version、冻结证据、运行时代次、停止证明和预算检查保持不变。
+
+拆包的缺口代码及多任务声明必须由原始需求支持；模型声明本身不证明用户缺少决策。已明确交由设计师自行选择的事项不再作为用户待决。旧编译路线的必改路径未分配可消耗既有自动重设计机会，不与禁止修改的缺口合并。安全拒绝不自动触发 Markdown 兜底，修正次数与超时仍按各运行冻结配置执行。
+
 V71 extends optional immutable correction limits to every new INTERNAL_MCP role, retaining existing NULL/unlimited
 runs, Legacy budgets and the package-specific setting. Six other roles resolve `internal-candidate.correction-limits`
 only at open time; 0 is unlimited, 2–16 includes the initial submission. Reopening keeps the frozen value.

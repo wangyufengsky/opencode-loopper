@@ -96,6 +96,34 @@ describe('TaskPublicationActions', () => {
     expect(wrapper.text()).toContain('创建合并请求')
   })
 
+  it.each(['suggestion', 'fallback', 'edited'])('submits the exact single-line preview for a multiline %s', async (source) => {
+    const multiline = '目标：创建arch网页\r\n使用场景：旧代码梳理\n验收标准：打开网页搜索'
+    if (source === 'fallback') generateTaskCommitMessage.mockRejectedValue(new Error('生成失败'))
+    else generateTaskCommitMessage.mockResolvedValue({ subject: multiline, aiGenerated: true })
+    const wrapper = mount(TaskPublicationActions, {
+      props: { task: { ...task, title: multiline } }, global: { plugins: [ElementPlus] }, attachTo: document.body,
+    })
+    await flushPromises()
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+    const ticket = document.querySelector('input[aria-label="4 位数字工单号"]') as HTMLInputElement
+    ticket.value = '2026'
+    ticket.dispatchEvent(new Event('input', { bubbles: true }))
+    if (source === 'edited') {
+      const subject = document.querySelector('textarea[aria-label="AI 提交说明"]') as HTMLTextAreaElement
+      subject.value = multiline
+      subject.dispatchEvent(new Event('input', { bubbles: true }))
+    }
+    await flushPromises()
+    const expected = '#2026_目标：创建arch网页 使用场景：旧代码梳理 验收标准：打开网页搜索'
+    expect(document.querySelector('.commit-preview code')?.textContent).toBe(expected)
+    const confirm = [...document.querySelectorAll('button')].find(button => button.textContent?.includes('确认提交并推送'))!
+    confirm.click()
+    await flushPromises()
+    expect(publishTask).toHaveBeenCalledWith('task-1', expected)
+    wrapper.unmount()
+  })
+
   it('opens the merge request dialog directly from the pushed-state button', async () => {
     getTaskPublication.mockResolvedValue(pushed)
     const wrapper = mount(TaskPublicationActions, { props: { task }, global: { plugins: [ElementPlus] }, attachTo: document.body })

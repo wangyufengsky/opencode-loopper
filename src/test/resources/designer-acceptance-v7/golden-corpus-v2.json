@@ -43,12 +43,12 @@
       "category": "MULTIPLE_STAGE",
       "stack": "java",
       "workflow": "packaged",
-      "guardTest": "io.opencode.loopper.api.DesignerSessionMcpIntegrationTest#v7AmbiguousMutationStagesWaitForTargetedInputWithoutCompilerOrWholeDesignRetry",
+      "guardTest": "io.opencode.loopper.api.DesignerSessionMcpIntegrationTest#v7AmbiguousMutationStagesRetryDesignBeforeWaitingAfterNoProgress",
       "targetImprovement": false,
       "requiredCompatibility": [],
       "expectedSafety": {"mutationObligationCount": 4, "resolvedMutationObligationCount": 2, "unresolvedMutationObligationCount": 2, "hardGapCount": 1},
       "v6": {"compiled": true, "executable": false, "compilerCalls": 0, "redesigns": 1, "eligibleObligations": 1, "conservedObligations": 0, "acceptance": 2, "judgeOnly": 0, "focusedRequired": 2, "focusedCovered": 2, "stagePathRules": 2, "capabilities": 1, "pathEscapes": 1, "hardGaps": 1, "blockedHardGaps": 0, "dangerousAutoAuthorizations": 0, "gapCodes": [], "compatibilityPassed": []},
-      "v7": {"compiled": false, "executable": false, "compilerCalls": 0, "redesigns": 0, "eligibleObligations": 4, "conservedObligations": 2, "acceptance": 2, "judgeOnly": 0, "focusedRequired": 2, "focusedCovered": 2, "stagePathRules": 2, "capabilities": 1, "pathEscapes": 0, "hardGaps": 1, "blockedHardGaps": 1, "dangerousAutoAuthorizations": 0, "gapCodes": ["REQUIRED_MUTATION_PATH_UNASSIGNED"], "compatibilityPassed": []}
+      "v7": {"compiled": false, "executable": false, "compilerCalls": 0, "redesigns": 1, "eligibleObligations": 4, "conservedObligations": 2, "acceptance": 2, "judgeOnly": 0, "focusedRequired": 2, "focusedCovered": 2, "stagePathRules": 2, "capabilities": 1, "pathEscapes": 0, "hardGaps": 1, "blockedHardGaps": 1, "dangerousAutoAuthorizations": 0, "gapCodes": ["REQUIRED_MUTATION_PATH_UNASSIGNED"], "compatibilityPassed": []}
     },
     {
       "id": "allowed-forbidden-overlap",

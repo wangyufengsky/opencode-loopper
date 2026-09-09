@@ -41,7 +41,7 @@ class DesignerAcceptanceV7GoldenCorpusTest {
             "io.opencode.loopper.api.DesignerSessionMcpIntegrationTest"
                     + "#enabledV7TrueTieUsesOneModelSessionAndTheRealPrivateMcpSubmission",
             "io.opencode.loopper.api.DesignerSessionMcpIntegrationTest"
-                    + "#v7AmbiguousMutationStagesWaitForTargetedInputWithoutCompilerOrWholeDesignRetry",
+                    + "#v7AmbiguousMutationStagesRetryDesignBeforeWaitingAfterNoProgress",
             "io.opencode.loopper.api.DesignerSessionMcpIntegrationTest"
                     + "#v7ProjectExternalMutationStopsBeforeCompilationWithoutTransportRetry");
     private final ObjectMapper json = new ObjectMapper();
@@ -218,7 +218,7 @@ class DesignerAcceptanceV7GoldenCorpusTest {
         assertThat(metric(ambiguous, "v7MutationUnresolved")).isEqualTo(2);
         assertThat(metric(ambiguous, "v7BlockedHardGaps")).isEqualTo(metric(ambiguous, "v7HardGaps"));
         assertThat(metric(ambiguous, "v7CompilerCalls")).isZero();
-        assertThat(metric(ambiguous, "v7Redesigns")).isZero();
+        assertThat(metric(ambiguous, "v7Redesigns")).isEqualTo(1);
 
         var cost = byId.get("large-package-v6-v7-cost");
         assertThat(metric(cost, "v7CompilerCalls")).isLessThan(metric(cost, "v6CompilerCalls"));

@@ -2592,9 +2592,9 @@ class DesignerAcceptancePlanningAlgorithmTest {
         assertThat(result.plan().stages()).allSatisfy(stage -> assertThat(stage.allowedPaths())
                 .noneMatch(path -> path.contains("：") || path.contains(" 与 ")));
         assertThat(result.plan().stages()).allSatisfy(stage -> {
-            assertThat(stage.forbiddenPaths()).containsExactly(".env", ".env.*", "target/**");
+            assertThat(stage.forbiddenPaths()).containsExactly(".env", ".env.*", ".git/**", "**/.git/**", "**/.env", "**/.env.*", "target/**");
             assertThat(stage.verifiers()).allSatisfy(verifier ->
-                    assertThat(verifier.forbiddenPaths()).containsExactly(".env", ".env.*", "target/**"));
+                    assertThat(verifier.forbiddenPaths()).containsExactly(".env", ".env.*", ".git/**", "**/.git/**", "**/.env", "**/.env.*", "target/**"));
         });
         assertThat(result.normalizations()).contains("JAVA_PRODUCTION_STAGE_GATE_BOUND");
     }

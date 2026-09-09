@@ -97,12 +97,12 @@ class DesignerDecompositionCandidateCompilerTest {
                 {"outcome":"NEEDS_INPUT","normalizedGoal":null,"globalConstraints":[],"workPackages":[],
                  "coverage":[],"designGaps":[{"code":"MISSING_SCOPE","detail":"choose the managed root"}],
                  "reason":null}
-                """, revision());
+                """, revision("两个独立项目根；采用哪个仓库尚未确定，待用户确认。"));
         DesignerDecompositionCandidateCompiler.Compilation multiTask = compiler.compile("""
                 {"outcome":"MULTI_TASK_REQUIRED","normalizedGoal":null,"globalConstraints":[],
                  "workPackages":[],"coverage":[],"designGaps":[],
                  "reason":"two independent project roots and releases"}
-                """, revision());
+                """, revision("两个独立项目根；采用哪个仓库尚未确定，待用户确认。"));
 
         assertThat(json.readTree(needsInput.canonicalJson()).path("status").asText()).isEqualTo("NEEDS_INPUT");
         assertThat(json.readTree(multiTask.canonicalJson()).path("status").asText())
@@ -111,15 +111,17 @@ class DesignerDecompositionCandidateCompilerTest {
 
     @Test
     void malformedJsonIsRetryableWithRootPointer() {
-        DesignerDecompositionCandidateCompiler.Compilation result = compiler.compile("{", revision());
+        DesignerDecompositionCandidateCompiler.Compilation result = compiler.compile("{", revision("两个独立项目根；采用哪个仓库尚未确定，待用户确认。"));
 
         assertThat(result.accepted()).isFalse();
         assertThat(result.problems()).containsExactly(new MachineCandidateSubmission.Problem(
                 "CANDIDATE_JSON_INVALID", "", "Candidate must be one complete JSON object"));
     }
 
-    private DesignRequirementRevisionRow revision() {
-        return new DesignRequirementRevisionRow("rev", "session", 3, "message", "complete requirement",
+    private DesignRequirementRevisionRow revision() { return revision("complete requirement"); }
+
+    private DesignRequirementRevisionRow revision(String text) {
+        return new DesignRequirementRevisionRow("rev", "session", 3, "message", text,
                 """
                         [{"id":"RQ-1","text":"remain loopback-only"},
                          {"id":"RQ-2","text":"validate all candidate semantics"},

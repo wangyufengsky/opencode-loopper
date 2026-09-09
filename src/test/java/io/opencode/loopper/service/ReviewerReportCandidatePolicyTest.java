@@ -66,20 +66,20 @@ class ReviewerReportCandidatePolicyTest {
     }
 
     @Test
-    void securityAndAuthorityFieldsFailClosedWithoutRetryOrFallback() throws Exception {
+    void unsafeEvidenceAndAuthorityFieldsRemainRejectedButAllowCorrection() throws Exception {
         CandidatePolicy.Decision traversal = policy.evaluate(context(), candidateJson()
                 .replace("src/Main.java", "../secret.txt"));
         CandidatePolicy.Decision authority = policy.evaluate(context(), candidateJson()
                 .replace("\"limitations\":[]", "\"limitations\":[],\"state\":\"READY\""));
 
         assertThat(traversal.accepted()).isFalse();
-        assertThat(traversal.retryable()).isFalse();
+        assertThat(traversal.retryable()).isTrue();
         assertThat(traversal.fallbackEligible()).isFalse();
         assertThat(traversal.problems()).singleElement()
                 .extracting(MachineCandidateSubmission.Problem::code)
                 .isEqualTo("REVIEWER_EVIDENCE_PATH_UNSAFE");
         assertThat(authority.accepted()).isFalse();
-        assertThat(authority.retryable()).isFalse();
+        assertThat(authority.retryable()).isTrue();
         assertThat(authority.fallbackEligible()).isFalse();
         assertThat(authority.problems()).singleElement().satisfies(problem -> {
             assertThat(problem.code()).isEqualTo("REVIEWER_AUTHORITY_FIELD_FORBIDDEN");

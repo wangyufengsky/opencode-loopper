@@ -3060,11 +3060,15 @@ class DesignerSessionMcpIntegrationTest {
                     "marker compatibility fixture"));
             ProjectRow project = project(status.toLowerCase());
             LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+            String source = status.equals("NEEDS_INPUT")
+                    ? "采用同步还是异步尚未决定，待用户确认" : "变更涉及两个独立项目根和多个独立发布边界";
+            fake().setDesignerOutput(designerOutput(source, legacySpec(project.id())));
             fake().setDecomposerOutput(decomposition(status, "需要人工处理", 0));
-            DesignerSessionRow session = createConfirmedSession(project.id(), draft.id(), "包含关键歧义或多个发布边界的需求");
+            DesignerSessionRow session = createConfirmedSession(project.id(), draft.id(), source);
             designerSessions.pollActiveHandoffs();
             designerSessions.pollActiveHandoffs();
-            assertThat(designerSessions.get(session.id()).state()).isEqualTo("WAITING_INPUT");
+            assertThat(designerSessions.get(session.id()).state()).as("status=%s revision=%s candidate=%s",
+                    status, mapper.findCurrentDesignRequirementRevision(session.id()), designerSessions.decompositionStatus(session.id())).isEqualTo("WAITING_INPUT");
             assertThat(designerSessions.decompositionStatus(session.id())).satisfies(candidate -> {
                 assertThat(candidate.resultType()).isEqualTo(status);
                 assertThat(candidate.candidateSessions()).isEqualTo(1);
@@ -3718,7 +3722,7 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     @Test
-    void v7AmbiguousMutationStagesWaitForTargetedInputWithoutCompilerOrWholeDesignRetry() throws Exception {
+    void v7AmbiguousMutationStagesRetryDesignBeforeWaitingAfterNoProgress() throws Exception {
         properties.getInternalCandidate().setAcceptanceClosedChoiceV7Enabled(true);
         fake().setTaskRouterOutput("{\"intent\":\"SOFTWARE_CHANGE\",\"artifactKinds\":[\"SOURCE_CODE\"],"
                 + "\"complexity\":\"SIMPLE\"}");
@@ -3770,7 +3774,7 @@ class DesignerSessionMcpIntegrationTest {
                 .isEqualTo("WAITING_INPUT");
         assertThat(designerSessions.workPackageStatuses(reviewing.id())).singleElement().satisfies(workPackage -> {
             assertThat(workPackage.lastErrorCode()).isEqualTo("DESIGN_INCOMPLETE");
-            assertThat(workPackage.redesignCount()).isZero();
+            assertThat(workPackage.redesignCount()).isEqualTo(1);
             assertThat(workPackage.acceptancePlanning().mutationObligationCount()).isEqualTo(4);
             assertThat(workPackage.acceptancePlanning().resolvedMutationObligationCount()).isEqualTo(2);
             assertThat(workPackage.acceptancePlanning().unresolvedMutationObligationCount()).isEqualTo(2);
@@ -3846,6 +3850,7 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(designerSessions.get(reviewing.id()).workflowPhase()).isEqualTo("FINAL_REVIEW");
         assertThat(designerSessions.workPackageStatuses(reviewing.id())).singleElement()
                 .satisfies(workPackage -> {
+                    assertThat(workPackage.redesignCount()).isEqualTo(2);
                     assertThat(workPackage.acceptancePlanning().unresolvedMutationObligationCount()).isZero();
                     assertThat(workPackage.acceptancePlanning().pathConservation()).isEqualTo("CONSERVED");
                 });

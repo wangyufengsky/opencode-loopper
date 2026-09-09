@@ -1911,7 +1911,7 @@ class TaskServiceIntegrationTest {
     }
 
     @Test
-    void judgeCandidateSecurityRejectionStopsTheBatchWithoutStartingAFreshSession() throws Exception {
+    void judgeCandidateAuthorityFieldIsCorrectedWithinTheSameBatchAndSession() throws Exception {
         properties.getInternalCandidate().setJudgeDecisionV1Enabled(true);
         InternalMcpCredentialProvider.Credentials credentials = internalMcpCredentials.issue();
         internalMcpRuntime.activate(credentials);
@@ -1936,26 +1936,33 @@ class TaskServiceIntegrationTest {
                 judgeCandidate(requirement.role(), "PASS")
                         .replace("\"reason\"", "\"permission\":\"write\",\"reason\""),
                 run.version(), MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP));
-        assertThat(rejected.outcome()).isEqualTo(MachineCandidateOutcome.WAITING_INPUT);
-        assertThat(rejected.retryable()).isFalse();
+        assertThat(rejected.outcome()).isEqualTo(MachineCandidateOutcome.REJECTED);
+        assertThat(rejected.retryable()).isTrue();
         int judgeCount = tasks.judges(task.id()).size();
-
-        for (int i = 0; i < 5 && "JUDGING".equals(tasks.get(task.id()).state()); i++) {
-            tasks.pollJudges(task.id());
+        assertThat(candidateSubmissions.find(run.runId())).hasValueSatisfying(current -> {
+            assertThat(current.state().name()).isEqualTo("OPEN");
+            assertThat(current.externalSessionId()).isEqualTo(requirement.externalSessionId());
+        });
+        assertThat(tasks.get(task.id()).state()).isEqualTo("JUDGING");
+        for (var judge : tasks.judges(task.id())) {
+            var currentLaunch = mapper.findGenericCandidateInternalLaunchForJudgeRun(judge.id()).orElseThrow();
+            var currentRun = candidateSubmissions.find(currentLaunch.candidateRunId()).orElseThrow();
+            var accepted = candidateSubmissions.submit(new MachineCandidateSubmission.SubmitCommand(
+                    currentRun.runId(), "corrected-" + judge.role(), judgeCandidate(judge.role(), "PASS"),
+                    currentRun.version(), MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP));
+            assertThat(accepted.outcome()).isEqualTo(MachineCandidateOutcome.ACCEPTED);
         }
-
-        assertThat(tasks.get(task.id()).state()).isEqualTo("WAITING_INPUT");
-        assertThat(tasks.judges(task.id())).hasSize(judgeCount);
+        for (int i = 0; i < 5 && "JUDGING".equals(tasks.get(task.id()).state()); i++) tasks.pollJudges(task.id());
+        assertThat(tasks.get(task.id()).state()).isEqualTo("AWAITING_DECISION");
+        assertThat(tasks.judges(task.id())).hasSize(judgeCount).allSatisfy(judge -> {
+            assertThat(judge.state()).isEqualTo("COMPLETED");
+            assertThat(judge.verdict()).isEqualTo("PASS");
+        });
         assertThat(mapper.latestJudgeRun(task.id(), "REQUIREMENT")).hasValueSatisfying(judge -> {
             assertThat(judge.id()).isEqualTo(requirement.id());
-            assertThat(judge.state()).isEqualTo("ABORTED");
-            assertThat(judge.reason()).startsWith("JUDGE_CANDIDATE_WAITING_INPUT:");
+            assertThat(judge.externalSessionId()).isEqualTo(requirement.externalSessionId());
         });
-        assertThat(tasks.errors(task.id())).anySatisfy(error -> {
-            assertThat(error.code()).isEqualTo("JUDGE_CANDIDATE_WAITING_INPUT");
-            assertThat(error.layer()).isEqualTo(ErrorLayer.VERIFICATION.name());
-            assertThat(error.retryable()).isFalse();
-        });
+        assertThat(tasks.errors(task.id())).noneMatch(error -> "JUDGE_CANDIDATE_WAITING_INPUT".equals(error.code()));
     }
 
     @Test

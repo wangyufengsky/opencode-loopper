@@ -39,13 +39,13 @@ class RollingPackagePlanCandidatePolicyTest {
     }
 
     @Test
-    void authorityFieldsFailClosedWithoutRetryOrFallback() {
+    void authorityFieldsRemainRejectedButAllowCorrectionWithoutFallback() {
         CandidatePolicy.Decision decision = policy.evaluate(context(), candidate()
                 .replace("\"requirementRefs\":[\"RQ-2\"]",
                         "\"requirementRefs\":[\"RQ-2\"],\"command\":\"unsafe-private-value\""));
 
         assertThat(decision.accepted()).isFalse();
-        assertThat(decision.retryable()).isFalse();
+        assertThat(decision.retryable()).isTrue();
         assertThat(decision.fallbackEligible()).isFalse();
         assertThat(decision.problems()).singleElement().satisfies(problem -> {
             assertThat(problem.code()).isEqualTo("ROLLING_PACKAGE_AUTHORITY_FIELD_FORBIDDEN");

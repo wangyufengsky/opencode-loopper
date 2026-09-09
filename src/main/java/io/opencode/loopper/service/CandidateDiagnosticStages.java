@@ -20,9 +20,8 @@ final class CandidateDiagnosticStages {
                     CandidateDiagnosticEnricher.enrich(json, candidate, semantic.problems()), semantic.diagnosticsComplete());
         }
         var problems = CandidateDiagnosticEnricher.enrich(json, candidate, shape.problems());
-        boolean safe = problems.stream().noneMatch(problem ->
-                problem.category() == MachineCandidateSubmission.ProblemCategory.AUTHORITY
-                        || problem.category() == MachineCandidateSubmission.ProblemCategory.SECURITY);
-        return CandidatePolicy.Decision.rejected(safe, false, problems, shape.complete());
+        // The role policy already rejected any unrecoverable runtime/source boundary.
+        // Unknown candidate fields can be removed without granting their requested authority.
+        return CandidatePolicy.Decision.rejected(true, false, problems, shape.complete());
     }
 }

@@ -1,6 +1,5 @@
 package io.opencode.loopper.service;
 
-import static io.opencode.loopper.service.MachineCandidateSubmission.ProblemCategory;
 import tools.jackson.databind.ObjectMapper;
 
 /** Root shape diagnostics precede dependent semantic checks for the typed package channel. */
@@ -19,9 +18,7 @@ final class PackageDesignCandidateEvaluation {
                 : CandidateShapeValidator.validate(json, context.candidateKind(), candidateJson);
         if (!shape.problems().isEmpty()) {
             var problems = CandidateDiagnosticEnricher.enrich(json, candidateJson, shape.problems());
-            boolean repairable = problems.stream().noneMatch(problem -> problem.category() == ProblemCategory.AUTHORITY
-                    || problem.category() == ProblemCategory.SECURITY);
-            return CandidatePolicy.Decision.rejected(repairable, false, problems, shape.complete());
+            return CandidatePolicy.Decision.rejected(true, false, problems, shape.complete());
         }
         var decision = policy.evaluate(context, candidateJson);
         return new CandidatePolicy.Decision(decision.accepted(), decision.canonicalCandidateJson(), decision.retryable(),

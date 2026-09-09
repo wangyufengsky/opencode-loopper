@@ -115,6 +115,28 @@ class MachineCandidateSubmissionIntegrationTest {
     }
 
     @Test
+    void candidateAuthorityRejectionKeepsTheSameMcpRunOpenForCorrection() {
+        var old = packageRun("repair-authority", 3);
+        var channel = MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP;
+        submissions.open(new MachineCandidateSubmission.OpenCommand(old.runId(), old.scope(), old.owner(),
+                old.candidateKind(), old.workflowStep(), old.sourceRevision(), old.ownerVersion(), channel,
+                old.contractVersion(), old.runtimeGenerationId(), old.externalSessionId(), 3));
+        var first = submissions.submit(new MachineCandidateSubmission.SubmitCommand(old.runId(), "first",
+                "{\"id\":\"model-owned-id\"}", 0, channel, MachineCandidateSubmission.SubmissionSchema.ROLE_SPECIFIC_V2));
+        assertThat(first.outcome()).isEqualTo(MachineCandidateOutcome.REJECTED);
+        assertThat(first.runState()).isEqualTo(MachineCandidateRunState.OPEN);
+        assertThat(first.responseJson()).contains("FIX_AND_RESUBMIT", "PACKAGE_DESIGN_SECURITY_BOUNDARY");
+        assertThat(submissions.terminal(old.runId())).isEmpty();
+        var second = submissions.submit(new MachineCandidateSubmission.SubmitCommand(old.runId(), "second",
+                "{\"contractVersion\":\"PACKAGE_DESIGN_V1\"}", first.submissionRevision(), channel,
+                MachineCandidateSubmission.SubmissionSchema.ROLE_SPECIFIC_V2));
+        assertThat(second.runId()).isEqualTo(first.runId());
+        assertThat(second.attemptOrdinal()).isEqualTo(2);
+        assertThat(second.runState()).isEqualTo(MachineCandidateRunState.OPEN);
+        assertThat(mapper.findPackageDesignAcceptedResult(old.runId())).isEmpty();
+    }
+
+    @Test
     void finitePackageBudgetSurvivesReloadAndStopsAfterFourDistinctSubmissions() {
         var old = packageRun("finite-package", 3);
         var channel = MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP;

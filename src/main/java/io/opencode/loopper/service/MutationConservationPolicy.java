@@ -137,6 +137,12 @@ final class MutationConservationPolicy {
     private static boolean overlaps(MutationObligation obligation, String rule,
                                     VerifierPathPolicy.RuleRelations relations) {
         try {
+            // Mandatory secret exclusions narrow a writable subtree; their possible presence
+            // does not make every ordinary file/directory obligation contradictory.
+            if (obligation.pathKind() == MutationPathKind.PATH_RULE
+                    && DesignerAcceptanceStagePathPlanner.SYSTEM_FORBIDDEN_PATHS.contains(rule)) {
+                return relations.allowedRuleCovers(obligation.pathRule(), rule);
+            }
             return obligation.pathKind() == MutationPathKind.EXACT_PATH
                     ? relations.ruleMatchesExactPath(obligation.pathRule(), rule)
                     : relations.rulesMayOverlap(obligation.pathRule(), rule);

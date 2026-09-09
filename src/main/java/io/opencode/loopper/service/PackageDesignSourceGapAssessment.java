@@ -2,13 +2,9 @@ package io.opencode.loopper.service;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Pattern;
 
 /** Pure source-based assessment. An enum or a model-authored alternative never proves a missing business choice. */
 final class PackageDesignSourceGapAssessment {
-    private static final Pattern UNDECIDED = Pattern.compile("尚未(?:决定|确定|确认)|尚待(?:业务)?决定|待(?:业务方|用户)确认|未定|not yet decided", Pattern.CASE_INSENSITIVE);
-    private static final Pattern CHOICE = Pattern.compile("还是|或(?:者)?|两种|选择|采用|whether|either", Pattern.CASE_INSENSITIVE);
-    private static final Pattern RESOLVED = Pattern.compile("(?:已|已经)(?:决定|确定|确认)|不(?:再|存在).{0,8}(?:未定|待决)");
 
     List<PackageDesignCompilation.Problem> problems(PackageDesignCompilation.Input input, PackageDesignV2Document candidate) {
         var sources = PackageRequirementSources.index(input.requirementText());
@@ -16,10 +12,9 @@ final class PackageDesignSourceGapAssessment {
         // Only explicit unresolved alternative behavior in the frozen source is a proven user decision.
         for (var source : sources.values()) {
             if (input.confirmedDecisions().containsKey(source.ref()) && java.util.Arrays.stream(source.text().split("[。；;\\n]"))
-                    .filter(sentence -> UNDECIDED.matcher(sentence).find() && CHOICE.matcher(sentence).find()).count() == 1) continue;
+                    .filter(DesignSourceDecisionPolicy::pending).count() == 1) continue;
             for (String sentence : source.text().split("[。；;\\n]")) {
-                if (UNDECIDED.matcher(sentence).find() && CHOICE.matcher(sentence).find()
-                        && !RESOLVED.matcher(sentence).find()) {
+                if (DesignSourceDecisionPolicy.pending(sentence)) {
                     var evidence = new PackageDesignGapAssessment.Evidence(PackageDesignGapAssessment.EvidenceKind.USER_DECISION,
                             List.of(source.ref()), sentence);
                     problems.add(problem("/gapClaims", new PackageDesignGapAssessment().assess("SOURCE_BUSINESS_CHOICE", List.of(evidence))));

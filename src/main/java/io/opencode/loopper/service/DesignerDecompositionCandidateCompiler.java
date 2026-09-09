@@ -72,10 +72,10 @@ final class DesignerDecompositionCandidateCompiler {
             for (int index = 0; index < gaps.size(); index++) {
                 DesignGap gap = gaps.get(index);
                 String pointer = "/designGaps/" + index;
-                if (candidateCorrectableGap(gap.code())) {
+                if (candidateCorrectableGap(gap.code()) || DesignSourceDecisionPolicy.decisions(revision.requirementText()).isEmpty()) {
                     problems.add(new MachineCandidateSubmission.Problem(
                             gap.code().name(), pointer + "/code",
-                            gap.code().name() + " 是候选可自行修正的问题，不能作为人工输入出口；具体声明："
+                            gap.code().name() + " 尚未证明存在必须由用户决定的缺口，不能作为人工输入出口；先检查需求和仓库并修正候选："
                                     + gap.detail(),
                             java.util.Arrays.stream(DesignGapCode.values()).map(Enum::name).toList(),
                             "candidate", MachineCandidateSubmission.ProblemCategory.SEMANTIC,
@@ -103,6 +103,10 @@ final class DesignerDecompositionCandidateCompiler {
         }
         if ("MULTI_TASK_REQUIRED".equals(outcome)) {
             String reason = nullableString(root.get("reason"));
+            if (!DesignSourceDecisionPolicy.multipleTaskBoundary(revision.requirementText())) {
+                problems.add("DECOMPOSITION_BOUNDARY_UNPROVEN", "/reason",
+                        "原始需求未证明存在多个独立项目或发布边界；请先调整拆包方案并重提 READY，不得仅凭候选声明要求人工拆任务");
+            }
             if (blank(reason)) {
                 problems.add("MULTI_TASK_REASON_REQUIRED", "/reason",
                         "MULTI_TASK_REQUIRED requires a concrete boundary reason");

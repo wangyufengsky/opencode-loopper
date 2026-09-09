@@ -53,4 +53,11 @@ final class PackageFrozenSafety {
                 PackageDesignCompilation.ProblemClass.SECURITY, false,
                 "请求行为满足冻结权限与服务端策略", "已发现相互冲突的请求与限制", "保留双方证据，通过本地反馈解决；候选表达无法放宽权限");
     }
+
+    static PackageDesignCompilation.Problem internal(String code, String detail) {
+        return new PackageDesignCompilation.Problem(code, "/compiledPlan", detail, List.of(),
+                PackageDesignCompilation.ProblemClass.SYSTEM, false,
+                "服务端编译结果保留完整安全约束", "服务端生成的计划未通过内部一致性检查",
+                "保留诊断并修复编译器后重新编译；这不是缺少用户需求，不得通过放宽权限或删除验收来修复");
+    }
 }

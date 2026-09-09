@@ -37,7 +37,7 @@ final class RollingPackageDesignContinuationService {
             if (workPackage.designerExternalSessionId() == null
                     || workPackage.designerExternalSessionId().isBlank()
                     || REPLACE_REMOTE_STATES.contains(String.valueOf(workPackage.designerExternalSessionState()))) {
-                designer.dispatchPackageDesigner(session, workPackage, continuationPrompt, false);
+                designer.dispatchPackageDesigner(session, workPackage, continuationPrompt, PackageDesignDispatch.CONTINUE);
             } else {
                 designer.pollWorkPackageDesigner(workPackage);
             }

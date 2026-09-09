@@ -281,7 +281,9 @@ final class DesignerPackageCandidateWorkflow {
 
     private static String candidateProblems(MachineCandidateSubmission.SubmissionResult result) {
         return result.problems().stream().map(problem -> problem.code()
-                        + (blank(problem.pointer()) ? "" : " " + problem.pointer()) + ": " + problem.detail())
+                        + (blank(problem.pointer()) ? "" : " " + problem.pointer()) + ": " + problem.detail()
+                        + "；预期：" + problem.expected() + "；实际：" + problem.actual()
+                        + "；处理：" + problem.repairHint()).distinct()
                 .collect(java.util.stream.Collectors.joining("\n"));
     }
 

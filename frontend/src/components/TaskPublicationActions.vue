@@ -7,6 +7,7 @@ import { changedLineNumbers, countChangedGroups, languageForPath, parseMergeConf
 import CodeMergeEditor from './CodeMergeEditor.vue'
 import type { LocalSyncConflictContent, LocalSyncConflictFile, LocalSyncConflictSession, LocalSyncResolution, Task, TaskPublicationStatus } from '@/types/domain'
 import { userFacingError } from '@/utils/displayLabels'
+import { normalizeCommitSubject, suggestedCommitSubject, validCommitSubject } from '@/utils/commitMessage'
 
 const props = withDefaults(defineProps<{ task: Task; demo?: boolean }>(), { demo: false })
 const emit = defineEmits<{ deliveryState: [state: TaskPublicationStatus['deliveryState']] }>()
@@ -15,6 +16,7 @@ const loading = ref(false)
 const operationLoading = ref(false)
 const commitDialogOpen = ref(false)
 const suggestionLoading = ref(false)
+const aiSuggested = ref(false)
 const ticketNumber = ref('')
 const commitSubject = ref('')
 const commitError = ref('')
@@ -40,8 +42,9 @@ const RECONCILE_COOLDOWN_MS = 30_000
 const publicationEligible = computed(() => props.task.status === 'SUCCEEDED'
   || (['AWAITING_DECISION', 'COMPLETED'].includes(props.task.status)
     && props.task.executionResult === 'SUCCEEDED'))
-const commitPreview = computed(() => `#${ticketNumber.value || '0000'}_${commitSubject.value.trim() || 'AI 生成提交信息'}`)
-const commitValid = computed(() => /^\d{4}$/.test(ticketNumber.value) && commitSubject.value.trim().length > 0 && commitPreview.value.length <= 126)
+const commitPreview = computed(() => `#${ticketNumber.value || '0000'}_${normalizeCommitSubject(commitSubject.value) || 'AI 生成提交信息'}`)
+const commitValid = computed(() => /^\d{4}$/.test(ticketNumber.value) && validCommitSubject(commitSubject.value))
+const commitSubjectCount = computed(() => Array.from(normalizeCommitSubject(commitSubject.value)).length)
 const providerLabel = computed(() => publication.value?.provider === 'GITHUB' ? 'GitHub Pull Request' : 'GitLab Merge Request')
 const deliveryLabel = computed(() => ({
   NOT_STARTED: '待提交', COMMITTED: '已提交', PUSHED: '已推送', MERGE_REQUEST_OPENED: '合并请求已创建',
@@ -161,16 +164,19 @@ async function openCommitDialog() {
   commitSubject.value = ''
   commitError.value = ''
   commitDialogOpen.value = true
+  aiSuggested.value = false
   suggestionLoading.value = true
   try {
     if (props.demo) {
       commitSubject.value = '完善任务提交与合并请求流程'
+      aiSuggested.value = true
     } else {
       const suggestion = await api.generateTaskCommitMessage(props.task.id)
-      commitSubject.value = suggestion.subject
+      commitSubject.value = suggestedCommitSubject(suggestion.subject)
+      aiSuggested.value = suggestion.aiGenerated
     }
   } catch (cause) {
-    commitSubject.value = props.task.title.replace(/^#[0-9]{4}_/, '').slice(0, 80)
+    commitSubject.value = suggestedCommitSubject(props.task.title, 80)
     commitError.value = `${userFacingError(cause, 'AI 提交信息生成失败')}，可手工填写。`
   } finally {
     suggestionLoading.value = false
@@ -180,7 +186,7 @@ async function openCommitDialog() {
 async function submitCommit() {
   commitError.value = ''
   if (!commitValid.value) {
-    commitError.value = /^\d{4}$/.test(ticketNumber.value) ? '请输入提交说明，并将完整提交信息控制在 126 个字符以内。' : '请输入 4 位数字工单号。'
+    commitError.value = /^\d{4}$/.test(ticketNumber.value) ? '请输入不超过120个字符的提交说明，并删除控制字符。' : '请输入 4 位数字工单号。'
     return
   }
   try {
@@ -477,13 +483,15 @@ async function createMergeRequest() {
   <el-tooltip v-if="publication?.lastCheckError" :content="publication.lastCheckError" placement="bottom"><el-tag type="danger">最近检查失败</el-tag></el-tooltip>
 
   <el-dialog v-model="commitDialogOpen" class="publication-dialog" :title="localPublication ? '提交本地任务分支' : '提交任务变更'" width="min(660px, 92vw)" append-to-body :close-on-click-modal="false">
-    <div class="publication-intro"><Icon icon="lucide:sparkles" /><div><strong>AI 已根据任务目标和实际差异生成默认说明</strong><p>你只需输入 4 位数字工单号；提交前仍可编辑说明。</p></div></div>
+    <div class="publication-intro"><Icon icon="lucide:sparkles" /><div><strong>{{ suggestionLoading ? '正在生成提交说明' : aiSuggested ? 'AI 已根据任务目标和实际差异生成默认说明' : '已根据任务标题填入默认说明，请核对实际改动' }}</strong><p>填写 4 位数字工单号并核对说明；多行内容将合并为单行提交。</p></div></div>
     <el-form label-position="top" style="margin-top: 18px" @submit.prevent="submitCommit">
       <el-form-item label="4 位数字工单号">
         <el-input :model-value="ticketNumber" maxlength="4" inputmode="numeric" placeholder="例如 3032" aria-label="4 位数字工单号" @update:model-value="normalizeTicket" />
       </el-form-item>
       <el-form-item label="AI 提交说明">
-        <el-input v-model="commitSubject" type="textarea" :rows="3" maxlength="120" show-word-limit :disabled="suggestionLoading" placeholder="正在生成…" aria-label="AI 提交说明" />
+        <el-input v-model="commitSubject" type="textarea" :rows="3" :disabled="suggestionLoading" placeholder="填写本次实际改动" aria-label="AI 提交说明" />
+        <p :class="commitSubjectCount > 120 ? 'publication-error' : 'generation-state'">{{ commitSubjectCount }} / 120{{ commitSubjectCount > 120 ? '，请精简提交说明' : '' }}</p>
+        <p v-if="commitSubjectCount > 0 && commitSubjectCount <= 120 && !validCommitSubject(commitSubject)" class="publication-error">提交说明包含控制字符，请删除后提交。</p>
         <p v-if="suggestionLoading" class="generation-state"><Icon icon="lucide:loader-circle" class="spin" />正在读取任务差异并生成提交说明</p>
       </el-form-item>
       <div class="commit-preview"><span>最终提交信息</span><code>{{ commitPreview }}</code></div>

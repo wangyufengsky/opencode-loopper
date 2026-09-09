@@ -39,12 +39,13 @@ public interface CandidatePolicy {
 
         public static Decision rejected(boolean retryable, boolean fallbackEligible,
                                         List<MachineCandidateSubmission.Problem> problems) {
-            return new Decision(false, null, retryable, fallbackEligible, problems, true);
+            return rejected(retryable, fallbackEligible, problems, true);
         }
 
         public static Decision rejected(boolean retryable, boolean fallbackEligible,
                 List<MachineCandidateSubmission.Problem> problems, boolean diagnosticsComplete) {
-            return new Decision(false, null, retryable, fallbackEligible, problems, diagnosticsComplete);
+            return new Decision(false, null, retryable || CandidateRepairPolicy.repairable(problems),
+                    fallbackEligible, problems, diagnosticsComplete);
         }
     }
 }

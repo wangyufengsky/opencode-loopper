@@ -478,7 +478,7 @@ public class RollingPackageService {
         String prompt = "这是逐包闭环任务的下一工作包。只能把下列事实层和当前只读快照作为现状；"
                 + "AI 导航摘要仅帮助定位，不属于机器证据。不得假设初始仓库仍是当前状态。"
                 + codec.factContext(facts(taskId));
-        designers.getObject().dispatchPackageDesigner(session, workPackage, prompt, false);
+        designers.getObject().dispatchPackageDesigner(session, workPackage, prompt, PackageDesignDispatch.CONTINUE);
     }
 
     private void appendSpecAndStages(TaskRow task, TaskPackageRunRow run, DesignWorkPackageRow workPackage,

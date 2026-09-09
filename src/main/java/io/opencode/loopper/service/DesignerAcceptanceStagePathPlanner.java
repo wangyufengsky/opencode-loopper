@@ -8,6 +8,7 @@ import java.util.List;
 
 /** Selects executable Stage paths while preserving which local facts can prove mutation ownership. */
 final class DesignerAcceptanceStagePathPlanner {
+    static final List<String> SYSTEM_FORBIDDEN_PATHS = List.of(".env", ".env.*", ".git/**", "**/.git/**", "**/.env", "**/.env.*");
     private final DesignerAcceptancePathPolicy pathPolicy = new DesignerAcceptancePathPolicy();
 
     Selection select(Catalog catalog, List<Integer> materialFactIndexes, List<String> scopeIn,
@@ -58,7 +59,7 @@ final class DesignerAcceptanceStagePathPlanner {
     }
 
     List<String> forbiddenPaths(Catalog catalog, List<String> scopeOut) {
-        LinkedHashSet<String> values = new LinkedHashSet<>(List.of(".env", ".env.*"));
+        LinkedHashSet<String> values = new LinkedHashSet<>(SYSTEM_FORBIDDEN_PATHS);
         values.addAll(pathPolicy.paths(scopeOut));
         if (CONTRACT_VERSION_V7.equals(catalog.contractVersion()) && scopeOut != null) {
             scopeOut.stream().filter(DesignerRepositoryPathSyntax::safeRootDirectory)

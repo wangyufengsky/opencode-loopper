@@ -165,8 +165,7 @@ final class DesignerAcceptanceWorkflow {
 
     DesignGap targetedMutationGap(List<DesignGap> gaps) {
         return gaps.stream().filter(gap -> gap != null
-                        && (gap.code() == DesignGapCode.REQUIRED_MUTATION_PATH_UNASSIGNED
-                        || gap.code() == DesignGapCode.REQUIRED_MUTATION_PATH_FORBIDDEN))
+                        && gap.code() == DesignGapCode.REQUIRED_MUTATION_PATH_FORBIDDEN)
                 .findFirst().orElse(null);
     }
 

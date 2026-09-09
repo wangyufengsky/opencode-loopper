@@ -279,7 +279,10 @@ class TaskPublicationServiceIntegrationTest {
         assertThat(ready.remoteName()).isNull();
 
         TaskPublicationService.PublicationStatus synced = publication.commitAndPush(
-                task.id(), "#3032_同步无远端任务变更");
+                task.id(), "#3032_同步无远端任务变更\n保留任务分支");
+
+        assertThat(run(projectRoot, "git", "show", "-s", "--format=%s", synced.commitSha()).strip())
+                .isEqualTo("#3032_同步无远端任务变更 保留任务分支");
 
         assertThat(synced.state()).isEqualTo("SYNCED_LOCAL");
         assertThat(synced.deliveryState()).isEqualTo("LOCAL_COMPLETED");

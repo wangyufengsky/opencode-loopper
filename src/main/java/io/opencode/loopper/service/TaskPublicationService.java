@@ -24,7 +24,7 @@ import org.springframework.stereotype.Service;
 public class TaskPublicationService {
     private static final Duration GIT_WRITE_TIMEOUT = Duration.ofMinutes(2);
     private static final Duration AI_TIMEOUT = Duration.ofSeconds(75);
-    private static final Pattern COMMIT_MESSAGE = Pattern.compile("^#[0-9]{4}_[^\\r\\n]{1,120}$");
+    private static final Pattern COMMIT_MESSAGE = CommitMessagePolicy.MESSAGE;
     private static final int PUBLICATION_LOCK_STRIPES = 64;
 
     private final TaskService tasks;
@@ -490,11 +490,7 @@ public class TaskPublicationService {
     }
 
     private String requireCommitMessage(String value) {
-        String normalized = value == null ? "" : value.strip();
-        if (!COMMIT_MESSAGE.matcher(normalized).matches()) {
-            throw new BadRequestException("COMMIT_MESSAGE_INVALID", "提交信息必须是 #加4位数字、下划线和提交说明，例如 #3032_修复任务发布流程");
-        }
-        return normalized;
+        return CommitMessagePolicy.requireMessage(value);
     }
 
     private String normalizedBranch(String value) {

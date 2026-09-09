@@ -45,7 +45,7 @@ class DecompositionCandidatePolicyTest {
     void validNeedsInputCandidateTerminatesGenericLoopWithoutAcceptedWrite() {
         LoopperDesignerMapper mapper = mock(LoopperDesignerMapper.class);
         when(mapper.findTaskDecomposition("dec")).thenReturn(Optional.of(owner()));
-        when(mapper.findDesignRequirementRevision("rev")).thenReturn(Optional.of(revision()));
+        when(mapper.findDesignRequirementRevision("rev")).thenReturn(Optional.of(revision("采用哪个仓库尚未确定，待用户确认。")));
         DecompositionCandidatePolicy policy = new DecompositionCandidatePolicy(
                 mapper, new DesignerDecompositionCandidateCompiler(new ObjectMapper()));
         CandidatePolicy.Context context = new CandidatePolicy.Context("run",
@@ -141,8 +141,10 @@ class DecompositionCandidatePolicyTest {
                 "DECOMPOSITION_PLAN_V2", 5, 0);
     }
 
-    private DesignRequirementRevisionRow revision() {
-        return new DesignRequirementRevisionRow("rev", "session", 1, "message", "requirement",
+    private DesignRequirementRevisionRow revision() { return revision("requirement"); }
+
+    private DesignRequirementRevisionRow revision(String text) {
+        return new DesignRequirementRevisionRow("rev", "session", 1, "message", text,
                 "[{\"id\":\"RQ-1\",\"text\":\"observable result\"}]", 0,
                 "ACTIVE", 0, 8, "now", "now", 0);
     }

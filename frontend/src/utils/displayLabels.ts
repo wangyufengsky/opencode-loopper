@@ -67,6 +67,15 @@ const generalLabels: Record<string, string> = {
 }
 
 const errorCodeLabels: Record<string, string> = {
+  PACKAGE_COMPILED_SCOPE_EXPANSION: '设计路径需要修正',
+  PACKAGE_DESIGN_SECURITY_BOUNDARY: '候选包含服务端专属字段',
+  PACKAGE_DESIGN_NEEDS_INPUT: '设计已暂停，请查看具体原因',
+  PACKAGE_COMPILED_SCOPE_VERIFIER_MISSING: '系统编译结果缺少范围验收',
+  PACKAGE_COMPILED_FORBIDDEN_SCOPE_LOST: '系统编译结果丢失禁止路径',
+  PACKAGE_COMPILED_DELETE_PERMISSION: '系统编译结果丢失禁止删除约束',
+  PACKAGE_COMPILED_SCOPE_EMPTY: '系统编译结果缺少可写范围',
+  PACKAGE_SCOPE_PROOF_UNAVAILABLE: '无法完成路径规则校验',
+  DECOMPOSITION_BOUNDARY_UNPROVEN: '拆包边界需要补充依据',
   ATTEMPT_LIMIT_EXHAUSTED: '已用完尝试次数',
   JAVA_UNIT_TEST_ACCEPTANCE_REQUIRED: '缺少 Java 聚焦单元测试验收',
   JAVA_CHANGE_CLASSIFICATION_MISMATCH: 'Java 变更与任务声明不一致',

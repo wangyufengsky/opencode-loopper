@@ -41,9 +41,8 @@ final class CommitMessagePromptFactory {
             value = value.substring(3, value.length() - 3).strip();
             if (value.startsWith("text")) value = value.substring(4).strip();
         }
-        value = value.lines().map(String::strip).filter(line -> !line.isBlank()).findFirst().orElse("");
-        value = PREFIX.matcher(value).replaceFirst("").replace("`", "").replace("\"", "").strip();
-        if (value.length() > 120) value = value.substring(0, 120).strip();
+        value = CommitMessagePolicy.subject(PREFIX.matcher(value).replaceFirst("").replace("`", "").replace("\"", ""));
+        if (value.codePointCount(0, value.length()) > 120) value = value.substring(0, value.offsetByCodePoints(0, 120)).strip();
         if (value.isBlank()) {
             throw new ServiceUnavailableException("COMMIT_MESSAGE_AI_EMPTY", "AI 没有返回可用的提交信息");
         }

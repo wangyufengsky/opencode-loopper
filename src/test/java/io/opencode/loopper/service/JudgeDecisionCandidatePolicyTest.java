@@ -31,7 +31,7 @@ class JudgeDecisionCandidatePolicyTest {
             new JudgeDecisionCandidatePolicy(inputs, compilation);
 
     @Test
-    void retriesOnlyClosedMechanicalProblemsAndNeverFallsBack() {
+    void rejectsCandidateAuthorityButAllowsCorrectionWithoutFallback() {
         CandidatePolicy.Decision mechanical = policy.evaluate(context(), candidateJson()
                 .replace("PASS", "MAYBE"));
         CandidatePolicy.Decision benignExtra = policy.evaluate(context(), candidateJson()
@@ -54,7 +54,7 @@ class JudgeDecisionCandidatePolicyTest {
                     "contractVersion", "role", "verdict", "reason", "evidenceIds");
         });
         assertThat(security.accepted()).isFalse();
-        assertThat(security.retryable()).isFalse();
+        assertThat(security.retryable()).isTrue();
         assertThat(security.fallbackEligible()).isFalse();
         assertThat(security.problems()).singleElement()
                 .extracting(MachineCandidateSubmission.Problem::code)
@@ -66,7 +66,7 @@ class JudgeDecisionCandidatePolicyTest {
             CandidatePolicy.Decision authority = policy.evaluate(context(), candidateJson()
                     .replace("\"reason\"", "\"" + authorityField + "\":\"forged\",\"reason\""));
             assertThat(authority.accepted()).isFalse();
-            assertThat(authority.retryable()).as(authorityField).isFalse();
+            assertThat(authority.retryable()).as(authorityField).isTrue();
             assertThat(authority.problems()).as(authorityField).singleElement()
                     .extracting(MachineCandidateSubmission.Problem::code)
                     .isEqualTo("JUDGE_DECISION_AUTHORITY_FIELD_FORBIDDEN");
@@ -74,7 +74,7 @@ class JudgeDecisionCandidatePolicyTest {
     }
 
     @Test
-    void retriesLineBreakFormattingButStopsOtherControlCharacters() {
+    void allowsRepairingCandidateLineBreaksAndControlCharacters() {
         for (String lineBreak : List.of("\\n", "\\r", "\\t", "\\r\\n")) {
             CandidatePolicy.Decision decision = policy.evaluate(context(), candidateJson()
                     .replace("The frozen evidence satisfies the contract.",
@@ -99,7 +99,7 @@ class JudgeDecisionCandidatePolicyTest {
 
         for (CandidatePolicy.Decision security : List.of(nul, bell, c1, mixed, oversizedWithNul)) {
             assertThat(security.accepted()).isFalse();
-            assertThat(security.retryable()).isFalse();
+            assertThat(security.retryable()).isTrue();
             assertThat(security.problems()).singleElement()
                     .extracting(MachineCandidateSubmission.Problem::code)
                     .isEqualTo("JUDGE_DECISION_REASON_CONTROL_INVALID");

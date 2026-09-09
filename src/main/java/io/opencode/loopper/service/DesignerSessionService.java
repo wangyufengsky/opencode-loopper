@@ -737,7 +737,7 @@ public class DesignerSessionService {
         appendMessage(session.id(), DesignerActor.SYSTEM,
                 "普通软件任务已由服务端建立默认工作包 WP-1；未创建或调用任务规划师。",
                 "COMPLETED", revision.revision(), null);
-        dispatchPackageDesigner(get(session.id()), packages.getFirst(), null, false);
+        dispatchPackageDesigner(get(session.id()), packages.getFirst(), null, PackageDesignDispatch.CONTINUE);
     }
     public void reopenRequirement(String sessionId, int expectedDiscussionRevision) {
         DesignerSessionRow session = get(sessionId);
@@ -937,7 +937,7 @@ public class DesignerSessionService {
                 recovery.promptPrefix() + "User feedback for this package:\n" + user.content()
                         + (directSoftware || recovery.required()
                                 ? "\nProduce a complete replacement design directly. Do not ask questions."
-                                : "\nProduce a complete replacement design after the mandatory questions."), false);
+                                : "\nProduce a complete replacement design after the mandatory questions."), PackageDesignDispatch.CONTINUE);
         if (prepared != null) requireAttachmentPackageDelivery(revised.id());
         return List.of(user);
     }
@@ -971,7 +971,7 @@ public class DesignerSessionService {
                 workPackage.compilerSummary(), workPackage.handoffSummary(), null, null);
         dispatchPackageDesigner(get(session.id()), designing,
                 "The user answered the compatibility chat questions. Do not ask another question.\n\n"
-                        + user.content(), false);
+                        + user.content(), PackageDesignDispatch.CONTINUE);
         if (prepared != null) requireAttachmentPackageDelivery(designing.id());
         return List.of(user);
     }
@@ -1391,7 +1391,7 @@ public class DesignerSessionService {
         }
         DesignWorkPackageRow workPackage = requireCurrentPackage(session, packageId);
         reactivateRequirement(currentRequirement(sessionId), true);
-        dispatchPackageDesigner(session, workPackage, mutationOwnershipRecovery.promptOr(session, workPackage, conversationPrompts.redesign("人工要求重新设计当前工作包完整方案")), true);
+        dispatchPackageDesigner(session, workPackage, mutationOwnershipRecovery.promptOr(session, workPackage, conversationPrompts.redesign("人工要求重新设计当前工作包完整方案")), PackageDesignDispatch.MANUAL_REDESIGN);
     }
 
     /** External model calls are deliberately outside a surrounding database transaction. */
@@ -1933,7 +1933,7 @@ public class DesignerSessionService {
                 "拆解校验通过：" + ("DIRECT_DESIGN".equals(envelope.status()) ? "采用单工作包直达设计。"
                         : "形成 " + packages.size() + " 个依赖有序的纵向工作包。"),
                 "COMPLETED", session.currentRequirementRevision(), null);
-        dispatchPackageDesigner(get(session.id()), packages.getFirst(), null, false);
+        dispatchPackageDesigner(get(session.id()), packages.getFirst(), null, PackageDesignDispatch.CONTINUE);
     }
 
     private void decompositionRejected(TaskDecompositionRow input, DesignerSessionRow session,
@@ -2012,13 +2012,13 @@ public class DesignerSessionService {
         return List.copyOf(result);
     }
     void dispatchPackageDesigner(DesignerSessionRow session, DesignWorkPackageRow input,
-                                 String replacementPrompt, boolean redesign) {
+                                 String replacementPrompt, PackageDesignDispatch mode) {
         try (var guard = conversations.guard(session.id())) {
             DesignRequirementRevisionRow revision = getRequirement(input.requirementRevisionId());
             requirementDraftGuard.requireUnchanged(session, revision.sourceDraftVersion());
             if (!isCurrent(session, revision)) throw new ConflictException("REQUIREMENT_REVISION_STALE",
                     "This work package belongs to a superseded requirement revision");
-            if (redesign && input.redesignCount() >= MAX_AUTOMATIC_REDESIGNS) {
+            if (mode == PackageDesignDispatch.AUTOMATIC_REDESIGN && input.redesignCount() >= MAX_AUTOMATIC_REDESIGNS) {
                 waitForDesignInput(session, revision, input, "DESIGN_RETRY_EXHAUSTED",
                         "The work package already used its one complete redesign");
                 return;
@@ -2061,7 +2061,7 @@ public class DesignerSessionService {
                 OpenCodeClient.OpenCodeSession remote = conversations.workPackage(session, input, Path.of(project.rootPath()),
                         configuredModel(), candidateEligibility.candidate(), usePackageCandidate, nativeQuestion, directSoftware, questionRepair);
                 usePackageCandidate = candidateTurn && conversations.candidate(remote.id(), usePackageCandidate);
-                int redesignCount = redesign ? input.redesignCount() + 1 : input.redesignCount();
+                int redesignCount = mode.redesign() ? input.redesignCount() + 1 : input.redesignCount();
                 DesignWorkPackageRow designing = updateWorkPackage(input, !questionRequired || usePackageCandidate
                                 ? DesignWorkPackageState.DESIGNING : DesignWorkPackageState.QUESTIONING,
                         remote.id(), "RUNNING", input.designMessageId(), input.designRevision(), redesignCount,
@@ -2199,7 +2199,7 @@ public class DesignerSessionService {
                                     workPackage.compilerSummary(), workPackage.handoffSummary(),
                                     "DESIGN_QUESTION_REQUIRED", "Designer completed before asking the required question");
                             dispatchPackageDesigner(get(session.id()), retrying,
-                                    "QUESTION_REPAIR:You omitted the mandatory design question. Ask it before producing Markdown.", false);
+                                    "QUESTION_REPAIR:You omitted the mandatory design question. Ask it before producing Markdown.", PackageDesignDispatch.CONTINUE);
                         } else {
                             waitForDesignInput(session, revision, workPackage, "DESIGN_QUESTION_REQUIRED",
                                     "Designer twice completed without asking the required work-package design question");
@@ -3007,7 +3007,7 @@ public class DesignerSessionService {
                     "DESIGN_INCOMPLETE", session.currentRequirementRevision(), workPackage.packageId());
             DesignGap mutationGap = acceptanceWorkflow.targetedMutationGap(gaps);
             if (mutationGap == null && workPackage.redesignCount() < MAX_AUTOMATIC_REDESIGNS) {
-                dispatchPackageDesigner(get(session.id()), waiting, conversationPrompts.redesign(summarizeGaps(gaps)), true);
+                dispatchPackageDesigner(get(session.id()), waiting, conversationPrompts.redesign(summarizeGaps(gaps)), PackageDesignDispatch.AUTOMATIC_REDESIGN);
             } else {
                 waitForDesignInput(session, currentRequirement(session.id()), waiting,
                         mutationGap == null ? "DESIGN_RETRY_EXHAUSTED" : mutationGap.code().name(), summarizeGaps(gaps));
@@ -3289,7 +3289,7 @@ public class DesignerSessionService {
                         .contains(row.state()))
                 .findFirst().orElse(null);
         if (next != null) {
-            dispatchPackageDesigner(get(session.id()), next, null, false);
+            dispatchPackageDesigner(get(session.id()), next, null, PackageDesignDispatch.CONTINUE);
             return;
         }
         if (packages.stream().anyMatch(row -> !DesignWorkPackageState.APPROVED.name().equals(row.state()))) {
@@ -3584,7 +3584,7 @@ public class DesignerSessionService {
                     workPackage.designRevision(), workPackage.redesignCount(),
                     workPackage.designerTransportRetryCount() + 1, workPackage.compilerSummary(),
                     workPackage.handoffSummary(), code, safeMessage(detail));
-            dispatchPackageDesigner(get(session.id()), waiting, null, false);
+            dispatchPackageDesigner(get(session.id()), waiting, null, PackageDesignDispatch.CONTINUE);
             return;
         }
         DesignWorkPackageRow waiting = Set.of(DesignWorkPackageState.QUESTIONING.name(), DesignWorkPackageState.DESIGNING.name(),
