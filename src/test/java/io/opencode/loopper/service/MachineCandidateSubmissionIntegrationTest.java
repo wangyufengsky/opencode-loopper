@@ -20,6 +20,7 @@ import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.PackageDesignAcceptedResultRow;
 import io.opencode.loopper.persistence.TaskRow;
 import io.opencode.loopper.runtime.OpenCodeClient;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -40,6 +41,8 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -47,11 +50,26 @@ import tools.jackson.databind.ObjectMapper;
 
 @SpringBootTest(classes = LoopperApplication.class, properties = {
         "loopper.opencode.mode=fake", "loopper.monitor-delay=1h",
-        "loopper.data-dir=target/machine-candidate-submission-test",
         "loopper.internal-candidate.runtime-guard-enabled=false"
 })
 @Import(MachineCandidateSubmissionIntegrationTest.TestAdapters.class)
 class MachineCandidateSubmissionIntegrationTest {
+    private static final Path DATA = temporaryData();
+
+    @DynamicPropertySource
+    static void database(DynamicPropertyRegistry properties) {
+        properties.add("loopper.data-dir", () -> DATA.toString());
+        // Shared-cache memory SQLite uses table locks unlike production WAL.
+        // Keep the fixture's existing foreign-key policy while matching its concurrency mode.
+        properties.add("spring.datasource.url", () -> "jdbc:sqlite:" + DATA.resolve("loopper.db")
+                + "?busy_timeout=5000&journal_mode=WAL&transaction_mode=IMMEDIATE");
+    }
+
+    private static Path temporaryData() {
+        try { return Files.createTempDirectory("loopper-candidate-submission-"); }
+        catch (java.io.IOException failure) { throw new java.io.UncheckedIOException(failure); }
+    }
+
     private static final String INVALID = "{\"valid\":false,\"secretCandidate\":\"must-not-persist\"}";
     private static final MachineCandidateSubmission.SubmissionChannel LEGACY =
             MachineCandidateSubmission.SubmissionChannel.IN_PROCESS_LEGACY;
@@ -868,6 +886,7 @@ class MachineCandidateSubmissionIntegrationTest {
 
     @Test
     void cleanupStopClaimFencesConcurrentAbortAndOnlyExpiresIntoOneCrashTakeover() throws Exception {
+        assertThat(jdbc.queryForObject("PRAGMA journal_mode", String.class)).isEqualTo("wal");
         jdbc.update("INSERT INTO open_code_session_runtime_binding(external_session_id,runtime_generation_id,"
                 + "ownership_mode,endpoint_fingerprint,internal_mcp_server,created_at) "
                 + "VALUES('cleanup-remote','cleanup-generation','MANAGED',?,'mcp','now')", "9".repeat(64));
