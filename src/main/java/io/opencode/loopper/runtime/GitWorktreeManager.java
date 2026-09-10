@@ -24,6 +24,7 @@ public class GitWorktreeManager {
     private final GitBranchNamePolicy branchNames = new GitBranchNamePolicy();
     private final GitDirtyWorkspaceManager dirtyWorkspaces;
     private final GitWorkspaceCheckpointManager checkpoints;
+    private final GitSourceBranchRestorer sourceBranches;
 
     public GitWorktreeManager(SafeProcessRunner runner, LoopperProperties properties,
                               DirectWorkspaceBaselineManager directBaselines) {
@@ -32,6 +33,7 @@ public class GitWorktreeManager {
         this.directBaselines = directBaselines;
         this.dirtyWorkspaces = new GitDirtyWorkspaceManager(runner);
         this.checkpoints = new GitWorkspaceCheckpointManager(runner, properties, dirtyWorkspaces);
+        this.sourceBranches = new GitSourceBranchRestorer(runner, this::sourceCheckoutHasChanges);
     }
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -399,76 +401,21 @@ public class GitWorktreeManager {
         return dirtyWorkspaces.resolve(projectRoot, expectedSnapshot, resolutions, commitMessage);
     }
 
-    /** Restores a clean registered checkout after its Task changes have been committed to the Task branch. */
+    /** Restores the recorded source after normal completion. Git I/O stays outside transactions. */
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    public void restoreSourceBranch(Path projectRoot, String taskBranch, String recordedSourceBranch) {
-        try {
-            Path root = projectRoot.toRealPath();
-            String current = optionalOutput(root, List.of("git", "symbolic-ref", "--quiet", "--short", "HEAD"));
-            String sourceBranch = recordedSourceBranch == null || recordedSourceBranch.isBlank()
-                    ? inferHistoricalSourceBranch(root, taskBranch) : recordedSourceBranch;
-            if (sourceBranch == null || sourceBranch.equals(taskBranch) || sourceBranch.startsWith(BRANCH_NAMESPACE)) {
-                throw new TaskFailure("TASK_SOURCE_BRANCH_UNAVAILABLE",
-                        "Task start branch is unavailable; the registered checkout was not switched");
-            }
-            if (sourceBranch.equals(current)) return;
-            if (!taskBranch.equals(current)) {
-                throw new TaskFailure("TASK_SOURCE_BRANCH_RESTORE_MISMATCH",
-                        "Registered checkout is on " + (current == null ? "detached HEAD" : current)
-                                + " instead of Task branch " + taskBranch);
-            }
-            if (sourceCheckoutHasChanges(root)) {
-                throw new TaskFailure("TASK_SOURCE_BRANCH_RESTORE_DIRTY",
-                        "Task branch still has uncommitted files; the registered checkout was not switched");
-            }
-            ProcessResult switched = runner.run(root,
-                    List.of("git", "-c", "core.longpaths=true", "switch", sourceBranch), WORKTREE_CREATE_TIMEOUT);
-            if (switched.timedOut() || switched.outputTruncated() || switched.exitCode() != 0) {
-                throw new TaskFailure("TASK_SOURCE_BRANCH_RESTORE_FAILED",
-                        "Unable to restore source branch " + sourceBranch + ": " + trim(switched.output()));
-            }
-            String restored = optionalOutput(root, List.of("git", "symbolic-ref", "--quiet", "--short", "HEAD"));
-            if (!sourceBranch.equals(restored)) {
-                throw new TaskFailure("TASK_SOURCE_BRANCH_RESTORE_UNCONFIRMED",
-                        "Git switch completed without restoring the recorded source branch");
-            }
-        } catch (TaskFailure failure) {
-            throw failure;
-        } catch (Exception failure) {
-            throw new TaskFailure("TASK_SOURCE_BRANCH_RESTORE_FAILED",
-                    "Unable to restore the Task start branch: " + failure.getMessage());
-        }
+    public void restoreSourceBranch(Path root, String taskBranch, String recordedSourceBranch) {
+        sourceBranches.restoreSourceBranch(root, taskBranch, recordedSourceBranch);
     }
 
-    /** Cancellation returns to the repository default branch without discarding files. */
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void restoreMainBranch(Path root, String taskBranch) {
-        String remoteHead = optionalOutput(root, List.of("git", "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"));
-        java.util.LinkedHashSet<String> candidates = new java.util.LinkedHashSet<>();
-        if (remoteHead != null && remoteHead.startsWith("refs/remotes/origin/")) {
-            candidates.add(remoteHead.substring("refs/remotes/origin/".length()));
-        }
-        candidates.add("main"); candidates.add("master");
-        for (String candidate : candidates) {
-            if (!candidate.equals(taskBranch) && !candidate.startsWith(BRANCH_NAMESPACE)
-                    && optionalOutput(root, List.of("git", "rev-parse", "--verify", "refs/heads/" + candidate)) != null) {
-                restoreSourceBranch(root, taskBranch, candidate);
-                return;
-            }
-        }
-        throw new TaskFailure("TASK_MAIN_BRANCH_UNAVAILABLE", "未找到本地主分支，已保留任务分支与修改快照");
+        sourceBranches.restoreMainBranch(root, taskBranch, null);
     }
 
-    private String inferHistoricalSourceBranch(Path root, String taskBranch) {
-        String reflog = optionalOutput(root, List.of("git", "reflog", "--format=%gs", "-n", "100", "HEAD"));
-        if (reflog == null) return null;
-        String suffix = " to " + taskBranch;
-        for (String line : reflog.lines().toList()) {
-            String value = line.strip();
-            if (!value.startsWith("checkout: moving from ") || !value.endsWith(suffix)) continue;
-            return value.substring("checkout: moving from ".length(), value.length() - suffix.length());
-        }
-        return null;
+    /** Cancellation may resume after the checkout has already returned to its recorded source. */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public void restoreMainBranch(Path root, String taskBranch, String recordedSourceBranch) {
+        sourceBranches.restoreMainBranch(root, taskBranch, recordedSourceBranch);
     }
 
     private void requireSourceBranch(Path root, String expectedBranch, String baseline) {

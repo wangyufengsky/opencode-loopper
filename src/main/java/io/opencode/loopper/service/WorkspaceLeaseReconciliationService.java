@@ -163,7 +163,7 @@ public class WorkspaceLeaseReconciliationService {
                     return block(task, lease, normalizedTrigger, false, "SOURCE_BRANCH_WORKSPACE_DIRTY",
                             "当前 holder 的任务分支仍有未提交或未跟踪文件，清理前不会切换分支或转移写租约");
                 }
-                if (TaskState.CANCELLED.name().equals(task.state())) worktrees.restoreMainBranch(root, task.branchName());
+                if (TaskState.CANCELLED.name().equals(task.state())) worktrees.restoreMainBranch(root, task.branchName(), task.sourceBranch());
                 else worktrees.restoreSourceBranch(root, task.branchName(), task.sourceBranch());
             }
             DirectWorkspaceLeaseCoordinator.Release released = leases.releaseAfterWriterStopped(

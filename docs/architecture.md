@@ -1360,6 +1360,12 @@ release its workspace lease only when the existing safety checks pass. A cancell
 uncommitted and untracked files are first preserved using the private checkpoint/stash saga.
 Failure to capture or switch retains the lease and evidence; no forced checkout/reset is used.
 Pending/queued Tasks, Direct workspaces and a workspace transferred to another holder are not switched.
+Cancellation reconciliation also accepts a clean checkout already on that Task's persisted
+source branch as an intermediate recovery state, then restores the same default-branch
+target before releasing or transferring the lease. It does not reinterpret the recorded
+source as the default branch. An unrelated branch, detached HEAD, dirty checkout or
+unconfirmed writer still blocks release. Without persisted source evidence, only the Task
+branch or already-restored default is accepted; no source is guessed from the current checkout. Manual, background and restart reconciliation share this rule.
 All other active Task states share that stop protocol. `CANCEL` first persists
 `STOPPING`, then independently stops and rechecks implementation Sessions, Judge
 Sessions, and exact-identity managed verifier processes. Unconfirmed writers keep

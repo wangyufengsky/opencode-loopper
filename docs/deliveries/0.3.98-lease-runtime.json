@@ -1,0 +1,150 @@
+{
+  "baseline097": {
+    "jar": "/Users/wangyufeng/IdeaProjects/opencode-loopper/target/opencode-loopper-0.3.97.jar",
+    "directory": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-branch-release-_w8x8hz7",
+    "pid": 76254,
+    "endpoint": "http://127.0.0.1:64404",
+    "expectBlocked": true,
+    "scenarios": [
+      {
+        "rework": false,
+        "holder": "76f69564-1cb6-4b25-bf09-e9910413bb3f",
+        "waiter": "19c22fe8-b939-451c-98bc-f2b8f28e7fa6",
+        "foreignBranchBlocker": {
+          "detail": "Registered checkout is on external-branch instead of Task branch loopper/old-holder",
+          "instance": "/api/tasks/19c22fe8-b939-451c-98bc-f2b8f28e7fa6/queue/reconcile",
+          "status": 409,
+          "title": "Conflict",
+          "errorCode": "TASK_SOURCE_BRANCH_RESTORE_MISMATCH"
+        },
+        "dirtySourceBlocker": {
+          "detail": "Registered checkout is not on the expected Task branch",
+          "instance": "/api/tasks/19c22fe8-b939-451c-98bc-f2b8f28e7fa6/queue/reconcile",
+          "status": 409,
+          "title": "Conflict",
+          "errorCode": "RECOVERY_CHECKPOINT_BRANCH_MISMATCH"
+        },
+        "release": {
+          "detail": "Registered checkout is on develop instead of Task branch loopper/old-holder",
+          "instance": "/api/tasks/19c22fe8-b939-451c-98bc-f2b8f28e7fa6/queue/reconcile",
+          "status": 409,
+          "title": "Conflict",
+          "errorCode": "TASK_SOURCE_BRANCH_RESTORE_MISMATCH"
+        },
+        "sourceHeadPreserved": "83e92a41074bd0b18afceab11eb1db34d052f791",
+        "result": "EXPECTED_BLOCK"
+      },
+      {
+        "rework": true,
+        "holder": "9dc66c72-7544-42b4-b85e-726ae8a148f4",
+        "waiter": "1a30e29b-a022-422a-9f42-837eb461ab68",
+        "foreignBranchBlocker": {
+          "detail": "Registered checkout is on external-branch instead of Task branch loopper/old-holder-·-重做",
+          "instance": "/api/tasks/1a30e29b-a022-422a-9f42-837eb461ab68/queue/reconcile",
+          "status": 409,
+          "title": "Conflict",
+          "errorCode": "TASK_SOURCE_BRANCH_RESTORE_MISMATCH"
+        },
+        "dirtySourceBlocker": {
+          "detail": "Registered checkout is not on the expected Task branch",
+          "instance": "/api/tasks/1a30e29b-a022-422a-9f42-837eb461ab68/queue/reconcile",
+          "status": 409,
+          "title": "Conflict",
+          "errorCode": "RECOVERY_CHECKPOINT_BRANCH_MISMATCH"
+        },
+        "release": {
+          "detail": "Registered checkout is on develop instead of Task branch loopper/old-holder-·-重做",
+          "instance": "/api/tasks/1a30e29b-a022-422a-9f42-837eb461ab68/queue/reconcile",
+          "status": 409,
+          "title": "Conflict",
+          "errorCode": "TASK_SOURCE_BRANCH_RESTORE_MISMATCH"
+        },
+        "sourceHeadPreserved": "bac8ed7aff26da231fefe0d3d1d21b14f79112a8",
+        "result": "EXPECTED_BLOCK"
+      }
+    ],
+    "loopperVersion": "0.3.97",
+    "result": "PASS",
+    "processStopped": true
+  },
+  "fixed098": {
+    "jar": "/Users/wangyufeng/IdeaProjects/opencode-loopper/target/opencode-loopper-0.3.98.jar",
+    "directory": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-branch-release-0z7tdnj_",
+    "pid": 88947,
+    "endpoint": "http://127.0.0.1:50124",
+    "expectBlocked": false,
+    "scenarios": [
+      {
+        "rework": false,
+        "holder": "6af1b5ca-e757-4adb-86c7-a20970428513",
+        "waiter": "13a016c5-3810-472e-bc0d-dcb0bb1290f5",
+        "foreignBranchBlocker": {
+          "detail": "Registered checkout is on external-branch instead of Task branch loopper/old-holder; release target is main; recorded source is develop",
+          "instance": "/api/tasks/13a016c5-3810-472e-bc0d-dcb0bb1290f5/queue/reconcile",
+          "status": 409,
+          "title": "Conflict",
+          "errorCode": "TASK_SOURCE_BRANCH_RESTORE_MISMATCH"
+        },
+        "dirtySourceBlocker": {
+          "detail": "Registered checkout is not on the expected Task branch",
+          "instance": "/api/tasks/13a016c5-3810-472e-bc0d-dcb0bb1290f5/queue/reconcile",
+          "status": 409,
+          "title": "Conflict",
+          "errorCode": "RECOVERY_CHECKPOINT_BRANCH_MISMATCH"
+        },
+        "release": {
+          "taskId": "13a016c5-3810-472e-bc0d-dcb0bb1290f5",
+          "state": "ADMITTED",
+          "queuePosition": null,
+          "leaseState": "HELD",
+          "rootFingerprint": "5de560a748c43bbea8e2b6f1bb710550fb4fc18042cda65eed808549d8be821a",
+          "holderTaskId": "13a016c5-3810-472e-bc0d-dcb0bb1290f5",
+          "holderTaskTitle": "waiting task",
+          "holderTaskState": "RUNNING",
+          "holderArchived": false,
+          "releaseReason": null,
+          "reconcileAvailable": false
+        },
+        "sourceHeadPreserved": "dcbdc66d896fc403ddd859ae0a223123f6df0a75",
+        "result": "PASS"
+      },
+      {
+        "rework": true,
+        "holder": "aa1e3efe-4c75-4ef4-98c8-7b4234aa0993",
+        "waiter": "aba2b64d-1ec4-445e-b72d-1f8f8c8b47db",
+        "foreignBranchBlocker": {
+          "detail": "Registered checkout is on external-branch instead of Task branch loopper/old-holder-·-重做; release target is main; recorded source is develop",
+          "instance": "/api/tasks/aba2b64d-1ec4-445e-b72d-1f8f8c8b47db/queue/reconcile",
+          "status": 409,
+          "title": "Conflict",
+          "errorCode": "TASK_SOURCE_BRANCH_RESTORE_MISMATCH"
+        },
+        "dirtySourceBlocker": {
+          "detail": "Registered checkout is not on the expected Task branch",
+          "instance": "/api/tasks/aba2b64d-1ec4-445e-b72d-1f8f8c8b47db/queue/reconcile",
+          "status": 409,
+          "title": "Conflict",
+          "errorCode": "RECOVERY_CHECKPOINT_BRANCH_MISMATCH"
+        },
+        "release": {
+          "taskId": "aba2b64d-1ec4-445e-b72d-1f8f8c8b47db",
+          "state": "ADMITTED",
+          "queuePosition": null,
+          "leaseState": "HELD",
+          "rootFingerprint": "abedcf48fecb2932bfe0d855eb8236479fd3f72b1b2755a0392121716575e302",
+          "holderTaskId": "aba2b64d-1ec4-445e-b72d-1f8f8c8b47db",
+          "holderTaskTitle": "waiting task",
+          "holderTaskState": "RUNNING",
+          "holderArchived": false,
+          "releaseReason": null,
+          "reconcileAvailable": false
+        },
+        "sourceHeadPreserved": "e93655cad15280e39fddfdf77671891b33d292e7",
+        "result": "PASS"
+      }
+    ],
+    "loopperVersion": "0.3.98",
+    "result": "PASS",
+    "processStopped": true
+  }
+}

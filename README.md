@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.3.97`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.3.98`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 当前版本说明
 
@@ -140,7 +140,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.3.97.jar
+java -jar target/opencode-loopper-0.3.98.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -401,7 +401,7 @@ Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 或用�
 
 ### macOS
 
-独立 JAR 可使用已安装的 JDK 21 执行 `java -jar opencode-loopper-0.3.97.jar`。如果手动生成了 Apple Silicon 或 Intel 平台包，解压后双击 `start-macos.command`，或在终端运行：
+独立 JAR 可使用已安装的 JDK 21 执行 `java -jar opencode-loopper-0.3.98.jar`。如果手动生成了 Apple Silicon 或 Intel 平台包，解压后双击 `start-macos.command`，或在终端运行：
 
 ```bash
 ./start-macos.command
@@ -462,7 +462,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.3.97.jar \
+jar tf target/opencode-loopper-0.3.98.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -587,7 +587,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.3.97.jar
+java -jar target/opencode-loopper-0.3.98.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。
