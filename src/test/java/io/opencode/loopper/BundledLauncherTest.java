@@ -78,6 +78,7 @@ class BundledLauncherTest {
         Result result = launch(bundle);
         assertThat(result.exitCode()).as(result.output()).isEqualTo(1);
         assertThat(result.output()).doesNotContain("PROBE_JAVA=");
+        assertThat(result.output()).contains(WINDOWS ? "Java was not found" : "找不到可执行的 Java");
     }
 
     private Path prepareBundle() throws Exception {
@@ -92,8 +93,9 @@ class BundledLauncherTest {
 
     private Result launch(Path bundle) throws Exception {
         String launcher = WINDOWS ? "start-windows.bat" : MAC ? "start-macos.command" : "start-linux.sh";
+        // CALL keeps CMD from stripping the first quoted batch path when arguments also contain spaces.
         ProcessBuilder builder = WINDOWS
-                ? new ProcessBuilder("cmd.exe", "/d", "/c", bundle.resolve(launcher).toString(), "argument with spaces")
+                ? new ProcessBuilder("cmd.exe", "/d", "/c", "call", bundle.resolve(launcher).toString(), "argument with spaces")
                 : new ProcessBuilder("bash", bundle.resolve(launcher).toString(), "argument with spaces");
         builder.directory(temporary.toFile());
         for (String key : List.of("LOOPPER_JAVA_HOME", "LOOPPER_JAR_PATH", "LOOPPER_DATA_DIR")) {
