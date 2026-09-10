@@ -63,6 +63,8 @@ ownership rules:
   encoding and compatibility-chat projection belong to `DesignerQuestionSupport`;
   that collaborator must not perform Designer lifecycle transitions.
 - `TaskService` owns ordinary execution ordering and error-layer escalation. It
+  delegates initial accounting handoff and pre-admission workspace checks to
+  `TaskStartPreflight`, which rechecks the Task identity after external waits.
   must not assemble immutable design snapshots, verification aggregates, baseline
   diffs, or Judge evidence prompts; those belong to `TaskEvidenceService`.
   `TaskCancellationCoordinator` owns durable `STOPPING -> CANCELLED` child-state closure,
@@ -197,7 +199,7 @@ release build. Lower a legacy cap in the same change that extracts responsibilit
 never raise a cap to make a build green.
 
 The current compatibility ratchets are 5,373 physical lines for
-`DesignerSessionService`, 2,726 for `TaskService`, and 1,159 for `LocalSyncConflictService`. Rolling package behavior must stay in the
+`DesignerSessionService`, 2,721 for `TaskService`, and 1,159 for `LocalSyncConflictService`. Rolling package behavior must stay in the
 collaborators above; a later change may only preserve or lower those caps.
 
 ## Change workflow

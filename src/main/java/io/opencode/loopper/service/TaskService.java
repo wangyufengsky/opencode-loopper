@@ -72,6 +72,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 @Service
 public class TaskService {
+    private final TaskStartPreflight startPreflight;
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(TaskService.class);
     private static final String LOCAL_SOURCE_SYNC_ARTIFACT_KIND = "LOCAL_SOURCE_SYNC";
     private static final String ATTEMPT_HANDOFF_ARTIFACT_KIND = "ATTEMPT_HANDOFF";
@@ -137,7 +138,7 @@ public class TaskService {
                        LegacyJudgeTransport legacyJudgeTransport,
                        LegacyJudgeCompletionService legacyJudgeCompletion,
                        DesignerTerminationService designerTermination, TaskTerminalConsistencyService terminalConsistency, DesignerAttachmentContext attachmentContext,
-                       LoopperProperties defaults,
+                       LoopperProperties defaults, TaskStartPreflight startPreflight,
                        PlatformTransactionManager transactionManager) {
         this.mapper = mapper; this.lifecycle = lifecycle; this.json = json; this.projects = projects;
         this.worktrees = worktrees; this.directLeases = directLeases; this.openCode = openCode;
@@ -151,7 +152,7 @@ public class TaskService {
         this.usageInsights = usageInsights; this.events = events;
         this.executionCycles = executionCycles; this.workspaceCheckpoints = workspaceCheckpoints;
         this.rollingPackages = rollingPackages; this.aiOutputAudit = aiOutputAudit; this.attachmentContext = attachmentContext;
-        this.defaults = defaults;
+        this.defaults = defaults; this.startPreflight = startPreflight;
         this.transactions = new TransactionTemplate(transactionManager);
         this.retryPolicy = new TaskRetryPolicy(defaults);
         this.judgeCandidates = judgeCandidates; this.judgeBatches = judgeBatches;
@@ -740,15 +741,9 @@ public class TaskService {
     private TaskRow requestTaskStart(TaskRow task, String admissionSource,
                                      RollingPackageService.ExecutionRequest packageRequest) {
         try {
+            var workspace = startPreflight.prepare(task).orElse(null);
+            if (workspace == null) return get(task.id());
             rollingPackages.ensureExecutionCycle(task, cycleBudgetSnapshot(spec(task)));
-            ProjectRow project = projects.get(task.projectId());
-            Path projectRoot = Path.of(project.rootPath());
-            if (task.baselineCommit() != null && !worktrees.inspect(projectRoot).isolatedWorktree()
-                    && !(rollingPackages.applies(task.id()) && GitWorktreeManager.DIRECT_BRANCH.equals(task.branchName()))) {
-                throw new TaskFailure("REWORK_REPOSITORY_REQUIRED", "Rework requires a Git source branch");
-            }
-            DirectWorkspaceLeaseCoordinator.WorkspaceIdentity workspace =
-                    DirectWorkspaceLeaseCoordinator.identify(projectRoot);
             String source = normalizedAdmissionSource(admissionSource);
             DirectWorkspaceLeaseCoordinator.Admission admission = transactions.execute(status -> {
                 TaskRow current = get(task.id());

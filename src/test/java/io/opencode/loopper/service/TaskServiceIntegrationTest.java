@@ -771,9 +771,18 @@ class TaskServiceIntegrationTest {
         assertThat(tasks.errors(task.id())).noneMatch(error -> error.layer().equals(ErrorLayer.VERIFICATION.name()));
     }
 
-    @Test
-    void outsideAllowedNewFilePassesWhileExistingFileWaitsForAContentBoundDecision() throws Exception {
-        ProjectRow project = projects.create("scope-approval", gitProject());
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"gitignore", "info"})
+    void outsideAllowedNewFilePassesWhileExistingFileWaitsForAContentBoundDecision(String ignoreSource) throws Exception {
+        Path root = Path.of(gitProject());
+        if (ignoreSource.equals("gitignore")) {
+            Files.writeString(root.resolve(".gitignore"), ".aicoding/\n");
+            run(root, "git", "add", ".gitignore");
+            run(root, "git", "commit", "-m", "ignore accounting runtime");
+        } else Files.writeString(root.resolve(".git/info/exclude"), ".aicoding/\n");
+        Path accounting = Files.createDirectories(root.resolve(".aicoding/runtime")).resolve("session.json");
+        Files.writeString(accounting, "designer complete\n");
+        ProjectRow project = projects.create("scope-approval", root.toString());
         LoopSpec.VerifierSpec diff = new LoopSpec.VerifierSpec(
                 "GIT_DIFF", null, null, true, List.of("src/**"), List.of("data/**"), true);
         LoopSpec.VerifierSpec functional = new LoopSpec.VerifierSpec(
@@ -786,6 +795,7 @@ class TaskServiceIntegrationTest {
         Path worktree = Path.of(task.worktreePath());
         Files.writeString(worktree.resolve("README.md"), "changed outside scope\n");
         Files.writeString(worktree.resolve("outside-new.txt"), "new outside scope\n");
+        Files.writeString(accounting, "implementation complete\n");
 
         TaskRow waiting = tasks.verify(task.id());
 
@@ -798,12 +808,14 @@ class TaskServiceIntegrationTest {
         assertThat(scopeApprovals.preview(task.id(), approval.requestId(), "README.md", Duration.ofSeconds(10)).patch())
                 .contains("-fixture", "+changed outside scope");
 
+        Files.writeString(accounting, "statistics updated after showing approval\n");
         TaskRow judging = resolveScopeApproval(task.id(), approval,
                 List.of(new GitDiffScopeApprovalService.FileDecision("README.md",
                         GitDiffScopeApprovalService.DecisionAction.ALLOW,
                         approval.files().getFirst().patchSha256())));
 
         assertThat(judging.state()).isEqualTo("JUDGING");
+        assertThat(tasks.errors(task.id())).noneMatch(error -> GitDiffScopeApprovalService.STALE.equals(error.code()));
         assertThat(mapper.listVerifications(tasks.attempts(task.id()).getFirst().id()))
                 .filteredOn(result -> "GIT_DIFF".equals(result.type()))
                 .singleElement().satisfies(result -> {

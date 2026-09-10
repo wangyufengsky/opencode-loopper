@@ -276,7 +276,16 @@ Before the first writable Attempt/Session, Loopper captures a stable private Git
 tree for that Stage under `stage-baselines/<taskId>` and persists its
 `stage:<taskId>:<stageId>:<treeSha>` marker in V25. One Task object repository
 is shared by per-Stage indexes without modifying the project `.git`, index, or
-branch. Capture and validation I/O run outside SQLite transactions; instability
+branch. For a Git workspace, snapshot membership comes from the source repository's
+`ls-files --cached --others --exclude-standard`, preserving root/nested `.gitignore`,
+repository-local excludes, configured excludes and case rules. Source-tracked files
+remain included even if an ignore pattern matches them. New-file discovery uses the
+same source authority; the managed data directory and project `.git` remain excluded.
+Plain directories use private Git's `.gitignore` rules. Previously captured baseline
+trees stay immutable; changing ignore rules does not erase changes to existing baseline
+files or silently rewrite historical approvals. A fresh Recovery captures new Stage
+baselines with the corrected membership.
+Capture and validation I/O run outside SQLite transactions; instability
 after one retry returns `STAGE_WORKSPACE_BASELINE_UNSTABLE`. Retries and restarts
 must reuse the marker. An active historical Stage that already has an Attempt
 but lacks the row fails with `STAGE_WORKSPACE_BASELINE_MISSING` before a new

@@ -80,6 +80,15 @@ public class StoryAccountingCoordinator {
         return starting.containsKey(externalSessionId);
     }
 
+    /** Waiting here precedes the new Task's execution clock and filesystem side effects. */
+    public void awaitInitialTaskHandoff(String taskId) {
+        try {
+            mapper.findTaskStoryBinding(taskId).ifPresent(binding -> awaitRetiredCompletions(binding.id()));
+        } catch (RuntimeException failure) {
+            log.warn("Story accounting handoff failed for Task {}; business flow will continue", taskId, failure);
+        }
+    }
+
     public void beforeAbort(OpenCodeClient.OpenCodeSession remote) {
         // Abort alone is not owner retirement. The persisted lifecycle must close
         // first; the collector then submits complete without reopening business work.

@@ -27,10 +27,12 @@ public class StageWorkspaceBaselineManager {
     private static final String ID_PATTERN = "[A-Za-z0-9-]{1,80}";
     private final SafeProcessRunner runner;
     private final LoopperProperties properties;
+    private final WorkspaceSnapshotFiles snapshotFiles;
 
     public StageWorkspaceBaselineManager(SafeProcessRunner runner, LoopperProperties properties) {
         this.runner = runner;
         this.properties = properties;
+        this.snapshotFiles = new WorkspaceSnapshotFiles(runner);
     }
 
     public synchronized String capture(Path projectRoot, String taskId, String stageId) {
@@ -52,9 +54,8 @@ public class StageWorkspaceBaselineManager {
             for (int attempt = 0; attempt < 2; attempt++) {
                 Files.deleteIfExists(index);
                 Files.deleteIfExists(index.resolveSibling(index.getFileName() + ".lock"));
-                requireSuccess(root, git(root, repository, index, addArguments(root, base.getParent())), index,
-                        "STAGE_WORKSPACE_BASELINE_CREATE_FAILED",
-                        "Unable to index the Stage workspace baseline");
+                snapshotFiles.capture(root, repository, indexEnvironment(index), base.getParent(), GIT_TIMEOUT,
+                        "STAGE_WORKSPACE_BASELINE_CREATE_FAILED");
                 ProcessResult tree = runner.run(root, git(root, repository, index, List.of("write-tree")),
                         GIT_TIMEOUT, indexEnvironment(index));
                 if (tree.timedOut() || tree.outputTruncated() || tree.exitCode() != 0
@@ -156,36 +157,12 @@ public class StageWorkspaceBaselineManager {
         }
     }
 
-    private List<String> addArguments(Path root, Path base) {
-        ArrayList<String> arguments = new ArrayList<>(List.of(
-                "add", "-A", "--", ".", ":(exclude).git", ":(exclude).git/**"));
-        if (base.startsWith(root)) {
-            String managedData = root.relativize(base).toString().replace('\\', '/');
-            arguments.add(":(exclude)" + managedData);
-            arguments.add(":(exclude)" + managedData + "/**");
-        }
-        return List.copyOf(arguments);
-    }
-
     private DiffResult diff(Path root, Path repository, Path index, String tree, Duration timeout) {
         ProcessResult tracked = runner.run(root, git(root, repository, index,
                 List.of("diff", "--name-status", "-z", tree)), timeout, indexEnvironment(index));
-        ProcessResult untracked = runner.run(root, git(root, repository, index,
-                untrackedArguments(root, repository.getParent().getParent())), timeout,
-                indexEnvironment(index));
+        ProcessResult untracked = snapshotFiles.untracked(root, repository, indexEnvironment(index),
+                repository.getParent().getParent(), timeout, "STAGE_WORKSPACE_BASELINE_UNAVAILABLE");
         return new DiffResult(tracked, untracked);
-    }
-
-    private List<String> untrackedArguments(Path root, Path dataDirectory) {
-        ArrayList<String> arguments = new ArrayList<>(List.of(
-                "ls-files", "-z", "--others", "--exclude-standard", "--", ".",
-                ":(exclude).git", ":(exclude).git/**"));
-        if (dataDirectory.startsWith(root)) {
-            String managedData = root.relativize(dataDirectory).toString().replace('\\', '/');
-            arguments.add(":(exclude)" + managedData);
-            arguments.add(":(exclude)" + managedData + "/**");
-        }
-        return List.copyOf(arguments);
     }
 
     private Baseline requireAvailableBaseline(String marker) {
@@ -259,6 +236,7 @@ public class StageWorkspaceBaselineManager {
     private List<String> git(Path root, Path repository, Path index, List<String> arguments) {
         ArrayList<String> command = new ArrayList<>();
         command.add("git");
+        command.addAll(List.of("-c", "core.safecrlf=false"));
         command.add("--git-dir=" + repository);
         command.add("--work-tree=" + root);
         command.addAll(arguments);
@@ -271,13 +249,6 @@ public class StageWorkspaceBaselineManager {
 
     private void requireSuccess(Path directory, List<String> command, String code, String message) {
         ProcessResult result = runner.run(directory, command, GIT_TIMEOUT);
-        if (result.timedOut() || result.outputTruncated() || result.exitCode() != 0) {
-            throw new TaskFailure(code, message + ": " + trim(result.output()));
-        }
-    }
-
-    private void requireSuccess(Path directory, List<String> command, Path index, String code, String message) {
-        ProcessResult result = runner.run(directory, command, GIT_TIMEOUT, indexEnvironment(index));
         if (result.timedOut() || result.outputTruncated() || result.exitCode() != 0) {
             throw new TaskFailure(code, message + ": " + trim(result.output()));
         }

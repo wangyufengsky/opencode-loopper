@@ -9,6 +9,7 @@
 - 每个实际派发业务提示且属于统计范围的新 Session 都先使用 `aicoding start <系统编号> <故事编号>`。只有 start 返回明确失败时，才在同一远端 Session、同一编号下自动补发一次 `aicoding continue <系统编号> <故事编号>`；continue 不递归重试，UNKNOWN、进程中断和用户取消也不补发。相同 Session 的继续讨论、问题回答和 Provider 重试不重复绑定。
 - 仅统计需求设计师、工作包设计师（包含 PACKAGE_DESIGN_V1 候选会话）和 Implementation。Router、规划、Compiler、Reviewer、双 Judge、其他角色的修复/finalizer 与未知拥有者不统计。历史其他角色的记录保留供审计和消息隔离，不再补发 complete。未开展工作的 fork 和服务端生成步骤不制造统计调用。
 - 同一绑定链交接时，新 Session 的 start 先等待已退役 Session 的 complete 结束或手动取消；后台收集、轮询与交接共享同一次调用。普通会话清理与统计命令按远端 Session 协调，不能中断尚未返回的 complete；其他 Session 不受该等待影响。
+- 新任务首次开始时，在申请执行队列、租约、准备分支和采集阶段文件基线之前，先完成同一绑定链已退役会话的统计交接。等待不占用新任务的执行时限，不创建执行者 Session 或提前发送执行者 start。等待返回后复核任务版本与状态；期间取消的任务不继续入队或准备目录。统计失败或手动取消统计仍允许任务继续。执行者首条业务提示前保留原有交接检查，重做任务继承同一绑定链。
 - 业务结果先落库；只有所属流程已经不再复用该远端 Session，才提交 `complete`。正常结束、失败和取消均适用。远端一次 IDLE、等待用户回答和单独 abort 不是业务结束判据。
 - 统计调用持续等待，不再设置 30 秒自动超时。全局弹窗显示“正在开启／继续／完成故事点统计”、真实模型输出和用时，提供“取消本次统计，继续任务”。start 失败但 continue 成功时不发失败通知；continue 仍失败时只产生一次 Loopper 内通知。统计失败不消耗业务重试预算，不关闭全自动模式，不回滚业务结果。
 - 每个 Session 的 BEGIN 先自动发起一次 start，明确失败时至多追加一次 continue；COMPLETE 自动发起一次。每次调用都有独立持久化消息 ID，continue 通过 `retry_of` 指向失败的 start 并保留原失败结果。网络请求前以短事务持久化，网络操作在事务外。结果未知不自动重发；重启把遗留 PREPARED/CANCELLING 标为 UNKNOWN。
@@ -82,3 +83,5 @@ node scripts/aicoding/qualify-multi-reuse.mjs /绝对路径/environment.json
 ```
 
 自动化测试覆盖配置、前导零、继承、唯一调用、网络事务边界、持续等待/失败/手动取消、消息分流、重启未知结果和 UI 探测竞态；真实调用验收记录单独保存。模拟成功证明的是 Loopper 接入与容错能力，不能代替内网插件的现场验证。
+
+统计插件的本地运行文件按[阶段基线与 GIT_DIFF 合同](seven-feature-contract.md)遵循原项目 Git 忽略规则；未跟踪且被忽略的文件不进入新阶段基线或范围外确认。已被 Git 跟踪的文件仍需正常审查。旧任务的冻结基线不自动重写。

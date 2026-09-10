@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { displayLabel, errorCodeLabel, rolePackLabel, statusLabel, userFacingError } from './displayLabels'
+import { displayLabel, errorCodeLabel, errorEventMessage, rolePackLabel, statusLabel, userFacingError } from './displayLabels'
 
 describe('displayLabels', () => {
+  it('explains stage baseline failures without exposing raw diagnostics', () => {
+    const message = errorEventMessage('STAGE_WORKSPACE_BASELINE_CREATE_FAILED',
+      'Unable to index the Stage workspace baseline: Permission denied /private/secret')
+    expect(message).toContain('文件基线创建失败')
+    expect(message).toContain('尚未创建执行会话')
+    expect(message).toContain('重做')
+    expect(message).not.toMatch(/secret|STAGE_WORKSPACE|Permission denied/)
+    expect(errorEventMessage('STAGE_WORKSPACE_BASELINE_UNSTABLE', 'Workspace changed twice'))
+      .toContain('等待其他程序完成文件写入')
+  })
   it('translates workflow states, overrides and role packs for the UI', () => {
     expect(statusLabel('QUESTIONING_PACKAGE')).toBe('工作包提问')
     expect(displayLabel('MANUAL_OVERRIDE')).toBe('人工覆盖')

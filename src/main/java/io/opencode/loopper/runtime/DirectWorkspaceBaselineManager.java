@@ -19,10 +19,12 @@ public class DirectWorkspaceBaselineManager {
     private static final Duration GIT_TIMEOUT = Duration.ofSeconds(30);
     private final SafeProcessRunner runner;
     private final LoopperProperties properties;
+    private final WorkspaceSnapshotFiles snapshotFiles;
 
     public DirectWorkspaceBaselineManager(SafeProcessRunner runner, LoopperProperties properties) {
         this.runner = runner;
         this.properties = properties;
+        this.snapshotFiles = new WorkspaceSnapshotFiles(runner);
     }
 
     public String capture(Path projectRoot, String taskId) {
@@ -40,9 +42,8 @@ public class DirectWorkspaceBaselineManager {
             requireSuccess(root, List.of("git", "init", "--quiet", repository.toString()),
                     "DIRECT_BASELINE_CREATE_FAILED", "Unable to initialize the direct-execution baseline");
             Path gitDir = repository.resolve(".git").toRealPath();
-            java.util.ArrayList<String> add = addArguments(root, base);
-            requireSuccess(root, git(root, gitDir, add.toArray(String[]::new)),
-                    "DIRECT_BASELINE_CREATE_FAILED", "Unable to index the direct-execution baseline");
+            snapshotFiles.capture(root, gitDir, java.util.Map.of(), base.getParent(), GIT_TIMEOUT,
+                    "DIRECT_BASELINE_CREATE_FAILED");
             ProcessResult tree = runner.run(root, git(root, gitDir, "write-tree"), GIT_TIMEOUT);
             if (tree.timedOut() || tree.outputTruncated() || tree.exitCode() != 0 || !tree.output().trim().matches("[0-9a-fA-F]{40,64}")) {
                 throw new TaskFailure("DIRECT_BASELINE_CREATE_FAILED", "Unable to finalize the direct-execution baseline: " + trim(tree.output()));
@@ -61,8 +62,8 @@ public class DirectWorkspaceBaselineManager {
             Path root = projectRoot.toRealPath();
             Path gitDir = requireRepository(taskId);
             Path base = properties.getDataDir().toAbsolutePath().normalize().resolve("direct-baselines");
-            requireSuccess(root, git(root, gitDir, addArguments(root, base).toArray(String[]::new)),
-                    "DIRECT_CHECKPOINT_CREATE_FAILED", "Unable to index the Direct package checkpoint");
+            snapshotFiles.capture(root, gitDir, java.util.Map.of(), base.getParent(), GIT_TIMEOUT,
+                    "DIRECT_CHECKPOINT_CREATE_FAILED");
             ProcessResult tree = runner.run(root, git(root, gitDir, "write-tree"), GIT_TIMEOUT);
             if (tree.timedOut() || tree.outputTruncated() || tree.exitCode() != 0
                     || !tree.output().trim().matches("[0-9a-fA-F]{40,64}")) {
@@ -92,7 +93,8 @@ public class DirectWorkspaceBaselineManager {
         try {
             Path root = projectRoot.toRealPath();
             ProcessResult tracked = runner.run(root, git(root, baseline.gitDir(), "diff", "--name-status", "-z", baseline.tree()), timeout);
-            ProcessResult untracked = runner.run(root, git(root, baseline.gitDir(), "ls-files", "-z", "--others", "--exclude-standard"), timeout);
+            ProcessResult untracked = snapshotFiles.untracked(root, baseline.gitDir(), java.util.Map.of(),
+                    properties.getDataDir().toAbsolutePath().normalize(), timeout, "DIRECT_BASELINE_UNAVAILABLE");
             return new DiffResult(tracked, untracked);
         } catch (TaskFailure failure) {
             throw failure;
@@ -173,21 +175,11 @@ public class DirectWorkspaceBaselineManager {
     private List<String> git(Path root, Path gitDir, String... arguments) {
         java.util.ArrayList<String> command = new java.util.ArrayList<>();
         command.add("git");
+        command.addAll(List.of("-c", "core.safecrlf=false"));
         command.add("--git-dir=" + gitDir);
         command.add("--work-tree=" + root);
         command.addAll(List.of(arguments));
         return List.copyOf(command);
-    }
-
-    private java.util.ArrayList<String> addArguments(Path root, Path baselineBase) {
-        java.util.ArrayList<String> add = new java.util.ArrayList<>(List.of(
-                "add", "-A", "--", ".", ":(exclude).git", ":(exclude).git/**"));
-        if (baselineBase.startsWith(root)) {
-            String managedData = root.relativize(baselineBase).toString().replace('\\', '/');
-            add.add(":(exclude)" + managedData);
-            add.add(":(exclude)" + managedData + "/**");
-        }
-        return add;
     }
 
     private void requireSuccess(Path directory, List<String> command, String code, String message) {

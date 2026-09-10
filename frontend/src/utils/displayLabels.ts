@@ -67,6 +67,8 @@ const generalLabels: Record<string, string> = {
 }
 
 const errorCodeLabels: Record<string, string> = {
+  STAGE_WORKSPACE_BASELINE_CREATE_FAILED: '阶段文件基线创建失败',
+  STAGE_WORKSPACE_BASELINE_UNSTABLE: '阶段文件基线采集期间文件持续变化',
   PACKAGE_COMPILED_SCOPE_EXPANSION: '设计路径需要修正',
   PACKAGE_DESIGN_SECURITY_BOUNDARY: '候选包含服务端专属字段',
   PACKAGE_DESIGN_NEEDS_INPUT: '设计已暂停，请查看具体原因',
@@ -105,6 +107,8 @@ const errorCodeLabels: Record<string, string> = {
 }
 
 const errorRecoveryMessages: Record<string, string> = {
+  STAGE_WORKSPACE_BASELINE_CREATE_FAILED: '阶段开始前的文件基线创建失败，尚未创建执行会话。请检查项目文件读取权限、数据目录写入权限及 Git 状态后重做。',
+  STAGE_WORKSPACE_BASELINE_UNSTABLE: '阶段开始前的文件基线无法稳定保存。请等待其他程序完成文件写入后重做。',
   ATTACHMENT_MCP_REQUIRED: '附件需要受管 OpenCode 的私有 MCP 连接，请检查运行环境后重新开始设计。',
   ATTACHMENT_MCP_NOT_READ: 'OpenCode 未完整读取并确认附件，设计已阻断。请检查私有 MCP 连接后重试，无需清理项目文件。',
   ATTACHMENT_MCP_CONTENT_UNVERIFIED: 'OpenCode 保存的附件内容不完整或已变化，设计已阻断。请检查版本兼容性后重新发送附件。',
@@ -253,6 +257,7 @@ export function userFacingError(value: unknown, fallback = '操作未完成，�
 export function errorEventMessage(code?: string, message?: string) {
   const translated = userFacingError(message, '')
   if (translated) return translated
+  if (code && errorRecoveryMessages[code]) return errorRecoveryMessages[code]
   return `${errorCodeLabel(code)}，请按页面提示处理后重试`
 }
 

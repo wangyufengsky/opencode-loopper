@@ -1311,8 +1311,12 @@ an old Task's diff from whichever branch happens to be checked out later.
 
 ## Workspace safety
 
-Planning and confirmation may inspect a registered root read-only. A newly confirmed
-Task remains `PENDING_START` with no queue row, write lease, execution directory or
+Planning and confirmation may inspect a registered root read-only. A Task with
+story accounting finishes retired Designer accounting before its first
+start admission, execution clock, workspace preparation, and Stage baseline capture.
+The wait is outside database transactions and rechecks Task state/version before
+admission; cancellation during the wait cannot revive the Task.
+A newly confirmed Task remains `PENDING_START` with no queue row, write lease, execution directory or
 task branch. Cancelling it changes only the Task to `CANCELLED`. The first explicit
 start request is the sole boundary that can enqueue the Task, acquire the workspace
 lease, fetch refs, capture a baseline and switch the registered checkout. Once the
