@@ -8,7 +8,6 @@ from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import io
 import json
-import os
 from pathlib import Path, PurePosixPath
 import re
 import shutil
@@ -50,8 +49,9 @@ def download(spec, cache):
     return destination
 
 
-def extract_jdk(archive, destination, spec):
+def extract_jdk(archive, destination, spec, unix_modes=None):
     destination.mkdir()
+    unix_modes = {} if unix_modes is None else unix_modes
     if zipfile.is_zipfile(archive):
         with zipfile.ZipFile(archive) as source:
             for member in source.infolist():
@@ -61,8 +61,14 @@ def extract_jdk(archive, destination, spec):
                     raise ValueError(f'Unsafe ZIP member: {member.filename}')
             source.extractall(destination)
     else:
+        def preserve_safe_mode(member, target):
+            safe = tarfile.data_filter(member, target)
+            if safe is not None and safe.mode is not None:
+                unix_modes[PurePosixPath(safe.name).as_posix()] = safe.mode
+            return safe
+
         with tarfile.open(archive, 'r:gz') as source:
-            source.extractall(destination, filter='data')
+            source.extractall(destination, filter=preserve_safe_mode)
     roots = list(destination.iterdir())
     if len(roots) != 1 or not roots[0].is_dir() or roots[0].is_symlink():
         raise ValueError('Expected exactly one JDK archive root')
@@ -78,8 +84,10 @@ def extract_jdk(archive, destination, spec):
             or release.get('OS_ARCH') not in expected_arch or release.get('OS_NAME') != expected_os
             or not (home / 'legal').is_dir()):
         raise ValueError(f'JDK version/platform/layout/license mismatch: {home}')
-    if spec['os'] != 'windows' and not os.access(java, os.X_OK):
-        raise ValueError(f'JDK executable permission missing: {java}')
+    if spec['os'] != 'windows':
+        for executable in (java, javac):
+            if not unix_modes.get(executable.relative_to(destination).as_posix(), 0) & 0o111:
+                raise ValueError(f'JDK executable permission missing: {executable}')
     return jdk
 
 
@@ -87,7 +95,8 @@ def assemble(platform, spec, archive, jar, version, work, output):
     name = f'opencode-loopper-{version}-{platform}'
     bundle = work / name
     bundle.mkdir()
-    jdk = extract_jdk(archive, work / f'{platform}-jdk', spec)
+    unix_modes = {}
+    jdk = extract_jdk(archive, work / f'{platform}-jdk', spec, unix_modes)
     shutil.move(str(jdk), bundle / 'jdk21')
     shutil.copy2(jar, bundle / jar.name)
     scripts = ['start-windows.bat'] if spec['os'] == 'windows' else ['start-linux.sh']
@@ -120,8 +129,24 @@ def assemble(platform, spec, archive, jar, version, work, output):
                     target.write(item, item.relative_to(work).as_posix())
     else:
         result = output / (name + '.tar.gz')
+        def target_permissions(member):
+            relative = PurePosixPath(member.name).relative_to(name)
+            if relative.parts and relative.parts[0] == 'jdk21':
+                original = PurePosixPath(jdk.name, *relative.parts[1:]).as_posix()
+                if original in unix_modes:
+                    member.mode = unix_modes[original]
+                elif member.isdir():
+                    member.mode = 0o755
+            elif member.isdir() or relative.as_posix() in scripts:
+                member.mode = 0o755
+            elif member.isfile():
+                member.mode = 0o644
+            return member
+
         with tarfile.open(result, 'w:gz', compresslevel=6) as target:
-            target.add(bundle, arcname=name)
+            # Windows cannot retain POSIX execute bits in extracted files.
+            # Preserve the validated JDK archive modes and set launcher modes.
+            target.add(bundle, arcname=name, filter=target_permissions)
     return result
 
 
