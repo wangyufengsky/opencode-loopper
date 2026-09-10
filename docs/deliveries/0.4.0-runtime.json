@@ -1,0 +1,28 @@
+{
+  "health": "UP",
+  "spaPaths": 3,
+  "metadataOnly": true,
+  "exactMarkdown": true,
+  "missingSkill": 404,
+  "unknownProject": 404,
+  "missingAsset": 404,
+  "unsupportedPeer": 503,
+  "browser": "Packaged home image, navigation, Skill preview/source and brand return passed; no page errors.",
+  "peerRequests": [
+    "/global/health",
+    "/agent",
+    "/global/health",
+    "/skill?directory=%2Fprivate%2Fvar%2Ffolders%2Fdd%2Frj49_gmj4db8m9vpzws8fkf00000gn%2FT%2Floopper-0.4.0-acceptance-70qle7ce",
+    "/skill?directory=%2Fprivate%2Fvar%2Ffolders%2Fdd%2Frj49_gmj4db8m9vpzws8fkf00000gn%2FT%2Floopper-0.4.0-acceptance-70qle7ce",
+    "/skill?directory=%2Fprivate%2Fvar%2Ffolders%2Fdd%2Frj49_gmj4db8m9vpzws8fkf00000gn%2FT%2Floopper-0.4.0-acceptance-70qle7ce",
+    "/mcp?directory=%2Fprivate%2Fvar%2Ffolders%2Fdd%2Frj49_gmj4db8m9vpzws8fkf00000gn%2FT%2Floopper-0.4.0-acceptance-70qle7ce",
+    "/config?directory=%2Fprivate%2Fvar%2Ffolders%2Fdd%2Frj49_gmj4db8m9vpzws8fkf00000gn%2FT%2Floopper-0.4.0-acceptance-70qle7ce",
+    "/skill?directory=%2Fprivate%2Fvar%2Ffolders%2Fdd%2Frj49_gmj4db8m9vpzws8fkf00000gn%2FT%2Floopper-0.4.0-acceptance-70qle7ce",
+    "/skill?directory=%2Fprivate%2Fvar%2Ffolders%2Fdd%2Frj49_gmj4db8m9vpzws8fkf00000gn%2FT%2Floopper-0.4.0-acceptance-70qle7ce",
+    "/skill?directory=%2Fprivate%2Fvar%2Ffolders%2Fdd%2Frj49_gmj4db8m9vpzws8fkf00000gn%2FT%2Floopper-0.4.0-acceptance-70qle7ce"
+  ],
+  "workdir": "/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-0.4.0-acceptance-70qle7ce",
+  "loopperVersion": "0.4.0",
+  "provider": "loopback protocol fixture; no paid Provider",
+  "processesStopped": true
+}
