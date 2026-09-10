@@ -107,7 +107,16 @@ if not defined JAVA_BIN goto java_missing
 if not exist "%JAVA_BIN%" goto java_missing
 
 set "JAVA_VERSION_LINE="
-for /f "delims=" %%V in ('""%JAVA_BIN%" -version 2^>^&1"') do if not defined JAVA_VERSION_LINE set "JAVA_VERSION_LINE=%%V"
+if not defined TEMP goto java_version_probe_failed
+set "JAVA_VERSION_PROBE_DIR=%TEMP%\loopper-java-%RANDOM%-%RANDOM%"
+mkdir "%JAVA_VERSION_PROBE_DIR%" >nul 2>&1
+if errorlevel 1 goto java_version_probe_failed
+"%JAVA_BIN%" -version >"%JAVA_VERSION_PROBE_DIR%\version.txt" 2>&1
+set "JAVA_VERSION_EXIT=%ERRORLEVEL%"
+for /f "usebackq delims=" %%V in ("%JAVA_VERSION_PROBE_DIR%\version.txt") do if not defined JAVA_VERSION_LINE set "JAVA_VERSION_LINE=%%V"
+del /q "%JAVA_VERSION_PROBE_DIR%\version.txt" >nul 2>&1
+rmdir "%JAVA_VERSION_PROBE_DIR%" >nul 2>&1
+if not "%JAVA_VERSION_EXIT%"=="0" goto java_version_unknown
 if not defined JAVA_VERSION_LINE goto java_version_unknown
 for /f "tokens=3" %%V in ("%JAVA_VERSION_LINE%") do set "JAVA_VERSION=%%~V"
 if not defined JAVA_VERSION goto java_version_unknown
@@ -225,6 +234,10 @@ exit /b 0
 
 :java_missing
 echo [Loopper] ERROR: Java was not found. Extract the complete release archive for this OS/CPU, or set LOOPPER_JAVA_HOME. 1>&2
+exit /b 1
+
+:java_version_probe_failed
+echo [Loopper] ERROR: Cannot create a temporary directory to check the Java version. Check TEMP and its permissions. 1>&2
 exit /b 1
 
 :java_version_unknown

@@ -105,11 +105,17 @@ class BundledLauncherTest {
         builder.environment().put("LOOPPER_OPENCODE_MODE", "fake");
         builder.environment().put("OPENCODE_EXECUTABLE", "unused-launch-probe");
         builder.environment().put("LOOPPER_OPEN_BROWSER", "false");
+        Path probeTemp = Files.createDirectories(temporary.resolve("probe temp with spaces"));
+        if (WINDOWS) builder.environment().put("TEMP", probeTemp.toString());
         Path log = temporary.resolve("launcher.log");
         Process process = builder.redirectErrorStream(true).redirectOutput(log.toFile()).start();
         boolean completed = process.waitFor(30, TimeUnit.SECONDS);
         if (!completed) process.destroyForcibly();
         assertThat(completed).as("launcher finishes within 30 seconds").isTrue();
+        try (var remaining = Files.list(probeTemp)) {
+            assertThat(remaining.map(path -> path.getFileName().toString()).toList())
+                    .noneMatch(name -> name.startsWith("loopper-java-"));
+        }
         return new Result(process.exitValue(), Files.readString(log));
     }
 
