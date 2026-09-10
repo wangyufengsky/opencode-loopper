@@ -1,0 +1,2912 @@
+{
+  "version": "0.3.97",
+  "generatedAt": "2026-09-10T12:35:49.537997+08:00",
+  "jar": "/Users/wangyufeng/IdeaProjects/opencode-loopper/target/opencode-loopper-0.3.97.jar",
+  "bytes": 289539766,
+  "sha256": "f8b3cf462b509a7a26216a9faab96d8e9e247b14877e3b908d069422c75bec9f",
+  "scope": "Real OpenCode 1.18.23 and native plugin; local deterministic model and local accounting receiver; no internal platform calls.",
+  "focusedTests": {
+    "tests": 119,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "baselineRedLogs": [
+    "/tmp/loopper-story-prompt-red.log",
+    "/tmp/loopper-story-checkpoint-red.log",
+    "/tmp/loopper-story-stop-coordination-red.log"
+  ],
+  "candidate096": {
+    "passed": 22,
+    "failed": 1,
+    "cases": [
+      {
+        "id": "normal",
+        "result": "PASS",
+        "startedAt": "2026-09-10T03:58:44.547Z",
+        "finishedAt": "2026-09-10T04:00:20.628Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-7W4a1w/matrix-regression/normal.json",
+        "runtime": {
+          "loopperVersion": "0.3.96",
+          "version": "1.18.23",
+          "pid": 24713,
+          "endpoint": "http://127.0.0.1:57773",
+          "generation": "1a663c46"
+        },
+        "receiverRequests": 4,
+        "receiptDurationsSeconds": [
+          20.002,
+          20.002,
+          20.002,
+          19.99
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "AWAITING_DECISION",
+        "executionResult": "SUCCEEDED",
+        "attemptCount": 1,
+        "judges": [
+          {
+            "role": "REQUIREMENT",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          },
+          {
+            "role": "RISK",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          }
+        ],
+        "changedPaths": [
+          "config.properties"
+        ],
+        "cleanupErrors": {}
+      },
+      {
+        "id": "fallback",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:00:20.633Z",
+        "finishedAt": "2026-09-10T04:02:35.574Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-7W4a1w/matrix-regression/fallback.json",
+        "runtime": {
+          "loopperVersion": "0.3.96",
+          "version": "1.18.23",
+          "pid": 24713,
+          "endpoint": "http://127.0.0.1:57773",
+          "generation": "1a663c46"
+        },
+        "receiverRequests": 6,
+        "receiptDurationsSeconds": [
+          19.998,
+          20.001,
+          20.004,
+          20.001,
+          20.002,
+          20.002
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 503,
+            "error": "模拟统计服务暂不可用"
+          },
+          {
+            "operation": "continue",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 503,
+            "error": "模拟统计服务暂不可用"
+          },
+          {
+            "operation": "continue",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "AWAITING_DECISION",
+        "executionResult": "SUCCEEDED",
+        "attemptCount": 1,
+        "judges": [
+          {
+            "role": "REQUIREMENT",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          },
+          {
+            "role": "RISK",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          }
+        ],
+        "changedPaths": [
+          "config.properties"
+        ],
+        "cleanupErrors": {}
+      },
+      {
+        "id": "rework",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:02:35.580Z",
+        "finishedAt": "2026-09-10T04:04:57.975Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-7W4a1w/matrix-regression/rework.json",
+        "runtime": {
+          "loopperVersion": "0.3.96",
+          "version": "1.18.23",
+          "pid": 24713,
+          "endpoint": "http://127.0.0.1:57773",
+          "generation": "1a663c46"
+        },
+        "receiverRequests": 6,
+        "receiptDurationsSeconds": [
+          20.002,
+          20.002,
+          20.002,
+          20.002,
+          20.0,
+          20.002
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "AWAITING_DECISION",
+        "executionResult": "SUCCEEDED",
+        "attemptCount": 1,
+        "judges": [
+          {
+            "role": "REQUIREMENT",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          },
+          {
+            "role": "RISK",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          }
+        ],
+        "changedPaths": [
+          "config.properties"
+        ],
+        "cleanupErrors": {}
+      },
+      {
+        "id": "pause-resume",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:04:57.995Z",
+        "finishedAt": "2026-09-10T04:07:12.590Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-7W4a1w/matrix-regression/pause-resume.json",
+        "runtime": {
+          "loopperVersion": "0.3.96",
+          "version": "1.18.23",
+          "pid": 24713,
+          "endpoint": "http://127.0.0.1:57773",
+          "generation": "1a663c46"
+        },
+        "receiverRequests": 6,
+        "receiptDurationsSeconds": [
+          20.003,
+          20.001,
+          20.002,
+          20.002,
+          20.001,
+          20.001
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "AWAITING_DECISION",
+        "executionResult": "SUCCEEDED",
+        "attemptCount": 2,
+        "judges": [
+          {
+            "role": "REQUIREMENT",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          },
+          {
+            "role": "RISK",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          }
+        ],
+        "changedPaths": [
+          "config.properties"
+        ],
+        "cleanupErrors": {}
+      },
+      {
+        "id": "cancel-designer-start",
+        "result": "PASS",
+        "startedAt": "2026-09-10T03:58:45.734Z",
+        "finishedAt": "2026-09-10T04:00:03.745Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-PHattR/matrix-regression/cancel-designer-start.json",
+        "runtime": {
+          "loopperVersion": "0.3.96",
+          "version": "1.18.23",
+          "pid": 24721,
+          "endpoint": "http://127.0.0.1:57792",
+          "generation": "f4fee04c"
+        },
+        "receiverRequests": 4,
+        "receiptDurationsSeconds": [
+          20.002,
+          20.002,
+          20.003,
+          20.012
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "AWAITING_DECISION",
+        "executionResult": "SUCCEEDED",
+        "attemptCount": 1,
+        "judges": [
+          {
+            "role": "REQUIREMENT",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          },
+          {
+            "role": "RISK",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          }
+        ],
+        "changedPaths": [
+          "config.properties"
+        ],
+        "cleanupErrors": {}
+      },
+      {
+        "id": "cancel-designer-continue",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:00:03.750Z",
+        "finishedAt": "2026-09-10T04:02:01.692Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-PHattR/matrix-regression/cancel-designer-continue.json",
+        "runtime": {
+          "loopperVersion": "0.3.96",
+          "version": "1.18.23",
+          "pid": 24721,
+          "endpoint": "http://127.0.0.1:57792",
+          "generation": "f4fee04c"
+        },
+        "receiverRequests": 6,
+        "receiptDurationsSeconds": [
+          19.988,
+          19.997,
+          19.999,
+          20.001,
+          20.003,
+          20.001
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 503,
+            "error": "模拟统计服务暂不可用"
+          },
+          {
+            "operation": "continue",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 503,
+            "error": "模拟统计服务暂不可用"
+          },
+          {
+            "operation": "continue",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "AWAITING_DECISION",
+        "executionResult": "SUCCEEDED",
+        "attemptCount": 1,
+        "judges": [
+          {
+            "role": "REQUIREMENT",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          },
+          {
+            "role": "RISK",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          }
+        ],
+        "changedPaths": [
+          "config.properties"
+        ],
+        "cleanupErrors": {}
+      },
+      {
+        "id": "cancel-designer-complete",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:02:01.698Z",
+        "finishedAt": "2026-09-10T04:03:18.113Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-PHattR/matrix-regression/cancel-designer-complete.json",
+        "runtime": {
+          "loopperVersion": "0.3.96",
+          "version": "1.18.23",
+          "pid": 24721,
+          "endpoint": "http://127.0.0.1:57792",
+          "generation": "f4fee04c"
+        },
+        "receiverRequests": 4,
+        "receiptDurationsSeconds": [
+          20.002,
+          20.002,
+          20.0,
+          20.001
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "AWAITING_DECISION",
+        "executionResult": "SUCCEEDED",
+        "attemptCount": 1,
+        "judges": [
+          {
+            "role": "REQUIREMENT",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          },
+          {
+            "role": "RISK",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          }
+        ],
+        "changedPaths": [
+          "config.properties"
+        ],
+        "cleanupErrors": {}
+      },
+      {
+        "id": "cancel-implementation-start",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:03:18.119Z",
+        "finishedAt": "2026-09-10T04:04:35.036Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-PHattR/matrix-regression/cancel-implementation-start.json",
+        "runtime": {
+          "loopperVersion": "0.3.96",
+          "version": "1.18.23",
+          "pid": 24721,
+          "endpoint": "http://127.0.0.1:57792",
+          "generation": "f4fee04c"
+        },
+        "receiverRequests": 4,
+        "receiptDurationsSeconds": [
+          20.002,
+          20.001,
+          20.002,
+          20.002
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "AWAITING_DECISION",
+        "executionResult": "SUCCEEDED",
+        "attemptCount": 1,
+        "judges": [
+          {
+            "role": "REQUIREMENT",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          },
+          {
+            "role": "RISK",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          }
+        ],
+        "changedPaths": [
+          "config.properties"
+        ],
+        "cleanupErrors": {}
+      },
+      {
+        "id": "cancel-implementation-continue",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:04:35.043Z",
+        "finishedAt": "2026-09-10T04:06:31.878Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-PHattR/matrix-regression/cancel-implementation-continue.json",
+        "runtime": {
+          "loopperVersion": "0.3.96",
+          "version": "1.18.23",
+          "pid": 24721,
+          "endpoint": "http://127.0.0.1:57792",
+          "generation": "f4fee04c"
+        },
+        "receiverRequests": 6,
+        "receiptDurationsSeconds": [
+          20.002,
+          20.003,
+          20.001,
+          20.001,
+          20.003,
+          20.003
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 503,
+            "error": "模拟统计服务暂不可用"
+          },
+          {
+            "operation": "continue",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 503,
+            "error": "模拟统计服务暂不可用"
+          },
+          {
+            "operation": "continue",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "AWAITING_DECISION",
+        "executionResult": "SUCCEEDED",
+        "attemptCount": 1,
+        "judges": [
+          {
+            "role": "REQUIREMENT",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          },
+          {
+            "role": "RISK",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          }
+        ],
+        "changedPaths": [
+          "config.properties"
+        ],
+        "cleanupErrors": {}
+      },
+      {
+        "id": "cancel-implementation-complete",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:06:31.904Z",
+        "finishedAt": "2026-09-10T04:08:06.188Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-PHattR/matrix-regression/cancel-implementation-complete.json",
+        "runtime": {
+          "loopperVersion": "0.3.96",
+          "version": "1.18.23",
+          "pid": 24721,
+          "endpoint": "http://127.0.0.1:57792",
+          "generation": "f4fee04c"
+        },
+        "receiverRequests": 4,
+        "receiptDurationsSeconds": [
+          20.001,
+          20.001,
+          20.002,
+          20.0
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "AWAITING_DECISION",
+        "executionResult": "SUCCEEDED",
+        "attemptCount": 1,
+        "judges": [
+          {
+            "role": "REQUIREMENT",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          },
+          {
+            "role": "RISK",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          }
+        ],
+        "changedPaths": [
+          "config.properties"
+        ],
+        "cleanupErrors": {}
+      },
+      {
+        "id": "retry-complete",
+        "result": "PASS",
+        "startedAt": "2026-09-10T03:59:04.401Z",
+        "finishedAt": "2026-09-10T04:01:22.332Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-DUtvNL/matrix-regression/retry-complete.json",
+        "runtime": {
+          "loopperVersion": "0.3.96",
+          "version": "1.18.23",
+          "pid": 24809,
+          "endpoint": "http://127.0.0.1:57890",
+          "generation": "46fcd1df"
+        },
+        "receiverRequests": 6,
+        "receiptDurationsSeconds": [
+          20.002,
+          20.002,
+          19.992,
+          19.993,
+          20.0,
+          20.002
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 503,
+            "error": "模拟统计服务暂不可用"
+          },
+          {
+            "operation": "start",
+            "status": 409,
+            "error": "ACTIVE_RUN_EXISTS"
+          },
+          {
+            "operation": "continue",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 503,
+            "error": "模拟统计服务暂不可用"
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "AWAITING_DECISION",
+        "executionResult": "SUCCEEDED",
+        "attemptCount": 1,
+        "judges": [
+          {
+            "role": "REQUIREMENT",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          },
+          {
+            "role": "RISK",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          }
+        ],
+        "changedPaths": [
+          "config.properties"
+        ],
+        "cleanupErrors": {}
+      },
+      {
+        "id": "retry-begin",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:01:22.337Z",
+        "finishedAt": "2026-09-10T04:04:00.489Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-DUtvNL/matrix-regression/retry-begin.json",
+        "runtime": {
+          "loopperVersion": "0.3.96",
+          "version": "1.18.23",
+          "pid": 24809,
+          "endpoint": "http://127.0.0.1:57890",
+          "generation": "46fcd1df"
+        },
+        "receiverRequests": 7,
+        "receiptDurationsSeconds": [
+          20.003,
+          20.002,
+          20.001,
+          20.0,
+          20.002,
+          20.001,
+          20.002
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 503,
+            "error": "模拟统计服务暂不可用"
+          },
+          {
+            "operation": "continue",
+            "status": 503,
+            "error": "模拟统计服务暂不可用"
+          },
+          {
+            "operation": "complete",
+            "status": 409,
+            "error": "当前会话未绑定故事"
+          },
+          {
+            "operation": "start",
+            "status": 503,
+            "error": "模拟统计服务暂不可用"
+          },
+          {
+            "operation": "continue",
+            "status": 503,
+            "error": "模拟统计服务暂不可用"
+          },
+          {
+            "operation": "complete",
+            "status": 409,
+            "error": "当前会话未绑定故事"
+          },
+          {
+            "operation": "continue",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "AWAITING_DECISION",
+        "executionResult": "SUCCEEDED",
+        "attemptCount": 1,
+        "judges": [
+          {
+            "role": "REQUIREMENT",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          },
+          {
+            "role": "RISK",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          }
+        ],
+        "changedPaths": [
+          "config.properties"
+        ],
+        "cleanupErrors": {}
+      },
+      {
+        "id": "verification-retry",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:04:00.495Z",
+        "finishedAt": "2026-09-10T04:06:17.284Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-DUtvNL/matrix-regression/verification-retry.json",
+        "runtime": {
+          "loopperVersion": "0.3.96",
+          "version": "1.18.23",
+          "pid": 24809,
+          "endpoint": "http://127.0.0.1:57890",
+          "generation": "46fcd1df"
+        },
+        "receiverRequests": 6,
+        "receiptDurationsSeconds": [
+          20.002,
+          20.001,
+          20.001,
+          20.002,
+          20.002,
+          20.002
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "AWAITING_DECISION",
+        "executionResult": "SUCCEEDED",
+        "attemptCount": 2,
+        "judges": [
+          {
+            "role": "REQUIREMENT",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          },
+          {
+            "role": "RISK",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          }
+        ],
+        "changedPaths": [
+          "config.properties"
+        ],
+        "cleanupErrors": {}
+      },
+      {
+        "id": "judge-retry",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:06:17.292Z",
+        "finishedAt": "2026-09-10T04:07:50.205Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-DUtvNL/matrix-regression/judge-retry.json",
+        "runtime": {
+          "loopperVersion": "0.3.96",
+          "version": "1.18.23",
+          "pid": 24809,
+          "endpoint": "http://127.0.0.1:57890",
+          "generation": "46fcd1df"
+        },
+        "receiverRequests": 4,
+        "receiptDurationsSeconds": [
+          20.003,
+          20.003,
+          20.002,
+          20.0
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "AWAITING_DECISION",
+        "executionResult": "SUCCEEDED",
+        "attemptCount": 1,
+        "judges": [
+          {
+            "role": "REQUIREMENT",
+            "status": "COMPLETED",
+            "verdict": "REVISE"
+          },
+          {
+            "role": "RISK",
+            "status": "COMPLETED",
+            "verdict": "REVISE"
+          },
+          {
+            "role": "REQUIREMENT",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          },
+          {
+            "role": "RISK",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          }
+        ],
+        "changedPaths": [
+          "config.properties"
+        ],
+        "cleanupErrors": {}
+      },
+      {
+        "id": "retry-cancelled-complete",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:07:50.211Z",
+        "finishedAt": "2026-09-10T04:09:45.874Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-DUtvNL/matrix-regression/retry-cancelled-complete.json",
+        "runtime": {
+          "loopperVersion": "0.3.96",
+          "version": "1.18.23",
+          "pid": 24809,
+          "endpoint": "http://127.0.0.1:57890",
+          "generation": "46fcd1df"
+        },
+        "receiverRequests": 5,
+        "receiptDurationsSeconds": [
+          20.002,
+          20.002,
+          20.002,
+          20.002,
+          20.001
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "AWAITING_DECISION",
+        "executionResult": "SUCCEEDED",
+        "attemptCount": 1,
+        "judges": [
+          {
+            "role": "REQUIREMENT",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          },
+          {
+            "role": "RISK",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          }
+        ],
+        "changedPaths": [
+          "config.properties"
+        ],
+        "cleanupErrors": {}
+      },
+      {
+        "id": "stop-designer-during-start",
+        "result": "PASS",
+        "startedAt": "2026-09-10T03:59:05.747Z",
+        "finishedAt": "2026-09-10T03:59:53.999Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-SsWz2d/matrix-regression/stop-designer-during-start.json",
+        "runtime": {
+          "loopperVersion": "0.3.96",
+          "version": "1.18.23",
+          "pid": 31640,
+          "endpoint": "http://127.0.0.1:59924",
+          "generation": "f13a5075"
+        },
+        "receiverRequests": 2,
+        "receiptDurationsSeconds": [
+          20.003,
+          20.002
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": null,
+        "executionResult": null,
+        "attemptCount": null,
+        "judges": [],
+        "changedPaths": null,
+        "cleanupErrors": {}
+      },
+      {
+        "id": "cancel-task-during-start",
+        "result": "FAIL",
+        "error": "Error: /api/tasks/873ba52c-9a46-4d1f-92fa-6149377f069c/cancel HTTP 409: {\"detail\":\"Session was updated concurrently\",\"instance\":\"/api/tasks/873ba52c-9a46-4d1f-92fa-6149377f069c/cancel\",\"status\":409,\"title\":\"Conflict\",\"errorCode\":\"SESSION_VERSION_CONFLICT\"}",
+        "startedAt": "2026-09-10T03:59:54.000Z",
+        "finishedAt": "2026-09-10T04:01:02.788Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-SsWz2d/matrix-regression/cancel-task-during-start.json",
+        "runtime": {
+          "loopperVersion": "0.3.96",
+          "version": "1.18.23",
+          "pid": 31640,
+          "endpoint": "http://127.0.0.1:59924",
+          "generation": "f13a5075"
+        },
+        "receiverRequests": 3,
+        "receiptDurationsSeconds": [
+          19.991,
+          19.995,
+          20.0
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "CANCELLED",
+        "executionResult": "INTERRUPTED",
+        "attemptCount": 1,
+        "judges": [],
+        "changedPaths": null,
+        "cleanupErrors": {}
+      },
+      {
+        "id": "cancel-task-during-complete",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:01:02.790Z",
+        "finishedAt": "2026-09-10T04:02:37.463Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-SsWz2d/matrix-regression/cancel-task-during-complete.json",
+        "runtime": {
+          "loopperVersion": "0.3.96",
+          "version": "1.18.23",
+          "pid": 31640,
+          "endpoint": "http://127.0.0.1:59924",
+          "generation": "f13a5075"
+        },
+        "receiverRequests": 4,
+        "receiptDurationsSeconds": [
+          20.001,
+          20.002,
+          20.003,
+          20.002
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "CANCELLED",
+        "executionResult": "INTERRUPTED",
+        "attemptCount": 1,
+        "judges": [
+          {
+            "role": "REQUIREMENT",
+            "status": "ABORTED",
+            "verdict": null
+          },
+          {
+            "role": "RISK",
+            "status": "ABORTED",
+            "verdict": null
+          }
+        ],
+        "changedPaths": null,
+        "cleanupErrors": {}
+      },
+      {
+        "id": "browser-cancel-and-dismiss",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:02:37.477Z",
+        "finishedAt": "2026-09-10T04:03:57.366Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-SsWz2d/matrix-regression/browser-cancel-and-dismiss.json",
+        "runtime": {
+          "loopperVersion": "0.3.96",
+          "version": "1.18.23",
+          "pid": 31640,
+          "endpoint": "http://127.0.0.1:59924",
+          "generation": "f13a5075"
+        },
+        "receiverRequests": 4,
+        "receiptDurationsSeconds": [
+          20.002,
+          20.003,
+          20.0,
+          20.002
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "AWAITING_DECISION",
+        "executionResult": "SUCCEEDED",
+        "attemptCount": 1,
+        "judges": [
+          {
+            "role": "REQUIREMENT",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          },
+          {
+            "role": "RISK",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          }
+        ],
+        "changedPaths": [
+          "config.properties"
+        ],
+        "cleanupErrors": {}
+      },
+      {
+        "id": "cancel-task-during-handoff",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:03:57.372Z",
+        "finishedAt": "2026-09-10T04:04:47.885Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-SsWz2d/matrix-regression/cancel-task-during-handoff.json",
+        "runtime": {
+          "loopperVersion": "0.3.96",
+          "version": "1.18.23",
+          "pid": 31640,
+          "endpoint": "http://127.0.0.1:59924",
+          "generation": "f13a5075"
+        },
+        "receiverRequests": 2,
+        "receiptDurationsSeconds": [
+          20.002,
+          20.002
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "CANCELLED",
+        "executionResult": null,
+        "attemptCount": 0,
+        "judges": [],
+        "changedPaths": null,
+        "cleanupErrors": {}
+      },
+      {
+        "id": "restart-during-start",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:04:47.893Z",
+        "finishedAt": "2026-09-10T04:05:21.549Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-SsWz2d/matrix-regression/restart-during-start.json",
+        "runtime": {
+          "loopperVersion": "0.3.96",
+          "version": "1.18.23",
+          "pid": 31640,
+          "endpoint": "http://127.0.0.1:59924",
+          "generation": "f13a5075"
+        },
+        "receiverRequests": 1,
+        "receiptDurationsSeconds": [
+          20.002
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": null,
+        "executionResult": null,
+        "attemptCount": null,
+        "judges": [],
+        "changedPaths": null,
+        "cleanupErrors": {}
+      },
+      {
+        "id": "scope-confirm",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:05:21.550Z",
+        "finishedAt": "2026-09-10T04:06:59.493Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-SsWz2d/matrix-regression/scope-confirm.json",
+        "runtime": {
+          "loopperVersion": "0.3.96",
+          "version": "1.18.23",
+          "pid": 31640,
+          "endpoint": "http://127.0.0.1:59924",
+          "generation": "f13a5075"
+        },
+        "receiverRequests": 4,
+        "receiptDurationsSeconds": [
+          20.002,
+          20.003,
+          20.022,
+          20.003
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "AWAITING_DECISION",
+        "executionResult": "SUCCEEDED",
+        "attemptCount": 1,
+        "judges": [
+          {
+            "role": "REQUIREMENT",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          },
+          {
+            "role": "RISK",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          }
+        ],
+        "changedPaths": [
+          "config.properties",
+          "notes.properties"
+        ],
+        "cleanupErrors": {}
+      },
+      {
+        "id": "scope-cancel-task",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:06:59.501Z",
+        "finishedAt": "2026-09-10T04:08:33.118Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-SsWz2d/matrix-regression/scope-cancel-task.json",
+        "runtime": {
+          "loopperVersion": "0.3.96",
+          "version": "1.18.23",
+          "pid": 31640,
+          "endpoint": "http://127.0.0.1:59924",
+          "generation": "f13a5075"
+        },
+        "receiverRequests": 4,
+        "receiptDurationsSeconds": [
+          20.003,
+          20.002,
+          20.001,
+          20.001
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "CANCELLED",
+        "executionResult": "INTERRUPTED",
+        "attemptCount": 1,
+        "judges": [],
+        "changedPaths": null,
+        "cleanupErrors": {}
+      }
+    ]
+  },
+  "final097": {
+    "passed": 23,
+    "failed": 0,
+    "cases": [
+      {
+        "id": "normal",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:23:51.812Z",
+        "finishedAt": "2026-09-10T04:25:31.557Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-tsJGTn/matrix-regression/normal.json",
+        "runtime": {
+          "loopperVersion": "0.3.97",
+          "version": "1.18.23",
+          "pid": 51572,
+          "endpoint": "http://127.0.0.1:49292",
+          "generation": "fb09cf1f"
+        },
+        "receiverRequests": 4,
+        "receiptDurationsSeconds": [
+          20.004,
+          20.002,
+          20.002,
+          20.002
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "AWAITING_DECISION",
+        "executionResult": "SUCCEEDED",
+        "attemptCount": 1,
+        "judges": [
+          {
+            "role": "REQUIREMENT",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          },
+          {
+            "role": "RISK",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          }
+        ],
+        "changedPaths": [
+          "config.properties"
+        ],
+        "cleanupErrors": {}
+      },
+      {
+        "id": "fallback",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:25:31.563Z",
+        "finishedAt": "2026-09-10T04:27:46.047Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-tsJGTn/matrix-regression/fallback.json",
+        "runtime": {
+          "loopperVersion": "0.3.97",
+          "version": "1.18.23",
+          "pid": 51572,
+          "endpoint": "http://127.0.0.1:49292",
+          "generation": "fb09cf1f"
+        },
+        "receiverRequests": 6,
+        "receiptDurationsSeconds": [
+          20.001,
+          20.002,
+          20.001,
+          20.0,
+          20.002,
+          20.002
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 503,
+            "error": "模拟统计服务暂不可用"
+          },
+          {
+            "operation": "continue",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 503,
+            "error": "模拟统计服务暂不可用"
+          },
+          {
+            "operation": "continue",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "AWAITING_DECISION",
+        "executionResult": "SUCCEEDED",
+        "attemptCount": 1,
+        "judges": [
+          {
+            "role": "REQUIREMENT",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          },
+          {
+            "role": "RISK",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          }
+        ],
+        "changedPaths": [
+          "config.properties"
+        ],
+        "cleanupErrors": {}
+      },
+      {
+        "id": "rework",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:27:46.053Z",
+        "finishedAt": "2026-09-10T04:30:06.084Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-tsJGTn/matrix-regression/rework.json",
+        "runtime": {
+          "loopperVersion": "0.3.97",
+          "version": "1.18.23",
+          "pid": 51572,
+          "endpoint": "http://127.0.0.1:49292",
+          "generation": "fb09cf1f"
+        },
+        "receiverRequests": 6,
+        "receiptDurationsSeconds": [
+          20.003,
+          20.002,
+          20.003,
+          20.002,
+          20.002,
+          20.001
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "AWAITING_DECISION",
+        "executionResult": "SUCCEEDED",
+        "attemptCount": 1,
+        "judges": [
+          {
+            "role": "REQUIREMENT",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          },
+          {
+            "role": "RISK",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          }
+        ],
+        "changedPaths": [
+          "config.properties"
+        ],
+        "cleanupErrors": {}
+      },
+      {
+        "id": "pause-resume",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:30:06.094Z",
+        "finishedAt": "2026-09-10T04:32:21.174Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-tsJGTn/matrix-regression/pause-resume.json",
+        "runtime": {
+          "loopperVersion": "0.3.97",
+          "version": "1.18.23",
+          "pid": 51572,
+          "endpoint": "http://127.0.0.1:49292",
+          "generation": "fb09cf1f"
+        },
+        "receiverRequests": 6,
+        "receiptDurationsSeconds": [
+          20.001,
+          20.002,
+          20.002,
+          20.002,
+          20.003,
+          20.0
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "AWAITING_DECISION",
+        "executionResult": "SUCCEEDED",
+        "attemptCount": 2,
+        "judges": [
+          {
+            "role": "REQUIREMENT",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          },
+          {
+            "role": "RISK",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          }
+        ],
+        "changedPaths": [
+          "config.properties"
+        ],
+        "cleanupErrors": {}
+      },
+      {
+        "id": "cancel-designer-start",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:23:51.803Z",
+        "finishedAt": "2026-09-10T04:25:13.721Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-8ROTRp/matrix-regression/cancel-designer-start.json",
+        "runtime": {
+          "loopperVersion": "0.3.97",
+          "version": "1.18.23",
+          "pid": 51575,
+          "endpoint": "http://127.0.0.1:49301",
+          "generation": "c8a4544e"
+        },
+        "receiverRequests": 4,
+        "receiptDurationsSeconds": [
+          20.005,
+          20.003,
+          20.002,
+          20.002
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "AWAITING_DECISION",
+        "executionResult": "SUCCEEDED",
+        "attemptCount": 1,
+        "judges": [
+          {
+            "role": "REQUIREMENT",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          },
+          {
+            "role": "RISK",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          }
+        ],
+        "changedPaths": [
+          "config.properties"
+        ],
+        "cleanupErrors": {}
+      },
+      {
+        "id": "cancel-designer-continue",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:25:13.726Z",
+        "finishedAt": "2026-09-10T04:27:10.513Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-8ROTRp/matrix-regression/cancel-designer-continue.json",
+        "runtime": {
+          "loopperVersion": "0.3.97",
+          "version": "1.18.23",
+          "pid": 51575,
+          "endpoint": "http://127.0.0.1:49301",
+          "generation": "c8a4544e"
+        },
+        "receiverRequests": 6,
+        "receiptDurationsSeconds": [
+          20.002,
+          20.001,
+          20.002,
+          20.003,
+          20.002,
+          20.003
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 503,
+            "error": "模拟统计服务暂不可用"
+          },
+          {
+            "operation": "continue",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 503,
+            "error": "模拟统计服务暂不可用"
+          },
+          {
+            "operation": "continue",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "AWAITING_DECISION",
+        "executionResult": "SUCCEEDED",
+        "attemptCount": 1,
+        "judges": [
+          {
+            "role": "REQUIREMENT",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          },
+          {
+            "role": "RISK",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          }
+        ],
+        "changedPaths": [
+          "config.properties"
+        ],
+        "cleanupErrors": {}
+      },
+      {
+        "id": "cancel-designer-complete",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:27:10.520Z",
+        "finishedAt": "2026-09-10T04:28:26.336Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-8ROTRp/matrix-regression/cancel-designer-complete.json",
+        "runtime": {
+          "loopperVersion": "0.3.97",
+          "version": "1.18.23",
+          "pid": 51575,
+          "endpoint": "http://127.0.0.1:49301",
+          "generation": "c8a4544e"
+        },
+        "receiverRequests": 4,
+        "receiptDurationsSeconds": [
+          20.003,
+          20.002,
+          20.001,
+          20.001
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "AWAITING_DECISION",
+        "executionResult": "SUCCEEDED",
+        "attemptCount": 1,
+        "judges": [
+          {
+            "role": "REQUIREMENT",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          },
+          {
+            "role": "RISK",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          }
+        ],
+        "changedPaths": [
+          "config.properties"
+        ],
+        "cleanupErrors": {}
+      },
+      {
+        "id": "cancel-implementation-start",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:28:26.341Z",
+        "finishedAt": "2026-09-10T04:29:42.678Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-8ROTRp/matrix-regression/cancel-implementation-start.json",
+        "runtime": {
+          "loopperVersion": "0.3.97",
+          "version": "1.18.23",
+          "pid": 51575,
+          "endpoint": "http://127.0.0.1:49301",
+          "generation": "c8a4544e"
+        },
+        "receiverRequests": 4,
+        "receiptDurationsSeconds": [
+          20.002,
+          20.002,
+          20.002,
+          20.001
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "AWAITING_DECISION",
+        "executionResult": "SUCCEEDED",
+        "attemptCount": 1,
+        "judges": [
+          {
+            "role": "REQUIREMENT",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          },
+          {
+            "role": "RISK",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          }
+        ],
+        "changedPaths": [
+          "config.properties"
+        ],
+        "cleanupErrors": {}
+      },
+      {
+        "id": "cancel-implementation-continue",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:29:42.683Z",
+        "finishedAt": "2026-09-10T04:31:39.742Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-8ROTRp/matrix-regression/cancel-implementation-continue.json",
+        "runtime": {
+          "loopperVersion": "0.3.97",
+          "version": "1.18.23",
+          "pid": 51575,
+          "endpoint": "http://127.0.0.1:49301",
+          "generation": "c8a4544e"
+        },
+        "receiverRequests": 6,
+        "receiptDurationsSeconds": [
+          20.001,
+          20.002,
+          20.002,
+          20.002,
+          20.001,
+          20.002
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 503,
+            "error": "模拟统计服务暂不可用"
+          },
+          {
+            "operation": "continue",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 503,
+            "error": "模拟统计服务暂不可用"
+          },
+          {
+            "operation": "continue",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "AWAITING_DECISION",
+        "executionResult": "SUCCEEDED",
+        "attemptCount": 1,
+        "judges": [
+          {
+            "role": "REQUIREMENT",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          },
+          {
+            "role": "RISK",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          }
+        ],
+        "changedPaths": [
+          "config.properties"
+        ],
+        "cleanupErrors": {}
+      },
+      {
+        "id": "cancel-implementation-complete",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:31:39.749Z",
+        "finishedAt": "2026-09-10T04:33:11.949Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-8ROTRp/matrix-regression/cancel-implementation-complete.json",
+        "runtime": {
+          "loopperVersion": "0.3.97",
+          "version": "1.18.23",
+          "pid": 51575,
+          "endpoint": "http://127.0.0.1:49301",
+          "generation": "c8a4544e"
+        },
+        "receiverRequests": 4,
+        "receiptDurationsSeconds": [
+          20.002,
+          20.002,
+          20.003,
+          20.001
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "AWAITING_DECISION",
+        "executionResult": "SUCCEEDED",
+        "attemptCount": 1,
+        "judges": [
+          {
+            "role": "REQUIREMENT",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          },
+          {
+            "role": "RISK",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          }
+        ],
+        "changedPaths": [
+          "config.properties"
+        ],
+        "cleanupErrors": {}
+      },
+      {
+        "id": "retry-complete",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:23:51.804Z",
+        "finishedAt": "2026-09-10T04:26:13.028Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-LlIINa/matrix-regression/retry-complete.json",
+        "runtime": {
+          "loopperVersion": "0.3.97",
+          "version": "1.18.23",
+          "pid": 51576,
+          "endpoint": "http://127.0.0.1:49304",
+          "generation": "59658ee5"
+        },
+        "receiverRequests": 6,
+        "receiptDurationsSeconds": [
+          20.003,
+          20.001,
+          20.002,
+          20.001,
+          20.002,
+          20.002
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 503,
+            "error": "模拟统计服务暂不可用"
+          },
+          {
+            "operation": "start",
+            "status": 409,
+            "error": "ACTIVE_RUN_EXISTS"
+          },
+          {
+            "operation": "continue",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 503,
+            "error": "模拟统计服务暂不可用"
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "AWAITING_DECISION",
+        "executionResult": "SUCCEEDED",
+        "attemptCount": 1,
+        "judges": [
+          {
+            "role": "REQUIREMENT",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          },
+          {
+            "role": "RISK",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          }
+        ],
+        "changedPaths": [
+          "config.properties"
+        ],
+        "cleanupErrors": {}
+      },
+      {
+        "id": "retry-begin",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:26:13.035Z",
+        "finishedAt": "2026-09-10T04:28:50.667Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-LlIINa/matrix-regression/retry-begin.json",
+        "runtime": {
+          "loopperVersion": "0.3.97",
+          "version": "1.18.23",
+          "pid": 51576,
+          "endpoint": "http://127.0.0.1:49304",
+          "generation": "59658ee5"
+        },
+        "receiverRequests": 7,
+        "receiptDurationsSeconds": [
+          20.002,
+          20.001,
+          20.002,
+          20.0,
+          20.003,
+          20.001,
+          20.003
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 503,
+            "error": "模拟统计服务暂不可用"
+          },
+          {
+            "operation": "continue",
+            "status": 503,
+            "error": "模拟统计服务暂不可用"
+          },
+          {
+            "operation": "complete",
+            "status": 409,
+            "error": "当前会话未绑定故事"
+          },
+          {
+            "operation": "start",
+            "status": 503,
+            "error": "模拟统计服务暂不可用"
+          },
+          {
+            "operation": "continue",
+            "status": 503,
+            "error": "模拟统计服务暂不可用"
+          },
+          {
+            "operation": "complete",
+            "status": 409,
+            "error": "当前会话未绑定故事"
+          },
+          {
+            "operation": "continue",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "AWAITING_DECISION",
+        "executionResult": "SUCCEEDED",
+        "attemptCount": 1,
+        "judges": [
+          {
+            "role": "REQUIREMENT",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          },
+          {
+            "role": "RISK",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          }
+        ],
+        "changedPaths": [
+          "config.properties"
+        ],
+        "cleanupErrors": {}
+      },
+      {
+        "id": "verification-retry",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:28:50.672Z",
+        "finishedAt": "2026-09-10T04:31:08.209Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-LlIINa/matrix-regression/verification-retry.json",
+        "runtime": {
+          "loopperVersion": "0.3.97",
+          "version": "1.18.23",
+          "pid": 51576,
+          "endpoint": "http://127.0.0.1:49304",
+          "generation": "59658ee5"
+        },
+        "receiverRequests": 6,
+        "receiptDurationsSeconds": [
+          20.002,
+          20.002,
+          20.002,
+          20.0,
+          20.002,
+          20.001
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "AWAITING_DECISION",
+        "executionResult": "SUCCEEDED",
+        "attemptCount": 2,
+        "judges": [
+          {
+            "role": "REQUIREMENT",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          },
+          {
+            "role": "RISK",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          }
+        ],
+        "changedPaths": [
+          "config.properties"
+        ],
+        "cleanupErrors": {}
+      },
+      {
+        "id": "judge-retry",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:31:08.217Z",
+        "finishedAt": "2026-09-10T04:32:43.098Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-LlIINa/matrix-regression/judge-retry.json",
+        "runtime": {
+          "loopperVersion": "0.3.97",
+          "version": "1.18.23",
+          "pid": 51576,
+          "endpoint": "http://127.0.0.1:49304",
+          "generation": "59658ee5"
+        },
+        "receiverRequests": 4,
+        "receiptDurationsSeconds": [
+          20.001,
+          20.001,
+          20.003,
+          20.001
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "AWAITING_DECISION",
+        "executionResult": "SUCCEEDED",
+        "attemptCount": 1,
+        "judges": [
+          {
+            "role": "REQUIREMENT",
+            "status": "COMPLETED",
+            "verdict": "REVISE"
+          },
+          {
+            "role": "RISK",
+            "status": "COMPLETED",
+            "verdict": "REVISE"
+          },
+          {
+            "role": "REQUIREMENT",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          },
+          {
+            "role": "RISK",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          }
+        ],
+        "changedPaths": [
+          "config.properties"
+        ],
+        "cleanupErrors": {}
+      },
+      {
+        "id": "retry-cancelled-complete",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:32:43.105Z",
+        "finishedAt": "2026-09-10T04:34:41.126Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-LlIINa/matrix-regression/retry-cancelled-complete.json",
+        "runtime": {
+          "loopperVersion": "0.3.97",
+          "version": "1.18.23",
+          "pid": 51576,
+          "endpoint": "http://127.0.0.1:49304",
+          "generation": "59658ee5"
+        },
+        "receiverRequests": 5,
+        "receiptDurationsSeconds": [
+          20.003,
+          20.002,
+          20.003,
+          20.002,
+          20.001
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "AWAITING_DECISION",
+        "executionResult": "SUCCEEDED",
+        "attemptCount": 1,
+        "judges": [
+          {
+            "role": "REQUIREMENT",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          },
+          {
+            "role": "RISK",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          }
+        ],
+        "changedPaths": [
+          "config.properties"
+        ],
+        "cleanupErrors": {}
+      },
+      {
+        "id": "stop-designer-during-start",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:23:51.818Z",
+        "finishedAt": "2026-09-10T04:24:43.617Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-9nOfaB/matrix-regression/stop-designer-during-start.json",
+        "runtime": {
+          "loopperVersion": "0.3.97",
+          "version": "1.18.23",
+          "pid": 59282,
+          "endpoint": "http://127.0.0.1:51565",
+          "generation": "d34b45aa"
+        },
+        "receiverRequests": 2,
+        "receiptDurationsSeconds": [
+          20.003,
+          20.002
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": null,
+        "executionResult": null,
+        "attemptCount": null,
+        "judges": [],
+        "changedPaths": null,
+        "cleanupErrors": {}
+      },
+      {
+        "id": "cancel-task-during-start",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:24:43.619Z",
+        "finishedAt": "2026-09-10T04:26:15.079Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-9nOfaB/matrix-regression/cancel-task-during-start.json",
+        "runtime": {
+          "loopperVersion": "0.3.97",
+          "version": "1.18.23",
+          "pid": 59282,
+          "endpoint": "http://127.0.0.1:51565",
+          "generation": "d34b45aa"
+        },
+        "receiverRequests": 4,
+        "receiptDurationsSeconds": [
+          20.001,
+          20.003,
+          19.999,
+          20.001
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "CANCELLED",
+        "executionResult": "INTERRUPTED",
+        "attemptCount": 1,
+        "judges": [],
+        "changedPaths": null,
+        "cleanupErrors": {}
+      },
+      {
+        "id": "cancel-task-during-complete",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:26:15.081Z",
+        "finishedAt": "2026-09-10T04:27:47.946Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-9nOfaB/matrix-regression/cancel-task-during-complete.json",
+        "runtime": {
+          "loopperVersion": "0.3.97",
+          "version": "1.18.23",
+          "pid": 59282,
+          "endpoint": "http://127.0.0.1:51565",
+          "generation": "d34b45aa"
+        },
+        "receiverRequests": 4,
+        "receiptDurationsSeconds": [
+          20.002,
+          20.002,
+          20.001,
+          20.0
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "CANCELLED",
+        "executionResult": "INTERRUPTED",
+        "attemptCount": 1,
+        "judges": [
+          {
+            "role": "REQUIREMENT",
+            "status": "ABORTED",
+            "verdict": null
+          },
+          {
+            "role": "RISK",
+            "status": "ABORTED",
+            "verdict": null
+          }
+        ],
+        "changedPaths": null,
+        "cleanupErrors": {}
+      },
+      {
+        "id": "browser-cancel-and-dismiss",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:27:47.951Z",
+        "finishedAt": "2026-09-10T04:29:09.292Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-9nOfaB/matrix-regression/browser-cancel-and-dismiss.json",
+        "runtime": {
+          "loopperVersion": "0.3.97",
+          "version": "1.18.23",
+          "pid": 59282,
+          "endpoint": "http://127.0.0.1:51565",
+          "generation": "d34b45aa"
+        },
+        "receiverRequests": 4,
+        "receiptDurationsSeconds": [
+          20.001,
+          20.001,
+          20.002,
+          20.001
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "AWAITING_DECISION",
+        "executionResult": "SUCCEEDED",
+        "attemptCount": 1,
+        "judges": [
+          {
+            "role": "REQUIREMENT",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          },
+          {
+            "role": "RISK",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          }
+        ],
+        "changedPaths": [
+          "config.properties"
+        ],
+        "cleanupErrors": {}
+      },
+      {
+        "id": "cancel-task-during-handoff",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:29:09.298Z",
+        "finishedAt": "2026-09-10T04:30:00.129Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-9nOfaB/matrix-regression/cancel-task-during-handoff.json",
+        "runtime": {
+          "loopperVersion": "0.3.97",
+          "version": "1.18.23",
+          "pid": 59282,
+          "endpoint": "http://127.0.0.1:51565",
+          "generation": "d34b45aa"
+        },
+        "receiverRequests": 2,
+        "receiptDurationsSeconds": [
+          20.001,
+          20.003
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "CANCELLED",
+        "executionResult": null,
+        "attemptCount": 0,
+        "judges": [],
+        "changedPaths": null,
+        "cleanupErrors": {}
+      },
+      {
+        "id": "restart-during-start",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:30:00.138Z",
+        "finishedAt": "2026-09-10T04:30:33.563Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-9nOfaB/matrix-regression/restart-during-start.json",
+        "runtime": {
+          "loopperVersion": "0.3.97",
+          "version": "1.18.23",
+          "pid": 59282,
+          "endpoint": "http://127.0.0.1:51565",
+          "generation": "d34b45aa"
+        },
+        "receiverRequests": 1,
+        "receiptDurationsSeconds": [
+          20.002
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": null,
+        "executionResult": null,
+        "attemptCount": null,
+        "judges": [],
+        "changedPaths": null,
+        "cleanupErrors": {}
+      },
+      {
+        "id": "scope-confirm",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:30:33.565Z",
+        "finishedAt": "2026-09-10T04:32:09.955Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-9nOfaB/matrix-regression/scope-confirm.json",
+        "runtime": {
+          "loopperVersion": "0.3.97",
+          "version": "1.18.23",
+          "pid": 59282,
+          "endpoint": "http://127.0.0.1:51565",
+          "generation": "d34b45aa"
+        },
+        "receiverRequests": 4,
+        "receiptDurationsSeconds": [
+          20.001,
+          20.002,
+          20.003,
+          20.002
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "AWAITING_DECISION",
+        "executionResult": "SUCCEEDED",
+        "attemptCount": 1,
+        "judges": [
+          {
+            "role": "REQUIREMENT",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          },
+          {
+            "role": "RISK",
+            "status": "COMPLETED",
+            "verdict": "PASS"
+          }
+        ],
+        "changedPaths": [
+          "config.properties",
+          "notes.properties"
+        ],
+        "cleanupErrors": {}
+      },
+      {
+        "id": "scope-cancel-task",
+        "result": "PASS",
+        "startedAt": "2026-09-10T04:32:09.961Z",
+        "finishedAt": "2026-09-10T04:33:43.857Z",
+        "evidence": "/private/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-qualification-9nOfaB/matrix-regression/scope-cancel-task.json",
+        "runtime": {
+          "loopperVersion": "0.3.97",
+          "version": "1.18.23",
+          "pid": 59282,
+          "endpoint": "http://127.0.0.1:51565",
+          "generation": "d34b45aa"
+        },
+        "receiverRequests": 4,
+        "receiptDurationsSeconds": [
+          20.001,
+          20.002,
+          20.002,
+          20.002
+        ],
+        "operations": [
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "start",
+            "status": 200,
+            "error": null
+          },
+          {
+            "operation": "complete",
+            "status": 200,
+            "error": null
+          }
+        ],
+        "taskStatus": "CANCELLED",
+        "executionResult": "INTERRUPTED",
+        "attemptCount": 1,
+        "judges": [],
+        "changedPaths": null,
+        "cleanupErrors": {}
+      }
+    ]
+  },
+  "fullGate": {
+    "java": {
+      "classes": 239,
+      "tests": 1593,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 2
+    },
+    "frontend": {
+      "files": 43,
+      "tests": 319
+    },
+    "log": "/tmp/loopper-story-matrix-0.3.97-verify.log"
+  }
+}

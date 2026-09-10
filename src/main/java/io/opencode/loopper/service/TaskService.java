@@ -1538,7 +1538,7 @@ public class TaskService {
 
     private void handleSessionFailure(TaskRow task, StageRow stage, AttemptRow inputAttempt, ExecutionSessionRow inputSession, SessionFailure failure) {
         TaskRow currentTask = get(task.id());
-        if (!TaskState.RUNNING.name().equals(currentTask.state())) return;
+        if ("OPENCODE_PROMPT_CANCELLED".equals(failure.code()) || !TaskState.RUNNING.name().equals(currentTask.state())) return;
         AttemptRow attempt = mapper.findAttempt(inputAttempt.id()).orElse(inputAttempt);
         if (!AttemptState.RUNNING.name().equals(attempt.state())) return;
         ExecutionSessionRow session = inputSession == null ? null : mapper.findSession(inputSession.id()).orElse(inputSession);

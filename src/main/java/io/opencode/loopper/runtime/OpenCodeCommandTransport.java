@@ -115,6 +115,10 @@ final class OpenCodeCommandTransport {
         return gate.abort(session, action);
     }
 
+    OpenCodeSessionCommandGate.Prompt prepareBusinessPrompt(OpenCodeSession session) {
+        return gate.preparePrompt(session);
+    }
+
     private CommandResult invoke(OpenCodeSession session, CommandRequest request) {
         try {
             JsonNode response = commands.apply(session).post()

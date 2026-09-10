@@ -1372,6 +1372,10 @@ Run and closes the bound Designer subflow. A remote Designer stop failure or any
 optimistic conflict leaves the parent in `STOPPING`, retains Queue/Lease ownership,
 and permits the same cancellation command to retry. Queue settlement and lease
 release occur only after that complete parent-and-child closure commits.
+Within one runtime, concurrent user cancellation and monitor continuation for the same
+Task share one in-flight stop protocol and its result, including remote stop proof and
+Session updates. Different Tasks remain independent; an unconfirmed result retains the
+durable STOPPING intent for the next attempt. No database transaction spans that wait.
 Task, Queue, and Lease remain separate lifecycle machines. Their cross-machine
 invariant is coordinated by `WorkspaceLeaseReconciliationService`: an `ADMITTED`
 queue row must name the same Task as the non-`RELEASED` lease holder, and a terminal
@@ -1411,6 +1415,11 @@ Loopper freeze tracked, deleted, and untracked changes into
 `refs/loopper/checkpoints/<taskId>/<cycleId>`, clean the registered checkout, restore
 the source branch, and release the FIFO lease. A missing or invalid checkpoint
 keeps continuation/inheritance/audit disabled and retains the lease.
+Concurrent normal completion, cancellation, and lease reconciliation for the same
+execution cycle share one checkpoint capture and its result. The database intent,
+Git snapshot/stash, and final READY transition form that shared operation; serializing
+only the Git command is insufficient. A completed, blocked, or restored checkpoint
+is not recaptured by a stale freeze request.
 
 From a failed result, the user may continue the same Task in a fresh cycle,
 derive a new Task seeded from the frozen changes, derive a full rework from the

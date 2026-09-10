@@ -14,6 +14,10 @@ import io.opencode.loopper.verification.VerifierOutcome;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -29,6 +33,7 @@ final class TaskCancellationCoordinator {
     private final DesignerTerminationService designerTermination;
     private final RollingPackageTaskHooks rollingPackages;
     private final TransactionTemplate transactions;
+    private final Map<String, CompletableFuture<TaskRow>> cancellations = new ConcurrentHashMap<>();
 
     TaskCancellationCoordinator(LoopperMapper mapper, TaskStateStore states,
                                 ManagedVerificationRuntimeService verifierRuntimes,
@@ -50,6 +55,10 @@ final class TaskCancellationCoordinator {
     }
 
     TaskRow cancel(String taskId) {
+        return coordinate(taskId, () -> cancelOnce(taskId));
+    }
+
+    private TaskRow cancelOnce(String taskId) {
         TaskRow current = task(taskId);
         if (TaskState.valueOf(current.state()).terminal()) return current;
         if (TaskState.AWAITING_DECISION.name().equals(current.state())) {
@@ -58,12 +67,16 @@ final class TaskCancellationCoordinator {
         }
         if (TaskState.STOPPING.name().equals(current.state())) {
             writers.retryDisconnectedSessions(current);
-            return continueCancellation(taskId);
+            return continueCancellationOnce(taskId);
         }
         return requestCancellation(current);
     }
 
     TaskRow cancelDecision(String taskId) {
+        return coordinate(taskId, () -> cancelDecisionOnce(taskId));
+    }
+
+    private TaskRow cancelDecisionOnce(String taskId) {
         TaskRow current = task(taskId);
         if (TaskState.CANCELLED.name().equals(current.state())) return current;
         if (!TaskState.AWAITING_DECISION.name().equals(current.state())) {
@@ -78,10 +91,14 @@ final class TaskCancellationCoordinator {
         states.updateTask(states.taskState(current, TaskState.STOPPING), LifecycleEvent.CANCEL,
                 Map.of("remoteTerminationRequired", hasExternalWriter(current)));
         events.emit(current.id(), "task.cancellation_requested", Map.of("state", TaskState.STOPPING.name()));
-        return continueCancellation(current.id());
+        return continueCancellationOnce(current.id());
     }
 
     TaskRow continueCancellation(String taskId) {
+        return coordinate(taskId, () -> continueCancellationOnce(taskId));
+    }
+
+    private TaskRow continueCancellationOnce(String taskId) {
         TaskRow current = task(taskId);
         if (!TaskState.STOPPING.name().equals(current.state())) return current;
         VerifierOutcome runtimeStop = verifierRuntimes.stopTask(taskId, "task-cancelled");
@@ -106,6 +123,28 @@ final class TaskCancellationCoordinator {
             return task(taskId);
         }
         return finalizeCancellation(taskId);
+    }
+
+    /** Keep user requests and STOPPING recovery on the same remote stop proof and Session version. */
+    private TaskRow coordinate(String taskId, Supplier<TaskRow> action) {
+        var pending = new CompletableFuture<TaskRow>();
+        var existing = cancellations.putIfAbsent(taskId, pending);
+        if (existing != null) {
+            try { return existing.join(); }
+            catch (CompletionException failure) {
+                if (failure.getCause() instanceof RuntimeException cause) throw cause;
+                if (failure.getCause() instanceof Error cause) throw cause;
+                throw failure;
+            }
+        }
+        try {
+            TaskRow result = action.get();
+            pending.complete(result);
+            return result;
+        } catch (RuntimeException | Error failure) {
+            pending.completeExceptionally(failure);
+            throw failure;
+        } finally { cancellations.remove(taskId, pending); }
     }
 
     private TaskRow finalizeCancellation(String taskId) {

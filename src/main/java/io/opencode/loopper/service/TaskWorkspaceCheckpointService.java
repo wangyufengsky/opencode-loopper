@@ -35,6 +35,8 @@ public class TaskWorkspaceCheckpointService {
     private final DirectWorkspaceBaselineManager directBaselines;
     private final LifecycleTransitionService lifecycle;
     private final ObjectMapper json;
+    private final java.util.concurrent.ConcurrentHashMap<String,
+            java.util.concurrent.CompletableFuture<TaskWorkspaceCheckpointRow>> capturing = new java.util.concurrent.ConcurrentHashMap<>();
 
     public TaskWorkspaceCheckpointService(LoopperMapper mapper, ProjectService projects,
                                           GitWorktreeManager worktrees,
@@ -50,8 +52,28 @@ public class TaskWorkspaceCheckpointService {
     }
 
     public TaskWorkspaceCheckpointRow freeze(TaskRow task, TaskExecutionCycleRow cycle) {
+        var pending = new java.util.concurrent.CompletableFuture<TaskWorkspaceCheckpointRow>();
+        var existing = capturing.putIfAbsent(cycle.id(), pending);
+        if (existing != null) {
+            try { return existing.join(); }
+            catch (java.util.concurrent.CompletionException failure) {
+                if (failure.getCause() instanceof RuntimeException cause) throw cause;
+                throw failure;
+            }
+        }
+        try {
+            TaskWorkspaceCheckpointRow result = capture(task, cycle);
+            pending.complete(result);
+            return result;
+        } catch (RuntimeException | Error failure) {
+            pending.completeExceptionally(failure);
+            throw failure;
+        } finally { capturing.remove(cycle.id(), pending); }
+    }
+
+    private TaskWorkspaceCheckpointRow capture(TaskRow task, TaskExecutionCycleRow cycle) {
         TaskWorkspaceCheckpointRow existing = mapper.findTaskWorkspaceCheckpointForCycle(cycle.id()).orElse(null);
-        if (existing != null && WorkspaceCheckpointState.READY.name().equals(existing.state())) return existing;
+        if (existing != null && !WorkspaceCheckpointState.CAPTURING.name().equals(existing.state())) return existing;
         ProjectRow project = projects.get(task.projectId());
         Path root = Path.of(project.rootPath());
         DirectWorkspaceLeaseCoordinator.WorkspaceIdentity identity = DirectWorkspaceLeaseCoordinator.identify(root);

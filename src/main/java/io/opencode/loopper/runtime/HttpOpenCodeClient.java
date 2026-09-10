@@ -235,7 +235,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
     }
     @Override public void promptAsync(OpenCodeSession session, PromptRequest prompt) {
         boolean structured = prompt != null && prompt.responseFormat() instanceof ResponseFormat.JsonSchema;
-        try {
+        try (var pending = commandTransport.prepareBusinessPrompt(session)) {
             if (storyAccounting != null) storyAccounting.beforeBusinessPrompt(session, request -> executeCommand(session, request));
             SessionProfile profile = sessionProfiles.get(session.id());
             boolean attached = prompt != null && !prompt.files().isEmpty();
@@ -250,8 +250,8 @@ public class HttpOpenCodeClient implements OpenCodeClient {
             Map<String, Object> body = OpenCodePromptBody.encode(prompt, profile,
                     Boolean.TRUE.equals(managedSessions.get(session.id())), sessionModels.get(session.id()), files);
             if (storyAccounting != null && !storyAccounting.accountingMessageIds(session.id()).isEmpty()) OpenCodePromptBody.restoreBusinessContext(body, sessionModels.get(session.id()));
-            client(session).post().uri(uri -> sessionUri(uri, "/session/{id}/prompt_async", session)).contentType(MediaType.APPLICATION_JSON)
-                    .body(body).retrieve().toBodilessEntity();
+            pending.dispatch(() -> client(session).post().uri(uri -> sessionUri(uri, "/session/{id}/prompt_async", session)).contentType(MediaType.APPLICATION_JSON)
+                    .body(body).retrieve().toBodilessEntity());
             if (attached) attachmentResources.verifyDelivery(session.id(), () -> exactRecovery.findPrompt(
                     session, prompt, OpenCodeClient.promptRequestSha256(prompt)).exists());
             structuredPrompts.put(session.id(), structured);

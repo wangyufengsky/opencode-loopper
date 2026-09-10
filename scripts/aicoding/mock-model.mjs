@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
 /** Deterministic local provider. All file changes go through real OpenCode tools. */
-export function maintenanceModel(workspaces) {
+export function maintenanceModel(workspaces, controls = {}) {
   return async (body, content) => {
     const tool = (name, args) => ({ toolCalls: [{ id: `call_${randomUUID().replaceAll('-', '')}`,
       type: 'function', function: { name, arguments: JSON.stringify(args) } }] })
@@ -19,6 +19,8 @@ export function maintenanceModel(workspaces) {
       intent: 'LOCAL_MAINTENANCE', artifactKinds: ['CONFIGURATION'], complexity: 'SIMPLE',
     }) }
     if (content.includes('需求评审员') || content.includes('风险评审员')) {
+      if (body.messages.at(-1)?.role !== 'tool' && controls.judgeDelayMs) await new Promise(resolve => setTimeout(resolve, controls.judgeDelayMs))
+      const verdict = controls.judgeVerdict ?? 'PASS'
       if (content.includes('JUDGE_DECISION_V1 PRIVATE SUBMISSION CONTRACT')) {
         if (body.messages.at(-1)?.role === 'tool') return { text: '已提交评审候选。' }
         const exact = content.match(/candidate by calling `([^`]+)`/)?.[1]
@@ -28,9 +30,9 @@ export function maintenanceModel(workspaces) {
         return tool(name, { runId: content.match(/\nrunId: (.+)/)[1].trim(), idempotencyKey: randomUUID(),
           expectedSubmissionRevision: Number(content.match(/expectedSubmissionRevision: (\d+)/)[1]),
           candidate: { contractVersion: 'JUDGE_DECISION_V1', role: content.match(/- role: "([^"]+)"/)[1],
-            verdict: 'PASS', reason: '配置修改符合确认需求；冻结差异证明目标配置已更新且未修改其他内容。', evidenceIds: ids } })
+            verdict, reason: '配置修改符合确认需求；冻结差异证明目标配置已更新且未修改其他内容。', evidenceIds: ids } })
       }
-      return { text: JSON.stringify({ verdict: 'PASS', reason: '配置修改符合确认需求。\n## 证据\n1. 已持久化差异显示 feature.enabled 从 false 变为 true，未修改其他文件。' }) }
+      return { text: JSON.stringify({ verdict, reason: '配置修改符合确认需求。\n## 证据\n1. 已持久化差异显示 feature.enabled 从 false 变为 true，未修改其他文件。' }) }
     }
     const lastUser = body.messages.findLastIndex(message => message.role === 'user')
     const following = body.messages.slice(lastUser + 1)
@@ -46,9 +48,17 @@ export function maintenanceModel(workspaces) {
     const all = JSON.stringify(body.messages)
     const root = workspaces.find(path => all.includes(path))
     if (root && names.includes('write')) {
+      if (!used.includes('read') && controls.implementationDelayMs) await new Promise(resolve => setTimeout(resolve, controls.implementationDelayMs))
       if (!used.includes('read')) return tool('read', { filePath: `${root}/config.properties` })
-      if (!used.includes('write')) return tool('write', { filePath: `${root}/config.properties`,
-        content: 'feature.enabled=true\nkeep.value=unchanged\n' })
+      if (!used.includes('write')) {
+        const wrong = (controls.wrongWritesRemaining ?? 0) > 0
+        if (wrong) controls.wrongWritesRemaining -= 1
+        return tool('write', { filePath: `${root}/config.properties`,
+          content: `feature.enabled=${wrong ? 'false' : 'true'}\nkeep.value=unchanged\n` })
+      }
+      const wroteOutside = following.flatMap(message => message.tool_calls ?? []).some(call =>
+        call.function?.name === 'write' && call.function.arguments.includes('/notes.properties'))
+      if (controls.outsideWrite && !wroteOutside) return tool('write', { filePath: `${root}/notes.properties`, content: 'note=changed\n' })
       return { text: '指定配置已更新，其他内容保持不变。' }
     }
     return { text: 'BUSINESS_RESULT_OK' }

@@ -24,7 +24,19 @@ if (process.argv.includes('--reuse')) {
   await writeFile(join(workspaces[0], 'src/sum.js'), 'export function sum(a, b) { return 0 }\n')
   await writeFile(join(workspaces[0], 'test/sum.test.js'), "import { test } from 'node:test'; import assert from 'node:assert/strict'; import { sum } from '../src/sum.js'; test('sum', () => assert.equal(sum(2, 3), 5));\n")
 }
-const receiver = await createMockReceiver({ modelReply: (process.argv.includes('--reuse') ? reuseModel : maintenanceModel)(workspaces) })
+const modelControls = {}
+const receiver = await createMockReceiver({
+  modelReply: (process.argv.includes('--reuse') ? reuseModel : maintenanceModel)(workspaces, modelControls),
+  onControl: async control => {
+    if (control.workspace) {
+      const path = await realpath(control.workspace)
+      if (!path.startsWith(directory + '/')) throw new Error('Fixture workspace must be inside the isolated directory')
+      if (!workspaces.includes(path)) workspaces.push(path)
+    }
+    if (control.model) Object.assign(modelControls, control.model)
+    if (control.restartLoopper) await restartLoopper()
+  },
+})
 const socket = createServer()
 await new Promise(resolve => socket.listen(0, '127.0.0.1', resolve))
 const port = socket.address().port
@@ -35,6 +47,7 @@ const config = { model: 'aicoding-test/mock', plugin: process.argv.includes('--w
 const env = { ...process.env, LOOPPER_DATA_DIR: join(directory, 'data'), LOOPPER_ALLOWED_ROOT: directory,
   LOOPPER_OPEN_BROWSER: 'false', LOOPPER_OPENCODE_MODE: 'managed', OPENCODE_MODEL: 'aicoding-test/mock',
   ...(process.argv.includes('--nonrolling') ? { LOOPPER_ROLLING_PACKAGES_ENABLED: 'false' } : {}),
+  ...(process.argv.includes('--matrix') ? { AICODING_MOCK_WRITE_STATE: 'true' } : {}),
   OPENCODE_EXECUTABLE: process.env.OPENCODE_EXECUTABLE ?? 'opencode',
   OPENCODE_CONFIG_CONTENT: JSON.stringify(config), AICODING_MOCK_URL: receiver.url,
   ...(process.argv.includes('--native-tools') ? { AICODING_MOCK_PLUGIN_API: process.env.AICODING_MOCK_PLUGIN_API
@@ -48,12 +61,39 @@ const jar = process.argv.slice(2).find(value => !value.startsWith('--'))
 if (!jar) await cp(join(repo, 'target/classes'), join(directory, 'classes'), { recursive: true })
 const args = jar ? ['-jar', resolve(jar)] : ['-cp', `${directory}/classes:${(await readFile('/tmp/loopper-story-classpath.txt', 'utf8')).trim()}`, 'io.opencode.loopper.LoopperApplication']
 const log = createWriteStream(join(directory, 'loopper.log'))
-const child = spawn(java, [...args, `--server.port=${port}`, '--spring.main.banner-mode=off'], { cwd: repo, env, stdio: ['ignore', 'pipe', 'pipe'] })
-child.stdout.pipe(log); child.stderr.pipe(log)
-const descriptor = { directory, projectRoot: workspaces[0], endpoint: `http://127.0.0.1:${port}`, receiver: receiver.url, pid: child.pid, jar: jar ?? null }
+let restarting = false
+function launch() {
+  const process = spawn(java, [...args, `--server.port=${port}`, '--spring.main.banner-mode=off'], { cwd: repo, env, stdio: ['ignore', 'pipe', 'pipe'] })
+  process.stdout.pipe(log, { end: false }); process.stderr.pipe(log, { end: false })
+  process.once('exit', () => { if (!closing && !restarting) { console.error('Loopper process exited; inspect loopper.log'); void close() } })
+  return process
+}
+let child = launch()
+const descriptor = { directory, projectRoot: workspaces[0], endpoint: `http://127.0.0.1:${port}`, receiver: receiver.url, pid: child.pid, jar: jar ?? null, harnessPid: process.pid }
 await writeFile(join(directory, 'environment.json'), JSON.stringify(descriptor, null, 2))
 console.log(JSON.stringify(descriptor))
 let closing = false
+async function restartLoopper() {
+  if (!process.argv.includes('--matrix') || closing || restarting) throw new Error('Restart requires an idle matrix supervisor')
+  restarting = true
+  try {
+    const runtime = await (await fetch(`${descriptor.endpoint}/api/runtime/opencode`)).json()
+    const exited = new Promise(resolve => child.once('exit', resolve))
+    child.kill('SIGKILL'); await exited
+    if (runtime.managed && Number.isInteger(runtime.pid)) { try { process.kill(runtime.pid, 'SIGTERM') } catch {} }
+    child = launch(); descriptor.pid = child.pid
+    await writeFile(join(directory, 'environment.json'), JSON.stringify(descriptor, null, 2))
+    const deadline = Date.now() + 45_000
+    while (Date.now() < deadline) {
+      try {
+        const response = await fetch(`${descriptor.endpoint}/actuator/health`, { signal: AbortSignal.timeout(1_000) })
+        if (response.ok) return
+      } catch {}
+      await new Promise(resolve => setTimeout(resolve, 300))
+    }
+    throw new Error('Isolated Loopper did not recover after restart')
+  } finally { restarting = false }
+}
 async function close() {
   if (closing) return
   closing = true
@@ -76,7 +116,6 @@ async function close() {
   process.exit(0)
 }
 process.on('SIGTERM', close); process.on('SIGINT', close)
-child.once('exit', () => { if (!closing) { console.error('Loopper process exited; inspect loopper.log'); void close() } })
 setInterval(async () => {
   await writeFile(join(directory, 'receiver-ledger.json'), JSON.stringify({ requests: receiver.requests, modelRequests: receiver.modelRequests }, null, 2))
 }, 2000).unref()
