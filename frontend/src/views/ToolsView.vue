@@ -2,12 +2,14 @@
 import { computed, onMounted, ref } from 'vue'
 import { Icon } from '@iconify/vue'
 import PageHeader from '@/components/PageHeader.vue'
+import SkillBrowser from '@/components/SkillBrowser.vue'
 import { api } from '@/api/client'
 import type { McpServerInfo, McpToolCatalog, Project } from '@/types/domain'
 import { userFacingError } from '@/utils/displayLabels'
 
 const projects = ref<Project[]>([])
 const projectId = ref('')
+const activeTab = ref('tools')
 const servers = ref<McpServerInfo[]>([])
 const catalogs = ref<Record<string, McpToolCatalog>>({})
 const pending = ref<Record<string, boolean>>({})
@@ -51,13 +53,15 @@ onMounted(() => {
 </script>
 
 <template>
-  <PageHeader eyebrow="系统" title="工具"><template #actions><el-button :loading="loading" @click="load"><Icon icon="lucide:refresh-cw" />刷新</el-button></template></PageHeader>
+  <PageHeader eyebrow="系统" title="工具与 Skill"><template #actions><el-button v-if="activeTab === 'tools'" :loading="loading" @click="load"><Icon icon="lucide:refresh-cw" />刷新工具</el-button></template></PageHeader>
   <main id="main-content" class="content" tabindex="-1">
     <section class="card tools-toolbar">
-      <el-select v-model="projectId" :empty-values="[null, undefined]" aria-label="工具所属项目" @change="load"><el-option label="全局运行环境" value="" /><el-option v-for="project in projects" :key="project.id" :label="project.name" :value="project.id" /></el-select>
-      <el-input v-model="search" aria-label="搜索 MCP 和已读取工具" placeholder="搜索 MCP、已读取的工具和描述" clearable />
-      <span>{{ servers.length }} 个 MCP 服务</span>
+      <el-select v-model="projectId" :empty-values="[null, undefined]" aria-label="工具所属项目" @change="() => { if (activeTab === 'tools') load() }"><el-option label="全局运行环境" value="" /><el-option v-for="project in projects" :key="project.id" :label="project.name" :value="project.id" /></el-select>
+      <el-input v-if="activeTab === 'tools'" v-model="search" aria-label="搜索 MCP 和已读取工具" placeholder="搜索 MCP、已读取的工具和描述" clearable />
+      <span v-if="activeTab === 'tools'">{{ servers.length }} 个 MCP 服务</span>
     </section>
+    <el-tabs v-model="activeTab" class="tools-tabs" @tab-change="() => { if (activeTab === 'tools') load() }">
+      <el-tab-pane label="工具" name="tools">
     <p class="tools-hint">展开服务可查看工具名称和描述。此页面只读取工具清单。</p>
     <p v-if="error" role="alert">{{ error }}</p>
     <p v-if="loading" role="status">正在读取 MCP 服务…</p>
@@ -77,9 +81,13 @@ onMounted(() => {
       </details>
     </section>
     <p v-if="checkedAt" class="tools-hint">最近读取：{{ new Date(checkedAt).toLocaleString('zh-CN') }}</p>
+      </el-tab-pane>
+      <el-tab-pane label="Skill" name="skills"><SkillBrowser v-if="activeTab === 'skills'" :project-id="projectId" /></el-tab-pane>
+    </el-tabs>
   </main>
 </template>
 
 <style scoped>
+.tools-tabs { margin-top: 18px; }
 .tools-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:14px;padding:16px}.tools-toolbar .el-select{width:240px}.tools-toolbar .el-input{flex:1;min-width:220px}.tools-toolbar span,.tools-hint{font-size:12px;color:var(--color-text-secondary)}.tool-servers{display:grid;gap:12px}.tool-server summary{display:flex;align-items:center;gap:12px;padding:18px;cursor:pointer}.tool-server summary strong{flex:1}.tool-server summary span,.tool-server small{font-size:12px;color:var(--color-text-secondary)}.tool-server .connected{color:var(--color-success)}.tool-body{padding:0 20px 16px;font-size:12px}.tool-entry{border-top:1px solid var(--color-border-default);padding:10px 0}.tool-entry h3{font:600 13px var(--font-code);overflow-wrap:anywhere}.tool-entry p{white-space:pre-wrap;overflow-wrap:anywhere;color:var(--color-text-secondary);line-height:1.7}
 </style>

@@ -1010,6 +1010,16 @@ compatibility `/api/mcp` fail closed without the configured Bearer token.
 
 ## Read-only MCP inventory (0.3.28)
 
+### Skill 清单与 Markdown 阅读
+
+工具页按“工具”和“Skill”分页，保留同一个项目范围选择。Skill 页首次打开才读取清单，切换项目或刷新时清空旧清单和文档，并拒绝迟到的旧响应。清单失败不伪装为空列表；文档失败可以重试。
+
+`OpenCodeSkillInventory` 使用当前 OpenCode 连接的认证和目录编码调用只读 `GET /skill`。来源为 OpenCode 实际发现的 Skill（包括其配置认可的项目与全局来源），不扫描 Codex 私有目录，不创建 Session、不执行 Skill 或更改权限。协议字段依据 [OpenCode 1.18.23 SDK](https://github.com/anomalyco/opencode/blob/v1.18.23/packages/sdk/js/src/v2/gen/types.gen.ts) 的 `AppSkillsResponses`。
+
+Loopper `GET /api/runtime/tools/skills?projectId=...` 仅返回名称、说明、来源位置、读取时间和完整性；`GET /api/runtime/tools/skills/document?projectId=...&name=...` 重新按当前范围匹配精确 Skill 名称，返回 OpenCode 提供的 Markdown 正文，不接收任意文件路径、不读取本机文件。源文视图保留返回正文原样；OpenCode 未提供的文件 frontmatter 不重建，展示内容不宣称与磁盘文件逐字节相同。
+
+连接上限 3 秒、读取超时 8 秒、响应上限 16 MiB、单次清单上限 512 项、单篇正文上限 256 Ki 字符。清单超限明确显示部分结果，正文超限拒绝展示而非静默截断。空列表、无此 Skill、接口不支持、连接失败和无正文分别处理。预览复用 `MarkdownDocument` 的 DOMPurify 与 HTML 禁用策略，源文使用文本插值。
+
 `OpenCodeToolInventory` reads project-scoped `/mcp` statuses and merged `/config` MCP definitions
 from the selected loopback OpenCode runtime. `/experimental/tool` only enumerates built-in tools
 and must not be presented as the MCP catalog. The System Tools page lists every configured or

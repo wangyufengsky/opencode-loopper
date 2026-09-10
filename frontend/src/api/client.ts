@@ -1,7 +1,7 @@
 import type { AppSettings, Artifact, Attempt, AutomationImportPreview, AutomationImportResult, AutomationRule, AutomationRuleMutation, AutomationRun, AutomationRunFeed, AvailableModel, BrowserAssertion, CommitMessageSuggestion, CreateAutomationRuleInput, DesignerActivity, DesignerAnsweredQuestion, DesignerAppendResult, DesignerHistoryItem, DesignerMessage, DesignerSession, DesignerSessionState, DesignerSessionSummary, DesignerStopResult, DesignerStreamEvent, DirectorySelection, DirtyWorkspaceAction, DirtyWorkspaceResolution, DirtyWorkspaceState, ErrorEvent, GitDiffScopeApproval, GitDiffScopeDecisionAction, InsightsSnapshot, Interaction, InteractionAction, JudgeRun, LocalSyncConflictContent, LocalSyncConflictFile, LocalSyncConflictSession, LocalSyncResolution, LoopDraft, LoopSpec, LoopSpecAssessment, LoopSpecTemplate, LoopSpecTemplateVersion, LoopVerifierSpec, MergeRequestDraft, Project, ProjectConventionActivity, ProjectConventionDraft, ProjectConventionSnapshot, RecoveryDraft, RecoveryMode, RuntimeInfo, SessionCheckpoint, SessionForkResult, SessionRevertResult, SessionSummaryResult, SessionTodo, Stage, Task, TaskDecision, TaskDesignHistory, TaskDiffPreview, TaskEvent, TaskInsight, TaskPublicationStatus, TaskQueueStatus, TaskSessionActivity, TaskSessionActivityPart, TaskSessionPendingQuestion, TaskSessionSummary, UsageAggregate } from '@/types/domain'
 import type { AnalysisReport, DesignerTaskProfileUpdatePreview, ProjectStackProfile, RollingPackageCapabilities, RollingPackageDetail, RollingPackageFact, RollingPackageRun, RollingPackageWorkbench, RollingPlanPackage, RollingPlanProposal } from '@/types/domain'
 import { DESIGNER_SESSION_STATES, DESIGN_WORK_PACKAGE_STATES, LOOP_DRAFT_STATUSES, STAGE_STATUSES, TASK_PACKAGE_RUN_STATES, TASK_STATUSES, WORK_PACKAGE_AGGREGATE_STATUSES, requirePublicState } from '@/types/states'
-import type { InsightQuery, JudgeApproval, McpServerInfo, McpToolCatalog } from '@/types/domain'
+import type { InsightQuery, JudgeApproval, McpServerInfo, McpToolCatalog, SkillInventory, SkillDocument } from '@/types/domain'
 import type { StoryAccountingCall, StoryBindingCapability, StoryBindingConfiguration } from '@/types/domain'
 
 const apiBase = import.meta.env.VITE_API_BASE ?? '/api'
@@ -1649,6 +1649,8 @@ export const api = {
   getInsights: async () => normalizeInsights(await request<unknown>('/insights')),
   getMcpServers: (projectId: string) => request<{ servers: McpServerInfo[]; checkedAt: string; complete: boolean }>(`/runtime/tools?projectId=${encodeURIComponent(projectId)}`),
   getMcpTools: (projectId: string, serverId: string) => request<McpToolCatalog>(`/runtime/tools/catalog?projectId=${encodeURIComponent(projectId)}&serverId=${encodeURIComponent(serverId)}`),
+  getSkills: (projectId: string) => request<SkillInventory>(`/runtime/tools/skills?projectId=${encodeURIComponent(projectId)}`),
+  getSkillDocument: (projectId: string, name: string) => request<SkillDocument>(`/runtime/tools/skills/document?projectId=${encodeURIComponent(projectId)}&name=${encodeURIComponent(name)}`),
   getInsightsPage: async (input: InsightQuery | string = {}) => {
     const query = typeof input === 'string' ? { cursor: input } : input
     const params = new URLSearchParams()

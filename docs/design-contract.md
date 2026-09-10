@@ -67,6 +67,16 @@ contrast.
 
 ## Browser history fallback
 
+### 主页与入口
+
+根路径 `/` 默认显示主页，品牌链接与主导航“主页”均返回 `/`；未知前端路径回到主页。已有页面及任务深层链接保持原路径。
+
+主页复用 dark-first tokens、现有侧栏和 PageHeader；提供项目、设计与执行规范、任务、待处理中心、历史设计、质量与用量、模板与自动化、运行环境、工具和设置的普通路由入口。“开始设计”只跳转设计页，不创建任务、确认设计或触发执行。主页不加载全量项目或任务，不显示模拟统计、进度或服务健康结论。
+
+系统“工具与 Skill”入口在同一页面提供“工具”和“Skill”分页；Skill 清单支持名称/说明搜索，点击后提供 Markdown 预览与源文阅读。数据来源、只读边界与读取上限见 [OpenCode 合同](opencode-contract.md)。
+
+首页视觉参考与生成提示保存在 [主页设计说明](design/home/README.md)。装饰图随静态资源离线打包，不承载交互或业务状态；真实标题、导航及按钮均为可访问的页面元素。桌面保留四列工作入口，较窄视口降列，键盘焦点与减少动态效果设置保持可用。
+
 The packaged Spring application forwards every extensionless Vue history path,
 including an unknown multi-segment path, to `index.html`; Vue Router then applies
 its own not-found redirect. The catch-all must not turn missing `/api`,

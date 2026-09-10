@@ -6,6 +6,23 @@ import ToolsView from './ToolsView.vue'
 
 afterEach(() => vi.restoreAllMocks())
 describe('MCP tools page', () => {
+  it('keeps Skill discovery lazy and opens the selected Markdown document', async () => {
+    vi.spyOn(api, 'getProjects').mockResolvedValue([])
+    vi.spyOn(api, 'getMcpServers').mockResolvedValue({ servers: [], complete: true, checkedAt: '' })
+    const skill = { name: 'review', description: '审查代码', location: '/skills/review/SKILL.md' }
+    const readSkills = vi.spyOn(api, 'getSkills').mockResolvedValue({ skills: [skill], complete: true, checkedAt: '' })
+    vi.spyOn(api, 'getSkillDocument').mockResolvedValue({ ...skill, content: '# 使用说明' })
+    const wrapper = mount(ToolsView, { global: { plugins: [ElementPlus], stubs: { Icon: true, PageHeader: true } } })
+    await flushPromises()
+    expect(readSkills).not.toHaveBeenCalled()
+    await wrapper.get('#tab-skills').trigger('click'); await flushPromises()
+    expect(readSkills).toHaveBeenCalledWith('')
+    await wrapper.get('.skill-card').trigger('click'); await flushPromises()
+    expect(wrapper.text()).toContain('使用说明')
+    await wrapper.get('#tab-tools').trigger('click'); await flushPromises()
+    expect(wrapper.find('.skill-document').exists()).toBe(false)
+    wrapper.unmount()
+  })
   it('shows live statuses and reads tool descriptions on expansion without rendering HTML', async () => {
     vi.spyOn(api, 'getProjects').mockResolvedValue([])
     vi.spyOn(api, 'getMcpServers').mockResolvedValue({ servers: [

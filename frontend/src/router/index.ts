@@ -4,7 +4,7 @@ export const router = createRouter({
   history: createWebHistory(),
   scrollBehavior: () => ({ top: 0 }),
   routes: [
-    { path: '/', redirect: '/tasks' },
+    { path: '/', component: () => import('@/views/HomeView.vue') },
     { path: '/projects', component: () => import('@/views/ProjectsView.vue') },
     { path: '/designer', component: () => import('@/views/DesignerView.vue') },
     { path: '/designs', component: () => import('@/views/DesignerHistoryView.vue') },
@@ -18,6 +18,6 @@ export const router = createRouter({
     { path: '/runtime', component: () => import('@/views/RuntimeView.vue') },
     { path: '/tools', component: () => import('@/views/ToolsView.vue') },
     { path: '/settings', component: () => import('@/views/SettingsView.vue') },
-    { path: '/:pathMatch(.*)*', redirect: '/tasks' },
+    { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
 })

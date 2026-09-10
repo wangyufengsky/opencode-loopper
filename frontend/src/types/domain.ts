@@ -789,6 +789,9 @@ export interface InsightQuery {
 
 export interface McpServerInfo { id: string; name: string; status: string; type: string }
 export interface McpToolCatalog { tools: Array<{ name: string; description: string }>; complete: boolean; detail?: string }
+export interface SkillSummary { name: string; description: string; location: string }
+export interface SkillInventory { skills: SkillSummary[]; checkedAt: string; complete: boolean }
+export interface SkillDocument extends SkillSummary { content: string }
 
 export interface InsightsSnapshot {
   tasks: TaskInsight[]
