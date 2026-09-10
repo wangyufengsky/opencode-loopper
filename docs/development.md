@@ -38,7 +38,7 @@ Windows 可用 `mvnw.cmd -Pbackend-dev -Dtest=CodeStructureContractTest test` �
 
 JDK 缓存位于 `~/.cache/opencode-loopper/jdk21`，每次复核大小和 SHA-256；首次手动组装需要联网下载六套 JDK，之后可复用已校验缓存。`python3 scripts/package-distributions.py --download-only` 可预取。`--platform <平台名>` 可单独打包，`--cache <目录>` 可指定离线缓存，`--output <新目录>` 可指定输出；手动命令默认生成六包。已有输出目录会拒绝覆盖，失败不发布部分成品，升级 JDK 时更新锁文件并重新验证。
 
-正式 `verify.sh` 显式关闭 `backend-dev`，恢复前端构建并执行 `clean verify`。CI 与 Release 均使用 Maven `clean verify` 执行完整门禁，不调用平台包组装工具。Maven 完整链路包含：工具链安装、`npm ci`、项目文档/工具检查、`vue-tsc -b && vite build`、Vitest、Node 工具测试和全部 Java 测试。类型检查已包含在 `build` 中，不再单独重复执行一次。
+正式 `verify.sh` 显式关闭 `backend-dev`，恢复前端构建并执行 `clean verify`。CI 与 Release 均使用 Maven `clean verify` 执行完整门禁，不调用平台包组装工具。完整门禁还需要 Python 3.12+ 执行离线打包回归（macOS/Linux 为 `python3`，Windows 为 `python`）；这不下载真实 JDK，也不生成六个平台成品。运行发行 JAR 不需要 Python。Maven 完整链路包含：工具链安装、`npm ci`、项目文档/工具检查、`vue-tsc -b && vite build`、Vitest、Node 工具测试和全部 Java 测试。类型检查已包含在 `build` 中，不再单独重复执行一次。
 
 `check-project.mjs` 的机械覆盖范围是：三份公约的 UTF-8 字节上限、它们直接链接到的 Markdown 文档及这些文档中的相对文件链接、指定发布字段的一致性。它不验证 Markdown 锚点、反引号中的路径、远端 URL 或合同语义，不递归遍历历史。源码的依赖方向由 `CodeStructureContractTest` 的指定字节码规则补充验证；规模门禁继续保持 600 行和既有债务上限。检查不是对整体架构正确性的证明。
 

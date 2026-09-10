@@ -320,7 +320,7 @@ flowchart TB
 
 ## 开发与验证
 
-从源码构建需要 JDK 21、Git，以及可访问的 Maven/npm 依赖仓库或完整缓存。Maven 会准备固定的前端构建工具链。
+从源码构建需要 JDK 21、Git、Python 3.12+，以及可访问的 Maven/npm 依赖仓库或完整缓存。Python 用于离线打包回归，macOS/Linux 使用 `python3`，Windows 使用 `python`；运行已下载的 JAR 不需要它。Maven 会准备固定的前端构建工具链。
 
 ```bash
 git clone https://github.com/wangyufengsky/opencode-loopper.git
