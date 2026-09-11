@@ -58,7 +58,8 @@ class TemplateTaskAdmissionIntegrationTest {
         var binding = mapper.findTaskStoryBinding(task.id()).orElseThrow();
         assertThat(binding.systemCode()).isEqualTo("001");
         assertThat(binding.storyCode()).isEqualTo("0002");
-        assertThat(templates.findRun(task.id()).orElseThrow().contractJson()).contains("test-model", "CONTRIBUTION_SCORE_V1", "Asia/Shanghai");
+        assertThat(templates.findRun(task.id()).orElseThrow().contractJson()).contains("test-model", "CONTRIBUTION_SCORE_V1", "Asia/Shanghai",
+                "REPORT_LAYOUT_V2", "CODE_REVIEW_V2", "CONTRIBUTION_REPORT_V2", "PERSONAL_CONTRIBUTION_V2", "sha256");
     }
 
     @Test void idempotentRetryKeepsFrozenConfigurationAndRejectsParameterReplacement() {
@@ -79,7 +80,7 @@ class TemplateTaskAdmissionIntegrationTest {
         var stale = new TemplateTaskService.Request(request.requestKey(), request.templateId(), "old", projectId,
                 request.branchId(), request.startDate(), request.endDate(), request.story());
         assertThatThrownBy(() -> service.create(stale, false)).isInstanceOf(ConflictException.class);
-        var missing = new TemplateTaskService.Request(request.requestKey(), request.templateId(), "1", projectId,
+        var missing = new TemplateTaskService.Request(request.requestKey(), request.templateId(), io.opencode.loopper.template.TemplateTaskDefinition.VERSION, projectId,
                 "local:refs/heads/missing", request.startDate(), request.endDate(), request.story());
         assertThatThrownBy(() -> service.create(missing, false)).isInstanceOf(BadRequestException.class);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM task", Integer.class)).isZero();
@@ -87,7 +88,7 @@ class TemplateTaskAdmissionIntegrationTest {
     }
 
     private TemplateTaskService.Request request(String template, String start, String end) {
-        return new TemplateTaskService.Request(UUID.randomUUID().toString(), template, "1", projectId,
+        return new TemplateTaskService.Request(UUID.randomUUID().toString(), template, io.opencode.loopper.template.TemplateTaskDefinition.VERSION, projectId,
                 "local:refs/heads/main", start, end, new StoryBindingConfiguration(true, "001", "0002"));
     }
 

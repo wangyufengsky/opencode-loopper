@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
-import type { ErrorEvent, JudgeRun } from '@/types/domain'
+import type { ErrorEvent, JudgeRun, TaskStatus } from '@/types/domain'
 import { errorEventMessage, judgeRoleLabel, statusLabel } from '@/utils/displayLabels'
 
-const props = withDefaults(defineProps<{ error: ErrorEvent, judges?: JudgeRun[] }>(), { judges: () => [] })
+const props = withDefaults(defineProps<{ error: ErrorEvent, judges?: JudgeRun[], taskState?: TaskStatus }>(), { judges: () => [] })
 
 const isJudgeReview = computed(() => props.error.layer === 'VERIFICATION' && props.error.code.startsWith('JUDGE_'))
 const judgeRows = computed(() => [...props.judges]
@@ -63,6 +63,7 @@ function judgeSummary(judge: JudgeRun) {
       <h3 v-if="error.layer === 'SESSION'">当前会话已结束，系统将使用新会话继续</h3>
       <h3 v-else-if="error.layer === 'VERIFICATION'">验证未通过，平台将携带证据进入下一轮</h3>
       <h3 v-else-if="error.code === 'SOURCE_BRANCH_WORKSPACE_DIRTY'">检测到未提交文件，等待人工处理</h3>
+      <h3 v-else-if="taskState === 'WAITING_INPUT'">任务等待处理，请查看具体原因</h3>
       <h3 v-else>任务已终止，不会再创建新会话</h3>
       <p>{{ errorEventMessage(error.code, error.message) }}</p>
       <p class="mono tiny">{{ error.occurredAt }}</p>

@@ -38,7 +38,7 @@ public final class TemplateReportArtifactService {
         var run = evidence.require(task.id());
         var snapshot = evidence.read(run);
         var report = TemplateReportCompiler.compile(TemplateTaskDefinition.valueOf(run.templateId()),
-                mapper.findProject(task.projectId()).orElseThrow().name(), snapshot, accepted);
+                mapper.findProject(task.projectId()).orElseThrow().name(), snapshot, accepted, evidence.contract(task.id()).reportTemplates());
         var items = new ArrayList<TaskArtifactRow>();
         report.documents().forEach(document -> items.add(row(task, attempt, run.repairRound(), "TEMPLATE_REPORT", document.path(), "text/markdown", document.markdown())));
         items.add(row(task, attempt, run.repairRound(), "TEMPLATE_ANALYSIS", "analysis.json", "application/json", json.writeValueAsString(accepted)));

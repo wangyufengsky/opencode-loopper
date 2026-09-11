@@ -64,7 +64,7 @@ class TemplateBatchExecutionIntegrationTest {
         git.read(source, "init", "-b", "main");
         git.read(source, "-c", "user.name=Test", "-c", "user.email=test@example.test", "commit", "--allow-empty", "-m", "root");
         String project = projects.create("project", source.toString(), "test").id();
-        task = tasks.create(new TemplateTaskService.Request(UUID.randomUUID().toString(), "CODE_REVIEW", "1", project,
+        task = tasks.create(new TemplateTaskService.Request(UUID.randomUUID().toString(), "CODE_REVIEW", io.opencode.loopper.template.TemplateTaskDefinition.VERSION, project,
                 "local:refs/heads/main", "2026-09-11", "2026-09-11", StoryBindingConfiguration.disabled()), false);
         contract = json.readValue(templates.findRun(task.id()).orElseThrow().contractJson(), TemplateTaskContractFactory.Frozen.class);
         enterRunning(Files.createDirectory(temporary.resolve("workspace")));

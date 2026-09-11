@@ -34,6 +34,18 @@ const judges: JudgeRun[] = [
 ]
 
 describe('LayeredErrorPanel', () => {
+  it('shows a blocked Git collection as waiting instead of a terminated task', async () => {
+    const wrapper = mount(LayeredErrorPanel, {
+      props: { error: { ...error, layer: 'TASK', code: 'TEMPLATE_GIT_VERSION_UNSUPPORTED', message: '模板任务需要 Git 2.30.2 或更高版本' }, taskState: 'WAITING_INPUT' },
+      global: { stubs: { Icon: true } },
+    })
+    expect(wrapper.text()).toContain('任务等待处理')
+    expect(wrapper.text()).toContain('Git 2.30.2')
+    expect(wrapper.text()).not.toContain('任务已终止')
+    await wrapper.setProps({ taskState: 'FAILED' })
+    expect(wrapper.text()).toContain('任务已终止')
+  })
+
   it('renders judge conflicts as a compact structured review summary', () => {
     const wrapper = mount(LayeredErrorPanel, {
       props: { error, judges },

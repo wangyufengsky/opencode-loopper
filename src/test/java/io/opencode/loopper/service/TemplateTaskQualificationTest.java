@@ -80,7 +80,7 @@ class TemplateTaskQualificationTest {
         String sourceStatus = git.read(source, "status", "--porcelain=v1"), head = git.read(source, "rev-parse", "HEAD");
         String project = projects.create("资格项目 " + index, source.toString(), "隔离真实模型资格验收").id();
         String today = LocalDate.now(TemplateDateRange.ZONE).toString();
-        var task = admission.create(new TemplateTaskService.Request(UUID.randomUUID().toString(), definition.name(), "1", project,
+        var task = admission.create(new TemplateTaskService.Request(UUID.randomUUID().toString(), definition.name(), io.opencode.loopper.template.TemplateTaskDefinition.VERSION, project,
                 "local:refs/heads/main", today, today, StoryBindingConfiguration.disabled()), true);
         states.start(task.id(), evidence.contract(task.id()));
         Instant began = Instant.now();

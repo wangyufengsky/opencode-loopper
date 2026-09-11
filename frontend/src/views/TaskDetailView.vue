@@ -401,7 +401,7 @@ async function confirmRework() {
       <GitDiffScopeApprovalDialog :task-id="task.id" :active="task.status === 'WAITING_INPUT'" @resolved="load" />
       <section v-for="error in verifierErrors" :key="error.id" style="margin-top: 16px"><LayeredErrorPanel :error="error" :judges="currentJudges" /></section>
       <section v-for="error in sessionErrors" :key="error.id" style="margin-top: 16px"><LayeredErrorPanel :error="error" /></section>
-      <section v-for="error in taskErrors" :key="error.id" style="margin-top: 16px"><LayeredErrorPanel :error="error" /></section>
+      <section v-for="error in taskErrors" :key="error.id" style="margin-top: 16px"><LayeredErrorPanel :error="error" :task-state="task.status" /></section>
       <SessionMonitorPanel :task-id="task.id" />
       <section v-if="store.auditErrors?.[id]" class="error-panel error-panel-verification" role="status">
         <Icon class="error-panel-icon" icon="lucide:database-zap" /><div><h3>审计信息加载失败</h3><p>{{ userFacingError(store.auditErrors?.[id]) }}</p><el-button size="small" plain @click="store.loadTaskAudit?.(id)">重试</el-button></div>

@@ -19,21 +19,38 @@ import org.springframework.stereotype.Component;
 public final class GitEvidenceProcess {
     private static final int OUTPUT_LIMIT = 4_000_000;
     private static final Map<String, String> ENVIRONMENT = Map.of(
-            "GIT_TERMINAL_PROMPT", "0", "GIT_OPTIONAL_LOCKS", "0", "LC_ALL", "C", "GIT_NO_REPLACE_OBJECTS", "1");
+            "GIT_TERMINAL_PROMPT", "0", "GIT_OPTIONAL_LOCKS", "0", "LC_ALL", "C", "GIT_NO_REPLACE_OBJECTS", "1", "GIT_ATTR_NOSYSTEM", "1");
     private final SafeProcessRunner runner;
 
     public GitEvidenceProcess(SafeProcessRunner runner) { this.runner = runner; }
 
     public String read(Path directory, String... arguments) {
         Result result = run(directory, Duration.ofSeconds(60), List.of(arguments));
-        if (result.exitCode() != 0) throw new TaskFailure("TEMPLATE_GIT_FAILED", "Git 证据读取失败，请检查分支、仓库和访问权限");
+        result.requireSuccess(List.of(arguments));
         return result.output();
     }
 
+    public void requireSupported(Path directory) {
+        String version = read(directory, "--version").strip();
+        var match = java.util.regex.Pattern.compile("^git version (\\d+)\\.(\\d+)(?:\\.(\\d+))?.*$").matcher(version);
+        if (!match.matches()) throw new TaskFailure("TEMPLATE_GIT_VERSION_UNKNOWN", "无法识别 Git 版本，请使用 Git 2.30.2 或更高版本");
+        int major = Integer.parseInt(match.group(1)), minor = Integer.parseInt(match.group(2));
+        int patch = match.group(3) == null ? 0 : Integer.parseInt(match.group(3));
+        if (major < 2 || major == 2 && (minor < 30 || minor == 30 && patch < 2)) {
+            throw new TaskFailure("TEMPLATE_GIT_VERSION_UNSUPPORTED", "模板任务需要 Git 2.30.2 或更高版本，当前为 " + major + "." + minor + "." + patch);
+        }
+    }
+
     public Result run(Path directory, Duration timeout, List<String> arguments) {
+        return run(directory, timeout, arguments, Map.of());
+    }
+
+    /** Overrides are server-owned scratch paths only, never model/user supplied environment. */
+    public Result run(Path directory, Duration timeout, List<String> arguments, Map<String, String> environment) {
         List<String> argv = new ArrayList<>(List.of("git", "-c", "core.safecrlf=false", "-c", "color.ui=false",
                 "-c", "core.quotePath=false", "-c", "core.hooksPath=" + nullDevice(),
-                "-c", "protocol.ext.allow=never", "-c", "mailmap.file=" + nullDevice(), "-c", "mailmap.blob="));
+                "-c", "protocol.ext.allow=never", "-c", "core.attributesFile=" + nullDevice(),
+                "-c", "mailmap.file=" + nullDevice(), "-c", "mailmap.blob="));
         argv.addAll(arguments);
         var resolution = runner.resolve(directory, argv);
         ProcessScope scope = null;
@@ -41,6 +58,7 @@ public final class GitEvidenceProcess {
             ProcessBuilder builder = new ProcessBuilder(resolution.argv()).directory(directory.toFile());
             builder.environment().keySet().removeIf(key -> key.startsWith("GIT_") && !key.equals("GIT_SSH_COMMAND"));
             builder.environment().putAll(ENVIRONMENT);
+            builder.environment().putAll(environment);
             scope = new ProcessScope(builder.start());
             return collect(scope, timeout);
         } catch (InterruptedException interrupted) {
@@ -69,8 +87,8 @@ public final class GitEvidenceProcess {
         if (exceeded.get() || stdout.isAlive() || stderr.isAlive()) {
             throw new TaskFailure("TEMPLATE_GIT_EVIDENCE_LIMIT", "单次 Git 证据超过读取上限，未生成完整报告");
         }
-        // Diagnostics are deliberately not returned: Git errors may contain credential-bearing URLs.
-        return new Result(process.exitValue(), output.toString(StandardCharsets.UTF_8));
+        return new Result(process.exitValue(), output.toString(StandardCharsets.UTF_8),
+                GitEvidenceDiagnostic.classify(errors.toString(StandardCharsets.UTF_8)));
     }
 
     private static Thread drain(InputStream input, ByteArrayOutputStream output, AtomicBoolean exceeded, ProcessScope scope) {
@@ -117,5 +135,9 @@ public final class GitEvidenceProcess {
         return System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win") ? "NUL" : "/dev/null";
     }
 
-    public record Result(int exitCode, String output) { }
+    public record Result(int exitCode, String output, GitEvidenceDiagnostic diagnostic) {
+        public void requireSuccess(List<String> arguments) {
+            if (exitCode != 0) throw diagnostic.failure(arguments, exitCode);
+        }
+    }
 }

@@ -44,13 +44,15 @@ public class TemplateGitEvidenceCollector {
         var context = new Context(repository, head, new HashMap<>());
         List<Commit> commits = new ArrayList<>();
         long characters = 0;
-        // rev-list date pruning is unsafe for non-monotonic commit clocks; since-as-filter visits the full history.
+        // Git 2.30 has no since-as-filter. Walk every reachable commit, then filter exact timestamps in Java.
         for (int skip = 0; ; skip += 100) {
-            List<String> hashes = git.read(repository, "log", "--format=%H", "--reverse", "--topo-order",
-                    "--since-as-filter=@" + dates.startInclusive().getEpochSecond(),
-                    "--before=@" + dates.endExclusive().getEpochSecond(), "--max-count=100", "--skip=" + skip, head, "--")
+            List<String> entries = git.read(repository, "log", "--format=%H %ct", "--topo-order",
+                    "--max-count=100", "--skip=" + skip, head, "--")
                     .lines().filter(value -> !value.isBlank()).toList();
-            for (String sha : hashes) {
+            for (String entry : entries) {
+                String[] fields = entry.split(" ", 2);
+                if (!dates.contains(Instant.ofEpochSecond(Long.parseLong(fields[1])))) continue;
+                String sha = fields[0];
                 Commit commit = commit(context, sha, dates);
                 if (commit == null) continue;
                 commits.add(commit);
@@ -59,7 +61,7 @@ public class TemplateGitEvidenceCollector {
                     throw new TaskFailure("TEMPLATE_EVIDENCE_LIMIT", "统计范围超过完整证据容量，请缩小日期范围后重试；本次未生成完整报告");
                 }
             }
-            if (hashes.size() < 100) break;
+            if (entries.size() < 100) break;
         }
         commits.sort(java.util.Comparator.comparing(Commit::committedAt).thenComparing(Commit::sha));
         commits = deduplicate(commits);
@@ -111,7 +113,11 @@ public class TemplateGitEvidenceCollector {
     }
 
     private List<Change> changes(Context context, String sha, List<String> parents) {
-        List<String> command = showArguments(sha, parents.size() == 2);
+        String before = parents.size() == 2 ? new TemplateGitMergeBaseline(git).reconstruct(context.repository(), parents)
+                : parents.isEmpty() ? null : parents.getFirst();
+        // Only the task-owned bare index is updated; source index/worktree never participates.
+        git.read(context.repository(), "read-tree", "--reset", "-i", "--no-recurse-submodules", sha);
+        List<String> command = showArguments(sha, parents.size() == 2 ? before : null);
         command.addAll(1, List.of("--numstat", "-z"));
         String stats = git.read(context.repository(), command.toArray(String[]::new));
         List<Change> result = new ArrayList<>();
@@ -123,34 +129,28 @@ public class TemplateGitEvidenceCollector {
             boolean binary = fields[0].equals("-") || fields[1].equals("-");
             long additions = binary ? 0 : Long.parseLong(fields[0]);
             long deletions = binary ? 0 : Long.parseLong(fields[1]);
-            List<String> patchCommand = showArguments(sha, parents.size() == 2);
+            List<String> patchCommand = showArguments(sha, parents.size() == 2 ? before : null);
             patchCommand.add(path);
             String patch = sensitive(path) ? "" : git.read(context.repository(), patchCommand.toArray(String[]::new));
             String reason = sensitive(path) ? "SENSITIVE_CONTENT_WITHHELD" : excluded(context.repository(), sha, path, binary, patch);
             result.add(new Change(hash(sha + "\n" + path), path,
-                    parents.isEmpty() ? null : parents.size() == 2 ? remergeBefore(patch) : blob(context.repository(), parents.getFirst(), path),
+                    before == null ? null : blob(context.repository(), before, path),
                     blob(context.repository(), sha, path), additions, deletions, binary,
                     reason == null ? additions + deletions : 0, reason, patch));
         }
         return List.copyOf(result);
     }
 
-    private static List<String> showArguments(String sha, boolean merge) {
-        List<String> result = new ArrayList<>(List.of("show", "--format=", "--full-index", "--no-ext-diff", "--no-textconv", "--no-renames"));
-        if (merge) result.add("--remerge-diff");
+    private static List<String> showArguments(String sha, String mergeBaseline) {
+        List<String> result = new ArrayList<>(List.of(mergeBaseline == null ? "show" : "diff", "--format=", "--full-index", "--no-ext-diff", "--no-textconv", "--no-renames"));
+        if (mergeBaseline != null) result.add(mergeBaseline);
         result.addAll(List.of(sha, "--"));
         return result;
     }
 
-    private static String remergeBefore(String patch) {
-        // The old side of remerge-diff is Git's synthetic conflict blob, never the first parent's file.
-        var index = Pattern.compile("(?m)^index ([0-9a-f]{40,64})\\.\\.[0-9a-f]{40,64}(?: .*)?$").matcher(patch);
-        return index.find() && !index.group(1).matches("0+") ? index.group(1) : null;
-    }
-
     private String excluded(Path repository, String sha, String path, boolean binary, String patch) {
         if (binary) return "BINARY_NO_LINE_METRIC";
-        String[] attributes = git.read(repository, "check-attr", "--source=" + sha, "-z", "linguist-generated",
+        String[] attributes = git.read(repository, "check-attr", "--cached", "-z", "linguist-generated",
                 "linguist-vendored", "--", path).split("\u0000");
         for (int i = 0; i + 2 < attributes.length; i += 3) {
             if (Set.of("set", "true").contains(attributes[i + 2])) return "DECLARED_" + attributes[i + 1].toUpperCase(Locale.ROOT).replace('-', '_');

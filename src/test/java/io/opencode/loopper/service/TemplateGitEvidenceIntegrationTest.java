@@ -163,6 +163,53 @@ class TemplateGitEvidenceIntegrationTest {
         assertThat(evidence.commits()).extracting(TemplateGitEvidence.Commit::sha).doesNotHaveDuplicates();
     }
 
+    @Test void attributesComeFromEachCommitInsteadOfTheTipOrDirtySourceIndex() throws Exception {
+        commit(".gitattributes", "file.txt linguist-generated=true\n", "2026-09-10T01:00:00Z", "generated declaration");
+        commit("file.txt", "generated\n", "2026-09-11T01:00:00Z", "generated work");
+        commit(".gitattributes", "file.txt -linguist-generated\n", "2026-09-11T02:00:00Z", "hand maintained");
+        commit("file.txt", "maintained\n", "2026-09-11T03:00:00Z", "manual work");
+        Files.writeString(root.resolve(".gitattributes"), "file.txt linguist-generated=true\n");
+        git.read(root, "add", ".gitattributes");
+        String sourceIndex = TemplateGitEvidenceCollector.hash(java.util.HexFormat.of().formatHex(Files.readAllBytes(root.resolve(".git/index"))));
+        var evidence = collect(snapshots.freeze("attributes-history", "project", main()));
+        assertThat(evidence.commits().getFirst().changes().getFirst().effectiveLines()).isZero();
+        assertThat(evidence.commits().getLast().changes().getFirst().effectiveLines()).isEqualTo(2);
+        assertThat(TemplateGitEvidenceCollector.hash(java.util.HexFormat.of().formatHex(Files.readAllBytes(root.resolve(".git/index"))))).isEqualTo(sourceIndex);
+    }
+
+    @Test void recursiveBaselineCombinesDisjointEditsWithoutCreditingThemToMerger() throws Exception {
+        commit("file", "one\ntwo\nthree\nfour\nfive\n", "2026-09-10T01:00:00Z", "base");
+        git.read(root, "switch", "-c", "feature");
+        commit("file", "FEATURE\ntwo\nthree\nfour\nfive\n", "2026-09-11T01:00:00Z", "feature");
+        git.read(root, "switch", "main");
+        commit("file", "one\ntwo\nthree\nfour\nMAIN\n", "2026-09-11T02:00:00Z", "main");
+        commandAt("2026-09-11T03:00:00Z", List.of("git", "merge", "--no-ff", "feature", "-m", "merge"));
+        var snapshot = snapshots.freeze("disjoint-merge", "project", main());
+        assertThat(collect(snapshot).commits().getLast().changes()).isEmpty();
+        try (var files = Files.list(snapshot.directory())) {
+            assertThat(files.map(path -> path.getFileName().toString()).toList()).noneMatch(name -> name.startsWith("merge-baseline-"));
+        }
+    }
+
+    @Test void deletedAndBinaryFilesStayVisibleOnTheCompatibilityPath() throws Exception {
+        commit("deleted.txt", "to delete\n", "2026-09-10T01:00:00Z", "before");
+        Files.delete(root.resolve("deleted.txt"));
+        Files.write(root.resolve("binary.dat"), new byte[] {0, 1, 2, 3});
+        git.read(root, "add", "-A");
+        commandAt("2026-09-11T01:00:00Z", List.of("git", "commit", "-m", "delete and binary"));
+        var changes = collect(snapshots.freeze("delete-binary", "project", main())).commits().getFirst().changes();
+        assertThat(changes).anySatisfy(change -> {
+            assertThat(change.path()).isEqualTo("deleted.txt");
+            assertThat(change.beforeBlob()).hasSize(40);
+            assertThat(change.afterBlob()).isNull();
+            assertThat(change.effectiveLines()).isEqualTo(1);
+        }).anySatisfy(change -> {
+            assertThat(change.path()).isEqualTo("binary.dat");
+            assertThat(change.binary()).isTrue();
+            assertThat(change.exclusionReason()).isEqualTo("BINARY_NO_LINE_METRIC");
+        });
+    }
+
     @Test void rejectsShallowRemoteAndShallowRecoveredSnapshot() throws Exception {
         commit("file", "before", "2026-09-10T01:00:00Z", "before");
         commit("file", "after", "2026-09-11T01:00:00Z", "after");

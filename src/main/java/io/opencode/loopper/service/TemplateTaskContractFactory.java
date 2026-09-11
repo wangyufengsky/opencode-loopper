@@ -8,6 +8,7 @@ import io.opencode.loopper.domain.StageKind;
 import io.opencode.loopper.template.ContributionScore;
 import io.opencode.loopper.template.TemplateDateRange;
 import io.opencode.loopper.template.TemplateTaskDefinition;
+import io.opencode.loopper.template.TemplateReportLayout;
 import java.util.List;
 import org.springframework.stereotype.Component;
 
@@ -31,7 +32,7 @@ public final class TemplateTaskContractFactory {
                 List.of(stage("冻结分支并采集完整 Git 证据", "SNAPSHOT"), stage("分析证据并生成可追溯报告", "REPORT")),
                 limits, model(), new LoopSpec.SessionPolicy(false, true), "按原合同修复本轮报告的具体问题", LoopSpec.BudgetSpec.unlimited());
         return new Frozen(definition.view(), spec, ContributionScore.VERSION, ContributionScore.FORMULA,
-                ContributionScore.DIMENSIONS, TemplateDateRange.ZONE.getId(), "COMMITTER_TIME", 2);
+                ContributionScore.DIMENSIONS, TemplateDateRange.ZONE.getId(), "COMMITTER_TIME", 2, TemplateReportLayout.freeze());
     }
 
     private LoopSpec.ModelSpec model() {
@@ -53,5 +54,6 @@ public final class TemplateTaskContractFactory {
     }
 
     public record Frozen(TemplateTaskDefinition.View definition, LoopSpec spec, String scoringVersion, String scoreFormula,
-                          List<ContributionScore.Dimension> dimensions, String timezone, String timePolicy, int repairLimit) { }
+                          List<ContributionScore.Dimension> dimensions, String timezone, String timePolicy, int repairLimit,
+                          TemplateReportLayout.Frozen reportTemplates) { }
 }

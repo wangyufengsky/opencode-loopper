@@ -5,7 +5,7 @@ import java.util.List;
 /** Immutable evidence. Every selected SHA is retained, including empty/merge/excluded changes. */
 public record TemplateGitEvidence(String version, String branchId, String head, String startDate, String endDate,
                                   String timezone, String mailmapHash, List<Commit> commits) {
-    public static final String VERSION = "GIT_EVIDENCE_V1";
+    public static final String VERSION = "GIT_EVIDENCE_V2";
     public TemplateGitEvidence { commits = List.copyOf(commits); }
 
     public record Contributor(String identity, String name, String email, boolean robot) { }

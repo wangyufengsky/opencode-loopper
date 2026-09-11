@@ -50,6 +50,7 @@ public class ProjectBranchService {
     }
 
     Discovery discover(Path root) {
+        git.requireSupported(root);
         git.read(root, "rev-parse", "--git-dir");
         List<Branch> branches = new ArrayList<>();
         for (String ref : git.read(root, "for-each-ref", "--format=%(refname)", "refs/heads/").lines().toList()) {

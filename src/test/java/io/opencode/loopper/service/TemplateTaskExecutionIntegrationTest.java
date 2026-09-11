@@ -38,6 +38,7 @@ class TemplateTaskExecutionIntegrationTest {
     @Autowired TemplateGitCaptureGuard gitGuard;
     @Autowired SessionLifecycleService sessionLifecycle;
     @Autowired StoryBindingService storyBindings;
+    @Autowired javax.sql.DataSource dataSource;
     @TempDir Path temporary;
     private String projectId;
     private FakeOpenCodeClient fake;
@@ -73,7 +74,8 @@ class TemplateTaskExecutionIntegrationTest {
         assertThat(mapper.findActiveWorkspaceLeaseByHolder(task.id())).isEmpty();
         assertThat(git.read(source, "rev-parse", "HEAD")).isEqualTo(head);
         assertThat(Files.readString(source.resolve("local-work.txt"))).isEqualTo("uncommitted\n");
-        assertThat(mapper.listTaskArtifacts(task.id())).anyMatch(row -> row.kind().equals("TEMPLATE_REPORT") && row.content().contains("提交覆盖：1 / 1"));
+        assertThat(mapper.listTaskArtifacts(task.id())).anyMatch(row -> row.kind().equals("TEMPLATE_REPORT")
+                && row.content().contains("| 提交覆盖 | 1 / 1 |") && row.content().contains("CODE_REVIEW_V2"));
         String sessionId = mapper.listSessions(task.id()).getFirst().id();
         var owner = mapper.findStoryAccountingOwner(mapper.findSession(sessionId).orElseThrow().externalSessionId()).orElseThrow();
         assertThat(owner.role()).isEqualTo("IMPLEMENTATION");
@@ -96,6 +98,22 @@ class TemplateTaskExecutionIntegrationTest {
         var reports = mapper.listTaskArtifacts(task.id()).stream().filter(row -> row.kind().equals("TEMPLATE_REPORT")).toList();
         assertThat(reports).hasSize(2);
         assertThat(reports).anyMatch(row -> row.name().equals("contribution-report.md") && row.content().contains("贡献排名") && row.content().contains("CONTRIBUTION_SCORE_V1"));
+        exportBrowserFixture(task.id());
+    }
+
+    private void exportBrowserFixture(String taskId) {
+        String destination = System.getProperty("template.browser.fixtureDir");
+        if (destination == null) return;
+        try {
+            Path directory = Files.createDirectories(Path.of(destination));
+            Path database = directory.resolve("runtime.db").toAbsolutePath();
+            assertThat(database).doesNotExist();
+            try (var connection = dataSource.getConnection(); var statement = connection.createStatement()) {
+                statement.execute("VACUUM INTO '" + database.toString().replace("'", "''") + "'");
+            }
+            Files.writeString(directory.resolve("fixture.json"), json.writeValueAsString(java.util.Map.of(
+                    "taskId", taskId, "provider", "fake", "templateVersion", TemplateTaskDefinition.VERSION)));
+        } catch (Exception failure) { throw new AssertionError("Unable to export verified browser fixture", failure); }
     }
 
     @Test void exhaustedContentRepairsRemainWaitingAndManualCancelClosesLease() {
@@ -117,7 +135,7 @@ class TemplateTaskExecutionIntegrationTest {
 
     private TaskRow create(String definition) {
         String today = LocalDate.now(TemplateDateRange.ZONE).toString();
-        return admission.create(new TemplateTaskService.Request(UUID.randomUUID().toString(), definition, "1", projectId,
+        return admission.create(new TemplateTaskService.Request(UUID.randomUUID().toString(), definition, io.opencode.loopper.template.TemplateTaskDefinition.VERSION, projectId,
                 "local:refs/heads/main", today, today, StoryBindingConfiguration.disabled()), true);
     }
 
@@ -139,7 +157,7 @@ class TemplateTaskExecutionIntegrationTest {
         TaskRow first = create("CODE_REVIEW");
         states.start(first.id(), evidence.contract(first.id())); run(first.id(), false);
         String today = LocalDate.now(TemplateDateRange.ZONE).toString();
-        TaskRow second = admission.create(new TemplateTaskService.Request(UUID.randomUUID().toString(), "CODE_REVIEW", "1", projectId,
+        TaskRow second = admission.create(new TemplateTaskService.Request(UUID.randomUUID().toString(), "CODE_REVIEW", io.opencode.loopper.template.TemplateTaskDefinition.VERSION, projectId,
                 "local:refs/heads/main", today, today, StoryBindingConfiguration.disabled()), false);
         states.start(second.id(), evidence.contract(second.id())); run(second.id(), false);
         assertThat(states.task(second.id()).state()).isEqualTo("COMPLETED");

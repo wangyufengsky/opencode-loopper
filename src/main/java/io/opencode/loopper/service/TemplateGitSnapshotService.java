@@ -43,6 +43,7 @@ public class TemplateGitSnapshotService {
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public Snapshot freeze(String taskId, String projectId, ProjectBranchService.Branch branch) {
         Path directory = prepareDirectory(taskId);
+        git.requireSupported(directory);
         Path repository = directory.resolve("repository.git");
         ensureOwned(directory);
         if (Files.exists(repository, LinkOption.NOFOLLOW_LINKS) && Files.isSymbolicLink(repository)) {
@@ -55,7 +56,7 @@ public class TemplateGitSnapshotService {
                 return new Snapshot(directory, repository, existing.output().trim());
             }
         } else {
-            git.read(directory, "init", "--bare", "--", repository.toString());
+            git.read(directory, "init", "--bare", "--template=", "--", repository.toString());
         }
         Path source = Path.of(projects.get(projectId).rootPath());
         String remote = source.toAbsolutePath().toString();
@@ -68,7 +69,7 @@ public class TemplateGitSnapshotService {
         }
         var fetched = git.run(repository, Duration.ofSeconds(60), List.of("fetch", "--no-tags", "--no-write-fetch-head",
                 "--", remote, "+" + branch.ref() + ":refs/heads/snapshot"));
-        if (fetched.exitCode() != 0) throw new TaskFailure("TEMPLATE_FETCH_FAILED", "无法同步所选分支，请检查远程连接和访问权限后重试");
+        fetched.requireSuccess(List.of("fetch"));
         requireCompleteHistory(repository);
         String head = git.read(repository, "rev-parse", "--verify", "refs/heads/snapshot^{commit}").strip();
         return new Snapshot(directory, repository, head);
