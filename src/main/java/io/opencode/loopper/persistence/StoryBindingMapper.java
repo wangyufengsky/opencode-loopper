@@ -15,6 +15,9 @@ public interface StoryBindingMapper {
     int bindDesignerStory(@Param("designerSessionId") String designerSessionId,
                           @Param("bindingId") String bindingId);
 
+    @Insert("INSERT INTO task_story_binding(task_id,binding_id) VALUES(#{taskId},#{bindingId})")
+    int bindTaskStory(@Param("taskId") String taskId, @Param("bindingId") String bindingId);
+
     @Insert("""
             INSERT OR IGNORE INTO task_story_binding(task_id,binding_id)
             SELECT #{taskId},link.binding_id FROM designer_session session

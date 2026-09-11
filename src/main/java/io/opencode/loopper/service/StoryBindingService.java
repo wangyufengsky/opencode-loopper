@@ -39,6 +39,17 @@ public class StoryBindingService {
                 .orElseGet(StoryBindingConfiguration::disabled);
     }
 
+    @Transactional
+    public void attachTask(String taskId, StoryBindingConfiguration configuration) {
+        mapper.findTask(taskId).orElseThrow(() -> new NotFoundException("Task not found"));
+        StoryBindingConfiguration value = configuration == null ? StoryBindingConfiguration.disabled() : configuration.normalized();
+        if (!value.enabled()) return;
+        if (mapper.findTaskStoryBinding(taskId).isPresent()) throw new ConflictException("STORY_BINDING_EXISTS", "任务已绑定故事，不能覆盖");
+        StoryBindingRow binding = new StoryBindingRow(UUID.randomUUID().toString(), value.systemCode(), value.storyCode(), 0, Instant.now().toString());
+        mapper.insertStoryBinding(binding);
+        mapper.bindTaskStory(taskId, binding.id());
+    }
+
     public Capability capability(String projectId) {
         ProjectRow project = projects.get(projectId);
         OpenCodeClient.CommandCapabilityProbe probe = openCode.commandCapabilities(Path.of(project.rootPath()));

@@ -250,8 +250,8 @@ export interface Task {
   hasDesignHistory?: boolean
   archived?: boolean
   version?: number
-  executionMode?: 'LEGACY_AGGREGATE' | 'ROLLING_PACKAGES'
-  workspacePolicy?: 'RELEASE_BETWEEN_PACKAGES' | 'PINNED_DIRECT'
+  executionMode?: 'LEGACY_AGGREGATE' | 'ROLLING_PACKAGES' | 'TEMPLATE_REPORT'
+  workspacePolicy?: 'RELEASE_BETWEEN_PACKAGES' | 'PINNED_DIRECT' | 'ISOLATED_REPORT'
   currentPackage?: RollingPackageRun
   plannedPackageCount?: number
   frozenPackageCount?: number
@@ -375,7 +375,7 @@ export interface TaskEvent {
 export interface Artifact {
   id: string
   taskId?: string
-  kind: 'LOG' | 'DIFF' | 'VERIFICATION' | 'JUDGE' | 'SYSTEM'
+  kind: 'LOG' | 'DIFF' | 'VERIFICATION' | 'JUDGE' | 'SYSTEM' | 'REPORT'
   title: string
   createdAt: string
   content: string
@@ -1455,4 +1455,46 @@ export interface StoryAccountingCall {
   retryAvailable?: boolean
   retryUnavailableReason?: string | null
   parts: Array<{ id: string; type: string; label: string; content: string; status?: string | null; startedAt?: string | null }>
+}
+
+export interface TemplateTaskDefinition {
+  id: 'CODE_REVIEW' | 'CONTRIBUTION_REPORT'
+  version: string
+  title: string
+  description: string
+  contentRepairLimit: number
+  stages: string[]
+  scoringVersion: string | null
+}
+export interface TemplateTaskCatalog {
+  templates: TemplateTaskDefinition[]
+  timezone: string
+  defaultStartDate: string
+  defaultEndDate: string
+  scoringVersion: string
+  scoreFormula: string
+  dimensions: Array<{ title: string; weight: number; levels: string[] }>
+}
+export interface TemplateProjectChoice { id: string; name: string; createdAt: string }
+export interface TemplateBranchChoice { id: string; label: string; ref: string; remote: string | null }
+export interface TemplateBranchPage {
+  page: { items: TemplateBranchChoice[]; nextCursor: string | null; facets?: Record<string, number> }
+  defaultBranchId: string | null
+  defaultBranch: TemplateBranchChoice | null
+  remoteAvailable: boolean
+}
+export interface TemplateTaskRequest {
+  requestKey: string
+  templateId: TemplateTaskDefinition['id']
+  templateVersion: string
+  projectId: string
+  branchId: string
+  startDate: string
+  endDate: string
+  story: StoryBindingConfiguration
+}
+export interface TemplateTaskCreated { id: string; state: TaskStatus }
+export interface TemplateTaskSummary {
+  id: string; title: string; state: TaskStatus; projectName: string; templateId: TemplateTaskDefinition['id']
+  branchLabel: string; startDate: string; endDate: string; repairRound: number; createdAt: string; updatedAt: string
 }

@@ -3,7 +3,9 @@ import { expect, test } from '@playwright/test'
 test.beforeEach(async ({ page }) => {
   await page.route('http://127.0.0.1:41773/api/**', async (route) => {
     const path = new URL(route.request().url()).pathname
-    const payload = path === '/api/projects/summaries'
+    const payload = path === '/api/template-tasks/catalog' ? { templates: [], dimensions: [], defaultStartDate: '2026-09-05', defaultEndDate: '2026-09-11' }
+      : (path === '/api/template-tasks/projects' || path === '/api/template-tasks') ? { items: [], nextCursor: null }
+      : path === '/api/projects/summaries'
       ? [{ id: 'e2e-project', name: 'E2E 隔离项目', rootPath: '/tmp/loopper-e2e', status: 'READY', updatedAt: '2026-08-05T00:00:00Z', taskCount: 0, openDesignerSessionCount: 0 }]
       : path === '/api/tasks/summaries'
         ? { tasks: [], facets: {} }
@@ -36,10 +38,8 @@ test('本地暗色中文外壳可启动并在主要路由间导航', async ({ pa
   await expect(page).toHaveURL(/\/runtime$/)
   await expect(page.getByRole('heading', { name: 'OpenCode 运行环境' })).toBeVisible()
 
-  await page.getByRole('link', { name: '模板与自动化' }).click()
-  await expect(page).toHaveURL(/\/automations$/)
-  await expect(page.getByRole('heading', { name: '自动化工作台' })).toBeVisible()
-  await expect(page.getByText('尚无模板', { exact: true })).toBeVisible()
-  await expect(page.getByText('尚无自动化规则', { exact: true })).toBeVisible()
-  await expect(page.getByText('尚无运行历史')).toBeVisible()
+  await page.getByRole('link', { name: '模板任务' }).click()
+  await expect(page).toHaveURL(/\/template-tasks$/)
+  await expect(page.getByRole('heading', { name: '模板任务', exact: true })).toBeVisible()
+  await expect(page.getByText('还没有模板任务', { exact: true })).toBeVisible()
 })

@@ -3,7 +3,8 @@ package io.opencode.loopper.domain;
 /** Selects the immutable execution contract used by a Task. */
 public enum TaskExecutionMode implements DescribedEnum {
     LEGACY_AGGREGATE("传统聚合执行"),
-    ROLLING_PACKAGES("逐包闭环执行");
+    ROLLING_PACKAGES("逐包闭环执行"),
+    TEMPLATE_REPORT("内置模板报告");
 
     private final String description;
 

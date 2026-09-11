@@ -100,6 +100,7 @@ public class TaskJudgeApprovalService {
     }
 
     private boolean eligible(TaskRow task, TaskExecutionCycleRow cycle, JudgeReviewBatchRow batch) {
+        if (TemplateWorkspaceService.applies(task)) return false;
         if (!TaskState.WAITING_INPUT.name().equals(task.state()) || cycle == null || !"RUNNING".equals(cycle.state())
                 || batch != null && (!cycle.id().equals(batch.executionCycleId()) || "RUNNING".equals(batch.state()))) return false;
         var stages = mapper.listStages(task.id());

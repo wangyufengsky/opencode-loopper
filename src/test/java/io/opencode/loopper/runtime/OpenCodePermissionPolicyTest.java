@@ -24,19 +24,29 @@ class OpenCodePermissionPolicyTest {
     }
 
     @Test
-    void onlyManagedDesignerProfilesAddTheGuardedAccountingException() {
+    void onlyManagedAccountingRolesAddTheGuardedAccountingException() {
         var designers = java.util.Set.of(OpenCodeClient.SessionProfile.GENERAL_READ_ONLY,
                 OpenCodeClient.SessionProfile.DESIGNER_INTERACTIVE_READ_ONLY,
                 OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_READ_ONLY,
                 OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY,
                 OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_V2_READ_ONLY,
-                OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_V2_INTERACTIVE_READ_ONLY);
+                OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_V2_INTERACTIVE_READ_ONLY,
+                OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_NO_TOOLS);
         for (var profile : OpenCodeClient.SessionProfile.values()) {
             var managed = OpenCodePermissionPolicy.rules(profile, java.util.List.of(), "loopper_internal_test");
             assertThat(managed.stream().anyMatch(rule -> "aicoding_*".equals(rule.get("permission"))))
                     .as(profile.name()).isEqualTo(designers.contains(profile));
             assertThat(OpenCodePermissionPolicy.rules(profile)).noneMatch(rule -> "aicoding_*".equals(rule.get("permission")));
         }
+    }
+
+    @Test
+    void templateAnalysisHasNoRepositoryShellOrExternalMcpAccess() {
+        var rules = OpenCodePermissionPolicy.rules(OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_NO_TOOLS,
+                java.util.List.of("github", "filesystem"), "loopper_internal_test");
+        assertThat(rules.stream().filter(rule -> "allow".equals(rule.get("action"))).toList())
+                .containsExactly(java.util.Map.of("permission", "aicoding_*", "pattern", "*", "action", "allow"));
+        assertThat(OpenCodeAgentPolicy.stepLimit(OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_NO_TOOLS)).isZero();
     }
 
     @Test
@@ -237,6 +247,7 @@ class OpenCodePermissionPolicyTest {
     void everyNonRouterRoleAllowsConfiguredMcpToolsWithoutRemovingItsBuiltInBoundary() {
         for (OpenCodeClient.SessionProfile profile : OpenCodeClient.SessionProfile.values()) {
             if (profile == OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS
+                    || profile == OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_NO_TOOLS
                     || profile == OpenCodeClient.SessionProfile.DECOMPOSER_CANDIDATE_READ_ONLY
                     || profile == OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS
                     || profile == OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_READ_ONLY

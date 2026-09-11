@@ -21,6 +21,8 @@ public final class LifecycleRegistry {
         register(LifecycleMachineType.STAGE, StageState.class, stage(), set(StageState.PENDING), Set.of());
         register(LifecycleMachineType.ATTEMPT, AttemptState.class, attempt(),
                 set(AttemptState.RUNNING, AttemptState.SUCCEEDED), Set.of());
+        register(LifecycleMachineType.TEMPLATE_BATCH, TemplateBatchState.class, TemplateBatchTopology.machine(),
+                set(TemplateBatchState.PREPARED), Set.of());
         register(LifecycleMachineType.EXECUTION_SESSION, SessionState.class, session(),
                 set(SessionState.CREATING, SessionState.COMPLETED), set(SessionState.TIMED_OUT));
         register(LifecycleMachineType.JUDGE_RUN, JudgeRunState.class, judge(), set(JudgeRunState.CREATING),

@@ -281,6 +281,7 @@ public interface OpenCodeClient {
     record OpenCodeModel(String providerId, String modelId, Boolean thinking) { }
     enum SessionProfile {
         ROUTER_NO_TOOLS,
+        TEMPLATE_ANALYSIS_NO_TOOLS,
         DECOMPOSER_CANDIDATE_READ_ONLY,
         PACKAGE_DESIGN_CANDIDATE_READ_ONLY,
         PACKAGE_DESIGN_CANDIDATE_V2_READ_ONLY,

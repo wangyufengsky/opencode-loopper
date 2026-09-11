@@ -27,6 +27,7 @@ final class OpenCodeHttpClientSemantics {
                 || profile == OpenCodeClient.SessionProfile.JUDGE_CANDIDATE_READ_ONLY
                 || profile == OpenCodeClient.SessionProfile.DECOMPOSER_READ_ONLY
                 || profile == OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS
+                || profile == OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_NO_TOOLS
                 || profile == OpenCodeClient.SessionProfile.COMPILER_READ_ONLY
                 || profile == OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS
                 || profile == OpenCodeClient.SessionProfile.COMPILER_REPAIR_NO_TOOLS

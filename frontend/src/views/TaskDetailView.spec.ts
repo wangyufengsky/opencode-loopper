@@ -671,6 +671,27 @@ describe('TaskDetailView judge action', () => {
     expect(router.currentRoute.value.path).toBe('/tasks/task-rework')
   })
 
+  it('keeps completed template reports outside design, publication and human approval actions', async () => {
+    store.tasks = [{ ...reviewTask, status: 'COMPLETED', executionResult: 'SUCCEEDED',
+      executionMode: 'TEMPLATE_REPORT', hasDesignHistory: true }]
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/tasks/:id', component: { template: '<div />' } }] })
+    await router.push('/tasks/task-review')
+    await router.isReady()
+    const wrapper = mount(TaskDetailView, { global: { plugins: [router, ElementPlus], stubs: {
+      Icon: true, PageHeader: { template: '<header><slot name="actions" /></header><slot />' },
+      StatusBadge: true, StageRail: true, AttemptTimeline: true, LayeredErrorPanel: true,
+      SessionMonitorPanel: true, JudgeReviewCard: true, TaskAuditEvidencePanel: true,
+      TaskJudgeApprovalPanel: { template: '<div data-test="human-approval">人工认定通过</div>' },
+      TaskPublicationActions: { template: '<div data-test="publication-actions" />' },
+    } } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('报告已通过完整性校验和双评审')
+    expect(wrapper.find('[data-test="human-approval"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="publication-actions"]').exists()).toBe(false)
+    expect(wrapper.findAll('button').map(button => button.text())).not.toContain('设计')
+    expect(wrapper.text()).toContain('重新发起')
+  })
+
   it('mounts publication actions after a successful result is confirmed completed', async () => {
     store.tasks = [{
       ...reviewTask,

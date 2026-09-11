@@ -151,6 +151,7 @@ public class SessionLifecycleService {
 
     public SummaryDto summarize(String taskId, String sessionId, boolean automatic) {
         Resolved resolved = resolve(taskId, sessionId);
+        requireOrdinarySession(resolved);
         OpenCodeClient.OpenCodeSession remote = remote(resolved.task(), resolved.session());
         UsageInsightsService.BudgetDecision budget = tasks.guardNextModelCall(taskId, "SESSION_SUMMARIZE");
         if (budget.blocked()) throw new ConflictException(budget.code(), budget.message());
@@ -165,6 +166,7 @@ public class SessionLifecycleService {
 
     private Resolved requirePausedStopped(String taskId, String sessionId) {
         Resolved resolved = resolve(taskId, sessionId);
+        requireOrdinarySession(resolved);
         if (!TaskState.PAUSED.name().equals(resolved.task().state())) {
             throw new ConflictException("TASK_NOT_PAUSED", "Fork 或 revert 前 Task 必须处于 PAUSED 状态");
         }
@@ -179,6 +181,12 @@ public class SessionLifecycleService {
         String state = status(remote(resolved.task(), resolved.session()));
         if (!terminal(state)) throw new ConflictException("SESSION_WRITER_UNCONFIRMED", "所选 Session 尚未由 OpenCode 确认终止");
         return resolved;
+    }
+
+    private void requireOrdinarySession(Resolved resolved) {
+        if (TemplateWorkspaceService.applies(resolved.task())) {
+            throw new ConflictException("TEMPLATE_SESSION_FROZEN", "模板任务会话按冻结证据执行，不支持摘要、分叉或回退；请重新发起模板任务");
+        }
     }
 
     private Resolved resolve(String taskId, String sessionId) {

@@ -4,6 +4,7 @@ import { Icon } from '@iconify/vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
+import TemplateReportsPanel from '@/components/TemplateReportsPanel.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import StageRail from '@/components/StageRail.vue'
 import AttemptTimeline from '@/components/AttemptTimeline.vue'
@@ -29,6 +30,7 @@ const store = useTaskStore()
 const id = computed(() => route.params.id as string)
 const task = computed(() => store.tasks.find((item) => item.id === id.value))
 const aiNotices = computed(() => store.taskNotices?.[id.value] ?? [])
+const isTemplateTask = computed(() => task.value?.executionMode === 'TEMPLATE_REPORT')
 const isDirectExecution = computed(() => task.value?.branch === 'DIRECT')
 const attempts = computed<Attempt[]>(() => task.value?.attempts ?? task.value?.stages?.flatMap((stage) => stage.attempts) ?? [])
 const waitingForWorkspaceCleanup = computed(() => task.value?.status === 'WAITING_INPUT'
@@ -75,9 +77,9 @@ const queueReconcileLabel = computed(() => queueNeedsWriterTermination.value
   ? '终止遗留会话并释放'
   : '重新检查并释放')
 const publicationState = ref<TaskPublicationStatus['deliveryState']>('NOT_STARTED')
-const publicationEligible = computed(() => task.value?.status === 'SUCCEEDED'
+const publicationEligible = computed(() => !isTemplateTask.value && (task.value?.status === 'SUCCEEDED'
   || (['AWAITING_DECISION', 'COMPLETED'].includes(task.value?.status ?? '')
-    && task.value?.executionResult === 'SUCCEEDED'))
+    && task.value?.executionResult === 'SUCCEEDED')))
 const clock = ref(Date.now())
 let clockTimer: ReturnType<typeof setInterval> | undefined
 const retryRemainingSeconds = computed(() => task.value?.retryDueAt
@@ -104,11 +106,17 @@ const canRetryLoop = computed(() => task.value?.status === 'WAITING_INPUT'
   && !deterministicAccepted.value && task.value.loopRetryAvailable === true)
 const canCancelTask = computed(() => task.value?.cancellationAvailable === true)
 const judgeActionLabel = computed(() => judges.value.length ? '重新发起双评审' : '启动双评审')
-const canRework = computed(() => !isDirectExecution.value
+const canRework = computed(() => !isTemplateTask.value && !isDirectExecution.value
   && !waitingForWorkspaceCleanup.value
   && ['WAITING_INPUT', 'SUCCEEDED', 'FAILED', 'CANCELLED'].includes(task.value?.status ?? ''))
 const nextAction = computed(() => {
   if (!task.value) return ''
+  if (isTemplateTask.value) {
+    if (task.value.status === 'COMPLETED') return '报告已通过完整性校验和双评审，可在上方预览或下载。'
+    if (task.value.status === 'WAITING_INPUT') return '请查看当前错误或评审意见。自动返修受轮次与预算限制；可重试双评审、取消，或重新发起模板任务。'
+    if (task.value.status === 'CANCELLED') return '任务已取消，采集证据和各版报告仍保留。'
+    if (task.value.status === 'QUEUED') return '正在准备独立的报告执行目录。'
+  }
   if (task.value.status === 'AWAITING_DECISION') return task.value.executionResult === 'SUCCEEDED'
     ? '本轮执行成功，请选择后续操作。'
     : '本轮执行失败，请选择后续操作。'
@@ -306,12 +314,13 @@ async function confirmRework() {
   <PageHeader eyebrow="任务" :title="task?.title ?? '加载任务'" :title-tooltip="task?.goal || task?.title">
     <template #actions>
       <StatusBadge v-if="task" :status="task.status" />
-      <el-button v-if="task?.hasDesignHistory" plain @click="router.push(`/tasks/${id}/design`)"><Icon icon="lucide:messages-square" />设计</el-button>
-      <el-button v-if="task?.status === 'FAILED' || task?.status === 'CANCELLED'" type="primary" @click="router.push(`/tasks/${id}/recovery`)"><Icon icon="lucide:git-fork" />恢复</el-button>
+      <el-button v-if="!isTemplateTask && task?.hasDesignHistory" plain @click="router.push(`/tasks/${id}/design`)"><Icon icon="lucide:messages-square" />设计</el-button>
+      <el-button v-if="!isTemplateTask && (task?.status === 'FAILED' || task?.status === 'CANCELLED')" type="primary" @click="router.push(`/tasks/${id}/recovery`)"><Icon icon="lucide:git-fork" />恢复</el-button>
       <el-button v-if="canRework" type="warning" plain :loading="reworking" @click="confirmRework"><Icon icon="lucide:git-branch-plus" />新分支重做</el-button>
+      <el-button v-if="isTemplateTask" plain @click="router.push('/template-tasks')">重新发起</el-button>
       <el-button plain @click="router.push('/tasks')"><Icon icon="lucide:list" />全部任务</el-button>
       <el-button v-if="task?.status === 'PENDING_START' && task.executionMode !== 'ROLLING_PACKAGES'" type="primary" @click="store.updateTask(id, 'start')"><Icon icon="lucide:play" />开始执行</el-button>
-      <el-button v-else-if="task?.status === 'RUNNING' || task?.status === 'VERIFYING' || task?.status === 'RETRY_WAIT'" plain @click="store.updateTask(id, 'pause')"><Icon icon="lucide:pause" />暂停</el-button>
+      <el-button v-else-if="!isTemplateTask && (task?.status === 'RUNNING' || task?.status === 'VERIFYING' || task?.status === 'RETRY_WAIT')" plain @click="store.updateTask(id, 'pause')"><Icon icon="lucide:pause" />暂停</el-button>
       <el-button v-else-if="task?.status === 'PAUSED'" type="primary" @click="store.updateTask(id, 'resume')"><Icon icon="lucide:play" />继续</el-button>
       <el-button v-if="canCancelTask" plain type="danger" :loading="cancellingTask" @click="confirmCancel"><Icon icon="lucide:square" />{{ task?.status === 'STOPPING' ? '重试停止' : '取消任务' }}</el-button>
       <el-button v-if="canRetryLoop" type="warning" :loading="loopRetrying" @click="confirmRetryLoop"><Icon icon="lucide:rotate-ccw" />继续一轮</el-button>
@@ -325,11 +334,12 @@ async function confirmRework() {
       <el-alert v-if="taskActionError" :title="taskActionError" type="error" :closable="false" show-icon class="task-action-error" />
       <section class="task-overview card card-pad">
         <div v-if="task.status === 'PENDING_START'"><p class="eyebrow">等待开始</p></div>
-        <div v-else><p class="eyebrow">{{ isDirectExecution ? '直接执行' : '原项目任务分支' }}</p><span class="mono tiny muted">{{ isDirectExecution ? '原项目目录' : task.branch }} · {{ task.worktreePath }}</span></div>
+        <div v-else><p class="eyebrow">{{ isTemplateTask ? '模板任务' : isDirectExecution ? '直接执行' : '原项目任务分支' }}</p><span class="mono tiny muted">{{ isDirectExecution ? '原项目目录' : task.branch }} · {{ task.worktreePath }}</span></div>
         <div class="overview-meta"><span><b>{{ task.attemptCount }}</b> / {{ task.maxAttempts }} 次尝试</span><span v-if="store.streamState !== 'idle'" :class="['stream-state', store.streamState]">{{ store.streamState === 'connected' ? '实时连接正常' : '实时连接恢复中' }}</span></div>
       </section>
+      <TemplateReportsPanel v-if="isTemplateTask" :task-id="task.id" :artifacts="artifacts" :accepted="task.status === 'COMPLETED'" />
       <RollingPackageWorkbench v-if="task.executionMode === 'ROLLING_PACKAGES'" :task="task" @refresh="load" />
-      <TaskDecisionPanel v-if="task.status === 'AWAITING_DECISION'" :task-id="task.id" @reload="load" @open-task="(taskId) => router.push(`/tasks/${taskId}`)" />
+      <TaskDecisionPanel v-if="!isTemplateTask && task.status === 'AWAITING_DECISION'" :task-id="task.id" @reload="load" @open-task="(taskId) => router.push(`/tasks/${taskId}`)" />
       <section v-if="task.status === 'SUPERSEDED' && task.successorTaskId" class="decision-successor card card-pad">
         <div><p class="eyebrow">后续任务</p><h2 class="card-title">后续工作已转移到新任务</h2></div>
         <el-button type="primary" @click="router.push(`/tasks/${task.successorTaskId}`)"><Icon icon="lucide:arrow-up-right" />打开新任务</el-button>
@@ -341,7 +351,7 @@ async function confirmRework() {
       <section class="result-summary card card-pad" aria-labelledby="result-summary-heading">
         <div class="result-copy"><p class="eyebrow">执行结果</p><h2 id="result-summary-heading" class="card-title">结果与下一步</h2><p>{{ nextAction }}</p></div>
         <dl class="result-metrics">
-          <div><dt>文件变更</dt><dd>{{ changedFiles }}</dd></div>
+          <div><dt>{{ isTemplateTask ? '报告文件' : '文件变更' }}</dt><dd>{{ isTemplateTask ? artifacts.filter(item => item.kind === 'REPORT').length : changedFiles }}</dd></div>
           <div><dt>验证通过</dt><dd>{{ passedVerifications }} / {{ verificationRows.length }}</dd></div>
           <div><dt>评审通过</dt><dd>{{ passedJudges }} / 2</dd></div>
         </dl>
@@ -399,7 +409,7 @@ async function confirmRework() {
       <section v-if="judges.length || task.status === 'JUDGING' || task.status === 'WAITING_INPUT' || canRetryJudges" id="judge-review" class="card card-pad judge-section" style="margin-top: 16px" aria-labelledby="judge-heading">
         <div class="card-header"><div><p class="eyebrow">独立只读评审</p><h2 id="judge-heading" class="card-title">需求 / 风险双评审</h2></div><StatusBadge :status="task.status" /></div>
         <p v-if="!judges.length" class="judge-empty">暂无评审记录。</p>
-        <TaskJudgeApprovalPanel v-if="!store.usingDemo" :task-id="task.id" :task-version="task.version" @reload="load" />
+        <TaskJudgeApprovalPanel v-if="!isTemplateTask && !store.usingDemo" :task-id="task.id" :task-version="task.version" @reload="load" />
         <div class="judge-grid">
           <JudgeReviewCard v-for="judge in currentJudges" :key="judge.id" :judge="judge" />
         </div>

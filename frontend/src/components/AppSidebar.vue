@@ -15,7 +15,7 @@ const navigation = [
   { to: '/tasks', icon: 'lucide:orbit', label: '任务' },
   { to: '/inbox', icon: 'lucide:inbox', label: '待处理中心' },
   { to: '/insights', icon: 'lucide:chart-no-axes-combined', label: '质量与用量' },
-  { to: '/automations', icon: 'lucide:workflow', label: '模板与自动化' },
+  { to: '/template-tasks', icon: 'lucide:workflow', label: '模板任务' },
 ]
 </script>
 

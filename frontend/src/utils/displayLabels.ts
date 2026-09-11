@@ -36,6 +36,7 @@ const statusLabels: Record<string, string> = {
 }
 
 const generalLabels: Record<string, string> = {
+  TEMPLATE_REPORT: '模板报告', TEMPLATE_BATCH: '报告分析批次', ISOLATED_REPORT: '独立报告目录',
   QUESTION: '问题', PERMISSION: '权限', MANUAL: '手动触发', CRON: '定时触发',
   GIT_HEAD_CHANGED: 'Git 版本变化', WEBHOOK: '回调触发',
   REVIEW_REQUIRED: '人工确认', AUTO_START: '自动开始',

@@ -21,7 +21,7 @@ class CodeStructureContractTest {
      */
     private static final Map<String, Integer> LEGACY_RATCHET = Map.of(
             "io/opencode/loopper/service/DesignerSessionService.java", 5_355,
-            "io/opencode/loopper/service/TaskService.java", 2_721,
+            "io/opencode/loopper/service/TaskService.java", 2_671,
             "io/opencode/loopper/service/LocalSyncConflictService.java", 1_159);
 
     @Test

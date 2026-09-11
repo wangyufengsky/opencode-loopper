@@ -12,7 +12,7 @@ const workspaceLinks = [
 const moreLinks = [
   { to: '/designs', icon: 'lucide:history', title: '历史设计', description: '回到已有的讨论与方案' },
   { to: '/insights', icon: 'lucide:chart-no-axes-combined', title: '质量与用量', description: '查看验收结果与模型用量' },
-  { to: '/automations', icon: 'lucide:workflow', title: '模板与自动化', description: '复用规范，配置自动化流程' },
+  { to: '/template-tasks', icon: 'lucide:workflow', title: '模板任务', description: '执行代码审查，生成贡献周报' },
 ]
 const systemLinks = [
   { to: '/runtime', icon: 'lucide:cpu', title: '运行环境' },

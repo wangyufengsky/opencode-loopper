@@ -203,7 +203,10 @@ public interface ReadModelMapper {
                 'changedPaths',json_extract(metadata_json,'$.changedPaths'),
                 'untrackedPaths',json_extract(metadata_json,'$.untrackedPaths'),
                 'changeTypes',json_extract(metadata_json,'$.changeTypes'),
-                'baselineScope',json_extract(metadata_json,'$.baselineScope')) ELSE '{}' END,
+                'baselineScope',json_extract(metadata_json,'$.baselineScope'))
+              WHEN kind='TEMPLATE_REPORT' THEN json_object('displayName',json_extract(metadata_json,'$.displayName'),
+                'repairRound',json_extract(metadata_json,'$.repairRound'),'sha256',json_extract(metadata_json,'$.sha256'))
+              ELSE '{}' END,
               'contentBytes',length(CAST(content AS BLOB)),'attemptId',attempt_id,
               'judgeRunId',judge_run_id,'createdAt',created_at)
             FROM task_artifact WHERE task_id=#{taskId}
@@ -216,7 +219,10 @@ public interface ReadModelMapper {
                 'changedPaths',json_extract(metadata_json,'$.changedPaths'),
                 'untrackedPaths',json_extract(metadata_json,'$.untrackedPaths'),
                 'changeTypes',json_extract(metadata_json,'$.changeTypes'),
-                'baselineScope',json_extract(metadata_json,'$.baselineScope')) ELSE '{}' END AS metadata_summary_json,
+                'baselineScope',json_extract(metadata_json,'$.baselineScope'))
+              WHEN kind='TEMPLATE_REPORT' THEN json_object('displayName',json_extract(metadata_json,'$.displayName'),
+                'repairRound',json_extract(metadata_json,'$.repairRound'),'sha256',json_extract(metadata_json,'$.sha256'))
+              ELSE '{}' END AS metadata_summary_json,
               length(CAST(content AS BLOB)) AS content_bytes,created_at
             FROM task_artifact WHERE task_id=#{taskId} ORDER BY created_at DESC
             """)

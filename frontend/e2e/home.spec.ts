@@ -3,7 +3,9 @@ import { expect, test } from '@playwright/test'
 test.beforeEach(async ({ page }) => {
   await page.route('http://127.0.0.1:41773/api/**', async route => {
     const path = new URL(route.request().url()).pathname
-    const payload = path === '/api/tasks/summaries' ? { tasks: [], facets: {} }
+    const payload = path === '/api/template-tasks/catalog' ? { templates: [], dimensions: [], defaultStartDate: '2026-09-05', defaultEndDate: '2026-09-11' }
+      : (path === '/api/template-tasks/projects' || path === '/api/template-tasks') ? { items: [], nextCursor: null }
+      : path === '/api/tasks/summaries' ? { tasks: [], facets: {} }
       : path === '/api/runtime/opencode' ? { status: 'OFFLINE', managed: false, checkedAt: '2026-09-10T00:00:00Z' }
         : []
     await route.fulfill({ contentType: 'application/json', body: JSON.stringify(payload) })
@@ -14,8 +16,8 @@ test('默认主页、十个入口、品牌返回、后退与刷新', async ({ pa
   await page.goto('/')
   await expect(page.getByRole('heading', { name: '主页', exact: true })).toBeVisible()
   await expect(page.locator('.home-artwork')).toBeVisible()
-  expect(await page.locator('.home-artwork').evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBeTruthy()
-  const destinations = ['/projects', '/designer', '/tasks', '/inbox', '/designs', '/insights', '/automations', '/runtime', '/tools', '/settings']
+  await expect.poll(() => page.locator('.home-artwork').evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBeTruthy()
+  const destinations = ['/projects', '/designer', '/tasks', '/inbox', '/designs', '/insights', '/template-tasks', '/runtime', '/tools', '/settings']
   for (const path of destinations) {
     await page.locator(`main a[href="${path}"]`).first().click()
     await expect(page).toHaveURL(new RegExp(`${path}$`))

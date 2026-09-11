@@ -214,21 +214,8 @@ public class AutomationService {
         for (AutomationRuleRow rule : mapper.listAutomationRules()) {
             try { reconcile(rule); }
             catch (RuntimeException failure) { recordPollFailure(rule, Failure.RECONCILIATION_FAILED); continue; }
-            if (!AutomationRuleState.ENABLED.name().equals(rule.state())) continue;
-            try {
-                AutomationTriggerType trigger = requiredTrigger(rule.triggerType());
-                if (trigger == AutomationTriggerType.GIT_HEAD_CHANGED) {
-                    long checkedVersion = pollGitHead(rule);
-                    pollHealth.success(rule.id(), checkedVersion);
-                } else if (trigger == AutomationTriggerType.CRON) {
-                    pollCron(rule);
-                    pollHealth.success(rule.id(), rule.version());
-                }
-            } catch (RuntimeException failure) {
-                Failure reason = failure instanceof DetectionFailure detected ? detected.reason()
-                        : "CRON".equals(rule.triggerType()) ? Failure.CRON_DETECTION_FAILED : Failure.DETECTION_FAILED;
-                recordPollFailure(rule, reason);
-            }
+            // Historical runs still reconcile; no persisted legacy rule can dispatch a new trigger.
+
         }
     }
 

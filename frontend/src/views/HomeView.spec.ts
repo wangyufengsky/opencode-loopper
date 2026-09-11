@@ -8,7 +8,7 @@ import HomeView from './HomeView.vue'
 
 describe('主页导航', () => {
   it('所有工作区与系统入口使用真实路由，点击后可通过品牌返回主页', async () => {
-    const destinations = ['/projects', '/designer', '/tasks', '/inbox', '/designs', '/insights', '/automations', '/runtime', '/tools', '/settings']
+    const destinations = ['/projects', '/designer', '/tasks', '/inbox', '/designs', '/insights', '/template-tasks', '/runtime', '/tools', '/settings']
     const router = createRouter({ history: createMemoryHistory(), routes: [
       { path: '/', component: HomeView },
       ...destinations.map(path => ({ path, component: { template: '<main>目标页面</main>' } })),

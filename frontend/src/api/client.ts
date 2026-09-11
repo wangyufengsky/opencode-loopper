@@ -1,3 +1,4 @@
+import type { TemplateTaskCatalog, TemplateProjectChoice, TemplateBranchPage, TemplateTaskRequest, TemplateTaskCreated, TemplateTaskSummary } from '@/types/domain'
 import type { AppSettings, Artifact, Attempt, AutomationImportPreview, AutomationImportResult, AutomationRule, AutomationRuleMutation, AutomationRun, AutomationRunFeed, AvailableModel, BrowserAssertion, CommitMessageSuggestion, CreateAutomationRuleInput, DesignerActivity, DesignerAnsweredQuestion, DesignerAppendResult, DesignerHistoryItem, DesignerMessage, DesignerSession, DesignerSessionState, DesignerSessionSummary, DesignerStopResult, DesignerStreamEvent, DirectorySelection, DirtyWorkspaceAction, DirtyWorkspaceResolution, DirtyWorkspaceState, ErrorEvent, GitDiffScopeApproval, GitDiffScopeDecisionAction, InsightsSnapshot, Interaction, InteractionAction, JudgeRun, LocalSyncConflictContent, LocalSyncConflictFile, LocalSyncConflictSession, LocalSyncResolution, LoopDraft, LoopSpec, LoopSpecAssessment, LoopSpecTemplate, LoopSpecTemplateVersion, LoopVerifierSpec, MergeRequestDraft, Project, ProjectConventionActivity, ProjectConventionDraft, ProjectConventionSnapshot, RecoveryDraft, RecoveryMode, RuntimeInfo, SessionCheckpoint, SessionForkResult, SessionRevertResult, SessionSummaryResult, SessionTodo, Stage, Task, TaskDecision, TaskDesignHistory, TaskDiffPreview, TaskEvent, TaskInsight, TaskPublicationStatus, TaskQueueStatus, TaskSessionActivity, TaskSessionActivityPart, TaskSessionPendingQuestion, TaskSessionSummary, UsageAggregate } from '@/types/domain'
 import type { AnalysisReport, DesignerTaskProfileUpdatePreview, ProjectStackProfile, RollingPackageCapabilities, RollingPackageDetail, RollingPackageFact, RollingPackageRun, RollingPackageWorkbench, RollingPlanPackage, RollingPlanProposal } from '@/types/domain'
 import { DESIGNER_SESSION_STATES, DESIGN_WORK_PACKAGE_STATES, LOOP_DRAFT_STATUSES, STAGE_STATUSES, TASK_PACKAGE_RUN_STATES, TASK_STATUSES, WORK_PACKAGE_AGGREGATE_STATUSES, requirePublicState } from '@/types/states'
@@ -405,7 +406,7 @@ function normalizeJudge(value: unknown): JudgeRun {
 function normalizeArtifact(value: unknown, taskId: string): Artifact {
   const raw = asRecord(value)
   const backendKind = asString(raw.kind).toUpperCase()
-  const kind: Artifact['kind'] = backendKind === 'GIT_DIFF' || backendKind === 'DIFF'
+  const kind: Artifact['kind'] = backendKind === 'TEMPLATE_REPORT' ? 'REPORT' : backendKind === 'GIT_DIFF' || backendKind === 'DIFF'
     ? 'DIFF'
     : backendKind === 'VERIFICATION_SUMMARY' || backendKind === 'VERIFICATION'
       ? 'VERIFICATION'
@@ -1566,6 +1567,12 @@ function normalizeStoryAccountingCall(value: unknown): StoryAccountingCall {
 }
 
 export const api = {
+  templateCatalog: () => request<TemplateTaskCatalog>('/template-tasks/catalog'),
+  templateProjects: (query = '', cursor?: string) => request<CursorPage<TemplateProjectChoice>>(`/template-tasks/projects?${new URLSearchParams({ query, ...(cursor ? { cursor } : {}) })}`),
+  templateBranches: (projectId: string, query = '', cursor?: string) => request<TemplateBranchPage>(`/template-tasks/projects/${encodeURIComponent(projectId)}/branches?${new URLSearchParams({ query, ...(cursor ? { cursor } : {}) })}`),
+  templateRuns: (projectId = '', cursor?: string) => request<CursorPage<TemplateTaskSummary>>(`/template-tasks?${new URLSearchParams({ projectId, ...(cursor ? { cursor } : {}) })}`),
+  createTemplateTask: (input: TemplateTaskRequest) => request<TemplateTaskCreated>('/template-tasks', { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(input) }),
+  startTemplateTask: (id: string) => request<TemplateTaskCreated>(`/template-tasks/${encodeURIComponent(id)}/start`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } }),
   getStoryAccountingCalls: async () => (await request<unknown[]>('/story-accounting')).map(normalizeStoryAccountingCall),
   getStoryAccountingCall: async (id: string) => normalizeStoryAccountingCall(await request<unknown>(`/story-accounting/${encodeURIComponent(id)}`)),
   cancelStoryAccountingCall: async (id: string) => normalizeStoryAccountingCall(await request<unknown>(`/story-accounting/${encodeURIComponent(id)}/cancel`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } })),

@@ -67,7 +67,7 @@ class AutomationServiceIntegrationTest {
     }
 
     @Test
-    void pollFailureIsDurableBoundedAndRecoversWithoutChangingRuleAuthority() throws Exception {
+    void retiredPollDoesNotProbeOrTriggerEvenForPreviouslyEnabledRules() throws Exception {
         ProjectRow project = projects.create("poll-health", gitProject("health"));
         var template = templates.create("health template", "");
         var version = templates.createVersion(template.id(), spec(project.id()), false);
@@ -75,28 +75,14 @@ class AutomationServiceIntegrationTest {
                 AutomationTriggerType.GIT_HEAD_CHANGED, Map.of(), null, null));
         var enabled = automation.update(created.rule().id(), new AutomationService.RuleInput("Git 检查", project.id(), version.id(),
                 AutomationTriggerType.GIT_HEAD_CHANGED, Map.of(), "ENABLED", AutomationApprovalMode.REVIEW_REQUIRED), created.rule().version());
-        org.mockito.Mockito.doReturn(new io.opencode.loopper.runtime.ProcessResult(-1, "secret-must-not-persist", true))
-                .when(processRunner).run(eq(Path.of(project.rootPath())), eq(List.of("git", "rev-parse", "HEAD")), any(java.time.Duration.class));
+        org.mockito.Mockito.clearInvocations(processRunner);
         automation.poll();
         automation.poll();
-        var failed = automation.ruleById(enabled.id());
-        assertThat(failed.version()).isEqualTo(enabled.version());
-        assertThat(failed.state()).isEqualTo("ENABLED");
-        assertThat(failed.health().status()).isEqualTo("FAILED");
-        assertThat(failed.health().consecutiveFailures()).isEqualTo(2);
-        assertThat(failed.health().errorCode()).isEqualTo("GIT_HEAD_TIMEOUT");
-        assertThat(json.writeValueAsString(failed.health())).doesNotContain("secret-must-not-persist");
+        var retained = automation.ruleById(enabled.id());
+        assertThat(retained.version()).isEqualTo(enabled.version());
+        assertThat(retained.state()).isEqualTo("ENABLED");
         assertThat(automation.runs(enabled.id())).isEmpty();
-        org.mockito.Mockito.doReturn(new io.opencode.loopper.runtime.ProcessResult(0, "first-head", false))
-                .when(processRunner).run(eq(Path.of(project.rootPath())), eq(List.of("git", "rev-parse", "HEAD")), any(java.time.Duration.class));
-        automation.poll();
-        var recovered = automation.ruleById(enabled.id());
-        assertThat(recovered.health().status()).isEqualTo("CHECKED");
-        assertThat(recovered.health().consecutiveFailures()).isZero();
-        assertThat(recovered.health().lastSuccessAt()).isNotBlank();
-        assertThat(recovered.health().errorMessage()).isNull();
-        health.failure(enabled.id(), enabled.version(), AutomationPollHealthService.Failure.DETECTION_FAILED);
-        assertThat(automation.ruleById(enabled.id()).health().status()).isEqualTo("CHECKED");
+        org.mockito.Mockito.verifyNoInteractions(processRunner);
     }
 
     @Test
@@ -276,7 +262,7 @@ class AutomationServiceIntegrationTest {
     }
 
     @Test
-    void fiveFieldCronFiresOnlyOneRunForTheCurrentDueMinute() throws Exception {
+    void retiredCronNeverFiresForTheCurrentDueMinute() throws Exception {
         ProjectRow project = projects.create("automation-cron", gitProject("cron"));
         var template = templates.create("cron template", "");
         var version = templates.createVersion(template.id(), spec(project.id()), false);
@@ -288,12 +274,11 @@ class AutomationServiceIntegrationTest {
         automation.poll();
         automation.poll();
 
-        assertThat(automation.runs(created.rule().id())).singleElement()
-                .satisfies(run -> assertThat(run.state()).isEqualTo("REVIEW_REQUIRED"));
+        assertThat(automation.runs(created.rule().id())).isEmpty();
     }
 
     @Test
-    void gitHeadTriggerPersistsABaselineBeforeDetectingAChange() throws Exception {
+    void retiredGitHeadTriggerDoesNotObserveOrDispatchChanges() throws Exception {
         ProjectRow project = projects.create("automation-git", gitProject("head"));
         var template = templates.create("head template", "");
         var version = templates.createVersion(template.id(), spec(project.id()), false);
@@ -304,7 +289,7 @@ class AutomationServiceIntegrationTest {
 
         automation.poll();
         assertThat(automation.runs(created.rule().id())).isEmpty();
-        assertThat(mapper.findAutomationRule(created.rule().id()).orElseThrow().lastObservedHead()).isNotBlank();
+        assertThat(mapper.findAutomationRule(created.rule().id()).orElseThrow().lastObservedHead()).isNull();
 
         Path root = Path.of(project.rootPath());
         Files.writeString(root.resolve("change.txt"), "changed");
@@ -312,10 +297,7 @@ class AutomationServiceIntegrationTest {
         run(root, "git", "commit", "-m", "change");
         automation.poll();
 
-        assertThat(automation.runs(created.rule().id())).singleElement().satisfies(run -> {
-            assertThat(run.triggerType()).isEqualTo("GIT_HEAD_CHANGED");
-            assertThat(run.state()).isEqualTo("REVIEW_REQUIRED");
-        });
+        assertThat(automation.runs(created.rule().id())).isEmpty();
     }
 
     private LoopSpec spec(String projectId) {

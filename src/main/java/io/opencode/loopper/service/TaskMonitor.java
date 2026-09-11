@@ -50,6 +50,7 @@ class TaskMonitor {
                 }
                 continue;
             }
+            if (TemplateWorkspaceService.applies(task)) continue;
             if (!TaskState.RUNNING.name().equals(task.state()) || task.worktreePath() == null) continue;
             tasks.enforceTimeouts(task.id());
             if (!TaskState.RUNNING.name().equals(tasks.get(task.id()).state())) continue;

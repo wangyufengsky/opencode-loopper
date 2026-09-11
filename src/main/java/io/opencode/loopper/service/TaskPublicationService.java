@@ -66,6 +66,7 @@ public class TaskPublicationService {
 
     public PublicationStatus status(String taskId) {
         TaskRow task = tasks.get(taskId);
+        if (TemplateWorkspaceService.applies(task)) return unavailable(task, "模板任务交付 Markdown 报告");
         if (!hasSuccessfulResult(task)) {
             return unavailable(task, "任务通过全部验收后才能提交");
         }
@@ -395,6 +396,7 @@ public class TaskPublicationService {
 
     private TaskRow requirePublishableTask(String taskId) {
         TaskRow task = tasks.get(taskId);
+        if (TemplateWorkspaceService.applies(task)) throw new ConflictException("TEMPLATE_PUBLICATION_UNSUPPORTED", "模板任务交付 Markdown 报告，无需提交或发布代码");
         if (!hasSuccessfulResult(task)) {
             throw new ConflictException("TASK_NOT_SUCCEEDED", "任务通过全部验收后才能提交并发布");
         }

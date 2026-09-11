@@ -62,7 +62,7 @@ public class AutomationController {
     public AutomationService.RunView webhook(@PathVariable String ruleId, @PathVariable String token, @RequestBody(required = false) String body,
                                               @RequestHeader(value = "X-Loopper-Delivery-Id", required = false) String deliveryId,
                                               HttpServletRequest request) {
-        return automation.webhook(ruleId, token, request.getRemoteAddr(), body, deliveryId);
+        throw retired();
     }
 
     private AutomationService.RuleInput input(FeatureContracts.CreateAutomationRuleRequest request) {
@@ -74,7 +74,13 @@ public class AutomationController {
         return new AutomationService.RuleInput(request.name(), old.projectId(), request.templateVersionId(), request.triggerType(),
                 request.triggerConfig(), request.state(), request.approvalMode());
     }
-    private void requireLocalUi(String localUi) { if (!"1".equals(localUi)) throw new io.opencode.loopper.service.BadRequestException("LOCAL_UI_HEADER_REQUIRED", "This operation is available only to the local Loopper UI"); }
+    private void requireLocalUi(String localUi) {
+        if (!"1".equals(localUi)) throw new io.opencode.loopper.service.BadRequestException("LOCAL_UI_HEADER_REQUIRED", "请从本地页面执行操作");
+        throw retired();
+    }
+    private io.opencode.loopper.service.ConflictException retired() {
+        return new io.opencode.loopper.service.ConflictException("LEGACY_AUTOMATION_RETIRED", "旧模板与自动化已停用，请使用模板任务；历史记录仍可查看");
+    }
     public record AutomationWorkspace(List<LoopSpecTemplateService.TemplateView> templates,
                                       List<AutomationService.RuleView> rules,
                                       List<AutomationService.RunView> runs, String serverTime) { }

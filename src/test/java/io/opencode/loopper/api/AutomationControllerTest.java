@@ -25,7 +25,7 @@ class AutomationControllerTest {
             .setControllerAdvice(new ApiExceptionHandler()).build();
 
     @Test
-    void localMutationsRequireTheLocalUiHeader() throws Exception {
+    void legacyMutationsRejectEvenWithLocalUiHeader() throws Exception {
         when(templates.create("T", "D")).thenReturn(new LoopSpecTemplateService.TemplateView(
                 "template", "T", "D", "ACTIVE", "created", "updated", 0, List.of()));
 
@@ -38,12 +38,13 @@ class AutomationControllerTest {
                         .header("X-Loopper-Local-UI", "1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"T\",\"description\":\"D\"}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value("template"));
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value("LEGACY_AUTOMATION_RETIRED"));
+        org.mockito.Mockito.verifyNoInteractions(templates, automation);
     }
 
     @Test
-    void loopbackWebhookEndpointDoesNotRequireTheBrowserMutationHeader() throws Exception {
+    void legacyWebhookCannotDispatchEvenWithItsOldToken() throws Exception {
         var run = new AutomationService.RunView("run", "rule", "WEBHOOK", "REVIEW_REQUIRED", "draft", null,
                 Map.of("deliveryId", "delivery"), "detected", null, null);
         when(automation.webhook(eq("rule"), eq("token"), any(), eq("{}"), eq("delivery"))).thenReturn(run);
@@ -53,9 +54,9 @@ class AutomationControllerTest {
                         .header("X-Loopper-Delivery-Id", "delivery")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.state").value("REVIEW_REQUIRED"));
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value("LEGACY_AUTOMATION_RETIRED"));
 
-        verify(automation).webhook("rule", "token", "127.0.0.1", "{}", "delivery");
+        org.mockito.Mockito.verifyNoInteractions(automation);
     }
 }

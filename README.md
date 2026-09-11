@@ -9,7 +9,7 @@
 
 OpenCode Loopper 在本机运行，以你已有的项目目录、Git 仓库和 OpenCode 为基础。你用自然语言描述目标，在界面中确认设计和执行范围；Loopper 将它编译为分阶段规范，调度 OpenCode 实施，再用可运行的验证规则和独立评审检查结果。遇到问题，可以查看证据、回答问题、继续修正或从保留的基线恢复。
 
-> 当前版本：`0.4.2`。默认访问 **http://127.0.0.1:8080/**，打开即进入主页。面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.4.7`。默认访问 **http://127.0.0.1:8080/**，打开即进入主页。面向单机本地使用，不是多租户远程执行平台。
 
 ![OpenCode Loopper 实际主页：统一导航、快捷入口与需求到交付的流程](docs/deliveries/0.3.99-home.png)
 
@@ -43,7 +43,7 @@ OpenCode Loopper 在本机运行，以你已有的项目目录、Git 仓库和 O
 | 避免把“模型说完成”当成完成 | 运行确定性验证，并由需求评审员与风险评审员独立检查同一批证据 |
 | 处理失败、等待或中断 | 在待处理中心回答问题，查看停止原因，继续当前任务或派生恢复任务 |
 | 检查本地 AI 的能力 | 浏览 MCP 工具以及当前 OpenCode 发现的 Skill，打开 Markdown 文档 |
-| 重复执行已确认的流程 | 使用不可变规范模板和自动化规则，保留审批、队列与验收边界 |
+| 重复执行已确认的流程 | 选择内置模板任务，填写项目、分支和日期后手动执行 |
 
 它也支持只读代码评审，以及具有明确文件、结构或数据断言的文档和数据任务。实际可执行范围取决于项目、OpenCode、模型与本机工具链；模型 Provider 的认证和费用由你使用的 OpenCode 配置决定。
 
@@ -74,7 +74,7 @@ flowchart LR
 | **任务** `/tasks` | 开始执行、查看进度、验证与评审、处理结果 | 设计确认后及执行过程中 |
 | **待处理中心** `/inbox` | 集中处理问题、权限和需要人工决定的阻断 | 任务等待你的输入时 |
 | **质量与用量** `/insights` | 查看质量、执行与用量统计 | 回顾任务效果和消耗 |
-| **模板与自动化** `/automations` | 管理基于模板的重复任务 | 流程已稳定并经过评审后 |
+| **模板任务** `/template-tasks` | 代码审查、项目贡献排名与个人周报 | 需要重复运行报告任务时 |
 | **运行环境** `/runtime` | 查看 Loopper/OpenCode 版本、连接与受管进程状态 | 首次启动或连接异常时 |
 | **工具与 Skill** `/tools` | 在“工具”和“Skill”之间切换 | 检查可用工具和技能文档 |
 | **设置** `/settings` | 配置模型、执行上限、重试及发布网络 | 按项目调整运行参数 |
@@ -96,7 +96,7 @@ Skill 正文按需加载，来自 OpenCode 返回的文档内容；原文件的 
 | 依赖 | 要求 | 用途 |
 | --- | --- | --- |
 | Java | JDK 21 | 运行完整 JAR |
-| Git | 可从终端调用 | 项目分支、差异与发布 |
+| Git | 可从终端调用；模板任务需要 2.40+ | 项目分支、差异与发布 |
 | OpenCode CLI | 已安装并完成模型认证 | 实际模型会话与工具执行；当前集成依据 1.18.x 接口验证 |
 | Chrome / Chromium | 使用浏览器验收时安装 | `BROWSER` 验证器 |
 
@@ -110,7 +110,7 @@ Skill 正文按需加载，来自 OpenCode 返回的文档内容；原文件的 
 
 | 文件 | 内容 |
 | --- | --- |
-| `opencode-loopper-0.4.2.jar` | 后端、前端页面与 SQLite JDBC |
+| `opencode-loopper-0.4.7.jar` | 后端、前端页面与 SQLite JDBC |
 | `start-linux.sh` | Linux 启动脚本 |
 | `start-windows.bat` | Windows 启动脚本 |
 | `SHA256SUMS` | JAR 与两个脚本的 SHA-256 |
@@ -118,7 +118,7 @@ Skill 正文按需加载，来自 OpenCode 返回的文档内容；原文件的 
 如果下载了清单中的全部三个文件，Linux 可运行 `sha256sum -c SHA256SUMS`，macOS 可运行 `shasum -a 256 -c SHA256SUMS`。只下载部分文件时，对应缺失项会报错；请逐一比对已下载文件的哈希。Windows PowerShell 可运行：
 
 ```powershell
-Get-FileHash .\opencode-loopper-0.4.2.jar -Algorithm SHA256
+Get-FileHash .\opencode-loopper-0.4.7.jar -Algorithm SHA256
 Get-Content .\SHA256SUMS
 ```
 
@@ -143,7 +143,7 @@ chmod +x start-linux.sh
 **macOS，或直接运行 JAR**：在 `java` 指向 JDK 21 的终端执行：
 
 ```bash
-java -jar opencode-loopper-0.4.2.jar
+java -jar opencode-loopper-0.4.7.jar
 ```
 
 启动后访问 **http://127.0.0.1:8080/**。默认使用 `managed` 模式，由 Loopper 启动一个独立 OpenCode 子进程，不需要你预先运行 `opencode serve`。已有外部 OpenCode 的连接方法见 [运行模式与启动配置](docs/operations.md#opencode-运行模式)。
@@ -231,11 +231,15 @@ Loopper 与模型服务分别配置：Loopper 能启动，不代表模型已认�
 
 PR/MR 入口可打开预填的托管平台页面，最终创建或合并仍由相应确认流程完成。执行阶段的 OpenCode 权限不会因为设计已确认就自动扩大为提交、推送或发布权限。分支恢复和工作区交接由服务端协调，请按界面状态操作。
 
-### 复用设计与自动化
+### 模板任务
 
-设计历史用于回看已确认内容及其依据。稳定流程可以保存为不可变版本的规范模板，再创建手动、CRON、Git HEAD 变化或本机 Webhook 自动化规则。
+模板任务是项目内置、可反复手动执行的公共任务。首批提供代码审查和项目人员贡献周报。项目、分支使用可搜索下拉框，默认主分支；日期使用日期选择框，默认最近七天，统一北京时间，包含起止当天。结束日期不能早于开始日期。
 
-新规则默认停用并需要评审。自动化仍经过队列、权限、验证器与评审，不能绕过原有安全和人工边界。配置方式与状态语义见 [功能合同](docs/seven-feature-contract.md)。
+模板采集要求 Git 2.40+，以便在独立 bare 快照中按提交读取文件属性，而不依赖原目录的 index 或未提交文件；对应能力见 [Git 2.40 的 check-attr 文档](https://git-scm.com/docs/git-check-attr/2.40.0)。
+
+点击“开始执行”后，系统在独立目录同步并冻结 Git 证据，分批分析、生成 Markdown 报告，再进行独立双评审。代码审查输出一个报告；贡献周报输出总报告、每人的个人报告和内置评分排名。评分标准、原始量、去噪依据及等级理由随报告保留，详情页可预览和下载。可以选填故事统计配置，只有实际分析会话计入执行者 AI 工作量。
+
+旧模板编辑和自动化触发已停用，历史记录保留。当前只支持手动发起。执行、恢复和评分的精确定义见 [功能合同](docs/seven-feature-contract.md)。
 
 ### 观察用量与质量
 
@@ -326,7 +330,7 @@ flowchart TB
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.4.2.jar
+java -jar target/opencode-loopper-0.4.7.jar
 ```
 
 Windows PowerShell 将 Maven 命令替换为 `.\mvnw.cmd clean verify`。完整构建将前端静态资源装入 JAR，开发 profile 的输出不能当成成品交付。

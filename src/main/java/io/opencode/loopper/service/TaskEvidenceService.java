@@ -48,7 +48,10 @@ final class TaskEvidenceService {
     private final ObjectMapper json;
     private final VerifierEngine verifiers;
 
-    TaskEvidenceService(LoopperMapper mapper, ObjectMapper json, VerifierEngine verifiers) {
+    private final org.springframework.beans.factory.ObjectProvider<TemplateReportArtifactService> templateReports;
+
+    TaskEvidenceService(LoopperMapper mapper, ObjectMapper json, VerifierEngine verifiers, org.springframework.beans.factory.ObjectProvider<TemplateReportArtifactService> templateReports) {
+        this.templateReports = templateReports;
         this.mapper = mapper;
         this.json = json;
         this.verifiers = verifiers;
@@ -110,6 +113,7 @@ final class TaskEvidenceService {
     }
 
     void captureFinalEvidence(TaskRow task, AttemptRow attempt) {
+        if (TemplateWorkspaceService.applies(task)) { captureVerificationSummary(task, attempt); return; }
         captureVerificationSummary(task, attempt);
         if (hasArtifact(task.id(), attempt.id(), "GIT_DIFF")) return;
         VerifierOutcome snapshot = verifiers.verify(Path.of(requireWorktree(task)), task.baselineCommit(),
@@ -295,6 +299,7 @@ final class TaskEvidenceService {
 
     JudgeCandidateSource judgeCandidateSource(
             TaskRow task, AttemptRow attempt, String role, LoopSpec loopSpec) {
+        if (TemplateWorkspaceService.applies(task)) return templateReports.getObject().judgeSource(task, attempt, role);
         String objectives = effectiveStages(task).stream()
                 .filter(stage -> StageState.SUCCEEDED.name().equals(stage.state()))
                 .map(stage -> "- 阶段 " + (stage.ordinal() + 1) + "：" + stage.objective())

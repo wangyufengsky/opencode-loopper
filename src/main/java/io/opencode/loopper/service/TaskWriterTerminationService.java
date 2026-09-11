@@ -293,7 +293,7 @@ final class TaskWriterTerminationService {
                 .map(row -> TaskQueueState.ADMITTED.name().equals(row.state())).orElse(false);
     }
 
-    private Path inPlaceRoot(TaskRow task) { return Path.of(projects.get(task.projectId()).rootPath()); }
+    private Path inPlaceRoot(TaskRow task) { return Path.of(TemplateWorkspaceService.applies(task) ? task.worktreePath() : projects.get(task.projectId()).rootPath()); }
     private String safeNullable(String value) { return value == null ? null : safeMessage(value); }
     private static String safeMessage(Throwable failure) { return safeMessage(failure.getMessage()); }
     private static String safeMessage(String value) {

@@ -73,6 +73,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 public class TaskService {
     private final TaskStartPreflight startPreflight;
+    private final TaskDraftConfirmation draftConfirmation;
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(TaskService.class);
     private static final String LOCAL_SOURCE_SYNC_ARTIFACT_KIND = "LOCAL_SOURCE_SYNC";
     private static final String ATTEMPT_HANDOFF_ARTIFACT_KIND = "ATTEMPT_HANDOFF";
@@ -115,6 +116,8 @@ public class TaskService {
     private final TaskCancellationCoordinator cancellations; private final TaskTerminalConsistencyService terminalConsistency;
     private final TaskWriterTerminationService writerTermination; private final RollingPackageTaskHooks rollingPackages;
     private final DesignerAttachmentContext attachmentContext;
+    private final org.springframework.beans.factory.ObjectProvider<TemplateTaskCoordinator> templateTasks;
+    private final TemplateWorkspaceService templateWorkspace;
     public TaskService(LoopperMapper mapper, LifecycleTransitionService lifecycle, ObjectMapper json, ProjectService projects,
                        GitWorktreeManager worktrees, DirectWorkspaceLeaseCoordinator directLeases,
                        WorkspaceLeaseReconciliationService leaseReconciliation,
@@ -138,7 +141,8 @@ public class TaskService {
                        LegacyJudgeTransport legacyJudgeTransport,
                        LegacyJudgeCompletionService legacyJudgeCompletion,
                        DesignerTerminationService designerTermination, TaskTerminalConsistencyService terminalConsistency, DesignerAttachmentContext attachmentContext,
-                       LoopperProperties defaults, TaskStartPreflight startPreflight,
+                       LoopperProperties defaults, TaskStartPreflight startPreflight, TaskDraftConfirmation draftConfirmation,
+                       org.springframework.beans.factory.ObjectProvider<TemplateTaskCoordinator> templateTasks, TemplateWorkspaceService templateWorkspace,
                        PlatformTransactionManager transactionManager) {
         this.mapper = mapper; this.lifecycle = lifecycle; this.json = json; this.projects = projects;
         this.worktrees = worktrees; this.directLeases = directLeases; this.openCode = openCode;
@@ -152,7 +156,8 @@ public class TaskService {
         this.usageInsights = usageInsights; this.events = events;
         this.executionCycles = executionCycles; this.workspaceCheckpoints = workspaceCheckpoints;
         this.rollingPackages = rollingPackages; this.aiOutputAudit = aiOutputAudit; this.attachmentContext = attachmentContext;
-        this.defaults = defaults; this.startPreflight = startPreflight;
+        this.templateTasks = templateTasks; this.templateWorkspace = templateWorkspace;
+        this.defaults = defaults; this.startPreflight = startPreflight; this.draftConfirmation = draftConfirmation;
         this.transactions = new TransactionTemplate(transactionManager);
         this.retryPolicy = new TaskRetryPolicy(defaults);
         this.judgeCandidates = judgeCandidates; this.judgeBatches = judgeBatches;
@@ -192,7 +197,7 @@ public class TaskService {
         String source = normalizedAdmissionSource(admissionSource);
         DesignerAttachmentContext.PreparedFreeze preparedAttachments = mapper.findLatestDesignerSessionByDraft(draft.id())
                 .map(session -> attachmentContext.prepareFreeze(session.id())).orElse(null);
-        TaskCreation creation = transactions.execute(status -> persistTaskCreation(
+        TaskDraftConfirmation.Creation creation = transactions.execute(status -> draftConfirmation.persist(
                 draft, spec, project, title, source, isolatedBaseline, confirmDraft, preparedAttachments));
         if (creation == null) {
             throw new ConflictException("TASK_CREATE_TRANSACTION_FAILED", "Task creation transaction did not complete");
@@ -203,86 +208,6 @@ public class TaskService {
                     Map.of("state", TaskState.PENDING_START.name()));
         }
         return pending;
-    }
-    private TaskCreation persistTaskCreation(LoopDraftRow inputDraft, LoopSpec spec, ProjectRow project,
-                                             String title, String admissionSource, String isolatedBaseline,
-                                             boolean confirmDraft,
-                                             DesignerAttachmentContext.PreparedFreeze preparedAttachments) {
-        LoopDraftRow draft = mapper.findDraft(inputDraft.id())
-                .orElseThrow(() -> new NotFoundException("Loop draft not found: " + inputDraft.id()));
-        if (draft.version() != inputDraft.version()) {
-            throw new ConflictException("DRAFT_VERSION_CONFLICT", "Loop draft was updated concurrently");
-        }
-        TaskRow existing = mapper.findTaskByDraft(draft.id()).orElse(null);
-        if (existing != null) {
-            if (confirmDraft) confirmDraft(draft);
-            return new TaskCreation(existing.id(), true);
-        }
-        if (confirmDraft) mapper.findLatestDesignerSessionByDraft(draft.id()).ifPresent(session ->
-                DesignerConfirmationGate.assess(mapper, session, spec).requireEligible());
-        String timestamp = now();
-        String taskId = UUID.randomUUID().toString();
-        io.opencode.loopper.persistence.DesignerTaskProfileRow profile = mapper.findFrozenTaskProfileByDraft(draft.id()).orElse(null);
-        TaskRow task = new TaskRow(taskId, project.id(), draft.id(), normalizedTitle(title, draft.goal()),
-                TaskState.PENDING_START.name(), null, null, null, isolatedBaseline, timestamp, timestamp, 0,
-                profile == null ? null : profile.id(), profile == null ? null : profile.rolePackId(),
-                profile == null ? null : profile.rolePackVersion());
-        lifecycle.create(taskStates.subject(LifecycleMachineType.TASK, task.id(), task.id()), task.state(),
-                Map.of("source", admissionSource), () -> mapper.insertTask(task),
-                () -> new ConflictException("TASK_CREATE_CONFLICT", "Task could not be created"));
-        if (preparedAttachments != null) {
-            attachmentContext.freezePrepared(new DesignerAttachmentContext.FreezeForTask(
-                    task.id(), preparedAttachments.designerSessionId(), null), preparedAttachments);
-        }
-        taskEvidence.persistConfirmedDesignContext(task, draft);
-        int ordinal = 0;
-        for (LoopSpec.StageSpec stage : spec.stages()) {
-            ExecutionRoleSnapshot executionRole = executionRole(draft, stage, profile);
-            StageRow stageRow = new StageRow(UUID.randomUUID().toString(), taskId, ordinal++, stage.objective(),
-                    write(stage.allowedPaths()), write(stage.forbiddenPaths()), write(stage.deliverables()), write(stage.verifiers()),
-                    StageState.PENDING.name(), timestamp, timestamp, 0, stage.workPackageId(),
-                    (stage.stageKind() == null ? io.opencode.loopper.domain.StageKind.LEGACY_SOFTWARE : stage.stageKind()).name(),
-                    (stage.executionStrategy() == null
-                            ? ExecutionStrategy.OPEN_CODE_IMPLEMENTATION : stage.executionStrategy()).name(),
-                    stage.artifactPlanId(), executionRole.rolePackId(), executionRole.rolePackVersion(),
-                    executionRole.testPolicy(), executionRole.technologiesJson(), executionRole.projectStackProfileId(),
-                    executionRole.componentKeysJson(),
-                    executionRole.stackFingerprint());
-            lifecycle.create(taskStates.subject(LifecycleMachineType.STAGE, stageRow.id(), taskId), stageRow.state(), Map.of(),
-                    () -> mapper.insertStage(stageRow),
-                    () -> new ConflictException("STAGE_CREATE_CONFLICT", "Stage could not be created"));
-        }
-        if (confirmDraft) confirmDraft(draft);
-        return new TaskCreation(taskId, false);
-    }
-    private ExecutionRoleSnapshot executionRole(LoopDraftRow draft, LoopSpec.StageSpec stage,
-                                                  io.opencode.loopper.persistence.DesignerTaskProfileRow profile) {
-        io.opencode.loopper.persistence.WorkPackageRoleProfileRow packageRole = null;
-        if (stage.workPackageId() != null) {
-            packageRole = mapper.findLatestDesignerSessionByDraft(draft.id())
-                    .flatMap(session -> mapper.findLatestDesignWorkPackage(session.id(), stage.workPackageId()))
-                    .flatMap(workPackage -> mapper.findWorkPackageRoleProfile(workPackage.id()))
-                    .orElse(null);
-        }
-        if (packageRole != null) return new ExecutionRoleSnapshot(
-                    packageRole.rolePackId(), packageRole.rolePackVersion(), packageRole.testPolicy(),
-                    packageRole.technologiesJson(), packageRole.projectStackProfileId(),
-                    packageRole.componentKeysJson(), packageRole.stackFingerprint());
-        if (profile != null) return new ExecutionRoleSnapshot(
-                    profile.rolePackId(), profile.rolePackVersion(), profile.testPolicy(),
-                    profile.technologiesJson(), profile.projectStackProfileId(),
-                    profile.componentKeysJson(), profile.stackFingerprint());
-        return new ExecutionRoleSnapshot("software-java", "legacy", "REQUIRED", "[]", null, "[]", null);
-    }
-    private void confirmDraft(LoopDraftRow draft) {
-        if (LoopDraftStatus.CONFIRMED.name().equals(draft.status())) return;
-        LoopDraftRow confirmed = new LoopDraftRow(draft.id(), draft.projectId(), draft.goal(), draft.specJson(),
-                LoopDraftStatus.CONFIRMED.name(), draft.createdAt(), now(), draft.version());
-        LifecycleTransitionService.Subject draftSubject = new LifecycleTransitionService.Subject(
-                LifecycleMachineType.LOOP_DRAFT, confirmed.id(), LifecycleScopeType.PROJECT, confirmed.projectId());
-        lifecycle.transition(draftSubject, draft.status(), confirmed.status(), null, Map.of(),
-                () -> mapper.updateDraft(confirmed),
-                () -> new ConflictException("DRAFT_VERSION_CONFLICT", "Loop draft was updated concurrently"));
     }
     private String normalizedAdmissionSource(String admissionSource) {
         return switch (admissionSource == null ? "MANUAL" : admissionSource) {
@@ -299,6 +224,7 @@ public class TaskService {
     }
     /** User-authorized continuation of the same Task with a fresh cycle and fresh budgets. */
     public TaskRow continueExecution(String taskId, String requestedStageId, String supplementalPrompt) {
+        requireOrdinaryTask(taskId);
         TaskRow task = get(taskId);
         if (!TaskState.AWAITING_DECISION.name().equals(task.state())) {
             throw new ConflictException("TASK_DECISION_NOT_AVAILABLE", "Task is not waiting for a user decision");
@@ -348,6 +274,7 @@ public class TaskService {
     }
     /** Explicit no-change acceptance is the success confirmation boundary. */
     public TaskRow acceptResult(String taskId) {
+        if (TemplateWorkspaceService.applies(get(taskId))) return completeTemplateReport(taskId);
         TaskRow task = requireSuccessfulDecision(taskId);
         io.opencode.loopper.persistence.TaskWorkspaceCheckpointRow checkpoint = workspaceCheckpoints.latest(taskId);
         if (checkpoint == null || !WorkspaceCheckpointState.READY.name().equals(checkpoint.state())) {
@@ -520,6 +447,7 @@ public class TaskService {
         mapper.deleteEventsForTask(id);
         mapper.deleteJudgeRunsForTask(id);
         rollingPackages.deleteEvidenceBeforeAttempts(id);
+        templateTasks.getObject().deleteBeforeAttempts(id);
         mapper.detachWorkspaceLeaseWriterSessions(id);
         mapper.deleteExecutionSessionsForTask(id);
         mapper.deleteAttemptsForTask(id);
@@ -585,6 +513,7 @@ public class TaskService {
 
     /** Reacquires the FIFO lease and restores a frozen successful cycle before a publication write. */
     public TaskRow preparePublicationWorkspace(String taskId) {
+        requireOrdinaryTask(taskId);
         TaskRow task = requireSuccessfulDecision(taskId);
         io.opencode.loopper.persistence.TaskWorkspaceCheckpointRow checkpoint = workspaceCheckpoints.latest(taskId);
         if (checkpoint == null) {
@@ -719,6 +648,7 @@ public class TaskService {
     }
     TaskRow start(String taskId, String admissionSource) {
         TaskRow task = get(taskId);
+        if (TemplateWorkspaceService.applies(task)) return templateTasks.getObject().start(taskId);
         if (TaskState.valueOf(task.state()).terminal() || TaskState.AWAITING_DECISION.name().equals(task.state())) {
             throw new ConflictException("TASK_TERMINAL", "Cannot start a terminal task");
         }
@@ -836,6 +766,7 @@ public class TaskService {
     }
 
     public TaskRow verify(String taskId) {
+        if (TemplateWorkspaceService.applies(get(taskId))) { templateTasks.getObject().dispatch(taskId); return get(taskId); }
         TaskRow initial = get(taskId);
         boolean verificationOnly = isVerificationOnlyRecovery(taskId);
         if (!TaskState.RUNNING.name().equals(initial.state())) {
@@ -1119,6 +1050,7 @@ public class TaskService {
         startNewAttempt(task, stage, continuation.prompt());
     }
     public TaskRow pause(String taskId) {
+        requireOrdinaryTask(taskId);
         VerifierOutcome runtimeStop = managedVerifierRuntimes.stopTask(taskId, "task-paused");
         if (runtimeStop != null && runtimeStop.state() == VerificationState.ERROR) {
             failTaskForManagedRuntime(taskId, runtimeStop);
@@ -1180,6 +1112,7 @@ public class TaskService {
     }
 
     public TaskRow resume(String taskId) {
+        requireOrdinaryTask(taskId);
         TaskRow task = get(taskId);
         if (!TaskState.PAUSED.name().equals(task.state()) && !TaskState.WAITING_INPUT.name().equals(task.state())) throw new ConflictException("TASK_NOT_PAUSED", "Task is not paused");
         if (TaskState.WAITING_INPUT.name().equals(task.state())) throw new ConflictException("TASK_WAITING_INPUT", "A waiting task needs an explicit revised LoopSpec or judge decision");
@@ -1217,12 +1150,19 @@ public class TaskService {
         events.emit(taskId, "task.resumed", Map.of("state", TaskState.RUNNING.name()));
         return get(taskId);
     }
-    public TaskRow cancel(String taskId) { return settleCancelledLease(cancellations.cancel(taskId)); }
-    public TaskRow cancelDecision(String taskId) { return settleCancelledLease(cancellations.cancelDecision(taskId)); }
-    public TaskRow continueCancellation(String taskId) { return settleCancelledLease(cancellations.continueCancellation(taskId)); }
+    public TaskRow cancel(String taskId) {
+        if (TemplateWorkspaceService.applies(get(taskId)) && !templateTasks.getObject().stopBeforeCancellation(taskId)) return get(taskId);
+        return settleCancelledLease(cancellations.cancel(taskId));
+    }
+    public TaskRow cancelDecision(String taskId) { return TemplateWorkspaceService.applies(get(taskId)) ? cancel(taskId) : settleCancelledLease(cancellations.cancelDecision(taskId)); }
+    public TaskRow continueCancellation(String taskId) {
+        if (TemplateWorkspaceService.applies(get(taskId)) && !templateTasks.getObject().stopBeforeCancellation(taskId)) return get(taskId);
+        return settleCancelledLease(cancellations.continueCancellation(taskId));
+    }
     private TaskRow settleCancelledLease(TaskRow task) {
         if (!TaskState.CANCELLED.name().equals(task.state())) return get(task.id());
-        settleTerminalInPlaceLease(task, true, "TASK_CANCELLED");
+        if (TemplateWorkspaceService.applies(task)) templateWorkspace.releaseStopped(task);
+        else settleTerminalInPlaceLease(task, true, "TASK_CANCELLED");
         return get(task.id());
     }
     public void recoverAfterRestart() {
@@ -1245,6 +1185,7 @@ public class TaskService {
         for (Map.Entry<String, String> interrupted : interruptedStates.entrySet()) {
             TaskRow task = mapper.findTask(interrupted.getKey()).orElse(null);
             if (task == null || !interrupted.getValue().equals(task.state())) continue;
+            if (TemplateWorkspaceService.applies(task)) { templateTasks.getObject().dispatch(task.id()); continue; }
             if (TaskState.STOPPING.name().equals(task.state())) {
                 try { continueCancellation(task.id()); }
                 catch (RuntimeException ignoredConcurrentCancellation) { }
@@ -1790,6 +1731,7 @@ public class TaskService {
 
     /** Explicit local confirmation authorizes exactly one fresh retry after loop noise protection stopped automation. */
     public TaskRow retryWaitingLoop(String taskId) {
+        requireOrdinaryTask(taskId);
         LoopRetryPreparation preparation = transactions.execute(status -> prepareWaitingLoopRetry(taskId));
         if (preparation == null) throw new ConflictException("LOOP_RETRY_PREPARATION_FAILED", "Unable to prepare the explicit loop retry");
         startNewAttempt(get(taskId), preparation.stage(), preparation.prompt());
@@ -2017,7 +1959,7 @@ public class TaskService {
         if (TaskState.JUDGING.name().equals(get(taskId).state())) recoverCandidateJudgeFailures(get(taskId));
         if (TaskState.JUDGING.name().equals(get(taskId).state())) evaluateJudgeDecision(get(taskId));
     }
-    private void launchRequiredJudges(TaskRow task, AttemptRow finalAttempt) {
+    void launchRequiredJudges(TaskRow task, AttemptRow finalAttempt) {
         JudgeReviewBatchRow activeBatch = judgeBatches.findRunning(task.id()).orElse(null);
         List<String> pendingRoles = List.of("REQUIREMENT", "RISK").stream()
                 .filter(role -> activeBatch == null
@@ -2391,9 +2333,6 @@ public class TaskService {
         }
     }
     private String safeNullable(String value) { return value == null ? null : safeMessage(value); }
-    private record TaskCreation(String taskId, boolean existing) { }
-    private record ExecutionRoleSnapshot(String rolePackId, String rolePackVersion, String testPolicy,
-            String technologiesJson, String projectStackProfileId, String componentKeysJson, String stackFingerprint) { }
     private record PendingVerification(String id, int index, VerifierOutcome outcome) { }
     private void failTask(TaskRow task, String code, String message, StageRow stage, AttemptRow attempt, ExecutionSessionRow session) {
         TaskRow current = mapper.findTask(task.id()).orElse(task);
@@ -2430,7 +2369,7 @@ public class TaskService {
         if (active == null) active = executionCycles.ensureInitial(task, cycleBudgetSnapshot(spec(task)));
         TaskExecutionCycleRow ended = executionCycles.finish(task.id(), result, code, message);
         io.opencode.loopper.persistence.TaskWorkspaceCheckpointRow checkpoint = null;
-        if (writersStopped) checkpoint = workspaceCheckpoints.freeze(get(task.id()), ended);
+        if (writersStopped && !TemplateWorkspaceService.applies(task)) checkpoint = workspaceCheckpoints.freeze(get(task.id()), ended);
         LifecycleEvent event = result == ExecutionCycleState.SUCCEEDED ? LifecycleEvent.APPROVE : LifecycleEvent.FAIL;
         taskStates.updateTask(taskStates.taskState(get(task.id()), TaskState.AWAITING_DECISION), event,
                 Map.of("cycleId", ended.id(), "cycleOrdinal", ended.ordinal(), "cycleResult", result.name()));
@@ -2445,6 +2384,17 @@ public class TaskService {
         if (checkpoint != null && io.opencode.loopper.domain.WorkspaceCheckpointState.READY.name().equals(checkpoint.state())) {
             settleTerminalInPlaceLease(get(task.id()), true, "TASK_AWAITING_DECISION_CHECKPOINTED");
         }
+    }
+    TaskRow completeTemplateReport(String taskId) {
+        TaskRow task = get(taskId);
+        if (!TemplateWorkspaceService.applies(task) || !TaskState.AWAITING_DECISION.name().equals(task.state())) return task;
+        var cycle = executionCycles.latest(taskId);
+        if (cycle == null || !ExecutionCycleState.SUCCEEDED.name().equals(cycle.state()) || writerTermination.hasUnconfirmedWriter(taskId)) return task;
+        if (!templateWorkspace.releaseStopped(task)) return task;
+        return terminalConsistency.complete(get(taskId), LifecycleEvent.COMPLETE, Map.of("source", "TEMPLATE_REPORT_DUAL_JUDGE_PASS"));
+    }
+    private void requireOrdinaryTask(String taskId) {
+        if (TemplateWorkspaceService.applies(get(taskId))) throw new ConflictException("TEMPLATE_ACTION_UNSUPPORTED", "模板任务按固定合同执行；请查看报告或重新发起任务");
     }
     public TaskExecutionCycleRow latestExecutionCycle(String taskId) {
         get(taskId);
@@ -2592,6 +2542,7 @@ public class TaskService {
             if (lease.holderTaskId() == null) continue;
             TaskRow task = mapper.findTask(lease.holderTaskId()).orElse(null);
             if (task == null || !isAdmittedInPlace(task)) continue;
+            if (TemplateWorkspaceService.applies(task)) { templateTasks.getObject().dispatch(task.id()); continue; }
             if (TaskState.valueOf(task.state()).terminal()
                     || TaskState.AWAITING_DECISION.name().equals(task.state())) {
                 rehydrateTerminalLease(task, lease);
@@ -2664,7 +2615,6 @@ public class TaskService {
                 safeMessage(message), retryable, write(evidence), now()));
     }
     private String requireWorktree(TaskRow task) { if (task.worktreePath() == null || task.worktreePath().isBlank()) throw new TaskFailure("WORKTREE_MISSING", "Task has no prepared execution workspace"); return task.worktreePath(); }
-    private String normalizedTitle(String title, String goal) { return title == null || title.isBlank() ? goal.substring(0, Math.min(goal.length(), 120)) : title.trim(); }
     private OpenCodeClient.OpenCodeModel model(LoopSpec spec) {
         if (spec.model() != null && spec.model().providerId() != null && spec.model().modelId() != null) {
             return new OpenCodeClient.OpenCodeModel(spec.model().providerId(), spec.model().modelId(), spec.model().thinking());

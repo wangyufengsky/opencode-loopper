@@ -4,7 +4,7 @@ import { api } from '@/api/client'
 import type { StoryBindingCapability, StoryBindingConfiguration } from '@/types/domain'
 import { userFacingError } from '@/utils/displayLabels'
 
-const props = defineProps<{ projectId: string; runtimeIdentity?: string; disabled?: boolean }>()
+const props = defineProps<{ projectId: string; runtimeIdentity?: string; disabled?: boolean; templateTask?: boolean }>()
 const model = defineModel<StoryBindingConfiguration>({ required: true })
 const capability = ref<StoryBindingCapability>()
 const checking = ref(false)
@@ -51,7 +51,7 @@ watch(() => [props.projectId, props.runtimeIdentity], () => {
 <template>
   <section class="story-binding-setup" aria-label="故事绑定设置">
     <div class="story-binding-heading">
-      <label for="story-binding-switch"><strong>开启故事绑定</strong><span>仅统计设计师和执行者的 AI 工作量</span></label>
+      <label for="story-binding-switch"><strong>开启故事绑定</strong><span>{{ templateTask ? '仅统计实际报告分析会话的 AI 工作量' : '仅统计设计师和执行者的 AI 工作量' }}</span></label>
       <el-switch id="story-binding-switch" :model-value="model.enabled" :loading="checking"
         :disabled="disabled || checking || !available" aria-label="开启故事绑定"
         @update:model-value="model = { ...model, enabled: $event === true }" />

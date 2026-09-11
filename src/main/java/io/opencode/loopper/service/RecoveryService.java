@@ -47,6 +47,7 @@ public class RecoveryService {
         RecoveryMode mode = requestedMode == null ? RecoveryMode.FROM_FAILED_STAGE : requestedMode;
         TaskRow parent = mapper.findTask(parentTaskId)
                 .orElseThrow(() -> new NotFoundException("Task not found: " + parentTaskId));
+        if (TemplateWorkspaceService.applies(parent)) throw new ConflictException("TEMPLATE_RECOVERY_UNSUPPORTED", "模板任务使用冻结报告合同，请从模板任务重新发起");
         if (mode == RecoveryMode.REWORK_ALL_STAGES) requireReworkableParent(parent);
         else if (mode == RecoveryMode.INHERIT_CHANGES
                 || (mode == RecoveryMode.VERIFY_ONLY && TaskState.AWAITING_DECISION.name().equals(parent.state()))) {

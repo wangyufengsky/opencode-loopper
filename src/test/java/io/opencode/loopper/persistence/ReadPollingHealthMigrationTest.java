@@ -18,7 +18,7 @@ class ReadPollingHealthMigrationTest {
             sql.execute("INSERT INTO loopspec_template_version VALUES('v','t',1,'{}','hash',1,0,'now')");
             sql.execute("INSERT INTO automation_rule VALUES('r','rule','p','v','CRON','ENABLED','REVIEW_REQUIRED','{}',NULL,NULL,'now','now',7)");
         }
-        Flyway.configure().dataSource(url, null, null).load().migrate();
+        Flyway.configure().dataSource(url, null, null).target("76").load().migrate();
         try (var connection = DriverManager.getConnection(url); var sql = connection.createStatement()) {
             try (var rows = sql.executeQuery("SELECT state,approval_mode,version FROM automation_rule WHERE id='r'")) {
                 assertThat(rows.next()).isTrue();

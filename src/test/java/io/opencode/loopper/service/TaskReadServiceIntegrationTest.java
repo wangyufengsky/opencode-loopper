@@ -168,6 +168,21 @@ class TaskReadServiceIntegrationTest {
     }
 
     @Test
+    void templateReportAuditPreservesVersionAndNameWithoutLoadingBody() {
+        jdbc.update("INSERT INTO task_artifact(id,task_id,attempt_id,kind,name,content_type,content,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
+                "artifact-report", "task-a", "attempt-a", "TEMPLATE_REPORT", "code-review.md", "text/markdown",
+                "body must stay lazy", "{\"displayName\":\"代码审查报告\",\"repairRound\":2,\"sha256\":\"frozen-hash\",\"output\":\"excluded\"}", "now");
+        assertThat(reads.audit("task-a").artifacts()).filteredOn(artifact -> artifact.kind().equals("TEMPLATE_REPORT"))
+                .singleElement().satisfies(artifact -> {
+                    assertThat(artifact.metadataSummary().path("displayName").asText()).isEqualTo("代码审查报告");
+                    assertThat(artifact.metadataSummary().path("repairRound").asInt()).isEqualTo(2);
+                    assertThat(artifact.metadataSummary().path("sha256").asText()).isEqualTo("frozen-hash");
+                    assertThat(artifact.metadataSummary().has("output")).isFalse();
+                    assertThat(json.writeValueAsString(artifact)).doesNotContain("body must stay lazy");
+                });
+    }
+
+    @Test
     void overviewProjectsTheAuthoritativeCancellationCapabilityForEveryTaskState() {
         assertThat(reads.overview("task-a").cancellationAvailable()).isTrue();
 
