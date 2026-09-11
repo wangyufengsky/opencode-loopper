@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { api } from '@/api/client'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { api, subscribeStoryAccountingEvents } from '@/api/client'
 import MarkdownDocument from '@/components/MarkdownDocument.vue'
 import type { StoryAccountingCall } from '@/types/domain'
 import { userFacingError } from '@/utils/displayLabels'
@@ -15,6 +15,11 @@ let timer: ReturnType<typeof setTimeout> | undefined
 let clock: ReturnType<typeof setInterval> | undefined
 let alive = true
 let selection = 0
+let stream: { close: () => void } | undefined
+let refreshing = false
+let listRequested = false
+let detailRequested = false
+let recoveryFailures = 0
 const current = computed(() => calls.value.find(call => call.id === selectedId.value))
 const active = (call: StoryAccountingCall) => call.state === 'PREPARED' || call.state === 'CANCELLING'
 const running = computed(() => current.value ? active(current.value) : false)
@@ -30,28 +35,63 @@ const elapsed = computed(() => {
 })
 const status = computed(() => ({ PREPARED: '正在等待统计结果', CANCELLING: '正在取消本次统计', SUCCEEDED: '统计已完成', FAILED: '统计失败，任务继续执行', UNKNOWN: '统计结果未知，任务继续执行', CANCELLED: '已取消本次统计，任务继续执行' })[current.value?.state ?? 'PREPARED'])
 
+const pageHidden = () => document.visibilityState === 'hidden'
+
+function requestRefresh(list = false) {
+  if (!alive) return
+  listRequested ||= list
+  detailRequested = true
+  if (timer) clearTimeout(timer)
+  if (!refreshing && !pageHidden()) void refresh()
+}
+
+function selectAvailableCall() {
+  const previousId = selectedId.value
+  const candidate = calls.value.find(active)
+  if (!current.value || (!active(current.value) && candidate)) {
+    selectedId.value = candidate?.id ?? calls.value[0]?.id ?? ''
+  }
+  return selectedId.value !== previousId
+}
+
 async function refresh() {
+  if (!alive || refreshing || pageHidden()) return
+  refreshing = true
+  const loadList = listRequested
+  let listLoaded = !loadList
+  listRequested = false
+  detailRequested = false
   const generation = selection
   try {
-    const next = await api.getStoryAccountingCalls()
-    if (!alive || generation !== selection) return
-    const previous = current.value
-    calls.value = next
-    const candidate = next.find(call => active(call))
-    if (!next.some(call => call.id === selectedId.value) || (previous && !active(previous) && candidate)) {
-      selectedId.value = candidate?.id ?? next[0]?.id ?? ''
+    if (loadList) {
+      const next = await api.getStoryAccountingCalls()
+      listLoaded = true
+      if (!alive || generation !== selection) { listRequested = alive; return }
+      recoveryFailures = 0
+      calls.value = next
+      selectAvailableCall()
     }
     const id = selectedId.value
-    if (id) {
+    if (id && current.value && active(current.value) && !pageHidden()) {
       const detail = await api.getStoryAccountingCall(id)
       if (!alive || selection !== generation || selectedId.value !== id) return
       calls.value = calls.value.map(call => call.id === id ? detail : call)
+      if (selectAvailableCall() && running.value) detailRequested = true
     }
     error.value = ''
   } catch (failure) {
     if (alive && current.value) error.value = userFacingError(failure, '统计状态暂时无法刷新')
+    if (!listLoaded && ++recoveryFailures <= 3) listRequested = true
   } finally {
-    if (alive) { now.value = Date.now(); timer = setTimeout(() => void refresh(), 1_200) }
+    refreshing = false
+    if (alive && !pageHidden()) {
+      now.value = Date.now()
+      if (listRequested || detailRequested || running.value) {
+        const delay = recoveryFailures > 0 ? Math.min(recoveryFailures * 2_000, 6_000)
+          : listRequested || detailRequested ? 0 : 1_200
+        timer = setTimeout(() => void refresh(), delay)
+      }
+    }
   }
 }
 
@@ -88,11 +128,31 @@ async function retry() {
     if (!alive) return
     calls.value = [...calls.value.filter(call => call.id !== result.id), result]
     selectedId.value = result.id
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(() => requestRefresh(), 1_200)
   } catch (failure) { if (alive) error.value = userFacingError(failure, '重新发起统计失败，请刷新后重试') }
   finally { retrying.value = false }
 }
-onMounted(() => { clock = setInterval(() => { now.value = Date.now() }, 1_000); void refresh() })
-onBeforeUnmount(() => { alive = false; selection++; if (timer) clearTimeout(timer); if (clock) clearInterval(clock) })
+function visibilityChanged() {
+  if (pageHidden()) { if (timer) clearTimeout(timer) }
+  else { recoveryFailures = 0; requestRefresh(true) }
+}
+watch(running, value => {
+  if (clock) clearInterval(clock)
+  if (value) clock = setInterval(() => { now.value = Date.now() }, 1_000)
+})
+function selectCall() { selection++; requestRefresh() }
+onMounted(() => {
+  const reconcile = () => { recoveryFailures = 0; requestRefresh(true) }
+  stream = subscribeStoryAccountingEvents(reconcile, reconcile)
+  document.addEventListener('visibilitychange', visibilityChanged)
+})
+onBeforeUnmount(() => {
+  alive = false; selection++; stream?.close()
+  document.removeEventListener('visibilitychange', visibilityChanged)
+  if (timer) clearTimeout(timer)
+  if (clock) clearInterval(clock)
+})
 </script>
 
 <template>
@@ -101,7 +161,7 @@ onBeforeUnmount(() => { alive = false; selection++; if (timer) clearTimeout(time
     :show-close="!running && !retrying" @close="close">
     <template v-if="current">
       <p class="accounting-context">系统 {{ current.systemCode }} · 故事 {{ current.storyCode }} · {{ roleLabel(current) }} · 已用 {{ elapsed }} 秒</p>
-      <el-select v-if="calls.length > 1" v-model="selectedId" :teleported="false" aria-label="选择统计会话" @change="selection++">
+      <el-select v-if="calls.length > 1" v-model="selectedId" :teleported="false" aria-label="选择统计会话" @change="selectCall">
         <el-option v-for="(call, index) in calls" :key="call.id" :value="call.id"
           :label="`${index + 1}. ${operationLabel(call)}统计 · ${roleLabel(call)} · ${call.systemCode} / ${call.storyCode}${active(call) ? ' · 进行中' : ''}`" />
       </el-select>

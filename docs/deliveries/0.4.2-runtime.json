@@ -1,0 +1,21 @@
+{
+  "version": "0.4.2",
+  "pid": 3681,
+  "directory": "/var/folders/dd/rj49_gmj4db8m9vpzws8fkf00000gn/T/loopper-story-042-runtime-1e3lX9",
+  "origin": "http://127.0.0.1:57751",
+  "mode": "fake",
+  "health": "UP",
+  "sseReady": true,
+  "heartbeatComment": true,
+  "idleBeforeReload": {
+    "lists": 1,
+    "details": 0,
+    "streams": 1
+  },
+  "afterReload": {
+    "lists": 2,
+    "details": 0,
+    "streams": 2
+  },
+  "browserErrors": []
+}

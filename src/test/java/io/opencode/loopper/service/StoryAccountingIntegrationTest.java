@@ -56,6 +56,7 @@ class StoryAccountingIntegrationTest {
     @Autowired StoryAccountingActivityService activity;
     @Autowired io.opencode.loopper.persistence.StoryAccountingActivityMapper activityMapper;
     @Autowired DesignerEventHub designerEvents;
+    @Autowired StoryAccountingEventHub accountingEvents;
     @Autowired DesignerSessionService designers;
     @Autowired DesignerAttachmentCommandService attachments;
     @Autowired LoopDraftService drafts;
@@ -110,6 +111,28 @@ class StoryAccountingIntegrationTest {
         assertThat(calls).containsExactly("start SYS-001 000123", "complete", "start SYS-001 000123", "complete");
         assertThat(mapper.findStoryAccountingSession("remote-2")).get()
                 .extracting(row -> row.pluginRunId()).isEqualTo("plugin-actual-run");
+    }
+
+    @Test void announcesCommittedStartFallbackAndBackgroundCompletionWithoutRepeatingCommands() throws Exception {
+        String designer = fixture("event-session", true);
+        var states = new CopyOnWriteArrayList<String>();
+        var transactionStates = new CopyOnWriteArrayList<Boolean>();
+        try (var subscription = accountingEvents.subscribe(id -> {
+            if (id.isEmpty()) return;
+            transactionStates.add(TransactionSynchronizationManager.isActualTransactionActive());
+            var row = mapper.findStoryAccountingCallById(id).orElseThrow();
+            states.add(row.operation() + ":" + row.state());
+        })) {
+            accounting.beforeBusinessPrompt(remote("event-session"), request -> {
+                if (request.arguments().startsWith("start")) throw new IllegalStateException("explicit start failure");
+                return new OpenCodeClient.CommandResult("run", "ok");
+            });
+            jdbc.update("UPDATE designer_session SET state='COMPLETED',workflow_phase='COMPLETED' WHERE id=?", designer);
+            accounting.afterTerminalStatus(remote("event-session"), request -> new OpenCodeClient.CommandResult("run", "ok"));
+            assertThat(states).containsExactly("start:PREPARED", "start:FAILED", "continue:PREPARED",
+                    "continue:SUCCEEDED", "complete:PREPARED", "complete:SUCCEEDED");
+            assertThat(transactionStates).containsOnly(false);
+        }
     }
 
     @Test void manualCancellationReleasesBusinessWithoutDeadlineRetryOrLateOverwrite() throws Exception {

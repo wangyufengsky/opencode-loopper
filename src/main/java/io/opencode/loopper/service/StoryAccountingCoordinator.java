@@ -36,6 +36,7 @@ public class StoryAccountingCoordinator {
     private final TaskEventService taskEvents;
     private DesignerEventHub designerEvents;
     private StoryAccountingActivityService activity;
+    private StoryAccountingEventHub accountingEvents;
     private volatile CommandCancellation cancellation;
     private final Map<String, Pending> active = new ConcurrentHashMap<>();
     private final String startupAt = Instant.now().toString();
@@ -48,10 +49,11 @@ public class StoryAccountingCoordinator {
     @Autowired
     public StoryAccountingCoordinator(LoopperMapper mapper, TaskEventService taskEvents,
                                      PlatformTransactionManager transactionManager, DesignerEventHub designerEvents,
-                                     StoryAccountingActivityService activity) {
+                                     StoryAccountingActivityService activity, StoryAccountingEventHub accountingEvents) {
         this(mapper, taskEvents, new TransactionTemplate(transactionManager));
         this.designerEvents = designerEvents;
         this.activity = activity;
+        this.accountingEvents = accountingEvents;
     }
 
     StoryAccountingCoordinator(LoopperMapper mapper, TaskEventService taskEvents,
@@ -152,6 +154,7 @@ public class StoryAccountingCoordinator {
         String detail = "已取消本次统计，任务继续执行。已送达平台的请求可能仍产生报告。";
         try {
             mapper.markStoryAccountingCancelling(callId);
+            accountingChanged(callId);
             CommandCancellation transport = cancellation;
             if (transport != null && !transport.cancel(pending.remote, pending.messageId)) {
                 detail += " 远端停止未确认，后续返回不会改变本次取消结果。";
@@ -337,6 +340,7 @@ public class StoryAccountingCoordinator {
         Pending pending = new Pending(new OpenCodeClient.OpenCodeSession(session.externalSessionId(),
                 java.nio.file.Path.of(session.worktreePath()), session.runtimeGenerationId(), null), call.messageId());
         active.put(call.id(), pending);
+        accountingChanged(call.id());
         pending.worker = commands.submit(() -> {
             synchronized (pending) { if (pending.cancelled) return; }
             try {
@@ -382,6 +386,7 @@ public class StoryAccountingCoordinator {
             mapper.updateStoryAccountingSession(copy(session, sessionState, runId, now));
             return true;
         }));
+        if (claimed) accountingChanged(call.id());
         if (claimed && notify) notifyFailure(session, call, detail == null ? code : detail);
         return new ExecutionOutcome(claimed, state, detail == null ? code : detail);
     }
@@ -431,12 +436,19 @@ public class StoryAccountingCoordinator {
                         "BEGIN".equals(call.phase()) ? "BIND_FAILED" : "COMPLETE_FAILED", session.pluginRunId(), now));
                 return true;
             }));
-            if (claimed) notifyFailure(session, call, detail);
+            if (claimed) {
+                accountingChanged(call.id());
+                notifyFailure(session, call, detail);
+            }
         }
     }
 
     private synchronized <T> T transaction(java.util.function.Supplier<T> action) {
         return transactions == null ? action.get() : transactions.execute(status -> action.get());
+    }
+
+    private void accountingChanged(String callId) {
+        if (accountingEvents != null) accountingEvents.changed(callId);
     }
 
     private void safely(String operation, OpenCodeClient.OpenCodeSession remote, Runnable action) {

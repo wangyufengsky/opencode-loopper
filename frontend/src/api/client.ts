@@ -1826,6 +1826,18 @@ export interface TaskEventStream {
 
 export interface DesignerEventStream { close: () => void }
 
+export function subscribeStoryAccountingEvents(onChange: () => void, onReady: () => void): { close: () => void } {
+  if (typeof EventSource === 'undefined') {
+    onReady()
+    return { close: () => undefined }
+  }
+  const source = new EventSource(`${apiBase}/story-accounting/events`)
+  // The server sends ready only after installing the subscription, including every reconnect.
+  source.addEventListener('ready', onReady)
+  source.onmessage = onChange
+  return { close: () => { source.removeEventListener('ready', onReady); source.onmessage = null; source.close() } }
+}
+
 export function subscribeDesignerEvents(sessionId: string, onEvent: (event: DesignerStreamEvent) => void,
                                         onState: (state: 'connected' | 'reconnecting') => void): DesignerEventStream {
   if (typeof EventSource === 'undefined') {

@@ -5,13 +5,14 @@ import static org.mockito.Mockito.*;
 import io.opencode.loopper.service.BadRequestException;
 import io.opencode.loopper.service.StoryAccountingActivityService;
 import io.opencode.loopper.service.StoryAccountingCoordinator;
+import io.opencode.loopper.service.StoryAccountingEventHub;
 import org.junit.jupiter.api.Test;
 
 class StoryAccountingControllerTest {
     @Test void retryRequiresLocalUiAndReturnsTheNewCallWithoutWaitingForModelOutput() {
         var activity = mock(StoryAccountingActivityService.class);
         var coordinator = mock(StoryAccountingCoordinator.class);
-        var controller = new StoryAccountingController(activity, coordinator);
+        var controller = new StoryAccountingController(activity, coordinator, new StoryAccountingEventHub());
         assertThatThrownBy(() -> controller.retry("old", null)).isInstanceOf(BadRequestException.class);
         verifyNoInteractions(coordinator, activity);
         when(coordinator.retry("old")).thenReturn("new");
