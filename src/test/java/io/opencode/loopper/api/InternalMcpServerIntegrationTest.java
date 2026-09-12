@@ -33,6 +33,8 @@ class InternalMcpServerIntegrationTest {
     private InternalMcpCredentialProvider.Credentials credentials;
     private InternalMcpServerConfiguration.InternalMcpServerRuntime runtime;
     private MockMvc mvc;
+    private final io.opencode.loopper.service.TemplateCandidateSubmissionService templateSubmissions =
+            org.mockito.Mockito.mock(io.opencode.loopper.service.TemplateCandidateSubmissionService.class);
     private final OpenCodeAttachmentResources resources = new OpenCodeAttachmentResources(access);
 
     @BeforeEach
@@ -40,7 +42,7 @@ class InternalMcpServerIntegrationTest {
         credentials = new InternalMcpCredentialProvider(() -> 18083).issue();
         access.activate(credentials);
         InternalMcpServerConfiguration configuration = new InternalMcpServerConfiguration();
-        runtime = configuration.internalMcpServerRuntime(submissions(), new ObjectMapper(), resources, "test");
+        runtime = configuration.internalMcpServerRuntime(submissions(), new ObjectMapper(), resources, templateSubmissions, "test");
         mvc = MockMvcBuilders.routerFunctions(runtime.routerFunction())
                 .addFilters(new InternalMcpStreamableBearerFilter(access))
                 .build();
@@ -110,6 +112,23 @@ class InternalMcpServerIntegrationTest {
         assertThat(command.candidateJson()).contains("normalizedGoal", "目标");
     }
 
+    @Test void templateToolReturnsCorrectionErrorsAndAcceptedReceiptsThroughRealMcpTransport() throws Exception {
+        org.mockito.Mockito.when(templateSubmissions.submit(org.mockito.ArgumentMatchers.eq("batch"),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn("{\"outcome\":\"REJECTED\",\"action\":\"FIX_AND_RESUBMIT\",\"submissionRevision\":1,\"problems\":[{\"detail\":\"missing unit\"}]}",
+                        "{\"outcome\":\"ACCEPTED\",\"action\":\"STOP\",\"submissionRevision\":2}");
+        String session = initialize();
+        String request = """
+                {"name":"submit_template_analysis","arguments":{"runId":"batch","idempotencyKey":"bad",
+                "expectedSubmissionRevision":0,"candidate":{"reviews":[]}}}
+                """;
+        assertThat(result(rpc(2, "tools/call", request), session))
+                .contains("FIX_AND_RESUBMIT", "missing unit", "\"isError\":true");
+        assertThat(result(rpc(3, "tools/call", request.replace("bad", "good").replace(":0,", ":1,")), session))
+                .contains("ACCEPTED", "\"isError\":false");
+        org.mockito.Mockito.verify(templateSubmissions).submit("batch", "good", 1, "{\"reviews\":[]}");
+    }
+
     @Test
     void roleToolRejectsAValidRunOwnedByAnotherCandidateKindBeforeCompilation() throws Exception {
         String sessionId = initialize();
@@ -129,7 +148,7 @@ class InternalMcpServerIntegrationTest {
     void unexpectedSubmissionFailureReturnsOnlyTheStablePublicError() throws Exception {
         runtime.close();
         runtime = new InternalMcpServerConfiguration().internalMcpServerRuntime(
-                failingSubmissions(), new ObjectMapper(), resources, "test");
+                failingSubmissions(), new ObjectMapper(), resources, templateSubmissions, "test");
         mvc = MockMvcBuilders.routerFunctions(runtime.routerFunction())
                 .addFilters(new InternalMcpStreamableBearerFilter(access))
                 .build();
@@ -195,7 +214,7 @@ class InternalMcpServerIntegrationTest {
     void missingRunReturnsAnExactTerminalReferenceDiagnostic() throws Exception {
         runtime.close();
         runtime = new InternalMcpServerConfiguration().internalMcpServerRuntime(
-                notFoundSubmissions(), new ObjectMapper(), resources, "test");
+                notFoundSubmissions(), new ObjectMapper(), resources, templateSubmissions, "test");
         mvc = MockMvcBuilders.routerFunctions(runtime.routerFunction())
                 .addFilters(new InternalMcpStreamableBearerFilter(access))
                 .build();
@@ -267,7 +286,7 @@ class InternalMcpServerIntegrationTest {
         org.mockito.Mockito.when(submission.find("run-1")).thenReturn(Optional.of(run));
         org.mockito.Mockito.doThrow(new io.opencode.loopper.domain.SessionFailure("ATTACHMENT_MCP_NOT_READ", "Attachment not verified"))
                 .when(gated).awaitDelivery("ses-unverified");
-        runtime = new InternalMcpServerConfiguration().internalMcpServerRuntime(submission, new ObjectMapper(), gated, "test");
+        runtime = new InternalMcpServerConfiguration().internalMcpServerRuntime(submission, new ObjectMapper(), gated, templateSubmissions, "test");
         mvc = MockMvcBuilders.routerFunctions(runtime.routerFunction()).addFilters(new InternalMcpStreamableBearerFilter(access)).build();
         String sessionId = mvc.perform(internal(rpc(1, "initialize",
                 "{\"protocolVersion\":\"2025-03-26\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test\",\"version\":\"1\"}}"), null))
@@ -286,7 +305,7 @@ class InternalMcpServerIntegrationTest {
         org.mockito.Mockito.when(run.candidateKind()).thenReturn(MachineCandidateKind.PACKAGE_DESIGN_V1);
         org.mockito.Mockito.when(run.contractVersion()).thenReturn("PACKAGE_DESIGN_V2");
         org.mockito.Mockito.when(submission.find("run-1")).thenReturn(Optional.of(run));
-        runtime = new InternalMcpServerConfiguration().internalMcpServerRuntime(submission, new ObjectMapper(), resources, "test");
+        runtime = new InternalMcpServerConfiguration().internalMcpServerRuntime(submission, new ObjectMapper(), resources, templateSubmissions, "test");
         mvc = MockMvcBuilders.routerFunctions(runtime.routerFunction()).addFilters(new InternalMcpStreamableBearerFilter(access)).build();
         String session = initialize();
         for (String tool : List.of("submit_candidate", "submit_package_design")) {

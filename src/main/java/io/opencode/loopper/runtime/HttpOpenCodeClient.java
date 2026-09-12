@@ -297,27 +297,12 @@ public class HttpOpenCodeClient implements OpenCodeClient {
             JsonNode messages = sessionMessages(session);
             JsonNode latest = responses.latestAssistantAfterUser(messages);
             if (latest == null) throw new SessionFailure("OPENCODE_OUTPUT_MISSING", "OpenCode did not return an assistant turn");
-            JsonNode info = latest.path("info");
-            JsonNode error = info.path("error");
-            String errorType = null;
-            String errorDetail = null;
-            if (!error.isMissingNode() && !error.isNull()) {
-                errorType = responses.firstText(error.path("name"), error.path("code"), error.path("type"));
-                errorDetail = responses.errorDetail(error);
-            }
-            JsonNode structured = info.path("structured");
-            if ((structured.isMissingNode() || structured.isNull()) && latest.has("structured")) {
-                structured = latest.path("structured");
-            }
-            Map<String, Object> structuredValue = structured.isObject() ? responses.object(structured) : Map.of();
-            String text = OpenCodeStepLimitNotice.requireBusinessOutput(responses.assistantText(latest));
-            int retryCount = info.path("structuredRetryCount").asInt(
-                    info.path("structured_retry_count").asInt(0));
+            SessionResult result = responses.result(latest);
             URI endpoint = connectionFor(session).baseUrl();
             OpenCodeModel model = sessionModels.get(session.id());
-            if (!structuredValue.isEmpty()) capabilities.structured(endpoint, model);
-            if (OpenCodeHttpClientSemantics.structuredError(errorType, errorDetail)) capabilities.modelUnsupported(endpoint, model, errorDetail);
-            return new SessionResult(text, structuredValue, blankToNull(errorType), blankToNull(errorDetail), retryCount);
+            if (result.hasStructured()) capabilities.structured(endpoint, model);
+            if (OpenCodeHttpClientSemantics.structuredError(result.errorType(), result.errorDetail())) capabilities.modelUnsupported(endpoint, model, result.errorDetail());
+            return result;
         } catch (SessionFailure e) { throw e; }
         catch (RuntimeException e) { throw new SessionFailure("OPENCODE_OUTPUT_FAILED", e.getMessage()); }
     }

@@ -177,7 +177,8 @@ public final class TemplateTaskCoordinator {
         TaskRow task = states.task(taskId);
         if (task.state().equals("STOPPING") || TaskState.valueOf(task.state()).terminal()) return;
         String code = failure instanceof TaskFailure typed ? typed.code() : failure instanceof SessionFailure session ? session.code() : "TEMPLATE_EXECUTION_INTERRUPTED";
-        String message = failure instanceof TaskFailure ? failure.getMessage() : "执行检查未完成，请查看审计证据并检查运行环境";
+        String message = failure instanceof TaskFailure || Set.of("OPENCODE_OUTPUT_LENGTH_EXHAUSTED",
+                "TEMPLATE_SUBMISSION_MISSING", "TEMPLATE_MCP_REQUIRED").contains(code) ? failure.getMessage() : "执行检查未完成，请查看审计证据并检查运行环境";
         states.waiting(taskId, code, message);
     }
 
@@ -206,6 +207,7 @@ public final class TemplateTaskCoordinator {
     void deleteBeforeAttempts(String taskId) {
         templates.deleteReportBundlesForTask(taskId);
         templates.deletePlanForTask(taskId);
+        templates.deleteCandidateSubmissionsForTask(taskId);
         templates.deleteBatchesForTask(taskId);
         templates.deleteRunForTask(taskId);
     }

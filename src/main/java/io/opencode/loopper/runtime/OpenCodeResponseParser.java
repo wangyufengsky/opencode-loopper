@@ -26,6 +26,30 @@ final class OpenCodeResponseParser {
         if (result.hasStructured()) return json.writeValueAsString(result.structured());
         throw new io.opencode.loopper.domain.SessionFailure("OPENCODE_OUTPUT_MISSING", "OpenCode completed without assistant text or structured output");
     }
+    OpenCodeClient.SessionResult result(JsonNode latest) {
+        JsonNode info = latest.path("info");
+        JsonNode error = info.path("error");
+        String errorType = null;
+        String errorDetail = null;
+        if (!error.isMissingNode() && !error.isNull()) {
+            errorType = firstText(error.path("name"), error.path("code"), error.path("type"));
+            errorDetail = errorDetail(error);
+        }
+        JsonNode structured = info.path("structured");
+        if ((structured.isMissingNode() || structured.isNull()) && latest.has("structured")) {
+            structured = latest.path("structured");
+        }
+        Map<String, Object> structuredValue = structured.isObject() ? object(structured) : Map.of();
+        String text = OpenCodeStepLimitNotice.requireBusinessOutput(assistantText(latest));
+        if ((errorType == null || errorType.isBlank()) && "length".equals(info.path("finish").asText())) {
+            errorType = "OPENCODE_OUTPUT_LENGTH_EXHAUSTED";
+            errorDetail = "OpenCode generation reached its output length limit";
+        }
+        int retryCount = info.path("structuredRetryCount").asInt(
+                info.path("structured_retry_count").asInt(0));
+        return new OpenCodeClient.SessionResult(text, structuredValue, blankToNull(errorType), blankToNull(errorDetail), retryCount);
+    }
+
     JsonNode listBody(JsonNode body) {
         JsonNode value = body != null && body.isArray() ? body : body == null ? null : body.path("data");
         return value != null && value.isArray() ? value : null;

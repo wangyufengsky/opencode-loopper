@@ -30,7 +30,7 @@ public final class InternalMcpContractCatalog {
                 toolName(MachineCandidateKind.REVIEWER_REPORT_V1),
                 toolName(MachineCandidateKind.PROJECT_CONVENTION_V1),
                 toolName(MachineCandidateKind.JUDGE_DECISION_V1),
-                PACKAGE_V2_TOOL, legacyToolName());
+                PACKAGE_V2_TOOL, TEMPLATE_TOOL, legacyToolName());
     }
 
     public static String toolName(MachineCandidateKind kind) {
@@ -42,6 +42,7 @@ public final class InternalMcpContractCatalog {
     public static Optional<String> toolName(OpenCodeClient.SessionProfile profile) {
         if (profile == null) return Optional.empty();
         return switch (profile) {
+            case TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS -> Optional.of(TEMPLATE_TOOL);
             case DECOMPOSER_CANDIDATE_READ_ONLY -> optional(MachineCandidateKind.DECOMPOSITION_PLAN_V2);
             case ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS ->
                     optional(MachineCandidateKind.ACCEPTANCE_CLOSED_CHOICE_V7);
@@ -68,6 +69,8 @@ public final class InternalMcpContractCatalog {
     public static Map<String, Object> inputSchema(MachineCandidateKind kind) {
         return InternalMcpCandidateSchemas.input(kind);
     }
+
+    public static final String TEMPLATE_TOOL = "submit_template_analysis";
 
     public static final String PACKAGE_V2_TOOL = "submit_package_design_v2";
 

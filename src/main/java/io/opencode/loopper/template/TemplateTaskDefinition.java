@@ -7,7 +7,7 @@ public enum TemplateTaskDefinition {
     CODE_REVIEW("代码审查", "审查所选分支和日期范围内的 Git 提交，生成 Markdown 代码审查报告"),
     CONTRIBUTION_REPORT("项目人员贡献周报", "分析代码贡献，生成贡献排名、项目总报告和个人周报");
 
-    public static final String VERSION = "4";
+    public static final String VERSION = "5";
     public static final int CONTENT_REPAIR_LIMIT = 2;
     private final String title;
     private final String description;

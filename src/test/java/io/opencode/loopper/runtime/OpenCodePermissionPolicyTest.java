@@ -247,6 +247,7 @@ class OpenCodePermissionPolicyTest {
     void everyNonRouterRoleAllowsConfiguredMcpToolsWithoutRemovingItsBuiltInBoundary() {
         for (OpenCodeClient.SessionProfile profile : OpenCodeClient.SessionProfile.values()) {
             if (profile == OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS
+                    || profile == OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS
                     || profile == OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_NO_TOOLS
                     || profile == OpenCodeClient.SessionProfile.DECOMPOSER_CANDIDATE_READ_ONLY
                     || profile == OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS
@@ -312,6 +313,16 @@ class OpenCodePermissionPolicyTest {
                 java.util.Map.of("permission", "question", "pattern", "*", "action", "allow"),
                 java.util.Map.of("permission", "read", "pattern", ".env", "action", "deny"),
                 java.util.Map.of("permission", "external_directory", "pattern", "*", "action", "deny"));
+    }
+
+    @Test void templateCandidateHasOnlyItsExactPrivateToolAndNoBuiltInsOrUserMcp() {
+        var rules = OpenCodePermissionPolicy.rules(OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS,
+                java.util.List.of("github", "other"), "loopper_internal_test");
+        assertThat(rules).containsExactly(
+                java.util.Map.of("permission", "*", "pattern", "*", "action", "deny"),
+                java.util.Map.of("permission", "external_directory", "pattern", "*", "action", "deny"),
+                java.util.Map.of("permission", "loopper_internal_test_submit_template_analysis", "pattern", "*", "action", "allow"));
+        assertThat(OpenCodeAgentPolicy.stepLimit(OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS)).isZero();
     }
 
     @Test

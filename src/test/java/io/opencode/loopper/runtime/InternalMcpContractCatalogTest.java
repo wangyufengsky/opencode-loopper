@@ -19,6 +19,7 @@ class InternalMcpContractCatalogTest {
                 "submit_project_convention",
                 "submit_judge_decision",
                 "submit_package_design_v2",
+                "submit_template_analysis",
                 "submit_candidate");
 
         assertThat(InternalMcpContractCatalog.toolName(MachineCandidateKind.DECOMPOSITION_PLAN_V2))

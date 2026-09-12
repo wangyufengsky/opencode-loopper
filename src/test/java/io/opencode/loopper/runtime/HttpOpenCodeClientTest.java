@@ -684,6 +684,21 @@ class HttpOpenCodeClientTest {
         assertThat(client.structuredOutputCapability(model).selectedModel()).isEqualTo(OpenCodeClient.CapabilityState.AVAILABLE);
     }
 
+    @Test void reportsLengthExhaustionSeparatelyFromMissingAssistantOrProviderErrors() {
+        var client = managedRoleClient();
+        var session = client.createSession(worktree, "template", null,
+                OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS);
+        messageBody.set("""
+                [{"info":{"role":"user"}}, {"info":{"role":"assistant","time":{"completed":123},
+                "finish":"length","tokens":{"reasoning":32000,"output":0}},
+                "parts":[{"type":"reasoning","text":"unfinished analysis"}]}]
+                """);
+        var result = client.sessionResult(session);
+        assertThat(result.text()).isEmpty();
+        assertThat(result.errorType()).isEqualTo("OPENCODE_OUTPUT_LENGTH_EXHAUSTED");
+        assertThat(result.errorDetail()).contains("output length limit");
+    }
+
     @Test
     void restoredDesignerTurnUsesUnboundedAgentAndKeepsPreviousTurnsIsolated() {
         var client = managedRoleClient();

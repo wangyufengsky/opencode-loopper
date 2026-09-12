@@ -14,6 +14,8 @@ public interface TemplateTaskMapper {
     @Insert("INSERT INTO template_task_plan(task_id,review_batches,contributor_batches) VALUES(#{taskId},#{reviews},#{contributors}) ON CONFLICT(task_id) DO NOTHING")
     int insertPlan(@Param("taskId") String taskId, @Param("reviews") int reviews, @Param("contributors") int contributors);
     @Delete("DELETE FROM template_task_plan WHERE task_id=#{taskId}") int deletePlanForTask(String taskId);
+    @Delete("DELETE FROM template_candidate_submission WHERE batch_id IN (SELECT id FROM template_task_batch WHERE task_id=#{taskId})")
+    int deleteCandidateSubmissionsForTask(String taskId);
     @Delete("DELETE FROM template_task_batch WHERE task_id=#{taskId}") int deleteBatchesForTask(String taskId);
     @Delete("DELETE FROM template_report_bundle WHERE task_id=#{taskId}") int deleteReportBundlesForTask(String taskId);
     @Delete("DELETE FROM template_task_run WHERE task_id=#{taskId}") int deleteRunForTask(String taskId);

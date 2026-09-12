@@ -27,6 +27,7 @@ final class OpenCodeHttpClientSemantics {
                 || profile == OpenCodeClient.SessionProfile.JUDGE_CANDIDATE_READ_ONLY
                 || profile == OpenCodeClient.SessionProfile.DECOMPOSER_READ_ONLY
                 || profile == OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS
+                || profile == OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS
                 || profile == OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_NO_TOOLS
                 || profile == OpenCodeClient.SessionProfile.COMPILER_READ_ONLY
                 || profile == OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS
@@ -39,7 +40,8 @@ final class OpenCodeHttpClientSemantics {
     }
 
     static boolean candidateProfile(OpenCodeClient.SessionProfile profile) {
-        return profile == OpenCodeClient.SessionProfile.DECOMPOSER_CANDIDATE_READ_ONLY
+        return profile == OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS
+                || profile == OpenCodeClient.SessionProfile.DECOMPOSER_CANDIDATE_READ_ONLY
                 || profile == OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_READ_ONLY
                     || profile == OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_V2_READ_ONLY
                 || profile == OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY

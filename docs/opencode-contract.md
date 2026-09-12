@@ -11,8 +11,8 @@
 | Router 总时限 | 未持久化外部 Session ID 前默认 240 秒；连接后等待真实终态或用户取消 | 不能补设连接后的墙钟/无活动超时 |
 | 公约生成总时限 | 已连接后无墙钟或无活动自动终止，等待真实终态或用户取消 | 不受通用“所有角色必须有限时”推导约束 |
 | 故事统计总时限 | 等待真实消息结果，不因本地轮询耗时自动认定失败；人工取消和消息隔离见 [统计合同](story-binding.md) | 统计失败/控制提示不是业务失败/业务输出 |
-| OpenCode 步数 | Designer（含工作包）、Implementation、Reviewer、Judge 免固定上限；Decomposer、Compiler、滚动规划、公约及普通非 Judge finalizer 为 24；Router 和统计为 2 个传输步 | Router 仍只有一次业务分类；步数不等于模型调用数或 MCP 提交次数 |
-| MCP 提交次数 | 七类角色默认无限；V70/V71 新 run 可冻结 2–16 次总提交。首投计入、幂等重放不计入；历史 NULL 保持无限 | 不覆盖角色时限、权限、停滞、取消和正向停止证明 |
+| OpenCode 步数 | Designer（含工作包）、Implementation、Reviewer、Judge、模板分析免固定上限；Decomposer、Compiler、滚动规划、公约及普通非 Judge finalizer 为 24；Router 和统计为 2 个传输步 | Router 仍只有一次业务分类；步数不等于模型调用数或 MCP 提交次数 |
+| MCP 提交次数 | 模板 V5 同会话纠正无限，其他七类角色默认无限；V70/V71 新 run 可冻结 2–16 次总提交。首投计入、幂等重放不计入；历史 NULL 保持无限 | 不覆盖角色时限、权限、停滞、取消和正向停止证明 |
 | Task/Attempt/费用 | 各自冻结的次数、时长、Token/成本和停滞策略独立计算 | 一个轴无限不能解除其他轴 |
 
 非豁免角色继续使用各自现有总时限。Provider `RETRY` 只在原 Session 内自恢复，不能证明停止，也不能暂停已有适用硬边界。
@@ -206,7 +206,7 @@ The private `/api/internal-mcp-streamable` Router accepts only literal loopback
 addresses and constant-time Bearer matches. One private Server registers seven role-specific tools,
 `submit_decomposition_plan`, `submit_acceptance_choice`, `submit_package_design`,
 `submit_rolling_package_plan`, `submit_reviewer_report`, `submit_project_convention` and
-`submit_judge_decision`, plus recovery-only `submit_candidate` and private non-enumerable attachment
+`submit_judge_decision`, the template-specific `submit_template_analysis`, plus recovery-only `submit_candidate` and private non-enumerable attachment
 resources; it does not contribute a `ToolCallbackProvider`, resource, prompt or completion to the public MCP.
 Every new candidate role receives only its exact random `<server>_<role-tool>` permission. It cannot call the
 legacy tool or a sibling role tool. Frozen launch plans may continue their persisted `submit_candidate` permission,

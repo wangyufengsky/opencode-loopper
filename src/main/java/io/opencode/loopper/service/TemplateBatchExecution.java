@@ -8,6 +8,8 @@ import io.opencode.loopper.persistence.ExecutionSessionRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.TemplateTaskBatchRow;
 import io.opencode.loopper.persistence.TemplateTaskMapper;
+import io.opencode.loopper.persistence.TemplateCandidateSubmissionMapper;
+import io.opencode.loopper.runtime.InternalMcpContractCatalog;
 import io.opencode.loopper.runtime.OpenCodeClient;
 import io.opencode.loopper.template.TemplateAnalysis;
 import io.opencode.loopper.template.TemplateContributionFacts;
@@ -30,12 +32,13 @@ public class TemplateBatchExecution {
     private final TemplateAnalysisPromptFactory prompts;
     private final TemplateCandidateCodec codec;
     private final ObjectMapper json;
+    private final TemplateCandidateSubmissionMapper submissions;
 
     TemplateBatchExecution(TemplateBatchStore store, TemplateTaskMapper templates, LoopperMapper mapper,
                            OpenCodeClient openCode, TemplateAnalysisPromptFactory prompts,
-                           TemplateCandidateCodec codec, ObjectMapper json) {
+                           TemplateCandidateCodec codec, ObjectMapper json, TemplateCandidateSubmissionMapper submissions) {
         this.store = store; this.templates = templates; this.mapper = mapper; this.openCode = openCode;
-        this.prompts = prompts; this.codec = codec; this.json = json;
+        this.prompts = prompts; this.codec = codec; this.json = json; this.submissions = submissions;
     }
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -66,11 +69,19 @@ public class TemplateBatchExecution {
         var model = new OpenCodeClient.OpenCodeModel(configured.providerId(), configured.modelId(), configured.thinking());
         // Text JSON keeps all repair authority on the server. Some OpenCode versions reject retryCount=0,
         // while using their default would authorize hidden retries outside the frozen two-round policy.
-        var prompt = new TemplateBatchStore.FrozenPrompt(text, "msg_" + row.id().replace("-", ""), null, null);
         Path root = Path.of(mapper.findTask(row.taskId()).orElseThrow().worktreePath());
         byte[] nonce = new byte[32]; new SecureRandom().nextBytes(nonce);
+        var profile = "5".equals(contract.definition().version())
+                ? OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS
+                : OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_NO_TOOLS;
         var plan = openCode.prepareSessionCreation(root, "模板报告分析 " + (row.ordinal() + 1), model,
-                OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_NO_TOOLS, Base64.getUrlEncoder().withoutPadding().encodeToString(nonce));
+                profile, Base64.getUrlEncoder().withoutPadding().encodeToString(nonce));
+        if (profile == OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS) {
+            if (!plan.managed()) throw unavailable("TEMPLATE_MCP_REQUIRED", "新模板分析需要托管 OpenCode 的专用 MCP 提交工具");
+            text = prompts.internal(text, row.id(), plan.internalMcpServer() + "_"
+                    + InternalMcpContractCatalog.TEMPLATE_TOOL);
+        }
+        var prompt = new TemplateBatchStore.FrozenPrompt(text, "msg_" + row.id().replace("-", ""), null, null);
         return store.prepareSession(row, plan, prompt);
     }
 
@@ -110,7 +121,18 @@ public class TemplateBatchExecution {
         var status = openCode.sessionStatus(remote);
         if (status.retrying() || !status.completed() && !status.failed()) return row;
         if (status.failed()) throw unavailable("TEMPLATE_MODEL_FAILED", "分析会话已失败，请检查模型连接后重试");
+        if (plan(row).profile() == OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS) {
+            var accepted = submissions.accepted(row.id());
+            if (accepted.isPresent()) return store.validated(row, validate(row, accepted.get()), false);
+            var missing = openCode.sessionResult(remote);
+            throw unavailable("TEMPLATE_SUBMISSION_MISSING", "OPENCODE_OUTPUT_LENGTH_EXHAUSTED".equals(missing.errorType())
+                    ? "模型生成长度耗尽，尚未通过 MCP 提交分析结果；请调整运行环境的单次输出额度后重新发起"
+                    : "模型会话已结束，但没有通过 MCP 提交有效分析结果");
+        }
         var result = openCode.sessionResult(remote);
+        if ("OPENCODE_OUTPUT_LENGTH_EXHAUSTED".equals(result.errorType())) {
+            throw unavailable("OPENCODE_OUTPUT_LENGTH_EXHAUSTED", "模型生成长度耗尽，未返回完整分析结果；请检查运行环境的单次输出额度");
+        }
         if (result.structuredRetryCount() != 0) throw unavailable("TEMPLATE_UNBUDGETED_RETRY", "运行环境发生未授权的结构化重试");
         String output = result.hasStructured() ? json.writeValueAsString(result.structured()) : openCode.sessionOutput(remote);
         try { return store.validated(row, validate(row, output), false); }

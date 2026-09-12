@@ -50,6 +50,12 @@ class TemplateBatchExecutionIntegrationTest {
     @Autowired TaskExecutionCycleService cycles;
     @Autowired OpenCodeClient client;
     @Autowired ObjectMapper json;
+    @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
+    @Autowired TemplateCandidateSubmissionService submissions;
+    @Autowired TemplateTaskCoordinator coordinator;
+    @Autowired org.springframework.transaction.PlatformTransactionManager transactionManager;
+    @Autowired io.opencode.loopper.runtime.InternalMcpRuntimeAccess access;
+    @Autowired io.opencode.loopper.persistence.TemplateCandidateSubmissionMapper receipts;
     @TempDir Path temporary;
     private TaskRow task;
     private TemplateTaskBatchRow batch;
@@ -66,6 +72,7 @@ class TemplateBatchExecutionIntegrationTest {
         String project = projects.create("project", source.toString(), "test").id();
         task = tasks.create(new TemplateTaskService.Request(UUID.randomUUID().toString(), "CODE_REVIEW", io.opencode.loopper.template.TemplateTaskDefinition.VERSION, project,
                 "local:refs/heads/main", "2026-09-11", "2026-09-11", StoryBindingConfiguration.disabled()), false);
+        LegacyTemplateFixture.freezeV4(jdbc, json, task.id());
         contract = json.readValue(templates.findRun(task.id()).orElseThrow().contractJson(), TemplateTaskContractFactory.Frozen.class);
         enterRunning(Files.createDirectory(temporary.resolve("workspace")));
         var stage = mapper.listStages(task.id()).get(1);
@@ -125,6 +132,128 @@ class TemplateBatchExecutionIntegrationTest {
         states.updateTask(states.taskState(current(), TaskState.CANCELLED), LifecycleEvent.COMPLETE, Map.of());
         assertThatThrownBy(() -> batches.requireRunning(task.id(), batch.attemptId())).isInstanceOf(ConflictException.class);
         assertThat(current().state()).isEqualTo("CANCELLED");
+    }
+
+    @Test void mcpCorrectsInSameSessionReplaysReceiptsAndWaitsForRemoteCompletion() {
+        enableMcp();
+        for (int i = 0; i < 4; i++) batch = execution.advance(batch, contract);
+        assertThat(batch.promptJson()).contains("submit_template_analysis", batch.id(), "submissionRevision")
+                .doesNotContain(TemplateAnalysisPromptFactory.START);
+        String rejected = submissions.submit(batch.id(), "invalid", 0, "{\"reviews\":[]}");
+        assertThat(rejected).contains("REJECTED", "FIX_AND_RESUBMIT", "覆盖", "\"submissionRevision\":1");
+        assertThat(batches.require(batch.id()).state()).isEqualTo("RUNNING");
+        assertThat(submissions.submit(batch.id(), "invalid", 0, "{\"reviews\":[]}")).isEqualTo(rejected);
+        assertThat(receipts.revision(batch.id())).isEqualTo(1);
+        String accepted = submissions.submit(batch.id(), "corrected", 1, valid());
+        assertThat(accepted).contains("ACCEPTED", "\"submissionRevision\":2");
+        assertThat(submissions.submit(batch.id(), "corrected", 1, valid())).isEqualTo(accepted);
+        assertThat(execution.advance(batch, contract).state()).isEqualTo("RUNNING");
+        assertThat(batches.require(batch.id()).outputJson()).isNull();
+        fake.setJudgeOutput("This final text is not the report");
+        fake.setSessionState(mapper.findSession(batch.sessionId()).orElseThrow().externalSessionId(), "COMPLETED");
+        batch = execution.advance(batch, contract);
+        assertThat(batch.state()).isEqualTo("VALIDATED");
+        assertThat(batch.outputJson()).contains("新增内容");
+        assertThat(fake.promptCalls()).isEqualTo(1);
+        assertThat(fake.createReadOnlySessionCalls()).isEqualTo(1);
+    }
+
+    @Test void mcpRejectsStaleRevisionsAlteredReplaysAndLateCancelledSubmissions() {
+        enableMcp();
+        for (int i = 0; i < 4; i++) batch = execution.advance(batch, contract);
+        submissions.submit(batch.id(), "bad", 0, "{\"reviews\":[]}");
+        assertThat(submissions.submit(batch.id(), "stale", 0, valid())).contains("REFRESH_REVISION_AND_RESUBMIT");
+        assertThat(receipts.revision(batch.id())).isEqualTo(1);
+        assertThatThrownBy(() -> submissions.submit(batch.id(), "bad", 1, valid()))
+                .isInstanceOf(ConflictException.class).hasMessageContaining("不同候选");
+        states.updateTask(states.taskState(current(), TaskState.STOPPING), LifecycleEvent.CANCEL, Map.of());
+        assertThatThrownBy(() -> submissions.submit(batch.id(), "late", 1, valid())).isInstanceOf(ConflictException.class);
+        assertThat(receipts.accepted(batch.id())).isEmpty();
+    }
+
+    @Test void mcpRejectsWrongGenerationAndForeignEvidence() {
+        enableMcp();
+        for (int i = 0; i < 4; i++) batch = execution.advance(batch, contract);
+        assertThat(submissions.submit(batch.id(), "foreign", 0, valid().replace("\"unit\"", "\"foreign\""))).contains("REJECTED", "未知证据");
+        access.activate(new io.opencode.loopper.runtime.InternalMcpCredentialProvider(() -> 18083).issue());
+        assertThatThrownBy(() -> submissions.submit(batch.id(), "wrong-generation", 1, valid()))
+                .isInstanceOf(ConflictException.class).hasMessageContaining("运行环境");
+        assertThat(receipts.accepted(batch.id())).isEmpty();
+    }
+
+    @Test void mcpCompletionWithoutSubmissionNeverFallsBackToFinalText() {
+        enableMcp();
+        for (int i = 0; i < 4; i++) batch = execution.advance(batch, contract);
+        fake.setJudgeOutput(valid());
+        fake.setSessionState(mapper.findSession(batch.sessionId()).orElseThrow().externalSessionId(), "COMPLETED");
+        assertThatThrownBy(() -> execution.advance(batch, contract)).isInstanceOf(io.opencode.loopper.domain.SessionFailure.class)
+                .hasMessageContaining("没有通过 MCP");
+        assertThat(batches.require(batch.id()).state()).isEqualTo("RUNNING");
+    }
+
+    @Test void mcpUnknownStopKeepsAcceptedCandidateFromCompletingOrReleasingBatch() {
+        enableMcp();
+        for (int i = 0; i < 4; i++) batch = execution.advance(batch, contract);
+        submissions.submit(batch.id(), "accepted", 0, valid());
+        fake.failNextAborts(1);
+        assertThat(execution.stop(batch)).isFalse();
+        assertThat(batches.require(batch.id()).state()).isEqualTo("STOPPING");
+        assertThat(batches.require(batch.id()).outputJson()).isNull();
+        assertThat(receipts.accepted(batch.id())).isPresent();
+        assertThat(execution.stop(batch)).isTrue();
+    }
+
+    @Test void concurrentCandidatesAcceptOnlyOnceAndExposeTheWinningRevision() throws Exception {
+        enableMcp();
+        for (int i = 0; i < 4; i++) batch = execution.advance(batch, contract);
+        try (var executor = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var start = new java.util.concurrent.CountDownLatch(1);
+            var first = executor.submit(() -> { start.await(); return concurrentSubmit("one"); });
+            var second = executor.submit(() -> { start.await(); return concurrentSubmit("two"); });
+            start.countDown();
+            var one = first.get(10, java.util.concurrent.TimeUnit.SECONDS);
+            var two = second.get(10, java.util.concurrent.TimeUnit.SECONDS);
+            // Shared-memory SQLite may return SQLITE_LOCKED instead of busy-waiting. The MCP adapter
+            // explicitly asks for an identical replay; emulate that caller behavior after both transactions end.
+            if (one.equals("RETRY_SAME_REQUEST")) one = submissions.submit(batch.id(), "one", 0, valid());
+            if (two.equals("RETRY_SAME_REQUEST")) two = submissions.submit(batch.id(), "two", 0, valid());
+            var results = List.of(one, two);
+            assertThat(results.stream().filter(value -> value.contains("ACCEPTED")).count()).isEqualTo(1);
+            assertThat(results.stream().filter(value -> value.contains("REFRESH_REVISION_AND_RESUBMIT")).count()).isEqualTo(1);
+            assertThat(receipts.revision(batch.id())).isEqualTo(1);
+        }
+    }
+
+    @Test void taskCleanupExplicitlyDeletesReceiptsAndRollsBackWithItsOwnerTransaction() {
+        enableMcp();
+        for (int i = 0; i < 4; i++) batch = execution.advance(batch, contract);
+        submissions.submit(batch.id(), "accepted", 0, valid());
+        var transaction = new org.springframework.transaction.support.TransactionTemplate(transactionManager);
+        transaction.executeWithoutResult(status -> { coordinator.deleteBeforeAttempts(task.id()); status.setRollbackOnly(); });
+        assertThat(receipts.accepted(batch.id())).isPresent();
+        assertThat(templates.findBatch(batch.id())).isPresent();
+        transaction.executeWithoutResult(status -> coordinator.deleteBeforeAttempts(task.id()));
+        assertThat(receipts.revision(batch.id())).isZero();
+        assertThat(templates.findBatch(batch.id())).isEmpty();
+    }
+
+    private String concurrentSubmit(String key) {
+        try { return submissions.submit(batch.id(), key, 0, valid()); }
+        catch (org.springframework.dao.DataAccessException busy) { return "RETRY_SAME_REQUEST"; }
+    }
+
+    private void enableMcp() {
+        var credentials = new io.opencode.loopper.runtime.InternalMcpCredentialProvider(() -> 18083).issue();
+        access.activate(credentials); access.connected(credentials.generation());
+        fake.setManagedRuntime(credentials.generation(), credentials.serverName());
+        fake.holdProfileOpen(OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS, true);
+        var tree = (tools.jackson.databind.node.ObjectNode) json.valueToTree(contract);
+        ((tools.jackson.databind.node.ObjectNode) tree.get("definition")).put("version", "5");
+        contract = json.treeToValue(tree, TemplateTaskContractFactory.Frozen.class);
+    }
+
+    private String valid() {
+        return "{\"reviews\":[{\"unitId\":\"unit\",\"summary\":\"新增内容\",\"findings\":[],\"limitations\":[\"未执行测试\"]}]}";
     }
 
     private void enterRunning(Path workspace) {

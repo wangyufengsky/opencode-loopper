@@ -6,7 +6,12 @@ import type { Artifact } from '@/types/domain'
 import TemplateReportsPanel from './TemplateReportsPanel.vue'
 
 const reports: Artifact[] = [0, 1].map(round => ({ id: `report-${round}`, taskId: 'task', kind: 'REPORT', title: 'code-review.md', createdAt: 'now', content: '', metadata: { displayName: '代码审查', repairRound: round } }))
-afterEach(() => vi.restoreAllMocks())
+afterEach(async () => {
+  if (vi.isFakeTimers()) await vi.runOnlyPendingTimersAsync()
+  vi.useRealTimers()
+  vi.unstubAllGlobals()
+  vi.restoreAllMocks()
+})
 describe('template report evidence', () => {
   it('loads only the selected task-owned body and distinguishes superseded versions', async () => {
     const read = vi.spyOn(api, 'getArtifactContent').mockResolvedValue({ id: 'report', kind: 'TEMPLATE_REPORT', content: '# 报告\n具体证据', metadata: {} })
@@ -63,12 +68,14 @@ describe('template report evidence', () => {
   })
 
   it('downloads the selected bundle with its named folder and keeps body reads lazy', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     const filename = '代码审查_项目_20260905-20260911_002'
     const artifact = { ...reports[1]!, title: `${filename}.md`, metadata: { ...reports[1]!.metadata, bundleId: 'attempt', directoryName: filename, reportRole: 'SUMMARY' } }
     vi.spyOn(api, 'getArtifactContent').mockResolvedValue({ id: artifact.id, kind: 'TEMPLATE_REPORT', content: '# 总结', metadata: {} })
     const zip = vi.spyOn(api, 'downloadTemplateReport').mockResolvedValue(new Blob(['zip']))
     const urls = vi.fn().mockReturnValue('blob:report')
-    vi.stubGlobal('URL', class extends URL { static createObjectURL = urls; static revokeObjectURL = vi.fn() })
+    const revoke = vi.fn()
+    vi.stubGlobal('URL', class extends URL { static createObjectURL = urls; static revokeObjectURL = revoke })
     let savedName = ''
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) { savedName = this.download })
     const wrapper = mount(TemplateReportsPanel, { props: { taskId: 'task', artifacts: [artifact], accepted: true }, global: { plugins: [ElementPlus] } })
@@ -77,7 +84,9 @@ describe('template report evidence', () => {
     await wrapper.findAll('button').find(button => button.text() === '下载整套报告')!.trigger('click'); await flushPromises()
     expect(zip).toHaveBeenCalledWith('task', artifact.id)
     expect(savedName).toBe(`${filename}.zip`)
-    wrapper.unmount(); vi.unstubAllGlobals()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(revoke).toHaveBeenCalledWith('blob:report')
+    wrapper.unmount()
   })
 
   it('does not navigate outside the bundle for unresolved or escaping local links', async () => {

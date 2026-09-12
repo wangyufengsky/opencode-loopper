@@ -39,8 +39,12 @@ class TemplateTaskExecutionIntegrationTest {
     @Autowired LoopperProperties properties;
     @Autowired OpenCodeClient client;
     @Autowired ObjectMapper json;
+    @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
     @Autowired TemplateGitCaptureGuard gitGuard;
     @Autowired SessionLifecycleService sessionLifecycle;
+    @Autowired TemplateCandidateSubmissionService candidateSubmissions;
+    @Autowired TemplateCandidateSubmissionMapper candidateReceipts;
+    @Autowired InternalMcpRuntimeAccess runtimeAccess;
     @Autowired StoryBindingService storyBindings;
     @Autowired javax.sql.DataSource dataSource;
     @TempDir Path temporary;
@@ -100,6 +104,31 @@ class TemplateTaskExecutionIntegrationTest {
             assertThat(mapper.findStoryAccountingOwner(session.externalSessionId())).isEmpty();
             assertThat(mapper.findStoryAccountingSession(session.externalSessionId())).isEmpty();
         });
+    }
+
+    @Test void v5McpCodeAndContributionReportsCorrectInSameSessionThenReachDoubleJudgeAcceptance() {
+        for (String definition : List.of("CODE_REVIEW", "CONTRIBUTION_REPORT")) {
+            TaskRow task = create(definition);
+            var contract = (tools.jackson.databind.node.ObjectNode) json.readTree(templates.findRun(task.id()).orElseThrow().contractJson());
+            ((tools.jackson.databind.node.ObjectNode) contract.get("definition")).put("version", "5");
+            jdbc.update("UPDATE template_task_run SET template_version='5',contract_json=? WHERE task_id=?", json.writeValueAsString(contract), task.id());
+            var credentials = new InternalMcpCredentialProvider(() -> 18083).issue();
+            runtimeAccess.activate(credentials); runtimeAccess.connected(credentials.generation());
+            fake.setManagedRuntime(credentials.generation(), credentials.serverName());
+            states.start(task.id(), evidence.contract(task.id()));
+            run(task.id(), false);
+            assertThat(states.task(task.id()).state()).isEqualTo("COMPLETED");
+            assertThat(templates.findRun(task.id()).orElseThrow().repairRound()).isZero();
+            assertThat(mapper.listJudgeRuns(task.id()).stream().filter(judge -> "COMPLETED".equals(judge.state())).toList())
+                    .hasSize(2).allMatch(judge -> "PASS".equals(judge.verdict()));
+            assertThat(mapper.findActiveWorkspaceLeaseByHolder(task.id())).isEmpty();
+            var finalAttempt = mapper.latestAttempt(mapper.listStages(task.id()).getLast().id()).orElseThrow();
+            assertThat(templates.batches(task.id(), finalAttempt.id())).allSatisfy(batch -> {
+                assertThat(batch.state()).isEqualTo("VALIDATED");
+                assertThat(candidateReceipts.revision(batch.id())).isEqualTo(2);
+                assertThat(batch.promptJson()).contains("submit_template_analysis");
+            });
+        }
     }
 
     @Test void contributionReportRanksAndRepairsMalformedCandidateAtMostTwice() {
@@ -220,7 +249,7 @@ class TemplateTaskExecutionIntegrationTest {
                 statement.execute("VACUUM INTO '" + database.toString().replace("'", "''") + "'");
             }
             Files.writeString(directory.resolve("fixture.json"), json.writeValueAsString(java.util.Map.of(
-                    "taskId", taskId, "provider", "fake", "templateVersion", TemplateTaskDefinition.VERSION)));
+                    "taskId", taskId, "provider", "fake", "templateVersion", templates.findRun(taskId).orElseThrow().templateVersion())));
         } catch (Exception failure) { throw new AssertionError("Unable to export verified browser fixture", failure); }
     }
 
@@ -248,8 +277,10 @@ class TemplateTaskExecutionIntegrationTest {
 
     private TaskRow create(String definition) {
         String today = LocalDate.now(TemplateDateRange.ZONE).toString();
-        return admission.create(new TemplateTaskService.Request(UUID.randomUUID().toString(), definition, io.opencode.loopper.template.TemplateTaskDefinition.VERSION, projectId,
+        var task = admission.create(new TemplateTaskService.Request(UUID.randomUUID().toString(), definition, io.opencode.loopper.template.TemplateTaskDefinition.VERSION, projectId,
                 "local:refs/heads/main", today, today, StoryBindingConfiguration.disabled()), true);
+        LegacyTemplateFixture.freezeV4(jdbc, json, task.id());
+        return task;
     }
 
     @Test void interruptedGitCaptureCannotRestartOrReleaseLeaseWithoutStopProof() {
@@ -272,6 +303,7 @@ class TemplateTaskExecutionIntegrationTest {
         String today = LocalDate.now(TemplateDateRange.ZONE).toString();
         TaskRow second = admission.create(new TemplateTaskService.Request(UUID.randomUUID().toString(), "CODE_REVIEW", io.opencode.loopper.template.TemplateTaskDefinition.VERSION, projectId,
                 "local:refs/heads/main", today, today, StoryBindingConfiguration.disabled()), false);
+        LegacyTemplateFixture.freezeV4(jdbc, json, second.id());
         states.start(second.id(), evidence.contract(second.id())); run(second.id(), false);
         assertThat(states.task(second.id()).state()).isEqualTo("COMPLETED");
         assertThat(mapper.listSessions(second.id())).isEmpty();
@@ -292,6 +324,9 @@ class TemplateTaskExecutionIntegrationTest {
         for (int i = 0; i < 90 && !states.task(id).state().equals("COMPLETED"); i++) {
             TaskRow task = states.task(id);
             if (task.state().equals("JUDGING")) {
+                // This fixture simulates template MCP only; Judge behavior is covered by its own MCP suite.
+                fake.setManagedRuntime(null, null);
+                runtimeAccess.current().ifPresent(credentials -> runtimeAccess.clear(credentials.generation()));
                 if (stopAtJudging) return;
                 fake.setJudgeOutput("{\"verdict\":\"PASS\",\"reason\":\"报告完整，证据与计算可核对\"}");
                 driver.advance(id); tasks.pollJudges(id); continue;
@@ -299,7 +334,8 @@ class TemplateTaskExecutionIntegrationTest {
             var stage = mapper.listStages(id).get(1);
             var attempt = mapper.latestAttempt(stage.id()).orElse(null);
             if (attempt != null) for (var batch : templates.batches(id, attempt.id())) {
-                if (!batch.state().equals("DISPATCHING")) continue;
+                boolean mcp = "5".equals(templates.findRun(id).orElseThrow().templateVersion());
+                if (!batch.state().equals("DISPATCHING") && !(mcp && batch.state().equals("RUNNING"))) continue;
                 var input = json.readValue(batch.inputJson(), TemplateBatchExecution.Input.class);
                 if (malformedFirst && templates.findRun(id).orElseThrow().repairRound() == 0) fake.setJudgeOutput("{\"reviews\":[]}");
                 else if (batch.purpose().equals("REVIEW")) fake.setJudgeOutput(json.writeValueAsString(new TemplateAnalysis.BatchCandidate(input.units().stream()
@@ -307,6 +343,17 @@ class TemplateTaskExecutionIntegrationTest {
                 else {
                     var grade = new ContributionScore.Assessment(1, "变更有直接代码依据", List.of(input.person().commits().getFirst()));
                     fake.setJudgeOutput(json.writeValueAsString(new TemplateAnalysis.ContributorCandidate(input.person().author().identity(), "新增内容", grade, grade, grade, grade)));
+                }
+                if (mcp && batch.state().equals("RUNNING")) {
+                    candidateSubmissions.submit(batch.id(), "bad", 0, "{}");
+                    String candidate;
+                    if (batch.purpose().equals("REVIEW")) candidate = json.writeValueAsString(new TemplateAnalysis.BatchCandidate(input.units().stream()
+                            .map(unit -> new TemplateAnalysis.UnitReview(unit.id(), "新增说明内容", List.of(), List.of("未运行测试"))).toList()));
+                    else {
+                        var grade = new ContributionScore.Assessment(1, "变更有直接代码依据", List.of(input.person().commits().getFirst()));
+                        candidate = json.writeValueAsString(new TemplateAnalysis.ContributorCandidate(input.person().author().identity(), "新增内容", grade, grade, grade, grade));
+                    }
+                    assertThat(candidateSubmissions.submit(batch.id(), "good", 1, candidate)).contains("ACCEPTED");
                 }
             }
             int previousRound = templates.findRun(id).orElseThrow().repairRound();

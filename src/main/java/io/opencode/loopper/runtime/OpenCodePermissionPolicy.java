@@ -25,7 +25,8 @@ final class OpenCodePermissionPolicy {
                 rules.add(rule("external_directory", "*", "deny"));
                 // Router receives a bounded server snapshot and must remain a true zero-tool classifier.
                 // Other no-built-in roles may still use explicitly configured MCP evidence sources.
-                if (profile == OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS) {
+                if (profile == OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS
+                        || profile == OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS) {
                     allowInternalSubmission(rules, internalMcpServer, profile);
                 } else if (profile == OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_NO_TOOLS) {
                     if (internalMcpServer != null && !internalMcpServer.isBlank()) rules.add(rule("aicoding_*", "*", "allow"));
@@ -108,6 +109,7 @@ final class OpenCodePermissionPolicy {
 
     private static boolean isNoTools(OpenCodeClient.SessionProfile profile) {
         return profile == OpenCodeClient.SessionProfile.MACHINE_FINALIZER_NO_TOOLS
+                || profile == OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS
                 || profile == OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_NO_TOOLS
                 || profile == OpenCodeClient.SessionProfile.JUDGE_FINALIZER_NO_TOOLS
                 || profile == OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS
