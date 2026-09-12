@@ -35,6 +35,11 @@ public class TemplateBatchStore {
     }
 
     @Transactional
+    public void plan(String taskId, int reviews, int contributors) {
+        templates.insertPlan(taskId, reviews, contributors);
+    }
+
+    @Transactional
     public TemplateTaskBatchRow create(AttemptRow attempt, int ordinal, String purpose, String input, String digest) {
         requireRunning(attempt.taskId(), attempt.id());
         var existing = templates.findBatchOrdinal(attempt.taskId(), attempt.id(), purpose, ordinal).orElse(null);

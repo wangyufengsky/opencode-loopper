@@ -53,7 +53,7 @@ function openLinkedReport(event: MouseEvent) {
 </script>
 <template>
   <section class="card card-pad template-reports" aria-label="模板任务报告">
-    <div class="report-heading"><h2>报告</h2><span class="muted">{{ currentAccepted ? '该版本已通过双评审' : current ? '此版本供查看；通过双评审后完成任务' : accepted ? '任务已完成，请选择报告' : '生成并通过双评审后完成' }}</span></div>
+    <div class="report-heading"><h2>报告</h2><span class="muted">{{ currentAccepted ? '已通过评审' : current ? '待验收版本' : accepted ? '已完成' : '待生成' }}</span></div>
     <p v-if="!reports.length" class="muted">完整证据分析完成后，报告会显示在这里。</p>
     <div v-else class="report-picker"><el-select :model-value="selected" placeholder="选择报告预览" aria-label="选择报告" @change="preview"><el-option v-for="report in reports" :key="report.id" :value="report.id" :label="title(report)" /></el-select><el-button :disabled="!current || body[current.id] === undefined" @click="download">下载 Markdown</el-button></div>
     <p v-if="loading" class="muted">正在读取报告…</p>

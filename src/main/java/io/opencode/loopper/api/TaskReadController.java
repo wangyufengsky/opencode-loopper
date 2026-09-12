@@ -28,8 +28,9 @@ public class TaskReadController {
             @RequestParam(required = false) String q,
             @RequestParam(defaultValue = "newest") String order,
             @RequestParam(required = false) String cursor,
-            @RequestParam(required = false) Integer limit) {
-        return reads.summaries(projectId, status, statusGroup, archive, q, order, cursor, limit);
+            @RequestParam(required = false) Integer limit,
+            @RequestParam(required = false) String taskType) {
+        return reads.summaries(projectId, status, statusGroup, archive, q, order, cursor, limit, taskType);
     }
 
     @GetMapping("/{id}/overview") public TaskOverview overview(@PathVariable String id) { return reads.overview(id); }

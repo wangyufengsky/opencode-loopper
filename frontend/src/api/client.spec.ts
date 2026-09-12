@@ -186,6 +186,13 @@ describe('Loopper REST contract adapter', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/tasks/summaries?statusGroup=PROCESSING&archive=ACTIVE', expect.any(Object))
   })
 
+  it('sends the template task filter with pagination and project scope', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(json({ items: [], facets: {} }))
+    vi.stubGlobal('fetch', fetchMock)
+    await api.getTaskSummaries({ projectId: 'project', taskType: 'TEMPLATE', cursor: 'next', limit: 10 })
+    expect(fetchMock).toHaveBeenCalledWith('/api/tasks/summaries?projectId=project&taskType=TEMPLATE&cursor=next&limit=10', expect.any(Object))
+  })
+
   it('accepts non-empty Task summaries without inventing detail-only action flags', async () => {
     const item = {
       id: 'task-1', projectId: 'project-1', projectName: 'Project', title: 'Task', goal: 'Goal',
@@ -353,7 +360,7 @@ describe('Loopper REST contract adapter', () => {
     await expect(api.createProject({ name: 'Example', rootPath: '/tmp/example', description: '  Useful context  ' }))
       .resolves.toMatchObject({ description: 'Useful context', executionMode: 'WORKTREE', branch: 'main', openDesignerSessionCount: 2 })
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
-      name: 'Example', rootPath: '/tmp/example', description: 'Useful context',
+      name: 'Example', rootPath: '/tmp/example', description: 'Useful context', documentPath: null,
     })
   })
 

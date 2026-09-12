@@ -33,6 +33,8 @@ public interface ReadModelMapper {
             )
             WHERE 1=1
             <if test="projectId != null">AND t.project_id=#{projectId}</if>
+            <if test="taskType == 'TEMPLATE'">AND t.execution_mode='TEMPLATE_REPORT'</if>
+            <if test="taskType == 'STANDARD'">AND t.execution_mode!='TEMPLATE_REPORT'</if>
             <if test="states != null and !states.isEmpty()">
               AND t.state IN
               <foreach collection="states" item="state" open="(" separator="," close=")">#{state}</foreach>
@@ -68,7 +70,7 @@ public interface ReadModelMapper {
             @Param("oldest") boolean oldest,
             @Param("cursorValue") String cursorValue,
             @Param("cursorId") String cursorId,
-            @Param("limit") int limit);
+            @Param("limit") int limit, @Param("taskType") String taskType);
 
     @Select("""
             SELECT t.id,t.project_id,p.name AS project_name,t.title,COALESCE(d.goal,'') AS goal,
@@ -121,6 +123,8 @@ public interface ReadModelMapper {
               LEFT JOIN task_archive archive ON archive.task_id=t.id
               WHERE 1=1
               <if test="projectId != null">AND t.project_id=#{projectId}</if>
+            <if test="taskType == 'TEMPLATE'">AND t.execution_mode='TEMPLATE_REPORT'</if>
+            <if test="taskType == 'STANDARD'">AND t.execution_mode!='TEMPLATE_REPORT'</if>
               <if test="queryPattern != null">
                 AND (lower(t.title) LIKE #{queryPattern} ESCAPE '\\'
                   OR lower(COALESCE(d.goal,'')) LIKE #{queryPattern} ESCAPE '\\'
@@ -149,7 +153,7 @@ public interface ReadModelMapper {
             @Param("projectId") String projectId,
             @Param("states") List<String> states,
             @Param("archiveMode") String archiveMode,
-            @Param("queryPattern") String queryPattern);
+            @Param("queryPattern") String queryPattern, @Param("taskType") String taskType);
 
     @Select("""
             SELECT result.id,result.attempt_id,result.verifier_index,result.type,result.state,result.summary,
@@ -364,7 +368,7 @@ public interface ReadModelMapper {
               COALESCE(stack.analysis_state,'UNANALYZED') AS stack_profile_state,
               COALESCE(stack.technology_families_json,'[]') AS stack_technology_families_json,
               COALESCE(stack.component_count,0) AS stack_component_count,
-              stack.analyzed_at AS stack_analyzed_at
+              stack.analyzed_at AS stack_analyzed_at,p.document_path,p.version
             FROM project p LEFT JOIN task_counts tasks ON tasks.project_id=p.id
             LEFT JOIN open_designer_counts designs ON designs.project_id=p.id
             LEFT JOIN project_stack_profile stack ON stack.id=(

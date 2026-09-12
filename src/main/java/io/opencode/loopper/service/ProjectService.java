@@ -19,8 +19,10 @@ public class ProjectService {
     private final LoopperProperties properties;
     private final GitWorktreeManager worktrees;
     private final ApplicationEventPublisher events;
+    private final TemplateDocumentPaths documentPaths;
     public ProjectService(LoopperMapper mapper, LoopperProperties properties, GitWorktreeManager worktrees,
-                          ApplicationEventPublisher events) {
+                          ApplicationEventPublisher events, TemplateDocumentPaths documentPaths) {
+        this.documentPaths = documentPaths;
         this.mapper = mapper;
         this.properties = properties;
         this.worktrees = worktrees;
@@ -32,10 +34,15 @@ public class ProjectService {
     }
     @Transactional
     public ProjectRow create(String name, String rootPath, String description) {
+        return create(name, rootPath, description, null);
+    }
+    @Transactional
+    public ProjectRow create(String name, String rootPath, String description, String documentPath) {
         if (name == null || name.isBlank()) throw new BadRequestException("PROJECT_NAME_REQUIRED", "Project name is required");
         String root = canonicalDirectory(rootPath);
         requireAllowedRoot(root);
         String normalizedDescription = normalizeDescription(description);
+        String resolvedDocumentPath = documentPaths.resolve(root, documentPath);
         String now = Instant.now().toString();
         var existing = mapper.findProjectByRoot(root);
         if (existing.isPresent()) {
@@ -44,7 +51,7 @@ public class ProjectService {
                 throw new ConflictException("PROJECT_ALREADY_MANAGED", "Project root is already managed");
             }
             ProjectRow restored = new ProjectRow(old.id(), name.trim(), old.rootPath(), normalizedDescription,
-                    old.createdAt(), now, 1, old.version());
+                    old.createdAt(), now, 1, old.version(), resolvedDocumentPath);
             if (mapper.updateProject(restored) != 1) {
                 throw new ConflictException("PROJECT_VERSION_CONFLICT", "Project was updated concurrently");
             }
@@ -53,7 +60,7 @@ public class ProjectService {
             return result;
         }
         ProjectRow project = new ProjectRow(UUID.randomUUID().toString(), name.trim(), root, normalizedDescription,
-                now, now, 1, 0);
+                now, now, 1, 0, resolvedDocumentPath);
         mapper.insertProject(project);
         events.publishEvent(new ProjectRegisteredEvent(project.id()));
         return project;
@@ -72,8 +79,16 @@ public class ProjectService {
         ProjectRow old = get(id);
         if (name == null || name.isBlank()) throw new BadRequestException("PROJECT_NAME_REQUIRED", "Project name is required");
         ProjectRow changed = new ProjectRow(old.id(), name.trim(), old.rootPath(), old.description(), old.createdAt(),
-                Instant.now().toString(), old.managed(), old.version());
+                Instant.now().toString(), old.managed(), old.version(), old.documentPath());
         if (mapper.updateProject(changed) != 1) throw new ConflictException("PROJECT_VERSION_CONFLICT", "Project was updated concurrently");
+        return get(id);
+    }
+    public ProjectRow updateDocumentPath(String id, String path, long version) {
+        ProjectRow project = get(id);
+        String resolved = documentPaths.resolve(project.rootPath(), path);
+        if (mapper.updateProjectDocumentPath(id, resolved, version, Instant.now().toString()) != 1) {
+            throw new ConflictException("PROJECT_VERSION_CONFLICT", "项目设置已更新，请刷新后重试");
+        }
         return get(id);
     }
     @Transactional

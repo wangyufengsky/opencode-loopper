@@ -36,6 +36,7 @@ import tools.jackson.databind.ObjectMapper;
 public class TaskReadService {
     private static final Set<String> ARCHIVE_MODES = Set.of("ACTIVE", "ARCHIVED", "ALL");
     private final ReadModelMapper reads;
+    private final io.opencode.loopper.persistence.TemplateTaskReadMapper templateReads;
     private final LoopperMapper mapper;
     private final ObjectMapper json;
     private final MeterRegistry meters;
@@ -44,7 +45,9 @@ public class TaskReadService {
 
     public TaskReadService(ReadModelMapper reads, LoopperMapper mapper, ObjectMapper json, MeterRegistry meters,
                            RollingPackageCommandPolicy packageCommands,
-                           RollingPackageCommandContextService packageCommandContexts) {
+                           RollingPackageCommandContextService packageCommandContexts,
+                           io.opencode.loopper.persistence.TemplateTaskReadMapper templateReads) {
+        this.templateReads = templateReads;
         this.reads = reads;
         this.mapper = mapper;
         this.json = json;
@@ -61,6 +64,15 @@ public class TaskReadService {
     public CursorPage<TaskSummary> summaries(String projectId, List<String> states, String statusGroup,
                                              String archive, String query, String order, String cursor,
                                              Integer requestedLimit) {
+        return summaries(projectId, states, statusGroup, archive, query, order, cursor, requestedLimit, null);
+    }
+
+    public CursorPage<TaskSummary> summaries(String projectId, List<String> states, String statusGroup,
+                                             String archive, String query, String order, String cursor,
+                                             Integer requestedLimit, String taskType) {
+        if (taskType != null && !Set.of("TEMPLATE", "STANDARD").contains(taskType)) {
+            throw new BadRequestException("TASK_TYPE_FILTER_INVALID", "请选择有效的任务类型");
+        }
         return measured("task-summaries", () -> {
             int limit = PageCursor.limit(requestedLimit);
             String archiveMode = normalizedArchive(archive);
@@ -76,12 +88,12 @@ public class TaskReadService {
             PageCursor decoded = PageCursor.decode(cursor);
             List<TaskSummaryRow> rows = reads.taskSummaries(blankToNull(projectId), normalizedStates, archiveMode,
                     queryPattern, oldest, decoded == null ? null : decoded.value(),
-                    decoded == null ? null : decoded.id(), limit + 1);
+                    decoded == null ? null : decoded.id(), limit + 1, taskType);
             boolean hasMore = rows.size() > limit;
             List<TaskSummaryRow> pageRows = hasMore ? rows.subList(0, limit) : rows;
             List<TaskSummary> items = pageRows.stream().map(this::summary).toList();
             Map<String, Long> facets = new LinkedHashMap<>();
-            reads.taskFacets(blankToNull(projectId), normalizedStates, archiveMode, queryPattern)
+            reads.taskFacets(blankToNull(projectId), normalizedStates, archiveMode, queryPattern, taskType)
                     .forEach(row -> facets.put(row.state(), row.count()));
             for (TaskStatusGroup group : TaskStatusGroup.values()) {
                 facets.put(group.name(), group.states().stream()
@@ -130,7 +142,9 @@ public class TaskReadService {
                     task.version(), task.executionMode(), task.workspacePolicy(),
                     currentPackage == null ? null : new CurrentPackage(currentPackage.id(), currentPackage.packageKey(),
                             currentPackage.ordinal(), currentPackage.title(), currentPackage.state(), currentPackage.version()),
-                    packageRuns.size(), frozenPackages, packageCapabilities);
+                    packageRuns.size(), frozenPackages, packageCapabilities,
+                    "TEMPLATE_REPORT".equals(task.executionMode()) ? templateReads.progress(taskId)
+                            .map(row -> TemplateTaskProgress.from(row, taskId, task.worktreePath())).orElse(null) : null);
         });
     }
 
@@ -205,7 +219,7 @@ public class TaskReadService {
         return new TaskSummary(row.id(), row.projectId(), row.projectName(), row.title(), row.goalPreview(),
                 blankToDefault(row.branchName(), "等待选择执行模式"), row.state(), row.retryCause(), row.retryDueAt(),
                 row.hasDesignHistory() == 1, row.archived() == 1, row.attemptCount(), row.maxAttempts(),
-                row.createdAt(), row.updatedAt());
+                row.createdAt(), row.updatedAt(), row.executionMode());
     }
 
     private StageSummary stage(TaskStageReadRow row) {
@@ -345,7 +359,7 @@ public class TaskReadService {
     public record TaskSummary(String id, String projectId, String projectName, String title, String goal,
                               String branch, String status, String retryCause, String retryDueAt,
                               boolean hasDesignHistory, boolean archived, int attemptCount, int maxAttempts,
-                              String createdAt, String updatedAt) { }
+                              String createdAt, String updatedAt, String executionMode) { }
     public record TaskOverview(String id, String projectId, String projectName, String title, String goal,
                                String branch, String worktreePath, String status, String retryCause,
                                Integer retryOrdinal, String retryScheduledAt, String retryDueAt,
@@ -358,7 +372,7 @@ public class TaskReadService {
                                List<ErrorSummary> errors, List<JudgeSummary> judges,
                                long version, String executionMode, String workspacePolicy,
                                CurrentPackage currentPackage, int plannedPackageCount, int frozenPackageCount,
-                               PackageCapabilities packageCapabilities) { }
+                               PackageCapabilities packageCapabilities, TemplateTaskProgress templateProgress) { }
     public record CurrentPackage(String id, String packageKey, int ordinal, String title, String state,
                                  long version) { }
     public record PackageCapabilities(boolean canDiscuss, boolean canApproveDesign, boolean canStartPackage,

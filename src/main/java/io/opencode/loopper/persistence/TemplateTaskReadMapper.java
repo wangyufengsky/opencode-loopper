@@ -9,7 +9,27 @@ import org.apache.ibatis.annotations.Select;
 @Mapper
 public interface TemplateTaskReadMapper {
     @Select("""
-            SELECT id,name,created_at FROM project WHERE (#{query}='' OR instr(lower(name),lower(#{query}))>0)
+            WITH current AS (
+                SELECT attempt.id FROM attempt JOIN stage ON stage.id=attempt.stage_id
+                WHERE attempt.task_id=#{taskId} AND stage.ordinal=1
+                  AND attempt.ordinal=(SELECT repair_round+1 FROM template_task_run WHERE task_id=#{taskId})
+                ORDER BY attempt.ordinal DESC,attempt.created_at DESC,attempt.id DESC LIMIT 1
+            )
+            SELECT plan.review_batches,plan.contributor_batches,
+                COALESCE(SUM(CASE WHEN batch.purpose='REVIEW' AND batch.state='VALIDATED' THEN 1 ELSE 0 END),0) AS completed_reviews,
+                COALESCE(SUM(CASE WHEN batch.purpose='CONTRIBUTOR' AND batch.state='VALIDATED' THEN 1 ELSE 0 END),0) AS completed_contributors,
+                COALESCE(SUM(CASE WHEN batch.state IN ('CREATING','PROMPT_READY','DISPATCHING','RUNNING') THEN 1 ELSE 0 END),0) AS active_batches,
+                COALESCE(SUM(CASE WHEN batch.state='FAILED' THEN 1 ELSE 0 END),0) AS failed_batches,
+                run.repair_round,json_extract(run.contract_json,'$.documentPath') AS document_path,
+                current.id AS report_attempt_id
+            FROM template_task_run run LEFT JOIN template_task_plan plan ON plan.task_id=run.task_id
+            LEFT JOIN current ON 1=1 LEFT JOIN template_task_batch batch ON batch.attempt_id=current.id AND batch.task_id=run.task_id
+            WHERE run.task_id=#{taskId} GROUP BY run.task_id
+            """)
+    java.util.Optional<TemplateTaskProgressRow> progress(String taskId);
+
+    @Select("""
+            SELECT id,name,created_at,document_path FROM project WHERE managed=1 AND (#{query}='' OR instr(lower(name),lower(#{query}))>0)
             AND (#{time} IS NULL OR created_at>#{time} OR (created_at=#{time} AND id>#{id}))
             ORDER BY created_at,id LIMIT #{limit}
             """)
@@ -25,7 +45,7 @@ public interface TemplateTaskReadMapper {
             """)
     List<RunSummary> runs(@Param("projectId") String projectId, @Param("time") String time, @Param("id") String id, @Param("limit") int limit);
 
-    record ProjectChoice(String id, String name, String createdAt) { }
+    record ProjectChoice(String id, String name, String createdAt, String documentPath) { }
     record RunSummary(String id, String title, String state, String projectName, String templateId, String branchLabel,
                       String startDate, String endDate, int repairRound, String createdAt, String updatedAt) { }
 }

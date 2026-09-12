@@ -10,8 +10,10 @@ import org.apache.ibatis.annotations.Update;
 
 /** Domain-focused persistence contract composed by {@link LoopperMapper}. */
 public interface LoopperProjectMapper {
-    @Insert("INSERT INTO project(id,name,root_path,description,created_at,updated_at,managed,version) VALUES(#{id},#{name},#{rootPath},#{description},#{createdAt},#{updatedAt},#{managed},#{version})")
+    @Insert("INSERT INTO project(id,name,root_path,description,created_at,updated_at,managed,version,document_path) VALUES(#{id},#{name},#{rootPath},#{description},#{createdAt},#{updatedAt},#{managed},#{version},#{documentPath})")
     int insertProject(ProjectRow row);
+    @Update("UPDATE project SET document_path=#{path},updated_at=#{now},version=version+1 WHERE id=#{id} AND version=#{version} AND managed=1")
+    int updateProjectDocumentPath(@Param("id") String id, @Param("path") String path, @Param("version") long version, @Param("now") String now);
     @Select("SELECT * FROM project WHERE id=#{id}") Optional<ProjectRow> findProject(String id);
     @Select("SELECT * FROM project WHERE root_path=#{rootPath}") Optional<ProjectRow> findProjectByRoot(String rootPath);
     @Select("SELECT * FROM project WHERE managed=1 ORDER BY created_at DESC") List<ProjectRow> listProjects();
@@ -33,7 +35,7 @@ public interface LoopperProjectMapper {
               )
             """)
     int countOpenDesignerSessionsForProject(String projectId);
-    @Update("UPDATE project SET name=#{name}, description=#{description}, updated_at=#{updatedAt}, managed=#{managed}, version=version+1 WHERE id=#{id} AND version=#{version}")
+    @Update("UPDATE project SET document_path=#{documentPath},name=#{name}, description=#{description}, updated_at=#{updatedAt}, managed=#{managed}, version=version+1 WHERE id=#{id} AND version=#{version}")
     int updateProject(ProjectRow row);
     @Update("UPDATE project SET managed=0, updated_at=#{updatedAt}, version=version+1 WHERE id=#{id} AND managed=1")
     int unmanageProject(@Param("id") String id, @Param("updatedAt") String updatedAt);

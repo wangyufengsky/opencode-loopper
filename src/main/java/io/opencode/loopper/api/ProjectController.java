@@ -50,7 +50,7 @@ public class ProjectController {
         return stackProfileDto(stackProfiles.current(id));
     }
     @PostMapping public ResponseEntity<ProjectDto> create(@Valid @RequestBody ProjectRequest request) {
-        ProjectRow row = service.create(request.name(), request.rootPath(), request.description());
+        ProjectRow row = service.create(request.name(), request.rootPath(), request.description(), request.documentPath());
         return ResponseEntity.created(URI.create("/api/projects/" + row.id())).body(dto(row));
     }
     @PostMapping("/pick-directory")
@@ -61,6 +61,13 @@ public class ProjectController {
                 .orElseGet(() -> new DirectorySelectionDto(false, null, null));
     }
     @PutMapping("/{id}") public ProjectDto rename(@PathVariable String id, @Valid @RequestBody RenameProjectRequest request) { return dto(service.rename(id, request.name())); }
+    @PutMapping("/{id}/document-path")
+    public ProjectDto documentPath(@PathVariable String id, @Valid @RequestBody DocumentPathRequest request,
+            @RequestHeader("X-Loopper-Local-UI") String localUi) {
+        requireLocalUi(localUi);
+        return dto(service.updateDocumentPath(id, request.documentPath(), request.version()));
+    }
+    public record DocumentPathRequest(@Size(max = 2048) String documentPath, @jakarta.validation.constraints.NotNull Long version) { }
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> cancelManagement(@PathVariable String id,
                                                  @RequestHeader("X-Loopper-Local-UI") String localUi) {
@@ -102,7 +109,7 @@ public class ProjectController {
         return conventionDto(conventions.cancel(id, draftId));
     }
     public record ProjectRequest(@NotBlank String name, @NotBlank String rootPath,
-                                 @Size(max = 500) String description) { }
+                                 @Size(max = 500) String description, @Size(max = 2048) String documentPath) { }
     public record RenameProjectRequest(@NotBlank String name) { }
     public record DirectorySelectionDto(boolean selected, String path, String name) { }
     public record ProjectConventionDto(String id, String projectId, String state, String operation,
@@ -118,7 +125,7 @@ public class ProjectController {
         String executionMode = inspection.isolatedWorktree() ? "WORKTREE" : inspection.pathAvailable() ? "DIRECT" : "UNAVAILABLE";
         return new ProjectDto(row.id(), row.name(), row.rootPath(), status, row.description(), inspection.branch(),
                 executionMode, row.updatedAt(), service.taskCount(row.id()), service.openDesignerSessionCount(row.id()),
-                stack.state().name(), stack.technologyFamilies(), stack.components().size(), stack.analyzedAt());
+                stack.state().name(), stack.technologyFamilies(), stack.components().size(), stack.analyzedAt(), row.documentPath(), row.version());
     }
     private ProjectConventionDto conventionDto(ProjectConventionDraftRow row) {
         return new ProjectConventionDto(row.id(), row.projectId(), row.state(), row.sourceExists() == 1 ? "UPDATE" : "CREATE",
@@ -134,7 +141,7 @@ public class ProjectController {
                              String executionMode, String updatedAt, int taskCount,
                              int openDesignerSessionCount, String stackProfileState,
                              List<String> stackTechnologyFamilies, int stackComponentCount,
-                             String stackAnalyzedAt) { }
+                             String stackAnalyzedAt, String documentPath, long version) { }
     public record ProjectStackProfileDto(String id, String projectId, String state, String manifestFingerprint,
                                          List<String> technologyFamilies, List<String> technologies,
                                          int filesScanned, String errorCode, String errorDetail, String analyzedAt,

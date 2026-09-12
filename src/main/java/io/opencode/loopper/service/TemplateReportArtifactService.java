@@ -69,27 +69,34 @@ public final class TemplateReportArtifactService {
 
     public void materialize(TaskRow task, String attemptId) {
         workspace.requireWritable(task);
-        Path root = workspace.root(task), reportRoot = root.resolve("reports").resolve(attemptId);
+        Path root = workspace.root(task);
+        String outputPath = evidence.contract(task.id()).documentPath();
+        Path reportRoot = TemplateDocumentPaths.reportDirectory(outputPath, task.id(), attemptId, root);
+        TemplateDocumentPaths.requireSafeDirectory(reportRoot);
         try {
             for (var artifact : artifacts(task.id(), attemptId)) {
                 if (!artifact.kind().equals("TEMPLATE_REPORT")) continue;
                 Path target = reportRoot.resolve(artifact.name()).normalize();
                 if (!target.startsWith(reportRoot)) throw new TaskFailure("TEMPLATE_REPORT_PATH_INVALID", "报告路径超出任务目录");
-                for (Path part = target; part != null && part.startsWith(root); part = part.getParent()) {
+                for (Path part = target; part != null && part.startsWith(reportRoot); part = part.getParent()) {
                     if (Files.isSymbolicLink(part)) throw new TaskFailure("TEMPLATE_REPORT_SYMLINK", "报告目录包含符号链接，已停止写入");
                 }
+                TemplateDocumentPaths.requireSafeDirectory(target.getParent());
                 Files.createDirectories(target.getParent());
+                TemplateDocumentPaths.requireSafeDirectory(target.getParent());
                 if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
                     if (!Files.readString(target).equals(artifact.content())) throw new TaskFailure("TEMPLATE_REPORT_FILE_CHANGED", "报告文件被外部修改，请保留文件并重新发起任务");
                 } else {
                     Path pending = Files.createTempFile(target.getParent(), ".report-", ".pending");
                     Files.writeString(pending, artifact.content(), StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING);
-                    try { Files.move(pending, target, java.nio.file.StandardCopyOption.ATOMIC_MOVE); }
-                    catch (java.nio.file.AtomicMoveNotSupportedException unavailable) { Files.move(pending, target); }
+                    try {
+                        try { Files.createLink(target, pending); }
+                        catch (UnsupportedOperationException | java.nio.file.FileSystemException unavailable) { Files.move(pending, target); }
+                    } finally { Files.deleteIfExists(pending); }
                 }
             }
         } catch (java.io.IOException failure) {
-            throw new TaskFailure("TEMPLATE_REPORT_WRITE_FAILED", "报告文件写入失败，请检查任务目录与磁盘空间");
+            throw new TaskFailure("TEMPLATE_REPORT_WRITE_FAILED", "报告文件写入失败，请检查文档目录权限与磁盘空间");
         }
     }
 

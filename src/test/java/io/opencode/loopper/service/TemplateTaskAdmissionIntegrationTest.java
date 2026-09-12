@@ -87,6 +87,28 @@ class TemplateTaskAdmissionIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM loop_draft", Integer.class)).isZero();
     }
 
+    @Test void documentDefaultsAreVersionedAndFrozenWhileOverridesStayPerTask() {
+        var project = projects.get(projectId);
+        var changed = projects.updateDocumentPath(projectId, "docs/reports", project.version());
+        String expected = Path.of(project.rootPath()).resolve("docs/reports").toString();
+        assertThat(changed.documentPath()).isEqualTo(expected);
+        assertThat(reads.projects("test", null, 10).items().getFirst().documentPath()).isEqualTo(expected);
+        var request = request("CODE_REVIEW", "2026-09-11", "2026-09-11");
+        var first = service.create(request, false);
+        assertThat(templates.findRun(first.id()).orElseThrow().contractJson()).contains(expected);
+        projects.updateDocumentPath(projectId, "docs/new", changed.version());
+        assertThatThrownBy(() -> projects.updateDocumentPath(projectId, "docs/stale", changed.version()))
+                .isInstanceOf(ConflictException.class);
+        assertThat(service.create(request, false).id()).isEqualTo(first.id());
+        assertThat(templates.findRun(first.id()).orElseThrow().contractJson()).contains(expected).doesNotContain("docs/new");
+        var override = new TemplateTaskService.Request(UUID.randomUUID().toString(), request.templateId(), request.templateVersion(),
+                projectId, request.branchId(), request.startDate(), request.endDate(), request.story(), "custom/output");
+        var second = service.create(override, false);
+        assertThat(templates.findRun(second.id()).orElseThrow().contractJson()).contains("custom/output");
+        assertThat(projects.get(projectId).documentPath()).endsWith("docs/new");
+        assertThat(Path.of(expected)).doesNotExist();
+    }
+
     private TemplateTaskService.Request request(String template, String start, String end) {
         return new TemplateTaskService.Request(UUID.randomUUID().toString(), template, io.opencode.loopper.template.TemplateTaskDefinition.VERSION, projectId,
                 "local:refs/heads/main", start, end, new StoryBindingConfiguration(true, "001", "0002"));

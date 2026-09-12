@@ -21,9 +21,13 @@ public class TemplateTaskService {
     private final TemplateTaskAdmission admission;
     private final TemplateTaskMapper mapper;
     private final ObjectMapper json;
+    private final ProjectService projects;
+    private final TemplateDocumentPaths documentPaths;
 
     public TemplateTaskService(ProjectBranchService branches, TemplateTaskContractFactory contracts,
-                                  TemplateTaskAdmission admission, TemplateTaskMapper mapper, ObjectMapper json) {
+                                  TemplateTaskAdmission admission, TemplateTaskMapper mapper, ObjectMapper json,
+                                  ProjectService projects, TemplateDocumentPaths documentPaths) {
+        this.projects = projects; this.documentPaths = documentPaths;
         this.branches = branches; this.contracts = contracts; this.admission = admission; this.mapper = mapper; this.json = json;
     }
 
@@ -39,7 +43,9 @@ public class TemplateTaskService {
         if (request == null || request.requestKey() == null || !request.requestKey().matches("[A-Za-z0-9_-]{16,100}")) {
             throw new BadRequestException("TEMPLATE_REQUEST_KEY_REQUIRED", "发起标识无效，请刷新后重试");
         }
-        String digest = TemplateGitEvidenceCollector.hash(json.writeValueAsString(request) + ":" + bypassCache);
+        var requestJson = (tools.jackson.databind.node.ObjectNode) json.valueToTree(request);
+        if (request.documentPath() == null) requestJson.remove("documentPath");
+        String digest = TemplateGitEvidenceCollector.hash(json.writeValueAsString(requestJson) + ":" + bypassCache);
         var existing = mapper.findRequest(request.requestKey()).orElse(null);
         if (existing != null) return admission.requireSameRequest(existing, digest);
         TemplateTaskDefinition definition;
@@ -55,12 +61,20 @@ public class TemplateTaskService {
         }
         StoryBindingConfiguration story = request.story() == null ? StoryBindingConfiguration.disabled() : request.story().normalized();
         var branch = branches.require(request.projectId(), request.branchId());
-        var frozen = contracts.freeze(definition, request.projectId(), dates);
+        var project = projects.get(request.projectId());
+        String outputPath = documentPaths.resolve(project.rootPath(), request.documentPath() == null || request.documentPath().isBlank()
+                ? project.documentPath() : request.documentPath());
+        var frozen = contracts.freeze(definition, request.projectId(), dates, outputPath);
         return admission.create(new TemplateTaskAdmission.Command(request.requestKey(), digest, branch, dates, frozen, story, bypassCache));
     }
 
     public record Request(String requestKey, String templateId, String templateVersion, String projectId,
-                           String branchId, String startDate, String endDate, StoryBindingConfiguration story) { }
+                           String branchId, String startDate, String endDate, StoryBindingConfiguration story, String documentPath) {
+        public Request(String requestKey, String templateId, String templateVersion, String projectId,
+                       String branchId, String startDate, String endDate, StoryBindingConfiguration story) {
+            this(requestKey, templateId, templateVersion, projectId, branchId, startDate, endDate, story, null);
+        }
+    }
     public record Catalog(List<TemplateTaskDefinition.View> templates, String timezone, String defaultStartDate,
                            String defaultEndDate, String scoringVersion, String scoreFormula, List<ContributionScore.Dimension> dimensions) { }
 }

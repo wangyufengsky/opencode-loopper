@@ -93,7 +93,7 @@ public final class TemplateTaskCoordinator {
         if (!mapper.listStages(taskId).getFirst().state().equals("SUCCEEDED")) {
             var attempt = states.attempt(taskId, 0);
             var snapshot = evidence.freeze(taskId);
-            states.completeStage(attempt, "已冻结 " + snapshot.commits().size() + " 个提交，按北京时间校验完整范围");
+            states.completeStage(attempt, "已冻结 " + snapshot.commits().size() + " 个提交");
             return;
         }
         analyze(task, states.attempt(taskId, 1), contract);
@@ -107,6 +107,10 @@ public final class TemplateTaskCoordinator {
         var snapshot = evidence.read(run);
         var units = TemplateAnalysisPartitioner.units(snapshot);
         var inputBatches = TemplateAnalysisPartitioner.batches(units);
+        var people = run.templateId().equals("CONTRIBUTION_REPORT")
+                ? TemplateContributionFacts.people(snapshot).stream().filter(person -> !person.author().robot() && person.effectiveLines() > 0).toList()
+                : List.<TemplateContributionFacts.Person>of();
+        batchStore.plan(task.id(), inputBatches.size(), people.size());
         String feedback = feedback(task.id(), run.repairRound());
         var reviews = new ArrayList<TemplateAnalysis.UnitReview>();
         for (int index = 0; index < inputBatches.size(); index++) {
@@ -117,7 +121,6 @@ public final class TemplateTaskCoordinator {
         }
         var contributors = new ArrayList<TemplateAnalysis.ContributorCandidate>();
         if (run.templateId().equals("CONTRIBUTION_REPORT")) {
-            var people = TemplateContributionFacts.people(snapshot).stream().filter(person -> !person.author().robot() && person.effectiveLines() > 0).toList();
             for (int index = 0; index < people.size(); index++) {
                 var person = people.get(index);
                 var ownUnits = units.stream().filter(unit -> person.evidenceIds().contains(unit.evidenceId())).toList();
@@ -201,6 +204,7 @@ public final class TemplateTaskCoordinator {
     }
 
     void deleteBeforeAttempts(String taskId) {
+        templates.deletePlanForTask(taskId);
         templates.deleteBatchesForTask(taskId);
         templates.deleteRunForTask(taskId);
     }

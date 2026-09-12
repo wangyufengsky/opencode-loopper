@@ -48,7 +48,7 @@ public class ProjectReadService {
         return new ProjectSummary(row.id(), row.name(), row.rootPath(), status, row.description(), inspection.branch(),
                 executionMode, row.updatedAt(), row.taskCount(), row.openDesignerSessionCount(),
                 row.stackProfileState(), strings(row.stackTechnologyFamiliesJson()), row.stackComponentCount(),
-                row.stackAnalyzedAt());
+                row.stackAnalyzedAt(), row.documentPath(), row.version());
     }
 
     private List<String> strings(String value) {
@@ -60,5 +60,5 @@ public class ProjectReadService {
                                  String branch, String executionMode, String updatedAt, int taskCount,
                                  int openDesignerSessionCount, String stackProfileState,
                                  List<String> stackTechnologyFamilies, int stackComponentCount,
-                                 String stackAnalyzedAt) { }
+                                 String stackAnalyzedAt, String documentPath, long version) { }
 }

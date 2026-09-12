@@ -20,6 +20,7 @@ const route = useRoute()
 const router = useRouter()
 const filter = ref<StatusFilter>('ALL')
 const projectFilter = ref('ALL')
+const typeFilter = ref<'ALL' | 'TEMPLATE' | 'STANDARD'>('ALL')
 const timeOrder = ref<'NEWEST' | 'OLDEST'>('NEWEST')
 const archiveFilter = ref<ArchiveFilter>('ACTIVE')
 const search = ref('')
@@ -80,6 +81,7 @@ const visibleTasks = computed(() => {
       || (filter.value === 'ACTIVE' ? demoTaskStatusGroups[task.status] === 'PROCESSING'
         : filter.value === 'SUCCESSFUL' ? demoTaskStatusGroups[task.status] === 'SUCCESSFUL'
         : filter.value === 'TERMINATED' ? demoTaskStatusGroups[task.status] === 'TERMINATED' : task.status === filter.value))
+    .filter((task) => typeFilter.value === 'ALL' || (typeFilter.value === 'TEMPLATE' ? task.executionMode === 'TEMPLATE_REPORT' : task.executionMode !== 'TEMPLATE_REPORT'))
     .filter((task) => projectFilter.value === 'ALL' || task.projectId === projectFilter.value)
     .filter((task) => !search.value.trim() || [task.title, task.goal, task.projectName, task.branch]
       .some((value) => value.toLocaleLowerCase('zh-CN').includes(search.value.trim().toLocaleLowerCase('zh-CN'))))
@@ -110,6 +112,7 @@ function queryValue(value: unknown) {
 function applyRouteQuery() {
   const status = queryValue(route.query.status).toUpperCase()
   filter.value = validStatuses.has(status as StatusFilter) ? status as StatusFilter : 'ALL'
+  typeFilter.value = queryValue(route.query.type) === 'template' ? 'TEMPLATE' : queryValue(route.query.type) === 'standard' ? 'STANDARD' : 'ALL'
   const project = queryValue(route.query.project)
   projectFilter.value = project || 'ALL'
   timeOrder.value = queryValue(route.query.order) === 'oldest' ? 'OLDEST' : 'NEWEST'
@@ -120,9 +123,10 @@ function applyRouteQuery() {
 }
 
 watch(() => route.query, applyRouteQuery, { immediate: true })
-watch([filter, projectFilter, timeOrder, archiveFilter, search, groupByProject], () => {
+watch([filter, typeFilter, projectFilter, timeOrder, archiveFilter, search, groupByProject], () => {
   const query: Record<string, string> = {}
   if (filter.value !== 'ALL') query.status = filter.value
+  if (typeFilter.value !== 'ALL') query.type = typeFilter.value.toLowerCase()
   if (projectFilter.value !== 'ALL') query.project = projectFilter.value
   if (timeOrder.value === 'OLDEST') query.order = 'oldest'
   if (archiveFilter.value !== 'ACTIVE') query.archive = archiveFilter.value.toLowerCase()
@@ -131,7 +135,7 @@ watch([filter, projectFilter, timeOrder, archiveFilter, search, groupByProject],
   const current = Object.fromEntries(Object.entries(route.query).map(([key, value]) => [key, queryValue(value)]).filter(([, value]) => value))
   if (JSON.stringify(current) !== JSON.stringify(query)) void router.replace({ query })
 })
-watch([filter, projectFilter, timeOrder, archiveFilter, search], () => {
+watch([filter, typeFilter, projectFilter, timeOrder, archiveFilter, search], () => {
   if (!ready.value || store.usingDemo) return
   store.invalidateTaskSummaries()
   if (reloadTimer) window.clearTimeout(reloadTimer)
@@ -149,6 +153,7 @@ async function reloadTasks(append = false) {
   await store.loadTaskSummaries({
     projectId: projectFilter.value === 'ALL' ? undefined : projectFilter.value,
     ...selectedStatusQuery(),
+    taskType: typeFilter.value === 'ALL' ? undefined : typeFilter.value,
     archive: archiveFilter.value,
     q: search.value.trim() || undefined,
     order: timeOrder.value === 'OLDEST' ? 'oldest' : 'newest',
@@ -165,6 +170,7 @@ function selectMetric(status: StatusFilter) {
 }
 
 function resetFilters() {
+  typeFilter.value = 'ALL'
   filter.value = 'ALL'
   projectFilter.value = 'ALL'
   timeOrder.value = 'NEWEST'
@@ -245,6 +251,9 @@ async function confirmDelete(task: Task) {
           </div>
           <div class="task-query-row">
             <el-input v-model="search" class="task-search" name="task-search" autocomplete="off" clearable aria-label="搜索任务" placeholder="搜索标题、目标或项目…"><template #prefix><Icon icon="lucide:search" aria-hidden="true" /></template></el-input>
+            <el-select v-model="typeFilter" class="project-filter" size="small" aria-label="按任务类型筛选">
+              <el-option label="全部类型" value="ALL" /><el-option label="模板任务" value="TEMPLATE" /><el-option label="普通任务" value="STANDARD" />
+            </el-select>
             <el-select v-model="projectFilter" class="project-filter" size="small" aria-label="按项目筛选任务">
               <el-option label="全部项目" value="ALL" />
               <el-option v-for="project in projectOptions" :key="project.id" :label="project.name" :value="project.id" />
@@ -268,7 +277,7 @@ async function confirmDelete(task: Task) {
       <div v-else-if="visibleTasks.length" class="task-groups">
         <section v-for="group in taskGroups" :key="group.id" class="task-group">
           <header v-if="groupByProject" class="task-group-header"><div><Icon icon="lucide:folder" aria-hidden="true" /><h2>{{ group.name }}</h2></div><span>{{ group.tasks.length }} 个任务</span></header>
-          <div class="task-table"><el-table :data="group.tasks" row-key="id" :height="groupByProject ? undefined : 430"><el-table-column label="任务" min-width="285"><template #default="{ row }"><RouterLink class="task-link" :title="row.goal || row.title" :to="`/tasks/${row.id}`">{{ row.title }}</RouterLink><p class="mono tiny muted task-branch" translate="no">{{ row.branch }}</p></template></el-table-column><el-table-column label="状态" width="132"><template #default="{ row }"><StatusBadge :status="row.status" /><p v-if="row.status === 'RETRY_WAIT'" class="mono tiny muted">{{ retryRemaining(row) }}s</p></template></el-table-column><el-table-column label="进度" width="90"><template #default="{ row }"><span class="mono numeric">{{ row.attemptCount }}/{{ row.maxAttempts }}</span></template></el-table-column><el-table-column v-if="!groupByProject" label="项目" min-width="140" prop="projectName" /><el-table-column label="更新于" width="120"><template #default="{ row }"><time class="muted tiny" :datetime="row.updatedAt">{{ formatCompactDateTime(row.updatedAt) }}</time></template></el-table-column><el-table-column label="设计" width="96"><template #default="{ row }"><RouterLink v-if="row.hasDesignHistory" class="design-history-link" :to="`/tasks/${row.id}/design`"><Icon icon="lucide:messages-square" aria-hidden="true" />查看</RouterLink><span v-else class="tiny muted">无</span></template></el-table-column><el-table-column width="132"><template #default="{ row }"><div class="row-actions"><button v-if="row.archived" type="button" class="icon-action danger" :disabled="Boolean(archivingTaskId || deletingTaskId)" :aria-label="`永久删除任务 ${row.title}`" title="永久删除" @click="confirmDelete(row)"><Icon :icon="deletingTaskId === row.id ? 'lucide:loader-circle' : 'lucide:trash-2'" :class="{ spin: deletingTaskId === row.id }" aria-hidden="true" /></button><button v-if="row.archived || canArchive(row)" type="button" class="icon-action" :disabled="Boolean(archivingTaskId || deletingTaskId)" :aria-label="row.archived ? `恢复任务 ${row.title}` : `归档任务 ${row.title}`" :title="row.archived ? '恢复任务' : '归档任务'" @click="toggleArchive(row)"><Icon :icon="archivingTaskId === row.id ? 'lucide:loader-circle' : row.archived ? 'lucide:archive-restore' : 'lucide:archive'" :class="{ spin: archivingTaskId === row.id }" aria-hidden="true" /></button><RouterLink class="icon-action" :to="`/tasks/${row.id}`" :aria-label="`打开任务 ${row.title}`" title="打开任务"><Icon icon="lucide:arrow-up-right" aria-hidden="true" /></RouterLink></div></template></el-table-column></el-table></div>
+          <div class="task-table"><el-table :data="group.tasks" row-key="id" :height="groupByProject ? undefined : 430"><el-table-column label="任务" min-width="285"><template #default="{ row }"><RouterLink class="task-link" :title="row.goal || row.title" :to="`/tasks/${row.id}`">{{ row.title }}</RouterLink><p class="mono tiny muted task-branch" translate="no">{{ row.branch }}</p></template></el-table-column><el-table-column label="状态" width="132"><template #default="{ row }"><StatusBadge :status="row.status" /><p v-if="row.status === 'RETRY_WAIT'" class="mono tiny muted">{{ retryRemaining(row) }}s</p></template></el-table-column><el-table-column label="进度" width="90"><template #default="{ row }"><RouterLink v-if="row.executionMode === 'TEMPLATE_REPORT'" :to="`/tasks/${row.id}`">查看进度</RouterLink><span v-else class="mono numeric">{{ row.attemptCount }}/{{ row.maxAttempts }}</span></template></el-table-column><el-table-column v-if="!groupByProject" label="项目" min-width="140" prop="projectName" /><el-table-column label="更新于" width="120"><template #default="{ row }"><time class="muted tiny" :datetime="row.updatedAt">{{ formatCompactDateTime(row.updatedAt) }}</time></template></el-table-column><el-table-column label="设计" width="96"><template #default="{ row }"><RouterLink v-if="row.hasDesignHistory && row.executionMode !== 'TEMPLATE_REPORT'" class="design-history-link" :to="`/tasks/${row.id}/design`"><Icon icon="lucide:messages-square" aria-hidden="true" />查看</RouterLink><span v-else class="tiny muted">无</span></template></el-table-column><el-table-column width="132"><template #default="{ row }"><div class="row-actions"><button v-if="row.archived" type="button" class="icon-action danger" :disabled="Boolean(archivingTaskId || deletingTaskId)" :aria-label="`永久删除任务 ${row.title}`" title="永久删除" @click="confirmDelete(row)"><Icon :icon="deletingTaskId === row.id ? 'lucide:loader-circle' : 'lucide:trash-2'" :class="{ spin: deletingTaskId === row.id }" aria-hidden="true" /></button><button v-if="row.archived || canArchive(row)" type="button" class="icon-action" :disabled="Boolean(archivingTaskId || deletingTaskId)" :aria-label="row.archived ? `恢复任务 ${row.title}` : `归档任务 ${row.title}`" :title="row.archived ? '恢复任务' : '归档任务'" @click="toggleArchive(row)"><Icon :icon="archivingTaskId === row.id ? 'lucide:loader-circle' : row.archived ? 'lucide:archive-restore' : 'lucide:archive'" :class="{ spin: archivingTaskId === row.id }" aria-hidden="true" /></button><RouterLink class="icon-action" :to="`/tasks/${row.id}`" :aria-label="`打开任务 ${row.title}`" title="打开任务"><Icon icon="lucide:arrow-up-right" aria-hidden="true" /></RouterLink></div></template></el-table-column></el-table></div>
         </section>
       </div>
       <div v-if="store.taskNextCursor" class="load-more-row"><el-button plain :loading="store.loading" @click="reloadTasks(true)">加载更多</el-button></div>

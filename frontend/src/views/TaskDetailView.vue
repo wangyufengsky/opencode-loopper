@@ -5,6 +5,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
 import TemplateReportsPanel from '@/components/TemplateReportsPanel.vue'
+import TemplateTaskProgressPanel from '@/components/TemplateTaskProgressPanel.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import StageRail from '@/components/StageRail.vue'
 import AttemptTimeline from '@/components/AttemptTimeline.vue'
@@ -149,7 +150,17 @@ async function load() {
   await loadQueue()
   if (generation === loadGeneration && id.value === taskId && !store.usingDemo) store.watchTask(taskId)
 }
-onMounted(() => { clockTimer = setInterval(() => { clock.value = Date.now() }, 1000); void load() })
+let progressRefreshing = false
+let progressPollAt = 0
+onMounted(() => { clockTimer = setInterval(() => {
+  clock.value = Date.now()
+  if (isTemplateTask.value && !store.usingDemo && !document.hidden && !progressRefreshing
+      && !['COMPLETED', 'FAILED', 'CANCELLED'].includes(task.value?.status ?? '') && clock.value - progressPollAt >= 4000) {
+    progressRefreshing = true; progressPollAt = clock.value
+    void store.loadTaskOverview(id.value).catch(() => { /* SSE retains its reconnect status; next poll retries. */ })
+      .finally(() => { progressRefreshing = false })
+  }
+}, 1000); void load() })
 watch(id, load)
 watch(() => task.value?.status, () => { void loadQueue() })
 watch(waitingForWorkspaceCleanup, (waiting) => { dirtyWorkspaceDialogOpen.value = waiting }, { immediate: true })
@@ -337,6 +348,7 @@ async function confirmRework() {
         <div v-else><p class="eyebrow">{{ isTemplateTask ? '模板任务' : isDirectExecution ? '直接执行' : '原项目任务分支' }}</p><span class="mono tiny muted">{{ isDirectExecution ? '原项目目录' : task.branch }} · {{ task.worktreePath }}</span></div>
         <div class="overview-meta"><span><b>{{ task.attemptCount }}</b> / {{ task.maxAttempts }} 次尝试</span><span v-if="store.streamState !== 'idle'" :class="['stream-state', store.streamState]">{{ store.streamState === 'connected' ? '实时连接正常' : '实时连接恢复中' }}</span></div>
       </section>
+      <TemplateTaskProgressPanel v-if="isTemplateTask" :task="task" />
       <TemplateReportsPanel v-if="isTemplateTask" :task-id="task.id" :artifacts="artifacts" :accepted="task.status === 'COMPLETED'" />
       <RollingPackageWorkbench v-if="task.executionMode === 'ROLLING_PACKAGES'" :task="task" @refresh="load" />
       <TaskDecisionPanel v-if="!isTemplateTask && task.status === 'AWAITING_DECISION'" :task-id="task.id" @reload="load" @open-task="(taskId) => router.push(`/tasks/${taskId}`)" />

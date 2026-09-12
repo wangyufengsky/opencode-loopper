@@ -238,7 +238,7 @@ function normalizeProject(value: unknown): Project {
   const status = asString(raw.status)
   const executionMode = asString(raw.executionMode)
   const stackState = asString(raw.stackProfileState)
-  return { id: asString(raw.id), name: asString(raw.name), rootPath: asString(raw.rootPath), branch: asString(raw.branch) || undefined, description: asString(raw.description) || undefined, status: status === 'INVALID' || status === 'NEEDS_GIT' ? status : 'READY', executionMode: executionMode === 'WORKTREE' || executionMode === 'DIRECT' || executionMode === 'UNAVAILABLE' ? executionMode : undefined, updatedAt: asString(raw.updatedAt), taskCount: asNumber(raw.taskCount), openDesignerSessionCount: asNumber(raw.openDesignerSessionCount), stackProfileState: stackState === 'READY' || stackState === 'PARTIAL' || stackState === 'FAILED' ? stackState : 'UNANALYZED', stackTechnologyFamilies: asArray(raw.stackTechnologyFamilies).map(String), stackComponentCount: asNumber(raw.stackComponentCount), stackAnalyzedAt: asString(raw.stackAnalyzedAt) || undefined }
+  return { id: asString(raw.id), name: asString(raw.name), rootPath: asString(raw.rootPath), branch: asString(raw.branch) || undefined, description: asString(raw.description) || undefined, documentPath: asString(raw.documentPath) || undefined, version: typeof raw.version === 'number' ? raw.version : undefined, status: status === 'INVALID' || status === 'NEEDS_GIT' ? status : 'READY', executionMode: executionMode === 'WORKTREE' || executionMode === 'DIRECT' || executionMode === 'UNAVAILABLE' ? executionMode : undefined, updatedAt: asString(raw.updatedAt), taskCount: asNumber(raw.taskCount), openDesignerSessionCount: asNumber(raw.openDesignerSessionCount), stackProfileState: stackState === 'READY' || stackState === 'PARTIAL' || stackState === 'FAILED' ? stackState : 'UNANALYZED', stackTechnologyFamilies: asArray(raw.stackTechnologyFamilies).map(String), stackComponentCount: asNumber(raw.stackComponentCount), stackAnalyzedAt: asString(raw.stackAnalyzedAt) || undefined }
 }
 
 function normalizeStackComponent(value: unknown) {
@@ -433,6 +433,7 @@ export interface CursorPage<T> {
 }
 
 export interface TaskSummaryQuery {
+  taskType?: 'TEMPLATE' | 'STANDARD'
   projectId?: string
   status?: string[]
   statusGroup?: 'PROCESSING' | 'SUCCESSFUL' | 'TERMINATED'
@@ -458,6 +459,7 @@ function pageQuery(input: TaskSummaryQuery): string {
   if (input.projectId) query.set('projectId', input.projectId)
   input.status?.forEach((status) => query.append('status', status))
   if (input.statusGroup) query.set('statusGroup', input.statusGroup)
+  if (input.taskType) query.set('taskType', input.taskType)
   if (input.archive) query.set('archive', input.archive)
   if (input.q) query.set('q', input.q)
   if (input.order) query.set('order', input.order)
@@ -488,6 +490,7 @@ function normalizeTaskSummary(value: unknown): Task {
     retryCause: ['RATE_LIMIT', 'SESSION', 'VERIFICATION'].includes(asString(raw.retryCause))
       ? asString(raw.retryCause) as Task['retryCause'] : undefined,
     retryDueAt: asString(raw.retryDueAt) || undefined,
+    executionMode: asString(raw.executionMode) as Task['executionMode'] || undefined,
     hasDesignHistory: raw.hasDesignHistory as boolean, archived: raw.archived as boolean,
     attemptCount: asNumber(raw.attemptCount), maxAttempts: asNumber(raw.maxAttempts, 12),
     createdAt: asString(raw.createdAt), updatedAt: asString(raw.updatedAt),
@@ -527,6 +530,15 @@ function normalizeReadContent(value: unknown): ReadContent {
     content: asString(raw.content), metadata: asRecord(raw.metadata) }
 }
 
+function normalizeTemplateProgress(value: unknown): NonNullable<Task['templateProgress']> {
+  const raw = asRecord(value)
+  return { reviewBatches: typeof raw.reviewBatches === 'number' ? raw.reviewBatches : null,
+    contributorBatches: typeof raw.contributorBatches === 'number' ? raw.contributorBatches : null,
+    completedReviews: asNumber(raw.completedReviews), completedContributors: asNumber(raw.completedContributors),
+    activeBatches: asNumber(raw.activeBatches), failedBatches: asNumber(raw.failedBatches), repairRound: asNumber(raw.repairRound),
+    documentPath: asString(raw.documentPath) || null }
+}
+
 function normalizeTask(value: unknown): Task {
   const raw = asRecord(value)
   requireBooleanFields(raw, ['loopRetryAvailable', 'cancellationAvailable', 'hasDesignHistory', 'archived'], 'Task')
@@ -536,7 +548,7 @@ function normalizeTask(value: unknown): Task {
   const workPackages = asArray(raw.workPackages).map((value) => { const item = asRecord(value); return { id: asString(item.id), ordinal: asNumber(item.ordinal), status: requirePublicState(WORK_PACKAGE_AGGREGATE_STATUSES, item.status, 'WorkPackage'), stageCount: asNumber(item.stageCount), completedStages: asNumber(item.completedStages), attemptCount: asNumber(item.attemptCount), attemptLimit: asNumber(item.attemptLimit) } })
   const executionMode = asString(raw.executionMode) as Task['executionMode']
   const packageCapabilities = raw.packageCapabilities ? normalizeRollingCapabilities(raw.packageCapabilities) : undefined
-  return { id: taskId, projectId: asString(raw.projectId), projectName: asString(raw.projectName, 'Unknown project'), title: asString(raw.title), goal: asString(raw.goal), branch: asString(raw.branch) || '等待选择执行模式', worktreePath: asString(raw.worktreePath) || '等待准备执行目录', status: requirePublicState(TASK_STATUSES, raw.status, 'Task'), retryCause: ['RATE_LIMIT', 'SESSION', 'VERIFICATION'].includes(asString(raw.retryCause)) ? asString(raw.retryCause) as Task['retryCause'] : undefined, retryOrdinal: typeof raw.retryOrdinal === 'number' ? raw.retryOrdinal : undefined, retryScheduledAt: asString(raw.retryScheduledAt) || undefined, retryDueAt: asString(raw.retryDueAt) || undefined, retryDelaySeconds: typeof raw.retryDelaySeconds === 'number' ? raw.retryDelaySeconds : undefined, waitingReasonCode: asString(raw.waitingReasonCode) || undefined, loopRetryAvailable: raw.loopRetryAvailable === true, cancellationAvailable: raw.cancellationAvailable === true, hasDesignHistory: raw.hasDesignHistory === true, archived: raw.archived === true, version: typeof raw.version === 'number' ? raw.version : undefined, executionMode: executionMode || undefined, workspacePolicy: asString(raw.workspacePolicy) as Task['workspacePolicy'] || undefined, currentPackage: raw.currentPackage ? normalizeRollingRun(raw.currentPackage) : undefined, plannedPackageCount: typeof raw.plannedPackageCount === 'number' ? raw.plannedPackageCount : undefined, frozenPackageCount: typeof raw.frozenPackageCount === 'number' ? raw.frozenPackageCount : undefined, packageCapabilities, executionResult: asString(raw.executionResult) as Task['executionResult'] || undefined, executionCycleOrdinal: typeof raw.executionCycleOrdinal === 'number' ? raw.executionCycleOrdinal : undefined, checkpointState: asString(raw.checkpointState) as Task['checkpointState'] || undefined, parentTaskId: asString(raw.parentTaskId) || undefined, successorTaskId: asString(raw.successorTaskId) || undefined, activeStage: stages.find((stage) => stage.status === 'RUNNING')?.ordinal, attemptCount: asNumber(raw.attemptCount, attempts.length), maxAttempts: asNumber(raw.maxAttempts, 12), createdAt: asString(raw.createdAt), updatedAt: asString(raw.updatedAt), stages, workPackages, attempts, errors: asArray(raw.errors).map(normalizeError), judges: asArray(raw.judges).map(normalizeJudge), artifacts: asArray(raw.artifacts).map((artifact) => normalizeArtifact(artifact, taskId)) }
+  return { id: taskId, projectId: asString(raw.projectId), projectName: asString(raw.projectName, 'Unknown project'), title: asString(raw.title), goal: asString(raw.goal), branch: asString(raw.branch) || '等待选择执行模式', worktreePath: asString(raw.worktreePath) || '等待准备执行目录', status: requirePublicState(TASK_STATUSES, raw.status, 'Task'), retryCause: ['RATE_LIMIT', 'SESSION', 'VERIFICATION'].includes(asString(raw.retryCause)) ? asString(raw.retryCause) as Task['retryCause'] : undefined, retryOrdinal: typeof raw.retryOrdinal === 'number' ? raw.retryOrdinal : undefined, retryScheduledAt: asString(raw.retryScheduledAt) || undefined, retryDueAt: asString(raw.retryDueAt) || undefined, retryDelaySeconds: typeof raw.retryDelaySeconds === 'number' ? raw.retryDelaySeconds : undefined, waitingReasonCode: asString(raw.waitingReasonCode) || undefined, loopRetryAvailable: raw.loopRetryAvailable === true, cancellationAvailable: raw.cancellationAvailable === true, hasDesignHistory: raw.hasDesignHistory === true, archived: raw.archived === true, version: typeof raw.version === 'number' ? raw.version : undefined, executionMode: executionMode || undefined, workspacePolicy: asString(raw.workspacePolicy) as Task['workspacePolicy'] || undefined, currentPackage: raw.currentPackage ? normalizeRollingRun(raw.currentPackage) : undefined, plannedPackageCount: typeof raw.plannedPackageCount === 'number' ? raw.plannedPackageCount : undefined, frozenPackageCount: typeof raw.frozenPackageCount === 'number' ? raw.frozenPackageCount : undefined, packageCapabilities, templateProgress: raw.templateProgress ? normalizeTemplateProgress(raw.templateProgress) : undefined, executionResult: asString(raw.executionResult) as Task['executionResult'] || undefined, executionCycleOrdinal: typeof raw.executionCycleOrdinal === 'number' ? raw.executionCycleOrdinal : undefined, checkpointState: asString(raw.checkpointState) as Task['checkpointState'] || undefined, parentTaskId: asString(raw.parentTaskId) || undefined, successorTaskId: asString(raw.successorTaskId) || undefined, activeStage: stages.find((stage) => stage.status === 'RUNNING')?.ordinal, attemptCount: asNumber(raw.attemptCount, attempts.length), maxAttempts: asNumber(raw.maxAttempts, 12), createdAt: asString(raw.createdAt), updatedAt: asString(raw.updatedAt), stages, workPackages, attempts, errors: asArray(raw.errors).map(normalizeError), judges: asArray(raw.judges).map(normalizeJudge), artifacts: asArray(raw.artifacts).map((artifact) => normalizeArtifact(artifact, taskId)) }
 }
 
 function normalizeRollingCapabilities(value: unknown): RollingPackageCapabilities {
@@ -1583,7 +1595,8 @@ export const api = {
     const raw = asRecord(await request<unknown>('/projects/pick-directory', { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } }))
     return { selected: raw.selected === true, path: asString(raw.path) || undefined, name: asString(raw.name) || undefined }
   },
-  createProject: async (input: Pick<Project, 'name' | 'rootPath' | 'description'>) => normalizeProject(await request<unknown>('/projects', { method: 'POST', body: JSON.stringify({ name: input.name, rootPath: input.rootPath, description: input.description?.trim() || '' }) })),
+  createProject: async (input: Pick<Project, 'name' | 'rootPath' | 'description' | 'documentPath'>) => normalizeProject(await request<unknown>('/projects', { method: 'POST', body: JSON.stringify({ name: input.name, rootPath: input.rootPath, description: input.description?.trim() || '', documentPath: input.documentPath?.trim() || null }) })),
+  updateProjectDocumentPath: async (projectId: string, documentPath: string, version: number) => normalizeProject(await request<unknown>(`/projects/${encodeURIComponent(projectId)}/document-path`, { method: 'PUT', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify({ documentPath: documentPath.trim() || null, version }) })),
   getProjectStackProfile: async (projectId: string) => normalizeProjectStackProfile(await request<unknown>(`/projects/${encodeURIComponent(projectId)}/stack-profile`)),
   cancelProjectManagement: async (projectId: string) => request<void>(`/projects/${encodeURIComponent(projectId)}`, { method: 'DELETE', headers: { 'X-Loopper-Local-UI': '1' } }),
   getCurrentProjectConvention: async (projectId: string) => normalizeProjectConventionSnapshot(await request<unknown>(`/projects/${encodeURIComponent(projectId)}/agents-md`)),

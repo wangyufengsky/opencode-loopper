@@ -7,6 +7,8 @@ export interface Project {
   id: string
   name: string
   rootPath: string
+  documentPath?: string
+  version?: number
   branch?: string
   description?: string
   status: 'READY' | 'NEEDS_GIT' | 'INVALID'
@@ -231,6 +233,7 @@ export interface TaskWorkPackageProgress {
 }
 
 export interface Task {
+  templateProgress?: TemplateTaskProgress
   id: string
   projectId: string
   projectName: string
@@ -1458,7 +1461,9 @@ export interface StoryAccountingCall {
 }
 
 export interface TemplateTaskDefinition {
-  id: 'CODE_REVIEW' | 'CONTRIBUTION_REPORT'
+  id: string
+  icon?: string
+  category?: string
   version: string
   title: string
   description: string
@@ -1475,7 +1480,7 @@ export interface TemplateTaskCatalog {
   scoreFormula: string
   dimensions: Array<{ title: string; weight: number; levels: string[] }>
 }
-export interface TemplateProjectChoice { id: string; name: string; createdAt: string }
+export interface TemplateProjectChoice { id: string; name: string; createdAt: string; documentPath?: string | null }
 export interface TemplateBranchChoice { id: string; label: string; ref: string; remote: string | null }
 export interface TemplateBranchPage {
   page: { items: TemplateBranchChoice[]; nextCursor: string | null; facets?: Record<string, number> }
@@ -1487,11 +1492,22 @@ export interface TemplateTaskRequest {
   requestKey: string
   templateId: TemplateTaskDefinition['id']
   templateVersion: string
+  documentPath?: string
   projectId: string
   branchId: string
   startDate: string
   endDate: string
   story: StoryBindingConfiguration
+}
+export interface TemplateTaskProgress {
+  reviewBatches: number | null
+  contributorBatches: number | null
+  completedReviews: number
+  completedContributors: number
+  activeBatches: number
+  failedBatches: number
+  repairRound: number
+  documentPath: string | null
 }
 export interface TemplateTaskCreated { id: string; state: TaskStatus }
 export interface TemplateTaskSummary {

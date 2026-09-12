@@ -20,6 +20,10 @@ public final class TemplateTaskContractFactory {
     public TemplateTaskContractFactory(LoopperProperties properties) { this.properties = properties; }
 
     public Frozen freeze(TemplateTaskDefinition definition, String projectId, TemplateDateRange range) {
+        return freeze(definition, projectId, range, null);
+    }
+
+    public Frozen freeze(TemplateTaskDefinition definition, String projectId, TemplateDateRange range, String documentPath) {
         LoopSpec.Limits limits = new LoopSpec.Limits(properties.getMaxStageAttempts(), properties.getMaxTaskAttempts(),
                 properties.getSessionErrorLimit(), 2, properties.getMaxDuration().toSeconds(),
                 properties.getAttemptTimeout().toSeconds(), properties.getVerifierTimeout().toSeconds());
@@ -32,7 +36,7 @@ public final class TemplateTaskContractFactory {
                 List.of(stage("冻结分支并采集完整 Git 证据", "SNAPSHOT"), stage("分析证据并生成可追溯报告", "REPORT")),
                 limits, model(), new LoopSpec.SessionPolicy(false, true), "按原合同修复本轮报告的具体问题", LoopSpec.BudgetSpec.unlimited());
         return new Frozen(definition.view(), spec, ContributionScore.VERSION, ContributionScore.FORMULA,
-                ContributionScore.DIMENSIONS, TemplateDateRange.ZONE.getId(), "COMMITTER_TIME", 2, TemplateReportLayout.freeze());
+                ContributionScore.DIMENSIONS, TemplateDateRange.ZONE.getId(), "COMMITTER_TIME", 2, TemplateReportLayout.freeze(), documentPath);
     }
 
     private LoopSpec.ModelSpec model() {
@@ -55,5 +59,5 @@ public final class TemplateTaskContractFactory {
 
     public record Frozen(TemplateTaskDefinition.View definition, LoopSpec spec, String scoringVersion, String scoreFormula,
                           List<ContributionScore.Dimension> dimensions, String timezone, String timePolicy, int repairLimit,
-                          TemplateReportLayout.Frozen reportTemplates) { }
+                          TemplateReportLayout.Frozen reportTemplates, String documentPath) { }
 }

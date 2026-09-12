@@ -28,6 +28,8 @@ class TemplateTaskExecutionIntegrationTest {
     @Autowired TemplateTaskCoordinator driver;
     @Autowired TemplateRunEvidenceService evidence;
     @Autowired TemplateTaskMapper templates;
+    @Autowired TaskReadService taskReads;
+    @Autowired TemplateReportArtifactService reportArtifacts;
     @Autowired LoopperMapper mapper;
     @Autowired TaskService tasks;
     @Autowired ProjectService projects;
@@ -101,6 +103,68 @@ class TemplateTaskExecutionIntegrationTest {
         exportBrowserFixture(task.id());
     }
 
+    @Test void writesReportsToFrozenProjectDirectoryAndKeepsOtherFiles() throws Exception {
+        var project = projects.get(projectId);
+        Path destination = temporary.toRealPath().resolve("exported reports");
+        Files.createDirectories(destination);
+        Files.writeString(destination.resolve("code-review.md"), "user document");
+        var configured = projects.updateDocumentPath(projectId, destination.toString(), project.version());
+        TaskRow task = create("CODE_REVIEW");
+        projects.updateDocumentPath(projectId, "docs/new-default", configured.version());
+        states.start(task.id(), evidence.contract(task.id()));
+        run(task.id(), false);
+        assertThat(states.task(task.id()).state()).isEqualTo("COMPLETED");
+        var progress = taskReads.overview(task.id()).templateProgress();
+        Path output = Path.of(progress.documentPath()).resolve("code-review.md");
+        assertThat(output).startsWith(destination).exists();
+        var artifact = mapper.listTaskArtifacts(task.id()).stream().filter(row -> row.kind().equals("TEMPLATE_REPORT")).findFirst().orElseThrow();
+        assertThat(Files.readString(output)).isEqualTo(artifact.content());
+        assertThat(Files.readString(destination.resolve("code-review.md"))).isEqualTo("user document");
+        assertThat(source.resolve("docs/new-default")).doesNotExist();
+        assertThat(progress.reviewBatches()).isEqualTo(1);
+        assertThat(progress.completedReviews()).isEqualTo(1);
+    }
+
+    @Test void replayedReportWritesAreIdempotentAndNeverReplaceEditedFiles() throws Exception {
+        var project = projects.get(projectId);
+        projects.updateDocumentPath(projectId, "docs/reports", project.version());
+        TaskRow task = create("CODE_REVIEW");
+        states.start(task.id(), evidence.contract(task.id()));
+        run(task.id(), false, true);
+        TaskRow current = states.task(task.id());
+        assertThat(current.state()).isEqualTo("JUDGING");
+        String attemptId = mapper.latestAttempt(mapper.listStages(task.id()).getLast().id()).orElseThrow().id();
+        Path report = Path.of(taskReads.overview(task.id()).templateProgress().documentPath()).resolve("code-review.md");
+        String original = Files.readString(report);
+        reportArtifacts.materialize(current, attemptId);
+        assertThat(Files.readString(report)).isEqualTo(original);
+        Files.writeString(report, "external edit");
+        assertThatThrownBy(() -> reportArtifacts.materialize(current, attemptId))
+                .isInstanceOf(io.opencode.loopper.domain.TaskFailure.class).hasMessageContaining("外部修改");
+        assertThat(Files.readString(report)).isEqualTo("external edit");
+    }
+
+    @Test void progressIncludesUnstartedBatchesAndResetsCompletedCountsForRepair() throws Exception {
+        for (int index = 0; index < 25; index++) Files.writeString(source.resolve("file-" + index + ".txt"), "change " + index);
+        git.read(source, "add", ".");
+        git.read(source, "-c", "user.name=Test", "-c", "user.email=test@example.test", "commit", "-m", "many files");
+        TaskRow task = create("CONTRIBUTION_REPORT");
+        states.start(task.id(), evidence.contract(task.id()));
+        for (int index = 0; index < 3; index++) driver.advance(task.id());
+        var progress = taskReads.overview(task.id()).templateProgress();
+        assertThat(progress.reviewBatches()).isEqualTo(3);
+        assertThat(progress.contributorBatches()).isEqualTo(1);
+        assertThat(progress.completedReviews()).isZero();
+        assertThat(progress.completedContributors()).isZero();
+        run(task.id(), true);
+        var completed = taskReads.overview(task.id()).templateProgress();
+        assertThat(completed.repairRound()).isEqualTo(1);
+        assertThat(completed.completedReviews()).isEqualTo(3);
+        assertThat(completed.completedContributors()).isEqualTo(1);
+        assertThat(completed.failedBatches()).isZero();
+        assertThat(completed.activeBatches()).isZero();
+    }
+
     private void exportBrowserFixture(String taskId) {
         String destination = System.getProperty("template.browser.fixtureDir");
         if (destination == null) return;
@@ -162,13 +226,17 @@ class TemplateTaskExecutionIntegrationTest {
         states.start(second.id(), evidence.contract(second.id())); run(second.id(), false);
         assertThat(states.task(second.id()).state()).isEqualTo("COMPLETED");
         assertThat(mapper.listSessions(second.id())).isEmpty();
+        assertThat(taskReads.overview(second.id()).templateProgress().completedReviews()).isEqualTo(1);
         assertThat(mapper.listJudgeRuns(second.id()).stream().filter(row -> row.state().equals("COMPLETED"))).hasSize(2);
     }
 
-    private void run(String id, boolean malformedFirst) {
+    private void run(String id, boolean malformedFirst) { run(id, malformedFirst, false); }
+
+    private void run(String id, boolean malformedFirst, boolean stopAtJudging) {
         for (int i = 0; i < 90 && !states.task(id).state().equals("COMPLETED"); i++) {
             TaskRow task = states.task(id);
             if (task.state().equals("JUDGING")) {
+                if (stopAtJudging) return;
                 fake.setJudgeOutput("{\"verdict\":\"PASS\",\"reason\":\"报告完整，证据与计算可核对\"}");
                 driver.advance(id); tasks.pollJudges(id); continue;
             }
@@ -185,7 +253,14 @@ class TemplateTaskExecutionIntegrationTest {
                     fake.setJudgeOutput(json.writeValueAsString(new TemplateAnalysis.ContributorCandidate(input.person().author().identity(), "新增内容", grade, grade, grade, grade)));
                 }
             }
+            int previousRound = templates.findRun(id).orElseThrow().repairRound();
             driver.advance(id);
+            if (templates.findRun(id).orElseThrow().repairRound() > previousRound) {
+                var nextProgress = taskReads.overview(id).templateProgress();
+                assertThat(nextProgress.completedReviews()).isZero();
+                assertThat(nextProgress.completedContributors()).isZero();
+                assertThat(nextProgress.failedBatches()).isZero();
+            }
         }
     }
 }

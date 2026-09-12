@@ -72,6 +72,25 @@ class TaskReadServiceIntegrationTest {
         queries.reset();
     }
 
+    @Test void templateTypeFilterScopesPaginationAndFacetsTogether() {
+        for (String id : List.of("template-a", "template-b")) {
+            jdbc.update("INSERT INTO task(id,project_id,title,state,created_at,updated_at,execution_mode,workspace_policy) VALUES(?,?,?,?,?,?,?,?)",
+                    id, "p", "Template", "RUNNING", "2026-01-01T00:00:00Z", "2026-01-04T00:00:00Z", "TEMPLATE_REPORT", "ISOLATED_REPORT");
+        }
+        var first = reads.summaries("p", List.of(), null, "ALL", null, "newest", null, 1, "TEMPLATE");
+        assertThat(first.items()).extracting(TaskReadService.TaskSummary::id).containsExactly("template-b");
+        assertThat(first.facets()).containsEntry("TOTAL", 2L).containsEntry("PROCESSING", 2L);
+        var second = reads.summaries("p", List.of(), null, "ALL", null, "newest", first.nextCursor(), 1, "TEMPLATE");
+        assertThat(second.items()).extracting(TaskReadService.TaskSummary::id).containsExactly("template-a");
+        assertThat(second.items().getFirst().executionMode()).isEqualTo("TEMPLATE_REPORT");
+        assertThat(second.nextCursor()).isNull();
+        var ordinary = reads.summaries("p", List.of(), null, "ALL", null, "newest", null, 100, "STANDARD");
+        assertThat(ordinary.items()).extracting(TaskReadService.TaskSummary::id).containsExactlyInAnyOrder("task-a", "task-b");
+        assertThat(ordinary.facets()).containsEntry("TOTAL", 2L);
+        assertThatThrownBy(() -> reads.summaries(null, List.of(), null, "ALL", null, "newest", null, 100, "invalid"))
+                .isInstanceOf(BadRequestException.class);
+    }
+
     @Test
     void overviewUsesMetadataColumnsAndSchedulerSelectsOnlyActionableTasks() {
         jdbc.update("INSERT INTO error_event(id,task_id,layer,code,message,retryable,evidence_json,occurred_at) VALUES(?,?,?,?,?,?,?,?)",

@@ -4,6 +4,7 @@ import { Icon } from '@iconify/vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
+import ProjectDocumentPathDialog from '@/components/ProjectDocumentPathDialog.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import ProjectConventionActivityPanel from '@/components/ProjectConventionActivityPanel.vue'
 import { api } from '@/api/client'
@@ -14,10 +15,15 @@ import { userFacingError } from '@/utils/displayLabels'
 const store = useTaskStore()
 const router = useRouter()
 const dialogVisible = ref(false)
+const documentProject = ref<Project>()
+function savedDocumentProject(project: Project) {
+  const index = store.projects.findIndex(item => item.id === project.id)
+  if (index >= 0) store.projects[index] = project
+}
 const saving = ref(false)
 const pickingDirectory = ref(false)
 const fieldError = ref('')
-const form = ref({ name: '', rootPath: '', description: '' })
+const form = ref({ name: '', rootPath: '', description: '', documentPath: '' })
 const conventionVisible = ref(false)
 const conventionProject = ref<Project>()
 const conventionSnapshot = ref<ProjectConventionSnapshot>()
@@ -49,7 +55,7 @@ function stackLabel(project: Project) {
 }
 
 function openDialog() {
-  form.value = { name: '', rootPath: '', description: '' }
+  form.value = { name: '', rootPath: '', description: '', documentPath: '' }
   fieldError.value = ''
   dialogVisible.value = true
 }
@@ -260,12 +266,14 @@ onBeforeUnmount(clearConventionPoll)
     <section v-else-if="store.projects.length" class="project-grid">
       <article v-for="project in store.projects" :key="project.id" class="card card-pad project-card">
         <div class="card-header"><div><div class="project-icon"><Icon :icon="project.executionMode === 'WORKTREE' ? 'lucide:folder-git-2' : 'lucide:folder-cog'" /></div><h2 class="card-title" style="margin-top: 12px">{{ project.name }}</h2></div><StatusBadge :status="project.status === 'INVALID' ? 'FAILED' : project.status === 'READY' ? 'SUCCEEDED' : 'PENDING'" :label="project.status === 'INVALID' ? '路径不可用' : project.executionMode === 'WORKTREE' ? 'Git 分支模式' : '直接模式'" /></div>
+        <p v-if="project.documentPath" class="mono tiny muted project-path">文档：{{ project.documentPath }}</p>
         <p v-if="project.description" class="card-description">{{ project.description }}</p>
         <div class="divider" /><p class="mono tiny muted project-path">{{ project.rootPath }}</p>
         <div class="stack-summary"><Icon icon="lucide:layers-3" /><strong>{{ stackLabel(project) }}</strong><span class="tiny muted">{{ project.stackComponentCount ?? 0 }} 个组件</span></div>
         <div class="project-footer">
           <div class="project-stats"><span class="execution-mode"><Icon :icon="project.executionMode === 'WORKTREE' ? 'lucide:git-branch' : 'lucide:folder-cog'" /><span class="mono tiny">{{ project.executionMode === 'WORKTREE' ? project.branch : project.executionMode === 'UNAVAILABLE' ? '目录不可访问' : '原项目目录' }}</span></span><span class="tiny muted">{{ project.taskCount }} 个任务 · {{ project.openDesignerSessionCount }} 个待继续设计</span></div>
           <div class="project-actions">
+            <button type="button" class="convention-action" aria-label="设置项目文档路径" @click="documentProject = project"><Icon icon="lucide:folder-output" /><span>文档路径</span></button>
             <button v-if="project.openDesignerSessionCount" type="button" class="convention-action resume-design-action" aria-label="继续项目设计" title="查看并继续未确认的设计" @click="continueDesign(project)">
               <Icon icon="lucide:sparkles" aria-hidden="true" /><span>继续设计</span>
             </button>
@@ -282,6 +290,7 @@ onBeforeUnmount(clearConventionPoll)
     <section v-else class="card empty-state"><div><Icon icon="lucide:folder-plus" width="28" aria-hidden="true" /><strong>尚未登记项目</strong><el-button type="primary" @click="openDialog">登记第一个项目</el-button></div></section>
   </main>
 
+  <ProjectDocumentPathDialog :project="documentProject" :demo="store.usingDemo" @close="documentProject = undefined" @saved="savedDocumentProject" />
   <el-dialog v-model="dialogVisible" title="登记项目根目录" width="min(640px, calc(100vw - 32px))" :close-on-click-modal="false">
     <el-form label-position="top" @submit.prevent="submit">
       <el-form-item label="项目名称"><el-input v-model="form.name" placeholder="例如 OpenCode Loopper" /></el-form-item>
@@ -292,6 +301,7 @@ onBeforeUnmount(clearConventionPoll)
         </div>
         <p v-if="fieldError" class="inline-field-error"><Icon icon="lucide:circle-alert" /> {{ fieldError }}</p>
       </el-form-item>
+      <el-form-item label="文档路径（可选）"><el-input v-model="form.documentPath" aria-label="登记项目文档路径" placeholder="项目相对路径或绝对路径" maxlength="2048" /></el-form-item>
       <el-form-item label="说明（可选）"><el-input v-model="form.description" type="textarea" :rows="3" maxlength="500" show-word-limit placeholder="说明该项目的用途与约束" /></el-form-item>
     </el-form>
     <template #footer><el-button @click="dialogVisible = false">取消</el-button><el-button type="primary" :loading="saving" @click="submit">验证并登记</el-button></template>

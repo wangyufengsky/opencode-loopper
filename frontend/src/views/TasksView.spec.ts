@@ -74,18 +74,33 @@ function mountView() {
 }
 
 describe('Tasks filters and design history', () => {
+  it('routes template filters to the server and keeps the selection in the URL', async () => {
+    const store = useTaskStore()
+    store.usingDemo = false
+    vi.spyOn(store, 'loadProjects').mockResolvedValue([])
+    const load = vi.spyOn(store, 'loadTaskSummaries').mockResolvedValue(undefined)
+    await router.push('/tasks?type=template')
+    const wrapper = mountView()
+    await flushPromises()
+    expect(load).toHaveBeenCalledWith(expect.objectContaining({ taskType: 'TEMPLATE' }), false)
+    expect((wrapper.get('select[aria-label="按任务类型筛选"]').element as HTMLSelectElement).value).toBe('TEMPLATE')
+    await wrapper.get('select[aria-label="按任务类型筛选"]').setValue('STANDARD')
+    await flushPromises()
+    expect(router.currentRoute.value.query.type).toBe('standard')
+    wrapper.unmount()
+  })
+
   it('filters by project and sorts by updated time in both directions', async () => {
     const wrapper = mountView()
     await flushPromises()
-    const selects = wrapper.findAll('select')
 
     expect(wrapper.findAll('.task-link').map((link) => link.text())).toEqual(['A 的新任务', 'B 的任务', 'A 的旧任务'])
-    await selects[0]!.setValue('project-a')
+    await wrapper.get('select[aria-label="按项目筛选任务"]').setValue('project-a')
     await flushPromises()
     expect(wrapper.findAll('.task-link').map((link) => link.text())).toEqual(['A 的新任务', 'A 的旧任务'])
 
-    await selects[0]!.setValue('ALL')
-    await selects[2]!.setValue('OLDEST')
+    await wrapper.get('select[aria-label="按项目筛选任务"]').setValue('ALL')
+    await wrapper.get('select[aria-label="按更新时间排序"]').setValue('OLDEST')
     await flushPromises()
     expect(wrapper.findAll('.task-link').map((link) => link.text())).toEqual(['A 的旧任务', 'B 的任务', 'A 的新任务'])
   })
@@ -109,7 +124,7 @@ describe('Tasks filters and design history', () => {
     await wrapper.get('button[aria-label^="归档任务"]').trigger('click')
     await flushPromises()
     expect(useTaskStore().tasks.filter((task) => task.archived)).toHaveLength(1)
-    await wrapper.findAll('select')[1]!.setValue('ARCHIVED')
+    await wrapper.get('select[aria-label="选择归档范围"]').setValue('ARCHIVED')
     await flushPromises()
     expect(wrapper.findAll('.task-link')).toHaveLength(1)
     expect(router.currentRoute.value.query.archive).toBe('archived')
@@ -121,7 +136,7 @@ describe('Tasks filters and design history', () => {
     vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue(undefined as never)
 
     await wrapper.get('button[aria-label^="归档任务"]').trigger('click')
-    await wrapper.findAll('select')[1]!.setValue('ARCHIVED')
+    await wrapper.get('select[aria-label="选择归档范围"]').setValue('ARCHIVED')
     await flushPromises()
 
     const remove = wrapper.get('button[aria-label^="永久删除任务"]')
