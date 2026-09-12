@@ -71,7 +71,7 @@ public class TemplateBatchExecution {
         // while using their default would authorize hidden retries outside the frozen two-round policy.
         Path root = Path.of(mapper.findTask(row.taskId()).orElseThrow().worktreePath());
         byte[] nonce = new byte[32]; new SecureRandom().nextBytes(nonce);
-        var profile = List.of("5", "6").contains(contract.definition().version())
+        var profile = List.of("5", "6", "7").contains(contract.definition().version())
                 ? OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS
                 : OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_NO_TOOLS;
         var plan = openCode.prepareSessionCreation(root, "模板报告分析 " + (row.ordinal() + 1), model,
@@ -142,7 +142,7 @@ public class TemplateBatchExecution {
             var accepted = submissions.accepted(row.id());
             if (accepted.isPresent()) return store.validated(row, validate(row, accepted.get()), false);
             var missing = openCode.sessionResult(remote);
-            if ("6".equals(contract.definition().version())
+            if (List.of("6", "7").contains(contract.definition().version())
                     && "OPENCODE_OUTPUT_LENGTH_EXHAUSTED".equals(missing.errorType())) {
                 return store.prepareContinuation(row);
             }

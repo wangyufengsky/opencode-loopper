@@ -30,7 +30,7 @@ public final class TemplateTaskContractFactory {
         String title = definition.title() + " · " + range.startDate() + " 至 " + range.endDate();
         String context = "使用任务独立的 Git 快照，按北京时间和 committer 时间完整覆盖选定范围；"
                 + "程序采集证据，模型提交结构化分析，程序验证并渲染 Markdown。"
-                + "评审对象是报告的证据、覆盖和评分准确性；发现代码问题或低贡献得分不代表报告执行失败。"
+                + "完整分析通过程序校验并保存报告后完成任务，不启动独立 AI 双评审；发现代码问题或低贡献得分不代表报告执行失败。"
                 + "禁止修改项目文件、分支或推送；无提交时输出空范围说明。";
         LoopSpec spec = new LoopSpec("v2", projectId, title, context,
                 List.of(stage("冻结分支并采集完整 Git 证据", "SNAPSHOT"), stage("分析证据并生成可追溯报告", "REPORT")),
@@ -51,13 +51,15 @@ public final class TemplateTaskContractFactory {
     private static LoopSpec.StageSpec stage(String title, String criterion) {
         return new LoopSpec.StageSpec(title, List.of("reports/**"), List.of("repository.git/**"),
                 List.of(criterion.equals("SNAPSHOT") ? "冻结 Git 证据" : "Markdown 报告"), List.of(),
-                List.of(new LoopSpec.AcceptanceCriterion(criterion, title, "JUDGE",
-                        "全部提交均有证据记录；问题和贡献等级有对应提交与文件依据；报告覆盖完整且事实准确。"
-                                + "报告发现缺陷或给出低分不构成验收失败。", "由模板专用确定性验证和独立双评审联合验证")),
+                List.of(new LoopSpec.AcceptanceCriterion(criterion,
+                        "全部提交均有证据记录；分析候选通过覆盖、引用与归属校验；评分按冻结公式计算；报告完整保存。",
+                        "MACHINE", null, null)),
                 null, ImplementationKind.NON_JAVA, null, StageKind.READ_ONLY_ANALYSIS, ExecutionStrategy.READ_ONLY_REPORT, null);
     }
 
     public record Frozen(TemplateTaskDefinition.View definition, LoopSpec spec, String scoringVersion, String scoreFormula,
                           List<ContributionScore.Dimension> dimensions, String timezone, String timePolicy, int repairLimit,
-                          TemplateReportLayout.Frozen reportTemplates, String documentPath) { }
+                          TemplateReportLayout.Frozen reportTemplates, String documentPath) {
+        public boolean requiresDualReview() { return TemplateTaskDefinition.requiresDualReview(definition.version()); }
+    }
 }

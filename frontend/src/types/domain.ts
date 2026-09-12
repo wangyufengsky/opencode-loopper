@@ -1499,6 +1499,8 @@ export interface TemplateTaskRequest {
   endDate: string
 }
 export interface TemplateTaskProgress {
+  dualReviewRequired?: boolean
+  reportCount?: number
   reviewBatches: number | null
   contributorBatches: number | null
   completedReviews: number

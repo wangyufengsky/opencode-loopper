@@ -21,6 +21,7 @@ final class TaskLifecycleTopology {
                 .transition(TaskState.VERIFYING, ADVANCE_STAGE, TaskState.RUNNING)
                 .transition(TaskState.VERIFYING, BEGIN_PACKAGE_CHECKPOINT, TaskState.PACKAGE_DESIGNING)
                 .transition(TaskState.VERIFYING, BEGIN_FINAL_REVIEW, TaskState.JUDGING)
+                .transition(TaskState.VERIFYING, RECORD_CYCLE_RESULT, TaskState.AWAITING_DECISION)
                 .transition(TaskState.PACKAGE_DESIGNING, REQUIRE_INPUT, TaskState.WAITING_INPUT)
                 .transition(TaskState.PACKAGE_DESIGNING, BEGIN_FINAL_REVIEW, TaskState.JUDGING)
                 .transition(TaskState.WAITING_INPUT, BEGIN_PACKAGE_DESIGN, TaskState.PACKAGE_DESIGNING)

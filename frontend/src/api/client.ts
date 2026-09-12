@@ -532,7 +532,9 @@ function normalizeReadContent(value: unknown): ReadContent {
 
 function normalizeTemplateProgress(value: unknown): NonNullable<Task['templateProgress']> {
   const raw = asRecord(value)
-  return { reviewBatches: typeof raw.reviewBatches === 'number' ? raw.reviewBatches : null,
+  return { dualReviewRequired: raw.dualReviewRequired !== false,
+    reportCount: typeof raw.reportCount === 'number' ? raw.reportCount : undefined,
+    reviewBatches: typeof raw.reviewBatches === 'number' ? raw.reviewBatches : null,
     contributorBatches: typeof raw.contributorBatches === 'number' ? raw.contributorBatches : null,
     completedReviews: asNumber(raw.completedReviews), completedContributors: asNumber(raw.completedContributors),
     activeBatches: asNumber(raw.activeBatches), failedBatches: asNumber(raw.failedBatches), repairRound: asNumber(raw.repairRound),

@@ -20,12 +20,13 @@ public final class TemplateTaskStateService {
     private final TemplateWorkspaceService workspace;
     private final TransactionTemplate transactions;
     private final ObjectMapper json;
+    private final TaskEventService events;
 
     TemplateTaskStateService(LoopperMapper mapper, TemplateTaskMapper templates, TaskStateStore states,
             TaskExecutionCycleService cycles, TemplateWorkspaceService workspace, ObjectMapper json,
-            PlatformTransactionManager manager) {
+            PlatformTransactionManager manager, TaskEventService events) {
         this.mapper = mapper; this.templates = templates; this.states = states; this.cycles = cycles;
-        this.workspace = workspace; this.json = json; this.transactions = new TransactionTemplate(manager);
+        this.workspace = workspace; this.json = json; this.events = events; this.transactions = new TransactionTemplate(manager);
     }
 
     public TaskRow start(String taskId, TemplateTaskContractFactory.Frozen contract) {
@@ -97,8 +98,17 @@ public final class TemplateTaskStateService {
             states.updateAttempt(states.finishAttempt(attempt, AttemptState.SUCCEEDED, null, summary));
             states.updateStage(states.stageState(stage, StageState.SUCCEEDED), LifecycleEvent.COMPLETE);
             states.updateTask(states.taskState(task(attempt.taskId()), TaskState.VERIFYING), LifecycleEvent.BEGIN_VERIFICATION);
-            states.updateTask(states.taskState(task(attempt.taskId()), stage.ordinal() == 0 ? TaskState.RUNNING : TaskState.JUDGING),
-                    stage.ordinal() == 0 ? LifecycleEvent.ADVANCE_STAGE : LifecycleEvent.BEGIN_FINAL_REVIEW);
+            if (stage.ordinal() == 0) {
+                states.updateTask(states.taskState(task(attempt.taskId()), TaskState.RUNNING), LifecycleEvent.ADVANCE_STAGE);
+            } else if (json.readValue(templates.findRun(attempt.taskId()).orElseThrow().contractJson(),
+                    TemplateTaskContractFactory.Frozen.class).requiresDualReview()) {
+                states.updateTask(states.taskState(task(attempt.taskId()), TaskState.JUDGING), LifecycleEvent.BEGIN_FINAL_REVIEW);
+            } else {
+                var cycle = cycles.finish(attempt.taskId(), ExecutionCycleState.SUCCEEDED, null, summary);
+                states.updateTask(states.taskState(task(attempt.taskId()), TaskState.AWAITING_DECISION),
+                        LifecycleEvent.RECORD_CYCLE_RESULT, Map.of("cycleId", cycle.id(), "source", "TEMPLATE_REPORT_VALIDATED"));
+            }
+            events.emit(attempt.taskId(), "verification.template_stage_completed", Map.of("attemptId", attempt.id(), "stageId", stage.id()));
         });
     }
 

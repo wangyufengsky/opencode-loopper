@@ -118,6 +118,7 @@ public class TaskService {
     private final DesignerAttachmentContext attachmentContext;
     private final org.springframework.beans.factory.ObjectProvider<TemplateTaskCoordinator> templateTasks;
     private final TemplateWorkspaceService templateWorkspace;
+    private final TemplateTaskCompletionService templateCompletion;
     public TaskService(LoopperMapper mapper, LifecycleTransitionService lifecycle, ObjectMapper json, ProjectService projects,
                        GitWorktreeManager worktrees, DirectWorkspaceLeaseCoordinator directLeases,
                        WorkspaceLeaseReconciliationService leaseReconciliation,
@@ -143,6 +144,7 @@ public class TaskService {
                        DesignerTerminationService designerTermination, TaskTerminalConsistencyService terminalConsistency, DesignerAttachmentContext attachmentContext,
                        LoopperProperties defaults, TaskStartPreflight startPreflight, TaskDraftConfirmation draftConfirmation,
                        org.springframework.beans.factory.ObjectProvider<TemplateTaskCoordinator> templateTasks, TemplateWorkspaceService templateWorkspace,
+                       TemplateTaskCompletionService templateCompletion,
                        PlatformTransactionManager transactionManager) {
         this.mapper = mapper; this.lifecycle = lifecycle; this.json = json; this.projects = projects;
         this.worktrees = worktrees; this.directLeases = directLeases; this.openCode = openCode;
@@ -156,7 +158,7 @@ public class TaskService {
         this.usageInsights = usageInsights; this.events = events;
         this.executionCycles = executionCycles; this.workspaceCheckpoints = workspaceCheckpoints;
         this.rollingPackages = rollingPackages; this.aiOutputAudit = aiOutputAudit; this.attachmentContext = attachmentContext;
-        this.templateTasks = templateTasks; this.templateWorkspace = templateWorkspace;
+        this.templateTasks = templateTasks; this.templateWorkspace = templateWorkspace; this.templateCompletion = templateCompletion;
         this.defaults = defaults; this.startPreflight = startPreflight; this.draftConfirmation = draftConfirmation;
         this.transactions = new TransactionTemplate(transactionManager);
         this.retryPolicy = new TaskRetryPolicy(defaults);
@@ -1978,6 +1980,8 @@ public class TaskService {
      */
     public TaskRow retryJudges(String taskId) {
         TaskRow task = get(taskId);
+        if (TemplateWorkspaceService.applies(task) && !templateCompletion.requiresDualReview(taskId))
+            throw new ConflictException("TEMPLATE_ACTION_UNSUPPORTED", "此模板按程序校验完成报告，无需启动双评审");
         if (mapper.findTaskPublication(taskId).map(io.opencode.loopper.persistence.TaskPublicationRow::state)
                 .filter(io.opencode.loopper.domain.TaskPublicationState.MERGED.name()::equals).isPresent()) {
             throw new ConflictException("TASK_PUBLICATION_MERGED", "任务已经合并，不能重新打开原任务评审；请使用新分支重做");
@@ -2385,14 +2389,7 @@ public class TaskService {
             settleTerminalInPlaceLease(get(task.id()), true, "TASK_AWAITING_DECISION_CHECKPOINTED");
         }
     }
-    TaskRow completeTemplateReport(String taskId) {
-        TaskRow task = get(taskId);
-        if (!TemplateWorkspaceService.applies(task) || !TaskState.AWAITING_DECISION.name().equals(task.state())) return task;
-        var cycle = executionCycles.latest(taskId);
-        if (cycle == null || !ExecutionCycleState.SUCCEEDED.name().equals(cycle.state()) || writerTermination.hasUnconfirmedWriter(taskId)) return task;
-        if (!templateWorkspace.releaseStopped(task)) return task;
-        return terminalConsistency.complete(get(taskId), LifecycleEvent.COMPLETE, Map.of("source", "TEMPLATE_REPORT_DUAL_JUDGE_PASS"));
-    }
+    TaskRow completeTemplateReport(String taskId) { return templateCompletion.complete(taskId, writerTermination.hasUnconfirmedWriter(taskId)); }
     private void requireOrdinaryTask(String taskId) {
         if (TemplateWorkspaceService.applies(get(taskId))) throw new ConflictException("TEMPLATE_ACTION_UNSUPPORTED", "模板任务按固定合同执行；请查看报告或重新发起任务");
     }

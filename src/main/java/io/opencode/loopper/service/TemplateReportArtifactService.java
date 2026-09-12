@@ -27,10 +27,11 @@ public final class TemplateReportArtifactService {
     private final TemplateRunEvidenceService evidence;
     private final TransactionTemplate transactions;
     private final ObjectMapper json;
+    private final TaskEventService events;
 
     TemplateReportArtifactService(LoopperMapper mapper, TemplateWorkspaceService workspace, TemplateRunEvidenceService evidence,
-                                  ObjectMapper json, PlatformTransactionManager manager, TemplateReportBundleService bundles) {
-        this.bundles = bundles;
+                                  ObjectMapper json, PlatformTransactionManager manager, TemplateReportBundleService bundles, TaskEventService events) {
+        this.bundles = bundles; this.events = events;
         this.mapper = mapper; this.workspace = workspace; this.evidence = evidence; this.json = json;
         this.transactions = new TransactionTemplate(manager);
     }
@@ -48,7 +49,7 @@ public final class TemplateReportArtifactService {
         var items = new ArrayList<TaskArtifactRow>();
         report.documents().forEach(document -> items.add(row(task, attempt, run.repairRound(), "TEMPLATE_REPORT", document.path(), "text/markdown", document.markdown(), bundle)));
         items.add(row(task, attempt, run.repairRound(), "TEMPLATE_ANALYSIS", "analysis.json", "application/json", json.writeValueAsString(accepted), null));
-        items.add(row(task, attempt, run.repairRound(), "TEMPLATE_JUDGE_EVIDENCE", "report-review-evidence.json", "application/json",
+        if (evidence.contract(task.id()).requiresDualReview()) items.add(row(task, attempt, run.repairRound(), "TEMPLATE_JUDGE_EVIDENCE", "report-review-evidence.json", "application/json",
                 json.writeValueAsString(Map.of("contract", evidence.contract(task.id()), "source", snapshot,
                         "analysis", accepted, "ranking", report.ranking(), "documents", report.documents())), null));
         transactions.executeWithoutResult(ignored -> {
@@ -63,6 +64,7 @@ public final class TemplateReportArtifactService {
                 else if (!previous.content().equals(item.content()) && !(item.contentType().equals("application/json")
                         && json.readTree(previous.content()).equals(json.readTree(item.content())))) throw new ConflictException("TEMPLATE_ARTIFACT_CHANGED", "冻结报告内容不一致");
             }
+            events.emit(task.id(), "artifact.template_reports_saved", Map.of("attemptId", attempt.id(), "reportCount", report.documents().size()));
         });
         materialize(task, attempt.id());
     }

@@ -13,6 +13,7 @@ const percentage = computed(() => total.value ? Math.min(100, Math.floor(complet
 const phase = computed(() => {
   const status = props.task.status
   if (['COMPLETED', 'CANCELLED', 'FAILED', 'STOPPING', 'WAITING_INPUT', 'PENDING_START', 'QUEUED', 'PREPARING'].includes(status)) return displayLabel(status)
+  if (status === 'AWAITING_DECISION' && progress.value?.dualReviewRequired === false) return '完成收尾'
   if (status === 'JUDGING' || status === 'AWAITING_DECISION') return '评审报告'
   if (status === 'VERIFYING') return '校验报告'
   if (total.value === null) return '采集提交'

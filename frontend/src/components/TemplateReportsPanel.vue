@@ -6,7 +6,8 @@ import type { Artifact } from '@/types/domain'
 import MarkdownDocument from '@/components/MarkdownDocument.vue'
 import { userFacingError } from '@/utils/displayLabels'
 
-const props = defineProps<{ taskId: string; artifacts: Artifact[]; accepted: boolean }>()
+const props = withDefaults(defineProps<{ taskId: string; artifacts: Artifact[]; accepted: boolean; dualReviewRequired?: boolean; loadingMetadata?: boolean; metadataError?: string }>(), { dualReviewRequired: true })
+defineEmits<{ reload: [] }>()
 const reports = computed(() => props.artifacts.filter(artifact => artifact.kind === 'REPORT'))
 const selected = ref('')
 const downloading = ref(false)
@@ -19,6 +20,14 @@ const error = ref('')
 const current = computed(() => reports.value.find(report => report.id === selected.value))
 const latestRound = computed(() => Math.max(0, ...reports.value.map(report => typeof report.metadata?.repairRound === 'number' ? report.metadata.repairRound : 0)))
 const currentAccepted = computed(() => props.accepted && !!current.value && (current.value.metadata?.repairRound ?? 0) === latestRound.value)
+const reportState = computed(() => {
+  if (currentAccepted.value) return props.dualReviewRequired === false ? '已校验并保存' : '已通过评审'
+  if (current.value) return '待验收版本'
+  if (reports.value.length) return props.accepted ? '已完成' : '已生成，待验收'
+  if (props.loadingMetadata) return '加载中'
+  if (props.metadataError) return '读取失败'
+  return props.accepted ? '已完成' : '待生成'
+})
 let generation = 0
 watch(() => props.taskId, () => { ++generation; selected.value = ''; body.value = {}; loading.value = false; error.value = ''; downloadError.value = ''; downloading.value = false })
 function title(artifact: Artifact) {
@@ -85,9 +94,11 @@ function openLinkedReport(event: MouseEvent) {
 </script>
 <template>
   <section class="card card-pad template-reports" aria-label="模板任务报告">
-    <div class="report-heading"><h2>报告</h2><span class="muted">{{ currentAccepted ? '已通过评审' : current ? '待验收版本' : accepted ? '已完成' : '待生成' }}</span></div>
-    <p v-if="!reports.length" class="muted">完整证据分析完成后，报告会显示在这里。</p>
-    <div v-else class="report-picker"><el-button v-if="latestSummary" @click="preview(latestSummary.id)">查看最新总结</el-button><el-select :model-value="selected" placeholder="选择报告预览" aria-label="选择报告" @change="preview"><el-option v-for="report in reports" :key="report.id" :value="report.id" :label="title(report)" /></el-select><el-button :disabled="!current || body[current.id] === undefined" @click="download">下载 Markdown</el-button><el-button v-if="current?.metadata?.bundleId" :loading="downloading" @click="downloadBundle">下载整套报告</el-button></div>
+    <div class="report-heading"><h2>报告</h2><span class="muted">{{ reportState }}</span></div>
+    <el-alert v-if="metadataError" :title="metadataError" type="error" :closable="false"><el-button text @click="$emit('reload')">重新加载报告</el-button></el-alert>
+    <p v-if="!reports.length && loadingMetadata" class="muted">正在加载报告列表…</p>
+    <p v-else-if="!reports.length && !metadataError" class="muted">完整证据分析完成后，报告会显示在这里。</p>
+    <div v-if="reports.length" class="report-picker"><el-button v-if="latestSummary" @click="preview(latestSummary.id)">查看最新总结</el-button><el-select :model-value="selected" placeholder="选择报告预览" aria-label="选择报告" @change="preview"><el-option v-for="report in reports" :key="report.id" :value="report.id" :label="title(report)" /></el-select><el-button :disabled="!current || body[current.id] === undefined" @click="download">下载 Markdown</el-button><el-button v-if="current?.metadata?.bundleId" :loading="downloading" @click="downloadBundle">下载整套报告</el-button></div>
     <el-alert v-if="downloadError" :title="downloadError" type="error" :closable="false"><el-button text @click="downloadBundle">重试下载</el-button></el-alert>
     <p v-if="loading" class="muted">正在读取报告…</p>
     <el-alert v-if="error" :title="error" type="error" :closable="false"><el-button text @click="preview(selected)">重试</el-button></el-alert>

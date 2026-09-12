@@ -107,8 +107,13 @@ class TemplateTaskExecutionIntegrationTest {
     }
 
     @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.ValueSource(strings = {"5", "6"})
-    void mcpCodeAndContributionReportsCorrectInSameSessionThenReachDoubleJudgeAcceptance(String version) {
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"5", "6", "7"})
+    void mcpReportsHonorFrozenAcceptanceAndCorrectInSameSession(String version) throws Exception {
+        if (version.equals("7")) {
+            Files.writeString(source.resolve("large.txt"), ("source evidence " + "x".repeat(100) + "\n").repeat(1500));
+            git.read(source, "add", ".");
+            git.read(source, "-c", "user.name=Test", "-c", "user.email=test@example.test", "commit", "-m", "large report evidence");
+        }
         for (String definition : List.of("CODE_REVIEW", "CONTRIBUTION_REPORT")) {
             TaskRow task = create(definition);
             var contract = (tools.jackson.databind.node.ObjectNode) json.readTree(templates.findRun(task.id()).orElseThrow().contractJson());
@@ -118,11 +123,36 @@ class TemplateTaskExecutionIntegrationTest {
             runtimeAccess.activate(credentials); runtimeAccess.connected(credentials.generation());
             fake.setManagedRuntime(credentials.generation(), credentials.serverName());
             states.start(task.id(), evidence.contract(task.id()));
-            run(task.id(), false);
+            run(task.id(), false, version.equals("7"));
+            if (version.equals("7")) {
+                assertThat(states.task(task.id()).state()).isEqualTo("AWAITING_DECISION");
+                assertThat(mapper.findActiveWorkspaceLeaseByHolder(task.id())).isPresent();
+                // Resume from the committed validation checkpoint without any Judge or model call.
+                int calls = fake.promptCalls();
+                driver.advance(task.id());
+                assertThat(fake.promptCalls()).isEqualTo(calls);
+            }
             assertThat(states.task(task.id()).state()).isEqualTo("COMPLETED");
             assertThat(templates.findRun(task.id()).orElseThrow().repairRound()).isZero();
-            assertThat(mapper.listJudgeRuns(task.id()).stream().filter(judge -> "COMPLETED".equals(judge.state())).toList())
-                    .hasSize(2).allMatch(judge -> "PASS".equals(judge.verdict()));
+            if (version.equals("7")) {
+                assertThat(mapper.listJudgeRuns(task.id())).isEmpty();
+                assertThat(mapper.listJudgeReviewBatches(task.id())).isEmpty();
+                assertThat(templates.findRun(task.id()).orElseThrow().snapshotJson().length()).isGreaterThan(131072);
+                assertThat(mapper.listTaskArtifacts(task.id())).noneMatch(row -> row.kind().equals("TEMPLATE_JUDGE_EVIDENCE"));
+                assertThat(taskReads.overview(task.id()).templateProgress().dualReviewRequired()).isFalse();
+                assertThatThrownBy(() -> tasks.retryJudges(task.id())).isInstanceOf(ConflictException.class).hasMessageContaining("无需启动双评审");
+                long reports = mapper.listTaskArtifacts(task.id()).stream().filter(row -> row.kind().equals("TEMPLATE_REPORT")).count();
+                assertThat(taskReads.overview(task.id()).templateProgress().reportCount()).isEqualTo((int) reports);
+                assertThat(taskReads.audit(task.id()).artifacts().stream().filter(row -> row.kind().equals("TEMPLATE_REPORT"))).hasSize((int) reports);
+                assertThat(tasks.latestExecutionCycle(task.id()).state()).isEqualTo("SUCCEEDED");
+                driver.advance(task.id());
+                assertThat(states.task(task.id()).state()).isEqualTo("COMPLETED");
+                if (definition.equals("CONTRIBUTION_REPORT")) exportBrowserFixture(task.id());
+            } else {
+                assertThat(mapper.listJudgeRuns(task.id()).stream().filter(judge -> "COMPLETED".equals(judge.state())).toList())
+                        .hasSize(2).allMatch(judge -> "PASS".equals(judge.verdict()));
+                assertThat(taskReads.overview(task.id()).templateProgress().dualReviewRequired()).isTrue();
+            }
             assertThat(mapper.findActiveWorkspaceLeaseByHolder(task.id())).isEmpty();
             var finalAttempt = mapper.latestAttempt(mapper.listStages(task.id()).getLast().id()).orElseThrow();
             assertThat(templates.batches(task.id(), finalAttempt.id())).allSatisfy(batch -> {
@@ -131,6 +161,26 @@ class TemplateTaskExecutionIntegrationTest {
                 assertThat(batch.promptJson()).contains("submit_template_analysis");
             });
         }
+    }
+
+    @Test void newEmptyReportCompletesWithoutAnyModelCallAndKeepsItsFrozenPolicy() {
+        var task = admission.create(new TemplateTaskService.Request(UUID.randomUUID().toString(), "CODE_REVIEW",
+                TemplateTaskDefinition.VERSION, projectId, "local:refs/heads/main", "2001-01-01", "2001-01-01",
+                StoryBindingConfiguration.disabled()), true);
+        String frozen = templates.findRun(task.id()).orElseThrow().contractJson();
+        assertThat(evidence.contract(task.id()).requiresDualReview()).isFalse();
+        assertThat(evidence.contract(task.id()).spec().stages()).allSatisfy(stage ->
+                assertThat(stage.acceptanceCriteria()).allMatch(criterion -> "MACHINE".equals(criterion.verificationMode())));
+        states.start(task.id(), evidence.contract(task.id()));
+        run(task.id(), false);
+        assertThat(states.task(task.id()).state()).isEqualTo("COMPLETED");
+        assertThat(fake.promptCalls()).isZero();
+        assertThat(mapper.listJudgeRuns(task.id())).isEmpty();
+        assertThat(mapper.findActiveWorkspaceLeaseByHolder(task.id())).isEmpty();
+        assertThat(templates.findRun(task.id()).orElseThrow().contractJson()).isEqualTo(frozen);
+        assertThat(taskReads.overview(task.id()).templateProgress().reportCount()).isPositive();
+        assertThat(mapper.eventsAfter(task.id(), 0).stream().filter(event -> event.type().equals("verification.template_stage_completed"))).hasSize(2);
+        assertThat(mapper.eventsAfter(task.id(), 0)).anyMatch(event -> event.type().equals("artifact.template_reports_saved"));
     }
 
     @Test void contributionReportRanksAndRepairsMalformedCandidateAtMostTwice() {
@@ -145,7 +195,6 @@ class TemplateTaskExecutionIntegrationTest {
         var reports = mapper.listTaskArtifacts(task.id()).stream().filter(row -> row.kind().equals("TEMPLATE_REPORT")).toList();
         assertThat(reports).hasSize(4);
         assertThat(reports).anyMatch(row -> row.name().startsWith("项目贡献周报_") && row.content().contains("人员贡献与排名") && row.content().contains("CONTRIBUTION_SCORE_V1"));
-        exportBrowserFixture(task.id());
     }
 
     @Test void writesReportsToFrozenProjectDirectoryAndKeepsOtherFiles() throws Exception {
@@ -325,6 +374,7 @@ class TemplateTaskExecutionIntegrationTest {
     private void run(String id, boolean malformedFirst, boolean stopAtJudging) {
         for (int i = 0; i < 90 && !states.task(id).state().equals("COMPLETED"); i++) {
             TaskRow task = states.task(id);
+            if (stopAtJudging && task.state().equals("AWAITING_DECISION")) return;
             if (task.state().equals("JUDGING")) {
                 // This fixture simulates template MCP only; Judge behavior is covered by its own MCP suite.
                 fake.setManagedRuntime(null, null);
@@ -336,7 +386,7 @@ class TemplateTaskExecutionIntegrationTest {
             var stage = mapper.listStages(id).get(1);
             var attempt = mapper.latestAttempt(stage.id()).orElse(null);
             if (attempt != null) for (var batch : templates.batches(id, attempt.id())) {
-                boolean mcp = List.of("5", "6").contains(templates.findRun(id).orElseThrow().templateVersion());
+                boolean mcp = List.of("5", "6", "7").contains(templates.findRun(id).orElseThrow().templateVersion());
                 if (!batch.state().equals("DISPATCHING") && !(mcp && batch.state().equals("RUNNING"))) continue;
                 var input = json.readValue(batch.inputJson(), TemplateBatchExecution.Input.class);
                 if (malformedFirst && templates.findRun(id).orElseThrow().repairRound() == 0) fake.setJudgeOutput("{\"reviews\":[]}");

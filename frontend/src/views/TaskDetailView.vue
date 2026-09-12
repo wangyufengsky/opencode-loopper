@@ -32,6 +32,7 @@ const id = computed(() => route.params.id as string)
 const task = computed(() => store.tasks.find((item) => item.id === id.value))
 const aiNotices = computed(() => store.taskNotices?.[id.value] ?? [])
 const isTemplateTask = computed(() => task.value?.executionMode === 'TEMPLATE_REPORT')
+const dualReviewRequired = computed(() => !isTemplateTask.value || task.value?.templateProgress?.dualReviewRequired !== false)
 const isDirectExecution = computed(() => task.value?.branch === 'DIRECT')
 const attempts = computed<Attempt[]>(() => task.value?.attempts ?? task.value?.stages?.flatMap((stage) => stage.attempts) ?? [])
 const waitingForWorkspaceCleanup = computed(() => task.value?.status === 'WAITING_INPUT'
@@ -100,7 +101,7 @@ const verifierErrors = computed<ErrorEvent[]>(() => (task.value?.errors ?? attem
   .filter((error) => error.layer === 'VERIFICATION')
   .filter((error) => error.code !== 'GIT_DIFF_SCOPE_APPROVAL_REQUIRED')
   .filter((error) => !error.code.startsWith('JUDGE_') || (task.value?.status === 'WAITING_INPUT' && !doubleReviewApproved.value)))
-const canRetryJudges = computed(() => deterministicAccepted.value
+const canRetryJudges = computed(() => dualReviewRequired.value && deterministicAccepted.value
   && publicationState.value !== 'MERGED'
   && (task.value?.status === 'WAITING_INPUT' || (task.value?.status === 'SUCCEEDED' && !doubleReviewApproved.value)))
 const canRetryLoop = computed(() => task.value?.status === 'WAITING_INPUT'
@@ -113,8 +114,13 @@ const canRework = computed(() => !isTemplateTask.value && !isDirectExecution.val
 const nextAction = computed(() => {
   if (!task.value) return ''
   if (isTemplateTask.value) {
-    if (task.value.status === 'COMPLETED') return '报告已通过完整性校验和双评审，可在上方预览或下载。'
-    if (task.value.status === 'WAITING_INPUT') return '请查看当前错误或评审意见。自动返修受轮次与预算限制；可重试双评审、取消，或重新发起模板任务。'
+    if (task.value.status === 'COMPLETED') return dualReviewRequired.value
+      ? '报告已通过完整性校验和双评审，可在上方预览或下载。'
+      : '报告已通过程序校验并保存，可在上方预览或下载。'
+    if (task.value.status === 'WAITING_INPUT') return dualReviewRequired.value
+      ? '请查看当前错误或评审意见。自动返修受轮次与预算限制；可重试双评审、取消，或重新发起模板任务。'
+      : '请查看当前错误。自动修正受轮次与预算限制；可取消或重新发起模板任务。'
+    if (task.value.status === 'AWAITING_DECISION' && task.value.executionResult === 'SUCCEEDED') return '报告已校验，正在确认执行结束并释放任务资源。'
     if (task.value.status === 'CANCELLED') return '任务已取消，采集证据和各版报告仍保留。'
     if (task.value.status === 'QUEUED') return '正在准备独立的报告执行目录。'
   }
@@ -349,7 +355,7 @@ async function confirmRework() {
         <div class="overview-meta"><span><b>{{ task.attemptCount }}</b> / {{ task.maxAttempts }} 次尝试</span><span v-if="store.streamState !== 'idle'" :class="['stream-state', store.streamState]">{{ store.streamState === 'connected' ? '实时连接正常' : '实时连接恢复中' }}</span></div>
       </section>
       <TemplateTaskProgressPanel v-if="isTemplateTask" :task="task" />
-      <TemplateReportsPanel v-if="isTemplateTask" :task-id="task.id" :artifacts="artifacts" :accepted="task.status === 'COMPLETED'" />
+      <TemplateReportsPanel v-if="isTemplateTask" :task-id="task.id" :artifacts="artifacts" :accepted="task.status === 'COMPLETED'" :dual-review-required="dualReviewRequired" :loading-metadata="store.auditLoading?.[task.id]" :metadata-error="store.auditErrors?.[task.id]" @reload="store.loadTaskAudit(task.id)" />
       <RollingPackageWorkbench v-if="task.executionMode === 'ROLLING_PACKAGES'" :task="task" @refresh="load" />
       <TaskDecisionPanel v-if="!isTemplateTask && task.status === 'AWAITING_DECISION'" :task-id="task.id" @reload="load" @open-task="(taskId) => router.push(`/tasks/${taskId}`)" />
       <section v-if="task.status === 'SUPERSEDED' && task.successorTaskId" class="decision-successor card card-pad">
@@ -363,9 +369,9 @@ async function confirmRework() {
       <section class="result-summary card card-pad" aria-labelledby="result-summary-heading">
         <div class="result-copy"><p class="eyebrow">执行结果</p><h2 id="result-summary-heading" class="card-title">结果与下一步</h2><p>{{ nextAction }}</p></div>
         <dl class="result-metrics">
-          <div><dt>{{ isTemplateTask ? '报告文件' : '文件变更' }}</dt><dd>{{ isTemplateTask ? artifacts.filter(item => item.kind === 'REPORT').length : changedFiles }}</dd></div>
+          <div><dt>{{ isTemplateTask ? '报告文件' : '文件变更' }}</dt><dd>{{ isTemplateTask ? (task.templateProgress?.reportCount ?? artifacts.filter(item => item.kind === 'REPORT').length) : changedFiles }}</dd></div>
           <div><dt>验证通过</dt><dd>{{ passedVerifications }} / {{ verificationRows.length }}</dd></div>
-          <div><dt>评审通过</dt><dd>{{ passedJudges }} / 2</dd></div>
+          <div v-if="dualReviewRequired"><dt>评审通过</dt><dd>{{ passedJudges }} / 2</dd></div>
         </dl>
       </section>
       <div v-for="notice in aiNotices" :key="notice" class="ai-output-notice" role="status">
@@ -418,7 +424,7 @@ async function confirmRework() {
       <section v-if="store.auditErrors?.[id]" class="error-panel error-panel-verification" role="status">
         <Icon class="error-panel-icon" icon="lucide:database-zap" /><div><h3>审计信息加载失败</h3><p>{{ userFacingError(store.auditErrors?.[id]) }}</p><el-button size="small" plain @click="store.loadTaskAudit?.(id)">重试</el-button></div>
       </section>
-      <section v-if="judges.length || task.status === 'JUDGING' || task.status === 'WAITING_INPUT' || canRetryJudges" id="judge-review" class="card card-pad judge-section" style="margin-top: 16px" aria-labelledby="judge-heading">
+      <section v-if="dualReviewRequired && (judges.length || task.status === 'JUDGING' || task.status === 'WAITING_INPUT' || canRetryJudges)" id="judge-review" class="card card-pad judge-section" style="margin-top: 16px" aria-labelledby="judge-heading">
         <div class="card-header"><div><p class="eyebrow">独立只读评审</p><h2 id="judge-heading" class="card-title">需求 / 风险双评审</h2></div><StatusBadge :status="task.status" /></div>
         <p v-if="!judges.length" class="judge-empty">暂无评审记录。</p>
         <TaskJudgeApprovalPanel v-if="!isTemplateTask && !store.usingDemo" :task-id="task.id" :task-version="task.version" @reload="load" />
@@ -437,7 +443,7 @@ async function confirmRework() {
 
 <style scoped>
 .task-overview { display: flex; align-items: center; justify-content: space-between; gap: 18px; min-width: 0; }.task-overview > div:first-child { min-width: 0; }.task-overview > div:first-child > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.overview-meta { display: flex; flex: 0 0 auto; align-items: center; gap: 15px; color: var(--color-text-secondary); font-family: var(--font-code); font-size: 11px; }.overview-meta b { color: var(--color-text-primary); }.stream-state { display: inline-flex; align-items: center; gap: 6px; }.stream-state::before { width: 7px; height: 7px; border-radius: 50%; background: currentColor; content: ""; }.stream-state.connected { color: var(--color-success); }.stream-state.reconnecting { color: var(--color-session-warning); }.task-detail-grid { display: grid; grid-template-columns: minmax(300px, .77fr) minmax(500px, 1.23fr); gap: 16px; }@media (max-width: 1320px) { .task-detail-grid { grid-template-columns: minmax(290px, .7fr) minmax(470px, 1.3fr); } }@media (max-width: 1050px) { .task-detail-grid { grid-template-columns: 1fr; } }
-.result-summary { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(360px, .8fr); align-items: center; gap: 22px; margin-top: 16px; border-color: rgb(34 211 238 / 19%); background: linear-gradient(125deg, rgb(34 211 238 / 6%), rgb(139 92 246 / 4%)); }.result-copy p:last-child { max-width: 720px; margin: 8px 0 0; color: var(--color-text-secondary); font-size: 12px; line-height: 1.65; }.result-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; }.result-metrics div { padding: 12px; border: 1px solid var(--color-border-default); border-radius: 9px; background: rgb(7 12 22 / 50%); }.result-metrics dt { color: var(--color-text-tertiary); font-size: 9px; }.result-metrics dd { margin: 6px 0 0; color: var(--color-text-primary); font: 700 14px/1 var(--font-code); font-variant-numeric: tabular-nums; }
+.result-summary { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(360px, .8fr); align-items: center; gap: 22px; margin-top: 16px; border-color: rgb(34 211 238 / 19%); background: linear-gradient(125deg, rgb(34 211 238 / 6%), rgb(139 92 246 / 4%)); }.result-copy p:last-child { max-width: 720px; margin: 8px 0 0; color: var(--color-text-secondary); font-size: 12px; line-height: 1.65; }.result-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px; margin: 0; }.result-metrics div { padding: 12px; border: 1px solid var(--color-border-default); border-radius: 9px; background: rgb(7 12 22 / 50%); }.result-metrics dt { color: var(--color-text-tertiary); font-size: 9px; }.result-metrics dd { margin: 6px 0 0; color: var(--color-text-primary); font: 700 14px/1 var(--font-code); font-variant-numeric: tabular-nums; }
 .ai-output-notice { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 9px 12px; border: 1px solid rgb(34 211 238 / 28%); border-radius: 8px; color: #a5f3fc; background: rgb(8 145 178 / 8%); font-size: 11px; }
 .retry-wait-card { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-top: 16px; border-color: rgb(245 158 11 / 36%); background: linear-gradient(120deg, rgb(245 158 11 / 8%), rgb(15 23 42 / 25%)); }.retry-wait-card p:last-child { margin: 8px 0 0; color: var(--color-text-secondary); font-size: 11px; }.retry-countdown { color: var(--color-session-warning); font-size: 24px; font-variant-numeric: tabular-nums; }
 .decision-successor { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 16px; border-color: rgb(34 211 238 / 28%); }

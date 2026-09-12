@@ -192,8 +192,10 @@ class TemplateBatchExecutionIntegrationTest {
         assertThat(batches.require(batch.id()).state()).isEqualTo("RUNNING");
     }
 
-    @Test void mcpUnknownStopKeepsAcceptedCandidateFromCompletingOrReleasingBatch() {
-        enableMcp();
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"5", "6", "7"})
+    void mcpUnknownStopKeepsAcceptedCandidateFromCompletingOrReleasingBatch(String version) {
+        enableMcp(version);
         for (int i = 0; i < 4; i++) batch = execution.advance(batch, contract);
         submissions.submit(batch.id(), "accepted", 0, valid());
         fake.failNextAborts(1);
@@ -376,13 +378,14 @@ class TemplateBatchExecutionIntegrationTest {
         catch (org.springframework.dao.DataAccessException busy) { return "RETRY_SAME_REQUEST"; }
     }
 
-    private void enableMcp() {
+    private void enableMcp() { enableMcp("5"); }
+    private void enableMcp(String version) {
         var credentials = new io.opencode.loopper.runtime.InternalMcpCredentialProvider(() -> 18083).issue();
         access.activate(credentials); access.connected(credentials.generation());
         fake.setManagedRuntime(credentials.generation(), credentials.serverName());
         fake.holdProfileOpen(OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS, true);
         var tree = (tools.jackson.databind.node.ObjectNode) json.valueToTree(contract);
-        ((tools.jackson.databind.node.ObjectNode) tree.get("definition")).put("version", "5");
+        ((tools.jackson.databind.node.ObjectNode) tree.get("definition")).put("version", version);
         contract = json.treeToValue(tree, TemplateTaskContractFactory.Frozen.class);
     }
 

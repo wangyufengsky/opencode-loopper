@@ -13,6 +13,30 @@ afterEach(async () => {
   vi.restoreAllMocks()
 })
 describe('template report evidence', () => {
+  it('shows generated reports before selection and never claims AI approval for a deterministic template', async () => {
+    vi.spyOn(api, 'getArtifactContent').mockResolvedValue({ id: 'report-1', kind: 'TEMPLATE_REPORT', content: '# 报告', metadata: {} })
+    const wrapper = mount(TemplateReportsPanel, { props: { taskId: 'task', artifacts: reports, accepted: false, dualReviewRequired: false }, global: { plugins: [ElementPlus] } })
+    expect(wrapper.text()).toContain('已生成，待验收')
+    expect(wrapper.text()).not.toContain('待生成')
+    wrapper.findComponent({ name: 'ElSelect' }).vm.$emit('change', 'report-1')
+    await flushPromises()
+    await wrapper.setProps({ accepted: true })
+    expect(wrapper.text()).toContain('已校验并保存')
+    expect(wrapper.text()).not.toContain('已通过评审')
+    wrapper.unmount()
+  })
+
+  it('distinguishes metadata loading and failure from a report that has not been generated', async () => {
+    const wrapper = mount(TemplateReportsPanel, { props: { taskId: 'task', artifacts: [], accepted: false, loadingMetadata: true }, global: { plugins: [ElementPlus] } })
+    expect(wrapper.text()).toContain('正在加载报告列表')
+    expect(wrapper.text()).not.toContain('待生成')
+    await wrapper.setProps({ loadingMetadata: false, metadataError: '报告列表读取失败' })
+    expect(wrapper.text()).not.toContain('待生成')
+    await wrapper.findAll('button').find(button => button.text() === '重新加载报告')!.trigger('click')
+    expect(wrapper.emitted('reload')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
   it('loads only the selected task-owned body and distinguishes superseded versions', async () => {
     const read = vi.spyOn(api, 'getArtifactContent').mockResolvedValue({ id: 'report', kind: 'TEMPLATE_REPORT', content: '# 报告\n具体证据', metadata: {} })
     const wrapper = mount(TemplateReportsPanel, { props: { taskId: 'task', artifacts: reports, accepted: true }, global: { plugins: [ElementPlus] } })

@@ -1,8 +1,10 @@
-import { flushPromises, mount } from '@vue/test-utils'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import ElementPlus, { ElMessageBox } from 'element-plus'
 import { createMemoryHistory, createRouter } from 'vue-router'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import TaskDetailView from '@/views/TaskDetailView.vue'
+
+enableAutoUnmount(afterEach)
 
 const apiMocks = vi.hoisted(() => ({
   getTaskQueue: vi.fn(),
@@ -692,7 +694,27 @@ describe('TaskDetailView judge action', () => {
     expect(wrapper.text()).toContain('重新发起')
   })
 
-  it('mounts publication actions after a successful result is confirmed completed', async () => {
+  it.each(['COMPLETED', 'WAITING_INPUT'])('hides Judge actions and metrics for a new template in %s', async status => {
+    store.tasks = [{ ...reviewTask, status, executionMode: 'TEMPLATE_REPORT', judges: [],
+      templateProgress: { dualReviewRequired: false, reportCount: 29 } }]
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/tasks/:id', component: { template: '<div />' } }] })
+    await router.push('/tasks/task-review'); await router.isReady()
+    const wrapper = mount(TaskDetailView, { global: { plugins: [router, ElementPlus], stubs: {
+      Icon: true, PageHeader: { template: '<header><slot name="actions" /></header><slot />' },
+      StatusBadge: true, StageRail: true, AttemptTimeline: true, LayeredErrorPanel: true,
+      SessionMonitorPanel: true, JudgeReviewCard: true, TaskAuditEvidencePanel: true,
+      TemplateReportsPanel: true, TemplateTaskProgressPanel: true,
+    } } })
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('双评审')
+    expect(wrapper.text()).not.toContain('评审通过')
+    expect(wrapper.find('#judge-review').exists()).toBe(false)
+    expect(wrapper.findAll('dl > div').find(item => item.find('dt').text() === '报告文件')?.find('dd').text()).toBe('29')
+    if (status === 'COMPLETED') expect(wrapper.text()).toContain('报告已通过程序校验并保存')
+    wrapper.unmount()
+  })
+
+  it('mounts publication actions after a successful result is confirmed completed' , async () => {
     store.tasks = [{
       ...reviewTask,
       id: 'task-completed', title: '已确认完成任务', status: 'COMPLETED',

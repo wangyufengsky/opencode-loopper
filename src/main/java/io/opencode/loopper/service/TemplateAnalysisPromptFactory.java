@@ -47,7 +47,7 @@ public final class TemplateAnalysisPromptFactory {
                 candidate 对象严格使用上文结构，不要附加权限、任务状态或执行命令。
                 收到 REJECTED 时，读取 problems 的具体原因和 submissionRevision，在当前会话修正后重交完整候选。
                 网络响应未知时，只重放完全相同的请求键与候选，不得假设已接受。
-                收到 ACCEPTED 后立即结束；这只表示候选校验通过，报告仍由服务端生成与双评审。
+                收到 ACCEPTED 后立即结束；这只表示候选校验通过，报告仍由服务端按冻结合同生成与验收。
                 不调用其他工具，不逐字反复复述推理，不将思考内容当作候选。
                 """.formatted(toolName, batchId);
     }

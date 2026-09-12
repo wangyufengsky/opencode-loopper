@@ -10,6 +10,13 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class TemplateTaskPolicyTest {
+    @Test void onlyTheExplicitNewVersionSkipsDualReview() {
+        assertThat(TemplateTaskDefinition.requiresDualReview("7")).isFalse();
+        for (String version : List.of("1", "2", "3", "4", "5", "6", "unknown"))
+            assertThat(TemplateTaskDefinition.requiresDualReview(version)).isTrue();
+        assertThat(TemplateTaskDefinition.requiresDualReview(null)).isTrue();
+    }
+
     @Test void dateDefaultsUseBeijingEvenWhenServerAndBrowserHaveAnotherDate() {
         var clock = Clock.fixed(Instant.parse("2026-09-10T16:30:00Z"), ZoneOffset.ofHours(-7));
         var range = TemplateDateRange.parse(null, null, clock);

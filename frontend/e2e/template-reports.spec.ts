@@ -14,7 +14,7 @@ for (const type of ['代码审查', '项目贡献周报']) {
       let reads = 0
       await page.route('http://127.0.0.1:41773/api/**', async route => {
         const path = new URL(route.request().url()).pathname
-        if (path.endsWith('/overview')) return route.fulfill({ json: { id: 'fixture', projectId: 'p', projectName: '模板示例项目', title: type, goal: '模板报告验收', status: 'COMPLETED', loopRetryAvailable: false, cancellationAvailable: false, hasDesignHistory: false, archived: false, executionMode: 'TEMPLATE_REPORT', workspacePolicy: 'ISOLATED_REPORT', attemptCount: 2, maxAttempts: 10, stages: [], createdAt: '2026-09-12T00:00:00Z', updatedAt: '2026-09-12T00:00:00Z' } })
+        if (path.endsWith('/overview')) return route.fulfill({ json: { id: 'fixture', projectId: 'p', projectName: '模板示例项目', title: type, goal: '模板报告验收', status: 'COMPLETED', loopRetryAvailable: false, cancellationAvailable: false, hasDesignHistory: false, archived: false, executionMode: 'TEMPLATE_REPORT', workspacePolicy: 'ISOLATED_REPORT', templateProgress: { dualReviewRequired: false, reportCount: reports.length }, attemptCount: 2, maxAttempts: 10, stages: [], createdAt: '2026-09-12T00:00:00Z', updatedAt: '2026-09-12T00:00:00Z' } })
         if (path.endsWith('/audit')) return route.fulfill({ json: { attempts: [], errors: [], judges: [], artifacts: reports } })
         if (path.endsWith('/content')) {
           const report = reports.find(report => path.includes(`/${report.id}/`))!
@@ -30,6 +30,8 @@ for (const type of ['代码审查', '项目贡献周报']) {
       const panel = page.getByRole('region', { name: '模板任务报告' })
       await expect(panel.getByRole('button', { name: '查看最新总结' })).toBeVisible()
       expect(reads).toBe(0)
+      await expect(page.getByText('评审通过', { exact: true })).toHaveCount(0)
+      await expect(page.getByRole('button', { name: '启动双评审' })).toHaveCount(0)
       await panel.getByRole('button', { name: '查看最新总结' }).click()
       await expect(panel.getByRole('heading', { name: /总结报告/, exact: false })).toBeVisible()
       await panel.getByRole('link', { name: '完整问题清单', exact: true }).click()
@@ -37,6 +39,7 @@ for (const type of ['代码审查', '项目贡献周报']) {
       await panel.getByRole('link', { name: '返回总结报告' }).click()
       await expect(panel.getByRole('heading', { name: /总结报告/, exact: false })).toBeVisible()
       expect(reads).toBe(2)
+      await expect(panel.getByText('已校验并保存', { exact: true })).toBeVisible()
       const download = page.waitForEvent('download')
       await panel.getByRole('button', { name: '下载整套报告' }).click()
       expect((await download).suggestedFilename()).toBe(`${directory}.zip`)

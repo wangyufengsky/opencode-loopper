@@ -20,6 +20,8 @@ public interface TemplateTaskReadMapper {
                 COALESCE(SUM(CASE WHEN batch.purpose='CONTRIBUTOR' AND batch.state='VALIDATED' THEN 1 ELSE 0 END),0) AS completed_contributors,
                 COALESCE(SUM(CASE WHEN batch.state IN ('CREATING','PROMPT_READY','DISPATCHING','RUNNING') THEN 1 ELSE 0 END),0) AS active_batches,
                 COALESCE(SUM(CASE WHEN batch.state='FAILED' THEN 1 ELSE 0 END),0) AS failed_batches,
+                run.template_version,
+                (SELECT COUNT(*) FROM task_artifact WHERE task_id=run.task_id AND kind='TEMPLATE_REPORT') AS report_count,
                 run.repair_round,json_extract(run.contract_json,'$.documentPath') AS document_path,
                 current.id AS report_attempt_id,
                 (SELECT folder_name FROM template_report_bundle WHERE task_id=run.task_id AND attempt_id=current.id) AS report_folder_name

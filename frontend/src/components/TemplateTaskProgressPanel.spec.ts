@@ -26,6 +26,13 @@ describe('Template progress', () => {
     expect(wrapper.text()).toContain('第 1 轮返修')
     expect(wrapper.text()).not.toContain('已完成任务')
   })
+  it('shows final cleanup after deterministic validation without claiming a review', () => {
+    const value = task('AWAITING_DECISION')
+    value.templateProgress = { ...value.templateProgress!, dualReviewRequired: false }
+    const wrapper = mount(TemplateTaskProgressPanel, { props: { task: value }, global: { stubs: { ElProgress: true } } })
+    expect(wrapper.text()).toContain('完成收尾')
+    expect(wrapper.text()).not.toContain('评审报告')
+  })
   it('does not invent totals before evidence has been collected', () => {
     const value = task()
     value.templateProgress = { ...value.templateProgress!, reviewBatches: null, contributorBatches: null }

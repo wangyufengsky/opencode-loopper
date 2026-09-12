@@ -202,6 +202,9 @@ export const useTaskStore = defineStore('task', () => {
     } : overview
     if (index === -1) tasks.value.push(detail)
     else tasks.value[index] = detail
+    if (previous && overview.templateProgress?.reportCount !== previous.templateProgress?.reportCount) {
+      void loadTaskAudit(id)
+    }
     return detail
   }
 

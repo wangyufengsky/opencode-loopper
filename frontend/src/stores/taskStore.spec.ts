@@ -55,7 +55,23 @@ describe('task SSE reducer', () => {
     await store.loadTaskOverview(original.id)
     expect(store.tasks[0]!.stages![0]!.attempts).toEqual([attempt])
   })
-  it('updates task state from a persisted status event', () => {
+  it('refreshes report metadata from overview counts when an artifact SSE event was missed', async () => {
+    const task = { ...structuredClone(demoTasks[0]!), templateProgress: { reviewBatches: 1, contributorBatches: 0,
+      completedReviews: 1, completedContributors: 0, activeBatches: 0, failedBatches: 0, repairRound: 0,
+      documentPath: '/reports', dualReviewRequired: false, reportCount: 0 } }
+    const store = useTaskStore()
+    store.usingDemo = false
+    store.tasks = [task]
+    apiMocks.getTaskOverview.mockResolvedValue({ ...task, templateProgress: { ...task.templateProgress, reportCount: 29 } })
+    apiMocks.getTaskAudit.mockResolvedValue({ artifacts: [{ id: 'report', kind: 'REPORT', taskId: task.id }], attempts: [], errors: [], judges: [] })
+    await store.loadTaskOverview(task.id)
+    expect(apiMocks.getTaskAudit).toHaveBeenCalledTimes(1)
+    expect(store.tasks[0]!.artifacts).toHaveLength(1)
+    await store.loadTaskOverview(task.id)
+    expect(apiMocks.getTaskAudit).toHaveBeenCalledTimes(1)
+  })
+
+  it('updates task state from a persisted status event' , () => {
     const next = reduceTaskEvent(demoTasks[0]!, { id: 'evt-1', type: 'task.status', at: '2026-08-04T10:20:00+08:00', data: { status: 'VERIFYING' } })
     expect(next.status).toBe('VERIFYING')
     expect(next.updatedAt).toBe('2026-08-04T10:20:00+08:00')

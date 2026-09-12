@@ -67,6 +67,7 @@ ownership rules:
   `TaskStartPreflight`, which rechecks the Task identity after external waits.
   must not assemble immutable design snapshots, verification aggregates, baseline
   diffs, or Judge evidence prompts; those belong to `TaskEvidenceService`.
+  `TemplateTaskCompletionService` owns report completion using the shared stop, lease and terminal consistency guards.
   `TaskCancellationCoordinator` owns durable `STOPPING -> CANCELLED` child-state closure,
   while `TaskWriterTerminationService` owns remote Session/Judge termination proof and
   persistent unconfirmed-writer evidence; neither may release/admit the next Direct lease.
@@ -199,7 +200,7 @@ release build. Lower a legacy cap in the same change that extracts responsibilit
 never raise a cap to make a build green.
 
 The current compatibility ratchets are 5,373 physical lines for
-`DesignerSessionService`, 2,721 for `TaskService`, and 1,159 for `LocalSyncConflictService`. Rolling package behavior must stay in the
+`DesignerSessionService`, 2,668 for `TaskService`, and 1,159 for `LocalSyncConflictService`. Rolling package behavior must stay in the
 collaborators above; a later change may only preserve or lower those caps.
 
 ## Change workflow

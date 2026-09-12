@@ -413,6 +413,8 @@ the smaller of the global setting and the explicit LoopSpec value.
 
 ## Verification and final approval
 
+内置文档模板 V7 在专用程序校验和报告保存后，通过 `VERIFYING → AWAITING_DECISION` 的 `RECORD_CYCLE_RESULT` 事件记录已成功执行，再复用终态一致性与停止/租约守卫自动完成。此路径仅由冻结模板合同授权，不创建或伪造 Judge PASS；历史模板及普通任务保留原评审规则。具体要求见[内置模板任务](seven-feature-contract.md#内置模板任务)。
+
 Deterministic verifiers run on a dedicated bounded executor rather than the
 scheduler thread. `PROCESS` is an argv contract and rejects shell launchers;
 its runner terminates the observed process tree on timeout or output overflow.
