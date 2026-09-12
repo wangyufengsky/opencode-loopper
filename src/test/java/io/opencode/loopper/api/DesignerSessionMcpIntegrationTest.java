@@ -1553,12 +1553,74 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     @Test
+    void publicDraftMutationsRequireAndPreserveTheEditorsVersion() throws Exception {
+        ProjectRow project = project("draft-editor-version");
+        LoopSpec original = v2DocumentationSpec(project.id());
+        LoopDraftRow draft = drafts.create(original);
+        mvc.perform(get("/api/loop-drafts/{id}", draft.id()))
+                .andExpect(jsonPath("$.version").value(draft.version()));
+        mvc.perform(put("/api/loop-drafts/{id}", draft.id()).contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(Map.of("spec", original)))).andExpect(status().isBadRequest());
+        mvc.perform(post("/api/loop-drafts/{id}/confirm", draft.id())).andExpect(status().isBadRequest());
+        var changed = (tools.jackson.databind.node.ObjectNode) json.valueToTree(original);
+        changed.put("goal", "另一页面已保存的目标");
+        mvc.perform(put("/api/loop-drafts/{id}", draft.id()).contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(Map.of("spec", changed, "expectedVersion", draft.version()))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.version").value(draft.version() + 1));
+        mvc.perform(put("/api/loop-drafts/{id}", draft.id()).contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(Map.of("spec", original, "expectedVersion", draft.version()))))
+                .andExpect(status().isConflict());
+        mvc.perform(post("/api/loop-drafts/{id}/confirm", draft.id()).contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(Map.of("expectedVersion", draft.version()))))
+                .andExpect(status().isConflict());
+        assertThat(drafts.get(draft.id()).goal()).isEqualTo("另一页面已保存的目标");
+        assertThat(mapper.findTaskByDraft(draft.id())).isEmpty();
+        long acceptedVersion = drafts.get(draft.id()).version();
+        String taskId = json.readTree(mvc.perform(post("/api/loop-drafts/{id}/confirm", draft.id())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(Map.of("expectedVersion", acceptedVersion))))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).path("taskId").asText();
+        mvc.perform(post("/api/loop-drafts/{id}/confirm", draft.id()).contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(Map.of("expectedVersion", acceptedVersion))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.taskId").value(taskId));
+        mvc.perform(post("/api/loop-drafts/{id}/confirm", draft.id()).contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(Map.of("expectedVersion", draft.version()))))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void savingNormalizedMavenCommandsPreservesTheCompleteStageContract() throws Exception {
+        ProjectRow project = project("draft-stage-roundtrip");
+        LoopSpec original = v2DocumentationSpec(project.id());
+        var spec = (tools.jackson.databind.node.ObjectNode) json.valueToTree(original);
+        var stage = (tools.jackson.databind.node.ObjectNode) spec.path("stages").get(0);
+        stage.put("stageKind", "DOCUMENT_AUTHORING");
+        stage.put("executionStrategy", "OPEN_CODE_IMPLEMENTATION");
+        stage.put("artifactPlanId", "retained-plan");
+        stage.put("workPackageId", "WP-1");
+        var verifier = json.createObjectNode();
+        verifier.put("type", "PROCESS");
+        verifier.put("processPurpose", "BUILD");
+        verifier.putArray("command").add("mvn").add("validate -q");
+        ((tools.jackson.databind.node.ArrayNode) stage.path("verifiers")).add(verifier);
+        LoopDraftRow draft = drafts.create(original);
+        String saved = mvc.perform(put("/api/loop-drafts/{id}", draft.id()).contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(Map.of("spec", spec, "expectedVersion", draft.version()))))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        verifier.putArray("command").add("mvn").add("validate").add("-q");
+        var expected = json.valueToTree(json.treeToValue(spec, LoopSpec.class)).path("stages");
+        assertThat(json.readTree(saved).path("spec").path("stages")).isEqualTo(expected);
+        assertThat(json.valueToTree(drafts.spec(drafts.get(draft.id()))).path("stages")).isEqualTo(expected);
+    }
+
+    @Test
     void documentConfirmationCannotBypassDesignOrRemoveContentReview() throws Exception {
         ProjectRow project = project("document-confirmation-gate");
         LoopDraftRow draft = drafts.create(v2DocumentationSpec(project.id()));
         fake().setDesignerOutput("# 详细设计需求\n\n参考资料：`README.md`。最终交付文件：`docs/design.md`，撰写完整正文。");
         DesignerSessionRow session = prepareReviewingSession(project.id(), draft.id(), "编写 Markdown 详细设计文档");
-        mvc.perform(post("/api/loop-drafts/{id}/confirm", draft.id())).andExpect(status().isConflict());
+        mvc.perform(post("/api/loop-drafts/{id}/confirm", draft.id()).contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("expectedVersion", drafts.get(draft.id()).version())))).andExpect(status().isConflict());
         assertThat(mapper.findTaskByDraft(draft.id())).isEmpty();
         mvc.perform(post("/api/designer-sessions/{id}/requirement/confirm", session.id())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -1569,7 +1631,7 @@ class DesignerSessionMcpIntegrationTest {
         var edited = (tools.jackson.databind.node.ObjectNode) json.valueToTree(compiled);
         ((tools.jackson.databind.node.ArrayNode) edited.path("stages").get(0).path("acceptanceCriteria")).remove(1);
         mvc.perform(put("/api/loop-drafts/{id}", draft.id()).contentType(MediaType.APPLICATION_JSON)
-                        .content(json.writeValueAsString(Map.of("spec", edited)))).andExpect(status().isConflict());
+                        .content(json.writeValueAsString(Map.of("spec", edited, "expectedVersion", drafts.get(draft.id()).version())))).andExpect(status().isConflict());
         assertThat(drafts.spec(drafts.get(draft.id())).stages().getFirst().acceptanceCriteria()).hasSize(2);
         // Reproduce an invalid draft persisted by an older version, then repair it through the public API.
         LoopDraftRow stored = drafts.get(draft.id());
@@ -1578,16 +1640,19 @@ class DesignerSessionMcpIntegrationTest {
         mvc.perform(get("/api/designer-sessions/{id}", session.id()))
                 .andExpect(jsonPath("$.finalConfirmationEligible").value(false))
                 .andExpect(jsonPath("$.confirmationBlocker").isNotEmpty());
-        mvc.perform(post("/api/loop-drafts/{id}/confirm", draft.id())).andExpect(status().isConflict());
+        mvc.perform(post("/api/loop-drafts/{id}/confirm", draft.id()).contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("expectedVersion", drafts.get(draft.id()).version())))).andExpect(status().isConflict());
         assertThat(mapper.findTaskByDraft(draft.id())).isEmpty();
         mvc.perform(put("/api/loop-drafts/{id}", draft.id()).contentType(MediaType.APPLICATION_JSON)
-                        .content(json.writeValueAsString(Map.of("spec", compiled)))).andExpect(status().isOk());
+                        .content(json.writeValueAsString(Map.of("spec", compiled, "expectedVersion", drafts.get(draft.id()).version())))).andExpect(status().isOk());
         mvc.perform(get("/api/designer-sessions/{id}", session.id()))
                 .andExpect(jsonPath("$.finalConfirmationEligible").value(true));
-        String taskId = json.readTree(mvc.perform(post("/api/loop-drafts/{id}/confirm", draft.id()))
+        String taskId = json.readTree(mvc.perform(post("/api/loop-drafts/{id}/confirm", draft.id()).contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("expectedVersion", drafts.get(draft.id()).version()))))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).path("taskId").asText();
         assertThat(tasks.get(taskId).state()).isEqualTo("PENDING_START");
-        mvc.perform(post("/api/loop-drafts/{id}/confirm", draft.id()))
+        mvc.perform(post("/api/loop-drafts/{id}/confirm", draft.id()).contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("expectedVersion", drafts.get(draft.id()).version()))))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.taskId").value(taskId));
     }
 
@@ -1617,7 +1682,8 @@ class DesignerSessionMcpIntegrationTest {
         mvc.perform(get("/api/designer-sessions/{id}", session.id()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.finalConfirmationEligible").value(true));
-        String taskId = json.readTree(mvc.perform(post("/api/loop-drafts/{id}/confirm", draft.id()))
+        String taskId = json.readTree(mvc.perform(post("/api/loop-drafts/{id}/confirm", draft.id()).contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("expectedVersion", drafts.get(draft.id()).version()))))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).path("taskId").asText();
         TaskRow task = tasks.get(taskId);
         assertThat(task.state()).isEqualTo("PENDING_START");

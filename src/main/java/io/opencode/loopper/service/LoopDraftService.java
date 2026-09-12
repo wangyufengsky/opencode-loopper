@@ -159,7 +159,19 @@ public class LoopDraftService {
     }
     private io.opencode.loopper.persistence.TaskRow confirm(String id, String title, String admissionSource,
                                                              String isolatedBaseline) {
+        return confirmSnapshot(get(id), title, admissionSource, isolatedBaseline);
+    }
+    public io.opencode.loopper.persistence.TaskRow confirmAtVersion(String id, String title, long expectedVersion) {
         LoopDraftRow draft = get(id);
+        boolean confirmed = LoopDraftStatus.CONFIRMED.name().equals(draft.status());
+        if (draft.version() != expectedVersion && !(confirmed && draft.version() == expectedVersion + 1)) {
+            throw new ConflictException("DRAFT_VERSION_CONFLICT", "执行规范已被更新，请重新载入并审阅后确认");
+        }
+        return confirmSnapshot(draft, title, "MANUAL", null);
+    }
+    private io.opencode.loopper.persistence.TaskRow confirmSnapshot(LoopDraftRow draft, String title,
+                                                                   String admissionSource, String isolatedBaseline) {
+        String id = draft.id();
         if (LoopDraftStatus.CONFIRMED.name().equals(draft.status())) return mapper.findTaskByDraft(id).orElseThrow(() -> new ConflictException("DRAFT_TASK_MISSING", "Confirmed draft has no associated task"));
         mapper.findLatestDesignerSessionByDraft(id).ifPresent(session -> {
             DesignerConfirmationGate.assess(mapper, session, spec(draft)).requireEligible();
@@ -411,7 +423,8 @@ public class LoopDraftService {
             if (stageChanged) {
                 stages.add(new LoopSpec.StageSpec(stage.objective(), stage.allowedPaths(), stage.forbiddenPaths(),
                         stage.deliverables(), verifiers, stage.acceptanceCriteria(), stage.verificationRuntime(),
-                        stage.implementationKind(), stage.workPackageId()));
+                        stage.implementationKind(), stage.workPackageId(), stage.stageKind(),
+                        stage.executionStrategy(), stage.artifactPlanId()));
                 changed = true;
             } else {
                 stages.add(stage);

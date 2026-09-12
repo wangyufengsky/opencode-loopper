@@ -112,6 +112,57 @@ describe('TaskDetailView judge action', () => {
     expect(store.updateTask).toHaveBeenCalledWith('task-review', 'cancel')
   })
 
+  it.each([
+    { label: '取消任务', method: 'updateTask', task: { ...reviewTask } },
+    { label: '重新发起双评审', method: 'retryJudges', task: { ...reviewTask } },
+    { label: '继续一轮', method: 'retryWaitingLoop', task: { ...reviewTask, loopRetryAvailable: true,
+      stages: [{ id: 'stage-1', ordinal: 1, objective: '待继续', status: 'FAILED', attempts: [] }] } },
+    { label: '新分支重做', method: 'reworkTask', task: { ...reviewTask, branch: 'loopper/review' } },
+  ] as const)('invalidates the $label confirmation after leaving and returning to its task', async ({ label, method, task }) => {
+    store.tasks = [task, { ...task, id: 'task-other' }]
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/tasks/:id', component: { template: '<div />' } }] })
+    await router.push('/tasks/task-review')
+    await router.isReady()
+    let confirm!: () => void
+    vi.spyOn(ElMessageBox, 'confirm').mockImplementation(() => new Promise(resolve => { confirm = () => resolve(Object.assign('confirm' as const, { value: '', action: 'confirm' as const })) }))
+    const wrapper = mount(TaskDetailView, { global: { plugins: [router, ElementPlus], stubs: {
+      Icon: true, PageHeader: { template: '<header><slot name="actions" /></header>' },
+      StatusBadge: true, StageRail: true, AttemptTimeline: true, LayeredErrorPanel: true,
+      SessionMonitorPanel: true, JudgeReviewCard: true, TaskAuditEvidencePanel: true, TaskPublicationActions: true,
+    } } })
+    await flushPromises()
+    const button = wrapper.findAll('button').find(button => button.text().includes(label))
+    expect(button).toBeDefined()
+    await button!.trigger('click')
+    await router.push('/tasks/task-other')
+    await flushPromises()
+    await router.push('/tasks/task-review')
+    await flushPromises()
+    confirm()
+    await flushPromises()
+    expect(store[method]).not.toHaveBeenCalled()
+    expect(router.currentRoute.value.path).toBe('/tasks/task-review')
+  })
+
+  it('does not cancel after the confirmation owner unmounts', async () => {
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/tasks/:id', component: { template: '<div />' } }] })
+    await router.push('/tasks/task-review')
+    await router.isReady()
+    let confirm!: () => void
+    vi.spyOn(ElMessageBox, 'confirm').mockImplementation(() => new Promise(resolve => { confirm = () => resolve(Object.assign('confirm' as const, { value: '', action: 'confirm' as const })) }))
+    const wrapper = mount(TaskDetailView, { global: { plugins: [router, ElementPlus], stubs: {
+      Icon: true, PageHeader: { template: '<header><slot name="actions" /></header>' },
+      StatusBadge: true, StageRail: true, AttemptTimeline: true, LayeredErrorPanel: true,
+      SessionMonitorPanel: true, JudgeReviewCard: true, TaskAuditEvidencePanel: true, TaskPublicationActions: true,
+    } } })
+    await flushPromises()
+    await wrapper.findAll('button').find(button => button.text().includes('取消任务'))!.trigger('click')
+    wrapper.unmount()
+    confirm()
+    await flushPromises()
+    expect(store.updateTask).not.toHaveBeenCalled()
+  })
+
   it('cancels a queued task so it can become eligible for archive and deletion', async () => {
     store.tasks = [{
       ...reviewTask,

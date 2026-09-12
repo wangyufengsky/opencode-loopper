@@ -11,6 +11,7 @@ import io.opencode.loopper.service.BadRequestException;
 import io.opencode.loopper.service.ConflictException;
 import io.opencode.loopper.service.RecoveryService;
 import io.opencode.loopper.service.TaskService;
+import io.opencode.loopper.service.WorkspaceCheckpointManifest;
 import io.opencode.loopper.runtime.GitWorktreeManager;
 import java.util.ArrayList;
 import java.util.List;
@@ -111,13 +112,16 @@ public class TaskDecisionController {
         if (!TaskState.AWAITING_DECISION.name().equals(task.state()) || cycle == null) return List.of();
         List<String> actions = new ArrayList<>();
         boolean checkpointReady = checkpoint != null && WorkspaceCheckpointState.READY.name().equals(checkpoint.state());
+        boolean direct = GitWorktreeManager.DIRECT_BRANCH.equals(task.branchName());
         if (checkpointReady) {
             actions.add("CONTINUE_CURRENT_TASK");
-            actions.add("DERIVE_INHERIT_CHANGES");
-            actions.add("READ_ONLY_AUDIT");
+            if (!direct) {
+                actions.add("DERIVE_INHERIT_CHANGES");
+                actions.add("READ_ONLY_AUDIT");
+            }
             if (ExecutionCycleState.SUCCEEDED.name().equals(cycle.state())) {
-                actions.add("PUBLISH");
-                if (manifestEmpty(checkpoint)) actions.add("ACCEPT_RESULT");
+                if (!direct) actions.add("PUBLISH");
+                if (manifestCount(checkpoint) == 0) actions.add("ACCEPT_RESULT");
             }
         }
         if (!GitWorktreeManager.DIRECT_BRANCH.equals(task.branchName())
@@ -126,11 +130,6 @@ public class TaskDecisionController {
         }
         actions.add("CANCEL");
         return List.copyOf(actions);
-    }
-
-    private boolean manifestEmpty(TaskWorkspaceCheckpointRow checkpoint) {
-        String manifest = checkpoint.manifestJson();
-        return manifest != null && manifest.strip().matches("\\[\\s*\\]");
     }
 
     private CycleDto cycleDto(TaskExecutionCycleRow row) {
@@ -145,11 +144,7 @@ public class TaskDecisionController {
     }
 
     private int manifestCount(TaskWorkspaceCheckpointRow row) {
-        try {
-            return json.readTree(row.manifestJson()).size();
-        } catch (RuntimeException invalid) {
-            return -1;
-        }
+        return WorkspaceCheckpointManifest.changedFileCount(row, json);
     }
 
     private void requireVersions(String taskId, long expectedTaskVersion, long expectedCycleVersion) {

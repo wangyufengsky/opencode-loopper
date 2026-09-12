@@ -55,4 +55,84 @@ describe('统一待处理中心', () => {
     expect(wrapper.text()).toContain('检查仓库')
     wrapper.unmount()
   })
+  it('keeps submission errors visible through successful reconciliation and automatic refresh', async () => {
+    vi.useFakeTimers()
+    mocks.resolveInteraction.mockRejectedValueOnce(new Error('投递结果尚未确认，请等待重新核验'))
+    const wrapper = mount(InboxView, { global: { plugins: [ElementPlus], stubs: {
+      Icon: true, PageHeader: { template: '<header><slot name="actions" /></header>' },
+    } } })
+    await flushPromises()
+    await wrapper.findAll('button').find(button => button.text().includes('仅本次允许'))!.trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('投递结果尚未确认，请等待重新核验')
+    expect(mocks.getInteractions).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(1500)
+    expect(mocks.getInteractions).toHaveBeenCalledTimes(3)
+    expect(wrapper.text()).toContain('投递结果尚未确认，请等待重新核验')
+    wrapper.unmount()
+  })
+
+  it.each(['resolve', 'reject'] as const)('does not restart polling when an initial read settles after unmount (%s)', async settlement => {
+    vi.useFakeTimers()
+    let resolve!: (items: Interaction[]) => void
+    let reject!: (error: Error) => void
+    mocks.getInteractions.mockReturnValueOnce(new Promise<Interaction[]>((yes, no) => { resolve = yes; reject = no }))
+    const wrapper = mount(InboxView, { global: { plugins: [ElementPlus], stubs: { Icon: true, PageHeader: true } } })
+    expect(mocks.getInteractions).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+    if (settlement === 'resolve') resolve([pendingPermission])
+    else reject(new Error('请求中断'))
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(6000)
+    expect(mocks.getInteractions).toHaveBeenCalledTimes(1)
+  })
+
+  it('waits for each slow read before scheduling the next poll', async () => {
+    vi.useFakeTimers()
+    let finish!: (items: Interaction[]) => void
+    mocks.getInteractions.mockReturnValueOnce(new Promise<Interaction[]>(resolve => { finish = resolve }))
+    const wrapper = mount(InboxView, { global: { plugins: [ElementPlus], stubs: {
+      Icon: true, PageHeader: { template: '<header><slot name="actions" /></header>' },
+    } } })
+    await vi.advanceTimersByTimeAsync(6000)
+    expect(mocks.getInteractions).toHaveBeenCalledTimes(1)
+    finish([pendingPermission])
+    await flushPromises()
+    let finishPoll!: (items: Interaction[]) => void
+    mocks.getInteractions.mockReturnValueOnce(new Promise<Interaction[]>(resolve => { finishPoll = resolve }))
+    await vi.advanceTimersByTimeAsync(1500)
+    expect(mocks.getInteractions).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(6000)
+    expect(mocks.getInteractions).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+    finishPoll([])
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(6000)
+    expect(mocks.getInteractions).toHaveBeenCalledTimes(2)
+  })
+
+  it('serializes a post-submit refresh behind a pending read and ignores repeated submits', async () => {
+    vi.useFakeTimers()
+    const wrapper = mount(InboxView, { global: { plugins: [ElementPlus], stubs: {
+      Icon: true, PageHeader: { template: '<header><slot name="actions" /></header>' },
+    } } })
+    await flushPromises()
+    let finishRead!: (items: Interaction[]) => void
+    mocks.getInteractions.mockReturnValueOnce(new Promise<Interaction[]>(resolve => { finishRead = resolve }))
+    await vi.advanceTimersByTimeAsync(1500)
+    const allow = wrapper.findAll('button').find(button => button.text().includes('仅本次允许'))!
+    await allow.trigger('click')
+    await flushPromises()
+    await allow.trigger('click')
+    await vi.advanceTimersByTimeAsync(6000)
+    expect(mocks.resolveInteraction).toHaveBeenCalledTimes(1)
+    expect(mocks.getInteractions).toHaveBeenCalledTimes(2)
+    mocks.getInteractions.mockResolvedValueOnce([])
+    finishRead([pendingPermission])
+    await flushPromises()
+    expect(mocks.getInteractions).toHaveBeenCalledTimes(3)
+    expect(wrapper.text()).toContain('目前没有待处理项')
+    wrapper.unmount()
+  })
+
 })

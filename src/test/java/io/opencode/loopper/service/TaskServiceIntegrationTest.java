@@ -76,6 +76,7 @@ class TaskServiceIntegrationTest {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private LoopperProperties properties;
     @Autowired private TaskEventHub taskEvents;
+    @Autowired private io.opencode.loopper.api.TaskDecisionController decisions;
     @Autowired private MachineCandidateSubmission candidateSubmissions;
     @Autowired private InternalMcpCredentialProvider internalMcpCredentials;
     @Autowired private InternalMcpRuntimeAccess internalMcpRuntime;
@@ -1313,6 +1314,37 @@ class TaskServiceIntegrationTest {
         assertThat(task.state()).isEqualTo("RUNNING");
         assertThat(task.branchName()).isEqualTo("DIRECT");
         assertThat(task.worktreePath()).isEqualTo(projectRoot.toRealPath().toString());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void directResultDispositionUsesFrozenChangesAndAcceptsOnlyNoChangeSuccess(boolean changed) throws Exception {
+        Path root = Files.createDirectory(temp.resolve("direct-decision"));
+        Files.writeString(root.resolve("README.md"), "fixture\n");
+        ProjectRow project = projects.create("Direct decision", root.toString());
+        TaskRow task = tasks.start(drafts.confirm(drafts.create(spec(project.id())).id(), "Direct decision").id());
+        if (changed) Files.writeString(root.resolve("README.md"), "changed\n");
+
+        tasks.verify(task.id());
+        tasks.pollJudges(task.id());
+
+        assertThat(tasks.get(task.id()).state()).isEqualTo("AWAITING_DECISION");
+        var view = decisions.get(task.id());
+        assertThat(view.cycle().result()).isEqualTo("SUCCEEDED");
+        assertThat(view.checkpoint().changedFileCount()).isEqualTo(changed ? 1 : 0);
+        assertThat(view.availableActions()).doesNotContain("PUBLISH", "DERIVE_INHERIT_CHANGES", "READ_ONLY_AUDIT");
+        if (changed) {
+            assertThat(view.availableActions()).doesNotContain("ACCEPT_RESULT");
+            assertThatThrownBy(() -> tasks.acceptResult(task.id())).isInstanceOfSatisfying(ConflictException.class,
+                    failure -> assertThat(failure.code()).isEqualTo("TASK_ACCEPT_HAS_CHANGES"));
+        } else {
+            assertThat(view.availableActions()).contains("ACCEPT_RESULT");
+            assertThat(decisions.accept(task.id(), "1", new io.opencode.loopper.api.TaskDecisionController.VersionRequest(
+                    view.taskVersion(), view.cycle().version())).taskState()).isEqualTo("COMPLETED");
+            assertThat(mapper.findActiveWorkspaceLeaseByHolder(task.id())).isEmpty();
+        }
+        assertThat(Files.readString(root.resolve("README.md"))).isEqualTo(changed ? "changed\n" : "fixture\n");
+        assertThat(root.resolve(".git")).doesNotExist();
     }
 
     @Test

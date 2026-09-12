@@ -1039,6 +1039,8 @@ export interface AutomationImportResult {
 }
 
 export interface LoopDraft {
+  /** Missing in historical read models; mutations must refuse an absent baseline. */
+  version?: number
   id: string
   status: LoopDraftStatus
   updatedAt: string

@@ -75,7 +75,7 @@ const settings: AppSettings = {
 }
 
 function draftFrom(spec: LoopSpec): LoopDraft {
-  return { id: 'draft-1', status: 'DRAFT_READY', updatedAt: 'now', spec }
+  return { id: 'draft-1', version: 0, status: 'DRAFT_READY', updatedAt: 'now', spec }
 }
 
 function completedRouterRun(id = 'router-1'): TaskProfileRouterRun {
@@ -788,6 +788,61 @@ describe('Designer draft composer', () => {
     expect(createDraft.mock.calls[0]?.[0].limits).toMatchObject({ maxTaskAttempts: 7, attemptTimeout: 'PT45M' })
     expect(sessionStorage.getItem('opencode-loopper.designer-draft-prompt')).toBeNull()
     expect(wrapper.find('textarea[aria-label="发送给只读设计师的消息"]').exists()).toBe(true)
+  })
+
+  it('replays an uncertain initial attachment submission with its original draft and retains later edits', async () => {
+    const createDraft = vi.spyOn(api, 'createDraft').mockImplementation(async spec => draftFrom(spec))
+    const create = vi.spyOn(api, 'createDesignerContextTurn')
+      .mockRejectedValueOnce(new TypeError('connection lost after commit'))
+      .mockImplementationOnce(async input => ({ ...session, draft: draftFrom({
+        schemaVersion: 'v2', projectId: input.projectId, goal: input.content, context: '', stages: [],
+        limits: { maxStageAttempts: 3, maxTaskAttempts: 12, maxDuration: 'PT2H', attemptTimeout: 'PT30M' },
+      }) }))
+    const wrapper = mountDesigner()
+    await flushPromises()
+    const file = new File(['original'], 'context.txt', { type: 'text/plain' })
+    await wrapper.get('textarea[aria-label="草案设计目标"]').setValue('第一次提交')
+    await wrapper.get('#main-content').trigger('drop', { dataTransfer: { files: [file] } })
+    await wrapper.get('.create-draft-button').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('.create-draft-button').text()).toContain('恢复上次提交')
+    const original = JSON.parse(JSON.stringify(create.mock.calls[0]![0]))
+    await wrapper.get('textarea[aria-label="草案设计目标"]').setValue('恢复后补充的修改')
+    const added = new File(['additional'], 'extra.txt', { type: 'text/plain' })
+    await wrapper.get('#main-content').trigger('drop', { dataTransfer: { files: [added] } })
+    await wrapper.get('.create-draft-button').trigger('click')
+    await flushPromises()
+    expect(createDraft).toHaveBeenCalledTimes(1)
+    expect(create).toHaveBeenCalledTimes(2)
+    expect(create.mock.calls[1]![0]).toEqual(original)
+    expect(create.mock.calls[1]![1]).toEqual([file])
+    expect((wrapper.get('textarea[aria-label="发送给只读设计师的消息"]').element as HTMLTextAreaElement).value)
+      .toBe('恢复后补充的修改')
+    expect(wrapper.get('[data-testid="message-attachment-card"]').text()).toContain('extra.txt')
+  })
+
+  it('allows correcting files rejected before the initial session was created', async () => {
+    vi.spyOn(api, 'createDraft').mockImplementation(async spec => draftFrom(spec))
+    const create = vi.spyOn(api, 'createDesignerContextTurn')
+      .mockRejectedValueOnce(new ApiError('文件不是有效 JSON', 400, { code: 'ATTACHMENT_PARSE_FAILED' }))
+      .mockResolvedValueOnce({ ...session, draft: draftFrom({ schemaVersion: 'v2', projectId: project.id,
+        goal: '更正后的提交', context: '', stages: [], limits: { maxStageAttempts: 3, maxTaskAttempts: 12,
+          maxDuration: 'PT2H', attemptTimeout: 'PT30M' } }) })
+    const wrapper = mountDesigner()
+    await flushPromises()
+    await wrapper.get('textarea[aria-label="草案设计目标"]').setValue('原提交')
+    await wrapper.get('#main-content').trigger('drop', { dataTransfer: { files: [new File(['{'], 'data.json')] } })
+    await wrapper.get('.create-draft-button').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('.create-draft-button').text()).toContain('开始设计')
+    await wrapper.get('textarea[aria-label="草案设计目标"]').setValue('更正后的提交')
+    const corrected = new File(['{}'], 'data.json')
+    await wrapper.get('#main-content').trigger('drop', { dataTransfer: { files: [corrected] } })
+    await wrapper.get('.create-draft-button').trigger('click')
+    await flushPromises()
+    expect(create.mock.calls[1]![0].submissionId).not.toBe(create.mock.calls[0]![0].submissionId)
+    expect(create.mock.calls[1]![0].content).toBe('更正后的提交')
+    expect(create.mock.calls[1]![1]).toEqual([corrected])
   })
 
   it('shows staged files in a standalone context card and hides it after the last file is removed', async () => {
@@ -1715,14 +1770,14 @@ describe('Designer draft composer', () => {
     await confirmButton!.trigger('click')
     await flushPromises()
 
-    expect(api.confirmDraft).toHaveBeenCalledWith(readyDraft.id)
+    expect(api.confirmDraft).toHaveBeenCalledWith(readyDraft.id, 0)
     expect(api.updateDraft).toHaveBeenCalledWith(readyDraft.id, expect.objectContaining({
       stages: [expect.objectContaining({ workPackageId: 'WP-1' })],
       limits: expect.objectContaining({ sessionErrorLimit: 4, stagnationLimit: 5, verifierTimeout: '420' }),
       model: { providerId: 'provider-1', modelId: 'model-1', thinking: false },
       sessionPolicy: { reuseHealthySession: false, createFreshOnVerifierFailure: false },
       nextAttemptPromptTemplate: '人工继续时处理 ${failureSummary}',
-    }))
+    }), 0)
     expect(useTaskStore().tasks).toContainEqual(failedTask)
     expect(routerPush).toHaveBeenCalledWith(`/tasks/${failedTask.id}`)
     expect(sessionStorage.getItem('opencode-loopper.designer-workspace')).toBeNull()
@@ -1771,6 +1826,40 @@ describe('Designer draft composer', () => {
     expect(criterionRow.get('.matrix-criterion-statuses').findAll('em, b')).toHaveLength(3)
     expect(matrix.text()).toContain('机器：不适用')
     expect(matrix.text()).toContain('BUILD')
+  })
+
+  it('keeps the editing baseline across refreshed snapshots and preserves conflicts until explicit reload', async () => {
+    vi.useFakeTimers()
+    routeQuery.sessionId = session.id
+    const original = { ...draftFrom({ schemaVersion: 'v2', projectId: project.id, goal: '原版本', context: '',
+      stages: [{ objective: '实现', implementationKind: 'NON_JAVA', allowedPaths: [], forbiddenPaths: [],
+        deliverables: [], verifiers: [] }], limits: { maxStageAttempts: 3, maxTaskAttempts: 12,
+        maxDuration: 'PT2H', attemptTimeout: 'PT30M' } }), version: 6 }
+    const latest = { ...original, version: 7, spec: { ...original.spec, goal: '其他页面已保存' } }
+    vi.spyOn(api, 'getDesignerSession').mockResolvedValueOnce({ ...session, state: 'RUNNING',
+      workflowPhase: 'FINAL_REVIEW', draft: original }).mockResolvedValue({ ...session,
+      state: 'REVIEWING', workflowPhase: 'FINAL_REVIEW', draft: latest })
+    const update = vi.spyOn(api, 'updateDraft').mockRejectedValue(new ApiError('草稿已改变', 409,
+      { code: 'DESIGNER_DRAFT_CHANGED' }))
+    vi.spyOn(api, 'getDraft').mockResolvedValue(latest)
+    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue(undefined as never)
+    const wrapper = mountDesigner()
+    await flushPromises()
+    const edited = { ...original.spec, goal: '本地尚未保存' }
+    wrapper.getComponent(LoopSpecEditor).vm.$emit('update:modelValue', JSON.stringify(edited, null, 2))
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(0)
+    await flushPromises()
+    await wrapper.findAll('button').find(button => button.text() === '保存')!.trigger('click')
+    await flushPromises()
+    expect(update).toHaveBeenCalledWith(original.id, edited, 6)
+    expect(wrapper.getComponent(LoopSpecEditor).props('modelValue')).toContain('本地尚未保存')
+    expect(wrapper.findAll('button').filter(button => button.text().includes('确认设计并创建任务'))
+      .every(button => button.attributes('disabled') !== undefined)).toBe(true)
+    await wrapper.findAll('button').find(button => button.text() === '重新载入执行规范')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.getComponent(LoopSpecEditor).props('modelValue')).toContain('其他页面已保存')
+    expect(wrapper.findAll('button').some(button => button.text() === '重新载入执行规范')).toBe(false)
   })
 
   it('refreshes confirmation eligibility after save and displays the server blocker without creating a task', async () => {
@@ -1878,10 +1967,10 @@ describe('Designer draft composer', () => {
       for (const button of buttons) expect(button.attributes('disabled')).toBeUndefined()
       await buttons[0]!.trigger('click')
       await flushPromises()
-      expect(api.confirmDraft).toHaveBeenCalledWith(ready.id)
+      expect(api.confirmDraft).toHaveBeenCalledWith(ready.id, 0)
       expect(api.updateDraft).toHaveBeenCalledWith(ready.id, expect.objectContaining({
         stages: [expect.objectContaining({ stageKind: 'DOCUMENT_AUTHORING', executionStrategy: 'OPEN_CODE_IMPLEMENTATION' })],
-      }))
+      }), 0)
       expect(useTaskStore().tasks).toContainEqual(pending)
       expect(routerPush).toHaveBeenCalledWith(`/tasks/${pending.id}`)
       wrapper.unmount()
@@ -1918,7 +2007,7 @@ describe('Designer draft composer', () => {
     await flushPromises()
 
     expect(updateDraft).not.toHaveBeenCalled()
-    expect(api.confirmDraft).toHaveBeenCalledWith(confirmedDraft.id)
+    expect(api.confirmDraft).toHaveBeenCalledWith(confirmedDraft.id, 0)
     expect(routerPush).toHaveBeenCalledWith(`/tasks/${task.id}`)
   })
 })

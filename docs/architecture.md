@@ -123,6 +123,12 @@ so its three database queries are independent of the number of Attempts. Large
 `spec_json`, `evidence_json.output`, `raw_output`, and artifact `content` columns
 never enter summary, overview, or audit responses.
 
+The frontend uses overview as the sole owner of current error and Judge metadata.
+Audit responses supplement Attempts and artifacts without overwriting those fields,
+because the two requests can observe different snapshots and arrive out of order.
+Judge and error events invalidate overview as well as audit through the existing
+180 ms coalescing window; neither response loads evidence bodies.
+
 Task summary grouping is server-owned. `statusGroup=PROCESSING | SUCCESSFUL |
 TERMINATED` is mutually exclusive with explicit `status`; processing means every
 nonterminal Task, successful means `COMPLETED` plus historical `SUCCEEDED`, and

@@ -94,9 +94,8 @@ public class TaskWorkspaceCheckpointService {
         if (GitWorktreeManager.DIRECT_BRANCH.equals(task.branchName())) {
             try {
                 DirectWorkspaceBaselineManager.Checkpoint frozen = directBaselines.captureCheckpoint(root, task.id());
-                String manifest = json.writeValueAsString(Map.of("gitIndexBase64",
-                        java.util.Base64.getEncoder().encodeToString(
-                                frozen.manifest().getBytes(StandardCharsets.UTF_8))));
+                int changedFiles = directBaselines.checkpointChangedFileCount(root, task.baselineCommit(), frozen.tree());
+                String manifest = WorkspaceCheckpointManifest.direct(frozen.manifest(), changedFiles, json);
                 TaskWorkspaceCheckpointRow ready = new TaskWorkspaceCheckpointRow(row.id(), row.taskId(), row.cycleId(),
                         WorkspaceCheckpointState.READY.name(), sha256(frozen.tree()), row.canonicalRoot(),
                         row.rootFingerprint(), row.branchName(), row.sourceBranch(), row.baselineCommit(),

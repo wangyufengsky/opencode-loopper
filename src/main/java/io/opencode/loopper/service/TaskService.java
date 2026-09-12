@@ -282,14 +282,12 @@ public class TaskService {
         if (checkpoint == null || !WorkspaceCheckpointState.READY.name().equals(checkpoint.state())) {
             throw new ConflictException("TASK_ACCEPT_CHECKPOINT_UNSAFE", "Task workspace checkpoint is not ready");
         }
-        try {
-            if (json.readTree(checkpoint.manifestJson()).size() != 0) {
-                throw new ConflictException("TASK_ACCEPT_HAS_CHANGES", "Task produced file changes; publish or continue instead of accepting a no-change result");
-            }
-        } catch (ConflictException conflict) {
-            throw conflict;
-        } catch (Exception unreadable) {
+        int changedFiles = WorkspaceCheckpointManifest.changedFileCount(checkpoint, json);
+        if (changedFiles < 0) {
             throw new ConflictException("TASK_ACCEPT_MANIFEST_INVALID", "Task checkpoint manifest cannot be verified");
+        }
+        if (changedFiles != 0) {
+            throw new ConflictException("TASK_ACCEPT_HAS_CHANGES", "Task produced file changes; publish or continue instead of accepting a no-change result");
         }
         TaskRow completed = terminalConsistency.complete(task, LifecycleEvent.ACCEPT_RESULT,
                 Map.of("cycleId", executionCycles.latest(taskId).id(), "confirmation", "NO_CHANGES_ACCEPTED"));

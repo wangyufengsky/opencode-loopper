@@ -453,7 +453,7 @@ public class DesignerSessionController {
                 service.activeActor(row), row.accessMode(), true,
                 "Designer conversations remain read-only across questions and revisions. Only the deterministic server validator may aggregate and synchronize the bound draft.",
                 row.createdAt(), row.updatedAt(), draft == null ? null : new DesignerDraftDto(
-                        draft.id(), draft.status(), draft.updatedAt(), drafts.spec(draft)),
+                        draft.id(), draft.status(), draft.updatedAt(), draft.version(), drafts.spec(draft)),
                 service.messages(row.id()).stream().map(this::message).toList(), service.pendingQuestions(row.id()),
                 service.answeredQuestions(row.id()),
                 service.questionInteractionStatus(row.id()),

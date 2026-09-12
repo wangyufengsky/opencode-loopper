@@ -32,13 +32,18 @@ public class LoopDraftController {
         LoopDraftRow row = service.copyAsV2(id);
         return ResponseEntity.created(URI.create("/api/loop-drafts/" + row.id())).body(dto(row));
     }
-    @PutMapping("/{id}") public LoopDraftDto update(@PathVariable String id, @Valid @RequestBody DraftSpecRequest request) { return dto(service.update(id, request.spec())); }
+    @PutMapping("/{id}") public LoopDraftDto update(@PathVariable String id, @Valid @RequestBody DraftSpecRequest request) { return dto(service.updateAtVersion(id, request.spec(), requiredVersion(request.expectedVersion()))); }
     @PostMapping("/{id}/confirm") public TaskReference confirm(@PathVariable String id, @RequestBody(required = false) ConfirmDraftRequest request) {
-        return new TaskReference(service.confirm(id, request == null ? null : request.title()).id());
+        return new TaskReference(service.confirmAtVersion(id, request == null ? null : request.title(), requiredVersion(request == null ? null : request.expectedVersion())).id());
     }
-    public record ConfirmDraftRequest(String title) { }
-    public record DraftSpecRequest(@NotNull @Valid LoopSpec spec) { }
-    public record LoopDraftDto(String id, String status, String updatedAt, LoopSpec spec) { }
+    public record ConfirmDraftRequest(String title, Long expectedVersion) { }
+    public record DraftSpecRequest(@NotNull @Valid LoopSpec spec, Long expectedVersion) { }
+    public record LoopDraftDto(String id, String status, String updatedAt, long version, LoopSpec spec) { }
     public record TaskReference(String taskId) { }
-    private LoopDraftDto dto(LoopDraftRow row) { return new LoopDraftDto(row.id(), row.status(), row.updatedAt(), service.spec(row)); }
+    private static long requiredVersion(Long version) {
+        if (version == null || version < 0) throw new io.opencode.loopper.service.BadRequestException(
+                "DRAFT_VERSION_REQUIRED", "请重新载入执行规范后再保存或确认");
+        return version;
+    }
+    private LoopDraftDto dto(LoopDraftRow row) { return new LoopDraftDto(row.id(), row.status(), row.updatedAt(), row.version(), service.spec(row)); }
 }

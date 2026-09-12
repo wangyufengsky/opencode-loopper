@@ -175,6 +175,14 @@ acceptance when the frozen manifest is empty. Inheritance/rework makes the paren
 Session. Direct mode cannot inherit a private Git checkpoint or rework a Git
 baseline and therefore fails closed.
 
+Direct checkpoints preserve their private index metadata separately from a server-computed
+changed-file count. The count compares the original Task baseline tree to the frozen checkpoint
+tree, never a later live workspace. Decision actions and no-change acceptance share this
+interpretation. Legacy Direct checkpoints with identical baseline/checkpoint trees prove zero
+changes; a different tree without a stored count remains unknown and cannot authorize acceptance.
+The UI shows unknown counts explicitly and does not offer Direct Git publication, inheritance,
+or Git-based audit actions. No existing checkpoint or migration is rewritten.
+
 Each authorized continuation creates a persisted execution cycle with a fresh
 budget window and associates new Attempts with that cycle. Prior successful
 Stages remain successful; the failed/selected Stage and all later Stages reopen.

@@ -9,33 +9,67 @@ import { displayLabel, userFacingError } from '@/utils/displayLabels'
 
 const interactions = ref<Interaction[]>([])
 const loading = ref(true)
-const error = ref('')
+const refreshError = ref('')
+const actionError = ref('')
+const error = computed(() => actionError.value || refreshError.value)
 const submittingId = ref('')
-let timer: ReturnType<typeof setInterval> | undefined
+let timer: ReturnType<typeof setTimeout> | undefined
+let disposed = false
+let refreshInFlight: Promise<void> | undefined
 
 const pendingCount = computed(() => interactions.value.filter((item) => item.state === 'PENDING').length)
 
-async function refresh() {
-  try {
-    interactions.value = await api.getInteractions()
-    error.value = ''
-  } catch (cause) {
-    error.value = userFacingError(cause, '待处理中心暂时无法连接服务端')
-  } finally {
-    loading.value = false
-  }
+function stopPolling() {
+  if (timer !== undefined) clearTimeout(timer)
+  timer = undefined
+}
+
+function scheduleRefresh() {
+  stopPolling()
+  if (!disposed && !submittingId.value) timer = setTimeout(() => { void refresh() }, 1500)
+}
+
+function refresh(): Promise<void> {
+  if (disposed) return Promise.resolve()
+  if (refreshInFlight) return refreshInFlight
+  stopPolling()
+  loading.value = true
+  refreshInFlight = (async () => {
+    try {
+      const next = await api.getInteractions()
+      if (disposed) return
+      interactions.value = next
+      refreshError.value = ''
+    } catch (cause) {
+      if (!disposed) refreshError.value = userFacingError(cause, '待处理中心暂时无法连接服务端')
+    } finally {
+      refreshInFlight = undefined
+      if (!disposed) {
+        loading.value = false
+        scheduleRefresh()
+      }
+    }
+  })()
+  return refreshInFlight
 }
 
 async function resolve(item: Interaction, action: InteractionAction, answers?: string[][]) {
+  if (disposed || submittingId.value) return
   submittingId.value = item.id
+  actionError.value = ''
+  stopPolling()
   try {
     await api.resolveInteraction(item.id, { action, version: item.version, ...(answers ? { answers } : {}) })
-    await refresh()
   } catch (cause) {
-    error.value = userFacingError(cause, '交互提交失败，请刷新后重试')
-    await refresh()
+    if (!disposed) actionError.value = userFacingError(cause, '交互提交失败，请刷新后重试')
   } finally {
-    submittingId.value = ''
+    // Let an earlier read finish before fetching the post-command snapshot.
+    await refreshInFlight
+    if (!disposed) await refresh()
+    if (!disposed) {
+      submittingId.value = ''
+      scheduleRefresh()
+    }
   }
 }
 
@@ -43,11 +77,8 @@ function pendingQuestion(item: QuestionInteraction) {
   return { id: item.externalRequestId, questions: item.payload.questions }
 }
 
-onMounted(async () => {
-  await refresh()
-  timer = setInterval(refresh, 1500)
-})
-onBeforeUnmount(() => { if (timer) clearInterval(timer) })
+onMounted(() => { void refresh() })
+onBeforeUnmount(() => { disposed = true; stopPolling() })
 </script>
 
 <template>
@@ -81,15 +112,15 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
           <div class="inbox-meta"><span>{{ item.taskId ? '任务执行' : '设计会话' }}</span></div>
         </header>
 
-        <PendingQuestionCard v-if="item.kind === 'QUESTION' && item.state === 'PENDING'" :pending="pendingQuestion(item)" :submitting="submittingId === item.id" @submit="(answers) => resolve(item, 'REPLY', answers)" @reject="resolve(item, 'REJECT')" />
+        <PendingQuestionCard v-if="item.kind === 'QUESTION' && item.state === 'PENDING'" :pending="pendingQuestion(item)" :submitting="submittingId === item.id" :disabled="Boolean(submittingId && submittingId !== item.id)" @submit="(answers) => resolve(item, 'REPLY', answers)" @reject="resolve(item, 'REJECT')" />
 
         <div v-else-if="item.kind === 'PERMISSION'" class="permission-body">
           <dl><div><dt>权限类型</dt><dd>{{ displayLabel(item.payload.permission) }}</dd></div><div><dt>匹配范围</dt><dd class="mono">{{ item.payload.patterns.join(' · ') || '未提供' }}</dd></div></dl>
           <p v-if="item.payload.hardDenied" class="hard-deny-note"><Icon icon="lucide:shield-x" />{{ userFacingError(item.payload.hardDenyReason, '该请求已被本地安全策略拒绝') }}</p>
           <footer v-if="item.state === 'PENDING'">
-            <el-button :disabled="submittingId === item.id" @click="resolve(item, 'REJECT')">拒绝</el-button>
-            <el-button :disabled="submittingId === item.id" @click="resolve(item, 'ONCE')">仅本次允许</el-button>
-            <el-button type="primary" :loading="submittingId === item.id" @click="resolve(item, 'SESSION')">本会话允许</el-button>
+            <el-button :disabled="Boolean(submittingId)" @click="resolve(item, 'REJECT')">拒绝</el-button>
+            <el-button :disabled="Boolean(submittingId)" @click="resolve(item, 'ONCE')">仅本次允许</el-button>
+            <el-button type="primary" :loading="submittingId === item.id" :disabled="Boolean(submittingId)" @click="resolve(item, 'SESSION')">本会话允许</el-button>
           </footer>
         </div>
       </article>

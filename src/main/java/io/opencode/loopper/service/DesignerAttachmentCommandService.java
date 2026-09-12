@@ -8,6 +8,8 @@ import io.opencode.loopper.persistence.DesignWorkPackageRow;
 import io.opencode.loopper.persistence.DesignerMessageRow;
 import io.opencode.loopper.persistence.DesignerSessionRow;
 import java.util.List;
+import java.util.concurrent.locks.ReentrantLock;
+import io.opencode.loopper.persistence.LoopperMapper;
 import org.springframework.stereotype.Service;
 
 /** Coordinates attachment-only commands without expanding the legacy Designer workflow service. */
@@ -17,13 +19,17 @@ public class DesignerAttachmentCommandService {
     private final LoopDraftService drafts;
     private final DesignerSessionRuntimeControl runtimeControl;
     private final DesignerAttachmentContext attachments;
+    private final LoopperMapper mapper;
+    private final ReentrantLock[] initialLocks = java.util.stream.IntStream.range(0, 64)
+            .mapToObj(ignored -> new ReentrantLock()).toArray(ReentrantLock[]::new);
 
     public DesignerAttachmentCommandService(DesignerSessionService sessions, LoopDraftService drafts,
-            DesignerSessionRuntimeControl runtimeControl, DesignerAttachmentContext attachments) {
+            DesignerSessionRuntimeControl runtimeControl, DesignerAttachmentContext attachments, LoopperMapper mapper) {
         this.sessions = sessions;
         this.drafts = drafts;
         this.runtimeControl = runtimeControl;
         this.attachments = attachments;
+        this.mapper = mapper;
     }
 
     public DesignerSessionRow create(String projectId, String loopDraftId, String content, String submissionId,
@@ -36,6 +42,17 @@ public class DesignerAttachmentCommandService {
             List<DesignerAttachmentContext.IncomingFile> files,
             StoryBindingConfiguration storyBinding) {
         DesignerAttachmentContext.PreparedUpload prepared = attachments.prepare(files);
+        String identity = loopDraftId == null ? submissionId : loopDraftId;
+        ReentrantLock lock = initialLocks[Math.floorMod(identity.hashCode(), initialLocks.length)];
+        if (!lock.tryLock()) throw new ConflictException("ATTACHMENT_INITIAL_SUBMISSION_BUSY",
+                "上次初始提交仍在处理，请稍后恢复同一次提交");
+        try { return createPrepared(projectId, loopDraftId, content, submissionId, prepared, storyBinding); }
+        finally { lock.unlock(); }
+    }
+
+    private DesignerSessionRow createPrepared(String projectId, String loopDraftId, String content,
+            String submissionId, DesignerAttachmentContext.PreparedUpload prepared,
+            StoryBindingConfiguration storyBinding) {
         var replay = attachments.publishedMessageRetry(submissionId, null,
                 DesignerAttachmentContext.AttachmentScope.requirement(), content, prepared);
         if (replay.isPresent()) {
@@ -45,6 +62,10 @@ public class DesignerAttachmentCommandService {
                         "submissionId 已用于另一个项目或草稿");
             }
             return existing;
+        }
+        if (loopDraftId != null && mapper.findLatestDesignerSessionByDraft(loopDraftId).isPresent()) {
+            throw new ConflictException("ATTACHMENT_INITIAL_SUBMISSION_INCOMPLETE",
+                    "已有设计会话，但初始附件交接未完成；请从历史设计恢复该会话并检查附件，不能重复开始设计");
         }
         DesignerSessionRow session = sessions.create(projectId, loopDraftId, content, storyBinding);
         DesignerMessageRow user = sessions.messages(session.id()).stream()

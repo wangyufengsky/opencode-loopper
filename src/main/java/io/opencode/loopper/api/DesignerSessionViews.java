@@ -42,7 +42,7 @@ public final class DesignerSessionViews {
                                             Integer requirementRevision, String activeWorkPackageId,
                                             boolean archived, String archivedAt,
                                             String taskId, String taskState) { }
-    public record DesignerDraftDto(String id, String status, String updatedAt,
+    public record DesignerDraftDto(String id, String status, String updatedAt, long version,
                                    io.opencode.loopper.domain.LoopSpec spec) { }
     public record DesignerMessageDto(String id, int ordinal, String role, String actor, String content,
                                      String deliveryState, String createdAt,

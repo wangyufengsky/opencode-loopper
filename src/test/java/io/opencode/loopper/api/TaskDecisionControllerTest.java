@@ -54,6 +54,25 @@ class TaskDecisionControllerTest {
     }
 
     @Test
+    void directNoChangeResultOffersAcceptanceWithoutUnsupportedGitActions() {
+        String tree = "a".repeat(40);
+        TaskRow task = new TaskRow("task-1", "project-1", "draft-1", "Direct", "AWAITING_DECISION",
+                "/tmp/project", "DIRECT", null, "direct:task-1:" + tree, "now", "now", 1);
+        var checkpoint = new TaskWorkspaceCheckpointRow("checkpoint", task.id(), "cycle-1", "READY",
+                "snapshot", "/tmp/project", "fingerprint", "DIRECT", null, task.baselineCommit(),
+                "ref", null, tree, "{\"gitIndexBase64\":\"\",\"changedFileCount\":0}", "sha", null,
+                null, null, "now", "now", 1);
+        when(tasks.get(task.id())).thenReturn(task);
+        when(tasks.latestExecutionCycle(task.id())).thenReturn(cycle("SUCCEEDED", 1));
+        when(tasks.latestWorkspaceCheckpoint(task.id())).thenReturn(checkpoint);
+        when(tasks.stages(task.id())).thenReturn(List.of(stage()));
+
+        var view = controller.get(task.id());
+        assertThat(view.checkpoint().changedFileCount()).isZero();
+        assertThat(view.availableActions()).containsExactly("CONTINUE_CURRENT_TASK", "ACCEPT_RESULT", "CANCEL");
+    }
+
+    @Test
     void auditCreatesOnlyTheExistingVerifyOnlyRecoveryContract() {
         TaskRow task = task(2);
         TaskExecutionCycleRow cycle = cycle("FAILED", 5);

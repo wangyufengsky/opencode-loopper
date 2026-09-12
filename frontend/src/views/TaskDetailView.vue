@@ -147,6 +147,11 @@ const nextAction = computed(() => {
 })
 
 let loadGeneration = 0
+function actionScope() {
+  const taskId = id.value
+  const generation = loadGeneration
+  return { taskId, current: () => id.value === taskId && loadGeneration === generation }
+}
 async function load() {
   const generation = ++loadGeneration
   const taskId = id.value
@@ -211,6 +216,7 @@ async function loadQueue() {
 
 async function reconcileQueue() {
   if (!queueStatus.value?.reconcileAvailable || queueReconciling.value) return
+  const scope = actionScope()
   if (queueNeedsWriterTermination.value) {
     try {
       await ElMessageBox.confirm(
@@ -220,19 +226,27 @@ async function reconcileQueue() {
       )
     } catch { return }
   }
+  if (!scope.current()) return
   queueReconciling.value = true
   queueError.value = ''
   try {
-    queueStatus.value = await api.reconcileTaskQueue(id.value)
-    await store.loadTask(id.value)
-    await loadQueue()
+    const next = await api.reconcileTaskQueue(scope.taskId)
+    if (!scope.current()) return
+    queueStatus.value = next
+    await store.loadTask(scope.taskId)
+    if (scope.current()) await loadQueue()
   } catch (error) {
+    if (!scope.current()) return
     const message = userFacingError(error, '安全释放检查失败')
-    try { await store.loadTask(id.value) } catch { /* Keep the last known Task projection. */ }
+    try { await store.loadTask(scope.taskId) } catch { /* Keep the last known Task projection. */ }
+    if (!scope.current()) return
     if (task.value?.status === 'QUEUED') {
-      try { queueStatus.value = await api.getTaskQueue(id.value) } catch { /* Keep the last known queue projection. */ }
+      try {
+        const next = await api.getTaskQueue(scope.taskId)
+        if (scope.current()) queueStatus.value = next
+      } catch { /* Keep the last known queue projection. */ }
     }
-    queueError.value = message
+    if (scope.current()) queueError.value = message
   } finally {
     queueReconciling.value = false
   }
@@ -240,6 +254,7 @@ async function reconcileQueue() {
 
 async function confirmCancel() {
   if (!task.value || cancellingTask.value) return
+  const scope = actionScope()
   const pending = task.value.status === 'PENDING_START'
   const queued = task.value.status === 'QUEUED'
   const ready = task.value.status === 'READY'
@@ -261,17 +276,19 @@ async function confirmCancel() {
   } catch {
     return
   }
+  if (!scope.current()) return
   cancellingTask.value = true
   taskActionError.value = ''
   try {
-    await store.updateTask(id.value, 'cancel')
+    await store.updateTask(scope.taskId, 'cancel')
+    if (!scope.current()) return
     if (task.value?.status === 'STOPPING') {
       ElMessage.info('停止请求已保存，正在等待远端终止确认')
     } else {
       ElMessage.success('任务已取消')
     }
   } catch (cause) {
-    taskActionError.value = userFacingError(cause, '任务取消失败')
+    if (scope.current()) taskActionError.value = userFacingError(cause, '任务取消失败')
   } finally {
     cancellingTask.value = false
   }
@@ -280,10 +297,12 @@ async function confirmCancel() {
 
 async function confirmRetryJudges() {
   if (!canRetryJudges.value || judgeRetrying.value) return
+  const scope = actionScope()
   try {
     await ElMessageBox.confirm('将启动两个新的只读评审会话，可能产生模型用量。', `${judgeActionLabel.value}？`, { type: 'warning', confirmButtonText: judgeActionLabel.value, cancelButtonText: '暂不评审' })
+    if (!scope.current()) return
     judgeRetrying.value = true
-    await store.retryJudges(id.value)
+    await store.retryJudges(scope.taskId)
   } catch {
     // User cancelled, or the store has exposed the backend error in its error state.
   } finally {
@@ -293,14 +312,16 @@ async function confirmRetryJudges() {
 
 async function confirmRetryLoop() {
   if (!canRetryLoop.value || loopRetrying.value) return
+  const scope = actionScope()
   try {
     await ElMessageBox.confirm(
       '将依据最新交接启动一个新的可写会话，历史证据会保留。',
       '确认继续一轮？',
       { type: 'warning', confirmButtonText: '继续一轮', cancelButtonText: '暂不继续' },
     )
+    if (!scope.current()) return
     loopRetrying.value = true
-    await store.retryWaitingLoop(id.value)
+    await store.retryWaitingLoop(scope.taskId)
   } catch {
     // User cancelled, or the store exposed the backend error.
   } finally {
@@ -310,15 +331,17 @@ async function confirmRetryLoop() {
 
 async function confirmRework() {
   if (!canRework.value || reworking.value || !task.value) return
+  const scope = actionScope()
   try {
     await ElMessageBox.confirm(
       '将从此任务创建时的 Git 基线创建全新任务分支，并把登记的原项目目录切换到该分支后重新执行全部阶段。父任务、父分支和历史证据不会被修改。',
       '新分支重做任务？',
       { type: 'warning', confirmButtonText: '创建新分支并重做', cancelButtonText: '取消' },
     )
+    if (!scope.current()) return
     reworking.value = true
-    const childId = await store.reworkTask(id.value)
-    if (childId) await router.push(`/tasks/${childId}`)
+    const childId = await store.reworkTask(scope.taskId)
+    if (childId && scope.current()) await router.push(`/tasks/${childId}`)
   } catch {
     // User cancelled, or the store exposed the backend error.
   } finally {

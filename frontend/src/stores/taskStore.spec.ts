@@ -269,6 +269,40 @@ describe('task SSE reducer', () => {
     expect(store.tasks[0]).toMatchObject({ status: 'COMPLETED', version: 2, errors: [], judges: [] })
   })
 
+  it('keeps overview errors and judges authoritative when an older audit arrives last', async () => {
+    const store = useTaskStore()
+    store.tasks = [{ ...demoTasks[0]!, id: 'same', version: 1, errors: [], judges: [] }]
+    const old = deferred<unknown>()
+    apiMocks.getTaskAudit.mockReturnValueOnce(old.promise)
+    const audit = store.loadTaskAudit('same')
+    const errors = [{ id: 'current-error', layer: 'TASK', code: 'JUDGE_REQUIREMENT_NOT_PASSED', message: '评审未通过', retryable: true, at: 'now' }]
+    const judges = [{ id: 'current-judge', role: 'REQUIREMENT', ordinal: 2, status: 'COMPLETED', verdict: 'FAIL', reason: '需要修改', createdAt: 'now' }]
+    apiMocks.getTaskOverview.mockResolvedValueOnce({ ...demoTasks[0]!, id: 'same', version: 2,
+      status: 'WAITING_INPUT', errors, judges })
+    await store.loadTaskOverview('same')
+    old.resolve({ attempts: [], errors: [], judges: [], artifacts: [] })
+    await audit
+    expect(store.tasks[0]).toMatchObject({ version: 2, status: 'WAITING_INPUT', errors, judges, attempts: [], artifacts: [] })
+  })
+
+  it.each(['judge.completed', 'error.recorded'])('refreshes current metadata as well as audit for %s', async type => {
+    vi.useFakeTimers()
+    let receive!: (event: TaskEvent) => void
+    vi.mocked(subscribeTaskEvents).mockImplementation((_id, callback) => {
+      receive = callback
+      return { close: vi.fn() }
+    })
+    apiMocks.getTaskOverview.mockResolvedValue({ ...demoTasks[0]!, id: 'same', errors: [], judges: [] })
+    apiMocks.getTaskAudit.mockResolvedValue({ attempts: [], errors: [], judges: [], artifacts: [] })
+    const store = useTaskStore()
+    store.watchTask('same')
+    receive({ id: 'event', type, at: 'now', data: {} })
+    await vi.advanceTimersByTimeAsync(180)
+    expect(apiMocks.getTaskOverview).toHaveBeenCalledExactlyOnceWith('same')
+    expect(apiMocks.getTaskAudit).toHaveBeenCalledExactlyOnceWith('same')
+    store.stopWatching()
+  })
+
   it('keeps audit from the latest request and ignores late errors', async () => {
     const store = useTaskStore()
     store.tasks = [{ ...demoTasks[0]!, id: 'same' }]

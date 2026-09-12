@@ -36,7 +36,7 @@ export function reduceTaskEvent(task: Task, event: TaskEvent): Task {
  * snapshot so the Attempt timeline, verifier output and layered errors stay
  * authoritative without reconnecting EventSource or polling log events. */
 export function requiresTaskSnapshot(type: string): boolean {
-  return /^(task|package|stage|attempt|session|verification)\./.test(type)
+  return /^(task|package|stage|attempt|session|verification|judge|error)\./.test(type)
 }
 
 export function aiOutputNotice(event: TaskEvent): string | undefined {
@@ -217,7 +217,8 @@ export const useTaskStore = defineStore('task', () => {
       const audit = await api.getTaskAudit(id)
       if (request !== auditRequests.get(id) || usingDemo.value) return
       artifacts.value = [...artifacts.value.filter((artifact) => artifact.taskId !== id), ...(audit.artifacts ?? [])]
-      tasks.value = tasks.value.map((task) => task.id === id ? { ...task, ...audit,
+      // Overview owns current errors and Judge metadata; audit may be an older snapshot.
+      tasks.value = tasks.value.map((task) => task.id === id ? { ...task, attempts: audit.attempts, artifacts: audit.artifacts,
         stages: task.stages?.map(stage => ({ ...stage, attempts: (audit.attempts ?? []).filter(attempt => attempt.stageId === stage.id) })),
       } : task)
     } catch (cause) {

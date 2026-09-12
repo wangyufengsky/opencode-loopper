@@ -44,6 +44,13 @@ const draft = ref<LoopDraft>()
 const designerSession = ref<DesignerSession>()
 const messages = ref<DesignerMessage[]>([])
 const editorValue = ref('')
+const editorBaselineVersion = ref<number>()
+const draftConflict = ref(false)
+function resetDraftEditor(value: LoopDraft) {
+  editorValue.value = JSON.stringify(value.spec, null, 2)
+  editorBaselineVersion.value = value.version
+  draftConflict.value = false
+}
 const fieldError = ref<ErrorEvent>()
 const acceptanceAssessment = ref<LoopSpecAssessment>()
 const busy = ref(false)
@@ -77,6 +84,17 @@ const messageFileInput = ref<HTMLInputElement>()
 const dragActive = ref(false)
 let dragDepth = 0
 const initialSubmissionId = ref('')
+const initialAttempt = ref<{
+  draft: LoopDraft
+  input: Parameters<typeof api.createDesignerContextTurn>[0]
+  files: File[]
+}>()
+const initialPreflightErrors = new Set([
+  'ATTACHMENT_FILE_COUNT_INVALID', 'ATTACHMENT_DUPLICATE_FILENAME', 'ATTACHMENT_EMPTY',
+  'ATTACHMENT_FILE_TOO_LARGE', 'ATTACHMENT_TYPE_UNSUPPORTED', 'ATTACHMENT_CONTEXT_TOO_LARGE',
+  'ATTACHMENT_PARSE_FAILED', 'ATTACHMENT_MAGIC_MISMATCH', 'ATTACHMENT_MACRO_FORBIDDEN',
+  'ATTACHMENT_FILENAME_INVALID', 'ATTACHMENT_UTF8_REQUIRED',
+])
 const messageSubmissionId = ref('')
 const attachmentPreviews = ref<Record<string, string>>({})
 const attachmentPreviewBusy = ref('')
@@ -266,8 +284,8 @@ function acceptanceIssueLabel(value: string) {
 const isFinalReview = computed(() => ['FINAL_REVIEW', 'COMPLETED'].includes(
   designerSession.value?.workflowPhase ?? '',
 ))
-const confirmationReady = computed(() => store.usingDemo || designerSession.value?.finalConfirmationEligible === true
-  || draft.value?.status === 'CONFIRMED')
+const confirmationReady = computed(() => !draftConflict.value && (store.usingDemo || designerSession.value?.finalConfirmationEligible === true
+  || draft.value?.status === 'CONFIRMED'))
 const directSoftwareMode = computed(() => designerSession.value?.taskProfile.workflowTemplate === 'DIRECT_SOFTWARE_DESIGN')
 const workflowStep = computed(() => {
   if (directSoftwareMode.value) {
@@ -682,7 +700,7 @@ function loadDemo(goal?: string) {
     if (openingMessage) openingMessage.content = goal
   }
   selectedProjectId.value = draft.value.spec.projectId
-  editorValue.value = JSON.stringify(draft.value.spec, null, 2)
+  resetDraftEditor(draft.value)
 }
 
 function mergeMessages(incoming: DesignerMessage[]) {
@@ -709,7 +727,7 @@ async function refreshDesignerSession() {
     mergeMessages(refreshed.messages)
     if (refreshed.draft) {
       draft.value = refreshed.draft
-      if (!hadLocalChanges) editorValue.value = JSON.stringify(refreshed.draft.spec, null, 2)
+      if (!hadLocalChanges && !draftConflict.value) resetDraftEditor(refreshed.draft)
       else if (editorValue.value !== JSON.stringify(refreshed.draft.spec, null, 2)) {
         ElMessage.warning('设计师已生成新的执行规范；右侧保留了未保存修改。')
       }
@@ -909,42 +927,60 @@ function blankSpec(projectId: string, goal: string, settings: AppSettings): Loop
 }
 
 async function startDraft() {
-  const goal = draftPrompt.value.trim()
+  if (busy.value) return
+  const goal = initialAttempt.value?.input.content ?? draftPrompt.value.trim()
   if (!goal) { ElMessage.warning('请先填写设计目标、约束或验收标准。'); return }
   if (store.usingDemo) {
     loadDemo(goal)
     draftPrompt.value = ''
     return
   }
-  const project = selectedProject.value
+  const project = initialAttempt.value ? store.projects.find(item => item.id === initialAttempt.value?.input.projectId) : selectedProject.value
   if (!project) { ElMessage.warning('请先在“项目”页面登记一个可用项目根目录。'); return }
-  if (newStoryBinding.value.enabled && (!newStoryBinding.value.systemCode?.trim() || !newStoryBinding.value.storyCode?.trim())) {
+  if (!initialAttempt.value && newStoryBinding.value.enabled && (!newStoryBinding.value.systemCode?.trim() || !newStoryBinding.value.storyCode?.trim())) {
     ElMessage.warning('开启故事绑定后，请填写系统编号和故事编号。')
     return
   }
+  const initialFilesSnapshot = [...initialFiles.value]
+  const initialAutoMode = newAutoModeEnabled.value
+  const initialStoryBinding = { ...newStoryBinding.value }
   busy.value = true
   try {
-    const settings = await api.getSettings()
-    const createdDraft = await api.createDraft(blankSpec(project.id, goal, settings))
-    designerSession.value = initialFiles.value.length
-      ? await api.createDesignerContextTurn({
-          submissionId: initialSubmissionId.value || (initialSubmissionId.value = newSubmissionId()),
-          projectId: project.id, draftId: createdDraft.id, content: goal,
-          autoModeEnabled: newAutoModeEnabled.value,
-          storyBinding: newStoryBinding.value,
-        }, initialFiles.value)
-      : await api.createDesignerSession(project.id, createdDraft.id, goal, newAutoModeEnabled.value, newStoryBinding.value)
+    const createdDraft = initialAttempt.value?.draft
+      ?? await api.createDraft(blankSpec(project.id, goal, await api.getSettings()))
+    if (!initialAttempt.value && initialFilesSnapshot.length) initialAttempt.value = {
+      draft: createdDraft,
+      input: { submissionId: initialSubmissionId.value || (initialSubmissionId.value = newSubmissionId()),
+        projectId: project.id, draftId: createdDraft.id, content: goal,
+        autoModeEnabled: initialAutoMode, storyBinding: initialStoryBinding },
+      files: initialFilesSnapshot,
+    }
+    const attempt = initialAttempt.value
+    designerSession.value = attempt
+      ? await api.createDesignerContextTurn(attempt.input, attempt.files)
+      : await api.createDesignerSession(project.id, createdDraft.id, goal, initialAutoMode, initialStoryBinding)
+    // An uncertain initial send is replayed unchanged. Later edits stay unsent in the recovered conversation.
+    if (attempt && draftPrompt.value.trim() !== attempt.input.content) userMessage.value = draftPrompt.value
+    if (attempt) messageFiles.value = initialFiles.value.filter(file => !attempt.files.includes(file))
     messages.value = designerSession.value.messages
     draft.value = designerSession.value.draft ?? createdDraft
-    editorValue.value = JSON.stringify(draft.value.spec, null, 2)
+    selectedProjectId.value = draft.value.spec.projectId
+    resetDraftEditor(draft.value)
     sessionStorage.setItem(designerWorkspaceKey, JSON.stringify({ sessionId: designerSession.value.id, draftId: draft.value.id }))
     designerRecoveryError.value = ''
     draftPrompt.value = ''
     initialFiles.value = []
     initialSubmissionId.value = ''
+    initialAttempt.value = undefined
     newAutoModeEnabled.value = false
     newStoryBinding.value = { enabled: false }
-  } catch (error) { ElMessage.error(userFacingError(error, '无法创建设计草案')) } finally { busy.value = false }
+  } catch (error) {
+    if (error instanceof ApiError && initialPreflightErrors.has(error.code ?? '')) {
+      initialAttempt.value = undefined
+      initialSubmissionId.value = ''
+    }
+    ElMessage.error(userFacingError(error, '无法创建设计草案'))
+  } finally { busy.value = false }
 }
 
 async function confirmAutoModeRisk() {
@@ -985,7 +1021,7 @@ function activateDesignerWorkspace(restoredSession: DesignerSession, restoredDra
   messages.value = restoredSession.messages
   draft.value = restoredSession.draft ?? restoredDraft
   selectedProjectId.value = draft.value.spec.projectId
-  editorValue.value = JSON.stringify(draft.value.spec, null, 2)
+  resetDraftEditor(draft.value)
   sessionStorage.setItem(designerWorkspaceKey, JSON.stringify({ sessionId: restoredSession.id, draftId: draft.value.id }))
   designerRecoveryError.value = ''
 }
@@ -1040,6 +1076,9 @@ function clearDesignerWorkspace() {
   messages.value = []
   draft.value = undefined
   editorValue.value = ''
+  editorBaselineVersion.value = undefined
+  draftConflict.value = false
+  initialAttempt.value = undefined
   fieldError.value = undefined
   draftPrompt.value = ''
   userMessage.value = ''
@@ -1159,8 +1198,12 @@ function parsedSpec() {
 }
 
 async function saveDraft(): Promise<boolean> {
+  if (busy.value || draftConflict.value) return false
   const spec = parsedSpec()
   if (!spec || !draft.value) return false
+  const draftId = draft.value.id
+  const expectedVersion = editorBaselineVersion.value
+  const submittedEditor = editorValue.value
   busy.value = true
   designerLiveError.value = ''
   let saved = false
@@ -1170,9 +1213,10 @@ async function saveDraft(): Promise<boolean> {
       acceptanceAssessment.value = assessment
       if (!assessment.valid) throw new Error(assessment.errors.join('；'))
     }
-    draft.value = store.usingDemo ? { ...draft.value, spec, updatedAt: new Date().toISOString() } : await api.updateDraft(draft.value.id, spec)
+    draft.value = store.usingDemo ? { ...draft.value, spec, updatedAt: new Date().toISOString() } : await api.updateDraft(draftId, spec, expectedVersion)
     saved = true
-    editorValue.value = JSON.stringify(draft.value.spec, null, 2)
+    if (editorValue.value === submittedEditor) resetDraftEditor(draft.value)
+    else editorBaselineVersion.value = draft.value.version
     fieldError.value = undefined
     if (!store.usingDemo && designerSession.value) {
       designerSession.value = { ...designerSession.value, finalConfirmationEligible: false,
@@ -1182,11 +1226,35 @@ async function saveDraft(): Promise<boolean> {
     ElMessage.success('执行规范已保存')
     return true
   } catch (error) {
+    if (error instanceof ApiError && ['DRAFT_VERSION_CONFLICT', 'DESIGNER_DRAFT_CHANGED'].includes(error.code ?? '')) draftConflict.value = true
     fieldError.value = { id: 'field-api', layer: 'FIELD', code: 'LOOPSPEC_SAVE_FAILED', message: saved
       ? `执行规范已保存，但无法更新确认状态，请重试保存。${userFacingError(error)}`
       : userFacingError(error, '保存失败'), retryable: true, occurredAt: '刚刚' }
     return false
   } finally { busy.value = false }
+}
+
+async function reloadDraftEditor() {
+  if (!draft.value || busy.value) return
+  const draftId = draft.value.id
+  const generation = designerPollGeneration
+  try {
+    await ElMessageBox.confirm('重新载入会替换当前未保存的执行规范，请先复制需要保留的内容。', '重新载入执行规范？',
+      { confirmButtonText: '重新载入', cancelButtonText: '保留修改', type: 'warning' })
+  } catch { return }
+  if (generation !== designerPollGeneration || draft.value?.id !== draftId || busy.value) return
+  busy.value = true
+  try {
+    const restored = await api.getDraft(draftId)
+    if (generation !== designerPollGeneration || draft.value?.id !== draftId) return
+    draft.value = restored
+    resetDraftEditor(restored)
+    fieldError.value = undefined
+    await refreshDesignerSession()
+  } catch (error) {
+    if (generation === designerPollGeneration && draft.value?.id === draftId) ElMessage.error(userFacingError(error, '重新载入失败，原修改已保留'))
+  }
+  finally { busy.value = false }
 }
 
 async function copyLegacyDraftAsV2() {
@@ -1197,7 +1265,7 @@ async function copyLegacyDraftAsV2() {
     designerSession.value = await api.createDesignerSession(copied.spec.projectId, copied.id)
     messages.value = designerSession.value.messages
     draft.value = designerSession.value.draft ?? copied
-    editorValue.value = JSON.stringify(draft.value.spec, null, 2)
+    resetDraftEditor(draft.value)
     acceptanceAssessment.value = undefined
     sessionStorage.setItem(designerWorkspaceKey, JSON.stringify({ sessionId: designerSession.value.id, draftId: draft.value.id }))
     ElMessage.success('已升级草稿；请补齐验收条件与行为验证后保存')
@@ -1210,14 +1278,14 @@ async function confirm() {
   if (!draft.value) return
   if (autoModeActive.value) return
   if (draft.value.status !== 'CONFIRMED' && !await saveDraft()) return
-  if (!confirmationReady.value) return
+  if (!confirmationReady.value || dirty.value) return
   busy.value = true
   try {
     if (store.usingDemo) { draft.value = { ...draft.value, status: 'CONFIRMED' }; ElMessage.success('演示任务已创建') }
     else {
-      const result = await api.confirmDraft(draft.value.id)
+      const result = await api.confirmDraft(draft.value.id, editorBaselineVersion.value)
       draft.value = await api.getDraft(draft.value.id)
-      editorValue.value = JSON.stringify(draft.value.spec, null, 2)
+      resetDraftEditor(draft.value)
       try {
         const task = await store.loadTask(result.taskId)
         if (task?.status === 'FAILED') {
@@ -1229,7 +1297,10 @@ async function confirm() {
       }
       await openCommittedTask(result.taskId)
     }
-  } catch (error) { ElMessage.error(userFacingError(error, '确认失败')) } finally { busy.value = false }
+  } catch (error) {
+    if (error instanceof ApiError && error.code === 'DRAFT_VERSION_CONFLICT') draftConflict.value = true
+    ElMessage.error(userFacingError(error, '确认失败'))
+  } finally { busy.value = false }
 }
 
 async function sendMessage() {
@@ -1488,6 +1559,9 @@ async function redesignPackage(packageId: string) {
         <div><strong>设计恢复暂时不可用</strong><p>{{ userFacingError(designerRecoveryError) }}</p></div>
       </section>
 
+      <section v-if="initialAttempt" class="designer-recovery-notice" role="status">
+        <Icon icon="lucide:refresh-cw" /><div><strong>恢复上次提交</strong><p>上次提交结果尚未确认。重试会恢复原设计；后来修改的文字和新增附件会保留为未发送补充。</p><el-button text @click="router.push('/designs')">查看历史设计</el-button></div>
+      </section>
       <div class="designer-start-layout">
         <article class="card brief-composer">
           <div v-if="!store.usingDemo" class="composer-project-row">
@@ -1495,7 +1569,7 @@ async function redesignPackage(packageId: string) {
               <span class="composer-project-icon"><Icon icon="lucide:folder-git-2" /></span>
               <span><small>项目上下文</small><strong>{{ selectedProject?.name ?? '选择项目' }}</strong></span>
             </div>
-            <el-select id="designer-project" v-model="selectedProjectId" filterable placeholder="选择项目" aria-label="选择 Designer 项目">
+            <el-select id="designer-project" v-model="selectedProjectId" :disabled="busy || Boolean(initialAttempt)" filterable placeholder="选择项目" aria-label="选择 Designer 项目">
               <el-option v-for="project in store.projects" :key="project.id" :label="project.name" :value="project.id"><span>{{ project.name }}</span><span class="project-path">{{ project.rootPath }}</span></el-option>
             </el-select>
           </div>
@@ -1542,17 +1616,17 @@ async function redesignPackage(packageId: string) {
             </button>
           </div>
 
-          <StoryBindingSetup v-model="newStoryBinding" :project-id="selectedProjectId" :runtime-identity="`${store.runtime?.endpoint ?? ''}:${store.runtime?.generation ?? ''}`" :disabled="busy || store.usingDemo" />
+          <StoryBindingSetup v-model="newStoryBinding" :project-id="selectedProjectId" :runtime-identity="`${store.runtime?.endpoint ?? ''}:${store.runtime?.generation ?? ''}`" :disabled="busy || Boolean(initialAttempt) || store.usingDemo" />
 
           <footer class="draft-create-actions">
             <div class="designer-auto-create">
               <span class="composer-boundary"><Icon icon="lucide:shield-check" />只读分析项目</span>
-              <label><el-switch v-model="newAutoModeEnabled" :disabled="store.usingDemo" @change="changeNewAutoMode" /><span><strong>全自动模式</strong></span></label>
+              <label><el-switch v-model="newAutoModeEnabled" :disabled="busy || Boolean(initialAttempt) || store.usingDemo" @change="changeNewAutoMode" /><span><strong>全自动模式</strong></span></label>
             </div>
             <div class="composer-submit">
               <span class="composer-shortcut">⌘ / Ctrl + Enter</span>
-              <el-button class="create-draft-button" type="primary" size="large" :loading="busy" :disabled="!draftPrompt.trim() || (!store.usingDemo && !selectedProjectId)" @click="startDraft">
-                {{ store.usingDemo ? '开始演示' : '开始设计' }}<Icon icon="lucide:arrow-up-right" />
+              <el-button class="create-draft-button" type="primary" size="large" :loading="busy" :disabled="!initialAttempt && (!draftPrompt.trim() || (!store.usingDemo && !selectedProjectId))" @click="startDraft">
+                {{ initialAttempt ? '恢复上次提交' : store.usingDemo ? '开始演示' : '开始设计' }}<Icon icon="lucide:arrow-up-right" />
               </el-button>
             </div>
           </footer>
@@ -1775,7 +1849,7 @@ async function redesignPackage(packageId: string) {
         </div>
       </article>
       <article class="card spec-panel">
-        <div class="card-pad card-header"><div><p class="eyebrow">设计确认</p><h2 class="card-title">{{ isFinalReview ? '最终执行规范' : '候选执行规范' }}</h2></div><div class="review-actions"><span :class="['candidate-sync', `sync-${(designerSession?.candidate?.syncState ?? 'NONE').toLowerCase()}`]">{{ designerSession?.candidate?.syncState === 'SYNCING' ? '同步中' : designerSession?.candidate?.syncState === 'FAILED' ? '同步失败，保留上一版' : designerSession?.candidate?.syncState === 'SYNCED' ? '已同步' : '等待候选' }}</span><template v-if="isFinalReview"><el-button v-if="draft.spec.schemaVersion === 'v1' && !store.usingDemo" plain size="small" :loading="busy" @click="copyLegacyDraftAsV2">升级规范</el-button><el-button plain size="small" :loading="busy" @click="saveDraft"><Icon icon="lucide:save" />保存</el-button></template></div></div>
+        <div class="card-pad card-header"><div><p class="eyebrow">设计确认</p><h2 class="card-title">{{ isFinalReview ? '最终执行规范' : '候选执行规范' }}</h2></div><div class="review-actions"><el-button v-if="draftConflict" plain :loading="busy" @click="reloadDraftEditor">重新载入执行规范</el-button><span :class="['candidate-sync', `sync-${(designerSession?.candidate?.syncState ?? 'NONE').toLowerCase()}`]">{{ designerSession?.candidate?.syncState === 'SYNCING' ? '同步中' : designerSession?.candidate?.syncState === 'FAILED' ? '同步失败，保留上一版' : designerSession?.candidate?.syncState === 'SYNCED' ? '已同步' : '等待候选' }}</span><template v-if="isFinalReview"><el-button v-if="draft.spec.schemaVersion === 'v1' && !store.usingDemo" plain size="small" :loading="busy" @click="copyLegacyDraftAsV2">升级规范</el-button><el-button plain size="small" :loading="busy" @click="saveDraft"><Icon icon="lucide:save" />保存</el-button></template></div></div>
         <div class="spec-meta"><span><Icon icon="lucide:flag" />{{ designerSession?.candidate?.spec?.stages.length ?? draft.spec.stages.length }} 个阶段</span><span><Icon icon="lucide:timer" />{{ draft.spec.limits.maxDuration }}</span><span v-if="draft.spec.schemaVersion === 'v1'" class="legacy-contract">旧版规范</span></div>
         <section v-if="isFinalReview && artifactStage" class="artifact-preview" aria-label="服务端制品预览">
           <header><strong>{{ artifactStage.stageKind === 'TABULAR_CONVERSION' ? '表格转换预览' : artifactTarget.endsWith('.docx') ? 'DOCX 结构摘要' : 'Markdown 预览' }}</strong><span>{{ artifactTarget }}</span></header>

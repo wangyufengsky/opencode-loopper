@@ -88,6 +88,22 @@ public class DirectWorkspaceBaselineManager {
         return captureCheckpoint(projectRoot, taskId).tree().equals(expectedTree);
     }
 
+    /** Compares two frozen trees, so later workspace edits cannot change the checkpoint's file count. */
+    public int checkpointChangedFileCount(Path projectRoot, String marker, String checkpointTree) {
+        Baseline baseline = requireAvailableBaseline(marker);
+        if (checkpointTree == null || !checkpointTree.matches("[0-9a-fA-F]{40,64}")) {
+            throw new TaskFailure("DIRECT_CHECKPOINT_CREATE_FAILED", "Direct 检查点树无效");
+        }
+        ProcessResult changes = runner.run(projectRoot, git(projectRoot, baseline.gitDir(),
+                "diff-tree", "--no-commit-id", "--name-only", "--no-renames", "-r", "-z",
+                baseline.tree(), checkpointTree), GIT_TIMEOUT);
+        if (changes.timedOut() || changes.outputTruncated() || changes.exitCode() != 0
+                || !changes.output().isEmpty() && !changes.output().endsWith("\0")) {
+            throw new TaskFailure("DIRECT_CHECKPOINT_CREATE_FAILED", "无法校验 Direct 检查点变更文件数");
+        }
+        return (int) changes.output().chars().filter(value -> value == 0).count();
+    }
+
     public DiffResult diff(Path projectRoot, String marker, Duration timeout) {
         Baseline baseline = requireAvailableBaseline(marker);
         try {

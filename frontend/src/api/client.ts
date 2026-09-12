@@ -867,11 +867,16 @@ function normalizeAvailableModel(value: unknown): AvailableModel {
   return { id: asString(raw.id, `${provider}/${model}`), provider, model, label: asString(raw.label, `${provider} / ${model}`) }
 }
 
+function requireDraftVersion(version: number | undefined): number {
+  if (version === undefined || !Number.isSafeInteger(version) || version < 0) throw new Error('执行规范缺少有效版本，请重新载入后再保存或确认')
+  return version
+}
+
 function normalizeDraft(value: unknown): LoopDraft {
   const raw = asRecord(value)
   let parsed: unknown = raw.spec
   if (typeof raw.specJson === 'string') { try { parsed = JSON.parse(raw.specJson) } catch { parsed = {} } }
-  return { id: asString(raw.id), status: requirePublicState(LOOP_DRAFT_STATUSES, raw.status, 'LoopDraft'), updatedAt: asString(raw.updatedAt), spec: parseLoopSpec(parsed) }
+  return { version: typeof raw.version === 'number' && Number.isSafeInteger(raw.version) && raw.version >= 0 ? raw.version : undefined, id: asString(raw.id), status: requirePublicState(LOOP_DRAFT_STATUSES, raw.status, 'LoopDraft'), updatedAt: asString(raw.updatedAt), spec: parseLoopSpec(parsed) }
 }
 
 function normalizeDesignerMessage(value: unknown): DesignerMessage {
@@ -1753,8 +1758,8 @@ export const api = {
   validateDraft: async (spec: LoopSpec) => request<LoopSpecAssessment>('/loop-drafts/validate', { method: 'POST', body: JSON.stringify({ spec: backendLoopSpec(spec) }) }),
   copyDraftAsV2: async (id: string) => normalizeDraft(await request<unknown>(`/loop-drafts/${encodeURIComponent(id)}/copy-v2`, { method: 'POST' })),
   getDraft: async (id: string) => normalizeDraft(await request<unknown>(`/loop-drafts/${encodeURIComponent(id)}`)),
-  updateDraft: async (id: string, spec: LoopDraft['spec']) => normalizeDraft(await request<unknown>(`/loop-drafts/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify({ spec: backendLoopSpec(spec) }) })),
-  confirmDraft: async (id: string) => { const task = asRecord(await request<unknown>(`/loop-drafts/${encodeURIComponent(id)}/confirm`, { method: 'POST' })); return { taskId: asString(task.taskId) } },
+  updateDraft: async (id: string, spec: LoopDraft['spec'], expectedVersion: number | undefined) => normalizeDraft(await request<unknown>(`/loop-drafts/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify({ spec: backendLoopSpec(spec), expectedVersion: requireDraftVersion(expectedVersion) }) })),
+  confirmDraft: async (id: string, expectedVersion: number | undefined) => { const task = asRecord(await request<unknown>(`/loop-drafts/${encodeURIComponent(id)}/confirm`, { method: 'POST', body: JSON.stringify({ expectedVersion: requireDraftVersion(expectedVersion) }) })); return { taskId: asString(task.taskId) } },
   getStoryBindingCapability: async (projectId: string) => request<StoryBindingCapability>(`/projects/${encodeURIComponent(projectId)}/story-binding-capability`),
   createDesignerSession: async (projectId: string, draftId: string, initialMessage?: string, autoModeEnabled = false, storyBinding?: StoryBindingConfiguration) => normalizeDesignerSession(await request<unknown>('/designer-sessions', { method: 'POST', headers: autoModeEnabled ? { 'X-Loopper-Local-UI': '1' } : undefined, body: JSON.stringify({ projectId, draftId, ...(initialMessage ? { initialMessage } : {}), autoModeEnabled, ...(storyBinding ? { storyBinding } : {}) }) })),
   createDesignerContextTurn: async (input: { submissionId: string; projectId: string; draftId: string; content: string; autoModeEnabled: boolean; storyBinding?: StoryBindingConfiguration }, files: File[]) => normalizeDesignerSession(await request<unknown>('/designer-sessions/context-turns', {

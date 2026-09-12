@@ -364,6 +364,22 @@ describe('Loopper REST contract adapter', () => {
     })
   })
 
+  it('binds draft mutations to the displayed version and refuses missing baselines', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(json({ id: 'draft-1', version: 8, status: 'DRAFT_READY', spec }))
+      .mockResolvedValueOnce(json({ id: 'draft-1', version: 9, status: 'DRAFT_READY', spec }))
+      .mockResolvedValueOnce(json({ taskId: 'task-1' }))
+    vi.stubGlobal('fetch', fetchMock)
+    const draft = await api.getDraft('draft-1')
+    expect(draft.version).toBe(8)
+    const saved = await api.updateDraft(draft.id, draft.spec, draft.version)
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body)).expectedVersion).toBe(8)
+    await api.confirmDraft(saved.id, saved.version)
+    expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({ expectedVersion: 9 })
+    await expect(api.updateDraft(draft.id, draft.spec, undefined)).rejects.toThrow('缺少有效版本')
+    await expect(api.confirmDraft(draft.id, undefined)).rejects.toThrow('缺少有效版本')
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
   it('wraps LoopSpec, reads taskId, and maps AVAILABLE to ONLINE', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(json({ id: 'draft-1', status: 'DRAFT_READY', updatedAt: 'now', spec }, 201))
@@ -376,7 +392,7 @@ describe('Loopper REST contract adapter', () => {
     expect(createBody).toEqual({ spec: expect.objectContaining({ projectId: 'project-1' }) })
     expect(createBody.spec.stages[0].verifiers).toEqual(spec.stages[0]?.verifiers)
 
-    await expect(api.confirmDraft('draft-1')).resolves.toEqual({ taskId: 'task-1' })
+    await expect(api.confirmDraft('draft-1', 0)).resolves.toEqual({ taskId: 'task-1' })
     await expect(api.getRuntime()).resolves.toMatchObject({
       loopperVersion: '0.1.53', status: 'OFFLINE', managed: false, endpoint: 'http://127.0.0.1:51234',
       startupFailure: 'Managed OpenCode exited with code 1 before it became healthy',
@@ -521,7 +537,7 @@ describe('Loopper REST contract adapter', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     const draft = await api.getDraft('draft-1')
-    await api.updateDraft('draft-1', draft.spec)
+    await api.updateDraft('draft-1', draft.spec, 0)
 
     expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body)).spec).toMatchObject({
       limits: { maxStageAttempts: 7, maxTaskAttempts: 19, sessionErrorLimit: 6, stagnationLimit: 4, maxDurationSeconds: 9100, attemptTimeoutSeconds: 2300, verifierTimeoutSeconds: 321 },
@@ -547,7 +563,7 @@ describe('Loopper REST contract adapter', () => {
     const draft = await api.getDraft('draft-packages')
     expect(draft.spec.stages.map((stage) => stage.workPackageId)).toEqual(['WP-1', 'WP-2'])
 
-    await api.updateDraft(draft.id, draft.spec)
+    await api.updateDraft(draft.id, draft.spec, 0)
 
     const persisted = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body)).spec
     expect(persisted.stages.map((stage: { workPackageId?: string }) => stage.workPackageId)).toEqual(['WP-1', 'WP-2'])
@@ -582,7 +598,7 @@ describe('Loopper REST contract adapter', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     const draft = await api.getDraft('draft-v2')
-    await api.updateDraft('draft-v2', draft.spec)
+    await api.updateDraft('draft-v2', draft.spec, 0)
     await expect(api.validateDraft(draft.spec)).resolves.toEqual(assessment)
 
     const persisted = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body)).spec
@@ -611,7 +627,7 @@ describe('Loopper REST contract adapter', () => {
     vi.stubGlobal('fetch', fetchMock)
     const draft = await api.getDraft('artifact-draft')
     await api.validateDraft(draft.spec)
-    await api.updateDraft(draft.id, draft.spec)
+    await api.updateDraft(draft.id, draft.spec, 0)
     for (const call of fetchMock.mock.calls.slice(1)) {
       expect(JSON.parse(String(call[1]?.body)).spec.stages[0]).toEqual(artifactSpec.stages[0])
     }
@@ -638,7 +654,7 @@ describe('Loopper REST contract adapter', () => {
     const draft = await api.getDraft('all-types')
     await api.createDraft(draft.spec)
     await api.validateDraft(draft.spec)
-    await api.updateDraft(draft.id, draft.spec)
+    await api.updateDraft(draft.id, draft.spec, 0)
     for (const call of fetchMock.mock.calls.slice(1)) {
       const sent = JSON.parse(String(call[1]?.body)).spec
       expect(sent.stages[0].verifiers).toEqual(verifiers)
@@ -686,7 +702,7 @@ describe('Loopper REST contract adapter', () => {
 
     const draft = await api.getDraft('draft-1')
     expect(draft.spec.stages[0]!.verifiers).toEqual([{ type: 'PROCESS', command: ['mvn', 'test'] }])
-    await api.updateDraft('draft-1', draft.spec)
+    await api.updateDraft('draft-1', draft.spec, 0)
     const body = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))
     expect(body.spec.stages[0].verifiers[0]).toEqual({ type: 'PROCESS', command: ['mvn', 'test'] })
   })
