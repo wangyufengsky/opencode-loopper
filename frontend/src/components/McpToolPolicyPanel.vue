@@ -1,0 +1,33 @@
+<script setup lang="ts">
+import { ref, watch } from 'vue'
+import { api } from '@/api/client'
+import type { McpToolPolicy } from '@/types/domain'
+import { userFacingError } from '@/utils/displayLabels'
+const props = defineProps<{ projectId: string; serverId: string }>()
+const rows = ref<McpToolPolicy[]>([]), error = ref(''), loading = ref(false), saving = ref(false)
+let generation = 0
+async function load() {
+  const current = ++generation; loading.value = true; error.value = ''; rows.value = []
+  try { const result = await api.getMcpToolPolicies(props.projectId, props.serverId); if (current === generation) { rows.value = result.tools; if (!result.complete) error.value = result.detail || '清单不完整，暂不能修改权限' } }
+  catch (cause) { if (current === generation) error.value = userFacingError(cause, '工具策略读取失败，请重试') }
+  finally { if (current === generation) loading.value = false }
+}
+async function update(row: McpToolPolicy, value: unknown) {
+  const current = generation; saving.value = true; error.value = ''
+  try { await api.updateMcpToolPolicy({ projectId: props.projectId, serverId: props.serverId, toolName: row.name, enabled: Number(value), version: props.projectId ? row.projectVersion : row.globalVersion }); if (current === generation) await load() }
+  catch (cause) { if (current === generation) error.value = userFacingError(cause, '工具策略保存失败，请刷新后重试') }
+  finally { saving.value = false }
+}
+watch(() => [props.projectId, props.serverId], () => { void load() }, { immediate: true })
+</script>
+<template>
+  <div class="policies">
+    <p v-if="loading" role="status">正在读取工具策略…</p><p v-if="error" role="alert">{{ error }} <el-button link @click="load">刷新</el-button></p>
+    <div v-for="row in rows" :key="row.name" class="policy">
+      <div><strong>{{ row.name }}</strong><p>{{ row.writes ? '写入任务产物' : serverId === '@loopper-assist' ? '只读' : '按角色授权调用' }} · {{ row.enabled ? '启用' : '停用' }} · {{ row.source === 'SYSTEM' ? '系统必需' : row.source === 'PROJECT' ? '项目配置' : '全局默认' }}</p></div>
+      <span v-if="!row.configurable">{{ row.source === 'SYSTEM' ? '系统必需，不可关闭' : '清单不完整，不可配置' }}</span>
+      <el-select v-else :model-value="projectId ? row.projectOverride === 'INHERIT' ? -1 : row.projectOverride === 'ENABLED' ? 1 : 0 : row.globalEnabled ? 1 : 0" :disabled="saving" :aria-label="`${row.name} 工具策略`" @change="(value: unknown) => update(row, value)"><el-option v-if="projectId" :value="-1" label="继承全局" /><el-option :value="1" label="启用" /><el-option :value="0" label="停用" /></el-select>
+    </div>
+  </div>
+</template>
+<style scoped>.policy{display:flex;align-items:center;justify-content:space-between;gap:16px;border-top:1px solid var(--color-border-default);padding:12px 0;flex-wrap:wrap}.policy strong{font:12px var(--font-code);overflow-wrap:anywhere}.policy p,.policy span{font-size:12px;color:var(--color-text-secondary)}.policy .el-select{width:150px}</style>

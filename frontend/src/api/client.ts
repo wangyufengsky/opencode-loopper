@@ -4,6 +4,7 @@ import type { AnalysisReport, DesignerTaskProfileUpdatePreview, ProjectStackProf
 import { DESIGNER_SESSION_STATES, DESIGN_WORK_PACKAGE_STATES, LOOP_DRAFT_STATUSES, STAGE_STATUSES, TASK_PACKAGE_RUN_STATES, TASK_STATUSES, WORK_PACKAGE_AGGREGATE_STATUSES, requirePublicState } from '@/types/states'
 import type { InsightQuery, JudgeApproval, McpServerInfo, McpToolCatalog, SkillInventory, SkillDocument } from '@/types/domain'
 import type { StoryAccountingCall, StoryBindingCapability, StoryBindingConfiguration } from '@/types/domain'
+import type { DatabaseConnection, DatabaseConnectionInput, DatabaseDriver, DatabaseProbe, McpPolicyCatalog } from '@/types/domain'
 
 const apiBase = import.meta.env.VITE_API_BASE ?? '/api'
 
@@ -1586,6 +1587,12 @@ function normalizeStoryAccountingCall(value: unknown): StoryAccountingCall {
 }
 
 export const api = {
+  getDatabaseConnections: (cursor?: string) => request<CursorPage<DatabaseConnection>>(`/database-connections${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`),
+  getDatabaseDrivers: () => request<DatabaseDriver[]>('/database-connections/drivers'),
+  saveDatabaseConnection: (id: string | null, body: DatabaseConnectionInput) => request<DatabaseConnection>(`/database-connections${id ? `/${encodeURIComponent(id)}` : ''}`, { method: id ? 'PUT' : 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(body) }),
+  testDatabaseConnection: (id: string) => request<DatabaseProbe>(`/database-connections/${encodeURIComponent(id)}/test`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } }),
+  getMcpToolPolicies: (projectId: string, serverId: string) => request<McpPolicyCatalog>(`/runtime/tool-policies?projectId=${encodeURIComponent(projectId)}&serverId=${encodeURIComponent(serverId)}`),
+  updateMcpToolPolicy: (body: { projectId: string; serverId: string; toolName: string; enabled: number; version: number }) => request<void>('/runtime/tool-policies', { method: 'PUT', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(body) }),
   templateCatalog: () => request<TemplateTaskCatalog>('/template-tasks/catalog'),
   templateProjects: (query = '', cursor?: string) => request<CursorPage<TemplateProjectChoice>>(`/template-tasks/projects?${new URLSearchParams({ query, ...(cursor ? { cursor } : {}) })}`),
   templateBranches: (projectId: string, query = '', cursor?: string) => request<TemplateBranchPage>(`/template-tasks/projects/${encodeURIComponent(projectId)}/branches?${new URLSearchParams({ query, ...(cursor ? { cursor } : {}) })}`),

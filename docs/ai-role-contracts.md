@@ -548,3 +548,6 @@ to pass validation. See [role changes, configuration and qualification boundarie
 `PACKAGE_DESIGN_V2` 在新持久会话中冻结独立提交工具、来源绑定、32 节点/4 层 all/any/unless 关系及有依据的缺口声明。历史角色 kind 保持不变，不能从 kind 名称推导实际对象合同。原文、用户明确补充、仓库证据和模型整理分层保存；只有服务端编译后的验收准则与交接进入 Implementation/Recovery/Judge。Decomposer 的包边界与共同约束仍是冻结输入，Reviewer 不获得写权限。完整字段、提示版本与一次整理阶段的停止/恢复规则见 [工作包三批优化](package-design-luna-optimization.md)。
 
 V2 默认启用和确定性范围检查见 [V2 加固与启用](package-design-v2-enablement.md)。固定 Prompt 使用 `PACKAGE_PROMPT_V2_20260907_R2`，约束优先级与首次状态转换必须完整表达；候选关系不授予权限。
+## 辅助工具与角色上下文
+
+各角色的数据库、文档与任务证据权限由 [内网辅助 MCP 合同](assist-mcp-contract.md) 和统一工具目录持有。服务端在模型投递前附加必需约束，覆盖自定义 Role Pack、模板分析和重试模板的组合路径。评审读取冻结证据，不能以实时查询改变评审材料。

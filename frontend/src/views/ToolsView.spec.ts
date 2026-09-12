@@ -1,9 +1,10 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/api/client'
 import ToolsView from './ToolsView.vue'
 
+beforeEach(() => { vi.spyOn(api, 'getMcpToolPolicies').mockResolvedValue({ tools: [], complete: true, detail: '' }) })
 afterEach(() => vi.restoreAllMocks())
 describe('MCP tools page', () => {
   it('keeps Skill discovery lazy and opens the selected Markdown document', async () => {
@@ -35,11 +36,11 @@ describe('MCP tools page', () => {
     expect(wrapper.findAll('.el-select__selected-item').map(item => item.text())).toContain('全局运行环境')
     expect(wrapper.text()).toContain('已连接'); expect(wrapper.text()).toContain('已停用')
     expect(read).not.toHaveBeenCalled()
-    const details = wrapper.get('details'); (details.element as HTMLDetailsElement).open = true
+    const details = wrapper.get('.tool-servers details'); (details.element as HTMLDetailsElement).open = true
     await details.trigger('toggle'); await flushPromises()
     expect(read).toHaveBeenCalledWith('', 'search')
     expect(wrapper.text()).toContain('Find code'); expect(wrapper.find('script').exists()).toBe(false)
     await wrapper.get('input[aria-label="搜索 MCP 和已读取工具"]').setValue('find')
-    expect(wrapper.findAll('details')).toHaveLength(1)
+    expect(wrapper.findAll('.tool-servers details')).toHaveLength(1)
   })
 })

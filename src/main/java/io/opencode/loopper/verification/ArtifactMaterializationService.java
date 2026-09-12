@@ -88,6 +88,10 @@ public class ArtifactMaterializationService {
         return result(root, target, bytes, Map.of("format", plan.format(), "blockCount", aggregated.blocks().size(),
                 "chapterPackages", plan.chapters().stream().map(DocumentChapter::workPackageId).toList()));
     }
+    /** Versioned Markdown rendering for auxiliary calls; legacy frozen block plans keep their renderer. */
+    public io.opencode.loopper.service.assist.MarkdownWordRenderer.Result renderMarkdownWord(String markdown, Path root) {
+        return new io.opencode.loopper.service.assist.MarkdownWordRenderer().render(markdown, root);
+    }
 
     private Result tabular(Path root, TabularConversionPlan plan) {
         validate(plan); Path input = VerifierSafety.managedRelative(root, plan.inputPath());

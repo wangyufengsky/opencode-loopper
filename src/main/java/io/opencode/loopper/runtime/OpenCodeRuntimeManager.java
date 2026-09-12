@@ -277,6 +277,13 @@ public final class OpenCodeRuntimeManager implements AutoCloseable {
         environment.put("OPENCODE_SERVER_USERNAME", username);
         environment.put("OPENCODE_SERVER_PASSWORD", password);
         environment.put("OPENCODE_ENABLE_QUESTION_TOOL", "true");
+        // Local guard plugins need no downloads. Missing optional npm packages must fail fast offline,
+        // rather than hold MCP readiness while OpenCode retries an unreachable registry.
+        if (mode() == Mode.MANAGED) {
+            environment.put("OPENCODE_DISABLE_MODELS_FETCH", "true");
+            environment.put("OPENCODE_DISABLE_AUTOUPDATE", "true");
+            environment.put("npm_config_offline", "true");
+        }
         environment.put("OPENCODE_CONFIG_CONTENT", managedConfig(internal));
         Process process;
         try {
@@ -320,7 +327,10 @@ public final class OpenCodeRuntimeManager implements AutoCloseable {
                         "git reset --hard*", "deny",
                         "rm -rf*", "deny")));
         config.put("agent", OpenCodeAgentPolicy.managedDefinitions());
-        config.put("mcp", Map.of(internal.serverName(), Map.of(
+        config.put("mcp", Map.of(io.opencode.loopper.service.assist.AssistToolCatalog.serverName(internal.serverName()), Map.of(
+                "type", "remote", "url", internal.endpoint().resolve(io.opencode.loopper.service.assist.AssistToolCatalog.ENDPOINT).toString(),
+                "enabled", true, "oauth", false, "headers", Map.of("Authorization", "Bearer " + internal.bearerToken()), "timeout", 40_000),
+                internal.serverName(), Map.of(
                 "type", "remote",
                 "url", internal.endpoint().toString(),
                 "enabled", true,

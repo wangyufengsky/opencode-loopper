@@ -19,6 +19,8 @@ import org.springframework.web.client.RestClientResponseException;
 import tools.jackson.databind.ObjectMapper;
 /** Thin adapter for the local OpenCode server; all transport faults become SessionFailure. */
 public class HttpOpenCodeClient implements OpenCodeClient {
+    private AssistRuntimeSupport assist;
+    void installAssist(AssistRuntimeSupport support) { this.assist=support; exactRecovery.assist=support; }
     private final Supplier<OpenCodeConnectionDetails> connectionSupplier;
     private final OpenCodeHttpTransport http;
     private final OpenCodeCapabilityRegistry capabilities;
@@ -179,6 +181,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
             }
             List<Map<String, String>> permissions = OpenCodePermissionPolicy.rules(effectiveProfile,
                     mcp.connectedServers(), connection.internalMcpServer());
+            if (assist != null) permissions=assist.permissions(canonical,effectiveProfile,mcp.connectedServers(),connection.internalMcpServer(),false);
             request.put("permission", permissions);
             JsonNode body = sessionClient.post().uri(uri -> directoryUri(uri, "/session", canonical))
                     .contentType(MediaType.APPLICATION_JSON).body(request)
@@ -203,6 +206,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
             if (model != null) sessionModels.put(id, model);
             sessionProfiles.put(id, effectiveProfile);
             managedSessions.put(id, connection.managed());
+            if (assist != null) assist.remember(id,connection.generation(),canonical,effectiveProfile,permissions,connection.internalMcpServer());
             return session;
         } catch (SessionFailure e) { throw e; }
         catch (Exception e) { throw new SessionFailure("OPENCODE_SESSION_CREATE_FAILED", e.getMessage()); }
@@ -249,6 +253,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
             }
             Map<String, Object> body = OpenCodePromptBody.encode(prompt, profile,
                     Boolean.TRUE.equals(managedSessions.get(session.id())), sessionModels.get(session.id()), files);
+            if (assist != null) assist.enrich(session.id(),body);
             if (storyAccounting != null && !storyAccounting.accountingMessageIds(session.id()).isEmpty()) OpenCodePromptBody.restoreBusinessContext(body, sessionModels.get(session.id()));
             pending.dispatch(() -> client(session).post().uri(uri -> sessionUri(uri, "/session/{id}/prompt_async", session)).contentType(MediaType.APPLICATION_JSON)
                     .body(body).retrieve().toBodilessEntity());
@@ -290,7 +295,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         catch (RuntimeException e) { throw new SessionFailure("OPENCODE_STATUS_FAILED", e.getMessage()); }
     }
     @Override public String sessionOutput(OpenCodeSession session) {
-        return responses.output(sessionResult(session), json);
+        return io.opencode.loopper.service.assist.AssistRedaction.text(responses.output(sessionResult(session), json));
     }
     @Override public SessionResult sessionResult(OpenCodeSession session) {
         try {
@@ -308,7 +313,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
     }
     @Override public String sessionLiveOutput(OpenCodeSession session) {
         try {
-            return responses.liveOutput(sessionMessages(session));
+            return io.opencode.loopper.service.assist.AssistRedaction.text(responses.liveOutput(sessionMessages(session)));
         } catch (SessionFailure e) { throw e; }
         catch (RuntimeException e) { throw new SessionFailure("OPENCODE_LIVE_OUTPUT_FAILED", e.getMessage()); }
     }

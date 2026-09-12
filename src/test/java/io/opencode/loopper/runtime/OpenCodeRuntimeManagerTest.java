@@ -156,6 +156,10 @@ class OpenCodeRuntimeManagerTest {
         OpenCodeRuntimeManager.RuntimeSnapshot restarted = manager.restartOwned();
 
         assertThat(launches).hasSize(2);
+        assertThat(launches).allSatisfy(environment -> assertThat(environment)
+                .containsEntry("OPENCODE_DISABLE_MODELS_FETCH", "true")
+                .containsEntry("OPENCODE_DISABLE_AUTOUPDATE", "true")
+                .containsEntry("npm_config_offline", "true"));
         String firstConfig = launches.getFirst().get("OPENCODE_CONFIG_CONTENT");
         String secondConfig = launches.getLast().get("OPENCODE_CONFIG_CONTENT");
         assertThat(firstConfig).contains("\"mcp\"", "\"type\":\"remote\"",

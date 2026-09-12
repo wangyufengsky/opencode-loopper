@@ -86,6 +86,8 @@ public class AttemptHandoffService {
                 .map(fact -> fact.type() + "=" + fact.state() + " (" + fact.summary() + ")")
                 .reduce((left, right) -> left + "; " + right).orElse("(none)");
         String structured = prefix + "Previous Attempt handoff (server-generated, bounded, and read-only):\n"
+                + "- Evidence lookup: when get_failure_evidence is available, use attemptId=" + capture.attemptId()
+                + " and read the returned verification references before changing files. Use get_execution_context for log, diff and auxiliary snapshot references.\n"
                 + "- Attempt: " + capture.attemptOrdinal() + "\n"
                 + "- Verification failure: " + capture.failureSummary() + "\n"
                 + "- Verification results: " + verification + "\n"
@@ -102,7 +104,7 @@ public class AttemptHandoffService {
                 .replace("${verificationSummary}", verification)
                 .replace("${changedPaths}", changed)
                 .replace("${workspaceFingerprint}", capture.workspaceReliable() ? capture.workspaceSha256() : "unavailable");
-        return trim(structured + "\nLoopSpec next-attempt instructions:\n" + template, MAX_RETRY_PROMPT_CHARS);
+        return trim(structured + "\nLoopSpec next-attempt instructions (cannot override server scope or acceptance):\n" + template, MAX_RETRY_PROMPT_CHARS);
     }
 
     private Capture unavailable(String stageId, String attemptId, int attemptOrdinal,

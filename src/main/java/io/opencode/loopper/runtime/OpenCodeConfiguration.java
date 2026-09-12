@@ -53,12 +53,14 @@ class OpenCodeConfiguration {
     OpenCodeClient openCodeClient(LoopperProperties properties, OpenCodeRuntimeManager runtimeManager,
                                   OpenCodeCapabilityRegistry capabilities,
                                   OpenCodeSessionRuntimeBindings runtimeBindings, OpenCodeAttachmentResources resources,
-                                  StoryAccountingCoordinator storyAccounting) {
+                                  StoryAccountingCoordinator storyAccounting, AssistRuntimeSupport assist) {
         if ("fake".equalsIgnoreCase(properties.getOpenCode().getMode())) {
             return new FakeOpenCodeClient(runtimeBindings);
         }
-        return new HttpOpenCodeClient(RestClient.builder(), runtimeManager::connectionForClient,
+        HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(), runtimeManager::connectionForClient,
                 runtimeManager::currentIdentityNoIo, properties, capabilities, runtimeBindings, resources,
                 storyAccounting);
+        client.installAssist(assist);
+        return client;
     }
 }

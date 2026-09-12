@@ -27,6 +27,7 @@ import tools.jackson.databind.JsonNode;
 
 /** Owns the fail-closed HTTP protocol for exact Session and prompt recovery. */
 final class OpenCodeExactRecoveryTransport {
+    AssistRuntimeSupport assist;
     private final Supplier<OpenCodeConnectionDetails> connectionSupplier;
     private final Supplier<OpenCodeRuntimeManager.RuntimeIdentity> localIdentitySupplier;
     private final OpenCodeHttpTransport http;
@@ -76,6 +77,8 @@ final class OpenCodeExactRecoveryTransport {
             String fingerprint = OpenCodeSessionConnectionGuard.endpointFingerprint(identity.endpoint());
             List<SessionPermissionRule> permissions = permissionRules(
                     profile, List.of(), identity.internalMcpServer());
+            if (assist != null) permissions=assist.permissions(canonical,profile,List.of(),identity.internalMcpServer(),true).stream()
+                    .map(r->new SessionPermissionRule(r.get("permission"),r.get("pattern"),r.get("action"))).toList();
             String permissionDigest = OpenCodeClient.permissionPolicyDigest(permissions);
             String exactTitle = OpenCodeClient.recoveryTitle(baseTitle, creationCredential);
             String requestDigest = OpenCodeClient.sessionCreationRequestSha256(canonical, exactTitle,
@@ -129,6 +132,8 @@ final class OpenCodeExactRecoveryTransport {
             }
             List<SessionPermissionRule> permissions = permissionRules(effectiveProfile,
                     mcp.connectedServers(), connection.internalMcpServer());
+            if (assist != null) permissions=assist.permissions(canonical,effectiveProfile,mcp.connectedServers(),connection.internalMcpServer(),false).stream()
+                    .map(r->new SessionPermissionRule(r.get("permission"),r.get("pattern"),r.get("action"))).toList();
             String permissionDigest = OpenCodeClient.permissionPolicyDigest(permissions);
             String fingerprint = OpenCodeSessionConnectionGuard.endpointFingerprint(connection.baseUrl());
             String generation = runtimeGeneration(connection, fingerprint);
@@ -306,6 +311,8 @@ final class OpenCodeExactRecoveryTransport {
                 || !Objects.equals(existing.internalMcpServer(), plan.internalMcpServer())) {
             throw stalePlan("Exact-title session is bound to a different runtime identity");
         }
+        if (assist != null) assist.remember(id,plan.runtimeGenerationId(),plan.canonicalDirectory(),plan.profile(),
+                plan.permissionPolicy().stream().map(r->Map.of("permission",r.permission(),"pattern",r.pattern(),"action",r.action())).toList(),plan.internalMcpServer());
     }
 
     private static SessionAttestation attestation(String id, SessionCreationPlan plan) {
@@ -431,11 +438,11 @@ final class OpenCodeExactRecoveryTransport {
                 || profile == SessionProfile.JUDGE_CANDIDATE_READ_ONLY;
     }
 
-    private static void requireCandidatePolicy(SessionCreationPlan plan) {
+    private void requireCandidatePolicy(SessionCreationPlan plan) {
         List<SessionPermissionRule> expected = permissionRules(
                 plan.profile(), List.of(), plan.internalMcpServer());
-        if (!expected.equals(plan.permissionPolicy())
-                || !OpenCodeClient.permissionPolicyDigest(expected).equals(plan.permissionPolicyDigest())) {
+        if (!(expected.equals(plan.permissionPolicy()) || assist != null && assist.validCandidateExtras(plan,expected))
+                || !OpenCodeClient.permissionPolicyDigest(plan.permissionPolicy()).equals(plan.permissionPolicyDigest())) {
             throw stalePlan("The frozen candidate permission policy has changed");
         }
     }

@@ -1517,3 +1517,28 @@ export interface TemplateTaskSummary {
   id: string; title: string; state: TaskStatus; projectName: string; templateId: TemplateTaskDefinition['id']
   branchLabel: string; startDate: string; endDate: string; repairRound: number; createdAt: string; updatedAt: string
 }
+export interface DatabaseConfig {
+  type: 'MYSQL' | 'GAUSSDB' | 'GOLDENDB' | 'DAMENG'
+  host: string; port: number; database: string; username: string
+  driverFile: string; driverClass: string; schemas: string[]; parameters: Record<string, string>
+  timeoutSeconds: number; maxRows: number
+}
+export interface DatabaseConnection {
+  id: string; name: string; config: DatabaseConfig; passwordConfigured: boolean
+  enabled: boolean; archived: boolean; projectIds: string[]; version: number; createdAt: string
+}
+export interface DatabaseConnectionInput {
+  name: string; config: DatabaseConfig; password: string | null; enabled: boolean; archived: boolean
+  projectIds: string[]; version: number
+}
+export interface DatabaseDriver { filename: string; sha256: string; sizeBytes: number }
+export interface DatabaseProbe {
+  connected: boolean; sessionReadOnly: boolean; serverProduct: string; serverVersion: string
+  driverVersion: string; driverSha256: string; compatibilityVerified: boolean; detail: string
+}
+export interface McpToolPolicy {
+  name: string; configurable: boolean; writes: boolean; globalEnabled: boolean
+  projectOverride: 'INHERIT' | 'ENABLED' | 'DISABLED'; enabled: boolean; source: 'SYSTEM' | 'PROJECT' | 'GLOBAL'
+  globalVersion: number; projectVersion: number
+}
+export interface McpPolicyCatalog { tools: McpToolPolicy[]; complete: boolean; detail: string }

@@ -500,6 +500,10 @@ public interface OpenCodeClient {
         }
     }
     record SessionPart(String id, String type, String label, String content, String status, String startedAt) {
+        public SessionPart {
+            label = io.opencode.loopper.service.assist.AssistRedaction.text(label);
+            content = io.opencode.loopper.service.assist.AssistRedaction.text(content);
+        }
         public SessionPart(String id, String type, String label, String content, String status) {
             this(id, type, label, content, status, null);
         }

@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { Icon } from '@iconify/vue'
 import PageHeader from '@/components/PageHeader.vue'
 import SkillBrowser from '@/components/SkillBrowser.vue'
+import McpToolPolicyPanel from '@/components/McpToolPolicyPanel.vue'
 import { api } from '@/api/client'
 import type { McpServerInfo, McpToolCatalog, Project } from '@/types/domain'
 import { userFacingError } from '@/utils/displayLabels'
@@ -62,7 +63,8 @@ onMounted(() => {
     </section>
     <el-tabs v-model="activeTab" class="tools-tabs" @tab-change="() => { if (activeTab === 'tools') load() }">
       <el-tab-pane label="工具" name="tools">
-    <p class="tools-hint">展开服务可查看工具名称和描述。此页面只读取工具清单。</p>
+    <p class="tools-hint">全局设置作为默认值，项目设置可覆盖。只影响 Loopper 新建会话；已运行会话保持冻结权限。</p>
+    <details class="card tool-server"><summary>Loopper 内网辅助工具</summary><div class="tool-body"><McpToolPolicyPanel :project-id="projectId" server-id="@loopper-assist" /></div></details>
     <p v-if="error" role="alert">{{ error }}</p>
     <p v-if="loading" role="status">正在读取 MCP 服务…</p>
     <section v-else-if="!visible.length" class="card empty-state"><strong>{{ search ? '没有匹配的服务或已读取工具' : '当前项目没有配置 MCP 服务' }}</strong></section>
@@ -72,6 +74,7 @@ onMounted(() => {
         <div class="tool-body">
           <p v-if="pending[server.id]" role="status">正在读取工具…</p>
           <template v-if="catalogs[server.id]">
+            <McpToolPolicyPanel v-if="server.id !== '@loopper-assist'" :project-id="projectId" :server-id="server.id" />
             <p v-if="catalogs[server.id]?.detail" role="status">{{ catalogs[server.id]?.detail }} <el-button link @click="loadTools(server)">重试</el-button></p>
             <p v-if="catalogs[server.id]?.complete && !catalogs[server.id]?.tools.length">此服务未提供工具。</p>
             <p v-else-if="catalogs[server.id]?.tools.length">{{ catalogs[server.id]?.tools.length }} 个工具{{ catalogs[server.id]?.complete ? '' : '（部分结果）' }}</p>

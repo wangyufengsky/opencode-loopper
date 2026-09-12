@@ -25,7 +25,8 @@ final class InternalMcpStreamableBearerFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !InternalMcpContractCatalog.ENDPOINT_PATH.equals(request.getRequestURI());
+        return !InternalMcpContractCatalog.ENDPOINT_PATH.equals(request.getRequestURI())
+                && !io.opencode.loopper.service.assist.AssistToolCatalog.ENDPOINT.equals(request.getRequestURI());
     }
 
     @Override

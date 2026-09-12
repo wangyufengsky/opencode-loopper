@@ -1119,3 +1119,6 @@ to pass validation. See [role changes, configuration and qualification boundarie
 ## 工作包 V2 默认启用（0.3.75）
 
 新建持久会话默认冻结 V2 profile 与唯一 `submit_package_design_v2` 工具，旧 V1 会话不升级，显式关闭只控制新会话。V2 自动准备冻结证据；编译后的 Stage/GIT_DIFF 路径必须为冻结工作包范围的子集，并保留禁止删除约束。集合删除和指代文件移动不能经候选分支绕过。兼容、诊断及验证边界见 [V2 加固与启用](package-design-v2-enablement.md)。
+## 内网辅助能力
+
+受管辅助 MCP、逐工具全局／项目策略、Session 冻结权限和传输前上下文参见 [内网辅助 MCP 合同](assist-mcp-contract.md)。它与本合同中的内部候选提交及公开 MCP 服务分离；工具成功不替代候选接受或 Task 验收。

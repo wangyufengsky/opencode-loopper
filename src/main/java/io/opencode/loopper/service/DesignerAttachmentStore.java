@@ -130,82 +130,28 @@ public class DesignerAttachmentStore {
     private PreparedFile inspectOoxml(String filename, String extension, byte[] bytes) {
         if (!archive(bytes)) throw bad("ATTACHMENT_MAGIC_MISMATCH", filename + " 不是有效 OOXML 容器");
         if (hasMacro(bytes)) throw bad("ATTACHMENT_MACRO_FORBIDDEN", filename + " 包含 Office 宏，不能作为设计附件");
-        String extracted;
-        String extractor;
-        String mediaType;
-        try {
-            switch (extension) {
-                case "docx" -> {
-                    extractor = "OOXML_DOCX";
-                    mediaType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-                    try (XWPFDocument document = new XWPFDocument(new ByteArrayInputStream(bytes))) {
-                        StringBuilder text = new StringBuilder();
-                        document.getParagraphs().forEach(paragraph -> appendLine(text, paragraph.getText()));
-                        document.getTables().forEach(table -> table.getRows().forEach(row ->
-                                appendLine(text, row.getTableCells().stream().map(cell -> cell.getText()).toList())));
-                        extracted = text.toString();
-                    }
-                }
-                case "xlsx" -> {
-                    extractor = "OOXML_XLSX";
-                    mediaType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-                    try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(bytes))) {
-                        DataFormatter formatter = new DataFormatter(Locale.ROOT);
-                        StringBuilder text = new StringBuilder();
-                        for (var sheet : workbook) {
-                            appendLine(text, "# Sheet: " + sheet.getSheetName());
-                            for (var row : sheet) {
-                                List<String> values = new ArrayList<>();
-                                for (var cell : row) values.add(formatter.formatCellValue(cell));
-                                appendLine(text, values);
-                            }
-                        }
-                        extracted = text.toString();
-                    }
-                }
-                case "pptx" -> {
-                    extractor = "OOXML_PPTX";
-                    mediaType = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
-                    try (XMLSlideShow presentation = new XMLSlideShow(new ByteArrayInputStream(bytes))) {
-                        StringBuilder text = new StringBuilder();
-                        int slide = 0;
-                        for (var page : presentation.getSlides()) {
-                            appendLine(text, "# Slide " + (++slide));
-                            page.getShapes().stream().filter(shape -> shape instanceof org.apache.poi.xslf.usermodel.XSLFTextShape)
-                                    .map(shape -> ((org.apache.poi.xslf.usermodel.XSLFTextShape) shape).getText())
-                                    .forEach(value -> appendLine(text, value));
-                        }
-                        extracted = text.toString();
-                    }
-                }
-                default -> throw new IllegalStateException("Unexpected OOXML extension");
-            }
-        } catch (BadRequestException failure) { throw failure; }
-        catch (Exception failure) { throw bad("ATTACHMENT_PARSE_FAILED", filename + " 无法作为有效 OOXML 读取"); }
-        byte[] representation = extracted.getBytes(StandardCharsets.UTF_8);
-        if (representation.length > MAX_CONTEXT_BYTES) {
-            throw bad("ATTACHMENT_CONTEXT_TOO_LARGE", filename + " 的确定性提取文本超过 128 KiB，未做截断或摘要");
-        }
-        return new PreparedFile(filename, mediaType, bytes.length, sha256(bytes), bytes, extractor, "1",
-                "text/plain", (long) representation.length, sha256(representation), representation, "OFFICE");
+        String media = switch(extension) {
+            case "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+            case "xlsx" -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            case "pptx" -> "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+            default -> throw bad("ATTACHMENT_TYPE_UNSUPPORTED", "不支持的 Office 格式");
+        };
+        return inspectDocument(filename, bytes, media, "OOXML_" + extension.toUpperCase(Locale.ROOT), "OFFICE");
     }
 
     private PreparedFile inspectPdf(String filename, byte[] bytes) {
-        if (!starts(bytes, 0x25, 0x50, 0x44, 0x46, 0x2d)) {
-            throw bad("ATTACHMENT_MAGIC_MISMATCH", filename + " 没有有效 PDF 文件头");
-        }
-        byte[] representation;
-        try (var document = Loader.loadPDF(bytes)) {
-            representation = new PDFTextStripper().getText(document).getBytes(StandardCharsets.UTF_8);
-        } catch (Exception failure) {
-            throw bad("ATTACHMENT_PARSE_FAILED", filename + " 无法作为有效 PDF 读取");
-        }
-        if (representation.length > MAX_CONTEXT_BYTES) {
-            throw bad("ATTACHMENT_CONTEXT_TOO_LARGE", filename + " 的确定性提取文本超过 128 KiB，未做截断或摘要");
-        }
-        return new PreparedFile(filename, "application/pdf", bytes.length, sha256(bytes), bytes,
-                "PDF_TEXT", "1", "text/plain", (long) representation.length, sha256(representation),
-                representation, "PDF");
+        return inspectDocument(filename, bytes, "application/pdf", "PDF_TEXT", "PDF");
+    }
+
+    private PreparedFile inspectDocument(String filename, byte[] bytes, String media, String extractor, String kind) {
+        var parsed = new io.opencode.loopper.service.assist.AssistDocumentParser().parse(filename, bytes);
+        String text = String.join("\n\n", parsed.sections().stream()
+                .map(s -> "## " + s.title() + "\n\n" + s.markdown()).toList());
+        byte[] representation = text.getBytes(StandardCharsets.UTF_8);
+        if (representation.length > MAX_CONTEXT_BYTES)
+            throw bad("ATTACHMENT_CONTEXT_TOO_LARGE", filename + " 的附件上下文超过 128 KiB；大文档请通过辅助 MCP 分段读取");
+        return new PreparedFile(filename, media, bytes.length, sha256(bytes), bytes, extractor, "2",
+                "text/plain", (long) representation.length, sha256(representation), representation, kind);
     }
 
     private PreparedFile inspectImage(String filename, String extension, byte[] bytes) {
