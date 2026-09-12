@@ -43,6 +43,13 @@ public final class TemplateDocumentPaths {
                 : Path.of(outputPath).resolve("template-" + taskId).resolve(attemptId);
     }
 
+    public static Path bundleDirectory(String outputPath, String folderName, Path workspace) {
+        Path base = outputPath == null || outputPath.isBlank() ? workspace.resolve("reports") : Path.of(outputPath);
+        Path target = base.resolve(folderName).normalize();
+        if (!target.getParent().equals(base.normalize())) throw new TaskFailure("TEMPLATE_REPORT_PATH_INVALID", "报告目录名称无效");
+        return target;
+    }
+
     public static void requireSafeDirectory(Path target) {
         for (Path part : target) {
             if (PROTECTED.contains(part.toString().toLowerCase(Locale.ROOT))) {

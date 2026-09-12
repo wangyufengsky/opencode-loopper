@@ -204,6 +204,7 @@ public final class TemplateTaskCoordinator {
     }
 
     void deleteBeforeAttempts(String taskId) {
+        templates.deleteReportBundlesForTask(taskId);
         templates.deletePlanForTask(taskId);
         templates.deleteBatchesForTask(taskId);
         templates.deleteRunForTask(taskId);

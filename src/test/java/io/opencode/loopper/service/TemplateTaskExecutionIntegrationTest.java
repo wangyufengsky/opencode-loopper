@@ -30,6 +30,8 @@ class TemplateTaskExecutionIntegrationTest {
     @Autowired TemplateTaskMapper templates;
     @Autowired TaskReadService taskReads;
     @Autowired TemplateReportArtifactService reportArtifacts;
+    @Autowired TemplateReportBundleMapper bundles;
+    @Autowired TemplateReportDownloadService downloads;
     @Autowired LoopperMapper mapper;
     @Autowired TaskService tasks;
     @Autowired ProjectService projects;
@@ -77,7 +79,7 @@ class TemplateTaskExecutionIntegrationTest {
         assertThat(git.read(source, "rev-parse", "HEAD")).isEqualTo(head);
         assertThat(Files.readString(source.resolve("local-work.txt"))).isEqualTo("uncommitted\n");
         assertThat(mapper.listTaskArtifacts(task.id())).anyMatch(row -> row.kind().equals("TEMPLATE_REPORT")
-                && row.content().contains("| 提交覆盖 | 1 / 1 |") && row.content().contains("CODE_REVIEW_V2"));
+                && row.content().contains("| 提交覆盖 | 1 / 1 |") && row.content().contains("CODE_REVIEW_V3"));
         String sessionId = mapper.listSessions(task.id()).getFirst().id();
         var owner = mapper.findStoryAccountingOwner(mapper.findSession(sessionId).orElseThrow().externalSessionId()).orElseThrow();
         assertThat(owner.role()).isEqualTo("IMPLEMENTATION");
@@ -110,8 +112,8 @@ class TemplateTaskExecutionIntegrationTest {
         assertThat(templates.batches(task.id(), finalAttempt.id())).allSatisfy(batch ->
                 assertThat(batch.promptJson()).contains("报告必须逐项覆盖本批全部证据"));
         var reports = mapper.listTaskArtifacts(task.id()).stream().filter(row -> row.kind().equals("TEMPLATE_REPORT")).toList();
-        assertThat(reports).hasSize(2);
-        assertThat(reports).anyMatch(row -> row.name().equals("contribution-report.md") && row.content().contains("贡献排名") && row.content().contains("CONTRIBUTION_SCORE_V1"));
+        assertThat(reports).hasSize(4);
+        assertThat(reports).anyMatch(row -> row.name().startsWith("项目贡献周报_") && row.content().contains("人员贡献与排名") && row.content().contains("CONTRIBUTION_SCORE_V1"));
         exportBrowserFixture(task.id());
     }
 
@@ -127,9 +129,9 @@ class TemplateTaskExecutionIntegrationTest {
         run(task.id(), false);
         assertThat(states.task(task.id()).state()).isEqualTo("COMPLETED");
         var progress = taskReads.overview(task.id()).templateProgress();
-        Path output = Path.of(progress.documentPath()).resolve("code-review.md");
+        Path output = Path.of(progress.documentPath()).resolve(main(task.id()).name());
         assertThat(output).startsWith(destination).exists();
-        var artifact = mapper.listTaskArtifacts(task.id()).stream().filter(row -> row.kind().equals("TEMPLATE_REPORT")).findFirst().orElseThrow();
+        var artifact = main(task.id());
         assertThat(Files.readString(output)).isEqualTo(artifact.content());
         assertThat(Files.readString(destination.resolve("code-review.md"))).isEqualTo("user document");
         assertThat(source.resolve("docs/new-default")).doesNotExist();
@@ -146,7 +148,7 @@ class TemplateTaskExecutionIntegrationTest {
         TaskRow current = states.task(task.id());
         assertThat(current.state()).isEqualTo("JUDGING");
         String attemptId = mapper.latestAttempt(mapper.listStages(task.id()).getLast().id()).orElseThrow().id();
-        Path report = Path.of(taskReads.overview(task.id()).templateProgress().documentPath()).resolve("code-review.md");
+        Path report = Path.of(taskReads.overview(task.id()).templateProgress().documentPath()).resolve(main(task.id()).name());
         String original = Files.readString(report);
         reportArtifacts.materialize(current, attemptId);
         assertThat(Files.readString(report)).isEqualTo(original);
@@ -154,6 +156,36 @@ class TemplateTaskExecutionIntegrationTest {
         assertThatThrownBy(() -> reportArtifacts.materialize(current, attemptId))
                 .isInstanceOf(io.opencode.loopper.domain.TaskFailure.class).hasMessageContaining("外部修改");
         assertThat(Files.readString(report)).isEqualTo("external edit");
+    }
+
+    @Test void repairRetainsOldBundleAndZipIncludesOnlySelectedAttempt() throws Exception {
+        TaskRow task = create("CODE_REVIEW");
+        states.start(task.id(), evidence.contract(task.id())); run(task.id(), false, true);
+        var oldMain = main(task.id());
+        var oldBundle = bundles.find(task.id(), oldMain.attemptId()).orElseThrow();
+        assertThat(oldBundle.sequence()).isEqualTo(1);
+        states.waiting(task.id(), "JUDGE_REVIEW_NOT_APPROVED", "fixture report needs revision");
+        assertThat(states.repair(task.id())).isTrue();
+        run(task.id(), false);
+        var newAttempt = mapper.latestAttempt(mapper.listStages(task.id()).getLast().id()).orElseThrow();
+        var newBundle = bundles.find(task.id(), newAttempt.id()).orElseThrow();
+        assertThat(newBundle.sequence()).isEqualTo(2);
+        assertThat(newBundle.folderName()).endsWith("_002");
+        assertThat(bundles.reports(task.id(), oldMain.attemptId())).hasSize(4);
+        var archive = downloads.download(task.id(), oldMain.id());
+        assertThat(archive.filename()).isEqualTo(oldBundle.folderName() + ".zip");
+        var unpacked = new java.util.LinkedHashMap<String, String>();
+        try (var zip = new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(archive.bytes()), java.nio.charset.StandardCharsets.UTF_8)) {
+            java.util.zip.ZipEntry entry;
+            while ((entry = zip.getNextEntry()) != null) unpacked.put(entry.getName(), new String(zip.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8));
+        }
+        assertThat(unpacked).hasSize(4);
+        for (var report : bundles.reports(task.id(), oldMain.attemptId())) assertThat(unpacked)
+                .containsEntry(oldBundle.folderName() + "/" + report.name(), report.content());
+        assertThat(unpacked.keySet()).noneMatch(name -> name.startsWith(newBundle.folderName() + "/"));
+        assertThatThrownBy(() -> downloads.download("other-task", oldMain.id())).isInstanceOf(NotFoundException.class);
+        assertThat(taskReads.audit(task.id()).artifacts()).anySatisfy(report ->
+                assertThat(report.metadataSummary().path("bundleId").asText()).isEqualTo(oldMain.attemptId()));
     }
 
     @Test void progressIncludesUnstartedBatchesAndResetsCompletedCountsForRepair() throws Exception {
@@ -209,6 +241,11 @@ class TemplateTaskExecutionIntegrationTest {
         assertThat(mapper.findTask(task.id())).isEmpty();
     }
 
+    private TaskArtifactRow main(String taskId) {
+        return mapper.listTaskArtifacts(taskId).stream().filter(row -> row.kind().equals("TEMPLATE_REPORT")
+                && "SUMMARY".equals(json.readTree(row.metadataJson()).path("reportRole").asText())).findFirst().orElseThrow();
+    }
+
     private TaskRow create(String definition) {
         String today = LocalDate.now(TemplateDateRange.ZONE).toString();
         return admission.create(new TemplateTaskService.Request(UUID.randomUUID().toString(), definition, io.opencode.loopper.template.TemplateTaskDefinition.VERSION, projectId,
@@ -238,6 +275,13 @@ class TemplateTaskExecutionIntegrationTest {
         states.start(second.id(), evidence.contract(second.id())); run(second.id(), false);
         assertThat(states.task(second.id()).state()).isEqualTo("COMPLETED");
         assertThat(mapper.listSessions(second.id())).isEmpty();
+        assertThat(bundles.find(first.id(), main(first.id()).attemptId()).orElseThrow().sequence()).isEqualTo(1);
+        assertThat(bundles.find(second.id(), main(second.id()).attemptId()).orElseThrow().sequence()).isEqualTo(2);
+        tasks.archive(first.id()); tasks.deleteArchived(first.id());
+        assertThat(bundles.find(first.id(), "missing")).isEmpty();
+        TaskRow third = create("CODE_REVIEW");
+        states.start(third.id(), evidence.contract(third.id())); run(third.id(), false);
+        assertThat(bundles.find(third.id(), main(third.id()).attemptId()).orElseThrow().sequence()).isEqualTo(3);
         assertThat(taskReads.overview(second.id()).templateProgress().completedReviews()).isEqualTo(1);
         assertThat(mapper.listJudgeRuns(second.id()).stream().filter(row -> row.state().equals("COMPLETED"))).hasSize(2);
     }

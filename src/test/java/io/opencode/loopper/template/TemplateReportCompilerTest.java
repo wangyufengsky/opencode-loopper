@@ -45,12 +45,12 @@ class TemplateReportCompilerTest {
                         "未捕获异常", "调用时直接抛错", "增加必要处理")), List.of("未运行测试"));
         var candidate = new TemplateAnalysis.Accepted(List.of(review), List.of(assessment("alice", 1), assessment("bob", 1)));
         var result = TemplateReportCompiler.compile(TemplateTaskDefinition.CONTRIBUTION_REPORT, "project", evidence, candidate);
-        assertThat(result.documents()).hasSize(3);
+        assertThat(result.documents()).hasSize(5);
         assertThat(result.ranking()).extracting(ContributionScore.Ranked::rank).containsExactly(1, 1);
         assertThat(result.ranking().getFirst().total()).isEqualByComparingTo("47.50");
         assertThat(TemplateContributionFacts.people(evidence)).allSatisfy(person -> assertThat(person.effectiveLines()).isEqualTo(1));
         assertThat(result.documents().getFirst().markdown()).contains("CONTRIBUTION_SCORE_V1", "未捕获异常", "未运行测试", "测试文件存在不代表测试已运行通过");
-        assertThat(result.documents().get(1).markdown()).contains("评分依据", "个人贡献周报");
+        assertThat(result.documents()).anySatisfy(document -> assertThat(document.markdown()).contains("评分依据", "个人贡献详细报告"));
     }
 
     @Test void crossContributorEvidenceIsRejectedAndZeroContributorsRemainVisible() {
@@ -61,7 +61,7 @@ class TemplateReportCompilerTest {
                 .map(unit -> new TemplateAnalysis.UnitReview(unit.id(), "生成文件，保留记录", List.of(), List.of())).toList();
         var result = TemplateReportCompiler.compile(TemplateTaskDefinition.CONTRIBUTION_REPORT, "project", evidence,
                 new TemplateAnalysis.Accepted(reviews, List.of()));
-        assertThat(result.documents()).hasSize(3);
+        assertThat(result.documents()).hasSize(5);
         assertThat(result.ranking()).allSatisfy(row -> assertThat(row.total()).isZero());
     }
 
@@ -70,7 +70,7 @@ class TemplateReportCompilerTest {
         var result = TemplateReportCompiler.compile(TemplateTaskDefinition.CONTRIBUTION_REPORT, "<script>alert(1)</script>", empty,
                 new TemplateAnalysis.Accepted(List.of(), List.of()));
         assertThat(result.ranking()).isEmpty();
-        assertThat(result.documents()).hasSize(1);
+        assertThat(result.documents()).hasSize(3);
         assertThat(result.documents().getFirst().markdown()).contains("没有 Git 提交", "&lt;script&gt;").doesNotContain("<script>");
     }
 

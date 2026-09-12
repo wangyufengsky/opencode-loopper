@@ -209,7 +209,10 @@ public interface ReadModelMapper {
                 'changeTypes',json_extract(metadata_json,'$.changeTypes'),
                 'baselineScope',json_extract(metadata_json,'$.baselineScope'))
               WHEN kind='TEMPLATE_REPORT' THEN json_object('displayName',json_extract(metadata_json,'$.displayName'),
-                'repairRound',json_extract(metadata_json,'$.repairRound'),'sha256',json_extract(metadata_json,'$.sha256'))
+                'repairRound',json_extract(metadata_json,'$.repairRound'),'sha256',json_extract(metadata_json,'$.sha256'),
+                'bundleId',json_extract(metadata_json,'$.bundleId'),'directoryName',json_extract(metadata_json,'$.directoryName'),
+                'mainPath',json_extract(metadata_json,'$.mainPath'),'reportRole',json_extract(metadata_json,'$.reportRole'),
+                'sequence',json_extract(metadata_json,'$.sequence'))
               ELSE '{}' END,
               'contentBytes',length(CAST(content AS BLOB)),'attemptId',attempt_id,
               'judgeRunId',judge_run_id,'createdAt',created_at)
@@ -225,7 +228,10 @@ public interface ReadModelMapper {
                 'changeTypes',json_extract(metadata_json,'$.changeTypes'),
                 'baselineScope',json_extract(metadata_json,'$.baselineScope'))
               WHEN kind='TEMPLATE_REPORT' THEN json_object('displayName',json_extract(metadata_json,'$.displayName'),
-                'repairRound',json_extract(metadata_json,'$.repairRound'),'sha256',json_extract(metadata_json,'$.sha256'))
+                'repairRound',json_extract(metadata_json,'$.repairRound'),'sha256',json_extract(metadata_json,'$.sha256'),
+                'bundleId',json_extract(metadata_json,'$.bundleId'),'directoryName',json_extract(metadata_json,'$.directoryName'),
+                'mainPath',json_extract(metadata_json,'$.mainPath'),'reportRole',json_extract(metadata_json,'$.reportRole'),
+                'sequence',json_extract(metadata_json,'$.sequence'))
               ELSE '{}' END AS metadata_summary_json,
               length(CAST(content AS BLOB)) AS content_bytes,created_at
             FROM task_artifact WHERE task_id=#{taskId} ORDER BY created_at DESC

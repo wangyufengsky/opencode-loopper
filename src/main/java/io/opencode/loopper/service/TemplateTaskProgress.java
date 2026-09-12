@@ -9,8 +9,9 @@ public record TemplateTaskProgress(Integer reviewBatches, Integer contributorBat
     public static TemplateTaskProgress from(TemplateTaskProgressRow row, String taskId, String workspace) {
         String path = row.documentPath();
         if (row.reportAttemptId() != null && (path != null || workspace != null)) {
-            path = TemplateDocumentPaths.reportDirectory(path, taskId, row.reportAttemptId(),
-                    workspace == null ? Path.of(".") : Path.of(workspace)).toString();
+            Path root = workspace == null ? Path.of(".") : Path.of(workspace);
+            path = (row.reportFolderName() == null ? TemplateDocumentPaths.reportDirectory(path, taskId, row.reportAttemptId(), root)
+                    : TemplateDocumentPaths.bundleDirectory(path, row.reportFolderName(), root)).toString();
         }
         return new TemplateTaskProgress(row.reviewBatches(), row.contributorBatches(), row.completedReviews(),
                 row.completedContributors(), row.activeBatches(), row.failedBatches(), row.repairRound(), path);

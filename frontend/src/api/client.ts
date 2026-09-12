@@ -1628,6 +1628,14 @@ export const api = {
   getVerificationEvidence: async (taskId: string, id: string) => normalizeReadContent(await request<unknown>(`/tasks/${encodeURIComponent(taskId)}/verifications/${encodeURIComponent(id)}/evidence`)),
   getErrorEvidence: async (taskId: string, id: string) => normalizeReadContent(await request<unknown>(`/tasks/${encodeURIComponent(taskId)}/errors/${encodeURIComponent(id)}/evidence`)),
   getJudgeOutput: async (taskId: string, id: string) => normalizeReadContent(await request<unknown>(`/tasks/${encodeURIComponent(taskId)}/judges/${encodeURIComponent(id)}/output`)),
+  async downloadTemplateReport(taskId: string, artifactId: string): Promise<Blob> {
+    const response = await fetch(`${apiBase}/tasks/${encodeURIComponent(taskId)}/template-reports/${encodeURIComponent(artifactId)}/download`, { headers: { Accept: 'application/zip' } })
+    if (!response.ok) {
+      const problem = await response.json().catch(() => ({})) as { detail?: string; title?: string; errorCode?: string }
+      throw new ApiError(problem.detail ?? problem.title ?? '报告下载失败，请重试', response.status, { code: problem.errorCode })
+    }
+    return response.blob()
+  },
   getArtifactContent: async (taskId: string, id: string) => normalizeReadContent(await request<unknown>(`/tasks/${encodeURIComponent(taskId)}/artifacts/${encodeURIComponent(id)}/content`)),
   getTaskQueue: async (id: string) => normalizeTaskQueueStatus(await request<unknown>(`/tasks/${encodeURIComponent(id)}/queue`)),
   reconcileTaskQueue: async (id: string) => normalizeTaskQueueStatus(await request<unknown>(`/tasks/${encodeURIComponent(id)}/queue/reconcile`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } })),

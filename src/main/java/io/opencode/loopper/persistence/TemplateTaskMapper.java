@@ -15,6 +15,7 @@ public interface TemplateTaskMapper {
     int insertPlan(@Param("taskId") String taskId, @Param("reviews") int reviews, @Param("contributors") int contributors);
     @Delete("DELETE FROM template_task_plan WHERE task_id=#{taskId}") int deletePlanForTask(String taskId);
     @Delete("DELETE FROM template_task_batch WHERE task_id=#{taskId}") int deleteBatchesForTask(String taskId);
+    @Delete("DELETE FROM template_report_bundle WHERE task_id=#{taskId}") int deleteReportBundlesForTask(String taskId);
     @Delete("DELETE FROM template_task_run WHERE task_id=#{taskId}") int deleteRunForTask(String taskId);
     @Update("""
             UPDATE task SET worktree_path=#{worktreePath},branch_name=#{branchName},source_branch=#{sourceBranch},

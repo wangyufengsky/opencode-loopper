@@ -22,13 +22,15 @@ import tools.jackson.databind.ObjectMapper;
 @Service
 public final class TemplateReportArtifactService {
     private final LoopperMapper mapper;
+    private final TemplateReportBundleService bundles;
     private final TemplateWorkspaceService workspace;
     private final TemplateRunEvidenceService evidence;
     private final TransactionTemplate transactions;
     private final ObjectMapper json;
 
     TemplateReportArtifactService(LoopperMapper mapper, TemplateWorkspaceService workspace, TemplateRunEvidenceService evidence,
-                                  ObjectMapper json, PlatformTransactionManager manager) {
+                                  ObjectMapper json, PlatformTransactionManager manager, TemplateReportBundleService bundles) {
+        this.bundles = bundles;
         this.mapper = mapper; this.workspace = workspace; this.evidence = evidence; this.json = json;
         this.transactions = new TransactionTemplate(manager);
     }
@@ -37,14 +39,18 @@ public final class TemplateReportArtifactService {
         TaskRow task = mapper.findTask(attempt.taskId()).orElseThrow();
         var run = evidence.require(task.id());
         var snapshot = evidence.read(run);
-        var report = TemplateReportCompiler.compile(TemplateTaskDefinition.valueOf(run.templateId()),
-                mapper.findProject(task.projectId()).orElseThrow().name(), snapshot, accepted, evidence.contract(task.id()).reportTemplates());
+        var definition = TemplateTaskDefinition.valueOf(run.templateId());
+        var layout = evidence.contract(task.id()).reportTemplates();
+        var bundle = layout != null && layout.hierarchical() ? bundles.prepare(task, attempt, definition, snapshot) : null;
+        var report = TemplateReportCompiler.compile(definition,
+                bundle == null ? mapper.findProject(task.projectId()).orElseThrow().name() : bundle.projectName(),
+                snapshot, accepted, layout, bundle == null ? 1 : bundle.sequence());
         var items = new ArrayList<TaskArtifactRow>();
-        report.documents().forEach(document -> items.add(row(task, attempt, run.repairRound(), "TEMPLATE_REPORT", document.path(), "text/markdown", document.markdown())));
-        items.add(row(task, attempt, run.repairRound(), "TEMPLATE_ANALYSIS", "analysis.json", "application/json", json.writeValueAsString(accepted)));
+        report.documents().forEach(document -> items.add(row(task, attempt, run.repairRound(), "TEMPLATE_REPORT", document.path(), "text/markdown", document.markdown(), bundle)));
+        items.add(row(task, attempt, run.repairRound(), "TEMPLATE_ANALYSIS", "analysis.json", "application/json", json.writeValueAsString(accepted), null));
         items.add(row(task, attempt, run.repairRound(), "TEMPLATE_JUDGE_EVIDENCE", "report-review-evidence.json", "application/json",
                 json.writeValueAsString(Map.of("contract", evidence.contract(task.id()), "source", snapshot,
-                        "analysis", accepted, "ranking", report.ranking(), "documents", report.documents()))));
+                        "analysis", accepted, "ranking", report.ranking(), "documents", report.documents())), null));
         transactions.executeWithoutResult(ignored -> {
             if (!mapper.findTask(task.id()).orElseThrow().state().equals("RUNNING")
                     || !mapper.findAttempt(attempt.id()).orElseThrow().state().equals("RUNNING")) {
@@ -61,17 +67,32 @@ public final class TemplateReportArtifactService {
         materialize(task, attempt.id());
     }
 
-    private TaskArtifactRow row(TaskRow task, AttemptRow attempt, int repairRound, String kind, String name, String type, String content) {
+    private TaskArtifactRow row(TaskRow task, AttemptRow attempt, int repairRound, String kind, String name, String type,
+                                String content, TemplateReportBundleRow bundle) {
+        var metadata = new java.util.LinkedHashMap<String, Object>();
+        metadata.put("sha256", TemplateGitEvidenceCollector.hash(content));
+        metadata.put("authority", "SERVER_COMPILED");
+        metadata.put("repairRound", repairRound);
+        metadata.put("displayName", kind.equals("TEMPLATE_REPORT") ? content.lines().findFirst().orElse(name).replaceFirst("^# +", "") : name);
+        if (bundle != null) {
+            metadata.put("bundleId", attempt.id());
+            metadata.put("directoryName", bundle.folderName());
+            metadata.put("mainPath", bundle.mainPath());
+            metadata.put("reportRole", name.equals(bundle.mainPath()) ? "SUMMARY" : "DETAIL");
+            metadata.put("sequence", bundle.sequence());
+        }
         return new TaskArtifactRow(UUID.randomUUID().toString(), task.id(), attempt.id(), null, kind, name, type, content,
-                json.writeValueAsString(Map.of("sha256", TemplateGitEvidenceCollector.hash(content), "authority", "SERVER_COMPILED",
-                        "repairRound", repairRound, "displayName", kind.equals("TEMPLATE_REPORT") ? content.lines().findFirst().orElse(name).replaceFirst("^# +", "") : name)), Instant.now().toString());
+                json.writeValueAsString(metadata), Instant.now().toString());
     }
 
     public void materialize(TaskRow task, String attemptId) {
         workspace.requireWritable(task);
         Path root = workspace.root(task);
         String outputPath = evidence.contract(task.id()).documentPath();
-        Path reportRoot = TemplateDocumentPaths.reportDirectory(outputPath, task.id(), attemptId, root);
+        var layout = evidence.contract(task.id()).reportTemplates();
+        Path reportRoot = layout != null && layout.hierarchical()
+                ? TemplateDocumentPaths.bundleDirectory(outputPath, bundles.require(task.id(), attemptId).folderName(), root)
+                : TemplateDocumentPaths.reportDirectory(outputPath, task.id(), attemptId, root);
         TemplateDocumentPaths.requireSafeDirectory(reportRoot);
         try {
             for (var artifact : artifacts(task.id(), attemptId)) {

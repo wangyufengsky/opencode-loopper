@@ -20,8 +20,8 @@ class TemplateReportLayoutTest {
     @Test void allThreeReportShapesAreFixedAndPersonalCoverageIncludesOnlyOwnedCommits() throws Exception {
         var evidence = fixture();
         var candidate = candidate(evidence);
-        var review = TemplateReportCompiler.compile(TemplateTaskDefinition.CODE_REVIEW, "模板示例项目（虚构）", evidence, candidate).documents().getFirst();
-        var total = TemplateReportCompiler.compile(TemplateTaskDefinition.CONTRIBUTION_REPORT, "模板示例项目（虚构）", evidence, candidate);
+        var review = TemplateReportCompiler.compile(TemplateTaskDefinition.CODE_REVIEW, "模板示例项目（虚构）", evidence, candidate, TemplateReportLayout.freezeV2()).documents().getFirst();
+        var total = TemplateReportCompiler.compile(TemplateTaskDefinition.CONTRIBUTION_REPORT, "模板示例项目（虚构）", evidence, candidate, TemplateReportLayout.freezeV2());
         assertThat(headings(review.markdown())).isEqualTo(REVIEW);
         assertThat(headings(total.documents().getFirst().markdown())).isEqualTo(TOTAL);
         assertThat(total.documents()).hasSize(3);
@@ -46,7 +46,7 @@ class TemplateReportLayoutTest {
     @Test void emptyReportsRetainAllSectionsAndUntrustedTextCannotIntroduceHeadingsOrTableRows() {
         var empty = new TemplateGitEvidence("v2", "main", "head", "2026-09-11", "2026-09-11", "Asia/Shanghai", null, List.of());
         for (var definition : TemplateTaskDefinition.values()) {
-            var result = TemplateReportCompiler.compile(definition, "project\n\n## 假章节\n| forged |", empty, new Accepted(List.of(), List.of()));
+            var result = TemplateReportCompiler.compile(definition, "project\n\n## 假章节\n| forged |", empty, new Accepted(List.of(), List.of()), TemplateReportLayout.freezeV2());
             assertThat(result.documents()).hasSize(1);
             assertThat(headings(result.documents().getFirst().markdown())).isEqualTo(definition == TemplateTaskDefinition.CODE_REVIEW ? REVIEW : TOTAL);
             assertThat(result.documents().getFirst().markdown()).contains("没有 Git 提交", "| 提交覆盖 | 0 / 0 |").doesNotContain("\n| forged |");
@@ -84,7 +84,7 @@ class TemplateReportLayoutTest {
     }
 
     private static List<String> headings(String markdown) { return markdown.lines().filter(line -> line.startsWith("## ")).toList(); }
-    private static TemplateGitEvidence fixture() {
+    static TemplateGitEvidence fixture() {
         var alice = new TemplateGitEvidence.Contributor("alice", "Alice（示例）", "alice@example.test", false);
         var bob = new TemplateGitEvidence.Contributor("bob", "Bob（示例）", "bob@example.test", false);
         String patch = "@@ -1 +1 @@\n-return a + b;\n+return a - b;\n";
@@ -94,7 +94,7 @@ class TemplateReportLayoutTest {
                 List.of(new TemplateGitEvidence.Change("evidence-bob", "README.md", "before", "after", 1, 1, false, 2, null, "@@ -1 +1 @@\n-old text\n+new text\n")));
         return new TemplateGitEvidence("v2", "main", "head-example", "2026-09-05", "2026-09-11", "Asia/Shanghai", null, List.of(first, second));
     }
-    private static Accepted candidate(TemplateGitEvidence evidence) {
+    static Accepted candidate(TemplateGitEvidence evidence) {
         var reviews = TemplateAnalysisPartitioner.units(evidence).stream().map(unit -> new UnitReview(unit.id(), "已核对本片段变更（示例）",
                 unit.path().equals("Calculator.java") ? List.of(new Finding(Severity.HIGH, Side.AFTER, 1, "求和变为相减（示例）",
                         "虚构示例：求和契约要求 a+b，变更后计算 a-b。", "恢复加法并验证正负数边界。")) : List.of(), List.of("未运行项目测试。"))).toList();

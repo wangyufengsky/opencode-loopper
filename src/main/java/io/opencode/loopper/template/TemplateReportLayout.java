@@ -12,30 +12,39 @@ import java.util.regex.Pattern;
 
 /** Fixed report shells are frozen with the task, independent of model text and future resource edits. */
 public final class TemplateReportLayout {
-    public static final String VERSION = "REPORT_LAYOUT_V2";
+    public static final String VERSION = "REPORT_LAYOUT_V3";
+    public static final String LEGACY_VERSION = "REPORT_LAYOUT_V2";
     private static final Pattern SLOT = Pattern.compile("\\{\\{([a-z]+)}}");
-    private static final Map<String, String> RESOURCES = Map.of("review", "code-review-v2.md",
+    private static final Map<String, String> LEGACY_RESOURCES = Map.of("review", "code-review-v2.md",
             "total", "contribution-report-v2.md", "personal", "personal-contribution-v2.md");
+    private static final Map<String, String> RESOURCES = Map.of("review", "code-review-v3.md",
+            "total", "contribution-report-v3.md", "personal", "personal-contribution-v3.md",
+            "detail", "report-detail-v3.md");
     private TemplateReportLayout() { }
 
-    public static Frozen freeze() {
+    public static Frozen freeze() { return freeze(VERSION, RESOURCES); }
+    public static Frozen freezeV2() { return freeze(LEGACY_VERSION, LEGACY_RESOURCES); }
+    private static Frozen freeze(String version, Map<String, String> resources) {
         Map<String, String> templates = new LinkedHashMap<>();
-        RESOURCES.keySet().stream().sorted().forEach(key -> {
-            try (var input = TemplateReportLayout.class.getResourceAsStream("/report-templates/" + RESOURCES.get(key))) {
+        resources.keySet().stream().sorted().forEach(key -> {
+            try (var input = TemplateReportLayout.class.getResourceAsStream("/report-templates/" + resources.get(key))) {
                 if (input == null) throw new IllegalStateException("内置报告模板缺失");
                 templates.put(key, new String(input.readAllBytes(), StandardCharsets.UTF_8));
             } catch (IOException failure) { throw new IllegalStateException("内置报告模板无法读取", failure); }
         });
-        return new Frozen(VERSION, templates, digest(templates));
+        return new Frozen(version, templates, digest(templates));
     }
 
     public record Frozen(String version, Map<String, String> templates, String sha256) {
         public Frozen {
             templates = Map.copyOf(templates);
-            if (!VERSION.equals(version) || !templates.keySet().equals(RESOURCES.keySet()) || !digest(templates).equals(sha256)) {
+            var resources = VERSION.equals(version) ? RESOURCES : LEGACY_VERSION.equals(version) ? LEGACY_RESOURCES : Map.<String, String>of();
+            if (resources.isEmpty() || !templates.keySet().equals(resources.keySet()) || !digest(templates).equals(sha256)) {
                 throw new IllegalArgumentException("冻结报告模板版本或校验和不一致");
             }
         }
+
+        public boolean hierarchical() { return VERSION.equals(version); }
 
         public String render(String kind, Map<String, String> content) {
             String template = templates.get(kind);

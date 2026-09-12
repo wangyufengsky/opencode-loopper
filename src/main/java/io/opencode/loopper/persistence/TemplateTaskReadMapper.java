@@ -21,7 +21,8 @@ public interface TemplateTaskReadMapper {
                 COALESCE(SUM(CASE WHEN batch.state IN ('CREATING','PROMPT_READY','DISPATCHING','RUNNING') THEN 1 ELSE 0 END),0) AS active_batches,
                 COALESCE(SUM(CASE WHEN batch.state='FAILED' THEN 1 ELSE 0 END),0) AS failed_batches,
                 run.repair_round,json_extract(run.contract_json,'$.documentPath') AS document_path,
-                current.id AS report_attempt_id
+                current.id AS report_attempt_id,
+                (SELECT folder_name FROM template_report_bundle WHERE task_id=run.task_id AND attempt_id=current.id) AS report_folder_name
             FROM template_task_run run LEFT JOIN template_task_plan plan ON plan.task_id=run.task_id
             LEFT JOIN current ON 1=1 LEFT JOIN template_task_batch batch ON batch.attempt_id=current.id AND batch.task_id=run.task_id
             WHERE run.task_id=#{taskId} GROUP BY run.task_id

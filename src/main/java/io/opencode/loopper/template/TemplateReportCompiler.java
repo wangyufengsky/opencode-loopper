@@ -22,6 +22,11 @@ public final class TemplateReportCompiler {
 
     public static Result compile(TemplateTaskDefinition definition, String project, TemplateGitEvidence evidence,
                                   Accepted candidate, TemplateReportLayout.Frozen layout) {
+        return compile(definition, project, evidence, candidate, layout, 1);
+    }
+
+    public static Result compile(TemplateTaskDefinition definition, String project, TemplateGitEvidence evidence,
+                                  Accepted candidate, TemplateReportLayout.Frozen layout, long sequence) {
         // Missing layout identifies a previously frozen V1 task, not a request to use current resources.
         if (layout == null) {
             var previous = LegacyTemplateReportCompiler.compile(definition, project, evidence, candidate);
@@ -30,17 +35,19 @@ public final class TemplateReportCompiler {
         List<Unit> units = TemplateAnalysisPartitioner.units(evidence);
         TemplateAnalysisValidation.batch(units, new BatchCandidate(candidate.reviews()));
         Map<String, UnitReview> reviews = candidate.reviews().stream().collect(Collectors.toMap(UnitReview::unitId, Function.identity()));
+        var names = TemplateReportNames.of(definition, project, evidence, sequence);
         if (definition == TemplateTaskDefinition.CODE_REVIEW) {
+            if (layout.hierarchical()) return HierarchicalReportCompiler.review(project, evidence, units, reviews, layout, names);
             String markdown = layout.render("review", Map.of("scope", scope(project, evidence, units.size()),
                     "summary", reviewSummary(evidence, units, reviews), "findings", findings(units, reviews),
                     "commits", commits(evidence, units, reviews), "limitations", limitations(evidence, units, reviews)));
             return new Result(List.of(new Document("code-review.md", markdown)), List.of());
         }
-        return contributions(project, evidence, units, reviews, candidate.contributors(), layout);
+        return contributions(project, evidence, units, reviews, candidate.contributors(), layout, names);
     }
 
     private static Result contributions(String project, TemplateGitEvidence evidence, List<Unit> units,
-                                          Map<String, UnitReview> reviews, List<ContributorCandidate> candidates, TemplateReportLayout.Frozen layout) {
+                                          Map<String, UnitReview> reviews, List<ContributorCandidate> candidates, TemplateReportLayout.Frozen layout, TemplateReportNames names) {
         List<Person> people = TemplateContributionFacts.people(evidence);
         Map<String, Person> byPerson = people.stream().collect(Collectors.toMap(person -> person.author().identity(), Function.identity()));
         Map<String, ContributorCandidate> assessments = new LinkedHashMap<>();
@@ -57,6 +64,8 @@ public final class TemplateReportCompiler {
                     person.effectiveLines(), candidate.value(), candidate.difficulty(), candidate.quality(), candidate.maintenance()));
         }
         List<ContributionScore.Ranked> rankings = ContributionScore.rank(inputs);
+        if (layout.hierarchical()) return HierarchicalReportCompiler.contributions(project, evidence, units, reviews,
+                people, assessments, rankings, layout, names);
         List<Document> documents = new ArrayList<>();
         StringBuilder ranking = new StringBuilder("| 排名 | 贡献者 | 提交数 | 原始变更行 | 有效变更行 | 数量 /30 | 价值 /25 | 难度 /15 | 质量 /20 | 维护 /10 | 总分 /100 |\n")
                 .append("| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n");
@@ -103,12 +112,12 @@ public final class TemplateReportCompiler {
         return new ContributorCandidate(person.author().identity(), zero.reason(), zero, zero, zero, zero);
     }
 
-    private static TemplateGitEvidence subset(TemplateGitEvidence evidence, Person person) {
+    static TemplateGitEvidence subset(TemplateGitEvidence evidence, Person person) {
         return new TemplateGitEvidence(evidence.version(), evidence.branchId(), evidence.head(), evidence.startDate(), evidence.endDate(),
                 evidence.timezone(), evidence.mailmapHash(), evidence.commits().stream().filter(commit -> person.commits().contains(commit.sha())).toList());
     }
 
-    private static String scope(String project, TemplateGitEvidence evidence, int units) {
+    static String scope(String project, TemplateGitEvidence evidence, int units) {
         return "| 项目 | 内容 |\n| --- | --- |\n| 项目名称 | " + text(project) + " |\n| 分支来源 | " + text(evidence.branchId())
                 + " |\n| 冻结提交 | " + text(evidence.head()) + " |\n| 日期范围 | " + evidence.startDate() + " 至 " + evidence.endDate()
                 + "，含起止日期 |\n| 时区与时间口径 | 北京时间（Asia/Shanghai）；committer 时间 |\n| 提交覆盖 | "
@@ -116,7 +125,7 @@ public final class TemplateReportCompiler {
                 + " |\n| 身份映射快照 | " + (evidence.mailmapHash() == null ? "无 .mailmap" : text(evidence.mailmapHash())) + " |\n";
     }
 
-    private static String reviewSummary(TemplateGitEvidence evidence, List<Unit> units, Map<String, UnitReview> reviews) {
+    static String reviewSummary(TemplateGitEvidence evidence, List<Unit> units, Map<String, UnitReview> reviews) {
         StringBuilder output = new StringBuilder("| 严重 | 高 | 中 | 低 | 合计 |\n| ---: | ---: | ---: | ---: | ---: |\n|");
         for (Severity severity : Severity.values()) output.append(" ").append(units.stream()
                 .flatMap(unit -> reviews.get(unit.id()).findings().stream()).filter(finding -> finding.severity() == severity).count()).append(" |");
@@ -128,11 +137,11 @@ public final class TemplateReportCompiler {
         return output.toString();
     }
 
-    private static String findings(List<Unit> units, Map<String, UnitReview> reviews) {
+    static String findings(List<Unit> units, Map<String, UnitReview> reviews) {
         return findings(units, reviews, units);
     }
 
-    private static String findings(List<Unit> selected, Map<String, UnitReview> reviews, List<Unit> reportUnits) {
+    static String findings(List<Unit> selected, Map<String, UnitReview> reviews, List<Unit> reportUnits) {
         record Located(Unit unit, Finding finding) { }
         var included = selected.stream().map(Unit::id).collect(Collectors.toSet());
         var findings = reportUnits.stream().flatMap(unit -> reviews.get(unit.id()).findings().stream().map(finding -> new Located(unit, finding)))
@@ -157,7 +166,7 @@ public final class TemplateReportCompiler {
         return output.toString();
     }
 
-    private static String commits(TemplateGitEvidence evidence, List<Unit> units, Map<String, UnitReview> reviews) {
+    static String commits(TemplateGitEvidence evidence, List<Unit> units, Map<String, UnitReview> reviews) {
         if (evidence.commits().isEmpty()) return "所选范围内没有 Git 提交。\n";
         StringBuilder output = new StringBuilder();
         for (var commit : evidence.commits()) {
@@ -178,13 +187,13 @@ public final class TemplateReportCompiler {
         return output.toString();
     }
 
-    private static String personalSummary(Person person, ContributionScore.Ranked score, ContributorCandidate candidate) {
+    static String personalSummary(Person person, ContributionScore.Ranked score, ContributorCandidate candidate) {
         return "贡献者：" + text(person.author().name()) + " · " + text(person.author().email()) + "\n\n范围内提交：" + person.commits().size()
                 + "；原始变更行：" + number(person.rawLines()) + "；有效变更行：" + number(person.effectiveLines())
                 + "。\n\n总分：**" + score.total() + "**；排名：" + rank(score) + "。\n\n" + text(candidate.summary());
     }
 
-    private static String scoreTable(Person person, ContributionScore.Ranked score, ContributorCandidate candidate) {
+    static String scoreTable(Person person, ContributionScore.Ranked score, ContributorCandidate candidate) {
         StringBuilder output = new StringBuilder("| 维度 | 等级 | 权重 | 得分 | 依据 |\n| --- | --- | ---: | ---: | --- |\n")
                 .append("| 有效变更数量 | 程序计算 | 30 | ").append(score.quantity()).append(" | 有效变更行 L = ")
                 .append(number(person.effectiveLines())).append("；按本次项目人类贡献者最大值归一化 |\n");
@@ -200,7 +209,7 @@ public final class TemplateReportCompiler {
         return output.append("| **总分** | — | **100** | **").append(score.total()).append("** | 排名：").append(rank(score)).append(" |\n").toString();
     }
 
-    private static String rubric() {
+    static String rubric() {
         StringBuilder output = new StringBuilder("版本：").append(ContributionScore.VERSION).append("\n\n公式：")
                 .append(ContributionScore.FORMULA).append("。\n\nL 为共同作者等分归属后的有效增删行，Lmax 为本次项目人类贡献者的最大值；")
                 .append("全为零时数量分为零。无有效贡献记零；机器人单列，不参与个人排名。保留两位小数，同分排名为 1、1、3。\n\n")
@@ -211,7 +220,7 @@ public final class TemplateReportCompiler {
         return output.append("\n其他维度按完全有证据支持的最高等级评分。该标准是本项目内置观察标准，权重不代表行业统一标准，也不衡量个人全部工作价值。\n").toString();
     }
 
-    private static String limitations(TemplateGitEvidence evidence, List<Unit> units, Map<String, UnitReview> reviews) {
+    static String limitations(TemplateGitEvidence evidence, List<Unit> units, Map<String, UnitReview> reviews) {
         StringBuilder output = new StringBuilder("- 仅覆盖所选分支可达、且 committer 时间位于北京时间日期范围内的提交。\n")
                 .append("- 身份按冻结 .mailmap 与邮箱归并；同名不同邮箱分开；共同作者等分计量。\n")
                 .append("- 合并仅计独有解决变更；生成文件、依赖、缓存与重复补丁不计有效变更行；二进制文件无文本行计量。\n")
@@ -225,8 +234,8 @@ public final class TemplateReportCompiler {
         return output.toString();
     }
 
-    private static String rank(ContributionScore.Ranked score) { return score.rank() == null ? "机器人（不参与排名）" : score.rank().toString(); }
-    private static String severity(Severity value) { return switch (value) { case CRITICAL -> "严重"; case HIGH -> "高"; case MEDIUM -> "中"; case LOW -> "低"; }; }
+    static String rank(ContributionScore.Ranked score) { return score.rank() == null ? "机器人（不参与排名）" : score.rank().toString(); }
+    static String severity(Severity value) { return switch (value) { case CRITICAL -> "严重"; case HIGH -> "高"; case MEDIUM -> "中"; case LOW -> "低"; }; }
     private static String exclusion(String reason) {
         if (reason == null) return "计入有效变更";
         return switch (reason) {
@@ -237,8 +246,8 @@ public final class TemplateReportCompiler {
             default -> "有生成标记，不计有效变更行";
         };
     }
-    private static String number(double value) { return BigDecimal.valueOf(value).setScale(2, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString(); }
-    private static String text(String value) {
+    static String number(double value) { return BigDecimal.valueOf(value).setScale(2, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString(); }
+    static String text(String value) {
         return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\\", "\\\\")
                 .replace("`", "\\`").replace("*", "\\*").replace("_", "\\_").replace("[", "\\[").replace("]", "\\]")
                 .replace("|", "\\|").replace("#", "\\#").replace("\r\n", "\n").replace("\r", "\n").replace("\n", "<br>");
