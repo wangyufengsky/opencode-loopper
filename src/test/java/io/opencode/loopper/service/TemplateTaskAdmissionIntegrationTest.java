@@ -125,18 +125,22 @@ class TemplateTaskAdmissionIntegrationTest {
         assertThat(reads.projects("test", null, 10).items().getFirst().documentPath()).isEqualTo(expected);
         var request = request("CODE_REVIEW", "2026-09-11", "2026-09-11");
         var first = service.create(request, false);
-        assertThat(templates.findRun(first.id()).orElseThrow().contractJson()).contains(expected);
+        assertThat(frozenDocumentPath(first.id())).isEqualTo(expected);
         projects.updateDocumentPath(projectId, "docs/new", changed.version());
         assertThatThrownBy(() -> projects.updateDocumentPath(projectId, "docs/stale", changed.version()))
                 .isInstanceOf(ConflictException.class);
         assertThat(service.create(request, false).id()).isEqualTo(first.id());
-        assertThat(templates.findRun(first.id()).orElseThrow().contractJson()).contains(expected).doesNotContain("docs/new");
+        assertThat(frozenDocumentPath(first.id())).isEqualTo(expected);
         var override = new TemplateTaskService.Request(UUID.randomUUID().toString(), request.templateId(), request.templateVersion(),
                 projectId, request.branchId(), request.startDate(), request.endDate(), request.story(), "custom/output");
         var second = service.create(override, false);
-        assertThat(templates.findRun(second.id()).orElseThrow().contractJson()).contains("custom/output");
-        assertThat(projects.get(projectId).documentPath()).endsWith("docs/new");
+        assertThat(frozenDocumentPath(second.id())).isEqualTo(Path.of(project.rootPath()).resolve("custom/output").toString());
+        assertThat(projects.get(projectId).documentPath()).isEqualTo(Path.of(project.rootPath()).resolve("docs/new").toString());
         assertThat(Path.of(expected)).doesNotExist();
+    }
+
+    private String frozenDocumentPath(String taskId) {
+        return json.readTree(templates.findRun(taskId).orElseThrow().contractJson()).path("documentPath").asText();
     }
 
     private TemplateTaskService.Request request(String template, String start, String end) {

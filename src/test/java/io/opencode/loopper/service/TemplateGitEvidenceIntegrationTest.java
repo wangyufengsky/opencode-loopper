@@ -19,6 +19,8 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.io.TempDir;
 
 class TemplateGitEvidenceIntegrationTest {
@@ -77,17 +79,27 @@ class TemplateGitEvidenceIntegrationTest {
     }
 
     @Test void excludesDeclaredGeneratedCodeButPreservesIndentationChangesAndUnusualPaths() throws Exception {
+        assertGeneratedCodeAndIndentationEvidence("space file.py");
+    }
+
+    @Test
+    @EnabledOnOs({OS.LINUX, OS.MAC})
+    void preservesTabDelimitedFileNamesOnSupportedFilesystems() throws Exception {
+        assertGeneratedCodeAndIndentationEvidence("space\tfile.py");
+    }
+
+    private void assertGeneratedCodeAndIndentationEvidence(String fileName) throws Exception {
         commit(".gitattributes", "generated.txt linguist-generated=true\n", "2026-09-10T01:00:00Z", "attributes");
         commit("generated.txt", "generated\n", "2026-09-11T01:00:00Z", "generated");
-        commit("space\tfile.py", "if True:\n  pass\n", "2026-09-11T02:00:00Z", "python");
-        commit("space\tfile.py", "if True:\n    pass\n", "2026-09-11T03:00:00Z", "indentation");
+        commit(fileName, "if True:\n  pass\n", "2026-09-11T02:00:00Z", "python");
+        commit(fileName, "if True:\n    pass\n", "2026-09-11T03:00:00Z", "indentation");
         var evidence = collect(snapshots.freeze("generated", "project", main()));
         var generated = evidence.commits().getFirst().changes().getFirst();
         assertThat(generated.additions()).isEqualTo(1);
         assertThat(generated.effectiveLines()).isZero();
         assertThat(generated.exclusionReason()).isEqualTo("DECLARED_LINGUIST_GENERATED");
         assertThat(evidence.commits().getLast().changes().getFirst().effectiveLines()).isEqualTo(2);
-        assertThat(evidence.commits().getLast().changes().getFirst().path()).isEqualTo("space\tfile.py");
+        assertThat(evidence.commits().getLast().changes().getFirst().path()).isEqualTo(fileName);
     }
 
     @Test void branchDiscoveryDefaultsToMainNotCurrentBranchAndSeparatesRemoteSource() throws Exception {
