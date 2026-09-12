@@ -58,7 +58,7 @@ class TemplateTaskExecutionIntegrationTest {
         projectId = projects.create("project", source.toString(), "test").id();
     }
 
-    @Test void codeReviewCompletesOnlyAfterTwoJudgesAndPreservesSource() throws Exception {
+    @Test void legacyBoundCodeReviewCompletesOnlyAfterTwoJudgesAndPreservesSource() throws Exception {
         String head = git.read(source, "rev-parse", "HEAD");
         Files.writeString(source.resolve("local-work.txt"), "uncommitted\n");
         TaskRow task = create("CODE_REVIEW");
@@ -86,6 +86,18 @@ class TemplateTaskExecutionIntegrationTest {
         assertThatThrownBy(() -> sessionLifecycle.summarize(task.id(), sessionId, false)).isInstanceOf(ConflictException.class).hasMessageContaining("冻结证据");
         assertThatThrownBy(() -> sessionLifecycle.fork(task.id(), sessionId, "message")).isInstanceOf(ConflictException.class).hasMessageContaining("冻结证据");
         assertThatThrownBy(() -> sessionLifecycle.revert(task.id(), sessionId, "message", "part")).isInstanceOf(ConflictException.class).hasMessageContaining("冻结证据");
+    }
+
+    @Test void newTemplateAnalysisCompletesWithoutStoryBindingOrAccountingOwners() {
+        TaskRow task = create("CODE_REVIEW");
+        states.start(task.id(), evidence.contract(task.id()));
+        run(task.id(), false);
+        assertThat(states.task(task.id()).state()).isEqualTo("COMPLETED");
+        assertThat(mapper.findTaskStoryBinding(task.id())).isEmpty();
+        assertThat(mapper.listSessions(task.id())).isNotEmpty().allSatisfy(session -> {
+            assertThat(mapper.findStoryAccountingOwner(session.externalSessionId())).isEmpty();
+            assertThat(mapper.findStoryAccountingSession(session.externalSessionId())).isEmpty();
+        });
     }
 
     @Test void contributionReportRanksAndRepairsMalformedCandidateAtMostTwice() {

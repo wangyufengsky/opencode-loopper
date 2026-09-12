@@ -9,14 +9,21 @@ const catalog = {
 const main = { id: 'remote:origin:refs/heads/main', label: 'origin/main（远程）', ref: 'refs/heads/main', remote: 'origin' }
 const dev = { id: 'remote:origin:refs/heads/develop', label: 'origin/develop（远程）', ref: 'refs/heads/develop', remote: 'origin' }
 let submissions: Record<string, unknown>[] = []
+let pickerCalls = 0
 test.beforeEach(async ({ page }) => {
   submissions = []
+  pickerCalls = 0
   await page.route('http://127.0.0.1:41773/api/**', async route => {
     const request = route.request()
     const path = new URL(request.url()).pathname
     let payload: unknown = []
     if (path === '/api/template-tasks/catalog') payload = catalog
     else if (path === '/api/template-tasks/projects') payload = { items: [{ id: 'p', name: '示例项目', createdAt: '2026-09-11T00:00:00Z', documentPath: '/project/docs/reports' }], nextCursor: null }
+    else if (path === '/api/projects/pick-directory') {
+      expect(request.method()).toBe('POST')
+      expect(request.headers()['x-loopper-local-ui']).toBe('1')
+      payload = ++pickerCalls === 1 ? { selected: true, path: '/selected/报告目录' } : { selected: false }
+    }
     else if (path === '/api/template-tasks/projects/p/branches') payload = { page: { items: [main, dev], nextCursor: null }, defaultBranchId: main.id, defaultBranch: main, remoteAvailable: true }
     else if (path === '/api/template-tasks' && request.method() === 'POST') {
       expect(request.headers()['x-loopper-local-ui']).toBe('1')
@@ -32,6 +39,8 @@ test.beforeEach(async ({ page }) => {
 })
 
 test('模板参数继承项目路径、可选择分支，结束日期校验阻止错误提交', async ({ page }) => {
+  const storyProbes: string[] = []
+  page.on('request', request => { if (request.url().includes('story-binding/capability')) storyProbes.push(request.url()) })
   await page.goto('/automations')
   await expect(page).toHaveURL(/\/template-tasks$/)
   await expect(page.getByRole('heading', { name: '模板任务', exact: true })).toBeVisible()
@@ -41,6 +50,13 @@ test('模板参数继承项目路径、可选择分支，结束日期校验阻�
   await expect(page.getByRole('combobox', { name: '分支', exact: true })).toHaveValue('')
   await expect(page.locator('.el-select__selected-item').filter({ hasText: 'origin/main（远程）' })).toBeVisible()
   await expect(page.getByRole('textbox', { name: '文档生成路径', exact: true })).toHaveValue('/project/docs/reports')
+  await expect(page.getByRole('switch', { name: '开启故事绑定' })).toHaveCount(0)
+  await expect(page.getByLabel('系统编号', { exact: true })).toHaveCount(0)
+  await expect(page.getByLabel('故事编号', { exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: '选择文档生成路径文件夹' }).click()
+  await expect(page.getByRole('textbox', { name: '文档生成路径', exact: true })).toHaveValue('/selected/报告目录')
+  await page.getByRole('button', { name: '选择文档生成路径文件夹' }).click()
+  await expect(page.getByRole('textbox', { name: '文档生成路径', exact: true })).toHaveValue('/selected/报告目录')
   await page.getByRole('textbox', { name: '文档生成路径', exact: true }).fill('custom/reports')
   const dates = page.locator('.el-date-editor input')
   await expect(dates.nth(0)).toHaveValue('2026-09-05')
@@ -59,6 +75,9 @@ test('模板参数继承项目路径、可选择分支，结束日期校验阻�
   await expect(page).toHaveURL(/\/tasks\/created$/)
   expect(submissions).toHaveLength(1)
   expect(submissions[0]).toMatchObject({ projectId: 'p', branchId: dev.id, startDate: '2026-09-11', endDate: '2026-09-11', documentPath: 'custom/reports' })
+  expect(submissions[0]).not.toHaveProperty('story')
+  expect(storyProbes).toEqual([])
+  expect(pickerCalls).toBe(2)
 })
 
 for (const width of [1440, 390]) {

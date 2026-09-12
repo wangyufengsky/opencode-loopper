@@ -30,9 +30,9 @@ class TemplateTaskControllerTest {
     @Test void confirmationIsSeparateAndDoesNotStartTask() throws Exception {
         when(admission.create(any(), eq(false))).thenReturn(task("PENDING_START"));
         mvc.perform(post("/api/template-tasks").header("X-Loopper-Local-UI", "1").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"requestKey\":\"a-stable-request-key\",\"templateId\":\"CODE_REVIEW\",\"templateVersion\":\"1\",\"projectId\":\"project\",\"branchId\":\"local:refs/heads/main\",\"startDate\":\"2026-09-11\",\"endDate\":\"2026-09-11\",\"story\":{\"enabled\":true,\"systemCode\":\"01\",\"storyCode\":\"0002\"}}"))
+                        .content("{\"requestKey\":\"a-stable-request-key\",\"templateId\":\"CODE_REVIEW\",\"templateVersion\":\"1\",\"projectId\":\"project\",\"branchId\":\"local:refs/heads/main\",\"startDate\":\"2026-09-11\",\"endDate\":\"2026-09-11\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.state").value("PENDING_START"));
-        verify(admission).create(argThat(request -> request.story().storyCode().equals("0002")), eq(false));
+        verify(admission).create(argThat(request -> request.story() == null), eq(false));
         verifyNoInteractions(tasks);
     }
 

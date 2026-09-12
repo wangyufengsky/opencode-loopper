@@ -59,15 +59,18 @@ public class TemplateTaskService {
         if (!TemplateTaskDefinition.VERSION.equals(request.templateVersion())) {
             throw new ConflictException("TEMPLATE_VERSION_CHANGED", "模板已更新，请刷新页面后重新发起");
         }
-        StoryBindingConfiguration story = request.story() == null ? StoryBindingConfiguration.disabled() : request.story().normalized();
+        if (request.story() != null && request.story().enabled()) {
+            throw new BadRequestException("TEMPLATE_STORY_ACCOUNTING_DISABLED", "模板任务暂不支持故事统计，请刷新页面后重新发起");
+        }
         var branch = branches.require(request.projectId(), request.branchId());
         var project = projects.get(request.projectId());
         String outputPath = documentPaths.resolve(project.rootPath(), request.documentPath() == null || request.documentPath().isBlank()
                 ? project.documentPath() : request.documentPath());
         var frozen = contracts.freeze(definition, request.projectId(), dates, outputPath);
-        return admission.create(new TemplateTaskAdmission.Command(request.requestKey(), digest, branch, dates, frozen, story, bypassCache));
+        return admission.create(new TemplateTaskAdmission.Command(request.requestKey(), digest, branch, dates, frozen, bypassCache));
     }
 
+    /** Story remains decodable for legacy request digests; new tasks cannot enable it. */
     public record Request(String requestKey, String templateId, String templateVersion, String projectId,
                            String branchId, String startDate, String endDate, StoryBindingConfiguration story, String documentPath) {
         public Request(String requestKey, String templateId, String templateVersion, String projectId,

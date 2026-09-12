@@ -4,15 +4,17 @@ import { ElMessage } from 'element-plus'
 import { api } from '@/api/client'
 import type { Project } from '@/types/domain'
 import { userFacingError } from '@/utils/displayLabels'
+import DirectoryPathInput from './DirectoryPathInput.vue'
 
 const props = defineProps<{ project?: Project; demo?: boolean }>()
 const emit = defineEmits<{ close: []; saved: [project: Project] }>()
 const path = ref('')
 const saving = ref(false)
+const picking = ref(false)
 const error = ref('')
 watch(() => props.project, project => { path.value = project?.documentPath ?? ''; error.value = '' }, { immediate: true })
 async function save() {
-  if (!props.project || saving.value) return
+  if (!props.project || saving.value || picking.value) return
   saving.value = true
   error.value = ''
   try {
@@ -30,10 +32,10 @@ async function save() {
 <template>
   <el-dialog :model-value="!!project" title="项目文档路径" width="min(640px, calc(100vw - 32px))" :close-on-click-modal="false" :show-close="!saving" :close-on-press-escape="!saving" @close="emit('close')">
     <el-form label-position="top" @submit.prevent="save">
-      <el-form-item :label="project?.name"><el-input v-model="path" aria-label="项目文档路径" placeholder="项目相对路径或绝对路径" maxlength="2048" :disabled="saving" /></el-form-item>
+      <el-form-item :label="project?.name"><DirectoryPathInput v-model="path" v-model:picking="picking" label="项目文档路径" :scope-key="project?.id" :demo="demo" placeholder="项目相对路径或绝对路径" :disabled="saving" /></el-form-item>
       <p class="muted tiny">新建模板任务默认使用此路径，留空使用任务目录。</p>
       <el-alert v-if="error" :title="error" type="error" :closable="false" />
     </el-form>
-    <template #footer><el-button :disabled="saving" @click="emit('close')">取消</el-button><el-button type="primary" :loading="saving" @click="save">保存</el-button></template>
+    <template #footer><el-button :disabled="saving" @click="emit('close')">取消</el-button><el-button type="primary" :loading="saving" :disabled="picking" @click="save">保存</el-button></template>
   </el-dialog>
 </template>

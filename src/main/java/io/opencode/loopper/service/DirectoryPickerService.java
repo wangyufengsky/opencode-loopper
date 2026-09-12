@@ -93,13 +93,13 @@ public class DirectoryPickerService {
 
     private List<List<String>> commands() {
         if (osName.contains("mac")) {
-            return List.of(List.of("/usr/bin/osascript", "-e", "POSIX path of (choose folder with prompt \"选择 OpenCode Loopper 项目根目录\")"));
+            return List.of(List.of("/usr/bin/osascript", "-e", "POSIX path of (choose folder with prompt \"选择 OpenCode Loopper 文件夹\")"));
         }
         if (osName.contains("win")) {
             String script = "Add-Type -AssemblyName System.Windows.Forms; "
                     + "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; "
                     + "$dialog=New-Object System.Windows.Forms.FolderBrowserDialog; "
-                    + "$dialog.Description='选择 OpenCode Loopper 项目根目录'; "
+                    + "$dialog.Description='选择 OpenCode Loopper 文件夹'; "
                     + "if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $dialog.SelectedPath }";
             return List.of(
                     List.of("powershell.exe", "-NoProfile", "-STA", "-Command", script),
@@ -107,9 +107,9 @@ public class DirectoryPickerService {
         }
         if (osName.contains("linux")) {
             return List.of(
-                    List.of("zenity", "--file-selection", "--directory", "--title=选择 OpenCode Loopper 项目根目录"),
-                    List.of("kdialog", "--getexistingdirectory", ".", "--title", "选择 OpenCode Loopper 项目根目录"),
-                    List.of("yad", "--file-selection", "--directory", "--title=选择 OpenCode Loopper 项目根目录"));
+                    List.of("zenity", "--file-selection", "--directory", "--title=选择 OpenCode Loopper 文件夹"),
+                    List.of("kdialog", "--getexistingdirectory", ".", "--title", "选择 OpenCode Loopper 文件夹"),
+                    List.of("yad", "--file-selection", "--directory", "--title=选择 OpenCode Loopper 文件夹"));
         }
         throw new ServiceUnavailableException("DIRECTORY_PICKER_UNSUPPORTED", "Folder selection is not supported on this operating system");
     }
@@ -159,7 +159,7 @@ public class DirectoryPickerService {
             Runnable showPicker = () -> {
                 try {
                     JFileChooser chooser = new JFileChooser();
-                    chooser.setDialogTitle("选择 OpenCode Loopper 项目根目录");
+                    chooser.setDialogTitle("选择 OpenCode Loopper 文件夹");
                     chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
                     chooser.setAcceptAllFileFilterUsed(false);
                     Path home = Path.of(System.getProperty("user.home", "."));

@@ -5,10 +5,10 @@ import { Icon } from '@iconify/vue'
 import { ElAlert, ElDatePicker } from 'element-plus'
 import { api } from '@/api/client'
 import PageHeader from '@/components/PageHeader.vue'
-import StoryBindingSetup from '@/components/StoryBindingSetup.vue'
+import DirectoryPathInput from '@/components/DirectoryPathInput.vue'
 import { useTemplateTaskStore } from '@/stores/templateTaskStore'
 import { userFacingError } from '@/utils/displayLabels'
-import type { StoryBindingConfiguration, TemplateBranchChoice, TemplateProjectChoice, TemplateTaskDefinition } from '@/types/domain'
+import type { TemplateBranchChoice, TemplateProjectChoice, TemplateTaskDefinition } from '@/types/domain'
 
 const router = useRouter()
 const store = useTemplateTaskStore()
@@ -16,6 +16,7 @@ const selected = ref<TemplateTaskDefinition['id']>('')
 const templateQuery = ref('')
 const category = ref('全部')
 const documentPath = ref('')
+const pickingDocumentPath = ref(false)
 const categories = computed(() => ['全部', ...new Set(store.catalog?.templates.map(item => item.category || '通用') ?? [])])
 const visibleTemplates = computed(() => (store.catalog?.templates ?? []).filter(item =>
   (category.value === '全部' || (item.category || '通用') === category.value)
@@ -24,7 +25,6 @@ const projectId = ref('')
 const branchId = ref('')
 const startDate = ref('')
 const endDate = ref('')
-const story = ref<StoryBindingConfiguration>({ enabled: false })
 const projects = ref<TemplateProjectChoice[]>([])
 const branches = ref<TemplateBranchChoice[]>([])
 const projectCursor = ref<string | null>()
@@ -41,7 +41,7 @@ let branchGeneration = 0
 const definition = computed(() => store.catalog?.templates.find(item => item.id === selected.value))
 const dateError = computed(() => startDate.value && endDate.value && endDate.value < startDate.value ? '结束日期不能早于开始日期' : '')
 const valid = computed(() => definition.value && projectId.value && branchId.value && startDate.value && endDate.value
-  && !dateError.value && !loadingBranches.value && (!story.value.enabled || (story.value.systemCode?.trim() && story.value.storyCode?.trim())))
+  && !dateError.value && !loadingBranches.value && !pickingDocumentPath.value)
 
 async function searchProjects(query = '', append = false) {
   const generation = ++projectGeneration
@@ -77,7 +77,6 @@ async function searchBranches(query = '', append = false, chooseDefault = false)
 watch(projectId, () => {
   ++branchGeneration
   branches.value = []; branchId.value = ''; branchCursor.value = null; branchQuery.value = ''
-  story.value = { enabled: false }
   documentPath.value = projects.value.find(project => project.id === projectId.value)?.documentPath ?? ''
   if (projectId.value) void searchBranches('', false, true)
 })
@@ -88,7 +87,7 @@ async function submit() {
   error.value = ''
   try {
     const id = await store.start({ templateId: selected.value, templateVersion: definition.value.version, projectId: projectId.value,
-      branchId: branchId.value, startDate: startDate.value, endDate: endDate.value, documentPath: documentPath.value.trim() || undefined, story: story.value })
+      branchId: branchId.value, startDate: startDate.value, endDate: endDate.value, documentPath: documentPath.value.trim() || undefined })
     if (id) await router.push(`/tasks/${id}`)
   } catch (failure) { error.value = userFacingError(failure, '未能开始执行，请重试；已确认的任务会继续复用') }
 }
@@ -138,11 +137,10 @@ onBeforeUnmount(() => { ++projectGeneration; ++branchGeneration })
         <label>开始日期<el-date-picker v-model="startDate" aria-label="开始日期" type="date" value-format="YYYY-MM-DD" format="YYYY-MM-DD" :disabled="store.submitting" :clearable="false" /></label>
         <label>结束日期<el-date-picker v-model="endDate" aria-label="结束日期" type="date" value-format="YYYY-MM-DD" format="YYYY-MM-DD" :disabled="store.submitting" :disabled-date="disableEnd" :clearable="false" /></label>
       </div>
-      <label class="document-path">文档生成路径<el-input v-model="documentPath" aria-label="文档生成路径" :disabled="store.submitting" placeholder="项目相对路径或绝对路径；留空使用默认目录" maxlength="2048" /></label>
+      <div class="document-path">文档生成路径<DirectoryPathInput v-model="documentPath" v-model:picking="pickingDocumentPath" label="文档生成路径" :scope-key="projectId" :disabled="store.submitting" placeholder="项目相对路径或绝对路径；留空使用默认目录" /></div>
       <el-alert v-if="dateError" :title="dateError" type="error" :closable="false" />
       <el-alert v-if="branchError" :title="branchError" type="error" :closable="false"><el-button text @click="searchBranches('', false, true)">重新读取分支</el-button></el-alert>
       <el-alert v-else-if="!remoteAvailable" title="部分远程分支暂不可访问，请检查连接后重新读取，或明确选择可用的本地分支" type="warning" :closable="false" />
-      <StoryBindingSetup v-model="story" :project-id="projectId" :disabled="store.submitting" template-task />
       <div class="run-action"><el-button type="primary" native-type="submit" :loading="store.submitting" :disabled="!valid">开始执行</el-button></div>
     </form>
     <details v-if="definition?.scoringVersion && store.catalog" class="card card-pad rubric">

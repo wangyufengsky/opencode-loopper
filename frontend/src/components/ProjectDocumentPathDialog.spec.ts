@@ -9,6 +9,16 @@ afterEach(() => vi.restoreAllMocks())
 const project: Project = { id: 'p', name: '项目', rootPath: '/project', status: 'READY', documentPath: '/project/docs',
   updatedAt: '', version: 4, taskCount: 0, openDesignerSessionCount: 0 }
 describe('Project document path', () => {
+  it('saves the directory selected through the system picker', async () => {
+    vi.spyOn(api, 'pickProjectDirectory').mockResolvedValue({ selected: true, path: '/tmp/selected reports' })
+    const save = vi.spyOn(api, 'updateProjectDocumentPath').mockResolvedValue({ ...project, documentPath: '/tmp/selected reports', version: 5 })
+    const wrapper = mount(ProjectDocumentPathDialog, { props: { project }, global: { plugins: [ElementPlus], stubs: { teleport: true } } })
+    await flushPromises()
+    await wrapper.get('button[aria-label="选择项目文档路径文件夹"]').trigger('click'); await flushPromises()
+    await wrapper.findAll('button').find(item => item.text() === '保存')!.trigger('click'); await flushPromises()
+    expect(save).toHaveBeenCalledWith('p', '/tmp/selected reports', 4)
+    wrapper.unmount()
+  })
   it('saves a changed default with its loaded version and updates the project card', async () => {
     const save = vi.spyOn(api, 'updateProjectDocumentPath').mockResolvedValue({ ...project, documentPath: '/project/reports', version: 5 })
     const wrapper = mount(ProjectDocumentPathDialog, { props: { project }, global: { plugins: [ElementPlus], stubs: { teleport: true } } })

@@ -30,6 +30,8 @@ class TemplateTaskAdmissionIntegrationTest {
     @Autowired LoopperProperties properties;
     @Autowired JdbcTemplate jdbc;
     @Autowired TemplateTaskReadService reads;
+    @Autowired StoryBindingService stories;
+    @Autowired tools.jackson.databind.ObjectMapper json;
     @TempDir Path temporary;
     private String projectId;
 
@@ -55,11 +57,39 @@ class TemplateTaskAdmissionIntegrationTest {
         assertThat(mapper.listStages(task.id())).hasSize(2).allSatisfy(stage -> assertThat(stage.state()).isEqualTo("PENDING"));
         assertThat(mapper.findDraft(task.loopDraftId()).orElseThrow().status()).isEqualTo("CONFIRMED");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM designer_session", Integer.class)).isZero();
-        var binding = mapper.findTaskStoryBinding(task.id()).orElseThrow();
-        assertThat(binding.systemCode()).isEqualTo("001");
-        assertThat(binding.storyCode()).isEqualTo("0002");
+        assertThat(mapper.findTaskStoryBinding(task.id())).isEmpty();
         assertThat(templates.findRun(task.id()).orElseThrow().contractJson()).contains("test-model", "CONTRIBUTION_SCORE_V1", "Asia/Shanghai",
                 "REPORT_LAYOUT_V2", "CODE_REVIEW_V2", "CONTRIBUTION_REPORT_V2", "PERSONAL_CONTRIBUTION_V2", "sha256");
+    }
+
+    @Test void rejectsNewStoryEnabledRequestsWithoutCreatingTasksOrBindings() {
+        var base = request("CODE_REVIEW", "2026-09-05", "2026-09-11");
+        var enabled = new TemplateTaskService.Request(base.requestKey(), base.templateId(), base.templateVersion(),
+                base.projectId(), base.branchId(), base.startDate(), base.endDate(), new StoryBindingConfiguration(true, "001", "0002"));
+        assertThatThrownBy(() -> service.create(enabled, false)).isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("模板任务暂不支持故事统计");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM task", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM story_binding", Integer.class)).isZero();
+        var disabled = new TemplateTaskService.Request(base.requestKey(), base.templateId(), base.templateVersion(),
+                base.projectId(), base.branchId(), base.startDate(), base.endDate(), StoryBindingConfiguration.disabled());
+        assertThat(mapper.findTaskStoryBinding(service.create(disabled, false).id())).isEmpty();
+    }
+
+    @Test void legacyBoundRequestReplayPreservesOriginalTaskAndBinding() {
+        var base = request("CODE_REVIEW", "2026-09-05", "2026-09-11");
+        var task = service.create(base, false);
+        var story = new StoryBindingConfiguration(true, "001", "0002");
+        stories.attachTask(task.id(), story);
+        var legacy = new TemplateTaskService.Request(base.requestKey(), base.templateId(), base.templateVersion(),
+                base.projectId(), base.branchId(), base.startDate(), base.endDate(), story);
+        var legacyJson = (tools.jackson.databind.node.ObjectNode) json.valueToTree(legacy);
+        legacyJson.remove("documentPath");
+        // Reconstruct the immutable request digest written before template statistics were disabled.
+        jdbc.update("UPDATE template_task_run SET request_sha256=? WHERE task_id=?",
+                TemplateGitEvidenceCollector.hash(json.writeValueAsString(legacyJson) + ":false"), task.id());
+        assertThat(service.create(legacy, false).id()).isEqualTo(task.id());
+        assertThat(mapper.findTaskStoryBinding(task.id()).orElseThrow().storyCode()).isEqualTo("0002");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM task", Integer.class)).isEqualTo(1);
     }
 
     @Test void idempotentRetryKeepsFrozenConfigurationAndRejectsParameterReplacement() {
@@ -111,7 +141,7 @@ class TemplateTaskAdmissionIntegrationTest {
 
     private TemplateTaskService.Request request(String template, String start, String end) {
         return new TemplateTaskService.Request(UUID.randomUUID().toString(), template, io.opencode.loopper.template.TemplateTaskDefinition.VERSION, projectId,
-                "local:refs/heads/main", start, end, new StoryBindingConfiguration(true, "001", "0002"));
+                "local:refs/heads/main", start, end, null);
     }
 
     @Test void projectsAndHistoryUseStableBoundedSqlPages() {

@@ -30,13 +30,12 @@ public class TemplateTaskAdmission {
     private final TemplateTaskMapper templates;
     private final LifecycleTransitionService lifecycle;
     private final TaskEvidenceService evidence;
-    private final StoryBindingService stories;
     private final ObjectMapper json;
 
     TemplateTaskAdmission(LoopperMapper mapper, TemplateTaskMapper templates, LifecycleTransitionService lifecycle,
-                            TaskEvidenceService evidence, StoryBindingService stories, ObjectMapper json) {
+                            TaskEvidenceService evidence, ObjectMapper json) {
         this.mapper = mapper; this.templates = templates; this.lifecycle = lifecycle;
-        this.evidence = evidence; this.stories = stories; this.json = json;
+        this.evidence = evidence; this.json = json;
     }
 
     @Transactional
@@ -59,7 +58,6 @@ public class TemplateTaskAdmission {
                 command.contract().definition().id(), command.contract().definition().version(), branch.id(), branch.label(), branch.ref(), branch.remote(),
                 command.dates().startDate().toString(), command.dates().endDate().toString(), json.writeValueAsString(command.contract()),
                 null, null, 0, command.bypassCache() ? 1 : 0, now, now, 0));
-        stories.attachTask(taskId, command.story());
         evidence.persistConfirmedDesignContext(task, draft);
         LoopDraftRow confirmed = new LoopDraftRow(draft.id(), draft.projectId(), draft.goal(), draft.specJson(), "CONFIRMED", now, now, 0);
         lifecycle.transition(draftSubject(draft), draft.status(), confirmed.status(), LifecycleEvent.CONFIRM,
@@ -92,5 +90,5 @@ public class TemplateTaskAdmission {
     private static ConflictException conflict() { return new ConflictException("TEMPLATE_CREATE_CONFLICT", "模板任务创建冲突，请重试同一请求"); }
     public record Command(String requestKey, String requestSha256, ProjectBranchService.Branch branch,
                            TemplateDateRange dates, TemplateTaskContractFactory.Frozen contract,
-                           StoryBindingConfiguration story, boolean bypassCache) { }
+                           boolean bypassCache) { }
 }

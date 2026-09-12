@@ -3,7 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { api } from '@/api/client'
 import { useTemplateTaskStore } from './templateTaskStore'
 
-const input = { templateId: 'CODE_REVIEW' as const, templateVersion: '1', projectId: 'p', branchId: 'local:refs/heads/main', startDate: '2026-09-01', endDate: '2026-09-07', story: { enabled: true, systemCode: '01', storyCode: '0001' } }
+const input = { templateId: 'CODE_REVIEW' as const, templateVersion: '1', projectId: 'p', branchId: 'local:refs/heads/main', startDate: '2026-09-01', endDate: '2026-09-07' }
 beforeEach(() => setActivePinia(createPinia()))
 afterEach(() => vi.restoreAllMocks())
 describe('template task creation', () => {
@@ -15,7 +15,7 @@ describe('template task creation', () => {
     await expect(store.start(input)).resolves.toBe('task')
     expect(create).toHaveBeenCalledTimes(1)
     expect(start).toHaveBeenCalledTimes(2)
-    expect(create.mock.calls[0]![0].story.storyCode).toBe('0001')
+    expect(create.mock.calls[0]![0]).not.toHaveProperty('story')
   })
   it('reuses the idempotency key after lost confirmation and creates a new key for another run', async () => {
     const create = vi.spyOn(api, 'createTemplateTask').mockRejectedValueOnce(new Error('network')).mockResolvedValue({ id: 'task', state: 'PENDING_START' })

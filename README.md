@@ -9,7 +9,7 @@
 
 OpenCode Loopper 在本机运行，以你已有的项目目录、Git 仓库和 OpenCode 为基础。你用自然语言描述目标，在界面中确认设计和执行范围；Loopper 将它编译为分阶段规范，调度 OpenCode 实施，再用可运行的验证规则和独立评审检查结果。遇到问题，可以查看证据、回答问题、继续修正或从保留的基线恢复。
 
-> 当前版本：`0.4.9`。默认访问 **http://127.0.0.1:8080/**，打开即进入主页。面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.4.11`。默认访问 **http://127.0.0.1:8080/**，打开即进入主页。面向单机本地使用，不是多租户远程执行平台。
 
 ![OpenCode Loopper 实际主页：统一导航、快捷入口与需求到交付的流程](docs/deliveries/0.3.99-home.png)
 
@@ -110,7 +110,7 @@ Skill 正文按需加载，来自 OpenCode 返回的文档内容；原文件的 
 
 | 文件 | 内容 |
 | --- | --- |
-| `opencode-loopper-0.4.9.jar` | 后端、前端页面与 SQLite JDBC |
+| `opencode-loopper-0.4.11.jar` | 后端、前端页面与 SQLite JDBC |
 | `start-linux.sh` | Linux 启动脚本 |
 | `start-windows.bat` | Windows 启动脚本 |
 | `SHA256SUMS` | JAR 与两个脚本的 SHA-256 |
@@ -118,7 +118,7 @@ Skill 正文按需加载，来自 OpenCode 返回的文档内容；原文件的 
 如果下载了清单中的全部三个文件，Linux 可运行 `sha256sum -c SHA256SUMS`，macOS 可运行 `shasum -a 256 -c SHA256SUMS`。只下载部分文件时，对应缺失项会报错；请逐一比对已下载文件的哈希。Windows PowerShell 可运行：
 
 ```powershell
-Get-FileHash .\opencode-loopper-0.4.9.jar -Algorithm SHA256
+Get-FileHash .\opencode-loopper-0.4.11.jar -Algorithm SHA256
 Get-Content .\SHA256SUMS
 ```
 
@@ -143,7 +143,7 @@ chmod +x start-linux.sh
 **macOS，或直接运行 JAR**：在 `java` 指向 JDK 21 的终端执行：
 
 ```bash
-java -jar opencode-loopper-0.4.9.jar
+java -jar opencode-loopper-0.4.11.jar
 ```
 
 启动后访问 **http://127.0.0.1:8080/**。默认使用 `managed` 模式，由 Loopper 启动一个独立 OpenCode 子进程，不需要你预先运行 `opencode serve`。已有外部 OpenCode 的连接方法见 [运行模式与启动配置](docs/operations.md#opencode-运行模式)。
@@ -239,7 +239,7 @@ PR/MR 入口可打开预填的托管平台页面，最终创建或合并仍由�
 
 代码审查、项目贡献总报告和个人贡献周报采用固定章节与表格，由程序填充，AI 只提交结构化分析。模板正文与 SHA-256 在发起时冻结，旧任务按原格式恢复。格式、空范围行为和评分展示见[固定报告格式](docs/template-report-format.md)。
 
-点击“开始执行”后，系统在独立目录同步并冻结 Git 证据，分批分析、生成 Markdown 报告，再进行独立双评审。代码审查输出一个报告；贡献周报输出总报告、每人的个人报告和内置评分排名。评分标准、原始量、去噪依据及等级理由随报告保留，详情页可预览和下载。可以选填故事统计配置，只有实际分析会话计入执行者 AI 工作量。
+点击“开始执行”后，系统在独立目录同步并冻结 Git 证据，分批分析、生成 Markdown 报告，再进行独立双评审。代码审查输出一个报告；贡献周报输出总报告、每人的个人报告和内置评分排名。评分标准、原始量、去噪依据及等级理由随报告保留，详情页可预览和下载。文档生成路径和项目默认文档路径支持选择文件夹或手动输入。新模板任务暂不支持故事统计；历史已绑定任务保留统计恢复与收尾。
 
 旧模板编辑和自动化触发已停用，历史记录保留。当前只支持手动发起。执行、恢复和评分的精确定义见 [功能合同](docs/seven-feature-contract.md)。
 
@@ -332,7 +332,7 @@ flowchart TB
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.4.9.jar
+java -jar target/opencode-loopper-0.4.11.jar
 ```
 
 Windows PowerShell 将 Maven 命令替换为 `.\mvnw.cmd clean verify`。完整构建将前端静态资源装入 JAR，开发 profile 的输出不能当成成品交付。

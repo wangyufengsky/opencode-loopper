@@ -5,6 +5,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
 import ProjectDocumentPathDialog from '@/components/ProjectDocumentPathDialog.vue'
+import DirectoryPathInput from '@/components/DirectoryPathInput.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import ProjectConventionActivityPanel from '@/components/ProjectConventionActivityPanel.vue'
 import { api } from '@/api/client'
@@ -22,6 +23,7 @@ function savedDocumentProject(project: Project) {
 }
 const saving = ref(false)
 const pickingDirectory = ref(false)
+const pickingDocumentPath = ref(false)
 const fieldError = ref('')
 const form = ref({ name: '', rootPath: '', description: '', documentPath: '' })
 const conventionVisible = ref(false)
@@ -83,6 +85,7 @@ async function pickDirectory() {
 }
 
 async function submit() {
+  if (pickingDirectory.value || pickingDocumentPath.value || saving.value) return
   fieldError.value = ''
   if (!form.value.name.trim()) { fieldError.value = '请输入项目名称。'; return }
   if (!/^(\/|[A-Za-z]:[\\/])/.test(form.value.rootPath.trim())) { fieldError.value = '请输入绝对项目根路径；相对路径不允许登记。'; return }
@@ -297,14 +300,14 @@ onBeforeUnmount(clearConventionPoll)
       <el-form-item label="项目根路径">
         <div class="path-picker-row">
           <el-input v-model="form.rootPath" class="mono path-input" placeholder="/Users/name/IdeaProjects/project" aria-label="项目根路径" />
-          <el-button class="folder-picker-button" :loading="pickingDirectory" :disabled="saving" aria-label="选择项目文件夹" @click="pickDirectory"><Icon icon="lucide:folder-open" />选择文件夹</el-button>
+          <el-button class="folder-picker-button" :loading="pickingDirectory" :disabled="saving || pickingDocumentPath" aria-label="选择项目文件夹" @click="pickDirectory"><Icon icon="lucide:folder-open" />选择文件夹</el-button>
         </div>
         <p v-if="fieldError" class="inline-field-error"><Icon icon="lucide:circle-alert" /> {{ fieldError }}</p>
       </el-form-item>
-      <el-form-item label="文档路径（可选）"><el-input v-model="form.documentPath" aria-label="登记项目文档路径" placeholder="项目相对路径或绝对路径" maxlength="2048" /></el-form-item>
+      <el-form-item label="文档路径（可选）"><DirectoryPathInput v-model="form.documentPath" v-model:picking="pickingDocumentPath" label="登记项目文档路径" :scope-key="String(dialogVisible)" :demo="store.usingDemo" :disabled="saving || pickingDirectory" placeholder="项目相对路径或绝对路径" /></el-form-item>
       <el-form-item label="说明（可选）"><el-input v-model="form.description" type="textarea" :rows="3" maxlength="500" show-word-limit placeholder="说明该项目的用途与约束" /></el-form-item>
     </el-form>
-    <template #footer><el-button @click="dialogVisible = false">取消</el-button><el-button type="primary" :loading="saving" @click="submit">验证并登记</el-button></template>
+    <template #footer><el-button @click="dialogVisible = false">取消</el-button><el-button type="primary" :loading="saving" :disabled="pickingDirectory || pickingDocumentPath" @click="submit">验证并登记</el-button></template>
   </el-dialog>
 
   <el-dialog v-model="conventionVisible" title="项目公约 AGENTS.md" width="min(920px, calc(100vw - 32px))" :close-on-click-modal="false" :show-close="!conventionInFlight" :close-on-press-escape="!conventionInFlight" @closed="closeConvention">

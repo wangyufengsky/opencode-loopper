@@ -1497,7 +1497,6 @@ export interface TemplateTaskRequest {
   branchId: string
   startDate: string
   endDate: string
-  story: StoryBindingConfiguration
 }
 export interface TemplateTaskProgress {
   reviewBatches: number | null
