@@ -717,6 +717,31 @@ class HttpOpenCodeClientTest {
         assertThat(client.sessionStatus(session).state()).isEqualTo("RUNNING");
     }
 
+    @Test void templateContinuationIgnoresEarlierLengthTerminalUntilItsOwnMessageCompletes() {
+        var client = managedRoleClient();
+        var session = new OpenCodeClient.OpenCodeSession("s1", worktree, "generation-role", "loopper_internal_role");
+        client.restoreDesignTurn(session, OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS, null, "next");
+        client.promptAsync(session, new OpenCodeClient.PromptRequest("continue via MCP", null, null,
+                new OpenCodeClient.ResponseFormat.Text(), "next", List.of()));
+        assertThat(promptBody.get()).contains("loopper-structured-unbounded", "next");
+        messageBody.set("""
+                [{"info":{"id":"previous","role":"user"}},
+                 {"info":{"role":"assistant","parentID":"previous","finish":"length","time":{"completed":123}}},
+                 {"info":{"id":"next","role":"user"}}]
+                """);
+        assertThat(client.sessionStatus(session).state()).isEqualTo("RUNNING");
+        assertThatThrownBy(() -> client.sessionResult(session)).isInstanceOf(SessionFailure.class);
+        messageBody.set("""
+                [{"info":{"id":"next","role":"user"}},
+                 {"info":{"role":"assistant","parentID":"next","finish":"stop","time":{"completed":456}},
+                  "parts":[{"type":"text","text":"submitted"}]},
+                 {"info":{"role":"assistant","parentID":"previous","finish":"length","time":{"completed":123}}}]
+                """);
+        assertThat(client.sessionStatus(session).completed()).isTrue();
+        assertThat(client.sessionResult(session).text()).isEqualTo("submitted");
+        assertThat(client.sessionResult(session).errorType()).isNull();
+    }
+
     private HttpOpenCodeClient managedRoleClient() {
         mcpBody.set("{\"loopper_internal_role\":{\"status\":\"connected\"}}");
         return new HttpOpenCodeClient(RestClient.builder(),

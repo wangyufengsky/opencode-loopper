@@ -106,12 +106,14 @@ class TemplateTaskExecutionIntegrationTest {
         });
     }
 
-    @Test void v5McpCodeAndContributionReportsCorrectInSameSessionThenReachDoubleJudgeAcceptance() {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"5", "6"})
+    void mcpCodeAndContributionReportsCorrectInSameSessionThenReachDoubleJudgeAcceptance(String version) {
         for (String definition : List.of("CODE_REVIEW", "CONTRIBUTION_REPORT")) {
             TaskRow task = create(definition);
             var contract = (tools.jackson.databind.node.ObjectNode) json.readTree(templates.findRun(task.id()).orElseThrow().contractJson());
-            ((tools.jackson.databind.node.ObjectNode) contract.get("definition")).put("version", "5");
-            jdbc.update("UPDATE template_task_run SET template_version='5',contract_json=? WHERE task_id=?", json.writeValueAsString(contract), task.id());
+            ((tools.jackson.databind.node.ObjectNode) contract.get("definition")).put("version", version);
+            jdbc.update("UPDATE template_task_run SET template_version=?,contract_json=? WHERE task_id=?", version, json.writeValueAsString(contract), task.id());
             var credentials = new InternalMcpCredentialProvider(() -> 18083).issue();
             runtimeAccess.activate(credentials); runtimeAccess.connected(credentials.generation());
             fake.setManagedRuntime(credentials.generation(), credentials.serverName());
@@ -334,7 +336,7 @@ class TemplateTaskExecutionIntegrationTest {
             var stage = mapper.listStages(id).get(1);
             var attempt = mapper.latestAttempt(stage.id()).orElse(null);
             if (attempt != null) for (var batch : templates.batches(id, attempt.id())) {
-                boolean mcp = "5".equals(templates.findRun(id).orElseThrow().templateVersion());
+                boolean mcp = List.of("5", "6").contains(templates.findRun(id).orElseThrow().templateVersion());
                 if (!batch.state().equals("DISPATCHING") && !(mcp && batch.state().equals("RUNNING"))) continue;
                 var input = json.readValue(batch.inputJson(), TemplateBatchExecution.Input.class);
                 if (malformedFirst && templates.findRun(id).orElseThrow().repairRound() == 0) fake.setJudgeOutput("{\"reviews\":[]}");

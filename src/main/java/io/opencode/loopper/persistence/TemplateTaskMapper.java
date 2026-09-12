@@ -16,6 +16,8 @@ public interface TemplateTaskMapper {
     @Delete("DELETE FROM template_task_plan WHERE task_id=#{taskId}") int deletePlanForTask(String taskId);
     @Delete("DELETE FROM template_candidate_submission WHERE batch_id IN (SELECT id FROM template_task_batch WHERE task_id=#{taskId})")
     int deleteCandidateSubmissionsForTask(String taskId);
+    @Delete("DELETE FROM template_length_continuation WHERE batch_id IN (SELECT id FROM template_task_batch WHERE task_id=#{taskId})")
+    int deleteContinuationsForTask(String taskId);
     @Delete("DELETE FROM template_task_batch WHERE task_id=#{taskId}") int deleteBatchesForTask(String taskId);
     @Delete("DELETE FROM template_report_bundle WHERE task_id=#{taskId}") int deleteReportBundlesForTask(String taskId);
     @Delete("DELETE FROM template_task_run WHERE task_id=#{taskId}") int deleteRunForTask(String taskId);

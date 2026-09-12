@@ -30,6 +30,16 @@ public final class TemplateAnalysisPromptFactory {
 
     public TemplateAnalysisPromptFactory(ObjectMapper json) { this.json = json; }
 
+    public static String continuation(String batchId, String server, long revision) {
+        return """
+                上一次生成因长度上限结束，当前批次尚未接受有效候选。继续当前会话，沿用已有冻结证据和分析，避免从头复述长篇推理。
+                请尽快调用 %s_submit_template_analysis 提交完整 candidate，不要用最终文本代替提交。
+                runId=%s，当前 expectedSubmissionRevision=%d；新候选使用新的 idempotencyKey。
+                校验失败时在本会话读取 problems 和 submissionRevision，修正后重交；未知响应只精确重放原请求。
+                收到 ACCEPTED 后结束，不调用其他工具，不改变冻结证据、权限或报告标准。
+                """.formatted(server, batchId, revision);
+    }
+
     public String internal(String evidencePrompt, String batchId, String toolName) {
         return evidencePrompt.replace(TEXT_TRANSPORT, "") + "\n" + """
                 结果必须调用唯一工具 %s 提交，不能用最终文本或 Markdown 代替工具调用。

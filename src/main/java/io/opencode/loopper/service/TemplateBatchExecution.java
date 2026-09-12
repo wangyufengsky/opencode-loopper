@@ -51,7 +51,7 @@ public class TemplateBatchExecution {
             case CREATING -> createRemote(row);
             case PROMPT_READY -> store.transition(row, TemplateBatchState.DISPATCHING, LifecycleEvent.DISPATCH);
             case DISPATCHING -> dispatch(row);
-            case RUNNING -> poll(row);
+            case RUNNING -> poll(row, contract);
             default -> row;
         };
     }
@@ -71,7 +71,7 @@ public class TemplateBatchExecution {
         // while using their default would authorize hidden retries outside the frozen two-round policy.
         Path root = Path.of(mapper.findTask(row.taskId()).orElseThrow().worktreePath());
         byte[] nonce = new byte[32]; new SecureRandom().nextBytes(nonce);
-        var profile = "5".equals(contract.definition().version())
+        var profile = List.of("5", "6").contains(contract.definition().version())
                 ? OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS
                 : OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_NO_TOOLS;
         var plan = openCode.prepareSessionCreation(root, "模板报告分析 " + (row.ordinal() + 1), model,
@@ -100,6 +100,15 @@ public class TemplateBatchExecution {
 
     private TemplateTaskBatchRow dispatch(TemplateTaskBatchRow row) {
         var remote = remote(row);
+        if (store.hasContinuation(row.id())) {
+            var accepted = submissions.accepted(row.id());
+            if (accepted.isPresent()) {
+                // A late receipt can make the persisted continuation unnecessary. Stop proof still applies.
+                openCode.abortWithConfirmation(remote);
+                var running = store.transition(row, TemplateBatchState.RUNNING, LifecycleEvent.START);
+                return store.validated(running, validate(running, accepted.get()), false);
+            }
+        }
         var request = prompt(row).request();
         openCode.restoreDesignTurn(remote, plan(row).profile(), plan(row).model(), request.messageId());
         var lookup = openCode.findPromptMessage(remote, request, row.promptSha256());
@@ -108,13 +117,21 @@ public class TemplateBatchExecution {
             throw unavailable("TEMPLATE_PROMPT_IDENTITY_CHANGED", "远端分析请求与冻结内容不一致");
         }
         if (!lookup.exists()) {
+            if (store.hasContinuation(row.id())) {
+                var previous = store.previousPrompt(row.id());
+                openCode.restoreDesignTurn(remote, plan(row).profile(), plan(row).model(), previous.messageId());
+                var status = openCode.sessionStatus(remote);
+                if (status.failed()) throw unavailable("TEMPLATE_MODEL_FAILED", "上次分析会话已失败，不能自动续接");
+                if (status.retrying() || !status.completed()) return row;
+                openCode.restoreDesignTurn(remote, plan(row).profile(), plan(row).model(), request.messageId());
+            }
             store.requireRunning(row.taskId(), row.attemptId());
             openCode.promptAsync(remote, request);
         }
         return store.transition(row, TemplateBatchState.RUNNING, LifecycleEvent.START);
     }
 
-    private TemplateTaskBatchRow poll(TemplateTaskBatchRow row) {
+    private TemplateTaskBatchRow poll(TemplateTaskBatchRow row, TemplateTaskContractFactory.Frozen contract) {
         var remote = remote(row);
         var request = prompt(row).request();
         openCode.restoreDesignTurn(remote, plan(row).profile(), plan(row).model(), request.messageId());
@@ -125,6 +142,10 @@ public class TemplateBatchExecution {
             var accepted = submissions.accepted(row.id());
             if (accepted.isPresent()) return store.validated(row, validate(row, accepted.get()), false);
             var missing = openCode.sessionResult(remote);
+            if ("6".equals(contract.definition().version())
+                    && "OPENCODE_OUTPUT_LENGTH_EXHAUSTED".equals(missing.errorType())) {
+                return store.prepareContinuation(row);
+            }
             throw unavailable("TEMPLATE_SUBMISSION_MISSING", "OPENCODE_OUTPUT_LENGTH_EXHAUSTED".equals(missing.errorType())
                     ? "模型生成长度耗尽，尚未通过 MCP 提交分析结果；请调整运行环境的单次输出额度后重新发起"
                     : "模型会话已结束，但没有通过 MCP 提交有效分析结果");

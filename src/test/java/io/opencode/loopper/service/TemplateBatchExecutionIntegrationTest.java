@@ -48,11 +48,12 @@ class TemplateBatchExecutionIntegrationTest {
     @Autowired TaskStateStore states;
     @Autowired LifecycleTransitionService lifecycle;
     @Autowired TaskExecutionCycleService cycles;
-    @Autowired OpenCodeClient client;
+    @org.springframework.test.context.bean.override.mockito.MockitoSpyBean OpenCodeClient client;
     @Autowired ObjectMapper json;
     @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
     @Autowired TemplateCandidateSubmissionService submissions;
     @Autowired TemplateTaskCoordinator coordinator;
+    @Autowired io.opencode.loopper.persistence.TemplateContinuationMapper continuations;
     @Autowired org.springframework.transaction.PlatformTransactionManager transactionManager;
     @Autowired io.opencode.loopper.runtime.InternalMcpRuntimeAccess access;
     @Autowired io.opencode.loopper.persistence.TemplateCandidateSubmissionMapper receipts;
@@ -235,6 +236,139 @@ class TemplateBatchExecutionIntegrationTest {
         transaction.executeWithoutResult(status -> coordinator.deleteBeforeAttempts(task.id()));
         assertThat(receipts.revision(batch.id())).isZero();
         assertThat(templates.findBatch(batch.id())).isEmpty();
+    }
+
+    @Test void lengthContinuationUsesSameSessionAndRecoversLostAcknowledgementExactlyOnce() {
+        startContinuable();
+        String sessionId = batch.sessionId();
+        String initial = batch.promptJson();
+        batch = execution.advance(batch, contract);
+        assertThat(batch.state()).isEqualTo("DISPATCHING");
+        var intent = continuations.latest(batch.id()).orElseThrow();
+        assertThat(intent.priorPromptJson()).isEqualTo(initial);
+        assertThat(intent.stagnantLengths()).isEqualTo(1);
+        var request = json.readValue(batch.promptJson(), TemplateBatchStore.FrozenPrompt.class).request();
+        client.promptAsync(remote(), request); // Remote received it, local acknowledgement was lost.
+        int calls = fake.promptCalls();
+        batch = execution.advance(batch, contract);
+        assertThat(batch.state()).isEqualTo("RUNNING");
+        assertThat(fake.promptCalls()).isEqualTo(calls);
+        assertThat(batch.sessionId()).isEqualTo(sessionId);
+        assertThat(fake.createReadOnlySessionCalls()).isEqualTo(1);
+        submissions.submit(batch.id(), "accepted", 0, valid());
+        batch = execution.advance(batch, contract);
+        assertThat(batch.state()).isEqualTo("VALIDATED");
+        assertThat(continuations.latest(batch.id()).orElseThrow().ordinal()).isEqualTo(1);
+    }
+
+    @Test void repeatedLengthWithoutDistinctCandidateStopsAfterTwoContinuations() {
+        startContinuable();
+        for (int i = 0; i < 2; i++) {
+            batch = execution.advance(batch, contract);
+            batch = execution.advance(batch, contract);
+        }
+        int calls = fake.promptCalls();
+        assertThatThrownBy(() -> execution.advance(batch, contract)).hasMessageContaining("连续三次");
+        assertThat(fake.promptCalls()).isEqualTo(calls);
+        assertThat(continuations.latest(batch.id()).orElseThrow().ordinal()).isEqualTo(2);
+    }
+
+    @Test void distinctRejectedCandidateResetsStagnationButIdenticalContentDoesNot() {
+        startContinuable();
+        batch = execution.advance(batch, contract); batch = execution.advance(batch, contract);
+        submissions.submit(batch.id(), "one", 0, "{}");
+        batch = execution.advance(batch, contract);
+        assertThat(continuations.latest(batch.id()).orElseThrow().stagnantLengths()).isZero();
+        assertThat(batch.promptJson()).contains("expectedSubmissionRevision=1");
+        batch = execution.advance(batch, contract);
+        submissions.submit(batch.id(), "two", 1, "{}");
+        batch = execution.advance(batch, contract);
+        assertThat(continuations.latest(batch.id()).orElseThrow().stagnantLengths()).isEqualTo(1);
+    }
+
+    @Test void acceptedBeforeContinuationDispatchAvoidsAnotherModelCall() {
+        startContinuable();
+        batch = execution.advance(batch, contract);
+        submissions.submit(batch.id(), "accepted", 0, valid());
+        int calls = fake.promptCalls();
+        batch = execution.advance(batch, contract);
+        assertThat(batch.state()).isEqualTo("VALIDATED");
+        assertThat(fake.promptCalls()).isEqualTo(calls);
+    }
+
+    @Test void continuationWaitsForStopProofAndNeverResendsUnknownOrAlteredDelivery() {
+        startContinuable(); batch = execution.advance(batch, contract);
+        int calls = fake.promptCalls();
+        fake.setSessionState(remote().id(), "RUNNING");
+        assertThat(execution.advance(batch, contract).state()).isEqualTo("DISPATCHING");
+        assertThat(fake.promptCalls()).isEqualTo(calls);
+        fake.setSessionState(remote().id(), "COMPLETED");
+        org.mockito.Mockito.doReturn(new OpenCodeClient.MessageLookup(false, false, null)).when(client)
+                .findPromptMessage(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(OpenCodeClient.PromptRequest.class), org.mockito.ArgumentMatchers.anyString());
+        assertThatThrownBy(() -> execution.advance(batch, contract)).hasMessageContaining("无法核对");
+        org.mockito.Mockito.doReturn(new OpenCodeClient.MessageLookup(true, true, "a".repeat(64))).when(client)
+                .findPromptMessage(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(OpenCodeClient.PromptRequest.class), org.mockito.ArgumentMatchers.anyString());
+        assertThatThrownBy(() -> execution.advance(batch, contract)).hasMessageContaining("不一致");
+        assertThat(fake.promptCalls()).isEqualTo(calls);
+    }
+
+    @Test void cancellationAndStalePreparationCannotDispatchContinuation() {
+        startContinuable();
+        var old = batch;
+        batch = execution.advance(batch, contract);
+        assertThatThrownBy(() -> batches.prepareContinuation(old)).isInstanceOf(ConflictException.class);
+        int calls = fake.promptCalls();
+        states.updateTask(states.taskState(current(), TaskState.STOPPING), LifecycleEvent.CANCEL, Map.of());
+        assertThatThrownBy(() -> execution.advance(batch, contract)).isInstanceOf(ConflictException.class);
+        assertThat(fake.promptCalls()).isEqualTo(calls);
+    }
+
+    @Test void frozenV5LengthRemainsAnErrorAndCreatesNoContinuation() {
+        enableMcp(); for (int i = 0; i < 4; i++) batch = execution.advance(batch, contract);
+        lengthResult();
+        assertThatThrownBy(() -> execution.advance(batch, contract)).hasMessageContaining("长度耗尽");
+        assertThat(continuations.latest(batch.id())).isEmpty();
+    }
+
+    @Test void continuationCleanupAndBatchPointerRollBackTogether() {
+        startContinuable();
+        var transaction = new org.springframework.transaction.support.TransactionTemplate(transactionManager);
+        transaction.executeWithoutResult(status -> { batches.prepareContinuation(batch); status.setRollbackOnly(); });
+        assertThat(continuations.latest(batch.id())).isEmpty();
+        assertThat(batches.require(batch.id()).state()).isEqualTo("RUNNING");
+        batch = execution.advance(batch, contract);
+        transaction.executeWithoutResult(status -> { coordinator.deleteBeforeAttempts(task.id()); status.setRollbackOnly(); });
+        assertThat(continuations.latest(batch.id())).isPresent();
+        transaction.executeWithoutResult(status -> coordinator.deleteBeforeAttempts(task.id()));
+        assertThat(continuations.latest(batch.id())).isEmpty();
+    }
+
+    @Test void expiredTaskDeadlineBlocksPersistedContinuationBeforeDispatch() {
+        startContinuable(); batch = execution.advance(batch, contract);
+        int calls = fake.promptCalls();
+        jdbc.update("UPDATE task_execution_cycle SET started_at='2000-01-01T00:00:00Z' WHERE task_id=?", task.id());
+        coordinator.advance(task.id());
+        assertThat(current().state()).isEqualTo("WAITING_INPUT");
+        assertThat(fake.promptCalls()).isEqualTo(calls);
+    }
+
+    private void startContinuable() {
+        enableMcp();
+        var tree = (tools.jackson.databind.node.ObjectNode) json.valueToTree(contract);
+        ((tools.jackson.databind.node.ObjectNode) tree.get("definition")).put("version", "6");
+        contract = json.treeToValue(tree, TemplateTaskContractFactory.Frozen.class);
+        for (int i = 0; i < 4; i++) batch = execution.advance(batch, contract);
+        lengthResult();
+    }
+    private void lengthResult() {
+        fake.setSessionState(remote().id(), "COMPLETED");
+        org.mockito.Mockito.doReturn(new OpenCodeClient.SessionResult("", Map.of(), "OPENCODE_OUTPUT_LENGTH_EXHAUSTED", "length", 0))
+                .when(client).sessionResult(org.mockito.ArgumentMatchers.any());
+    }
+    private OpenCodeClient.OpenCodeSession remote() {
+        var plan = json.readValue(batch.creationPlanJson(), OpenCodeClient.SessionCreationPlan.class);
+        return new OpenCodeClient.OpenCodeSession(mapper.findSession(batch.sessionId()).orElseThrow().externalSessionId(),
+                plan.canonicalDirectory(), plan.runtimeGenerationId(), plan.internalMcpServer());
     }
 
     private String concurrentSubmit(String key) {

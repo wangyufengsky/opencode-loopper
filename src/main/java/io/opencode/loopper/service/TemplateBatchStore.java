@@ -28,10 +28,46 @@ public class TemplateBatchStore {
     private final LifecycleTransitionService lifecycle;
     private final TaskStateStore states;
     private final ObjectMapper json;
+    private final io.opencode.loopper.persistence.TemplateContinuationMapper continuations;
+    private final io.opencode.loopper.persistence.TemplateCandidateSubmissionMapper submissions;
 
     TemplateBatchStore(TemplateTaskMapper templates, LoopperMapper mapper, LifecycleTransitionService lifecycle,
-                       TaskStateStore states, ObjectMapper json) {
+                       TaskStateStore states, ObjectMapper json,
+                       io.opencode.loopper.persistence.TemplateContinuationMapper continuations,
+                       io.opencode.loopper.persistence.TemplateCandidateSubmissionMapper submissions) {
         this.templates = templates; this.mapper = mapper; this.lifecycle = lifecycle; this.states = states; this.json = json;
+        this.continuations = continuations; this.submissions = submissions;
+    }
+
+    /** Called only after the current exact prompt has reached a proven length terminal. */
+    @Transactional
+    public TemplateTaskBatchRow prepareContinuation(TemplateTaskBatchRow row) {
+        requireRunning(row.taskId(), row.attemptId());
+        requireState(row, TemplateBatchState.RUNNING);
+        if (require(row.id()).version() != row.version()) throw conflict();
+        if (submissions.accepted(row.id()).isPresent()) return row;
+        var previous = continuations.latest(row.id()).orElse(null);
+        int distinct = continuations.distinctSubmissions(row.id());
+        int stagnant = distinct > (previous == null ? 0 : previous.distinctSubmissions()) ? 0
+                : (previous == null ? 0 : previous.stagnantLengths()) + 1;
+        if (stagnant >= 3) throw new io.opencode.loopper.domain.SessionFailure("TEMPLATE_ANALYSIS_STALLED",
+                "分析连续三次达到生成长度上限，期间没有新的不同内容 MCP 提交；已停止自动续接，请检查模型推理与输出额度后重新发起");
+        int ordinal = previous == null ? 1 : previous.ordinal() + 1;
+        var plan = json.readValue(row.creationPlanJson(), OpenCodeClient.SessionCreationPlan.class);
+        String text = TemplateAnalysisPromptFactory.continuation(row.id(), plan.internalMcpServer(), submissions.revision(row.id()));
+        var prompt = new FrozenPrompt(text, "msg_" + row.id().replace("-", "") + "_continue_" + ordinal, null, null);
+        String value = json.writeValueAsString(prompt);
+        String hash = OpenCodeClient.promptRequestSha256(prompt.request());
+        var intent = new io.opencode.loopper.persistence.TemplateContinuationMapper.Continuation(row.id(), ordinal,
+                row.promptJson(), value, hash, distinct, stagnant, Instant.now().toString());
+        if (continuations.insert(intent) != 1) throw conflict();
+        var updated = transport(row, row.sessionId(), row.creationPlanJson(), value, hash, null, null, null);
+        return transition(updated, TemplateBatchState.DISPATCHING, LifecycleEvent.RETRY);
+    }
+
+    public boolean hasContinuation(String batchId) { return continuations.latest(batchId).isPresent(); }
+    public FrozenPrompt previousPrompt(String batchId) {
+        return json.readValue(continuations.latest(batchId).orElseThrow().priorPromptJson(), FrozenPrompt.class);
     }
 
     @Transactional

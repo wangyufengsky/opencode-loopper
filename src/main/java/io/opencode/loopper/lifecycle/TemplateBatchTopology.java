@@ -13,6 +13,7 @@ final class TemplateBatchTopology {
                 .transition(PREPARED, PREPARE, CREATING).transition(CREATING, PREPARATION_SUCCEEDED, PROMPT_READY)
                 .transition(PROMPT_READY, DISPATCH, DISPATCHING).transition(DISPATCHING, START, RUNNING)
                 .transition(RUNNING, COMPLETE, VALIDATED).transition(PREPARED, COMPLETE, VALIDATED)
+                .transition(RUNNING, RETRY, DISPATCHING)
                 .transition(PREPARED, FAIL, FAILED).transition(RUNNING, VERIFICATION_FAIL, FAILED)
                 .transition(STOPPING, ABORT, STOPPED);
         for (TemplateBatchState state : TemplateBatchState.values()) {
