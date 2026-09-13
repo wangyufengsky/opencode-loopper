@@ -826,18 +826,18 @@ public class TaskService {
                 }
                 if (pending.isEmpty()) {
                     for (int i = 0; i < verifierSpecs.size(); i++) {
-                        VerifierOutcome outcome;
+                        VerifierOutcome outcome; String verificationId = UUID.randomUUID().toString();
                         try {
                             LoopSpec.VerifierSpec bound = managedVerifierRuntimes.bind(verifierSpecs.get(i), managedRuntime);
                             outcome = verifiers.verify(Path.of(requireWorktree(initial)), verificationBaseline, bound,
-                                    boundedVerifierTimeout(initial, spec));
+                                    boundedVerifierTimeout(initial, spec), initial.id(), stage.id(), attempt.id(), verificationId);
                         } catch (TaskFailure knownFailure) {
                             throw knownFailure;
                         } catch (RuntimeException unexpectedFailure) {
                             throw new TaskFailure("VERIFIER_RUNTIME_ERROR",
                                     "Verifier could not be evaluated safely: " + safeMessage(unexpectedFailure));
                         }
-                        pending.add(new PendingVerification(UUID.randomUUID().toString(), i, outcome));
+                        pending.add(new PendingVerification(verificationId, i, outcome));
                     }
                 }
             } finally {

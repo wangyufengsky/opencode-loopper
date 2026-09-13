@@ -329,3 +329,7 @@ export function activityLabel(part: TaskSessionActivityPart) {
 export function judgeRoleLabel(role: string) {
   return role === 'REQUIREMENT' ? '需求评审员' : role === 'RISK' ? '风险评审员' : '独立评审员'
 }
+
+export function evidenceCaptureLabel(state: string): string {
+  return ({ COMPLETE: '采集完整', TRUNCATED: '内容已截断', INCOMPLETE: '采集不完整', UNCONFIRMED: '来源未确认', LIMIT: '达到采集上限', PREPARED: '持久化未完成', UNAVAILABLE: '采集不可用' } as Record<string, string>)[state] ?? '状态待核实'
+}

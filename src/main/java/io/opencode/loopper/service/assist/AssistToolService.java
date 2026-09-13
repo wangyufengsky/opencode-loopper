@@ -50,7 +50,7 @@ public class AssistToolService {
             case "get_execution_context" -> evidence.context(scope,string(args,"cursor"));
             case "get_failure_evidence" -> evidence.failure(scope,string(args,"attemptId"));
             case "read_task_evidence" -> evidence.read(scope,string(args,"reference"),number(args,"offset"));
-            default -> throw new AssistFailure("ASSIST_TOOL_UNKNOWN","工具不存在，请刷新工具目录");
+            default -> evidence.additional(scope,name,args);
         };
     }
     private static void validate(String tool,Map<String,Object> args) {
@@ -61,7 +61,7 @@ public class AssistToolService {
         for(var entry:args.entrySet()) {
             String type=Objects.toString(((Map<?,?>)properties.get(entry.getKey())).get("type"));Object value=entry.getValue();
             if("string".equals(type)&&(!(value instanceof String text)||text.length()>32768)
-                    ||"integer".equals(type)&&(!(value instanceof Number n)||n.doubleValue()!=n.intValue()))throw new AssistFailure("ASSIST_INPUT_INVALID","参数 /"+entry.getKey()+" 的类型或长度不符合 schema");
+                    ||"integer".equals(type)&&(!(value instanceof Number n)||n.doubleValue()!=n.longValue()||Math.abs(n.doubleValue())>9007199254740991d))throw new AssistFailure("ASSIST_INPUT_INVALID","参数 /"+entry.getKey()+" 的类型或长度不符合 schema");
         }
     }
     private DatabaseConnectionService.Bound connection(AssistScopeService.Scope scope,Map<String,Object> args) {

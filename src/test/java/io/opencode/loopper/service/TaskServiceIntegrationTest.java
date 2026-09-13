@@ -901,7 +901,8 @@ class TaskServiceIntegrationTest {
             assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
             return invocation.callRealMethod();
         }).when(verifierEngine).verify(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
 
         tasks.verify(task.id());
 
@@ -948,7 +949,8 @@ class TaskServiceIntegrationTest {
             }
             return invocation.callRealMethod();
         }).when(verifierEngine).verify(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
         var verification = java.util.concurrent.CompletableFuture.supplyAsync(() -> tasks.verify(task.id()));
 
         try {
@@ -980,7 +982,8 @@ class TaskServiceIntegrationTest {
             }
             return invocation.callRealMethod();
         }).when(verifierEngine).verify(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
         var verification = java.util.concurrent.CompletableFuture.supplyAsync(() -> tasks.verify(task.id()));
 
         try {

@@ -21,9 +21,10 @@ public class AssistScopeService {
     private final InternalMcpRuntimeAccess runtime;
     private final DatabaseConnectionService databases;
     private final ObjectMapper json;
+    private final BatchAssistConfigService batch;
     public AssistScopeService(AssistMapper mapper,LoopperMapper domain,InternalMcpRuntimeAccess runtime,
-                              DatabaseConnectionService databases,ObjectMapper json) {
-        this.mapper=mapper;this.domain=domain;this.runtime=runtime;this.databases=databases;this.json=json;
+                              DatabaseConnectionService databases,ObjectMapper json,BatchAssistConfigService batch) {
+        this.mapper=mapper;this.domain=domain;this.runtime=runtime;this.databases=databases;this.json=json;this.batch=batch;
     }
     public record Scope(String externalSessionId,String ownerKey,String projectId,String taskId,String stageId,
                         String attemptId,String designerId,String profile,Path directory,List<String> tools,
@@ -70,6 +71,7 @@ public class AssistScopeService {
         if(resources==null) {
             mapper.bindResources(key,json.writeValueAsString(databases.forProject(owner.projectId())),Instant.now().toString());resources=mapper.resources(key);
         }
+        batch.frozen(key,owner.projectId());
         return new Scope(session,key,owner.projectId(),owner.taskId(),owner.stageId(),owner.attemptId(),owner.designerId(),snapshot.profile(),
                 Path.of(snapshot.directory()),json.readValue(snapshot.toolsJson(),new TypeReference<>(){}),json.readValue(resources,new TypeReference<>(){}));
     }

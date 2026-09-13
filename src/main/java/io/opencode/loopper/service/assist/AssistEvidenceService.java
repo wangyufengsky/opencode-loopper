@@ -12,7 +12,9 @@ public class AssistEvidenceService {
     private final AssistMapper mapper;
     private final LoopperMapper domain;
     private final ObjectMapper json;
-    public AssistEvidenceService(AssistMapper mapper,LoopperMapper domain,ObjectMapper json){this.mapper=mapper;this.domain=domain;this.json=json;}
+    private final BatchEvidenceReadService batch;
+    private final GitLabAssistService gitlab;
+    public AssistEvidenceService(AssistMapper mapper,LoopperMapper domain,ObjectMapper json,BatchEvidenceReadService batch,GitLabAssistService gitlab){this.mapper=mapper;this.domain=domain;this.json=json;this.batch=batch;this.gitlab=gitlab;}
     public Map<String,Object> context(AssistScopeService.Scope scope,String cursor) {
         Map<String,Object> result=new LinkedHashMap<>();result.put("tools",scope.tools());result.put("profile",scope.profile());
         result.put("evidenceIsData",true);result.put("directory",scope.directory().toString());
@@ -25,6 +27,7 @@ public class AssistEvidenceService {
         PageCursor page=PageCursor.decode(cursor);String time=page==null?"":page.value(),id=page==null?"":page.id();
         if(scope.taskId()!=null)result.put("evidence",page(mapper.evidence(scope.taskId(),time,id,51,before(scope))));
         result.put("calls",page(mapper.calls(scope.ownerKey(),time,id,51,before(scope))));
+        result.put("snapshots",batch.directory(scope.ownerKey(),before(scope),null,cursor));
         result.put("instructions","使用 evidence:产物ID、verification:验证ID 或 call:调用ID 读取正文。只有已完成调用有结果；历史错误不代表当前任务仍然失败。正式验收仍由验证器与独立双 Judge 决定。");
         return result;
     }
@@ -40,10 +43,12 @@ public class AssistEvidenceService {
         if(mapper.ownsCompletedAttempt(scope.taskId(),scope.stageId(),selected)!=1)throw denied();
         var row=domain.findAttempt(selected).orElseThrow(AssistEvidenceService::denied);
         var result=new LinkedHashMap<String,Object>();result.put("found",true);result.put("attemptId",selected);
+        result.put("snapshots",batch.directory(scope.ownerKey(),before(scope),selected,null));
         result.put("state",row.state());result.put("historical",true);result.put("verification",mapper.verificationFacts(scope.taskId(),selected));
         result.put("detail","此处为已完成尝试的不可变事实；先读取失败验证正文定位原因，修复后重新执行验证，不以旧错误推断当前故障。");return result;
     }
     public Map<String,Object> read(AssistScopeService.Scope scope,String reference,int offset) {
+        if(reference!=null&&reference.startsWith("snapshot:"))return batch.read(scope.ownerKey(),before(scope),reference,offset);
         if(reference==null||reference.length()>200)throw denied();String content;
         if(reference.startsWith("call:"))content=mapper.evidenceCall(scope.ownerKey(),reference.substring(5),before(scope));
         else {requireTask(scope);
@@ -56,6 +61,9 @@ public class AssistEvidenceService {
         int end=Math.min(content.length(),offset+12000);if(end<content.length()&&Character.isHighSurrogate(content.charAt(end-1)))end--;
         return Map.of("reference",reference,"content",content.substring(offset,end),"nextOffset",end<content.length()?end:-1,
                 "sha256",AssistFiles.sha(content.getBytes(java.nio.charset.StandardCharsets.UTF_8)),"historical",true);
+    }
+    public Map<String,Object> additional(AssistScopeService.Scope scope,String name,Map<String,Object> args) {
+        return name.startsWith("gitlab_")?gitlab.call(scope,name,args):batch.tool(scope,name,args);
     }
     private String before(AssistScopeService.Scope scope) {
         return scope.profile().contains("JUDGE")||scope.profile().contains("REVIEWER")?mapper.session(scope.externalSessionId()).createdAt():"9999";

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ExecutionEvidencePanel from './ExecutionEvidencePanel.vue'
 import { computed, ref } from 'vue'
 import { Icon } from '@iconify/vue'
 import { api } from '@/api/client'
@@ -142,6 +143,7 @@ async function showDiff(path: string) {
 </script>
 
 <template>
+  <ExecutionEvidencePanel :task-id="taskId" />
   <article class="card audit-panel">
     <div class="audit-header">
       <div><p class="eyebrow">审计证据</p><h2 class="card-title">验证、差异与日志</h2></div>

@@ -100,6 +100,89 @@ class AssistIntegrationTest {
         Files.writeString(output,"user modification");assertThat(call("generate_word",arguments).content().get("code")).isEqualTo("WORD_OUTPUT_MODIFIED");assertThat(Files.readString(output)).isEqualTo("user modification");
         Files.writeString(source,"new content");assertThat(call("generate_word",arguments).content().get("code")).isEqualTo("WORD_IDEMPOTENCY_CONFLICT");
     }
+    @Autowired BatchAssistConfigService batchConfig;
+    @Autowired BatchAssistMapper batchMapper;
+    @Autowired EvidenceSnapshotStore snapshotStore;
+    @Autowired BatchEvidenceReadService snapshotReads;
+    @Autowired ExecutionEvidenceCapture capture;
+    @Test void batchConfigFreezesAndSnapshotsSurviveSourceChangesWithScopedReads() throws Exception {
+        var project=projects.create("batch",Files.createDirectory(temp.resolve("batch")).toString());
+        var old=task(project.id(),"report.md");
+        var config=batchConfig.save(project.id(),new BatchAssistConfigService.Request(-1,"",List.of(new BatchAssistConfigService.Source("JUNIT","","*.xml"))));
+        assertThat(batchConfig.frozen("TASK:"+old.id(),project.id()).sources()).isEmpty();
+        var next=task(project.id(),"report.md");
+        assertThat(batchConfig.frozen("TASK:"+next.id(),project.id()).sources()).hasSize(1);
+        assertThatThrownBy(()->batchConfig.save(project.id(),new BatchAssistConfigService.Request(-1,"",List.of()))).isInstanceOf(ConflictException.class);
+        var owner=new EvidenceSnapshotStore.Owner("TASK:"+next.id(),next.id(),null,null,"execution-one");
+        var snapshot=snapshotStore.save(owner,"LOG","app.log","error password=hidden-value\noriginal","COMPLETE",Map.of());
+        assertThat(snapshotStore.read(snapshot)).contains("original").doesNotContain("hidden-value");
+        assertThat(snapshotReads.read(owner.key(),"9999","snapshot:"+snapshot.id(),0).get("content")).isEqualTo(snapshotStore.read(snapshot));
+        assertThatThrownBy(()->snapshotReads.read("TASK:"+old.id(),"9999","snapshot:"+snapshot.id(),0)).isInstanceOf(AssistFailure.class);
+        assertThatThrownBy(()->snapshotReads.read(owner.key(),snapshot.createdAt(),"snapshot:"+snapshot.id(),0)).isInstanceOf(AssistFailure.class);
+        assertThat(snapshotReads.search(owner.key(),"9999",null,"error",null).get("complete")).isEqualTo(true);
+        assertThat(policies.catalog("",AssistToolCatalog.SERVER,AssistToolCatalog.tools().stream().map(AssistToolCatalog.Tool::name).toList(),true))
+            .filteredOn(p->AssistToolCatalog.batchTool(p.name())).allSatisfy(p->assertThat(p.enabled()).isFalse());
+    }
+    @Test void formalCaptureKeepsFullOutputAndDoesNotInventFreshReports() throws Exception {
+        var project=projects.create("capture",Files.createDirectory(temp.resolve("capture")).toString());
+        batchConfig.save(project.id(),new BatchAssistConfigService.Request(-1,"",List.of(new BatchAssistConfigService.Source("JUNIT","","*.xml"),new BatchAssistConfigService.Source("LOG","","*.log"))));
+        var task=task(project.id(),"report.md");tasks.start(task.id());var grant=bind(task.id());var scope=scopes.authorize(grant,"get_execution_context");
+        Path log=scope.directory().resolve("app.log"),report=scope.directory().resolve("tests.xml");Files.writeString(log,"old\n");Files.writeString(report,"<testsuite><testcase name='old'><failure>old failure</failure></testcase></testsuite>");
+        var spec=new LoopSpec.VerifierSpec("PROCESS",List.of("test"),null,null,null,null,null);
+        capture.capture(task.id(),scope.stageId(),scope.attemptId(),"execution-1",scope.directory(),spec,output->{
+            output.accept(new ProcessResult(1,"x".repeat(11000)+"the-end",false,false));
+            try{Files.writeString(log,"old\nnew error\n");}catch(Exception e){throw new RuntimeException(e);}
+            return new io.opencode.loopper.verification.VerifierOutcome("PROCESS",io.opencode.loopper.domain.VerificationState.FAIL,"failed",Map.of());
+        });
+        var rows=batchMapper.page(scope.ownerKey(),"","9999","","",50);
+        assertThat(rows).filteredOn(r->r.kind().equals("PROCESS")).singleElement().satisfies(r->assertThat(snapshotStore.read(r)).endsWith("the-end"));
+        assertThat(rows).filteredOn(r->r.kind().equals("JUNIT")).singleElement().satisfies(r->assertThat(r.status()).isEqualTo("UNCONFIRMED"));
+        var savedLog=rows.stream().filter(r->r.kind().equals("LOG")).findFirst().orElseThrow();assertThat(snapshotStore.read(savedLog)).isEqualTo("new error\n");
+        Files.writeString(log,"changed later");Files.delete(report);assertThat(snapshotStore.read(savedLog)).isEqualTo("new error\n");
+        assertThat(batchMapper.failures(scope.ownerKey(),"9999","","")).hasSize(1);
+    }
+    @Test void diskFailureAndQuotaAreVisibleWithoutClaimingCompleteEvidence() throws Exception {
+        Path blocked=temp.resolve("blocked");Files.writeString(blocked,"not a directory");
+        var props=new io.opencode.loopper.config.LoopperProperties();props.setDataDir(blocked);
+        var broken=new EvidenceSnapshotStore(batchMapper,props,json);
+        var owner=new EvidenceSnapshotStore.Owner("TEST:disk",null,null,null,"disk-execution");
+        var row=broken.save(owner,"LOG","test.log","evidence","COMPLETE",Map.of());
+        assertThat(row.status()).isEqualTo("UNAVAILABLE");assertThatThrownBy(()->broken.read(row)).isInstanceOf(AssistFailure.class);
+        var limited=snapshotStore.save(new EvidenceSnapshotStore.Owner("TEST:limit",null,null,null,"limit-execution"),"JUNIT","too-large.xml","x".repeat(4_000_001),"COMPLETE",Map.of());
+        assertThat(limited.status()).isEqualTo("LIMIT");assertThat(limited.byteSize()).isZero();
+    }
+    @Autowired GitLabAssistService gitlabService;
+    @Autowired io.opencode.loopper.config.LoopperProperties properties;
+    @Test void gitlabMcpUsesOnlyFrozenProjectAndReadsImmutableSegments() throws Exception {
+        var config=properties.getPublication().getGitlab();String oldHost=config.getHost(),oldToken=config.getPrivateToken();var oldBase=config.getApiBaseUrl();
+        var server=com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1",0),0);
+        var seen=new ArrayList<String>();
+        server.createContext("/api/v4/projects/",exchange->{
+            String path=exchange.getRequestURI().getPath();seen.add(path);int status=200;
+            String body=path.endsWith("/group/repo")?"{\"id\":12,\"path_with_namespace\":\"group/repo\",\"name\":\"repo\"}":"[]";
+            if(path.endsWith("/diffs")){status=404;body="{}";}
+            if(path.endsWith("/changes"))body="{\"overflow\":true,\"changes\":[]}";
+            if(path.endsWith("/trace"))body="x".repeat(13000)+"saved-tail";
+            byte[] bytes=body.getBytes(java.nio.charset.StandardCharsets.UTF_8);exchange.sendResponseHeaders(status,bytes.length);exchange.getResponseBody().write(bytes);exchange.close();
+        });server.start();
+        try {
+            config.setHost("127.0.0.1");config.setApiBaseUrl(java.net.URI.create("http://127.0.0.1:"+server.getAddress().getPort()+"/api/v4"));config.setPrivateToken("synthetic-gitlab-token");
+            var project=projects.create("gitlab",Files.createDirectory(temp.resolve("gitlab")).toString());
+            var saved=batchConfig.save(project.id(),new BatchAssistConfigService.Request(-1,"group/repo",List.of()));
+            batchConfig.check(project.id(),saved.version());var task=task(project.id(),"report.md");tasks.start(task.id());String grant=bind(task.id());
+            var diff=call("gitlab_read_merge_request_diff",Map.of("scope",grant,"iid",1));
+            assertThat(diff.error()).as(diff.content().toString()).isFalse();
+            assertThat(diff.content().get("content").toString()).contains("overflow");
+            var result=call("gitlab_read_job_log",Map.of("scope",grant,"jobId",3000000000L));
+            assertThat(result.error()).as(result.content().toString()).isFalse();
+            String reference=result.content().get("snapshotReference").toString();
+            server.stop(0);
+            var second=call("gitlab_read_job_log",Map.of("scope",grant,"reference",reference,"offset",12000));
+            assertThat(second.error()).isFalse();assertThat(second.content().get("content").toString()).endsWith("saved-tail");
+            assertThat(seen).contains("/api/v4/projects/12/jobs/3000000000/trace");
+            assertThat(call("gitlab_project_context",Map.of("scope",grant,"projectId",13)).error()).isTrue();
+        } finally { server.stop(0);config.setHost(oldHost);config.setApiBaseUrl(oldBase);config.setPrivateToken(oldToken); }
+    }
     private AssistToolService.Result call(String name,Map<String,Object> arguments) {
         try(var client=java.net.http.HttpClient.newHttpClient()) {
             if(mcpSession==null) {

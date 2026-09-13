@@ -1552,3 +1552,20 @@ export interface McpToolPolicy {
 export interface McpPolicyCatalog { tools: McpToolPolicy[]; complete: boolean; detail: string }
 
 export interface DatabaseTypeProfile { type: DatabaseConfig['type']; label: string; id: string; driverClass: string; defaultPort: number; binaries: { filename: string; sha256: string }[] }
+
+export interface AssistEvidenceSource { kind: 'JUNIT' | 'LOG'; root: string; pattern: string }
+export interface ProjectAssistConfig {
+  version: number
+  credentialConfigured: boolean
+  config: { instance?: string; repository?: string; projectId?: number; name?: string; webUrl?: string; checkedAt?: string; sources: AssistEvidenceSource[] }
+}
+export interface ExecutionEvidence {
+  id: string; reference: string; kind: string; source: string; status: string; sha256: string; byteSize: number
+  createdAt: string; attemptId?: string; executionId: string; details: Record<string, unknown>
+}
+export interface EvidencePage { items: ExecutionEvidence[]; nextCursor: string }
+export interface EvidenceFailure { id: string; snapshotId: string; name: string; className: string; state: string }
+export interface EvidenceFailurePage { items: EvidenceFailure[]; nextCursor: string; reports: EvidencePage; detail: string }
+export interface EvidenceBody extends ExecutionEvidence { content: string; nextOffset: number }
+export interface EvidenceSearch { items: { reference: string; offset: number; excerpt: string; source: string }[]; complete: boolean; nextCursor: string; scannedBytes: number }
+export interface EvidenceFailureDetail { failure: { name: string; className: string; state: string; message: string; stack: string; output: string }; source: ExecutionEvidence }

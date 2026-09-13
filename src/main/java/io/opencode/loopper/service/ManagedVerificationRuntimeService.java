@@ -44,6 +44,7 @@ public class ManagedVerificationRuntimeService {
     private final SafeProcessRunner runner;
     private final LoopperProperties properties;
     private final ObjectMapper json;
+    private io.opencode.loopper.service.assist.EvidenceSnapshotStore snapshots;
     private final HttpClient http = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).build();
     private final Map<String, Lease> activeByTask = new ConcurrentHashMap<>();
     private final Set<String> startingTasks = ConcurrentHashMap.newKeySet();
@@ -55,6 +56,21 @@ public class ManagedVerificationRuntimeService {
         this.runner = runner;
         this.properties = properties;
         this.json = json;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public ManagedVerificationRuntimeService(LoopperMapper mapper,SafeProcessRunner runner,LoopperProperties properties,
+                                             ObjectMapper json,io.opencode.loopper.service.assist.EvidenceSnapshotStore snapshots) {
+        this(mapper,runner,properties,json);this.snapshots=snapshots;
+    }
+    private void captureLog(Lease lease,boolean stopped) {
+        if(snapshots==null) return;
+        try {
+            var row=lease.row();
+            snapshots.save(new io.opencode.loopper.service.assist.EvidenceSnapshotStore.Owner("TASK:"+row.taskId(),row.taskId(),row.stageId(),row.attemptId(),row.id()),
+                    "MANAGED_RUNTIME","受管验证服务输出",lease.process().output(),!stopped?"INCOMPLETE":lease.process().outputTruncated()?"TRUNCATED":"COMPLETE",
+                    Map.of("mergedStreams",true,"stopConfirmed",stopped));
+        } catch(RuntimeException unavailable) { org.slf4j.LoggerFactory.getLogger(getClass()).warn("Managed runtime evidence unavailable"); }
     }
 
     public StartResult start(String taskId, String stageId, String attemptId, Path workspace,
@@ -179,6 +195,7 @@ public class ManagedVerificationRuntimeService {
         VerifierRuntimeState state = stopped ? VerifierRuntimeState.STOPPED : VerifierRuntimeState.DISCONNECTED;
         VerifierRuntimeRow latest = mapper.findVerifierRuntime(lease.row().id()).orElse(current);
         update(state(latest, state, lease.process(), evidence, true));
+        captureLog(lease,stopped);
         if (stopped) cleanupTemp(lease.tempDir());
         if (!stopped) return new StopResult(new VerifierOutcome("MANAGED_RUNTIME", VerificationState.ERROR,
                 "Managed verifier process termination could not be confirmed",

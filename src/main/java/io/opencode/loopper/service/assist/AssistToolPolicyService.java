@@ -21,7 +21,7 @@ public class AssistToolPolicyService {
         String now=Instant.now().toString();
         if(complete && !protectedServer) {
             boolean first=mapper.catalogRegistered(server)==0;
-            for(String tool:tools) {validate(server,tool);mapper.insertPolicy(new AssistMapper.Policy("",server,tool,first?1:0,0,now));}
+            for(String tool:tools) {validate(server,tool);mapper.insertPolicy(new AssistMapper.Policy("",server,tool,first && !(server.equals(AssistToolCatalog.SERVER)&&AssistToolCatalog.batchTool(tool))?1:0,0,now));}
             mapper.registerCatalog(server,now);
         }
         var policies=mapper.policies(project,server);

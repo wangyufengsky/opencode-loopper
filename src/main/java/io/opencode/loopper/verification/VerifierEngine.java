@@ -28,6 +28,7 @@ public class VerifierEngine {
     private final StageWorkspaceBaselineManager stageBaselines;
     private final BinaryArtifactStore artifacts;
     private final NativeVerifierRegistry nativeVerifiers;
+    private io.opencode.loopper.service.assist.ExecutionEvidenceCapture captures;
     public VerifierEngine(SafeProcessRunner runner) {
         this(runner, null, null, new BinaryArtifactStore(Path.of("./data")));
     }
@@ -37,7 +38,6 @@ public class VerifierEngine {
     public VerifierEngine(SafeProcessRunner runner, DirectWorkspaceBaselineManager directBaselines, BinaryArtifactStore artifacts) {
         this(runner, directBaselines, null, artifacts);
     }
-    @Autowired
     public VerifierEngine(SafeProcessRunner runner, DirectWorkspaceBaselineManager directBaselines,
                           StageWorkspaceBaselineManager stageBaselines, BinaryArtifactStore artifacts) {
         this.runner = runner;
@@ -47,11 +47,29 @@ public class VerifierEngine {
         this.nativeVerifiers = new NativeVerifierRegistry();
     }
 
+    @Autowired
+    public VerifierEngine(SafeProcessRunner runner, DirectWorkspaceBaselineManager directBaselines,
+                          StageWorkspaceBaselineManager stageBaselines, BinaryArtifactStore artifacts,
+                          io.opencode.loopper.service.assist.ExecutionEvidenceCapture captures) {
+        this(runner,directBaselines,stageBaselines,artifacts);this.captures=captures;
+    }
+
+    public VerifierOutcome verify(Path worktree,String baseline,VerifierSpec spec,Duration timeout,
+                                  String task,String stage,String attempt,String execution) {
+        if(captures==null) return verify(worktree,baseline,spec,timeout);
+        return captures.capture(task,stage,attempt,execution,worktree,spec,
+                output->verifyObserved(worktree,baseline,spec,timeout,output));
+    }
+
     public VerifierOutcome verify(Path worktree, String baselineCommit, VerifierSpec spec, Duration timeout) {
+        return verifyObserved(worktree,baselineCommit,spec,timeout,ignored->{});
+    }
+    private VerifierOutcome verifyObserved(Path worktree,String baselineCommit,VerifierSpec spec,Duration timeout,
+                                            java.util.function.Consumer<ProcessResult> output) {
         Duration boundedTimeout = requireBoundedTimeout(timeout);
         String type = spec.type().toUpperCase();
         return switch (type) {
-            case "PROCESS" -> process(worktree, spec, boundedTimeout);
+            case "PROCESS" -> process(worktree, spec, boundedTimeout,output);
             case "FILE_EXISTS" -> advisoryFileExists(worktree, spec);
             case "FILE_NOT_EXISTS" -> file(worktree, spec, false);
             case "GIT_DIFF" -> gitDiff(worktree, baselineCommit, spec, boundedTimeout);
@@ -132,7 +150,7 @@ public class VerifierEngine {
         return result.output().strip();
     }
 
-    private VerifierOutcome process(Path worktree, VerifierSpec spec, Duration timeout) {
+    private VerifierOutcome process(Path worktree, VerifierSpec spec, Duration timeout, java.util.function.Consumer<ProcessResult> output) {
         List<String> originalCommand = List.copyOf(spec.command());
         ProcessCommandPolicy.Normalization normalization = ProcessCommandPolicy.normalizeMavenCommand(originalCommand);
         if (normalization.failure() != null) {
@@ -171,6 +189,7 @@ public class VerifierEngine {
                 throw startFailure;
             }
         }
+        output.accept(result);
         boolean outputMatched = spec.outputContains() == null || result.output().contains(spec.outputContains());
         boolean passed = !result.timedOut() && !result.outputTruncated() && result.exitCode() == 0 && outputMatched;
         String summary = result.timedOut() ? "Process verifier timed out"

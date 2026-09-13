@@ -13,7 +13,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 class AssistMcpServerTest {
-    @Test void auxiliaryEndpointRequiresLoopbackAndGenerationBearerAndListsTheNineSchemas() throws Exception {
+    @Test void auxiliaryEndpointRequiresLoopbackAndGenerationBearerAndListsTheRegisteredSchemas() throws Exception {
         var access=new InternalMcpRuntimeAccess();var credential=new InternalMcpCredentialProvider(()->19000).issue();access.activate(credential);
         var service=mock(AssistToolService.class);when(service.call(anyString(),anyMap())).thenReturn(new AssistToolService.Result(Map.of("code","ASSIST_SCOPE_DENIED","action","REAUTHORIZE"),true));
         try(var runtime=new AssistMcpServerConfiguration().assistMcpRuntime(service,new ObjectMapper(),"test")) {
