@@ -23,7 +23,8 @@ public class DatabaseQueryService implements AutoCloseable {
     public DatabaseQueryService(DatabaseDriverRegistry drivers,DatabaseSecretStore secrets,ObjectMapper json) {
         this.drivers=drivers; this.secrets=secrets; this.json=json;
     }
-    public Map<String,Object> test(DatabaseConnectionService.Bound bound) {
+    public Map<String,Object> test(DatabaseConnectionService.Bound bound) {return test(bound,null);}
+    public Map<String,Object> test(DatabaseConnectionService.Bound bound,String draftPassword) {
         return execute(bound,(opened,active)->{
             DatabaseMetaData md=opened.connection().getMetaData();
             boolean readOnly;
@@ -32,7 +33,7 @@ public class DatabaseQueryService implements AutoCloseable {
             return Map.of("connected",true,"sessionReadOnly",readOnly,"serverProduct",md.getDatabaseProductName(),
                     "serverVersion",md.getDatabaseProductVersion(),"driverVersion",opened.driverVersion(),"driverSha256",opened.info().sha256(),
                     "compatibilityVerified",false,"detail",readOnly?"连接与只读标记已检查；账号权限和完整兼容性须使用现场测试库验收":"连接成功但只读控制不可用，查询将被拒绝；请检查匹配驱动与配置");
-        },true);
+        },true,()->draftPassword==null?secrets.read(bound.credentialRef()):draftPassword);
     }
     public Map<String,Object> query(DatabaseConnectionService.Bound bound,String sql) {
         String validated=ReadOnlySqlPolicy.validate(sql,bound.config());
@@ -103,6 +104,9 @@ public class DatabaseQueryService implements AutoCloseable {
         return execute(bound,operation,false);
     }
     private Map<String,Object> execute(DatabaseConnectionService.Bound bound,Operation operation,boolean diagnostic) {
+        return execute(bound,operation,diagnostic,()->secrets.read(bound.credentialRef()));
+    }
+    private Map<String,Object> execute(DatabaseConnectionService.Bound bound,Operation operation,boolean diagnostic,java.util.function.Supplier<String> credential) {
         if(slots.size()>1024 && !slots.containsKey(bound.id())) throw busy();
         Semaphore slot=slots.computeIfAbsent(bound.id(),ignored->new Semaphore(2)); if(!slot.tryAcquire()) throw busy();
         AtomicReference<Statement> active=new AtomicReference<>(); Future<Map<String,Object>> future;
@@ -111,7 +115,7 @@ public class DatabaseQueryService implements AutoCloseable {
         try { future=workers.submit(()->{
             try {
               if(expired.get())throw expired();
-              try(var opened=diagnostic?drivers.diagnose(bound.config(),secrets.read(bound.credentialRef())):drivers.open(bound.config(),secrets.read(bound.credentialRef()))) {
+              try(var opened=diagnostic?drivers.diagnose(bound.config(),credential.get()):drivers.open(bound.config(),credential.get())) {
                 if(expired.get())throw expired();
                 var result=new LinkedHashMap<>(operation.run(opened,active));result.put("driverSha256",opened.info().sha256());result.put("driverVersion",opened.driverVersion());return result;
               }

@@ -13,7 +13,7 @@ public final class DatabaseOfflineAcceptance {
     public static void main(String[] args) throws Exception {
         if(args.length!=3){System.err.println("Usage: DatabaseOfflineAcceptance <data-directory> <probe.json> <report.json>");System.exit(2);}
         ObjectMapper json=new ObjectMapper();Input input=json.readValue(AssistFiles.read(Path.of(args[1]),65536),Input.class);
-        DatabaseConfig config=input.connection().validated();String password=System.getenv("LOOPPER_DATABASE_PROBE_PASSWORD");
+        DatabaseConfig config=input.connection().driverFile()==null || input.connection().driverFile().isBlank() ? BundledDatabaseDrivers.resolve(input.connection()) : input.connection().validated();String password=System.getenv("LOOPPER_DATABASE_PROBE_PASSWORD");
         if(password==null){var console=System.console();if(console==null)throw new IllegalArgumentException("请使用环境变量 LOOPPER_DATABASE_PROBE_PASSWORD 提供只读账号密码");char[] value=console.readPassword("数据库只读账号密码: ");password=new String(value);Arrays.fill(value,'\0');}
         Path temporary=Files.createTempDirectory("loopper-db-probe-").toRealPath();Path secretDir=temporary.resolve("secrets"),key=temporary.resolve("keys/master");String reference=null;
         Map<String,Object> report=new LinkedHashMap<>();report.put("collectedAt",Instant.now().toString());report.put("type",config.type());report.put("writeProbesExecuted",false);

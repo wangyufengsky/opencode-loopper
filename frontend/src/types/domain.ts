@@ -521,7 +521,12 @@ export interface JudgeRun {
   endedAt?: string
 }
 
+export interface TemplateSessionBatch {
+  purpose: string | null; ordinal: number | null; total: number | null; overallOrdinal: number | null; overallTotal: number | null; repairRound: number; cleanup: boolean
+}
+
 export interface TaskSessionSummary {
+  templateBatch?: TemplateSessionBatch
   key: string
   kind: 'IMPLEMENTATION' | 'JUDGE'
   label: string
@@ -1501,6 +1506,8 @@ export interface TemplateTaskRequest {
   endDate: string
 }
 export interface TemplateTaskProgress {
+  steps?: { key: string; label: string; state: string }[]
+  currentPhase?: string
   dualReviewRequired?: boolean
   reportCount?: number
   reviewBatches: number | null
@@ -1518,9 +1525,9 @@ export interface TemplateTaskSummary {
   branchLabel: string; startDate: string; endDate: string; repairRound: number; createdAt: string; updatedAt: string
 }
 export interface DatabaseConfig {
-  type: 'MYSQL' | 'GAUSSDB' | 'GOLDENDB' | 'DAMENG'
+  type: 'MYSQL' | 'OPENGAUSS' | 'GAUSSDB' | 'GOLDENDB' | 'DAMENG'
   host: string; port: number; database: string; username: string
-  driverFile: string; driverClass: string; schemas: string[]; parameters: Record<string, string>
+  driverProfile?: string | null; driverFile: string; driverClass: string; schemas: string[]; parameters: Record<string, string>
   timeoutSeconds: number; maxRows: number
 }
 export interface DatabaseConnection {
@@ -1537,8 +1544,11 @@ export interface DatabaseProbe {
   driverVersion: string; driverSha256: string; compatibilityVerified: boolean; detail: string
 }
 export interface McpToolPolicy {
+  description?: string
   name: string; configurable: boolean; writes: boolean; globalEnabled: boolean
   projectOverride: 'INHERIT' | 'ENABLED' | 'DISABLED'; enabled: boolean; source: 'SYSTEM' | 'PROJECT' | 'GLOBAL'
   globalVersion: number; projectVersion: number
 }
 export interface McpPolicyCatalog { tools: McpToolPolicy[]; complete: boolean; detail: string }
+
+export interface DatabaseTypeProfile { type: DatabaseConfig['type']; label: string; id: string; driverClass: string; defaultPort: number; binaries: { filename: string; sha256: string }[] }

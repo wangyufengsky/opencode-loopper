@@ -12,7 +12,9 @@ public class AssistToolPolicyService {
     private final AssistMapper mapper;
     public AssistToolPolicyService(AssistMapper mapper) {this.mapper=mapper;}
     public record View(String name,boolean configurable,boolean writes,boolean globalEnabled,String projectOverride,
-                       boolean enabled,String source,long globalVersion,long projectVersion) { }
+                       boolean enabled,String source,long globalVersion,long projectVersion,String description) {
+        public View described(String text) {return new View(name,configurable,writes,globalEnabled,projectOverride,enabled,source,globalVersion,projectVersion,text);}
+    }
     @Transactional
     public List<View> catalog(String project,String server,List<String> tools,boolean complete) {
         boolean protectedServer=server.equals("@loopper-internal");
@@ -31,7 +33,7 @@ public class AssistToolPolicyService {
             boolean writes=AssistToolCatalog.tools().stream().anyMatch(t->server.equals(AssistToolCatalog.SERVER)&&t.name().equals(tool)&&t.writes());
             return new View(tool,!protectedServer&&complete,writes,defaultOn,overridden?(local.enabled()==1?"ENABLED":"DISABLED"):"INHERIT",
                     protectedServer || (overridden?local.enabled()==1:defaultOn),protectedServer?"SYSTEM":overridden?"PROJECT":"GLOBAL",
-                    global==null?-1:global.version(),local==null?-1:local.version());
+                    global==null?-1:global.version(),local==null?-1:local.version(), "");
         }).toList();
     }
     @Transactional

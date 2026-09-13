@@ -15,9 +15,9 @@ public class AssistToolPolicyController {
     public record Catalog(List<AssistToolPolicyService.View> tools,boolean complete,String detail) { }
     @GetMapping public Catalog get(@RequestParam(defaultValue="")String projectId,@RequestParam String serverId) {
         Path directory=directory(projectId);
-        if(AssistToolCatalog.SERVER.equals(serverId))return new Catalog(policy.catalog(projectId,serverId,AssistToolCatalog.tools().stream().map(AssistToolCatalog.Tool::name).toList(),true),true,"仅对新建会话生效；受管运行环境启动后可调用");
+        if(AssistToolCatalog.SERVER.equals(serverId))return new Catalog(policy.catalog(projectId,serverId,AssistToolCatalog.tools().stream().map(AssistToolCatalog.Tool::name).toList(),true).stream().map(v -> v.described(AssistToolCatalog.tools().stream().filter(t -> t.name().equals(v.name())).findFirst().orElseThrow().description())).toList(),true,"仅对新建会话生效；受管运行环境启动后可调用");
         var catalog=inventory.tools(directory,serverId);
-        return new Catalog(policy.catalog(projectId,serverId,catalog.tools().stream().map(McpToolCatalogReader.Tool::name).toList(),catalog.complete()),catalog.complete(),catalog.detail());
+        return new Catalog(policy.catalog(projectId,serverId,catalog.tools().stream().map(McpToolCatalogReader.Tool::name).toList(),catalog.complete()).stream().map(v -> v.described(catalog.tools().stream().filter(t -> t.name().equals(v.name())).findFirst().orElseThrow().description())).toList(),catalog.complete(),catalog.detail());
     }
     public record Update(String projectId,String serverId,String toolName,int enabled,long version) { }
     @PutMapping public void update(@RequestHeader("X-Loopper-Local-UI")String ui,@RequestBody Update body) {

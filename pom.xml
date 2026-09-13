@@ -12,7 +12,7 @@
 
     <groupId>io.opencode</groupId>
     <artifactId>opencode-loopper</artifactId>
-    <version>0.4.19</version>
+    <version>0.4.21</version>
     <name>OpenCode Loopper</name>
     <description>Local, task-branch-isolated OpenCode orchestration</description>
 
@@ -132,6 +132,12 @@
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId><artifactId>maven-dependency-plugin</artifactId><version>3.8.1</version>
+                <executions><execution><id>bundle-isolated-jdbc</id><phase>process-resources</phase><goals><goal>copy</goal></goals>
+                    <configuration><artifactItems><artifactItem><groupId>com.mysql</groupId><artifactId>mysql-connector-j</artifactId><version>8.0.33</version><type>jar</type><outputDirectory>${project.build.outputDirectory}/jdbc-bundled/mysql-8.0.33</outputDirectory></artifactItem><artifactItem><groupId>com.google.protobuf</groupId><artifactId>protobuf-java</artifactId><version>3.25.5</version><type>jar</type><outputDirectory>${project.build.outputDirectory}/jdbc-bundled/mysql-8.0.33</outputDirectory></artifactItem><artifactItem><groupId>org.opengauss</groupId><artifactId>opengauss-jdbc</artifactId><version>6.0.3</version><type>jar</type><outputDirectory>${project.build.outputDirectory}/jdbc-bundled/opengauss-6.0.3</outputDirectory></artifactItem><artifactItem><groupId>org.slf4j</groupId><artifactId>slf4j-api</artifactId><version>2.0.17</version><type>jar</type><outputDirectory>${project.build.outputDirectory}/jdbc-bundled/opengauss-6.0.3</outputDirectory></artifactItem><artifactItem><groupId>com.dameng</groupId><artifactId>DmJdbcDriver18</artifactId><version>8.1.3.140</version><type>jar</type><outputDirectory>${project.build.outputDirectory}/jdbc-bundled/dameng-8.1.3.140</outputDirectory></artifactItem></artifactItems></configuration>
+                </execution></executions>
+            </plugin>
             <!--
               The production artifact owns a reproducible UI build.  The toolchain
               is installed under target/ so `mvn clean` removes both it and the

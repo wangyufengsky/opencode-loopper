@@ -32,9 +32,11 @@
 
 ## 数据库管理、驱动与只读执行
 
-页面 `/databases`、REST `/api/database-connections` 支持创建、编辑、项目绑定、测试、启停和归档；不提供网页 SQL 编辑器。密码不回显，所有修改及连接测试要求本地 UI 标识。分页使用时间加 ID 游标。
+页面 `/databases`、REST `/api/database-connections` 支持创建、编辑、项目绑定、测试、启停和归档；不提供网页 SQL 编辑器。密码不回显，所有修改及连接测试要求本地 UI 标识。分页使用时间加 ID 游标；名称／主机搜索、类型和启用／停用／归档筛选在服务端执行。页面采用连接表格与分区侧栏，新增只列已具备内置驱动的类型，自动选择驱动；高级设置提供受控字段，不接收任意 JSON。`POST /api/database-connections/test` 测试草稿，不写入 SQLite 或密码密文，沿用有界执行器；编辑已保存连接时校验版本并可沿用原凭据。输入变更后前端丢弃旧测试结果，测试成功不自动保存。
 
-四个适配器分别处理 MySQL、GaussDB／openGauss、GoldenDB、达梦的 JDBC URL、连接属性和 schema／catalog 差异。驱动由管理员放入 `LOOPPER_DATA_DIR/jdbc-drivers`，页面显示文件名、大小和 SHA-256；最多 64 个驱动、单个 64 MiB。第一版不上传或在线下载驱动。按文件 SHA 和驱动类有界复用独立类加载器（最多 64 个版本），每次使用独立 JDBC 连接，SQLite 数据源及现有验证器的 loopback 限制保持独立。
+新建支持 MySQL、openGauss、达梦；服务端 `/types` 持有固定类型、端口与驱动目录。MySQL Connector/J 8.0.33（面向 MySQL 5.7／8.0，其他 8.x 版本仍须现场验收）、openGauss JDBC 6.0.3、DmJdbcDriver18 8.1.3.140 及必要依赖在构建时复制进 JAR 的 `jdbc-bundled` 资源，版本、SHA 与来源见随包 NOTICE。驱动不进入应用依赖 classpath，避免干扰 SQLite。运行时在 `LOOPPER_DATA_DIR/jdbc-bundled/<profile>` 原子提取并校验 SHA，拒绝符号链接、篡改和缺件，不在线下载或自动覆盖损坏文件；按不可变 profile 使用平台父加载器隔离驱动及依赖，最多 64 个加载版本，单文件 64 MiB。
+
+新配置由服务端按类型编译 `driverProfile`、文件与类名，拒绝不匹配的客户端驱动身份；任务冻结整个具体配置，后续版本不得重定义已有 profile。openGauss 使用独立 `OPENGAUSS` 类型；该固定版本驱动类实际为 `org.postgresql.Driver`，不因此声称支持华为 GaussDB。GaussDB 与 GoldenDB 暂不开放新建；历史记录保留查看、停用、归档和精确恢复。未带 profile 的历史配置继续从管理员原有 `jdbc-drivers` 目录按原文件与类加载，不迁移或改写冻结记录；支持类型在用户明确编辑连接参数时才切换到内置 profile。
 
 驱动类和协议必须匹配现场版本。Gauss 适配器根据厂商驱动类选择 `gaussdb`、`opengauss` 或 PostgreSQL 协议；GoldenDB 的厂商 MySQL 驱动配置可选择 MySQL 协议。这只是适配路径，不能据此宣称产品完整兼容。Gauss 强制 `allowReadOnly=true`；达梦不允许配置会绕过只读设置的兼容参数。连接参数仅接受白名单中的 TLS、时区、字符集选项，不能覆盖只读、超时、本地文件访问或多语句保护。
 
@@ -74,10 +76,12 @@ Attempt 交接继续保存有界摘要，并提供原 Attempt ID 和查询工具
 
 命令示例：`bash scripts/database-acceptance.sh <成品.jar> <数据目录> <probe.json> <新报告.json>`；未设置密码环境变量时在终端交互输入。
 
-probe JSON 示例（根据现场驱动修改）：
+probe JSON 示例（省略驱动字段即按支持类型使用内置驱动；历史厂商诊断仍可显式提供原文件与类）：
 
 ```json
-{"connection":{"type":"MYSQL","host":"db.internal","port":3306,"database":"app","username":"reader","driverFile":"vendor.jar","driverClass":"com.mysql.cj.jdbc.Driver","schemas":["app"],"parameters":{},"timeoutSeconds":10,"maxRows":200},"readSql":"SELECT 1","timeoutSql":null}
+{"connection":{"type":"MYSQL","host":"db.internal","port":3306,"database":"app","username":"reader","schemas":["app"],"parameters":{},"timeoutSeconds":10,"maxRows":200},"readSql":"SELECT 1","timeoutSql":null}
 ```
 
-支持状态按现场产品、版本、驱动和探针报告逐项登记。模拟 JDBC 与自动化测试不等于四库联调；未具备现场实例的四种产品均保持待联调。
+支持状态按现场产品、版本、驱动和探针报告逐项登记。驱动加载与模拟 JDBC 测试不等于产品联调；未具备现场实例的产品均保持待联调。
+
+工具页以稳定服务 ID 合并列表，每个服务仅有一份展开目录，名称、说明和策略同列展示。辅助服务未在线时仍能配置新会话默认值并显示真实不可用状态；服务连接状态与清单读取状态分别呈现。全局使用开关，项目使用继承／启用／停用选择。

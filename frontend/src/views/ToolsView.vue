@@ -5,14 +5,15 @@ import PageHeader from '@/components/PageHeader.vue'
 import SkillBrowser from '@/components/SkillBrowser.vue'
 import McpToolPolicyPanel from '@/components/McpToolPolicyPanel.vue'
 import { api } from '@/api/client'
-import type { McpServerInfo, McpToolCatalog, Project } from '@/types/domain'
+import type { McpServerInfo, McpPolicyCatalog, Project } from '@/types/domain'
 import { userFacingError } from '@/utils/displayLabels'
 
 const projects = ref<Project[]>([])
 const projectId = ref('')
 const activeTab = ref('tools')
-const servers = ref<McpServerInfo[]>([])
-const catalogs = ref<Record<string, McpToolCatalog>>({})
+const auxiliary: McpServerInfo = { id: '@loopper-assist', name: 'Loopper 内网辅助工具', status: 'unknown', type: 'remote' }
+const servers = ref<McpServerInfo[]>([auxiliary])
+const catalogs = ref<Record<string, McpPolicyCatalog>>({})
 const pending = ref<Record<string, boolean>>({})
 const search = ref('')
 const error = ref('')
@@ -23,7 +24,7 @@ const statusLabels: Record<string, string> = { connected: '已连接', disabled:
 const visible = computed(() => {
   const query = search.value.trim().toLocaleLowerCase()
   return servers.value.filter(server => !query || server.name.toLocaleLowerCase().includes(query)
-    || catalogs.value[server.id]?.tools.some(tool => `${tool.name} ${tool.description}`.toLocaleLowerCase().includes(query)))
+    || catalogs.value[server.id]?.tools.some(tool => `${tool.name} ${tool.description ?? ''}`.toLocaleLowerCase().includes(query)))
 })
 async function load() {
   const request = ++generation
@@ -31,9 +32,9 @@ async function load() {
   try {
     const value = await api.getMcpServers(projectId.value)
     if (request !== generation) return
-    servers.value = value.servers; checkedAt.value = value.checkedAt
+    servers.value = [...new Map([auxiliary, ...value.servers].map(server => [server.id, server])).values()]; checkedAt.value = value.checkedAt
     if (!value.complete) error.value = 'MCP 服务数量超过单次展示上限，当前列表未完整加载'
-  } catch (cause) { if (request === generation) { servers.value = []; error.value = userFacingError(cause, '无法读取 MCP 服务') } }
+  } catch (cause) { if (request === generation) { servers.value = [auxiliary]; error.value = userFacingError(cause, '无法读取 MCP 服务') } }
   finally { if (request === generation) loading.value = false }
 }
 async function loadTools(server: McpServerInfo) {
@@ -41,7 +42,7 @@ async function loadTools(server: McpServerInfo) {
   const request = generation
   pending.value[server.id] = true
   try {
-    const value = await api.getMcpTools(projectId.value, server.id)
+    const value = await api.getMcpToolPolicies(projectId.value, server.id)
     if (request === generation) catalogs.value[server.id] = value
   } catch (cause) {
     if (request === generation) catalogs.value[server.id] = { tools: [], complete: false, detail: userFacingError(cause, '工具读取失败，请重试') }
@@ -59,12 +60,11 @@ onMounted(() => {
     <section class="card tools-toolbar">
       <el-select v-model="projectId" :empty-values="[null, undefined]" aria-label="工具所属项目" @change="() => { if (activeTab === 'tools') load() }"><el-option label="全局运行环境" value="" /><el-option v-for="project in projects" :key="project.id" :label="project.name" :value="project.id" /></el-select>
       <el-input v-if="activeTab === 'tools'" v-model="search" aria-label="搜索 MCP 和已读取工具" placeholder="搜索 MCP、已读取的工具和描述" clearable />
-      <span v-if="activeTab === 'tools'">{{ servers.length }} 个 MCP 服务</span>
+      <span v-if="activeTab === 'tools'">{{ search ? `${visible.length} / ${servers.length}` : servers.length }} 个 MCP 服务</span>
     </section>
     <el-tabs v-model="activeTab" class="tools-tabs" @tab-change="() => { if (activeTab === 'tools') load() }">
       <el-tab-pane label="工具" name="tools">
     <p class="tools-hint">全局设置作为默认值，项目设置可覆盖。只影响 Loopper 新建会话；已运行会话保持冻结权限。</p>
-    <details class="card tool-server"><summary>Loopper 内网辅助工具</summary><div class="tool-body"><McpToolPolicyPanel :project-id="projectId" server-id="@loopper-assist" /></div></details>
     <p v-if="error" role="alert">{{ error }}</p>
     <p v-if="loading" role="status">正在读取 MCP 服务…</p>
     <section v-else-if="!visible.length" class="card empty-state"><strong>{{ search ? '没有匹配的服务或已读取工具' : '当前项目没有配置 MCP 服务' }}</strong></section>
@@ -74,11 +74,10 @@ onMounted(() => {
         <div class="tool-body">
           <p v-if="pending[server.id]" role="status">正在读取工具…</p>
           <template v-if="catalogs[server.id]">
-            <McpToolPolicyPanel v-if="server.id !== '@loopper-assist'" :project-id="projectId" :server-id="server.id" />
-            <p v-if="catalogs[server.id]?.detail" role="status">{{ catalogs[server.id]?.detail }} <el-button link @click="loadTools(server)">重试</el-button></p>
+            <McpToolPolicyPanel :project-id="projectId" :server-id="server.id" :catalog="catalogs[server.id]" @updated="loadTools(server)" />
+
             <p v-if="catalogs[server.id]?.complete && !catalogs[server.id]?.tools.length">此服务未提供工具。</p>
             <p v-else-if="catalogs[server.id]?.tools.length">{{ catalogs[server.id]?.tools.length }} 个工具{{ catalogs[server.id]?.complete ? '' : '（部分结果）' }}</p>
-            <article v-for="tool in catalogs[server.id]?.tools" :key="tool.name" class="tool-entry"><h3>{{ tool.name }}</h3><p>{{ tool.description || '服务端未提供描述' }}</p></article>
           </template>
         </div>
       </details>

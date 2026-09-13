@@ -33,7 +33,7 @@ public sealed interface DatabaseDialect permits DatabaseDialect.MySql, DatabaseD
     }
     default String catalog(DatabaseConfig config) { return null; }
     static DatabaseDialect forType(DatabaseConfig.Type type) {
-        return switch (type) { case MYSQL -> new MySql(); case GAUSSDB -> new Gauss();
+        return switch (type) { case MYSQL -> new MySql(); case GAUSSDB, OPENGAUSS -> new Gauss();
             case GOLDENDB -> new Golden(); case DAMENG -> new Dameng(); };
     }
     final class MySql implements DatabaseDialect {

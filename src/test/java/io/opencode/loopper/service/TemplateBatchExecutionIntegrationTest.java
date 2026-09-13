@@ -89,6 +89,22 @@ class TemplateBatchExecutionIntegrationTest {
         fake.setJudgeOutput("{\"reviews\":[{\"unitId\":\"unit\",\"summary\":\"新增内容\",\"findings\":[],\"limitations\":[\"未执行测试\"]}]}");
     }
 
+    @Autowired io.opencode.loopper.persistence.TemplateSessionReadMapper sessionLabels;
+    @Test void sessionLabelsUsePersistedPurposeAndOrdinalEvenBeforeRemoteIsAvailable() {
+        batches.plan(task.id(),10,4);
+        var attempt=mapper.findAttempt(batch.attemptId()).orElseThrow();
+        var person=batches.create(attempt,1,"CONTRIBUTOR",batch.inputJson(),batch.inputSha256());
+        batch=execution.advance(batch,contract);
+        person=batches.prepareSession(person,json.readValue(batch.creationPlanJson(),OpenCodeClient.SessionCreationPlan.class),
+                new TemplateBatchStore.FrozenPrompt("title fixture","msg_title_fixture",null,null));
+        assertThat(sessionLabels.sessions(task.id())).anySatisfy(label->{
+            assertThat(label.sessionId()).isEqualTo(batch.sessionId());assertThat(label.overallOrdinal()).isEqualTo(1);
+            assertThat(label.overallTotal()).isEqualTo(14);
+        }).anySatisfy(label->{assertThat(label.purpose()).isEqualTo("CONTRIBUTOR");assertThat(label.ordinal()).isEqualTo(2);
+            assertThat(label.overallOrdinal()).isEqualTo(12);assertThat(label.total()).isEqualTo(4);});
+        assertThat(sessionLabels.sessions("another-task")).isEmpty();
+    }
+
     @Test void recoversCreateAndPromptAcknowledgementGapsWithoutDuplicateProviderCalls() {
         batch = execution.advance(batch, contract);
         assertThat(batch.state()).isEqualTo("CREATING");

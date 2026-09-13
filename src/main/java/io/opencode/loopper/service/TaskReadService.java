@@ -144,7 +144,7 @@ public class TaskReadService {
                             currentPackage.ordinal(), currentPackage.title(), currentPackage.state(), currentPackage.version()),
                     packageRuns.size(), frozenPackages, packageCapabilities,
                     "TEMPLATE_REPORT".equals(task.executionMode()) ? templateReads.progress(taskId)
-                            .map(row -> TemplateTaskProgress.from(row, taskId, task.worktreePath())).orElse(null) : null);
+                            .map(row -> TemplateTaskProgress.from(row, taskId, task.worktreePath(), task.state())).orElse(null) : null);
         });
     }
 

@@ -6,8 +6,12 @@ import java.util.Map;
 /** Non-secret, versioned connection settings. Passwords never form part of a JDBC URL. */
 public record DatabaseConfig(Type type, String host, int port, String database, String username,
                              String driverFile, String driverClass, List<String> schemas,
-                             Map<String,String> parameters, int timeoutSeconds, int maxRows) {
-    public enum Type { MYSQL, GAUSSDB, GOLDENDB, DAMENG }
+                             Map<String,String> parameters, int timeoutSeconds, int maxRows, String driverProfile) {
+    public enum Type { MYSQL, OPENGAUSS, GAUSSDB, GOLDENDB, DAMENG }
+    public DatabaseConfig(Type type,String host,int port,String database,String username,String driverFile,String driverClass,
+                          List<String> schemas,Map<String,String> parameters,int timeoutSeconds,int maxRows) {
+        this(type,host,port,database,username,driverFile,driverClass,schemas,parameters,timeoutSeconds,maxRows,null);
+    }
     public DatabaseConfig {
         schemas = schemas == null ? List.of() : List.copyOf(schemas);
         parameters = parameters == null ? Map.of() : Map.copyOf(parameters);

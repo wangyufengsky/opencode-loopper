@@ -479,3 +479,9 @@ writer-stop proof remain mandatory. An unavailable default branch or unsafe chec
 handoff without discarding files. Direct, pending and queued Tasks cannot switch another holder.
 V64 human final-review acceptance is versioned, explicit local UI authority, separate from AI
 judgments, and never overrides deterministic execution failure or uncertain writer termination.
+
+### 模板执行进度与批次会话投影
+
+任务详情顶部将采集、代码分析、可选人员贡献、生成并校验报告、冻结合同要求的评审和最终完成显示为流程节点。环形百分比只表示当前报告 Attempt 的已验证分析批次比例；未知总量显示待确定、零批次显示无需分析，不能把分析 100% 当作任务成功。暂停、等待重试与错误由当前 Task 状态投影；历史缺少计划时不补造已完成节点。阶段原始详情折叠在图中，普通任务的阶段栏保持独立。
+
+模板阶段二的实施会话按持久化 Task／Stage／Attempt／Batch／Session 联合归属显示编号，主标题为“阶段 2 · 分析批次 12/14”，副标题为“人员贡献 · 第 2/4 批”。全局编号先代码分析、后人员贡献，使用冻结计划分母，与列表倒序和会话创建时间无关。返修显示轮次；续接同一会话不增加批次数。清理会话单独命名，缺少关联的历史会话显示批次信息缺失，不按位置猜编号，Judge 不伪装分析批次。会话摘要以集合查询读取元数据，不读取报告／提示正文或为每个会话查询 Stage；远端不可用时仍保留持久化标题。

@@ -6,6 +6,7 @@ import { api } from '@/api/client'
 import OpenCodeTodoProgress from '@/components/OpenCodeTodoProgress.vue'
 import TokenUsageWindow from '@/components/TokenUsageWindow.vue'
 import type { TaskSessionActivity, TaskSessionPendingQuestion, TaskSessionSummary } from '@/types/domain'
+import { templateSessionTitle, templateSessionDetail } from '@/utils/templateSessionLabels'
 import { activityLabel, activityTypeLabel, sessionLabel, statusLabel, userFacingError } from '@/utils/displayLabels'
 
 const props = defineProps<{ taskId: string }>()
@@ -43,6 +44,8 @@ const observedTime = computed(() => activity.value?.observedAt
 
 function sessionTitle(session?: TaskSessionSummary) {
   if (!session) return '任务会话'
+  const templateTitle = templateSessionTitle(session)
+  if (templateTitle) return templateTitle
   if (session.kind === 'IMPLEMENTATION') return session.stageOrdinal ? `阶段 ${session.stageOrdinal} · 执行会话` : '执行会话'
   return sessionLabel(session)
 }
@@ -296,13 +299,13 @@ onBeforeUnmount(() => {
           @click="selectSession(session.key)"
         >
           <span class="session-option-top"><strong>{{ sessionTitle(session) }}</strong><i :class="session.state.toLowerCase()">{{ statusLabel(session.state) }}</i></span>
-          <small><Icon :icon="sessionIcon(session)" width="12" />{{ session.kind === 'JUDGE' ? '只读评审' : `阶段 ${session.stageOrdinal ?? '—'}` }} · {{ formatSessionTime(session.createdAt) }}</small>
+          <small><Icon :icon="sessionIcon(session)" width="12" />{{ templateSessionDetail(session) ?? (session.kind === 'JUDGE' ? '只读评审' : `阶段 ${session.stageOrdinal ?? '—'}`) }} · {{ formatSessionTime(session.createdAt) }}</small>
         </button>
       </nav>
 
       <article :class="['session-console', { 'has-todo-dock': selected?.kind === 'IMPLEMENTATION' && pendingQuestions.length === 0 }]">
         <div class="console-toolbar">
-          <div><strong>{{ sessionTitle(selected) }}</strong><span class="mono">{{ statusLabel(activity?.remoteState ?? selected?.state) }}</span></div>
+          <div><strong>{{ sessionTitle(selected) }}<template v-if="selected?.templateBatch?.purpose"> · {{ selected.templateBatch.purpose === 'CONTRIBUTOR' ? '人员贡献' : '代码分析' }}</template></strong><span class="mono">{{ statusLabel(activity?.remoteState ?? selected?.state) }}</span></div>
           <div><span :class="['transport-dot', { live: activity?.live }]" />{{ activity?.live ? 'OpenCode 已连接' : '持久化状态' }} · {{ observedTime }}</div>
         </div>
         <div v-if="selected?.kind === 'IMPLEMENTATION' && pendingQuestions.length === 0" class="todo-dock">
@@ -391,3 +394,5 @@ onBeforeUnmount(() => {
 @media (max-width: 640px) { .monitor-header { align-items: stretch; flex-direction: column; }.monitor-actions { justify-content: flex-start; }.todo-dock { display: contents; }.todo-dock :deep(.todo-panel) { margin: 15px 15px 0; }.console-stream { min-height: 360px; max-height: 560px; } }
 @media (prefers-reduced-motion: reduce) { .live-indicator.active span,.thinking-orbit,.thinking-dots i,.monitor-spinner,.live-thinking { animation: none; } .console-stream { scroll-behavior: auto; } }
 </style>
+
+<style scoped>.session-option-top strong { white-space: normal; overflow-wrap: anywhere; line-height: 1.6; }.session-option small { white-space: normal; line-height: 1.6; }</style>

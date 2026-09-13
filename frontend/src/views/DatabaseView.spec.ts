@@ -6,6 +6,7 @@ import DatabaseView from './DatabaseView.vue'
 afterEach(() => vi.restoreAllMocks())
 describe('database management', () => {
   it('distinguishes installed driver, connection check and pending vendor acceptance', async () => {
+    vi.spyOn(api, 'getDatabaseTypes').mockResolvedValue([])
     vi.spyOn(api, 'getProjects').mockResolvedValue([])
     vi.spyOn(api, 'getDatabaseDrivers').mockResolvedValue([{ filename: 'vendor.jar', sizeBytes: 100, sha256: 'a'.repeat(64) }])
     vi.spyOn(api, 'getDatabaseConnections').mockResolvedValue({ items: [{ id: 'c', name: '只读业务库', config: { type: 'GAUSSDB', host: 'intranet', port: 5432, database: 'app', username: 'reader', driverFile: 'vendor.jar', driverClass: 'vendor.Driver', schemas: ['app'], parameters: {}, timeoutSeconds: 10, maxRows: 200 }, passwordConfigured: true, enabled: true, archived: false, projectIds: [], version: 0, createdAt: '' }], nextCursor: undefined, facets: {} })

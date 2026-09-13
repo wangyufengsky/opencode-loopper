@@ -22,13 +22,15 @@ import org.springframework.stereotype.Service;
 /** Read-only projection of persisted Task sessions plus provider-exposed live output. */
 @Service
 public class TaskSessionMonitorService {
+    private final io.opencode.loopper.persistence.TemplateSessionReadMapper templateSessions;
     private final TaskService tasks;
     private final LoopperMapper mapper;
     private final OpenCodeClient openCode;
     private final ModelTokenUsageProjectionService tokenUsage;
 
     public TaskSessionMonitorService(TaskService tasks, LoopperMapper mapper, OpenCodeClient openCode,
-                                     ModelTokenUsageProjectionService tokenUsage) {
+                                     ModelTokenUsageProjectionService tokenUsage, io.opencode.loopper.persistence.TemplateSessionReadMapper templateSessions) {
+        this.templateSessions = templateSessions;
         this.tasks = tasks;
         this.mapper = mapper;
         this.openCode = openCode;
@@ -38,7 +40,13 @@ public class TaskSessionMonitorService {
     public List<SessionSummary> list(String taskId) {
         tasks.get(taskId);
         List<SessionSummary> result = new ArrayList<>();
-        for (ExecutionSessionRow row : mapper.listSessions(taskId)) result.add(summary(row));
+        var batches = templateSessions.sessions(taskId).stream().collect(java.util.stream.Collectors.toMap(
+                io.opencode.loopper.persistence.TemplateSessionReadMapper.Batch::sessionId, b -> b));
+        var stages = mapper.listStages(taskId).stream().collect(java.util.stream.Collectors.toMap(StageRow::id, s -> s));
+        for (ExecutionSessionRow row : mapper.listSessions(taskId)) {
+            StageRow stage = stages.get(row.stageId());
+            result.add(summary(row, stage, batches.get(row.id())));
+        }
         for (JudgeRunRow row : mapper.listJudgeRuns(taskId)) result.add(summary(row));
         result.sort(Comparator.comparing(SessionSummary::createdAt).reversed());
         return result;
@@ -184,14 +192,19 @@ public class TaskSessionMonitorService {
 
     private SessionSummary summary(ExecutionSessionRow row) {
         StageRow stage = mapper.findStage(row.stageId()).orElse(null);
+        var batch = templateSessions.sessions(row.taskId()).stream().filter(b -> b.sessionId().equals(row.id())).findFirst().orElse(null);
+        return summary(row, stage, batch);
+    }
+
+    private SessionSummary summary(ExecutionSessionRow row, StageRow stage, io.opencode.loopper.persistence.TemplateSessionReadMapper.Batch batch) {
         return new SessionSummary("execution:" + row.id(), "IMPLEMENTATION", "Implementation Session", row.id(), row.externalSessionId(),
                 row.state(), row.stageId(), stage == null ? null : stage.ordinal() + 1, stage == null ? null : stage.objective(),
-                row.attemptId(), row.createdAt(), row.endedAt());
+                row.attemptId(), row.createdAt(), row.endedAt(), batch);
     }
 
     private SessionSummary summary(JudgeRunRow row) {
         return new SessionSummary("judge:" + row.id(), "JUDGE", row.role() + " Judge", row.id(), row.externalSessionId(),
-                row.state(), null, null, null, row.attemptId(), row.createdAt(), row.endedAt());
+                row.state(), null, null, null, row.attemptId(), row.createdAt(), row.endedAt(), null);
     }
 
     private List<ActivityPart> persistedOutput(SessionSummary summary, String output) {
@@ -230,7 +243,7 @@ public class TaskSessionMonitorService {
 
     public record SessionSummary(String key, String kind, String label, String localSessionId, String externalSessionId,
                                  String state, String stageId, Integer stageOrdinal, String stageObjective,
-                                 String attemptId, String createdAt, String endedAt) { }
+                                 String attemptId, String createdAt, String endedAt, io.opencode.loopper.persistence.TemplateSessionReadMapper.Batch templateBatch) { }
     public record ActivityPart(String id, String type, String label, String content, String status, String startedAt) { }
     public record PendingQuestion(String id, List<QuestionPrompt> questions) { }
     public record QuestionPrompt(String question, String header, List<QuestionOption> options, boolean multiple, boolean custom) { }

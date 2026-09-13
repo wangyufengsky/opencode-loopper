@@ -31,5 +31,5 @@ class AssistRuntimeSupportTest {
         var permission=support.permissions(Path.of("/project"),OpenCodeClient.SessionProfile.DECOMPOSER_CANDIDATE_READ_ONLY,List.of("third"),"private",true);
         assertThat(permission).noneMatch(p->p.get("permission").equals("third_*")&&p.get("action").equals("allow"));verifyNoInteractions(inventory);
     }
-    private static AssistToolPolicyService.View setting(String name,boolean enabled){return new AssistToolPolicyService.View(name,true,false,true,"INHERIT",enabled,"GLOBAL",0,-1);}
+    private static AssistToolPolicyService.View setting(String name,boolean enabled){return new AssistToolPolicyService.View(name,true,false,true,"INHERIT",enabled,"GLOBAL",0,-1,"");}
 }

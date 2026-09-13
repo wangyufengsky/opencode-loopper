@@ -32,7 +32,7 @@ class AssistIntegrationTest {
     @BeforeEach void reset(){mcpSession=null;flyway.clean();flyway.migrate();when(secrets.save(anyString())).thenAnswer(i->UUID.randomUUID().toString());}
     @Test void policiesFreezeAdmissionAndConnectionVersions() throws Exception {
         var project=projects.create("data",Files.createDirectory(temp.resolve("project")).toString());
-        var saved=databases.save(null,new DatabaseConnectionService.Request("内网",AssistSafetyTest.config(DatabaseConfig.Type.MYSQL),"private",true,false,List.of(project.id()),0));
+        var saved=databases.save(null,new DatabaseConnectionService.Request("内网",new DatabaseConfig(DatabaseConfig.Type.MYSQL,"localhost",3306,"app","reader","","",List.of("app"),Map.of(),10,200),"private",true,false,List.of(project.id()),0));
         assertThat(databases.list(null,50).items()).singleElement().satisfies(row->assertThat(row.projectIds()).containsExactly(project.id()));
         var task=task(project.id(),"report.md");assertThat(mapper.resources("TASK:"+task.id())).contains(saved.id()).doesNotContain("private");
         databases.save(saved.id(),new DatabaseConnectionService.Request("renamed",saved.config(),null,false,true,List.of(),saved.version()));
@@ -43,6 +43,28 @@ class AssistIntegrationTest {
         policies.update("","third-party","search",0,first.globalVersion());policies.update(project.id(),"third-party","search",1,-1);
         assertThat(policies.catalog(project.id(),"third-party",List.of("search"),true).getFirst().enabled()).isTrue();
         assertThatThrownBy(()->policies.update("","@loopper-internal","submit_candidate",0,0)).isInstanceOf(AssistFailure.class);
+    }
+    @Test void draftDoesNotPersistSecretsAndFiltersUseStableCursor() {
+        clearInvocations(secrets);
+        var input=new DatabaseConnectionService.Request("业务库",BundledDatabaseDriversTest.input(DatabaseConfig.Type.MYSQL),"private",true,false,List.of(),0);
+        var draft=databases.draft(null,input);
+        assertThat(draft.config().driverProfile()).isEqualTo("mysql-8.0.33");
+        verifyNoInteractions(secrets);assertThat(databases.list(null,50).items()).isEmpty();
+        var first=databases.save(null,input);
+        databases.save(null,new DatabaseConnectionService.Request("第二个",input.config(),"private",false,false,List.of(),0));
+        assertThat(databases.list(null,50,"业务","MYSQL","ENABLED").items()).extracting(DatabaseConnectionService.View::id).containsExactly(first.id());
+        var page=databases.list(null,1,"","MYSQL","AVAILABLE");
+        assertThat(page.nextCursor()).isNotNull();
+        assertThat(databases.list(page.nextCursor(),1,"","MYSQL","AVAILABLE").items()).hasSize(1).noneMatch(x->x.id().equals(page.items().getFirst().id()));
+        clearInvocations(secrets);assertThat(databases.draft(first.id(),new DatabaseConnectionService.Request(first.name(),first.config(),null,true,false,List.of(),first.version())).credentialRef()).isNotNull();verifyNoInteractions(secrets);
+    }
+    @Test void historicalVendorConfigRemainsReadableAndCanBeDisabledWithoutRewritingDriver() {
+        String now=Instant.now().toString();var config=AssistSafetyTest.config(DatabaseConfig.Type.GOLDENDB);
+        mapper.insertDatabase(new AssistMapper.DatabaseRow("legacy","旧库",json.writeValueAsString(config),"old-secret",1,0,0,now,now));
+        var saved=databases.save("legacy",new DatabaseConnectionService.Request("旧库",config,null,false,false,List.of(),0));
+        assertThat(saved.config()).isEqualTo(config);assertThat(saved.config().driverProfile()).isNull();
+        assertThatThrownBy(()->databases.save("legacy",new DatabaseConnectionService.Request("旧库",config,null,true,false,List.of(),saved.version()))).isInstanceOf(AssistFailure.class);
+        assertThat(databases.forTest("legacy").credentialRef()).isEqualTo("old-secret");
     }
     @Test void failedAttemptEvidenceGuidesNextAttemptAndWordRemainsFormallyVerified() throws Exception {
         var project=projects.create("word",Files.createDirectory(temp.resolve("word")).toString());

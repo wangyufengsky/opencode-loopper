@@ -23,7 +23,7 @@ class TaskSessionMonitorServiceTest {
     private final LoopperMapper mapper = mock(LoopperMapper.class);
     private final OpenCodeClient openCode = mock(OpenCodeClient.class);
     private final ModelTokenUsageProjectionService tokenUsage = mock(ModelTokenUsageProjectionService.class);
-    private final TaskSessionMonitorService monitor = new TaskSessionMonitorService(tasks, mapper, openCode, tokenUsage);
+    private final TaskSessionMonitorService monitor = new TaskSessionMonitorService(tasks, mapper, openCode, tokenUsage, mock(io.opencode.loopper.persistence.TemplateSessionReadMapper.class));
 
     @Test
     void returnsProviderExposedLiveThinkingAndOutputForTheSelectedTaskSession() {

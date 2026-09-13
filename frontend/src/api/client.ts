@@ -4,7 +4,7 @@ import type { AnalysisReport, DesignerTaskProfileUpdatePreview, ProjectStackProf
 import { DESIGNER_SESSION_STATES, DESIGN_WORK_PACKAGE_STATES, LOOP_DRAFT_STATUSES, STAGE_STATUSES, TASK_PACKAGE_RUN_STATES, TASK_STATUSES, WORK_PACKAGE_AGGREGATE_STATUSES, requirePublicState } from '@/types/states'
 import type { InsightQuery, JudgeApproval, McpServerInfo, McpToolCatalog, SkillInventory, SkillDocument } from '@/types/domain'
 import type { StoryAccountingCall, StoryBindingCapability, StoryBindingConfiguration } from '@/types/domain'
-import type { DatabaseConnection, DatabaseConnectionInput, DatabaseDriver, DatabaseProbe, McpPolicyCatalog } from '@/types/domain'
+import type { DatabaseConnection, DatabaseConnectionInput, DatabaseDriver, DatabaseProbe, DatabaseTypeProfile, McpPolicyCatalog } from '@/types/domain'
 
 const apiBase = import.meta.env.VITE_API_BASE ?? '/api'
 
@@ -533,7 +533,7 @@ function normalizeReadContent(value: unknown): ReadContent {
 
 function normalizeTemplateProgress(value: unknown): NonNullable<Task['templateProgress']> {
   const raw = asRecord(value)
-  return { dualReviewRequired: raw.dualReviewRequired !== false,
+  return { steps: asArray(raw.steps).map(value => { const step = asRecord(value); return { key: asString(step.key), label: asString(step.label), state: asString(step.state) } }), currentPhase: asString(raw.currentPhase) || undefined, dualReviewRequired: raw.dualReviewRequired !== false,
     reportCount: typeof raw.reportCount === 'number' ? raw.reportCount : undefined,
     reviewBatches: typeof raw.reviewBatches === 'number' ? raw.reviewBatches : null,
     contributorBatches: typeof raw.contributorBatches === 'number' ? raw.contributorBatches : null,
@@ -666,7 +666,9 @@ function normalizeTaskDesignHistory(value: unknown): TaskDesignHistory {
 
 function normalizeTaskSession(value: unknown): TaskSessionSummary {
   const raw = asRecord(value)
+  const batch = asRecord(raw.templateBatch)
   return {
+    templateBatch: raw.templateBatch ? { purpose: asString(batch.purpose) || null, ordinal: batch.ordinal == null ? null : asNumber(batch.ordinal), total: batch.total == null ? null : asNumber(batch.total), overallOrdinal: batch.overallOrdinal == null ? null : asNumber(batch.overallOrdinal), overallTotal: batch.overallTotal == null ? null : asNumber(batch.overallTotal), repairRound: asNumber(batch.repairRound), cleanup: batch.cleanup === true } : undefined,
     key: asString(raw.key),
     kind: asString(raw.kind) === 'JUDGE' ? 'JUDGE' : 'IMPLEMENTATION',
     label: asString(raw.label, 'Session'),
@@ -1587,7 +1589,9 @@ function normalizeStoryAccountingCall(value: unknown): StoryAccountingCall {
 }
 
 export const api = {
-  getDatabaseConnections: (cursor?: string) => request<CursorPage<DatabaseConnection>>(`/database-connections${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`),
+  getDatabaseConnections: (cursor?: string, filters: { query?: string; type?: string; state?: string } = {}) => request<CursorPage<DatabaseConnection>>(`/database-connections?${new URLSearchParams({ ...filters, ...(cursor ? { cursor } : {}) })}`),
+  getDatabaseTypes: () => request<DatabaseTypeProfile[]>('/database-connections/types'),
+  testDatabaseDraft: (id: string | null, body: DatabaseConnectionInput) => request<DatabaseProbe>(`/database-connections/test${id ? `?id=${encodeURIComponent(id)}` : ''}`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(body) }),
   getDatabaseDrivers: () => request<DatabaseDriver[]>('/database-connections/drivers'),
   saveDatabaseConnection: (id: string | null, body: DatabaseConnectionInput) => request<DatabaseConnection>(`/database-connections${id ? `/${encodeURIComponent(id)}` : ''}`, { method: id ? 'PUT' : 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(body) }),
   testDatabaseConnection: (id: string) => request<DatabaseProbe>(`/database-connections/${encodeURIComponent(id)}/test`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } }),

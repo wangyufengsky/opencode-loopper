@@ -13,6 +13,15 @@ public interface AssistMapper {
     DatabaseRow database(String id);
     @Select("SELECT * FROM database_connection WHERE (created_at,id) > (#{time},#{id}) ORDER BY created_at,id LIMIT #{limit}")
     List<DatabaseRow> databases(String time, String id, int limit);
+    @Select("""
+        SELECT * FROM database_connection WHERE (created_at,id) > (#{time},#{id})
+        AND (#{query}='' OR instr(lower(name),lower(#{query}))>0 OR instr(lower(json_extract(config_json,'$.host')),lower(#{query}))>0)
+        AND (#{type}='' OR json_extract(config_json,'$.type')=#{type})
+        AND (#{state}='ALL' OR (#{state}='AVAILABLE' AND archived=0) OR (#{state}='ENABLED' AND enabled=1 AND archived=0)
+             OR (#{state}='DISABLED' AND enabled=0 AND archived=0) OR (#{state}='ARCHIVED' AND archived=1))
+        ORDER BY created_at,id LIMIT #{limit}
+        """)
+    List<DatabaseRow> filteredDatabases(String time,String id,int limit,String query,String type,String state);
     @Select("SELECT d.* FROM database_connection d JOIN database_connection_project p ON p.connection_id=d.id WHERE p.project_id=#{projectId} AND d.enabled=1 AND d.archived=0 ORDER BY d.id LIMIT 101")
     List<DatabaseRow> projectDatabases(String projectId);
     @Select("SELECT project_id FROM database_connection_project WHERE connection_id=#{id} ORDER BY project_id")

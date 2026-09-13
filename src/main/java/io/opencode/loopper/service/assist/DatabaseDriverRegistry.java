@@ -29,9 +29,17 @@ public class DatabaseDriverRegistry {
     }
     Opened diagnose(DatabaseConfig c,String password) throws Exception { return connect(c,password,false); }
     private Opened connect(DatabaseConfig c,String password,boolean enforceReadOnly) throws Exception {
-        Path path=root.resolve(c.driverFile()); DriverInfo info;
-        try {info=inspect(path);} catch(Exception invalidDriver) {throw unavailable();}
-        Loaded holder=load(path,c.driverClass(),info.sha256());
+        List<Path> paths;
+        DriverInfo info;
+        if(c.driverProfile()!=null) {
+            paths=BundledDatabaseDrivers.materialize(root.resolveSibling("jdbc-bundled"),c);
+            Path first=paths.getFirst();info=new DriverInfo(first.getFileName().toString(),BundledDatabaseDrivers.profile(c.driverProfile()).binaries().getFirst().sha256(),Files.size(first));
+        } else {
+            Path path=root.resolve(c.driverFile());
+            try {info=inspect(path);} catch(Exception invalidDriver) {throw unavailable();}
+            paths=List.of(path);
+        }
+        Loaded holder=load(paths,c.driverClass(),c.driverProfile()==null?info.sha256():c.driverProfile()+info.sha256());
         Connection connection=null;
         try {
             Driver driver=holder.driver();
@@ -43,10 +51,11 @@ public class DatabaseDriverRegistry {
         } catch(Exception e) { if(connection!=null)try { connection.close(); } catch(Exception ignored) { }
             throw e; }
     }
-    private synchronized Loaded load(Path path,String driverClass,String sha) throws Exception {
+    private synchronized Loaded load(List<Path> paths,String driverClass,String sha) throws Exception {
         String key=sha+":"+driverClass;Loaded existing=loaded.get(key);if(existing!=null)return existing;
         if(loaded.size()>=64)throw new AssistFailure("DATABASE_DRIVER_GENERATION_LIMIT","当前进程已加载 64 个驱动版本，请在维护窗口重启后使用新版本","CONFIGURE");
-        var loader=new URLClassLoader(new java.net.URL[]{path.toUri().toURL()},ClassLoader.getPlatformClassLoader());
+        var urls=new java.net.URL[paths.size()];for(int i=0;i<paths.size();i++)urls[i]=paths.get(i).toUri().toURL();
+        var loader=new URLClassLoader(urls,ClassLoader.getPlatformClassLoader());
         try {var result=new Loaded(loader,(Driver)Class.forName(driverClass,true,loader).getDeclaredConstructor().newInstance());loaded.put(key,result);return result;}
         catch(Exception failure){loader.close();throw failure;}
     }

@@ -1,40 +1,26 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
+import { Icon } from '@iconify/vue'
 import { ElMessageBox } from 'element-plus'
 import PageHeader from '@/components/PageHeader.vue'
+import DatabaseConnectionDrawer from '@/components/DatabaseConnectionDrawer.vue'
 import { api } from '@/api/client'
-import type { DatabaseConnection, DatabaseConnectionInput, DatabaseDriver, DatabaseProbe, Project } from '@/types/domain'
+import type { DatabaseConnection, DatabaseDriver, DatabaseProbe, DatabaseTypeProfile, Project } from '@/types/domain'
 import { userFacingError } from '@/utils/displayLabels'
-
-const rows = ref<DatabaseConnection[]>([]), drivers = ref<DatabaseDriver[]>([]), projects = ref<Project[]>([])
-const cursor = ref<string | null>(null), loading = ref(false), saving = ref(false), error = ref(''), editing = ref(false)
-const selected = ref<string | null>(null), password = ref(''), schemas = ref(''), parameters = ref('{}')
-const probe = ref<Record<string, DatabaseProbe>>({}), testing = ref<string | null>(null)
-const typeLabels = { MYSQL: 'MySQL', GAUSSDB: 'GaussDB／openGauss', GOLDENDB: 'GoldenDB', DAMENG: '达梦' }
-const empty = (): DatabaseConnectionInput => ({ name: '', password: null, enabled: true, archived: false, projectIds: [], version: 0,
-  config: { type: 'MYSQL', host: '', port: 3306, database: '', username: '', driverFile: '', driverClass: '', schemas: [], parameters: {}, timeoutSeconds: 10, maxRows: 200 } })
-const form = ref<DatabaseConnectionInput>(empty())
+const rows = ref<DatabaseConnection[]>([]), types = ref<DatabaseTypeProfile[]>([]), drivers = ref<DatabaseDriver[]>([]), projects = ref<Project[]>([])
+const cursor = ref<string | null>(null), loading = ref(false), saving = ref(false), error = ref(''), editing = ref(false), selected = ref<DatabaseConnection | null>(null)
+const query = ref(''), type = ref(''), state = ref('AVAILABLE'), probe = ref<Record<string, DatabaseProbe>>({}), testing = ref<string | null>(null)
+const typeLabels = { MYSQL: 'MySQL', OPENGAUSS: 'openGauss', GAUSSDB: 'GaussDB（历史配置）', GOLDENDB: 'GoldenDB（历史配置）', DAMENG: '达梦' }
+let generation = 0
 async function load(more = false) {
-  loading.value = true; error.value = ''
-  try { const result = await api.getDatabaseConnections(more ? cursor.value ?? undefined : undefined); rows.value = more ? [...rows.value, ...result.items] : result.items; cursor.value = result.nextCursor ?? null }
-  catch (cause) { error.value = userFacingError(cause, '连接列表读取失败，请重试') }
-  finally { loading.value = false }
+  const current = ++generation; loading.value = true; error.value = ''
+  if (!more) { rows.value = []; cursor.value = null }
+  try { const result = await api.getDatabaseConnections(more ? cursor.value ?? undefined : undefined, { query: query.value, type: type.value, state: state.value }); if (current === generation) { rows.value = more ? [...rows.value, ...result.items] : result.items; cursor.value = result.nextCursor ?? null } }
+  catch (cause) { if (current === generation) error.value = userFacingError(cause, '连接列表读取失败，请重试') }
+  finally { if (current === generation) loading.value = false }
 }
-function edit(row?: DatabaseConnection) {
-  selected.value = row?.id ?? null; form.value = row ? { name: row.name, config: JSON.parse(JSON.stringify(row.config)), enabled: row.enabled, archived: row.archived, projectIds: [...row.projectIds], version: row.version, password: null } : empty()
-  password.value = ''; schemas.value = form.value.config.schemas.join(', '); parameters.value = JSON.stringify(form.value.config.parameters, null, 2); editing.value = true; error.value = ''
-}
-async function save() {
-  saving.value = true; error.value = ''
-  try {
-    const parsed: unknown = JSON.parse(parameters.value)
-    if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object' || Object.values(parsed).some(v => typeof v !== 'string')) throw new Error('连接参数必须为字符串键值对象')
-    const config = { ...form.value.config, schemas: schemas.value.split(/[,，\n]/).map(s => s.trim()).filter(Boolean), parameters: parsed as Record<string, string> }
-    await api.saveDatabaseConnection(selected.value, { ...form.value, config, password: password.value || null })
-    password.value = ''; editing.value = false; await load()
-  } catch (cause) { error.value = userFacingError(cause, '保存失败，请检查配置；若发生版本冲突请刷新后重新编辑') }
-  finally { saving.value = false }
-}
+watch([type, state], () => { void load() })
+function edit(row: DatabaseConnection | null = null) { selected.value = row; editing.value = true }
 async function update(row: DatabaseConnection, archive: boolean) {
   if (archive) { try { await ElMessageBox.confirm(`归档“${row.name}”后，新任务不能发现此连接。已冻结任务仍使用原授权。`, '归档连接', { confirmButtonText: '归档', cancelButtonText: '取消' }) } catch { return } }
   saving.value = true; error.value = ''
@@ -48,54 +34,25 @@ async function test(row: DatabaseConnection) {
   catch (cause) { error.value = userFacingError(cause, '连接检查失败，请检查驱动、凭据及网络') }
   finally { testing.value = null }
 }
+function driverState(row: DatabaseConnection) { return row.config.driverProfile ? '内置驱动' : drivers.value.some(d => d.filename === row.config.driverFile) ? '驱动已安装' : '历史驱动缺失' }
 onMounted(() => {
   void load()
-  void Promise.all([api.getDatabaseDrivers(), api.getProjects()]).then(([d, p]) => { drivers.value = d; projects.value = p }).catch(cause => { error.value = userFacingError(cause, '驱动或项目清单读取失败，请刷新') })
+  void Promise.all([api.getDatabaseTypes(), api.getDatabaseDrivers(), api.getProjects()]).then(([t, d, p]) => { types.value = t; drivers.value = d; projects.value = p }).catch(cause => { error.value = userFacingError(cause, '类型或项目清单读取失败，请刷新页面') })
 })
 </script>
-
 <template>
-  <PageHeader eyebrow="系统" title="数据库"><template #actions><el-button :loading="loading" @click="load()">刷新</el-button><el-button type="primary" @click="edit()">新增连接</el-button></template></PageHeader>
-  <main id="main-content" class="content" tabindex="-1">
-    <p class="hint">仅提供结构查询和受控只读查询。连接需绑定项目；已运行任务继续使用冻结配置。</p>
-    <p v-if="error" role="alert">{{ error }}</p>
-    <section v-if="!rows.length && !loading" class="card">尚未配置数据库连接。</section>
-    <div class="connections">
-      <section v-for="row in rows" :key="row.id" class="card connection">
-        <h2>{{ row.name }} <small>{{ row.archived ? '已归档' : row.enabled ? '已启用' : '已停用' }}</small></h2>
-        <p>{{ typeLabels[row.config.type] }} · {{ row.config.host }}:{{ row.config.port }} / {{ row.config.database }}</p>
-        <p>绑定项目：{{ row.projectIds.map(id => projects.find(p => p.id === id)?.name ?? '已登记项目').join('、') || '未绑定' }}</p>
-        <p>{{ drivers.some(d => d.filename === row.config.driverFile) ? '驱动已安装' : '驱动缺失' }} · {{ row.config.driverFile }}</p>
-        <p>兼容性：待现场版本联调</p>
-        <div v-if="probe[row.id]" role="status"><p>连接成功 · 只读标记{{ probe[row.id]?.sessionReadOnly ? '已确认' : '未确认' }}</p><p>{{ probe[row.id]?.serverProduct }} {{ probe[row.id]?.serverVersion }} · 驱动 {{ probe[row.id]?.driverVersion }}</p><p>{{ probe[row.id]?.detail }}</p></div>
-        <div class="actions"><el-button :disabled="saving" @click="edit(row)">编辑</el-button><el-button :loading="testing === row.id" :disabled="testing !== null" @click="test(row)">测试连接</el-button><el-button v-if="!row.archived" :disabled="saving" @click="update(row, false)">{{ row.enabled ? '停用' : '启用' }}</el-button><el-button v-if="!row.archived" :disabled="saving" @click="update(row, true)">归档</el-button></div>
-      </section>
-    </div>
-    <el-button v-if="cursor" :loading="loading" @click="load(true)">加载更多</el-button>
-    <details class="card drivers"><summary>离线驱动（{{ drivers.length }}）</summary><p>由管理员将匹配的厂商 JDBC 驱动放入受管数据目录 jdbc-drivers；修改后刷新页面。</p><p v-for="driver in drivers" :key="driver.filename">{{ driver.filename }} · {{ driver.sizeBytes }} 字节<br /><code>{{ driver.sha256 }}</code></p></details>
-    <el-dialog v-model="editing" :title="selected ? '编辑连接' : '新增连接'" width="min(760px, 95vw)" :close-on-click-modal="!saving" @closed="password = ''">
-      <el-form label-position="top" @submit.prevent="save">
-        <div class="fields">
-          <el-form-item label="连接名称"><el-input v-model="form.name" maxlength="100" /></el-form-item>
-          <el-form-item label="数据库类型"><el-select v-model="form.config.type"><el-option v-for="(label, value) in typeLabels" :key="value" :value="value" :label="label" /></el-select></el-form-item>
-          <el-form-item label="主机"><el-input v-model="form.config.host" /></el-form-item><el-form-item label="端口"><el-input-number v-model="form.config.port" :min="1" :max="65535" /></el-form-item>
-          <el-form-item label="数据库／默认 schema"><el-input v-model="form.config.database" /></el-form-item><el-form-item label="只读账号"><el-input v-model="form.config.username" autocomplete="off" /></el-form-item>
-          <el-form-item :label="selected ? '新密码（留空保留原密码）' : '密码'"><el-input v-model="password" type="password" autocomplete="new-password" /></el-form-item>
-          <el-form-item label="允许访问的 schema／数据库（逗号分隔）"><el-input v-model="schemas" /></el-form-item>
-          <el-form-item label="已安装驱动文件"><el-select v-model="form.config.driverFile" filterable allow-create><el-option v-for="driver in drivers" :key="driver.filename" :value="driver.filename" :label="driver.filename" /></el-select></el-form-item>
-          <el-form-item label="厂商驱动类"><el-input v-model="form.config.driverClass" placeholder="按匹配版本的厂商说明填写" /></el-form-item>
-          <el-form-item label="查询超时（秒）"><el-input-number v-model="form.config.timeoutSeconds" :min="1" :max="30" /></el-form-item>
-          <el-form-item label="最多返回行数"><el-input-number v-model="form.config.maxRows" :min="1" :max="1000" /></el-form-item>
-        </div>
-        <el-form-item label="绑定项目"><el-select v-model="form.projectIds" multiple><el-option v-for="project in projects" :key="project.id" :value="project.id" :label="project.name" /></el-select></el-form-item>
-        <details><summary>受控连接参数</summary><el-input v-model="parameters" type="textarea" :rows="3" aria-label="连接参数 JSON" /><p>只接受适配器白名单中的 TLS、时区和编码参数。</p></details>
-        <el-checkbox v-model="form.enabled">启用</el-checkbox><el-checkbox v-if="selected" v-model="form.archived">已归档</el-checkbox>
-        <p v-if="error" role="alert">{{ error }}</p>
-      </el-form>
-      <template #footer><el-button :disabled="saving" @click="editing = false">取消</el-button><el-button type="primary" :loading="saving" @click="save">保存</el-button></template>
-    </el-dialog>
+  <PageHeader eyebrow="系统" title="数据库"><template #actions><el-button :loading="loading" @click="load()">刷新</el-button><el-button type="primary" :disabled="!types.length" @click="edit()"><Icon icon="lucide:plus" width="15" />新增连接</el-button></template></PageHeader>
+  <main id="main-content" class="content database-page" tabindex="-1">
+    <div class="database-intro"><Icon icon="lucide:shield-check" width="18" /><p>为项目提供结构查询与受控只读访问<span>选择数据库类型即可使用内置驱动，运行时无需联网下载。</span></p><span class="mode-badge">只读访问</span></div>
+    <form class="filters card" @submit.prevent="load()"><el-input v-model="query" placeholder="搜索连接名称或主机" aria-label="搜索数据库" clearable @clear="load()"><template #prefix><Icon icon="lucide:search" /></template></el-input><el-select v-model="type" aria-label="筛选数据库类型"><el-option value="" label="全部类型" /><el-option v-for="(label, value) in typeLabels" :key="value" :value="value" :label="label" /></el-select><el-select v-model="state" aria-label="筛选连接状态"><el-option value="AVAILABLE" label="未归档" /><el-option value="ENABLED" label="已启用" /><el-option value="DISABLED" label="已停用" /><el-option value="ARCHIVED" label="已归档" /><el-option value="ALL" label="全部状态" /></el-select><el-button native-type="submit" :loading="loading">搜索</el-button></form>
+    <p v-if="error" role="alert" class="error">{{ error }}</p>
+    <section v-if="!rows.length && !loading" class="card empty"><div class="empty-icon"><Icon icon="lucide:database" width="32" /></div><h2>{{ query || type || state !== 'AVAILABLE' ? '没有匹配的连接' : '连接你的第一套数据库' }}</h2><p>将数据库绑定到项目，让任务按需读取表结构和业务数据。</p><div class="supported"><span v-for="item in types" :key="item.id">{{ item.label }}<small>驱动已内置</small></span></div><el-button type="primary" :disabled="!types.length" @click="edit()">新增数据库连接</el-button></section>
+    <div v-else class="card table-wrap" :aria-busy="loading"><table class="database-table"><thead><tr><th>连接</th><th>访问地址</th><th>授权项目</th><th>状态</th><th>操作</th></tr></thead><tbody><template v-for="row in rows" :key="row.id"><tr><td><strong>{{ row.name }}</strong><small>{{ typeLabels[row.config.type] }} · {{ driverState(row) }}</small></td><td><code>{{ row.config.host }}:{{ row.config.port }}</code><small>{{ row.config.database }}</small></td><td><span>{{ row.projectIds.map(id => projects.find(p => p.id === id)?.name ?? '已登记项目').join('、') || '未绑定项目' }}</span><small>允许范围：{{ row.config.schemas.join('、') }}</small></td><td><span :class="['connection-state', { enabled: row.enabled && !row.archived }]">{{ row.archived ? '已归档' : row.enabled ? '已启用' : '已停用' }}</span><small>待现场版本联调</small></td><td><div class="row-actions"><el-button link :disabled="saving || row.archived || !types.some(t => t.type === row.config.type)" @click="edit(row)">编辑</el-button><el-button link :loading="testing === row.id" :disabled="testing !== null" @click="test(row)">测试连接</el-button><el-button v-if="!row.archived && (row.enabled || types.some(t => t.type === row.config.type))" link :disabled="saving" @click="update(row, false)">{{ row.enabled ? '停用' : '启用' }}</el-button><el-button v-if="!row.archived" link :disabled="saving" @click="update(row, true)">归档</el-button></div></td></tr><tr v-if="probe[row.id]" class="probe-row"><td colspan="5" role="status">连接成功 · 只读标记{{ probe[row.id]?.sessionReadOnly ? '已确认' : '未确认' }} · {{ probe[row.id]?.serverProduct }} {{ probe[row.id]?.serverVersion }}<p>{{ probe[row.id]?.detail }}</p></td></tr></template></tbody></table></div>
+    <el-button v-if="cursor" :loading="loading" class="load-more" @click="load(true)">加载更多</el-button>
+    <p class="footnote">全局连接配置，按项目授权。修改只影响新会话，已运行任务使用冻结配置。</p>
+    <DatabaseConnectionDrawer v-model="editing" :row="selected" :types="types" :projects="projects" @saved="load()" />
   </main>
 </template>
 <style scoped>
-.connections{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.connection,.drivers{padding:20px;overflow-wrap:anywhere}.connection h2{font-size:16px}.connection p,.hint,.drivers{font-size:13px;color:var(--color-text-secondary)}small{font-weight:400;font-size:12px}.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}.actions .el-button{margin:0}.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 20px;align-items:end}.fields .el-select,.el-input-number{width:100%}.drivers{margin-top:20px}.drivers code{font-size:11px}@media(max-width:720px){.connections,.fields{grid-template-columns:1fr}}
+.database-intro{display:flex;align-items:center;gap:12px;margin-bottom:24px;color:var(--color-text-secondary)}.database-intro>svg{color:var(--color-accent-cyan)}.database-intro p{font-size:14px;margin:0;flex:1}.database-intro p span{display:block;font-size:12px;color:var(--color-text-muted);margin-top:6px}.mode-badge{font-size:11px;border:1px solid var(--color-border-default);padding:5px 10px;border-radius:20px}.filters{display:flex;gap:12px;padding:14px;margin-bottom:20px}.filters>.el-input{flex:1}.filters>.el-select{width:150px}.empty{display:grid;justify-items:center;text-align:center;padding:58px 24px}.empty-icon{width:72px;height:72px;display:grid;place-items:center;border:1px solid var(--color-border-default);border-radius:20px;color:var(--color-accent-cyan);background:var(--color-bg-elevated);margin-bottom:18px}.empty h2{font-size:20px;margin:0 0 12px}.empty p{font-size:13px;color:var(--color-text-secondary);margin:0}.supported{display:flex;gap:12px;margin:28px 0}.supported>span{border:1px solid var(--color-border-default);border-radius:8px;padding:12px 24px;font-size:13px;min-width:105px}.supported small{display:block;font-size:10px;margin-top:6px;color:var(--color-text-muted)}.table-wrap{overflow:auto}.database-table{width:100%;border-collapse:collapse;text-align:left;font-size:13px;min-width:800px}.database-table th{font-size:11px;font-weight:500;color:var(--color-text-muted);padding:14px 18px;border-bottom:1px solid var(--color-border-default)}.database-table td{padding:20px 18px;vertical-align:top;border-bottom:1px solid var(--color-border-default);max-width:270px;overflow-wrap:anywhere}.database-table strong{font-weight:600}.database-table small{display:block;font-size:11px;color:var(--color-text-muted);margin-top:7px;line-height:1.5}.database-table code{font-size:12px}.row-actions{display:flex;flex-wrap:wrap;gap:10px}.row-actions .el-button{margin:0;font-size:12px}.connection-state{font-size:12px}.connection-state:before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;background:var(--color-text-muted)}.connection-state.enabled:before{background:var(--color-success)}.footnote{font-size:12px;color:var(--color-text-muted);margin-top:20px}.error{color:var(--color-task-danger)}.probe-row{font-size:12px;color:var(--color-text-secondary)}.load-more{margin-top:16px}@media(max-width:720px){.filters{flex-wrap:wrap}.filters>.el-input{flex-basis:100%}.filters>.el-select{flex:1;min-width:110px}.mode-badge{display:none}.supported{gap:8px;flex-wrap:wrap;justify-content:center}.supported>span{padding:12px}.empty{padding:36px 16px}}
 </style>
