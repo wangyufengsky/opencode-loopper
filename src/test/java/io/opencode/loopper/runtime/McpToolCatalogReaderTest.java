@@ -48,16 +48,33 @@ class McpToolCatalogReaderTest {
     }
 
     @Test void localInventoryUsesTheSelectedProjectDirectory() throws Exception {
-        verifyLocalInventory(false);
+        io.opencode.loopper.TestJvm.run(SuccessfulInventory.class, temp);
     }
 
     @Test void localInventoryStopsItsChildAfterServerError() throws Exception {
-        verifyLocalInventory(true);
+        io.opencode.loopper.TestJvm.run(FailedInventory.class, temp);
+    }
+
+    // Keep transport/native process handles inside one JVM lifetime before JUnit removes its cwd.
+    // The child still asserts the MCP process has stopped before exiting; isolation is not stop proof.
+    public static class SuccessfulInventory {
+        public static void main(String[] args) throws Exception { exerciseInChild(args, false); }
+    }
+
+    public static class FailedInventory {
+        public static void main(String[] args) throws Exception { exerciseInChild(args, true); }
+    }
+
+    private static void exerciseInChild(String[] args, boolean serverError) throws Exception {
+        var fixture = new McpToolCatalogReaderTest();
+        fixture.temp = Path.of(args[0]);
+        fixture.verifyLocalInventory(serverError);
+        System.exit(0);
     }
 
     private void verifyLocalInventory(boolean serverError) throws Exception {
         String executable = Path.of(System.getProperty("java.home"), "bin", "java").toString();
-        String classes = Path.of("target", "test-classes").toAbsolutePath().toString();
+        String classes = Path.of(StdioFixture.class.getProtectionDomain().getCodeSource().getLocation().toURI()).toString();
         Path pidFile = temp.resolve("fixture.pid");
         var config = json.valueToTree(java.util.Map.of("type", "local", "command",
                 List.of(executable, "-cp", classes, StdioFixture.class.getName(), pidFile.toString(),
