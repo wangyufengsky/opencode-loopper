@@ -25,3 +25,18 @@
 ```
 
 本次临时探针、原始输出及排版检查位于 `/private/tmp/azx0-doc-qa/`；该临时目录不作为长期测试依赖。后续测试应以本目录 DOCX 的 R1 至 R4 和 T1 至 T8 为基准，并单独验证合并表头关系。
+
+## 表格优化与 Luna 效果测试
+
+后续 `ASSIST_DOCUMENT_V2` 将合并表格保留为带逻辑坐标与 rowspan/colspan 的惰性 HTML 表示。样本原文件保持不变；`DocxTableRepresentationTest` 直接读取本文件，检查名称跨两行、出现要求跨两列，以及 UP/AC/O 的准确列位置。
+
+真实模型测试入口为 `scripts/qualify-document-luna.py`，Java 桥接器为 `scripts/qualification/DocumentRequirementLunaProbe.java`。先运行后端聚焦编译，将生产 classes 与依赖固定到独立目录，再用 `javac -cp <冻结classpath> -d <探针classes> scripts/qualification/DocumentRequirementLunaProbe.java` 编译探针。
+
+```bash
+python3 scripts/test-qualify-document-luna.py
+python3 scripts/qualify-document-luna.py --document docs/samples/azx0-requirement/AZX0接口附言优化_模拟需规.docx --output <新的证据目录> --classpath <探针及冻结生产classpath> --java <Java21绝对路径> --codex <Codex绝对路径>
+```
+
+测试固定 Luna medium、已有 ChatGPT 订阅、只读工具、独立提取和复核 Session；每 Session 最多 600 秒、4 次候选提交，工具调用设置 200 次准入上限。它使用生产解析器、角色提示、候选 Schema 与需求引用/覆盖验证器，通过受控 MCP 按段读取原文。样本的 15 个分段在这个效果探针中合并为一个作用域，未模拟生产分批、数据库、HTTP 生命周期及 OpenCode Provider；这些证据不得混称产品端到端验收。
+
+语义验收以文内 R1–R4、T1–T8 为人工清单，另核对 UP/AC/O 表头关系、模拟约定、未无依据新增规则及未把目录当作业务需求。MCP ACCEPTED 仅表示候选结构与引用通过；独立复核和人工语义判断另列。真实运行结果及失败记录见对应版本交付记录。

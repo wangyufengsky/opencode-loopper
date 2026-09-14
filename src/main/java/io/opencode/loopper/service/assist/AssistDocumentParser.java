@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
 /** Offline deterministic document representations. Never evaluates formulas, macros or external links. */
 @Component
 public class AssistDocumentParser {
-    public static final String VERSION="ASSIST_DOCUMENT_V1";
+    public static final String VERSION="ASSIST_DOCUMENT_V2";
     public record Section(String id,String title,String markdown) { }
     public record Document(String format,List<Section> sections,List<String> limitations) { }
     public Document parse(String name,byte[] bytes) {
@@ -62,12 +62,7 @@ public class AssistDocumentParser {
                     if(!prefix.isEmpty()){if(!text.isEmpty()){add(sections,chunks(title,text.toString()));text.setLength(0);}title=p.getText();}
                     append(text,prefix+p.getText()+"\n\n");
                 } else if(element instanceof XWPFTable table) {
-                    for(int r=0;r<table.getNumberOfRows();r++) {
-                        var cells=table.getRow(r).getTableCells();
-                        append(text,"| "+String.join(" | ",cells.stream().map(c->escape(c.getText())).toList())+" |\n");
-                        if(r==0) append(text,"|"+" --- |".repeat(cells.size())+"\n");
-                    }
-                    append(text,"\n");
+                    append(text,DocxTableRepresentation.render(table));
                 }
             }
             if(!text.isEmpty())add(sections,chunks(title,text.toString()));return sections;

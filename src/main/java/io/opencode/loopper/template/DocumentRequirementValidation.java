@@ -31,14 +31,16 @@ public final class DocumentRequirementValidation {
         for (var item : candidate.coverage()) {
             for (String key : item.requirementKeys()) {
                 require(byKey.get(key).sources().stream().anyMatch(ref -> ref.fileId().equals(item.fileId())
-                        && ref.section() == item.section()), "分段覆盖必须由该需求的真实原文引用支持");
+                        && ref.section() == item.section()), "分段覆盖必须由该需求的真实原文引用支持："
+                                + key + " 在 " + identity(item.fileId(), item.section()) + " 的 coverage 中，但 sources 缺少该分段");
             }
         }
         for (var requirement : candidate.requirements()) {
             for (var ref : requirement.sources()) {
                 require(candidate.coverage().stream().anyMatch(item -> Objects.equals(item.fileId(), ref.fileId())
                         && item.section() == ref.section() && item.requirementKeys().contains(requirement.key())),
-                        "需求原文引用缺少对应分段归属");
+                        "需求原文引用缺少对应分段归属：" + requirement.key() + " 引用了 "
+                                + identity(ref.fileId(), ref.section()) + "，须在该段 REQUIREMENT coverage 中关联此编号");
             }
         }
         return candidate;
@@ -72,7 +74,8 @@ public final class DocumentRequirementValidation {
             var section = source.get(identity(ref.fileId(), ref.section()));
             require(section != null, "原文引用不属于当前冻结批次");
             text(ref.quote(), 4000, "原文摘录");
-            require(section.text().contains(ref.quote()), "原文摘录必须逐字存在于引用分段，不得改写");
+            require(section.text().contains(ref.quote()), "原文摘录必须逐字存在于引用分段，不得改写："
+                    + identity(ref.fileId(), ref.section()) + "；请引用解码后的原文，勿把 JSON 转义反斜杠当成原文");
         }
     }
 
@@ -86,7 +89,7 @@ public final class DocumentRequirementValidation {
                     && keys.containsAll(item.requirementKeys()), "分段归属引用了不存在的需求");
             require(new HashSet<>(item.requirementKeys()).size() == item.requirementKeys().size(), "分段需求引用重复");
             require((item.disposition() == Disposition.REQUIREMENT) == !item.requirementKeys().isEmpty(),
-                    "需求分段必须关联需求；背景和局限不得携带需求归属");
+                    "需求分段必须关联需求；背景和局限不得携带需求归属：" + identity(item.fileId(), item.section()));
             text(item.reason(), 2000, "分段归属说明"); covered.addAll(item.requirementKeys());
         }
         require(covered.equals(keys), "存在未关联任何分段的需求");

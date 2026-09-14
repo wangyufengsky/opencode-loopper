@@ -43,9 +43,24 @@ class DocumentRequirementValidationTest {
                 new Coverage("doc-a", 0, Disposition.BACKGROUND, List.of(), "背景"),
                 new Coverage("doc-b", 0, Disposition.REQUIREMENT, List.of("RQ-1"), "错误归属")));
         assertThatThrownBy(() -> DocumentRequirementValidation.extraction(input, candidate))
-                .isInstanceOf(BadRequestException.class).hasMessageContaining("真实原文引用");
+                .isInstanceOf(BadRequestException.class).hasMessageContaining("真实原文引用", "RQ-1", "doc-b:0", "sources");
         assertThatThrownBy(() -> DocumentRequirementValidation.review(input, candidate(requirement),
                 new Review(true, List.of(), candidate(requirement).coverage(), List.of())))
                 .isInstanceOf(BadRequestException.class).hasMessageContaining("全部需求");
+    }
+    @Test void repairFeedbackLocatesTheSourceAndReverseCoverageWithoutEchoingDocumentText() {
+        var wrongQuote = new Requirement("RQ-1", "金额", "订单", Kind.RULE, "金额必须大于零",
+                List.of(new Source("doc-a", 0, "private-content-not-to-echo")), List.of(), List.of());
+        assertThatThrownBy(() -> DocumentRequirementValidation.extraction(input, candidate(wrongQuote)))
+                .hasMessageContaining("doc-a:0", "JSON 转义").hasMessageNotContaining("private-content-not-to-echo");
+        var twoSources = new Requirement("RQ-1", "金额", "订单", Kind.RULE, "金额必须大于零",
+                List.of(new Source("doc-a", 0, "金额必须大于零"), new Source("doc-b", 0, "现有系统使用 Java。")), List.of(), List.of());
+        assertThatThrownBy(() -> DocumentRequirementValidation.extraction(input, candidate(twoSources)))
+                .hasMessageContaining("RQ-1", "doc-b:0", "REQUIREMENT coverage");
+        var badDisposition = new Candidate(List.of(requirement), List.of(
+                new Coverage("doc-a", 0, Disposition.BACKGROUND, List.of("RQ-1"), "错误归属"),
+                new Coverage("doc-b", 0, Disposition.BACKGROUND, List.of(), "背景")));
+        assertThatThrownBy(() -> DocumentRequirementValidation.extraction(input, badDisposition))
+                .hasMessageContaining("背景和局限不得携带需求归属", "doc-a:0");
     }
 }
