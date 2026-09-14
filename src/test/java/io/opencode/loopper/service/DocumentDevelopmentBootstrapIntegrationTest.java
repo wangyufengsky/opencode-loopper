@@ -690,8 +690,13 @@ class DocumentDevelopmentBootstrapIntegrationTest {
                 <project><modelVersion>4.0.0</modelVersion><groupId>example</groupId><artifactId>events</artifactId><version>1</version>
                 <properties><maven.compiler.release>21</maven.compiler.release><project.build.sourceEncoding>UTF-8</project.build.sourceEncoding></properties>
                 <dependencies><dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter</artifactId><version>6.0.3</version><scope>test</scope></dependency></dependencies>
-                <build><plugins><plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-surefire-plugin</artifactId><version>3.5.6</version><configuration><forkCount>0</forkCount></configuration></plugin></plugins></build></project>
+                <build><plugins>
+                <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-resources-plugin</artifactId><version>3.5.0</version></plugin>
+                <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-compiler-plugin</artifactId><version>3.15.0</version></plugin>
+                <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-surefire-plugin</artifactId><version>3.5.6</version><configuration><forkCount>0</forkCount></configuration></plugin>
+                </plugins></build></project>
                 """);
+        // Match the outer build's cached plugins; machine Maven defaults vary across CI platforms.
         Files.createDirectories(source.resolve(".mvn")); Files.writeString(source.resolve(".mvn/maven.config"), "-o\n");
         if (gitProject) {
             Files.writeString(source.resolve(".gitignore"), "target/\n");
