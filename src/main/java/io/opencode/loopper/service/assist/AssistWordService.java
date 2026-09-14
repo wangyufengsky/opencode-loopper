@@ -38,7 +38,8 @@ public class AssistWordService {
             var artifact=binaries.write("GENERATED_WORD",MEDIA,output.bytes(),Map.of("sourceSha256",input.sha256(),"target",target));
             receipt=new AssistMapper.WordReceipt(scope.ownerKey(),key,requestHash,target,input.sha256(),artifact.relativePath(),artifact.sha256(),"PREPARED",Instant.now().toString());mapper.insertWord(receipt);
         }
-        Path output=AssistFiles.resolve(scope.directory(),target);byte[] content=AssistFiles.read(AssistFiles.resolve(data,receipt.contentRef()),20*1024*1024);
+        // Stored artifact references may use Windows separators; caller-supplied paths keep strict validation.
+        Path output=AssistFiles.resolve(scope.directory(),target);byte[] content=AssistFiles.read(AssistFiles.resolve(data,receipt.contentRef().replace('\\','/')),20*1024*1024);
         if(!AssistFiles.sha(content).equals(receipt.outputHash()))throw new AssistFailure("WORD_ARTIFACT_CHANGED","已登记产物内容校验失败，请检查受管存储","STOP_AND_INSPECT");
         String current=Files.exists(output)?AssistFiles.sha(AssistFiles.read(output,20*1024*1024)):null;
         if(!Objects.equals(current,receipt.outputHash())) {

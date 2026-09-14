@@ -179,7 +179,9 @@ class DirectDocumentDevelopmentIntegrationTest {
                 """);
         fake.holdProfileOpen(OpenCodeClient.SessionProfile.JUDGE_CANDIDATE_READ_ONLY, true);
         {
-            tasks.verify(task.id()); finishJudges(task.id());
+            tasks.verify(task.id());
+            assertThat(tasks.get(task.id()).state()).as("%s", tasks.verifications(domain.latestAttempt(domain.listStages(task.id()).getFirst().id()).orElseThrow().id())).isEqualTo("JUDGING");
+            finishJudges(task.id());
             assertThat(tasks.get(task.id()).state()).as("%s", tasks.verifications(domain.latestAttempt(domain.listStages(task.id()).getFirst().id()).orElseThrow().id())).isEqualTo("AWAITING_DECISION");
             development.advance(admission.require(run.id()), contract);
             assertThat(admission.require(run.id()).state()).as("%s", admission.require(run.id()).waitingMessage()).isEqualTo("REPORTING");
@@ -231,7 +233,11 @@ class DirectDocumentDevelopmentIntegrationTest {
                 <project><modelVersion>4.0.0</modelVersion><groupId>example</groupId><artifactId>events</artifactId><version>1</version>
                 <properties><maven.compiler.release>21</maven.compiler.release><project.build.sourceEncoding>UTF-8</project.build.sourceEncoding></properties>
                 <dependencies><dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter</artifactId><version>6.0.3</version><scope>test</scope></dependency></dependencies>
-                <build><plugins><plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-surefire-plugin</artifactId><version>3.5.6</version><configuration><forkCount>0</forkCount></configuration></plugin></plugins></build></project>
+                <build><plugins>
+                <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-resources-plugin</artifactId><version>3.5.0</version></plugin>
+                <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-compiler-plugin</artifactId><version>3.15.0</version></plugin>
+                <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-surefire-plugin</artifactId><version>3.5.6</version><configuration><forkCount>0</forkCount></configuration></plugin>
+                </plugins></build></project>
                 """);
         Files.createDirectories(source.resolve(".mvn")); Files.writeString(source.resolve(".mvn/maven.config"), "-o\n");
         if (gitProject) {

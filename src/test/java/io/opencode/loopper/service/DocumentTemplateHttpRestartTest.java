@@ -21,6 +21,15 @@ class DocumentTemplateHttpRestartTest {
     @TempDir Path temporary;
     private final ObjectMapper json = new ObjectMapper();
     @Test void uploadIdentitySourceAndCancellationSurviveServiceRestart() throws Exception {
+        io.opencode.loopper.TestJvm.run(DocumentTemplateHttpRestartTest.class, temporary);
+    }
+    public static void main(String[] args) throws Exception {
+        var fixture = new DocumentTemplateHttpRestartTest();
+        fixture.temporary = Path.of(args[0]);
+        fixture.exerciseRestart();
+        System.exit(0);
+    }
+    private void exerciseRestart() throws Exception {
         var data = Files.createDirectory(temporary.resolve("data"));
         var source = Files.createDirectory(temporary.resolve("project")); Files.writeString(source.resolve("owned.txt"), "用户数据");
         String key = UUID.randomUUID().toString(), runId, projectId, fileId, sha; byte[] upload;
@@ -51,11 +60,17 @@ class DocumentTemplateHttpRestartTest {
                 assertThat(retry.statusCode()).as(retry.body()).isEqualTo(202);
                 assertThat(json.readTree(retry.body()).path("id").asText()).isEqualTo(runId);
                 assertThat(app.getBean(JdbcTemplate.class).queryForObject("SELECT count(*) FROM document_template_run", Integer.class)).isEqualTo(1);
-                var row = app.getBean(DocumentTemplateMapper.class).find(runId).orElseThrow();
-                var command = json.writeValueAsBytes(new DocumentTemplateControl.Command(UUID.randomUUID().toString(), row.version()));
-                var response = http.send(HttpRequest.newBuilder(uri(app, "/api/template-tasks/document-runs/" + runId + "/cancel"))
-                        .timeout(Duration.ofSeconds(10)).header("Content-Type", "application/json").header("X-Loopper-Local-UI", "1")
-                        .POST(HttpRequest.BodyPublishers.ofByteArray(command)).build(), HttpResponse.BodyHandlers.ofString());
+                HttpResponse<String> response = null;
+                for (int retryIndex = 0; retryIndex < 10; retryIndex++) {
+                    var row = app.getBean(DocumentTemplateMapper.class).find(runId).orElseThrow();
+                    var command = json.writeValueAsBytes(new DocumentTemplateControl.Command(UUID.randomUUID().toString(), row.version()));
+                    response = http.send(HttpRequest.newBuilder(uri(app, "/api/template-tasks/document-runs/" + runId + "/cancel"))
+                            .timeout(Duration.ofSeconds(10)).header("Content-Type", "application/json").header("X-Loopper-Local-UI", "1")
+                            .POST(HttpRequest.BodyPublishers.ofByteArray(command)).build(), HttpResponse.BodyHandlers.ofString());
+                    if (response.statusCode() != 409) break;
+                    assertThat(response.body()).contains("DOCUMENT_COMMAND_CONFLICT");
+                    Thread.sleep(50); // The upload dispatcher may advance the optimistic version before cancel.
+                }
                 assertThat(response.statusCode()).as(response.body()).isEqualTo(202);
                 for (int i = 0; i < 10; i++) {
                     var current = app.getBean(DocumentTemplateMapper.class).find(runId).orElseThrow();

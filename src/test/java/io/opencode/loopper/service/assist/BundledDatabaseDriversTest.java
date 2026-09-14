@@ -14,6 +14,15 @@ class BundledDatabaseDriversTest {
         return new DatabaseConfig(type,"localhost",3306,"app","reader","","",List.of("app"),Map.of(),10,200);
     }
     @Test void coldExtractionLoadsAllSupportedDriversInIsolationAndSurvivesRestart() throws Exception {
+        io.opencode.loopper.TestJvm.run(BundledDatabaseDriversTest.class, temp);
+    }
+    public static void main(String[] args) throws Exception {
+        var fixture = new BundledDatabaseDriversTest();
+        fixture.temp = Path.of(args[0]);
+        fixture.exerciseDrivers();
+        System.exit(0);
+    }
+    private void exerciseDrivers() throws Exception {
         for(var profile:BundledDatabaseDrivers.PROFILES) {
             var config=configuration(profile.id(),null);
             var files=BundledDatabaseDrivers.materialize(temp.toRealPath(),config);
@@ -53,6 +62,6 @@ class BundledDatabaseDriversTest {
         var root=temp.toRealPath();var config=BundledDatabaseDrivers.resolve(input(DatabaseConfig.Type.MYSQL));
         Files.createSymbolicLink(root.resolve(config.driverProfile()),Files.createDirectory(root.resolve("outside")));
         assertThatThrownBy(()->BundledDatabaseDrivers.materialize(root,config)).isInstanceOf(AssistFailure.class);
-        assertThat(Files.list(root.resolve("outside"))).isEmpty();
+        try(var files=Files.list(root.resolve("outside"))) { assertThat(files).isEmpty(); }
     }
 }

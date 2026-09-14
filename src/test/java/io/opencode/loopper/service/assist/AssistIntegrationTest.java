@@ -118,6 +118,10 @@ class AssistIntegrationTest {
         String sha=AssistFiles.sha(Files.readAllBytes(current.directory().resolve("source.md")));
         var input=Map.<String,Object>of("scope",next,"source","workspace:source.md","expectedSha",sha,"target","report.docx","idempotencyKey","word-1");
         var generated=call("generate_word",input);assertThat(generated.error()).as(generated.content().toString()).isFalse();
+        // A persisted Windows artifact reference must replay on every host without relaxing tool paths.
+        var receipt=mapper.word(current.ownerKey(),"word-1");
+        jdbc.update("UPDATE assist_word_receipt SET content_ref=? WHERE owner_key=? AND idempotency_key=?",
+                receipt.contentRef().replace('/','\\'),current.ownerKey(),"word-1");
         assertThat(call("generate_word",input).content().get("sha256")).isEqualTo(generated.content().get("sha256"));
         assertThat(domain.listBinaryArtifacts(task.id())).hasSize(2);
         assertThat(tasks.verify(task.id()).state()).isIn("JUDGING","AWAITING_DECISION");
