@@ -40,6 +40,24 @@ final class DocumentCandidateSchemas {
                 "corrections", array(object("requirementKey", nullable(32), "findingKey", nullable(64),
                         "detail", text(4000)), 256));
     }
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> directAssessment() {
+        var old = (Map<String, Object>) assessment().get("properties");
+        var item = (Map<String, Object>) ((Map<String, Object>) old.get("items")).get("items");
+        var entry = object("title", text(300), "statement", text(12000), "sources", array(sourceRef(), 64),
+                "issues", strings(32, 2000), "assessment", item);
+        return object("snapshotSha", text(64), "entries", array(entry, 256), "findings", old.get("findings"),
+                "skippedSections", array(object("source", sourceRef(), "reason", text(2000)), 2048),
+                "limitations", strings(64, 2000));
+    }
+    static Map<String, Object> directReview() {
+        var sourceOrNull = new LinkedHashMap<>(sourceRef()); sourceOrNull.put("type", List.of("object", "null"));
+        return object("snapshotSha", text(64), "approved", bool(), "reviewedRequirementKeys", strings(256, 32),
+                "reviewedFindingKeys", strings(256, 64), "checkedSections", array(sourceRef(), 2048),
+                "corrections", array(object("requirementKey", nullable(32), "findingKey", nullable(64),
+                        "source", sourceOrNull, "detail", text(4000)), 256));
+    }
+    private static Map<String, Object> sourceRef() { return object("fileId", text(64), "section", integer(0)); }
     private static Map<String, Object> codeReferences() {
         return array(object("path", text(1024), "blobSha", text(64), "startLine", integer(1),
                 "endLine", integer(1), "quote", text(8000)), 64);

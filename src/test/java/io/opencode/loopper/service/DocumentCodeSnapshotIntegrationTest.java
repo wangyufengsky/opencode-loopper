@@ -18,6 +18,7 @@ import tools.jackson.databind.ObjectMapper;
 @SpringBootTest(classes = LoopperApplication.class, properties = {
         "loopper.opencode.mode=fake", "loopper.monitor-delay=1h", "loopper.designer-monitor-delay=1h"})
 class DocumentCodeSnapshotIntegrationTest {
+    @Autowired org.springframework.context.ApplicationContext applicationContext;
     @Autowired Flyway flyway;
     @Autowired DocumentTemplateService service;
     @Autowired DocumentTemplateMapper runs;
@@ -62,7 +63,7 @@ class DocumentCodeSnapshotIntegrationTest {
         assertThat(git(source, "status", "--porcelain")).isEmpty();
     }
     private io.opencode.loopper.persistence.DocumentTemplateRunRow create() {
-        return service.create(new DocumentTemplateService.Request(UUID.randomUUID().toString(), "REQUIREMENT_CODE_REVIEW", "1", project,
+        return LegacyDocumentFixture.create(applicationContext, new DocumentTemplateService.Request(UUID.randomUUID().toString(), "REQUIREMENT_CODE_REVIEW", "1", project,
                 "local:refs/heads/main"), List.of(new DocumentTemplateStorage.Incoming("需求.md", "# 权限\n必须检查权限".getBytes(StandardCharsets.UTF_8))));
     }
     private static String git(Path directory, String... arguments) throws Exception {

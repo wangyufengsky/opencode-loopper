@@ -113,13 +113,16 @@ public final class TemplateTaskCoordinator {
         batchStore.plan(task.id(), inputBatches.size(), people.size());
         String feedback = feedback(task.id(), run.repairRound());
         var reviews = new ArrayList<TemplateAnalysis.UnitReview>();
+        var reviewRows = new ArrayList<TemplateTaskBatchRow>();
         for (int index = 0; index < inputBatches.size(); index++) {
             var input = new TemplateBatchExecution.Input(inputBatches.get(index), null, List.of(), feedback);
             var batch = batch(attempt, index, "REVIEW", input, run);
-            if (!validated(batch, contract)) return;
-            reviews.addAll(json.readValue(batch.outputJson(), TemplateAnalysis.BatchCandidate.class).reviews());
+            reviewRows.add(batch);
         }
+        if (!advanceWindow(reviewRows, contract)) return;
+        for (var row : reviewRows) reviews.addAll(json.readValue(row.outputJson(), TemplateAnalysis.BatchCandidate.class).reviews());
         var contributors = new ArrayList<TemplateAnalysis.ContributorCandidate>();
+        var contributorRows = new ArrayList<TemplateTaskBatchRow>();
         if (run.templateId().equals("CONTRIBUTION_REPORT")) {
             for (int index = 0; index < people.size(); index++) {
                 var person = people.get(index);
@@ -128,10 +131,11 @@ public final class TemplateTaskCoordinator {
                 var ownReviews = reviews.stream().filter(review -> ownIds.contains(review.unitId())).toList();
                 var input = new TemplateBatchExecution.Input(ownUnits, person, ownReviews, feedback);
                 var batch = batch(attempt, index, "CONTRIBUTOR", input, run);
-                if (!validated(batch, contract)) return;
-                contributors.add(json.readValue(batch.outputJson(), TemplateAnalysis.ContributorCandidate.class));
+                contributorRows.add(batch);
             }
         }
+        if (!advanceWindow(contributorRows, contract)) return;
+        for (var row : contributorRows) contributors.add(json.readValue(row.outputJson(), TemplateAnalysis.ContributorCandidate.class));
         artifacts.publish(attempt, new TemplateAnalysis.Accepted(List.copyOf(reviews), List.copyOf(contributors)));
         states.completeStage(attempt, "所有提交、证据片段与贡献者均已完整覆盖；评分由服务端计算；报告文件已校验");
     }
@@ -141,6 +145,20 @@ public final class TemplateTaskCoordinator {
         String value = json.writeValueAsString(input);
         String hash = TemplateGitEvidenceCollector.hash(run.snapshotSha256() + "\n" + run.contractJson() + "\n" + purpose + "\n" + value);
         return batchStore.create(attempt, ordinal, purpose, value, hash);
+    }
+
+    private boolean advanceWindow(List<TemplateTaskBatchRow> rows, TemplateTaskContractFactory.Frozen contract) {
+        if (rows.stream().allMatch(row -> row.state().equals("VALIDATED"))) return true;
+        var selected = TemplateBatchWindow.select(rows, TemplateTaskBatchRow::state, contract.analysisConcurrency());
+        for (var row : selected) {
+            if (!states.task(row.taskId()).state().equals("RUNNING")) return false;
+            validated(row, contract);
+        }
+        if (selected.isEmpty()) {
+            rows.stream().filter(row -> row.state().equals("FAILED")).findFirst()
+                    .ifPresent(row -> validated(row, contract));
+        }
+        return false;
     }
 
     private boolean validated(TemplateTaskBatchRow batch, TemplateTaskContractFactory.Frozen contract) {

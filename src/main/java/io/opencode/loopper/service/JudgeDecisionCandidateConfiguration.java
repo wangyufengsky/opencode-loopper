@@ -21,8 +21,8 @@ class JudgeDecisionCandidateConfiguration {
 
     @Bean
     CandidatePolicy judgeDecisionCandidatePolicy(
-            JudgeDecisionCompilationInputLoader inputs, JudgeDecisionCompilation compilation) {
-        return new JudgeDecisionCandidatePolicy(inputs, compilation);
+            JudgeDecisionCompilationInputLoader inputs, JudgeDecisionCompilation compilation, DocumentOriginalReadCoverage originalReads) {
+        return new JudgeDecisionCandidatePolicy(inputs, compilation, originalReads);
     }
 
     @Bean

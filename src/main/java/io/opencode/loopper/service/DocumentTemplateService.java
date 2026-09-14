@@ -48,10 +48,12 @@ public class DocumentTemplateService {
     }
 
     private DocumentTemplateRunRow createOnce(Request request, List<DocumentTemplateStorage.Incoming> incoming) {
+        var row = mapper.findRequest(request.requestKey()).orElse(null);
+        if (row == null && !DocumentTemplateDefinition.VERSION.equals(request.templateVersion()))
+            throw new ConflictException("TEMPLATE_VERSION_CHANGED", "模板已更新，请刷新后重新发起");
         var prepared = storage.prepare(incoming);
         String digest = hash(json.writeValueAsString(Map.of("request", request, "files", prepared.stream()
                 .map(file -> Map.of("filename", file.filename(), "sha256", file.sha256())).toList())));
-        var row = mapper.findRequest(request.requestKey()).orElse(null);
         if (row != null) row = DocumentTemplateAdmission.sameRequest(row, digest);
         else {
             var definition = DocumentTemplateDefinition.valueOf(request.templateId());
@@ -63,7 +65,8 @@ public class DocumentTemplateService {
             String contract = json.writeValueAsString(new Contract(request.templateVersion(), model,
                     properties.getMaxDuration().toSeconds(), properties.getAttemptTimeout().toSeconds(),
                     properties.getMaxTaskAttempts(), properties.getMaxStageAttempts(), properties.getSessionErrorLimit(),
-                    !definition.review(), definition.review() ? "STATIC_ONLY" : "CURRENT_DIRECTORY", properties.isTimeoutEnabled()));
+                    !definition.review(), definition.review() ? "STATIC_ONLY" : "CURRENT_DIRECTORY", properties.isTimeoutEnabled(),
+                    definition.review() ? properties.getTemplateAnalysisConcurrency() : 1));
             String now = Instant.now().toString();
             var proposed = new DocumentTemplateRunRow(UUID.randomUUID().toString(), request.requestKey(), digest,
                     project.id(), definition.name(), request.templateVersion(), definition.title() + " · " + project.name(),
@@ -85,8 +88,6 @@ public class DocumentTemplateService {
         DocumentTemplateDefinition definition;
         try { definition = DocumentTemplateDefinition.valueOf(request.templateId()); }
         catch (RuntimeException invalid) { throw new BadRequestException("DOCUMENT_TEMPLATE_REQUIRED", "请选择需求开发或需求代码评审模板"); }
-        if (!DocumentTemplateDefinition.VERSION.equals(request.templateVersion()))
-            throw new ConflictException("TEMPLATE_VERSION_CHANGED", "模板已更新，请刷新后重新发起");
         if (definition.review() && (request.branchId() == null || request.branchId().isBlank()))
             throw new BadRequestException("DOCUMENT_TEMPLATE_BRANCH_REQUIRED", "请选择要评审的分支");
         if (!definition.review() && request.branchId() != null)
@@ -96,8 +97,14 @@ public class DocumentTemplateService {
     private static String hash(String value) { return DocumentTemplateStorage.hash(value.getBytes(StandardCharsets.UTF_8)); }
     public record Request(String requestKey, String templateId, String templateVersion, String projectId, String branchId) { }
     public record Contract(String version, String model, long maxDurationSeconds, long attemptTimeoutSeconds,
-            int maxTaskAttempts, int maxStageAttempts, int sessionErrorLimit, boolean autoDevelopment, String executionPolicy, Boolean timeoutEnabled) {
-        public Contract { timeoutEnabled = timeoutEnabled == null ? true : timeoutEnabled; }
+            int maxTaskAttempts, int maxStageAttempts, int sessionErrorLimit, boolean autoDevelopment, String executionPolicy, Boolean timeoutEnabled, Integer analysisConcurrency) {
+        public Contract {
+            timeoutEnabled = timeoutEnabled == null ? true : timeoutEnabled;
+            analysisConcurrency = !"2".equals(version) || autoDevelopment || analysisConcurrency == null ? 1 : analysisConcurrency;
+        }
+        public Contract(String version,String model,long total,long attempt,int tasks,int stages,int errors,boolean auto,String policy,Boolean timeout) {
+            this(version,model,total,attempt,tasks,stages,errors,auto,policy,timeout,1);
+        }
         public Contract(String version,String model,long total,long attempt,int tasks,int stages,int errors,boolean auto,String policy) {
             this(version,model,total,attempt,tasks,stages,errors,auto,policy,true);
         }

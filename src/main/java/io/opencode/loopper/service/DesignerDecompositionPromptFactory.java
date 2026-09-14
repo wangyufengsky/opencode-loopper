@@ -288,7 +288,7 @@ final class DesignerDecompositionPromptFactory {
     }
 
     private String numberedSegments(DesignRequirementRevisionRow revision) {
-        if (DocumentRequirementContext.document(revision.requirementText())) return "通过 list_development_requirements 分页读取全部 RQ 编号与完整需求，再形成无遗漏的覆盖关系。";
+        if (DocumentRequirementContext.document(revision.requirementText())) return "原文模板通过 list_development_documents/list_development_sections 及 read_development_source 阅读全部原文，DOC 编号是文档来源；历史模板通过 list_development_requirements 读取 RQ 需求。结合代码形成工作包覆盖关系，不把原文标题当作已提取需求。";
         return readSegments(revision.requirementSegmentsJson()).stream()
                 .map(segment -> segment.id() + ": " + segment.text())
                 .collect(java.util.stream.Collectors.joining("\n"));

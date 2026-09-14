@@ -28,26 +28,32 @@ public final class DocumentAssessmentWorkflow {
         var progress = assessments.progress(run.id()).orElseThrow();
         var batches = planner.batches(run);
         if (run.state().equals("ASSESSING")) {
-            for (int i = 0; i < batches.size(); i++) {
-                var model = models.exact(run.id(), "REQUIREMENT_CODE_ASSESSMENT_V1", i, progress.round()).orElse(null);
-                if (model == null) { create(run, i, progress.round(), batches.get(i)); return false; }
-                if (!model.state().equals("VALIDATED")) { execution.advance(model.id(), contract); return false; }
+            var work = pending(run.id(), batches.size(), "REQUIREMENT_CODE_ASSESSMENT_V1", progress.round());
+            if (!work.isEmpty()) {
+                for (var next : TemplateBatchWindow.select(work, Work::state, contract.analysisConcurrency())) {
+                    if (next.model() == null) create(run, next.ordinal(), progress.round(), batches.get(next.ordinal()));
+                    else execution.advance(next.model().id(), contract);
+                }
+                return false;
             }
             admission.transition(run, DocumentTemplateState.VERIFYING, LifecycleEvent.VERIFY_REQUIREMENT_ASSESSMENT, null, null);
             return false;
         }
-        boolean repair = false;
-        for (int i = 0; i < batches.size(); i++) {
-            var model = models.exact(run.id(), "REQUIREMENT_CODE_ASSESSMENT_V1", i, progress.round()).orElseThrow();
-            var review = models.exact(run.id(), "REQUIREMENT_ASSESSMENT_REVIEW_V1", i, progress.round()).orElse(null);
-            if (review == null) {
-                var input = batches.get(i);
-                store.create(run.id(), MachineCandidateKind.REQUIREMENT_ASSESSMENT_REVIEW_V1, i, progress.round(),
+        var work = pending(run.id(), batches.size(), "REQUIREMENT_ASSESSMENT_REVIEW_V1", progress.round());
+        if (!work.isEmpty()) {
+            for (var next : TemplateBatchWindow.select(work, Work::state, contract.analysisConcurrency())) {
+                if (next.model() != null) { execution.advance(next.model().id(), contract); continue; }
+                var input = batches.get(next.ordinal());
+                var model = models.exact(run.id(), "REQUIREMENT_CODE_ASSESSMENT_V1", next.ordinal(), progress.round()).orElseThrow();
+                store.create(run.id(), MachineCandidateKind.REQUIREMENT_ASSESSMENT_REVIEW_V1, next.ordinal(), progress.round(),
                         new DocumentModelInput(input.sections(), input.requirements(), null, input.snapshotSha(),
                                 json.readValue(model.outputJson(), RequirementCodeAssessment.Candidate.class), null));
-                return false;
             }
-            if (!review.state().equals("VALIDATED")) { execution.advance(review.id(), contract); return false; }
+            return false;
+        }
+        boolean repair = false;
+        for (int i = 0; i < batches.size(); i++) {
+            var review = models.exact(run.id(), "REQUIREMENT_ASSESSMENT_REVIEW_V1", i, progress.round()).orElseThrow();
             repair |= !json.readValue(review.outputJson(), RequirementCodeAssessment.Review.class).approved();
         }
         if (repair) {
@@ -63,6 +69,21 @@ public final class DocumentAssessmentWorkflow {
         }
         return true;
     }
+    private java.util.List<Work> pending(String run, int count, String kind, int round) {
+        var result = new java.util.ArrayList<Work>();
+        for (int i = 0; i < count; i++) {
+            var row = models.exact(run, kind, i, round).orElse(null);
+            if (row != null && row.state().equals("VALIDATED")) continue;
+            if (row != null && TemplateBatchState.valueOf(row.state()).terminal())
+                throw new BadRequestException("DOCUMENT_MODEL_REQUIRES_RECOVERY", "评审批次已停止，请从冻结输入恢复");
+            result.add(new Work(i, row));
+        }
+        return result;
+    }
+    private record Work(int ordinal, io.opencode.loopper.persistence.DocumentTemplateModelRow model) {
+        String state() { return model == null ? "PREPARED" : model.state(); }
+    }
+
     private void create(DocumentTemplateRunRow run, int ordinal, int round, DocumentModelInput input) {
         RequirementCodeAssessment.Candidate previous = null; RequirementCodeAssessment.Review feedback = null;
         if (round > 0) {

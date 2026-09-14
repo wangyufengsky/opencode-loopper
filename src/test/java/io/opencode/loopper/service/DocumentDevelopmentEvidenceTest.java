@@ -45,7 +45,7 @@ class DocumentDevelopmentEvidenceTest {
         when(mapper.accepted("design", 1)).thenReturn(Optional.of(accepted)); when(mapper.insert(any())).thenReturn(1);
         when(requirements.page("run", 1, -1, 100)).thenReturn(List.of(requirement("RQ-1")));
         when(requirements.item("run", 1, "RQ-1")).thenReturn(Optional.of(requirement("RQ-1")));
-        when(requirements.revision("run", 1)).thenReturn(Optional.of(new DocumentRequirementMapper.Revision("run", 1, "manifest", "[]", "now")));
+        when(requirements.basis("run", 1)).thenReturn(Optional.of(new DocumentSourceMapper.Basis("run", 1, "REQUIREMENT_LIST", "manifest", "[]", "now")));
     }
     @Test void freezesApprovedMappingsWithActualStageAttemptAndTestIdentities() {
         evidence.freeze(run);

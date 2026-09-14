@@ -48,6 +48,33 @@ class DocumentTemplateMigrationTest {
                     .hasMessageContaining("FOREIGN KEY");
         }
     }
+    @Test void sourceUpgradePreservesHistoricalBasisAndAllowsIndependentDocumentSourceWithoutARequirementList() throws Exception {
+        String url = url("source-basis.db"); migrate(url, "106");
+        try (var db = DriverManager.getConnection(url); var sql = db.createStatement()) {
+            sql.executeUpdate("INSERT INTO project(id,name,root_path,created_at,updated_at) VALUES('p','历史项目','/tmp/p','now','now')");
+            sql.executeUpdate("INSERT INTO task(id,project_id,title,state,created_at,updated_at) VALUES('t','p','开发','PENDING_START','now','now')");
+            sql.executeUpdate("INSERT INTO document_template_run(id,request_key,request_sha256,project_id,template_id,template_version,title,state,contract_json,requirement_revision,created_at,updated_at) VALUES('d','request','digest','p','REQUIREMENT_DEVELOPMENT','1','需求','EXECUTING','{}',1,'now','now')");
+            sql.executeUpdate("INSERT INTO document_requirement_revision VALUES('d',1,'original-manifest','[]','now')");
+            sql.executeUpdate("INSERT INTO document_development_task_source VALUES('t','d',1,'original-manifest','now')");
+        }
+        migrate(url, null);
+        try (var db = DriverManager.getConnection(url); var sql = db.createStatement()) {
+            try (var row = sql.executeQuery("SELECT b.source_kind,b.manifest_sha256,s.document_revision,d.source_revision FROM document_basis_revision b JOIN document_development_task_source s ON s.run_id=b.run_id JOIN document_template_run d ON d.id=b.run_id")) {
+                assertThat(row.next()).isTrue(); assertThat(row.getString(1)).isEqualTo("REQUIREMENT_LIST");
+                assertThat(row.getString(2)).isEqualTo("original-manifest"); assertThat(row.getInt(3)).isEqualTo(1); assertThat(row.getInt(4)).isZero();
+            }
+            sql.executeUpdate("INSERT INTO document_requirement_revision VALUES('d',2,'later-manifest','[]','later')");
+            try (var row = sql.executeQuery("SELECT source_kind FROM document_basis_revision WHERE run_id='d' AND revision=2")) { assertThat(row.next()).isTrue(); assertThat(row.getString(1)).isEqualTo("REQUIREMENT_LIST"); }
+            sql.executeUpdate("INSERT INTO document_template_run(id,request_key,request_sha256,project_id,template_id,template_version,title,state,contract_json,source_revision,created_at,updated_at) VALUES('new','request-new','digest','p','REQUIREMENT_DEVELOPMENT','2','原文','DESIGNING','{}',1,'now','now')");
+            sql.executeUpdate("INSERT INTO document_basis_revision VALUES('new',1,'DOCUMENT_SOURCE','source-manifest','{\"files\":[]}','now')");
+            assertThatThrownBy(() -> sql.executeUpdate("INSERT INTO document_development_task_source VALUES('missing','new',1,'source-manifest','now')")).hasMessageContaining("FOREIGN KEY");
+            db.setAutoCommit(false);
+            sql.executeUpdate("UPDATE document_development_task_source SET run_id='new',manifest_sha256='source-manifest' WHERE task_id='t'");
+            db.rollback(); db.setAutoCommit(true);
+            try (var row = sql.executeQuery("SELECT run_id FROM document_development_task_source WHERE task_id='t'")) { assertThat(row.next()).isTrue(); assertThat(row.getString(1)).isEqualTo("d"); }
+            try (var rows = sql.executeQuery("PRAGMA foreign_key_check")) { assertThat(rows.next()).isFalse(); }
+        }
+    }
     private String url(String name) { return "jdbc:sqlite:" + root.resolve(name) + "?foreign_keys=on&transaction_mode=IMMEDIATE"; }
     private void migrate(String url, String target) {
         var configuration = Flyway.configure().dataSource(url, null, null);

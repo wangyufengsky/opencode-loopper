@@ -9,7 +9,10 @@ import tools.jackson.databind.ObjectMapper;
 final class DocumentDevelopmentMcpTools {
     private DocumentDevelopmentMcpTools() { }
     static List<McpServerFeatures.SyncToolSpecification> specifications(DocumentDevelopmentReads reads, ObjectMapper json) {
-        return List.of(spec("list_development_requirements", "Page through immutable requirements and source identities for the signed software role", reads, json,
+        return List.of(spec("list_development_documents", "Read the immutable document index, source references and resource URIs", reads, json, Map.of("scope", text())),
+                spec("list_development_sections", "Read a page of original document headings, not inferred requirements", reads, json,
+                        Map.of("scope", text(), "fileId", text(), "offset", Map.of("type", "integer", "minimum", 0))),
+                spec("list_development_requirements", "Page through immutable requirements and source identities for the signed software role", reads, json,
                         Map.of("scope", text(), "after", Map.of("type", "integer", "minimum", -1))),
                 spec("read_development_requirement", "Read one complete frozen requirement, acceptance scenarios and source references", reads, json,
                         Map.of("scope", text(), "key", text())),
@@ -28,6 +31,8 @@ final class DocumentDevelopmentMcpTools {
                 if (args == null || !args.keySet().equals(properties.keySet())) throw invalid();
                 String grant = string(args, "scope");
                 Object value = switch (name) {
+                    case "list_development_documents" -> reads.documents(grant);
+                    case "list_development_sections" -> reads.sections(grant, string(args, "fileId"), number(args, "offset"));
                     case "list_development_requirements" -> reads.index(grant, number(args, "after"));
                     case "read_development_requirement" -> reads.requirement(grant, string(args, "key"));
                     case "read_development_source" -> reads.source(grant, string(args, "fileId"), number(args, "section"), string(args, "expectedSha256"));

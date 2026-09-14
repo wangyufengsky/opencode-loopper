@@ -30,8 +30,13 @@ public final class DocumentDevelopmentEvidence {
         var proof = completion.require(run.taskId());
         var mappings = mappings(run, proof);
         var keys = new LinkedHashSet<String>(); int after = -1;
-        while (true) {
-            var page = requirements.page(run.id(), run.requirementRevision(), after, 100);
+        if (run.directDocuments()) for (var file : requirements.sourceFiles(run.id(), run.basisRevision())) {
+            String key = "DOC-" + (file.ordinal() + 1);
+            if (mappings.getOrDefault(key, List.of()).stream().noneMatch(Mapping::appliesToCurrentRevision)) throw incomplete();
+            keys.add(key);
+        }
+        while (!run.directDocuments()) {
+            var page = requirements.page(run.id(), run.basisRevision(), after, 100);
             for (var item : page) {
                 if (!json.readTree(item.issuesJson()).isEmpty() || mappings.getOrDefault(item.requirementKey(), List.of()).stream()
                         .noneMatch(Mapping::appliesToCurrentRevision)) throw incomplete();
@@ -45,21 +50,21 @@ public final class DocumentDevelopmentEvidence {
         String lastStage = proof.stages().getLast().id();
         if (mappings.getOrDefault(DocumentRequirementContext.FINAL_REGRESSION, List.of()).stream()
                 .noneMatch(mapping -> mapping.stageId().equals(lastStage) && mapping.appliesToCurrentRevision())) throw incomplete();
-        var revision = requirements.revision(run.id(), run.requirementRevision()).orElseThrow(DocumentDevelopmentEvidence::incomplete);
-        String encoded = json.writeValueAsString(new Snapshot(run.requirementRevision(), revision.manifestSha256(), proof, mappings));
+        var revision = requirements.basis(run.id(), run.basisRevision()).orElseThrow(DocumentDevelopmentEvidence::incomplete);
+        String encoded = json.writeValueAsString(new Snapshot(run.basisRevision(), revision.manifestSha256(), proof, mappings));
         transactions.executeWithoutResult(ignored -> {
             var current = admission.require(run.id()); var task = domain.findTask(run.taskId()).orElseThrow();
             if (!current.state().equals("EXECUTING") || current.version() != run.version()
                     || task.version() != proof.taskVersion() || !Objects.equals(current.taskId(), proof.taskId())
                     || domain.latestTaskExecutionCycle(task.id()).orElseThrow().version() != proof.cycleVersion()) throw incomplete();
-            if (evidence.insert(new DocumentDevelopmentEvidenceMapper.Evidence(run.id(), run.requirementRevision(), task.id(),
+            if (evidence.insert(new DocumentDevelopmentEvidenceMapper.Evidence(run.id(), run.basisRevision(), task.id(),
                     proof.cycleId(), encoded, DocumentModelStore.hash(encoded), Instant.now().toString())) != 1) throw incomplete();
             admission.transition(current, DocumentTemplateState.REPORTING, LifecycleEvent.RENDER_REQUIREMENT_REPORT, null, null);
         });
     }
     public Snapshot read(DocumentTemplateRunRow run) {
         var row = evidence.find(run.id()).orElseThrow(DocumentDevelopmentEvidence::incomplete);
-        if (row.requirementRevision() != run.requirementRevision() || !row.taskId().equals(run.taskId())
+        if (row.requirementRevision() != run.basisRevision() || !row.taskId().equals(run.taskId())
                 || !DocumentModelStore.hash(row.contentJson()).equals(row.sha256())) throw incomplete();
         return json.readValue(row.contentJson(), Snapshot.class);
     }
@@ -104,9 +109,15 @@ public final class DocumentDevelopmentEvidence {
         });
     }
     private boolean currentSource(DocumentTemplateRunRow run, DocumentDevelopmentMapper.Design source, String key) {
-        if (key.equals(DocumentRequirementContext.FINAL_REGRESSION)) return source.documentRevision() == run.requirementRevision();
+        if (key.equals(DocumentRequirementContext.FINAL_REGRESSION)) return source.documentRevision() == run.basisRevision();
+        if (run.directDocuments()) {
+            var original = requirements.sourceFiles(run.id(), source.documentRevision()).stream()
+                    .filter(file -> key.equals("DOC-" + (file.ordinal() + 1))).findFirst().orElseThrow(DocumentDevelopmentEvidence::incomplete);
+            return requirements.sourceFiles(run.id(), run.basisRevision()).stream().anyMatch(file -> file.id().equals(original.id())
+                    && file.sha256().equals(original.sha256()) && file.representationSha256().equals(original.representationSha256()));
+        }
         var original = requirements.item(run.id(), source.documentRevision(), key).orElseThrow(DocumentDevelopmentEvidence::incomplete);
-        var current = requirements.item(run.id(), run.requirementRevision(), key).orElse(null);
+        var current = requirements.item(run.id(), run.basisRevision(), key).orElse(null);
         return current != null && original.title().equals(current.title()) && original.kind().equals(current.kind())
                 && original.statement().equals(current.statement()) && original.acceptanceJson().equals(current.acceptanceJson())
                 && original.sourcesJson().equals(current.sourcesJson()) && original.issuesJson().equals(current.issuesJson());

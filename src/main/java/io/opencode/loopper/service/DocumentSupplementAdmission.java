@@ -38,13 +38,13 @@ public class DocumentSupplementAdmission {
             if(task.version()!=request.expectedTaskVersion() || !pack.id().equals(anchor.packageId()) || pack.version()!=anchor.packageVersion()) throw changed();
         }
         var contract=json.readValue(run.contractJson(),DocumentTemplateService.Contract.class); controls.budget(run,contract);
-        if(run.requirementRevision()>=contract.maxTaskAttempts())
+        if(run.basisRevision()>=contract.maxTaskAttempts())
             throw new BadRequestException("DOCUMENT_REVISION_BUDGET_EXHAUSTED","本次需求修订预算已耗尽，请保留已有证据后拆分任务");
         var existing=files.files(id);
         if(existing.size()+prepared.size()>10 || existing.stream().mapToLong(DocumentTemplateFileRow::sizeBytes).sum()
                 +prepared.stream().mapToLong(file->file.bytes().length).sum()>DocumentTemplateStorage.MAX_BATCH_BYTES)
             throw new BadRequestException("DOCUMENT_SUPPLEMENT_SIZE","原文与补充文档合计最多 10 份、50 MiB，请按业务范围拆分");
-        int revision=run.requirementRevision()+1; String now=Instant.now().toString();
+        int revision=run.basisRevision()+1; String now=Instant.now().toString();
         var row=new DocumentSupplementMapper.Supplement(id,request.requestKey(),digest,revision,run.version(),request.expectedTaskVersion(),
                 anchor.packageId(),anchor.packageVersion(),existing.size(),prepared.size(),anchor.planRevision(),null,0,now,null);
         if(supplements.insert(row)!=1) throw changed();
@@ -57,7 +57,7 @@ public class DocumentSupplementAdmission {
                     UUID.randomUUID().toString(),json.writeValueAsString(profile),designer.version(),designer.discussionRevision(),now))!=1) throw changed();
         }
         String answers=clarifications.latest(id).map(DocumentClarificationMapper.Revision::answersJson).orElse("[]");
-        if(clarifications.insert(new DocumentClarificationMapper.Revision(id,revision,run.requirementRevision(),
+        if(!run.directDocuments() && clarifications.insert(new DocumentClarificationMapper.Revision(id,revision,run.basisRevision(),
                 request.requestKey(),digest,answers,now))!=1) throw changed();
         admission.appendFiles(run,prepared,existing.size());
         admission.transition(run,DocumentTemplateState.PREPARING,LifecycleEvent.PREPARE,null,null);
@@ -65,7 +65,7 @@ public class DocumentSupplementAdmission {
     }
     static void requireWaiting(DocumentTemplateRunRow run) {
         if(!run.templateId().equals("REQUIREMENT_DEVELOPMENT") || !run.state().equals("WAITING_INPUT")
-                || !Set.of("DESIGNING","EXECUTING").contains(Objects.toString(run.resumeState(),"")) || run.requirementRevision()<1) throw changed();
+                || !Set.of("DESIGNING","EXECUTING").contains(Objects.toString(run.resumeState(),"")) || run.basisRevision()<1) throw changed();
     }
     static DocumentSupplementMapper.Supplement same(DocumentSupplementMapper.Supplement row,String digest) {
         if(!row.requestSha256().equals(digest)) throw new ConflictException("DOCUMENT_SUPPLEMENT_REQUEST_CONFLICT","同一次补充请求的文档或参数已变化，请重新选择后提交");

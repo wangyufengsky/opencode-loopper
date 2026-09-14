@@ -20,6 +20,7 @@ import tools.jackson.databind.ObjectMapper;
 @SpringBootTest(classes = LoopperApplication.class, properties = {
         "loopper.opencode.mode=fake", "loopper.monitor-delay=1h", "loopper.designer-monitor-delay=1h"})
 class DocumentModelExecutionIntegrationTest {
+    @Autowired org.springframework.context.ApplicationContext applicationContext;
     @Autowired Flyway flyway;
     @Autowired DocumentTemplateService service;
     @Autowired DocumentTemplateMapper documents;
@@ -52,7 +53,7 @@ class DocumentModelExecutionIntegrationTest {
             fake.holdProfileOpen(DocumentTemplateProfiles.profile(kind), true);
         properties.getOpenCode().setModel("fake/test-model");
         String project = projects.create("需求候选夹具", Files.createDirectory(temporary.resolve("source")).toString(), "test").id();
-        run = service.create(new DocumentTemplateService.Request(UUID.randomUUID().toString(), "REQUIREMENT_DEVELOPMENT", "1", project, null),
+        run = LegacyDocumentFixture.create(applicationContext, new DocumentTemplateService.Request(UUID.randomUUID().toString(), "REQUIREMENT_DEVELOPMENT", "1", project, null),
                 List.of(new DocumentTemplateStorage.Incoming("付款.md", "# 付款\n金额必须大于零。不得重复付款。".getBytes(StandardCharsets.UTF_8))));
         contract = json.readValue(run.contractJson(), DocumentTemplateService.Contract.class);
         workflow.advance(run, contract);

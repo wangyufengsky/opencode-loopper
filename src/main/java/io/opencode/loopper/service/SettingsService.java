@@ -118,7 +118,8 @@ public class SettingsService {
                 between(inputLimits.maxDurationMinutes(), 1, 10_080, "MAX_DURATION_INVALID", "Maximum task duration"),
                 between(inputLimits.attemptTimeoutMinutes(), 1, 1_440, "ATTEMPT_TIMEOUT_INVALID", "Attempt timeout"),
                 between(inputLimits.verifierTimeoutMinutes(), 1, 120, "VERIFIER_TIMEOUT_INVALID", "Verifier timeout"),
-                between(inputLimits.designerTimeoutMinutes(), 1, 1_440, "DESIGNER_TIMEOUT_INVALID", "Designer timeout"), inputLimits.timeoutEnabled());
+                between(inputLimits.designerTimeoutMinutes(), 1, 1_440, "DESIGNER_TIMEOUT_INVALID", "Designer timeout"), inputLimits.timeoutEnabled(),
+                between(inputLimits.templateAnalysisConcurrency(), 1, 16, "TEMPLATE_CONCURRENCY_INVALID", "模板分析并发数"));
 
         RetryWaitSettings retry = validateRetry(value.retryWait());
         PublicationSettings inputPublication = value.publication();
@@ -182,7 +183,7 @@ public class SettingsService {
                 new LimitSettings(properties.getMaxStageAttempts(), properties.getMaxTaskAttempts(),
                         properties.getSessionErrorLimit(), minutes(properties.getMaxDuration()),
                         minutes(properties.getAttemptTimeout()), minutes(properties.getVerifierTimeout()),
-                        minutes(properties.getDesignerTimeout()), properties.isTimeoutEnabled()),
+                        minutes(properties.getDesignerTimeout()), properties.isTimeoutEnabled(), properties.getTemplateAnalysisConcurrency()),
                 new RetryWaitSettings(seconds(retry.getRateLimitBase()), seconds(retry.getRateLimitMax()),
                         seconds(retry.getSessionBase()), seconds(retry.getSessionMax()),
                         seconds(retry.getVerificationBase()), seconds(retry.getVerificationMax())),
@@ -233,6 +234,7 @@ public class SettingsService {
         properties.setMaxTaskAttempts(limits.maxTaskAttempts());
         properties.setSessionErrorLimit(limits.sessionErrorLimit());
         properties.setTimeoutEnabled(limits.timeoutEnabled());
+        properties.setTemplateAnalysisConcurrency(limits.templateAnalysisConcurrency());
         properties.setMaxDuration(Duration.ofMinutes(limits.maxDurationMinutes()));
         properties.setAttemptTimeout(Duration.ofMinutes(limits.attemptTimeoutMinutes()));
         properties.setVerifierTimeout(Duration.ofMinutes(limits.verifierTimeoutMinutes()));
@@ -269,6 +271,7 @@ public class SettingsService {
         values.put("LOOPPER_MAX_TASK_ATTEMPTS", String.valueOf(limits.maxTaskAttempts()));
         values.put("LOOPPER_SESSION_ERROR_LIMIT", String.valueOf(limits.sessionErrorLimit()));
         values.put("LOOPPER_MAX_DURATION", limits.maxDurationMinutes() + "m");
+        values.put("LOOPPER_TEMPLATE_ANALYSIS_CONCURRENCY", String.valueOf(limits.templateAnalysisConcurrency()));
         values.put("LOOPPER_TIMEOUT_ENABLED", Boolean.toString(limits.timeoutEnabled()));
         values.put("LOOPPER_ATTEMPT_TIMEOUT", limits.attemptTimeoutMinutes() + "m");
         values.put("LOOPPER_VERIFIER_TIMEOUT", limits.verifierTimeoutMinutes() + "m");
@@ -390,8 +393,14 @@ public class SettingsService {
                                    int startupTimeoutSeconds) { }
     public record LimitSettings(int maxStageAttempts, int maxTaskAttempts, int sessionErrorLimit,
                                 int maxDurationMinutes, int attemptTimeoutMinutes,
-                                int verifierTimeoutMinutes, int designerTimeoutMinutes, Boolean timeoutEnabled) {
-        public LimitSettings { timeoutEnabled = Boolean.TRUE.equals(timeoutEnabled); }
+                                int verifierTimeoutMinutes, int designerTimeoutMinutes, Boolean timeoutEnabled, Integer templateAnalysisConcurrency) {
+        public LimitSettings {
+            timeoutEnabled = Boolean.TRUE.equals(timeoutEnabled);
+            templateAnalysisConcurrency = templateAnalysisConcurrency == null ? 4 : templateAnalysisConcurrency;
+        }
+        public LimitSettings(int stages,int tasks,int errors,int duration,int attempt,int verifier,int designer,Boolean timeout) {
+            this(stages,tasks,errors,duration,attempt,verifier,designer,timeout,4);
+        }
         public LimitSettings(int stages,int tasks,int errors,int duration,int attempt,int verifier,int designer) {
             this(stages,tasks,errors,duration,attempt,verifier,designer,false);
         }

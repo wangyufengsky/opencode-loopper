@@ -16,7 +16,7 @@ class DesignerTimeoutMigrationTest {
             sql.execute("INSERT INTO project(id,name,root_path,created_at,updated_at) VALUES('p','p','/project','now','now')");
             sql.execute("INSERT INTO designer_session(id,project_id,state,access_mode,created_at,updated_at) VALUES('d','p','PENDING_HANDOFF','READ_ONLY','now','now')");
         }
-        var migration=Flyway.configure().dataSource(url,null,null).load();
+        var migration=Flyway.configure().dataSource(url,null,null).target("106").load();
         assertThat(migration.migrate().migrationsExecuted).isEqualTo(1);migration.validate();
         try(var db=DriverManager.getConnection(url);var sql=db.createStatement()) {
             try(var rows=sql.executeQuery("SELECT count(*) FROM designer_timeout_policy")){assertThat(rows.next()).isTrue();assertThat(rows.getInt(1)).isZero();}

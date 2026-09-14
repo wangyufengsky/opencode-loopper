@@ -28,8 +28,8 @@ public final class DocumentSupplementReplan {
     }
     public boolean advance(DocumentTemplateRunRow run) {
         var pending=supplements.pending(run.id()).orElse(null); if(pending==null) return false;
-        if(pending.uploadReady()!=1 || run.requirementRevision()<pending.targetRevision()) throw changed();
-        if(!requirements.summaries(run.id(),run.requirementRevision(),-1,1,true).isEmpty())
+        if(pending.uploadReady()!=1 || run.basisRevision()<pending.targetRevision()) throw changed();
+        if(!run.directDocuments() && !requirements.summaries(run.id(),run.basisRevision(),-1,1,true).isEmpty())
             throw new ConflictException("DOCUMENT_SUPPLEMENT_BUSINESS_INPUT","补充文档仍有业务歧义或冲突，请在需求清单中逐项回答后继续");
         if(run.taskId()==null) {
             designs.advance(run,pending);
@@ -40,7 +40,7 @@ public final class DocumentSupplementReplan {
             // A crash after durable proposal creation is recovered by its task, source and revision identity.
             var matching=domain.listTaskPackagePlanRevisions(run.taskId()).stream()
                     .filter(plan->plan.revision()>pending.planRevisionFloor() && !Set.of("FAILED","SUPERSEDED").contains(plan.state()) && domain.documentPlanSource(plan.id())
-                            .map(source->source.documentRevision()==run.requirementRevision()).orElse(false)).toList();
+                            .map(source->source.documentRevision()==run.basisRevision()).orElse(false)).toList();
             if(matching.size()>1) throw changed();
             if(!matching.isEmpty()) selected=matching.getFirst();
             else {

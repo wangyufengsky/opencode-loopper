@@ -12,6 +12,9 @@ public class LoopperProperties {
     private int maxStageAttempts = 3;
     private int maxTaskAttempts = 12;
     private int sessionErrorLimit = 3;
+    private int templateAnalysisConcurrency = 4;
+    public int getTemplateAnalysisConcurrency() { return templateAnalysisConcurrency; }
+    public void setTemplateAnalysisConcurrency(int value) { templateAnalysisConcurrency = value; }
     private boolean timeoutEnabled = false;
     public boolean isTimeoutEnabled() { return timeoutEnabled; }
     public void setTimeoutEnabled(boolean value) { timeoutEnabled = value; }

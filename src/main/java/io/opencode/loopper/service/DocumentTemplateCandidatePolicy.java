@@ -19,9 +19,10 @@ public final class DocumentTemplateCandidatePolicy implements CandidatePolicy {
     private final DocumentTemplateMapper documents;
     private final DocumentAssessmentValidation assessments;
     private final ObjectMapper json;
+    private final DirectDocumentAssessmentValidation direct;
     public DocumentTemplateCandidatePolicy(DocumentTemplateModelMapper models, DocumentTemplateMapper documents,
-            DocumentAssessmentValidation assessments, ObjectMapper json) {
-        this.models = models; this.documents = documents; this.assessments = assessments; this.json = json;
+            DocumentAssessmentValidation assessments, ObjectMapper json, DirectDocumentAssessmentValidation direct) {
+        this.models = models; this.documents = documents; this.assessments = assessments; this.json = json; this.direct = direct;
     }
     @Override public boolean supports(MachineCandidateKind kind) { return DocumentTemplateProfiles.supports(kind); }
     @Override public Decision evaluate(Context context, String candidateJson) {
@@ -35,6 +36,8 @@ public final class DocumentTemplateCandidatePolicy implements CandidatePolicy {
             }
             var input = input(model);
             Object candidate = switch (context.candidateKind()) {
+                case DOCUMENT_CODE_ASSESSMENT_V2 -> direct.assessment(model, input, json.readValue(candidateJson, DirectDocumentAssessment.Candidate.class));
+                case DOCUMENT_CODE_REVIEW_V2 -> direct.review(model, input, json.readValue(candidateJson, DirectDocumentAssessment.Review.class));
                 case DOCUMENT_REQUIREMENTS_V1 -> {
                     var proposed = json.readValue(candidateJson, DocumentRequirements.Candidate.class);
                     yield DocumentRequirementValidation.extraction(sections(model, input, proposed), proposed);

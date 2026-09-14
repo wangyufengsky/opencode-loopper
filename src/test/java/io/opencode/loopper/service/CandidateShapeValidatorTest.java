@@ -21,7 +21,9 @@ class CandidateShapeValidatorTest {
             Map.entry(MachineCandidateKind.DOCUMENT_REQUIREMENTS_V1, 2),
             Map.entry(MachineCandidateKind.DOCUMENT_REQUIREMENT_REVIEW_V1, 4),
             Map.entry(MachineCandidateKind.REQUIREMENT_CODE_ASSESSMENT_V1, 4),
-            Map.entry(MachineCandidateKind.REQUIREMENT_ASSESSMENT_REVIEW_V1, 5));
+            Map.entry(MachineCandidateKind.REQUIREMENT_ASSESSMENT_REVIEW_V1, 5),
+            Map.entry(MachineCandidateKind.DOCUMENT_CODE_ASSESSMENT_V2, 5),
+            Map.entry(MachineCandidateKind.DOCUMENT_CODE_REVIEW_V2, 6));
 
     @Test
     void conventionReportsTheExactOversizedArrayBeforeTheModelHasToGuess() {

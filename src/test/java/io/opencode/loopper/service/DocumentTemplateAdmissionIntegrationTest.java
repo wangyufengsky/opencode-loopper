@@ -41,7 +41,9 @@ class DocumentTemplateAdmissionIntegrationTest {
         var first = service.create(request, files("金额大于零"));
         var second = service.create(request, files("金额大于零"));
         assertThat(second.id()).isEqualTo(first.id());
-        assertThat(second.state()).isEqualTo("ANALYZING");
+        assertThat(second.state()).isEqualTo("DESIGNING");
+        assertThat(second.sourceRevision()).isEqualTo(1);
+        assertThat(second.requirementRevision()).isZero();
         assertThat(second.taskId()).isNull(); assertThat(second.designerId()).isNull();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM task", Integer.class)).isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM designer_session", Integer.class)).isZero();
@@ -106,7 +108,7 @@ class DocumentTemplateAdmissionIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT state FROM document_template_model_run WHERE id='old-analysis'", String.class)).isEqualTo("STOPPED");
     }
     private DocumentTemplateService.Request request() {
-        return new DocumentTemplateService.Request(UUID.randomUUID().toString(), "REQUIREMENT_DEVELOPMENT", "1", projectId, null);
+        return new DocumentTemplateService.Request(UUID.randomUUID().toString(), "REQUIREMENT_DEVELOPMENT", "2", projectId, null);
     }
     private static List<DocumentTemplateStorage.Incoming> files(String text) {
         return List.of(new DocumentTemplateStorage.Incoming("requirements.md", ("# 需求\n" + text).getBytes(StandardCharsets.UTF_8)));

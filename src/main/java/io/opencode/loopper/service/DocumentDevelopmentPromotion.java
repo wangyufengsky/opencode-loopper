@@ -64,7 +64,7 @@ public final class DocumentDevelopmentPromotion {
         if (!session.state().equals("REVIEWING") || mapper.findCurrentDesignerTaskProfile(session.id()).isPresent()) throw changed();
         var old = mapper.findDesignRequirementRevision(intent.sourceRevisionId()).orElseThrow(DocumentDevelopmentPromotion::changed);
         var origin = bindings.design(old.id()).orElseThrow(DocumentDevelopmentPromotion::changed);
-        if (!origin.runId().equals(run.id()) || origin.documentRevision() != run.requirementRevision()) throw changed();
+        if (!origin.runId().equals(run.id()) || origin.documentRevision() != run.basisRevision()) throw changed();
         var draft = mapper.findDraft(session.loopDraftId()).orElseThrow(DocumentDevelopmentPromotion::changed);
         if (draft.version() != old.sourceDraftVersion()) throw changed();
         String now = Instant.now().toString();

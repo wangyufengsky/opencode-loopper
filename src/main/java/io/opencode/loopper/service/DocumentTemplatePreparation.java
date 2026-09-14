@@ -14,9 +14,10 @@ public final class DocumentTemplatePreparation {
     private final DocumentTemplateAdmission admission;
     private final DocumentTemplateStorage storage;
     private final DocumentCodeSnapshotService snapshots;
+    private final DocumentSourceSnapshots sources;
     public DocumentTemplatePreparation(DocumentTemplateMapper mapper, DocumentTemplateAdmission admission,
-            DocumentTemplateStorage storage, DocumentCodeSnapshotService snapshots) {
-        this.mapper = mapper; this.admission = admission; this.storage = storage; this.snapshots = snapshots;
+            DocumentTemplateStorage storage, DocumentCodeSnapshotService snapshots, DocumentSourceSnapshots sources) {
+        this.mapper = mapper; this.admission = admission; this.storage = storage; this.snapshots = snapshots; this.sources = sources;
     }
     public DocumentTemplateRunRow finish(DocumentTemplateRunRow row, List<DocumentTemplateStorage.Prepared> prepared) {
         if (!row.state().equals("PREPARING") && !(row.state().equals("WAITING_INPUT") && "PREPARING".equals(row.resumeState()))) return row;
@@ -33,6 +34,12 @@ public final class DocumentTemplatePreparation {
         if (mapper.supplementalUploadPending(id)) return row;
         for (var file : mapper.files(id)) storage.read(file.relativePath(), file.sha256());
         if (row.templateId().equals("REQUIREMENT_CODE_REVIEW")) snapshots.freeze(row);
+        if (row.directDocuments()) {
+            sources.freeze(id);
+            boolean review = row.templateId().equals("REQUIREMENT_CODE_REVIEW");
+            return admission.transition(admission.require(id), review ? DocumentTemplateState.ASSESSING : DocumentTemplateState.DESIGNING,
+                    review ? LifecycleEvent.ASSESS_REQUIREMENT_CODE : LifecycleEvent.DESIGN_DOCUMENT_REQUIREMENTS, null, null);
+        }
         return admission.transition(admission.require(id), DocumentTemplateState.ANALYZING,
                 LifecycleEvent.ANALYZE_DOCUMENT_REQUIREMENTS, null, null);
     }

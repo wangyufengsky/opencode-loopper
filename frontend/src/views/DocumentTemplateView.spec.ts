@@ -44,3 +44,14 @@ it('discards a late old overview on navigation and shows independent development
   expect(wrapper.get('a[href="/tasks/execution"]').text()).toContain('开发执行')
   wrapper.unmount()
 })
+
+it('shows original source identity and defers the result matrix for direct document runs', async () => {
+  vi.mocked(api.documentTemplate).mockResolvedValue({ ...base, sourceKind: 'DOCUMENT_SOURCE', sourceRevision: 1,
+    templateVersion: '2', requirementRevision: 0, analysisConcurrency: 4 })
+  const { wrapper } = await render()
+  expect(wrapper.text()).toContain('原文版本 1')
+  expect(wrapper.text()).toContain('并发上限 4')
+  expect(wrapper.find('.requirements').exists()).toBe(false)
+  expect(wrapper.text()).not.toContain('已复核需求')
+  wrapper.unmount()
+})

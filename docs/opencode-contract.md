@@ -1128,3 +1128,9 @@ to pass validation. See [role changes, configuration and qualification boundarie
 ## 内网辅助能力
 
 受管辅助 MCP、逐工具全局／项目策略、Session 冻结权限和传输前上下文参见 [内网辅助 MCP 合同](assist-mcp-contract.md)。它与本合同中的内部候选提交及公开 MCP 服务分离；工具成功不替代候选接受或 Task 验收。
+
+### 文档原文读取与模板批次窗口
+
+文档模板版本 2 通过 `loopper-document://{role}/{scope}/{file}/{section}` 暴露受限原文，原生 Resource 与 `read_document_resource` Tool 共用冻结源与当前角色许可。新的静态分析及独立复核会话分别使用 `DOCUMENT_CODE_ASSESSMENT_V2_NO_TOOLS`、`DOCUMENT_CODE_REVIEW_V2_NO_TOOLS`，仅允许自己的候选提交工具。原文阅读不授予项目脚本或写入能力；开发和双 Judge 按原会话边界读取来源。详见[文档模板任务合同](document-template-contract.md)。
+
+非需求开发模板允许独立批次按冻结窗口调度，默认 4、设置范围 1–16；创建、送达未知及停止中的会话仍计入占用。每个批次独立保持 Session、候选版本、投递和停止证明，不能用窗口补位绕过未知投递恢复。历史模板按原版本恢复，窗口不增加原预算。

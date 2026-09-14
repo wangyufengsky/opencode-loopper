@@ -23,6 +23,7 @@ import tools.jackson.databind.ObjectMapper;
 @SpringBootTest(classes = LoopperApplication.class, properties = {
         "loopper.opencode.mode=fake", "loopper.monitor-delay=1h", "loopper.designer-monitor-delay=1h"})
 class DocumentStaticReviewIntegrationTest {
+    @Autowired org.springframework.context.ApplicationContext applicationContext;
     @Autowired Flyway flyway;
     @Autowired DocumentTemplateService service;
     @Autowired DocumentTemplateAdmission admission;
@@ -57,7 +58,7 @@ class DocumentStaticReviewIntegrationTest {
         Files.writeString(source.resolve("build.sh"), "#!/bin/sh\ntouch must-not-execute\n");
         git.read(source, "add", "."); git.read(source, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "-m", "missing permission fixture");
         String project = projects.create("权限评审", source.toString(), "test").id(); properties.getOpenCode().setModel("fake/test-model");
-        run = service.create(new DocumentTemplateService.Request(UUID.randomUUID().toString(), "REQUIREMENT_CODE_REVIEW", "1", project,
+        run = LegacyDocumentFixture.create(applicationContext, new DocumentTemplateService.Request(UUID.randomUUID().toString(), "REQUIREMENT_CODE_REVIEW", "1", project,
                 "local:refs/heads/main"), List.of(new DocumentTemplateStorage.Incoming("权限.md", "# 付款\n付款入口必须检查权限。".getBytes(StandardCharsets.UTF_8))));
         contract = json.readValue(run.contractJson(), DocumentTemplateService.Contract.class);
     }
@@ -89,7 +90,7 @@ class DocumentStaticReviewIntegrationTest {
         complete(assessment, result);
         var check = awaitRole("REQUIREMENT_ASSESSMENT_REVIEW_V1");
         var crossBatch = context.list(check.id(), -1, 50).items().getFirst();
-        assertThat(context.read(check.id(), crossBatch.ordinal(), crossBatch.sha256()).items()).hasSize(1);
+        assertThat(((Candidate) context.read(check.id(), crossBatch.ordinal(), crossBatch.sha256())).items()).hasSize(1);
         var approved = new Review(sha, true, List.of("RQ-1"), List.of("F-1"), List.of());
         assertThat(submit(check, approved).outcome()).isEqualTo(MachineCandidateOutcome.REJECTED);
         reads.read(check.id(), file.path(), file.blobSha(), 1, 100); complete(check, approved);

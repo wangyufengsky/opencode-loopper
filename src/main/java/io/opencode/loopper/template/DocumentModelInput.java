@@ -6,8 +6,15 @@ import java.util.List;
 public record DocumentModelInput(List<SectionRef> sections, DocumentRequirements.Candidate requirements,
         DocumentRequirements.Review requirementFeedback, String snapshotSha,
         RequirementCodeAssessment.Candidate assessment, RequirementCodeAssessment.Review assessmentFeedback,
-        List<Clarification> clarifications) {
+        List<Clarification> clarifications, DirectDocumentAssessment.Candidate directAssessment,
+        DirectDocumentAssessment.Review directFeedback, int sourceRevision) {
     public DocumentModelInput { clarifications = clarifications == null ? List.of() : List.copyOf(clarifications); }
+    public DocumentModelInput(List<SectionRef> sections, DocumentRequirements.Candidate requirements,
+            DocumentRequirements.Review requirementFeedback, String snapshotSha,
+            RequirementCodeAssessment.Candidate assessment, RequirementCodeAssessment.Review assessmentFeedback,
+            List<Clarification> clarifications) {
+        this(sections, requirements, requirementFeedback, snapshotSha, assessment, assessmentFeedback, clarifications, null, null, 0);
+    }
     public DocumentModelInput(List<SectionRef> sections, DocumentRequirements.Candidate requirements,
             DocumentRequirements.Review requirementFeedback, String snapshotSha,
             RequirementCodeAssessment.Candidate assessment, RequirementCodeAssessment.Review assessmentFeedback) {

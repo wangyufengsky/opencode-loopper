@@ -22,12 +22,14 @@ public final class DocumentReviewContextService {
         var items = rows.stream().limit(limit).toList();
         return new CursorPage<>(items, rows.size() > limit ? String.valueOf(items.getLast().ordinal()) : null);
     }
-    public RequirementCodeAssessment.Candidate read(String id, int ordinal, String expectedSha256) {
+    public Object read(String id, int ordinal, String expectedSha256) {
         var model = access.require(id, true);
-        var target = models.exact(model.runId(), "REQUIREMENT_CODE_ASSESSMENT_V1", ordinal, model.generation()).orElseThrow(DocumentReviewContextService::invalid);
+        boolean direct = model.candidateKind().equals("DOCUMENT_CODE_ASSESSMENT_V2") || model.candidateKind().equals("DOCUMENT_CODE_REVIEW_V2");
+        var target = models.exact(model.runId(), direct ? "DOCUMENT_CODE_ASSESSMENT_V2" : "REQUIREMENT_CODE_ASSESSMENT_V1", ordinal, model.generation()).orElseThrow(DocumentReviewContextService::invalid);
         if (!target.state().equals("VALIDATED") || target.outputJson() == null || target.outputJson().length() > 128 * 1024
                 || !DocumentModelStore.hash(target.outputJson()).equals(expectedSha256)) throw invalid();
-        return json.readValue(target.outputJson(), RequirementCodeAssessment.Candidate.class);
+        return direct ? json.readValue(target.outputJson(), io.opencode.loopper.template.DirectDocumentAssessment.Candidate.class)
+                : json.readValue(target.outputJson(), RequirementCodeAssessment.Candidate.class);
     }
     private static BadRequestException invalid() { return new BadRequestException("DOCUMENT_REVIEW_CONTEXT_INVALID", "跨批次引用不属于本次已冻结的评审结果"); }
 }

@@ -9,7 +9,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 class DocumentTemplatePermissionsTest {
     @ParameterizedTest
     @EnumSource(value = MachineCandidateKind.class, names = {"DOCUMENT_REQUIREMENTS_V1", "DOCUMENT_REQUIREMENT_REVIEW_V1",
-            "REQUIREMENT_CODE_ASSESSMENT_V1", "REQUIREMENT_ASSESSMENT_REVIEW_V1"})
+            "REQUIREMENT_CODE_ASSESSMENT_V1", "REQUIREMENT_ASSESSMENT_REVIEW_V1", "DOCUMENT_CODE_ASSESSMENT_V2", "DOCUMENT_CODE_REVIEW_V2"})
     void frozenRolesOnlyAllowTheirOwnInternalTools(MachineCandidateKind kind) {
         var profile = DocumentTemplateProfiles.profile(kind);
         var rules = OpenCodePermissionPolicy.rules(profile, List.of("untrusted", "internal"), "internal");

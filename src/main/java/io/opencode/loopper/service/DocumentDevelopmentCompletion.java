@@ -12,8 +12,9 @@ public final class DocumentDevelopmentCompletion {
     private final LoopperMapper mapper;
     private final TaskReadService reads;
     private final ObjectMapper json;
-    public DocumentDevelopmentCompletion(LoopperMapper mapper, TaskReadService reads, ObjectMapper json) {
-        this.mapper = mapper; this.reads = reads; this.json = json;
+    private final DocumentOriginalReadCoverage originalReads;
+    public DocumentDevelopmentCompletion(LoopperMapper mapper, TaskReadService reads, ObjectMapper json, DocumentOriginalReadCoverage originalReads) {
+        this.mapper = mapper; this.reads = reads; this.json = json; this.originalReads = originalReads;
     }
     public Proof require(String taskId) {
         var task = mapper.findTask(taskId).orElseThrow(DocumentDevelopmentCompletion::incomplete);
@@ -28,6 +29,7 @@ public final class DocumentDevelopmentCompletion {
             var judge = mapper.latestJudgeRunForBatchRole(batch.id(), role).orElseThrow(DocumentDevelopmentCompletion::incomplete);
             if (!judge.state().equals("COMPLETED") || !"PASS".equals(judge.verdict())
                     || !Objects.equals(judge.attemptId(), batch.finalAttemptId())) throw incomplete();
+            if (!originalReads.sessionComplete(taskId, judge.externalSessionId())) throw incomplete();
             judges.add(new Judge(judge.id(), role, judge.verdict(), judge.reason(), batch.id(), judge.sourceRevision()));
         }
         if (!Objects.equals(judges.get(0).sourceRevision(), judges.get(1).sourceRevision())) throw incomplete();

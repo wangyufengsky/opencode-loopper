@@ -5,7 +5,7 @@ import java.util.Optional;
 import org.apache.ibatis.annotations.*;
 
 @Mapper
-public interface DocumentTemplateMapper {
+public interface DocumentTemplateMapper extends DocumentSourceMapper {
     @Options(flushCache = Options.FlushCachePolicy.TRUE, useCache = false)
     @Select("SELECT * FROM document_template_run WHERE id=#{id}")
     Optional<DocumentTemplateRunRow> find(String id);

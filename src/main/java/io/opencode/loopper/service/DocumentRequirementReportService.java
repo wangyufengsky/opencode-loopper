@@ -59,10 +59,12 @@ public final class DocumentRequirementReportService {
         var snapshot = json.readValue(run.snapshotJson(), DocumentCodeSnapshotStore.Snapshot.class);
         var result = RequirementReportCompiler.review(run.title(), snapshot.sha(), rows, List.copyOf(findings.values()), limitations);
         for (var file : result.files()) save(run, file.name(), "REQUIREMENT_REPORT", file.content());
-        save(run, "matrix.json", "REQUIREMENT_MATRIX", json.writeValueAsString(Map.of(
+        var matrix = new LinkedHashMap<String, Object>(Map.of(
                 "templateVersion", run.templateVersion(), "requirementRevision", run.requirementRevision(), "snapshot", snapshot,
                 "reviewCompleted", true, "allRequirementsSatisfied", result.allRequirementsSatisfied(), "conclusions", result.conclusions(),
-                "testExecution", "NOT_RUN_STATIC_REVIEW", "requirements", rows, "findings", findings.values(), "limitations", limitations)));
+                "testExecution", "NOT_RUN_STATIC_REVIEW", "requirements", rows, "findings", findings.values(), "limitations", limitations));
+        matrix.put("sourceRevision", run.sourceRevision());
+        save(run, "matrix.json", "REQUIREMENT_MATRIX", json.writeValueAsString(matrix));
     }
     private void merge(Map<String, RequirementCodeAssessment.Finding> findings, RequirementCodeAssessment.Finding finding) {
         String identity = DocumentModelStore.hash(json.writeValueAsString(List.of(finding.kind(), finding.title(), finding.trigger(),
@@ -78,7 +80,7 @@ public final class DocumentRequirementReportService {
         String sha = DocumentModelStore.hash(content);
         transactions.executeWithoutResult(ignored -> {
             var current = runs.find(run.id()).orElseThrow(DocumentRequirementReportService::changed);
-            if (!current.state().equals("REPORTING") || current.requirementRevision() != run.requirementRevision()) throw changed();
+            if (!current.state().equals("REPORTING") || current.requirementRevision() != run.requirementRevision() || current.sourceRevision() != run.sourceRevision()) throw changed();
             var previous = artifacts.named(run.id(), run.requirementRevision(), name);
             if (previous.isPresent()) { if (!previous.get().sha256().equals(sha)) throw changed(); return; }
             String id = UUID.nameUUIDFromBytes((run.id() + ":" + run.requirementRevision() + ":" + name).getBytes(StandardCharsets.UTF_8)).toString();

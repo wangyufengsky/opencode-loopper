@@ -123,7 +123,7 @@ export interface AppSettings {
   }
   limits: {
     maxStageAttempts: number; maxTaskAttempts: number; sessionErrorLimit: number
-    timeoutEnabled?: boolean; maxDurationMinutes: number; attemptTimeoutMinutes: number; verifierTimeoutMinutes: number; designerTimeoutMinutes: number
+    templateAnalysisConcurrency?: number; timeoutEnabled?: boolean; maxDurationMinutes: number; attemptTimeoutMinutes: number; verifierTimeoutMinutes: number; designerTimeoutMinutes: number
   }
   retryWait: {
     rateLimitBaseSeconds: number; rateLimitMaxSeconds: number
@@ -1587,6 +1587,7 @@ export interface DocumentTemplateOverview {
   requirementRevision: number; version: number; createdAt: string; updatedAt: string
   canCancel: boolean; canResume: boolean; archived: boolean; uploadReady: boolean; snapshotSha: string | null
   taskState?: TaskStatus | null
+  sourceRevision?: number; sourceKind?: 'DOCUMENT_SOURCE' | 'REQUIREMENT_LIST'; analysisConcurrency?: number
   progress: { attempts: number; validated: number; active: number; stopped: number; requirements: number; reports: number; revision: number }
   files: Array<{ id: string; filename: string; format: string; sizeBytes: number; sha256: string; representationSha256: string
     parserVersion: string; sectionCount: number; limitations: string[] }>
@@ -1602,6 +1603,7 @@ export interface DocumentRequirementDetail {
   assessment: { requirementKey: string; conclusion: RequirementConclusion; rationale: string; evidence: RequirementCodeReference[]
     checkedPaths: string[]; missingEntryEvidence: string | null; testSourceCoverage: string; limitations: string[] } | null
 }
+export interface DocumentSectionPage { items: Array<{ fileId: string; ordinal: number; title: string; characters: number; sha256: string }>; nextOffset: number | null }
 export interface DocumentSection { fileId: string; ordinal: number; title: string; content: string; sha256: string }
 export interface DocumentReportSummary { id: string; name: string; kind: string; sha256: string; bytes: number; createdAt: string }
 

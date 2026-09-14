@@ -24,6 +24,7 @@ import tools.jackson.databind.ObjectMapper;
 @SpringBootTest(classes = LoopperApplication.class, properties = {
         "loopper.opencode.mode=fake", "loopper.monitor-delay=1h", "loopper.designer-monitor-delay=1h"})
 class DocumentDevelopmentBootstrapIntegrationTest {
+    @Autowired org.springframework.context.ApplicationContext applicationContext;
     @Autowired Flyway flyway;
     @Autowired DocumentTemplateService service;
     @Autowired DocumentTemplateAdmission admission;
@@ -72,7 +73,7 @@ class DocumentDevelopmentBootstrapIntegrationTest {
         properties.getOpenCode().setModel("fake/test-model");
         source = Files.createDirectory(temporary.resolve("source")); Files.writeString(source.resolve("existing.txt"), "用户未提交内容");
         String project = projects.create("文档开发", source.toString(), "test").id();
-        run = service.create(new DocumentTemplateService.Request(UUID.randomUUID().toString(), "REQUIREMENT_DEVELOPMENT", "1", project, null),
+        run = LegacyDocumentFixture.create(applicationContext, new DocumentTemplateService.Request(UUID.randomUUID().toString(), "REQUIREMENT_DEVELOPMENT", "1", project, null),
                 List.of(new DocumentTemplateStorage.Incoming("需求.md", "# 需求\n付款前必须鉴权".getBytes(StandardCharsets.UTF_8))));
         contract = json.readValue(run.contractJson(), DocumentTemplateService.Contract.class);
         admission.transition(run, DocumentTemplateState.REVIEWING, LifecycleEvent.REVIEW_DOCUMENT_REQUIREMENTS, null, null);

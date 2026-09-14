@@ -25,9 +25,9 @@ public interface DocumentTemplateModelMapper {
             @Param("ordinal") int ordinal, @Param("generation") int generation);
     @Options(flushCache = Options.FlushCachePolicy.TRUE, useCache = false)
     @Select("""
-        SELECT id,ordinal,state,output_sha256 AS sha256,json_array_length(output_json,'$.items') AS items,
+        SELECT id,ordinal,state,output_sha256 AS sha256,coalesce(json_array_length(output_json,'$.items'),json_array_length(output_json,'$.entries')) AS items,
           json_array_length(output_json,'$.findings') AS findings FROM document_template_model_run
-        WHERE run_id=#{runId} AND candidate_kind='REQUIREMENT_CODE_ASSESSMENT_V1' AND generation=#{generation}
+        WHERE run_id=#{runId} AND candidate_kind IN ('REQUIREMENT_CODE_ASSESSMENT_V1','DOCUMENT_CODE_ASSESSMENT_V2') AND generation=#{generation}
           AND ordinal>#{after} AND attempt=(SELECT max(latest.attempt) FROM document_template_model_run latest
             WHERE latest.run_id=document_template_model_run.run_id AND latest.candidate_kind=document_template_model_run.candidate_kind
               AND latest.ordinal=document_template_model_run.ordinal AND latest.generation=document_template_model_run.generation)

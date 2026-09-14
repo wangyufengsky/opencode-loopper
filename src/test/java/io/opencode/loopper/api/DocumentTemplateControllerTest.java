@@ -43,7 +43,7 @@ class DocumentTemplateControllerTest {
                 null, null, 0, "created", "updated", 1));
         when(reads.overview("run")).thenReturn(new DocumentTemplateReadService.Overview("run", "project", "REQUIREMENT_CODE_REVIEW",
                 "1", "需求评审", "ANALYZING", null, null, null, null, 0, 1, "created", "updated", true, false, false,
-                List.of(), new DocumentProgressMapper.Progress(0, 0, 0, 0, 0, 0, 1), true, "frozen-sha", null));
+                List.of(), new DocumentProgressMapper.Progress(0, 0, 0, 0, 0, 0, 1), true, "frozen-sha", null, 0, "REQUIREMENT_LIST", 1));
         mvc.perform(multipart("/api/template-tasks/document-runs").file(metadata()).file(file())
                 .file(new MockMultipartFile("files", "权限.md", "text/markdown", "未授权拒绝".getBytes(StandardCharsets.UTF_8)))
                 .header("X-Loopper-Local-UI", "1"))

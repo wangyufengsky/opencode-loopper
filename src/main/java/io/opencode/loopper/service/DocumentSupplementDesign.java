@@ -62,9 +62,11 @@ public final class DocumentSupplementDesign {
         var old=domain.findDesignRequirementRevision(intent.sourceRevisionId()).orElseThrow(DocumentSupplementDesign::changed);
         var draft=domain.findDraft(owner.loopDraftId()).orElseThrow(DocumentSupplementDesign::changed);
         if(draft.version()!=old.sourceDraftVersion()) throw changed();
-        var source=requirements.revision(run.id(),run.requirementRevision()).orElseThrow(DocumentSupplementDesign::changed);
+        var source=requirements.basis(run.id(),run.basisRevision()).orElseThrow(DocumentSupplementDesign::changed);
         var segments=new ArrayList<DesignerSessionService.RequirementSegment>(); int after=-1;
-        while(true) {
+        if(run.directDocuments()) for(var file:requirements.sourceFiles(run.id(),source.revision()))
+            segments.add(new DesignerSessionService.RequirementSegment("DOC-"+(file.ordinal()+1),file.filename()));
+        while(!run.directDocuments()) {
             var page=requirements.page(run.id(),source.revision(),after,100);
             for(var item:page) {
                 if(!json.readTree(item.issuesJson()).isEmpty()) throw changed();

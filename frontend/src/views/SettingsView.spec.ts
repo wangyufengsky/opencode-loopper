@@ -41,7 +41,7 @@ describe('Settings model selection', () => {
     expect(limits.text()).not.toContain('尝试超时（分钟）')
     wrapper.get('.timeout-policy-control').findComponent({ name: 'ElSwitch' }).vm.$emit('update:modelValue', true)
     await flushPromises()
-    expect(limits.findAll('.el-form-item')).toHaveLength(7)
+    expect(limits.findAll('.el-form-item')).toHaveLength(8)
     expect(limits.text()).toContain('尝试超时（分钟）')
     expect(limits.text()).toContain('验证超时（分钟）')
     expect(limits.text()).toContain('设计超时（分钟）')
@@ -70,10 +70,13 @@ describe('Settings model selection', () => {
 
     expect(wrapper.findAllComponents(ElSelect)).toHaveLength(3)
     expect(wrapper.text()).toContain('model-a')
+    const concurrency = wrapper.findAllComponents({ name: 'ElFormItem' }).find(item => item.props('label') === '模板分析并发数')!.getComponent({ name: 'ElInputNumber' })
+    concurrency.vm.$emit('update:modelValue', 7)
     await wrapper.get('.settings-save').trigger('click')
     await flushPromises()
     expect(update).toHaveBeenCalledWith(expect.objectContaining({
       openCode: expect.objectContaining({ mode: 'managed', provider: 'opencode', model: 'model-a' }),
+      limits: expect.objectContaining({ templateAnalysisConcurrency: 7 }),
     }))
   })
 

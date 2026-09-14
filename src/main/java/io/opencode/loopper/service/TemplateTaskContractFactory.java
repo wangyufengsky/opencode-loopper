@@ -36,7 +36,7 @@ public final class TemplateTaskContractFactory {
                 List.of(stage("冻结分支并采集完整 Git 证据", "SNAPSHOT"), stage("分析证据并生成可追溯报告", "REPORT")),
                 limits, model(), new LoopSpec.SessionPolicy(false, true), "按原合同修复本轮报告的具体问题", LoopSpec.BudgetSpec.unlimited());
         return new Frozen(definition.view(), spec, ContributionScore.VERSION, ContributionScore.FORMULA,
-                ContributionScore.DIMENSIONS, TemplateDateRange.ZONE.getId(), "COMMITTER_TIME", 2, TemplateReportLayout.freeze(), documentPath);
+                ContributionScore.DIMENSIONS, TemplateDateRange.ZONE.getId(), "COMMITTER_TIME", 2, TemplateReportLayout.freeze(), documentPath, properties.getTemplateAnalysisConcurrency());
     }
 
     private LoopSpec.ModelSpec model() {
@@ -59,7 +59,13 @@ public final class TemplateTaskContractFactory {
 
     public record Frozen(TemplateTaskDefinition.View definition, LoopSpec spec, String scoringVersion, String scoreFormula,
                           List<ContributionScore.Dimension> dimensions, String timezone, String timePolicy, int repairLimit,
-                          TemplateReportLayout.Frozen reportTemplates, String documentPath) {
+                          TemplateReportLayout.Frozen reportTemplates, String documentPath, Integer analysisConcurrency) {
+        public Frozen { analysisConcurrency = !"8".equals(definition.version()) || analysisConcurrency == null ? 1 : analysisConcurrency; }
+        public Frozen(TemplateTaskDefinition.View definition, LoopSpec spec, String scoringVersion, String scoreFormula,
+                List<ContributionScore.Dimension> dimensions, String timezone, String timePolicy, int repairLimit,
+                TemplateReportLayout.Frozen reportTemplates, String documentPath) {
+            this(definition, spec, scoringVersion, scoreFormula, dimensions, timezone, timePolicy, repairLimit, reportTemplates, documentPath, 1);
+        }
         public boolean requiresDualReview() { return TemplateTaskDefinition.requiresDualReview(definition.version()); }
     }
 }

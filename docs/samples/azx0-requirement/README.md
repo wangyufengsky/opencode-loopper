@@ -40,3 +40,9 @@ python3 scripts/qualify-document-luna.py --document docs/samples/azx0-requiremen
 测试固定 Luna medium、已有 ChatGPT 订阅、只读工具、独立提取和复核 Session；每 Session 最多 600 秒、4 次候选提交，工具调用设置 200 次准入上限。它使用生产解析器、角色提示、候选 Schema 与需求引用/覆盖验证器，通过受控 MCP 按段读取原文。样本的 15 个分段在这个效果探针中合并为一个作用域，未模拟生产分批、数据库、HTTP 生命周期及 OpenCode Provider；这些证据不得混称产品端到端验收。
 
 语义验收以文内 R1–R4、T1–T8 为人工清单，另核对 UP/AC/O 表头关系、模拟约定、未无依据新增规则及未把目录当作业务需求。MCP ACCEPTED 仅表示候选结构与引用通过；独立复核和人工语义判断另列。真实运行结果及失败记录见对应版本交付记录。
+
+## 原文直读静态评审样例
+
+`review-fixture/` 是三个合成 Java 文件，仅用于静态阅读。已知缺陷：`payerComments` 为空字符串时仍写入 `RsrvFld1`；正确处理应保留纯空格并排除缺失、null 和空字符串。序列化、实际 AZX0 发送／响应边界与测试源码不在该样例中，因此不能判断传输字符一致性或声称测试已通过。不要把这些文件用于真实交易。
+
+真实效果入口为 `scripts/qualify-document-direct-luna.py`，使用生产解析、提示、候选 Schema、原文／代码引用校验器与隔离读取适配器；不是生产数据库／HTTP 编排替代物。0.4.27 的一次修正后试跑仍未通过四次候选提交校验，详见[交付记录](../../deliveries/0.4.27.md)，不能作为 Luna 已完成两角色评审的证明。

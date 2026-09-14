@@ -18,6 +18,8 @@ public final class InternalMcpContractCatalog {
             Map.entry(MachineCandidateKind.REVIEWER_REPORT_V1, "submit_reviewer_report"),
             Map.entry(MachineCandidateKind.PROJECT_CONVENTION_V1, "submit_project_convention"),
             Map.entry(MachineCandidateKind.JUDGE_DECISION_V1, "submit_judge_decision"),
+            Map.entry(MachineCandidateKind.DOCUMENT_CODE_ASSESSMENT_V2, "submit_document_code_assessment"),
+            Map.entry(MachineCandidateKind.DOCUMENT_CODE_REVIEW_V2, "submit_document_code_review"),
             Map.entry(MachineCandidateKind.DOCUMENT_REQUIREMENTS_V1, "submit_document_requirements"),
             Map.entry(MachineCandidateKind.DOCUMENT_REQUIREMENT_REVIEW_V1, "submit_document_requirement_review"),
             Map.entry(MachineCandidateKind.REQUIREMENT_CODE_ASSESSMENT_V1, "submit_requirement_code_assessment"),
@@ -34,12 +36,14 @@ public final class InternalMcpContractCatalog {
                 toolName(MachineCandidateKind.REVIEWER_REPORT_V1),
                 toolName(MachineCandidateKind.PROJECT_CONVENTION_V1),
                 toolName(MachineCandidateKind.JUDGE_DECISION_V1),
+                toolName(MachineCandidateKind.DOCUMENT_CODE_ASSESSMENT_V2),
+                toolName(MachineCandidateKind.DOCUMENT_CODE_REVIEW_V2),
                 toolName(MachineCandidateKind.DOCUMENT_REQUIREMENTS_V1),
                 toolName(MachineCandidateKind.DOCUMENT_REQUIREMENT_REVIEW_V1),
                 toolName(MachineCandidateKind.REQUIREMENT_CODE_ASSESSMENT_V1),
                 toolName(MachineCandidateKind.REQUIREMENT_ASSESSMENT_REVIEW_V1),
                 "list_requirement_documents", "list_document_sections", "read_document_section", "list_requirement_code", "read_requirement_code", "search_requirement_code", "list_requirement_assessments", "read_requirement_assessment",
-                "list_development_requirements", "read_development_requirement", "read_development_source",
+                "list_development_requirements", "read_development_requirement", "read_development_source", "list_development_documents", "list_development_sections", "read_document_resource",
                 PACKAGE_V2_TOOL, TEMPLATE_TOOL, legacyToolName());
     }
 
@@ -54,6 +58,8 @@ public final class InternalMcpContractCatalog {
         return switch (profile) {
             case DOCUMENT_REQUIREMENTS_NO_TOOLS -> optional(MachineCandidateKind.DOCUMENT_REQUIREMENTS_V1);
             case DOCUMENT_REQUIREMENT_REVIEW_NO_TOOLS -> optional(MachineCandidateKind.DOCUMENT_REQUIREMENT_REVIEW_V1);
+            case DOCUMENT_CODE_ASSESSMENT_V2_NO_TOOLS -> optional(MachineCandidateKind.DOCUMENT_CODE_ASSESSMENT_V2);
+            case DOCUMENT_CODE_REVIEW_V2_NO_TOOLS -> optional(MachineCandidateKind.DOCUMENT_CODE_REVIEW_V2);
             case REQUIREMENT_CODE_ASSESSMENT_NO_TOOLS -> optional(MachineCandidateKind.REQUIREMENT_CODE_ASSESSMENT_V1);
             case REQUIREMENT_ASSESSMENT_REVIEW_NO_TOOLS -> optional(MachineCandidateKind.REQUIREMENT_ASSESSMENT_REVIEW_V1);
             case TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS -> Optional.of(TEMPLATE_TOOL);

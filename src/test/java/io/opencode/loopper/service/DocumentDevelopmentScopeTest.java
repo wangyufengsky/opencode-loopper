@@ -32,7 +32,7 @@ class DocumentDevelopmentScopeTest {
         when(sessions.candidateOwner("session")).thenReturn(new AssistMapper.Owner("project", null, null, null, "designer", "OPEN"));
         when(runs.findDesigner("designer")).thenReturn(Optional.of(run(1, "DESIGNING")));
         when(domain.documentDesignerRevision("designer")).thenReturn(1);
-        when(requirements.revision("run", 1)).thenReturn(Optional.of(new DocumentRequirementMapper.Revision("run", 1, "manifest-1", "[]", "now")));
+        when(requirements.basis("run", 1)).thenReturn(Optional.of(new DocumentSourceMapper.Basis("run", 1, "REQUIREMENT_LIST", "manifest-1", "[]", "now")));
         when(runs.revisionFiles("run", 1)).thenReturn(List.of(new DocumentTemplateFileRow("file", "run", 0, "需求.md", "MARKDOWN", 10,
                 "original-hash", "representation", "v1", "run/file.original", 1, "[]")));
         when(domain.findProject("project")).thenReturn(Optional.of(new ProjectRow("project", "project", root.toString(), "", "now", "now", 1, 0)));
@@ -44,16 +44,16 @@ class DocumentDevelopmentScopeTest {
         assertThat(original.requirementRevision()).isEqualTo(1); assertThat(original.filesJson()).contains("original-hash");
         assertThat(original.toString()).doesNotContain(token);
         when(runs.findDesigner("designer")).thenReturn(Optional.of(run(2, "DESIGNING")));
-        when(requirements.revision("run", 2)).thenReturn(Optional.of(new DocumentRequirementMapper.Revision("run", 2, "new", "[]", "later")));
+        when(requirements.basis("run", 2)).thenReturn(Optional.of(new DocumentSourceMapper.Basis("run", 2, "REQUIREMENT_LIST", "new", "[]", "later")));
         assertThat(scopes.authorize(token).requirementRevision()).isEqualTo(1);
         assertThat(token()).isEqualTo(token);
         verify(requirements, never()).revision("run", 2);
     }
     @Test void changedOwnerRuntimeOrManifestCannotReuseGrant() {
         String token = token();
-        when(requirements.revision("run", 1)).thenReturn(Optional.of(new DocumentRequirementMapper.Revision("run", 1, "changed", "[]", "now")));
+        when(requirements.basis("run", 1)).thenReturn(Optional.of(new DocumentSourceMapper.Basis("run", 1, "REQUIREMENT_LIST", "changed", "[]", "now")));
         assertThatThrownBy(() -> scopes.authorize(token)).isInstanceOf(ConflictException.class);
-        when(requirements.revision("run", 1)).thenReturn(Optional.of(new DocumentRequirementMapper.Revision("run", 1, "manifest-1", "[]", "now")));
+        when(requirements.basis("run", 1)).thenReturn(Optional.of(new DocumentSourceMapper.Basis("run", 1, "REQUIREMENT_LIST", "manifest-1", "[]", "now")));
         when(sessions.candidateOwner("session")).thenReturn(new AssistMapper.Owner("other", null, null, null, "designer", "OPEN"));
         assertThatThrownBy(() -> scopes.authorize(token)).isInstanceOf(ConflictException.class);
         runtime.activate(new InternalMcpCredentialProvider(() -> 18083).issue());

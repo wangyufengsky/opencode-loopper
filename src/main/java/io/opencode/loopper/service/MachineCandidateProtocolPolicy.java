@@ -8,7 +8,7 @@ final class MachineCandidateProtocolPolicy {
 
     static Contract contract(MachineCandidateKind kind) {
         return switch (kind) {
-            case DOCUMENT_REQUIREMENTS_V1, DOCUMENT_REQUIREMENT_REVIEW_V1, REQUIREMENT_CODE_ASSESSMENT_V1, REQUIREMENT_ASSESSMENT_REVIEW_V1 -> project(
+            case DOCUMENT_CODE_ASSESSMENT_V2, DOCUMENT_CODE_REVIEW_V2, DOCUMENT_REQUIREMENTS_V1, DOCUMENT_REQUIREMENT_REVIEW_V1, REQUIREMENT_CODE_ASSESSMENT_V1, REQUIREMENT_ASSESSMENT_REVIEW_V1 -> project(
                     MachineCandidateSubmission.CandidateOwnerType.DOCUMENT_TEMPLATE_MODEL_RUN);
             case DECOMPOSITION_PLAN_V2 -> designer(
                     MachineCandidateSubmission.CandidateOwnerType.TASK_DECOMPOSITION, false, true);

@@ -6,6 +6,7 @@ import { api } from '@/api/client'
 import type { DocumentTemplateOverview } from '@/types/domain'
 import PageHeader from '@/components/PageHeader.vue'
 import DocumentRequirementsPanel from '@/components/DocumentRequirementsPanel.vue'
+import DocumentSourcesPanel from '@/components/DocumentSourcesPanel.vue'
 import DocumentReportsPanel from '@/components/DocumentReportsPanel.vue'
 import DocumentSupplementForm from '@/components/DocumentSupplementForm.vue'
 import { documentTemplateStateLabel, userFacingError } from '@/utils/displayLabels'
@@ -88,7 +89,7 @@ onBeforeUnmount(() => { ++generation; stream?.close(); clearTimeout(timer); clea
         <el-alert v-if="run.waitingMessage && ['WAITING_INPUT', 'STOPPING'].includes(run.state)" :title="run.waitingMessage" type="warning" :closable="false" />
         <p v-if="!run.uploadReady" class="muted">文档尚未保存完整。若上传已中断，请回到模板入口选择原文件重试。</p>
         <p v-if="disconnected && !terminal" class="muted">实时连接中断，正在通过状态接口同步进度。</p>
-        <div class="facts"><span>文档 {{ run.files.length }} 份</span><span>已复核需求 {{ run.progress.requirements }} 项</span><span>分析尝试 {{ run.progress.validated }}/{{ run.progress.attempts }} 已完成</span><span v-if="run.progress.active">{{ run.progress.active }} 次分析处理中</span></div>
+        <div class="facts"><span>文档 {{ run.files.length }} 份</span><span v-if="run.sourceKind === 'DOCUMENT_SOURCE'">原文版本 {{ run.sourceRevision }}</span><span v-if="run.sourceKind !== 'DOCUMENT_SOURCE' || run.requirementRevision > 0">{{ run.sourceKind === 'DOCUMENT_SOURCE' ? '评审条目' : '已复核需求' }} {{ run.progress.requirements }} 项</span><span v-if="run.templateId !== 'REQUIREMENT_DEVELOPMENT'">并发上限 {{ run.analysisConcurrency ?? 1 }}</span><span>分析尝试 {{ run.progress.validated }}/{{ run.progress.attempts }} 已完成</span><span v-if="run.progress.active">{{ run.progress.active }} 次分析处理中</span></div>
         <p v-if="run.templateId === 'REQUIREMENT_CODE_REVIEW'" class="muted">{{ run.state === 'COMPLETED' ? '静态评审已完成；需求是否满足以逐项结论为准。' : '按功能检查冻结代码及相关依赖。' }}本次未执行构建或测试。</p>
         <el-alert v-if="run.taskState === 'AWAITING_DECISION'" title="开发执行已结束，结果仍待你处置。请打开开发执行与验收，处理结果后再归档。" type="info" :closable="false" />
         <details v-if="run.snapshotSha"><summary>评审代码版本</summary><code>{{ run.snapshotSha }}</code></details>
@@ -103,8 +104,9 @@ onBeforeUnmount(() => { ++generation; stream?.close(); clearTimeout(timer); clea
           <p v-if="!file.limitations.length" class="muted">解析器未报告提取局限；段落处理覆盖仍需原文复核。</p>
         </details>
       </section>
-      <DocumentRequirementsPanel :run="run" @updated="run = $event" />
-      <DocumentSupplementForm v-if="run.templateId === 'REQUIREMENT_DEVELOPMENT' && (run.state === 'WAITING_INPUT' || !run.uploadReady && run.requirementRevision > 0)" :run="run" @updated="run = $event" />
+      <DocumentSourcesPanel :run="run" />
+      <DocumentRequirementsPanel v-if="run.sourceKind !== 'DOCUMENT_SOURCE' || run.requirementRevision > 0" :run="run" @updated="run = $event" />
+      <DocumentSupplementForm v-if="run.templateId === 'REQUIREMENT_DEVELOPMENT' && (run.state === 'WAITING_INPUT' || !run.uploadReady && (run.sourceRevision ?? run.requirementRevision) > 0)" :run="run" @updated="run = $event" />
       <DocumentReportsPanel :run-id="run.id" :count="run.progress.reports" :completed="run.state === 'COMPLETED'" />
     </template>
   </main>

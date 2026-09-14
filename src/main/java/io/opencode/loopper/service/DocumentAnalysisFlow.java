@@ -12,10 +12,11 @@ public final class DocumentAnalysisFlow {
     private final DocumentAssessmentWorkflow assessments;
     private final DocumentRequirementReportService reports;
     private final DocumentTemplateAdmission admission;
+    private final DirectDocumentReviewWorkflow direct;
     public DocumentAnalysisFlow(DocumentTemplatePreparation preparation, DocumentRequirementWorkflow requirements,
-            DocumentAssessmentWorkflow assessments, DocumentRequirementReportService reports, DocumentTemplateAdmission admission) {
+            DocumentAssessmentWorkflow assessments, DocumentRequirementReportService reports, DocumentTemplateAdmission admission, DirectDocumentReviewWorkflow direct) {
         this.preparation = preparation; this.requirements = requirements; this.assessments = assessments;
-        this.reports = reports; this.admission = admission;
+        this.reports = reports; this.admission = admission; this.direct = direct;
     }
     public void advance(DocumentTemplateRunRow run, DocumentTemplateService.Contract contract) {
         switch (DocumentTemplateState.valueOf(run.state())) {
@@ -28,7 +29,7 @@ public final class DocumentAnalysisFlow {
                 }
             }
             case ASSESSING, VERIFYING -> {
-                if (assessments.advance(run, contract)) admission.transition(admission.require(run.id()), DocumentTemplateState.REPORTING,
+                if (run.directDocuments() ? direct.advance(run, contract) : assessments.advance(run, contract)) admission.transition(admission.require(run.id()), DocumentTemplateState.REPORTING,
                         LifecycleEvent.RENDER_REQUIREMENT_REPORT, null, null);
             }
             case REPORTING -> {

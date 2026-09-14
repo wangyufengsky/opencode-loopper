@@ -12,7 +12,9 @@ public enum MachineCandidateKind implements DescribedEnum {
     DOCUMENT_REQUIREMENTS_V1("需求提取候选", 3),
     DOCUMENT_REQUIREMENT_REVIEW_V1("需求原文复核候选", 3),
     REQUIREMENT_CODE_ASSESSMENT_V1("需求代码评审候选", 3),
-    REQUIREMENT_ASSESSMENT_REVIEW_V1("需求代码评审复核候选", 3);
+    REQUIREMENT_ASSESSMENT_REVIEW_V1("需求代码评审复核候选", 3),
+    DOCUMENT_CODE_ASSESSMENT_V2("原文代码评审候选", 3),
+    DOCUMENT_CODE_REVIEW_V2("原文代码评审复核候选", 3);
 
     private final String description;
     private final int maximumAttempts;

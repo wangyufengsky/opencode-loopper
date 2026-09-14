@@ -2,8 +2,8 @@ import { expect, test } from '@playwright/test'
 
 for (const width of [1440, 390]) {
   test(`文档评审上传重试、刷新与按需报告 ${width}px`, async ({ page }) => {
-    const posts: string[] = []; let bodies = 0
-    const overview = { id: 'document', projectId: 'p', templateId: 'REQUIREMENT_CODE_REVIEW', templateVersion: '1', title: '需求代码评审 · 示例项目',
+    const posts: string[] = []; let bodies = 0; let sectionBodies = 0
+    const overview = { id: 'document', projectId: 'p', templateId: 'REQUIREMENT_CODE_REVIEW', templateVersion: '2', sourceKind: 'DOCUMENT_SOURCE', sourceRevision: 1, analysisConcurrency: 4, title: '需求代码评审 · 示例项目',
       state: 'COMPLETED', waitingReasonCode: null, waitingMessage: null, designerId: null, taskId: null, requirementRevision: 1, version: 10,
       canCancel: false, canResume: false, archived: false, uploadReady: true, snapshotSha: 'frozen-sha', createdAt: 'now', updatedAt: 'now',
       files: [{ id: 'file', filename: '付款需求.md', sectionCount: 1, sha256: 'file-sha', limitations: ['图片中的流程未提取'] }],
@@ -11,7 +11,7 @@ for (const width of [1440, 390]) {
     await page.route('http://127.0.0.1:41773/api/**', async route => {
       const request = route.request(); const path = new URL(request.url()).pathname
       let body: unknown = { items: [], facets: {} }
-      if (path === '/api/template-tasks/catalog') body = { templates: [{ id: 'REQUIREMENT_CODE_REVIEW', version: '1', title: '需求代码评审', description: '按文档检查冻结代码', inputs: { documents: true, branch: true, dates: false } }], dimensions: [] }
+      if (path === '/api/template-tasks/catalog') body = { templates: [{ id: 'REQUIREMENT_CODE_REVIEW', version: '2', title: '需求代码评审', description: '按文档检查冻结代码', inputs: { documents: true, branch: true, dates: false } }], dimensions: [] }
       else if (path === '/api/template-tasks/projects') body = { items: [{ id: 'p', name: '示例项目', createdAt: 'now' }], nextCursor: null }
       else if (path === '/api/template-tasks/projects/p') body = { id: 'p', name: '示例项目', createdAt: 'now' }
       else if (path.endsWith('/branches')) {
@@ -24,6 +24,8 @@ for (const width of [1440, 390]) {
         if (posts.length === 1) return route.abort('connectionfailed')
         body = overview
       } else if (path.endsWith('/document') || path.includes('/by-request/')) body = overview
+      else if (path.endsWith('/documents/file/sections')) body = { items: [{ ordinal: 0, title: '3.1 付款权限', characters: 13, sha256: 'section-sha' }], nextOffset: null }
+      else if (path.endsWith('/documents/file/sections/0')) { sectionBodies++; body = { ordinal: 0, title: '3.1 付款权限', content: '付款入口必须检查权限，拒绝未授权请求', sha256: 'section-sha' } }
       else if (path.endsWith('/requirements')) body = { items: [{ requirementKey: 'RQ-1', title: '付款权限', ordinal: 0, groupName: '付款', kind: 'PERMISSION', issueCount: 0, conclusion: 'INCORRECT' }], nextOffset: null, revision: 1 }
       else if (path.endsWith('/requirements/RQ-1')) body = { requirement: { title: '付款权限', statement: '付款入口必须检查权限', sources: [], acceptance: ['无权限拒绝'], issues: [] }, assessment: { rationale: '付款入口直接扣款，缺少权限检查', testSourceCoverage: '未发现权限测试', evidence: [], checkedPaths: ['PaymentService.java'], limitations: [] } }
       else if (path.endsWith('/reports')) body = { items: [{ id: 'summary', name: 'summary.md', kind: 'SUMMARY', sha256: 'report', bytes: 90, createdAt: 'now' }], nextCursor: null }
@@ -43,6 +45,13 @@ for (const width of [1440, 390]) {
     await expect(page).toHaveURL(/\/document-runs\/document$/)
     expect(posts).toHaveLength(2); expect(posts[0]).toBe(posts[1])
     await expect(page.getByText('本次未执行构建或测试。', { exact: false })).toBeVisible()
+    await expect(page.getByText('原文版本 1', { exact: true })).toBeVisible()
+    await expect(page.getByText('并发上限 4', { exact: true })).toBeVisible()
+    expect(sectionBodies).toBe(0)
+    await page.getByLabel('冻结原文').locator('summary').filter({ hasText: '付款需求.md' }).click()
+    await page.getByText('3.1 付款权限', { exact: true }).click()
+    await expect(page.getByText('付款入口必须检查权限，拒绝未授权请求', { exact: true })).toBeVisible()
+    expect(sectionBodies).toBe(1)
     expect(bodies).toBe(0)
     await page.getByRole('button', { name: '总体报告', exact: true }).click()
     await expect(page.getByRole('heading', { name: '静态评审报告', exact: true })).toBeVisible(); expect(bodies).toBe(1)

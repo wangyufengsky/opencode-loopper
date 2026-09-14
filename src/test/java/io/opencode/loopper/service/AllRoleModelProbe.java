@@ -70,7 +70,8 @@ public final class AllRoleModelProbe {
     String instructions() {
         return switch (kind) {
             case DOCUMENT_REQUIREMENTS_V1, DOCUMENT_REQUIREMENT_REVIEW_V1,
-                    REQUIREMENT_CODE_ASSESSMENT_V1, REQUIREMENT_ASSESSMENT_REVIEW_V1 ->
+                    REQUIREMENT_CODE_ASSESSMENT_V1, REQUIREMENT_ASSESSMENT_REVIEW_V1,
+                    DOCUMENT_CODE_ASSESSMENT_V2, DOCUMENT_CODE_REVIEW_V2 ->
                     throw new IllegalArgumentException("Document template roles require the scoped document fixture");
             case DECOMPOSITION_PLAN_V2 -> "冻结需求 RQ-1:保持 loopback-only；RQ-2:校验候选；RQ-3:仅持久化接受结果。规划两个纵向业务包，覆盖全部 RQ，依赖使用零基前序索引。";
             case ACCEPTANCE_CLOSED_CHOICE_V7 -> "冻结闭集：factIndex=0 已分配到 stageIndex=0，factAssignments 应为空；两个完整同分选择分别为 capabilityIndexes:[0] 或 [1]。为 factIndex=0 选择其中一个完整最优集合。";
@@ -85,7 +86,8 @@ public final class AllRoleModelProbe {
     CandidatePolicy.Decision compile(String candidate) {
         return switch (kind) {
             case DOCUMENT_REQUIREMENTS_V1, DOCUMENT_REQUIREMENT_REVIEW_V1,
-                    REQUIREMENT_CODE_ASSESSMENT_V1, REQUIREMENT_ASSESSMENT_REVIEW_V1 ->
+                    REQUIREMENT_CODE_ASSESSMENT_V1, REQUIREMENT_ASSESSMENT_REVIEW_V1,
+                    DOCUMENT_CODE_ASSESSMENT_V2, DOCUMENT_CODE_REVIEW_V2 ->
                     throw new IllegalArgumentException("Document template roles require the scoped document fixture");
             case DECOMPOSITION_PLAN_V2 -> {
                 var revision = new DesignRequirementRevisionRow("rev", "session", 3, "message", instructions(),

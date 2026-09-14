@@ -23,6 +23,7 @@ import tools.jackson.databind.ObjectMapper;
 /** Human-labelled semantic errors exercise actual repair/publication, not only JSON validation. */
 @SpringBootTest(classes = LoopperApplication.class, properties = {"loopper.opencode.mode=fake", "loopper.monitor-delay=1h"})
 class DocumentRequirementGoldIntegrationTest {
+    @Autowired org.springframework.context.ApplicationContext applicationContext;
     @Autowired Flyway flyway;
     @Autowired DocumentTemplateService service;
     @Autowired DocumentTemplateMapper runs;
@@ -48,7 +49,7 @@ class DocumentRequirementGoldIntegrationTest {
         fake.holdProfileOpen(DocumentTemplateProfiles.profile(MachineCandidateKind.DOCUMENT_REQUIREMENT_REVIEW_V1), true);
         properties.getOpenCode().setModel("fake/test-model");
         var project = projects.create("人工标注订单样本", Files.createDirectory(temporary.resolve("source")).toString(), "test");
-        var run = service.create(new DocumentTemplateService.Request(UUID.randomUUID().toString(), "REQUIREMENT_DEVELOPMENT", "1", project.id(), null),
+        var run = LegacyDocumentFixture.create(applicationContext, new DocumentTemplateService.Request(UUID.randomUUID().toString(), "REQUIREMENT_DEVELOPMENT", "1", project.id(), null),
                 List.of(new DocumentTemplateStorage.Incoming("订单.md", "# 订单\n金额必须大于零；只能撤回本人创建的待审批订单。".getBytes(StandardCharsets.UTF_8))));
         id = run.id(); contract = json.readValue(run.contractJson(), DocumentTemplateService.Contract.class);
     }

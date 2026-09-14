@@ -5,12 +5,20 @@ import java.util.Optional;
 import org.apache.ibatis.annotations.*;
 
 /** Frozen design provenance; queries never infer document identity from model-supplied text. */
-public interface DocumentDesignContextMapper extends DesignerTimeoutMapper {
+public interface DocumentDesignContextMapper extends DesignerTimeoutMapper, DocumentSourceMapper {
     @Options(flushCache = Options.FlushCachePolicy.TRUE, useCache = false)
     @Select("""
-        SELECT r.requirement_key FROM document_template_run d JOIN document_requirement r
-          ON r.run_id=d.id AND r.revision=d.requirement_revision
-        WHERE d.task_id=#{task} AND d.template_id='REQUIREMENT_DEVELOPMENT' ORDER BY r.ordinal LIMIT 4097
+        SELECT ref FROM (
+          SELECT r.requirement_key AS ref,r.ordinal FROM document_template_run d JOIN document_requirement r
+            ON r.run_id=d.id AND r.revision=d.requirement_revision
+            WHERE d.task_id=#{task} AND d.template_id='REQUIREMENT_DEVELOPMENT' AND d.template_version<>'2'
+          UNION ALL
+          SELECT 'DOC-'||(f.ordinal+1) AS ref,f.ordinal FROM document_template_run d
+            JOIN document_basis_revision b ON b.run_id=d.id AND b.revision=d.source_revision
+            JOIN document_template_file f ON f.run_id=d.id
+            WHERE d.task_id=#{task} AND d.template_id='REQUIREMENT_DEVELOPMENT' AND b.source_kind='DOCUMENT_SOURCE'
+              AND f.id IN(SELECT json_extract(value,'$.id') FROM json_each(b.source_json,'$.files'))
+        ) ORDER BY ordinal LIMIT 4097
         """)
     List<String> documentTaskRequirementRefs(String task);
     @Options(flushCache = Options.FlushCachePolicy.TRUE, useCache = false)
@@ -25,16 +33,16 @@ public interface DocumentDesignContextMapper extends DesignerTimeoutMapper {
     @Options(flushCache = Options.FlushCachePolicy.TRUE, useCache = false)
     @Select("""
         SELECT b.* FROM document_development_design b JOIN design_requirement_revision d
-          ON d.id=b.requirement_revision_id JOIN document_requirement_revision r
+          ON d.id=b.requirement_revision_id JOIN document_basis_revision r
           ON r.run_id=b.run_id AND r.revision=b.document_revision AND r.manifest_sha256=b.manifest_sha256
         WHERE b.requirement_revision_id=#{revision} AND d.designer_session_id=#{designer}
         """)
     Optional<DocumentDevelopmentMapper.Design> documentDesign(@Param("revision") String revision, @Param("designer") String designer);
     @Insert("""
         INSERT INTO document_development_plan_source(plan_revision_id,run_id,document_revision,manifest_sha256,created_at)
-        SELECT p.id,d.id,d.requirement_revision,r.manifest_sha256,p.created_at
+        SELECT p.id,d.id,(CASE WHEN d.template_version='2' THEN d.source_revision ELSE d.requirement_revision END),r.manifest_sha256,p.created_at
         FROM task_package_plan_revision p JOIN document_template_run d ON d.task_id=p.task_id
-        JOIN document_requirement_revision r ON r.run_id=d.id AND r.revision=d.requirement_revision
+        JOIN document_basis_revision r ON r.run_id=d.id AND r.revision=(CASE WHEN d.template_version='2' THEN d.source_revision ELSE d.requirement_revision END)
         WHERE p.id=#{planId} AND d.template_id='REQUIREMENT_DEVELOPMENT'
         ON CONFLICT(plan_revision_id) DO NOTHING
         """)
@@ -43,7 +51,7 @@ public interface DocumentDesignContextMapper extends DesignerTimeoutMapper {
     @Select("""
         SELECT p.requirement_revision_id,s.run_id,s.document_revision,s.manifest_sha256,s.created_at
         FROM document_development_plan_source s JOIN task_package_plan_revision p ON p.id=s.plan_revision_id
-        JOIN document_requirement_revision r ON r.run_id=s.run_id AND r.revision=s.document_revision
+        JOIN document_basis_revision r ON r.run_id=s.run_id AND r.revision=s.document_revision
           AND r.manifest_sha256=s.manifest_sha256 WHERE s.plan_revision_id=#{planId}
         """)
     Optional<DocumentDevelopmentMapper.Design> documentPlanSource(String planId);
@@ -53,7 +61,7 @@ public interface DocumentDesignContextMapper extends DesignerTimeoutMapper {
           LEFT JOIN document_development_plan_source s ON s.plan_revision_id=p.id
           LEFT JOIN document_development_design b ON b.requirement_revision_id=p.requirement_revision_id
           WHERE p.id=#{planId} AND d.template_id='REQUIREMENT_DEVELOPMENT'
-            AND (coalesce(s.document_revision,b.document_revision,-1)<>d.requirement_revision))
+            AND (coalesce(s.document_revision,b.document_revision,-1)<>(CASE WHEN d.template_version='2' THEN d.source_revision ELSE d.requirement_revision END)))
         """)
     boolean documentPlanSourceCurrent(String planId);
     @Options(flushCache = Options.FlushCachePolicy.TRUE, useCache = false)
@@ -69,7 +77,7 @@ public interface DocumentDesignContextMapper extends DesignerTimeoutMapper {
     @Options(flushCache = Options.FlushCachePolicy.TRUE, useCache = false)
     @Select("""
         SELECT s.document_revision FROM document_development_task_source s
-        JOIN document_requirement_revision r ON r.run_id=s.run_id AND r.revision=s.document_revision
+        JOIN document_basis_revision r ON r.run_id=s.run_id AND r.revision=s.document_revision
           AND r.manifest_sha256=s.manifest_sha256 WHERE s.task_id=#{task}
         """)
     Integer documentTaskRevision(String task);
@@ -112,7 +120,7 @@ public interface DocumentDesignContextMapper extends DesignerTimeoutMapper {
         FROM document_development_design b JOIN design_work_package w ON w.requirement_revision_id=b.requirement_revision_id
         LEFT JOIN task_package_run pr ON pr.design_work_package_id=w.id
         LEFT JOIN document_development_plan_source s ON s.plan_revision_id=pr.plan_revision_id AND s.run_id=b.run_id
-        JOIN document_requirement_revision r ON r.run_id=b.run_id AND r.revision=coalesce(s.document_revision,b.document_revision)
+        JOIN document_basis_revision r ON r.run_id=b.run_id AND r.revision=coalesce(s.document_revision,b.document_revision)
         WHERE w.id=#{workPackage} AND w.designer_session_id=#{designer}
           AND r.manifest_sha256=coalesce(s.manifest_sha256,b.manifest_sha256)
         """)
@@ -141,4 +149,9 @@ public interface DocumentDesignContextMapper extends DesignerTimeoutMapper {
           WHERE current.id=#{workPackage})
         """)
     boolean documentLastPackage(String workPackage);
+    @Select("""
+        SELECT DISTINCT refs.value FROM design_work_package w JOIN task_decomposition d ON d.id=w.decomposition_id,
+          json_each(d.plan_json,'$.globalConstraints') g,json_each(g.value,'$.requirementRefs') refs WHERE w.id=#{workPackage}
+        """)
+    List<String> documentGlobalSourceRefs(String workPackage);
 }

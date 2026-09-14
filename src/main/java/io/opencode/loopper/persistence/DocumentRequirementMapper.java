@@ -5,7 +5,7 @@ import java.util.Optional;
 import org.apache.ibatis.annotations.*;
 
 @Mapper
-public interface DocumentRequirementMapper {
+public interface DocumentRequirementMapper extends DocumentSourceMapper {
     @Options(flushCache = Options.FlushCachePolicy.TRUE, useCache = false)
     @Select("SELECT * FROM document_requirement_batch WHERE run_id=#{runId} AND ordinal=#{ordinal} AND round=#{round}")
     Optional<Batch> batch(@Param("runId") String runId, @Param("ordinal") int ordinal, @Param("round") int round);

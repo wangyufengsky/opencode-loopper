@@ -22,7 +22,9 @@ public final class DocumentModelAccess {
         if (!DocumentTemplateProfiles.supports(candidate.candidateKind()) || candidate.state() != MachineCandidateRunState.OPEN)
             throw new ConflictException("DOCUMENT_READ_SCOPE_INVALID", "该候选没有活动的冻结读取许可");
         if (code && candidate.candidateKind() != io.opencode.loopper.domain.MachineCandidateKind.REQUIREMENT_CODE_ASSESSMENT_V1
-                && candidate.candidateKind() != io.opencode.loopper.domain.MachineCandidateKind.REQUIREMENT_ASSESSMENT_REVIEW_V1)
+                && candidate.candidateKind() != io.opencode.loopper.domain.MachineCandidateKind.REQUIREMENT_ASSESSMENT_REVIEW_V1
+                && candidate.candidateKind() != io.opencode.loopper.domain.MachineCandidateKind.DOCUMENT_CODE_ASSESSMENT_V2
+                && candidate.candidateKind() != io.opencode.loopper.domain.MachineCandidateKind.DOCUMENT_CODE_REVIEW_V2)
             throw new ConflictException("DOCUMENT_CODE_PERMISSION_DENIED", "当前角色没有冻结代码读取权限");
         guard.validate(candidate, MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP);
         var binding = runtime.getIfAvailable();

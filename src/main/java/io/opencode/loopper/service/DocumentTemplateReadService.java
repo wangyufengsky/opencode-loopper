@@ -31,7 +31,8 @@ public final class DocumentTemplateReadService {
                 !state.terminal() && state != DocumentTemplateState.STOPPING, state == DocumentTemplateState.WAITING_INPUT,
                 run.archived() == 1, files, progress.progress(id), mapper.uploadReady(id) && !mapper.supplementalUploadPending(id),
                 run.snapshotJson() == null ? null : json.readValue(run.snapshotJson(), DocumentCodeSnapshotStore.Snapshot.class).sha(),
-                progress.taskState(id));
+                progress.taskState(id), run.sourceRevision(), run.directDocuments() ? "DOCUMENT_SOURCE" : "REQUIREMENT_LIST",
+                json.readValue(run.contractJson(), DocumentTemplateService.Contract.class).analysisConcurrency());
     }
     public Overview request(String key) {
         if (key == null || !key.matches("[A-Za-z0-9_-]{16,100}"))
@@ -84,7 +85,7 @@ public final class DocumentTemplateReadService {
             String state, String waitingReasonCode, String waitingMessage, String designerId, String taskId,
             int requirementRevision, long version, String createdAt, String updatedAt, boolean canCancel,
             boolean canResume, boolean archived, List<FileView> files, DocumentProgressMapper.Progress progress,
-            boolean uploadReady, String snapshotSha, String taskState) { }
+            boolean uploadReady, String snapshotSha, String taskState, int sourceRevision, String sourceKind, int analysisConcurrency) { }
     public record RequirementPage(List<DocumentRequirementMapper.Summary> items, Integer nextOffset, int revision) { }
     public record RequirementDetail(io.opencode.loopper.template.DocumentRequirements.Requirement requirement,
                                    io.opencode.loopper.template.RequirementCodeAssessment.Item assessment) { }

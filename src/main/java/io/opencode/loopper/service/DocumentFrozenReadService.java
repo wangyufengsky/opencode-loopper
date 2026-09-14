@@ -29,21 +29,26 @@ public class DocumentFrozenReadService {
         this.snapshots = snapshots; this.git = git; this.json = json; this.contentCache = contentCache;
     }
     public DocumentTemplateMapper.Section section(String id, String fileId, int ordinal, String sha) {
-        var model = access.require(id, false); inputs.input(model);
+        var model = access.require(id, false); var input = inputs.input(model);
+        requireSource(model, input, fileId);
         documents.file(model.runId(), fileId).orElseThrow(() -> invalid("文档不属于当前模板"));
         var section = documents.section(fileId, ordinal).orElseThrow(() -> invalid("冻结分段不存在"));
         if (!section.sha256().equals(sha) || !DocumentModelStore.hash(section.content()).equals(sha))
             throw invalid("冻结分段内容校验失败");
+        access.require(id, false);
+        if (input.sourceRevision() > 0) documents.recordSourceRead(model.externalSessionId(), model.runId(), input.sourceRevision(), fileId, ordinal, sha);
         return section;
     }
     public List<DocumentIndex> documents(String id) {
         var model = access.require(id, false);
-        return documents.files(model.runId()).stream().map(file -> new DocumentIndex(file.id(), file.filename(),
+        var input = inputs.input(model);
+        return (input.sourceRevision() > 0 ? documents.sourceFiles(model.runId(), input.sourceRevision()) : documents.files(model.runId())).stream().map(file -> new DocumentIndex(file.id(), file.filename(),
                 file.format(), file.sha256(), file.sectionCount(), json.readValue(file.limitationsJson(),
                 new tools.jackson.core.type.TypeReference<List<String>>() { }))).toList();
     }
     public CursorPage<DocumentTemplateMapper.SectionSummary> sections(String id, String fileId, int after, int limit) {
         var model = access.require(id, false);
+        requireSource(model, inputs.input(model), fileId);
         documents.file(model.runId(), fileId).orElseThrow(() -> invalid("文档不属于当前模板"));
         if (after < -1 || limit < 1 || limit > 100) throw invalid("分段目录分页参数无效");
         var page = documents.sections(fileId, after + 1, limit + 1);
@@ -91,6 +96,17 @@ public class DocumentFrozenReadService {
         access.require(id, true);
         return new Search(path, source.blobSha(), matches, next == 0 ? null : next, next == 0,
                 "仅在指定冻结文件中检索；没有命中不能证明需求未实现。引用结论前须读取对应完整代码行。");
+    }
+    private void requireSource(DocumentTemplateModelRow model, DocumentModelInput input, String file) {
+        if (input.sourceRevision() > 0 && documents.sourceFiles(model.runId(), input.sourceRevision()).stream()
+                .noneMatch(value -> value.id().equals(file))) throw invalid("文档不属于本角色冻结原文版本");
+    }
+    public Object resource(String id, String fileId, String section) {
+        if (fileId.equals("index")) return documents(id);
+        if (section.startsWith("index")) return sections(id, fileId, section.equals("index") ? -1 : Integer.parseInt(section.substring(5)), 100);
+        var model = access.require(id, false); requireSource(model, inputs.input(model), fileId);
+        var value = documents.section(fileId, Integer.parseInt(section)).orElseThrow(() -> invalid("原文分段不存在"));
+        return section(id, fileId, value.ordinal(), value.sha256());
     }
     private DocumentCodeMapper.File file(DocumentTemplateModelRow model, String path, String sha) {
         var file = code.file(model.runId(), path).orElseThrow(() -> invalid("源码不属于冻结快照"));

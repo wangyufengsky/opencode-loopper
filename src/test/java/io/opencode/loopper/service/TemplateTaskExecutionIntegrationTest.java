@@ -346,6 +346,47 @@ class TemplateTaskExecutionIntegrationTest {
         assertThat(mapper.findTask(task.id())).isEmpty();
     }
 
+    @Test void currentReportTemplatesUseIndependentMcpSessionsAndKeepFourSlotsUntilCompletion() throws Exception {
+        for (int i = 0; i < 60; i++) Files.writeString(source.resolve("unit-" + i + ".txt"), "bounded evidence\n");
+        git.read(source, "add", ".");
+        git.read(source, "-c", "user.name=Test", "-c", "user.email=test@example.test", "commit", "-m", "many independent units");
+        var credentials = new InternalMcpCredentialProvider(() -> 18083).issue();
+        runtimeAccess.activate(credentials); runtimeAccess.connected(credentials.generation());
+        fake.setManagedRuntime(credentials.generation(), credentials.serverName());
+        fake.holdProfileOpen(OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS, true);
+        for (String definition : List.of("CODE_REVIEW", "CONTRIBUTION_REPORT")) {
+            String today = LocalDate.now(TemplateDateRange.ZONE).toString();
+            var task = admission.create(new TemplateTaskService.Request(UUID.randomUUID().toString(), definition,
+                    TemplateTaskDefinition.VERSION, projectId, "local:refs/heads/main", today, today, StoryBindingConfiguration.disabled()), true);
+            var contract = evidence.contract(task.id()); assertThat(contract.analysisConcurrency()).isEqualTo(4);
+            states.start(task.id(), contract); int peak = 0; var completed = new java.util.HashSet<String>();
+            for (int tick = 0; tick < 180 && !states.task(task.id()).state().equals("COMPLETED"); tick++) {
+                driver.advance(task.id());
+                var attempt = mapper.latestAttempt(mapper.listStages(task.id()).get(1).id()).orElse(null);
+                if (attempt == null) continue;
+                var batches = templates.batches(task.id(), attempt.id());
+                var active = batches.stream().filter(row -> !List.of("PREPARED", "VALIDATED", "FAILED").contains(row.state())).toList();
+                assertThat(active).hasSizeLessThanOrEqualTo(4); peak = Math.max(peak, active.size());
+                if (batches.stream().anyMatch(row -> row.purpose().equals("REVIEW") && !row.state().equals("VALIDATED")))
+                    assertThat(active).noneMatch(row -> row.purpose().equals("CONTRIBUTOR"));
+                var next = active.stream().filter(row -> row.state().equals("RUNNING") && !completed.contains(row.id()))
+                        .max(java.util.Comparator.comparingInt(TemplateTaskBatchRow::ordinal)).orElse(null);
+                if (next == null) continue;
+                var input = json.readValue(next.inputJson(), TemplateBatchExecution.Input.class); Object result;
+                if (next.purpose().equals("REVIEW")) result = new TemplateAnalysis.BatchCandidate(input.units().stream()
+                        .map(unit -> new TemplateAnalysis.UnitReview(unit.id(), "静态证据已检查", List.of(), List.of("未运行测试"))).toList());
+                else {
+                    var grade = new ContributionScore.Assessment(1, "依据冻结变更", List.of(input.person().commits().getFirst()));
+                    result = new TemplateAnalysis.ContributorCandidate(input.person().author().identity(), "新增说明", grade, grade, grade, grade);
+                }
+                assertThat(candidateSubmissions.submit(next.id(), "accepted", 0, json.writeValueAsString(result))).contains("ACCEPTED");
+                fake.setSessionState(mapper.findSession(next.sessionId()).orElseThrow().externalSessionId(), "COMPLETED"); completed.add(next.id());
+            }
+            assertThat(peak).isEqualTo(4); assertThat(completed.size()).isGreaterThanOrEqualTo(5);
+            assertThat(states.task(task.id()).state()).isEqualTo("COMPLETED");
+            assertThat(mapper.listJudgeRuns(task.id())).isEmpty();
+        }
+    }
     private TaskArtifactRow main(String taskId) {
         return mapper.listTaskArtifacts(taskId).stream().filter(row -> row.kind().equals("TEMPLATE_REPORT")
                 && "SUMMARY".equals(json.readTree(row.metadataJson()).path("reportRole").asText())).findFirst().orElseThrow();

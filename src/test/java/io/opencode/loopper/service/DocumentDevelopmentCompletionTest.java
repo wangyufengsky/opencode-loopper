@@ -11,8 +11,10 @@ class DocumentDevelopmentCompletionTest {
     private final LoopperMapper mapper = mock(LoopperMapper.class);
     private final TaskReadService reads = mock(TaskReadService.class);
     private final ObjectMapper json = new ObjectMapper();
-    private final DocumentDevelopmentCompletion completion = new DocumentDevelopmentCompletion(mapper, reads, json);
+    private final DocumentOriginalReadCoverage originalReads = mock(DocumentOriginalReadCoverage.class);
+    private final DocumentDevelopmentCompletion completion = new DocumentDevelopmentCompletion(mapper, reads, json, originalReads);
     @BeforeEach void prepare() {
+        when(originalReads.sessionComplete(anyString(), nullable(String.class))).thenReturn(true);
         when(mapper.findTask("task")).thenReturn(Optional.of(json.readValue("""
                 {"id":"task","projectId":"project","state":"AWAITING_DECISION","version":8,"executionMode":"LEGACY_AGGREGATE"}
                 """, TaskRow.class)));

@@ -34,7 +34,7 @@ public class DocumentDevelopmentBootstrap {
     public DesignerSessionRow create(DocumentTemplateRunRow input, DocumentTemplateService.Contract contract) {
         if (input.designerId() != null) return domain.findDesignerSession(input.designerId()).orElseThrow();
         requireAuthorized(input, contract);
-        var source = requirements.revision(input.id(), input.requirementRevision()).orElseThrow(DocumentDevelopmentBootstrap::conflict);
+        var source = requirements.basis(input.id(), input.basisRevision()).orElseThrow(DocumentDevelopmentBootstrap::conflict);
         var segments = segments(input);
         if (segments.isEmpty()) throw new BadRequestException("DOCUMENT_REQUIREMENTS_EMPTY", "需求清单没有可开发内容，请补充需求");
         // Stack observation happens outside the short identity/link transaction.
@@ -42,7 +42,7 @@ public class DocumentDevelopmentBootstrap {
         return transactions.execute(status -> {
             var run = admission.require(input.id()); requireAuthorized(run, contract);
             if (run.designerId() != null) return domain.findDesignerSession(run.designerId()).orElseThrow();
-            if (run.version() != input.version() || run.requirementRevision() != source.revision()) throw conflict();
+            if (run.version() != input.version() || run.basisRevision() != source.revision()) throw conflict();
             String now = Instant.now().toString(), designerId = UUID.randomUUID().toString(), revisionId = UUID.randomUUID().toString();
             String index = DocumentRequirementContext.index(run, source.manifestSha256(), segments.size());
             var draft = drafts.createNew(new LoopSpec("v2", run.projectId(), run.title(), index,
@@ -71,9 +71,11 @@ public class DocumentDevelopmentBootstrap {
         });
     }
     private List<DesignerSessionService.RequirementSegment> segments(DocumentTemplateRunRow run) {
+        if (run.directDocuments()) return requirements.sourceFiles(run.id(), run.sourceRevision()).stream()
+                .map(file -> new DesignerSessionService.RequirementSegment("DOC-" + (file.ordinal() + 1), file.filename())).toList();
         var result = new ArrayList<DesignerSessionService.RequirementSegment>(); int after = -1;
         while (true) {
-            var page = requirements.page(run.id(), run.requirementRevision(), after, 100);
+            var page = requirements.page(run.id(), run.basisRevision(), after, 100);
             for (var item : page) {
                 if (!json.readTree(item.issuesJson()).isEmpty()) throw new BadRequestException("DOCUMENT_BUSINESS_DECISION_REQUIRED",
                         item.requirementKey() + " 存在未解决的业务问题，请在需求待处理项中补充依据后继续");
@@ -91,7 +93,7 @@ public class DocumentDevelopmentBootstrap {
     private static void requireAuthorized(DocumentTemplateRunRow run, DocumentTemplateService.Contract contract) {
         if (!run.templateId().equals("REQUIREMENT_DEVELOPMENT") || !run.state().equals("DESIGNING")
                 || !contract.autoDevelopment() || !contract.executionPolicy().equals("CURRENT_DIRECTORY")
-                || run.requirementRevision() < 1) throw conflict();
+                || run.basisRevision() < 1) throw conflict();
     }
     private static LifecycleTransitionService.Subject subject(LifecycleMachineType type, String id, String project) {
         return new LifecycleTransitionService.Subject(type, id, LifecycleScopeType.PROJECT, project);

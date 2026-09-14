@@ -11,11 +11,17 @@ final class JudgeDecisionCandidatePolicy implements CandidatePolicy {
 
     private final JudgeDecisionCompilationInputLoader inputs;
     private final JudgeDecisionCompilation compilation;
+    private DocumentOriginalReadCoverage originalReads;
 
     JudgeDecisionCandidatePolicy(
             JudgeDecisionCompilationInputLoader inputs, JudgeDecisionCompilation compilation) {
         this.inputs = inputs;
         this.compilation = compilation;
+    }
+
+    JudgeDecisionCandidatePolicy(JudgeDecisionCompilationInputLoader inputs, JudgeDecisionCompilation compilation,
+                                 DocumentOriginalReadCoverage originalReads) {
+        this(inputs, compilation); this.originalReads = originalReads;
     }
 
     @Override
@@ -36,6 +42,10 @@ final class JudgeDecisionCandidatePolicy implements CandidatePolicy {
                     "候选运行不属于 JUDGE_DECISION_V1 冻结合同", List.of())));
         }
         JudgeDecisionCompilation.Result result = compilation.compileCandidate(inputs.load(context), candidateJson);
+        if (result.accepted() && "PASS".equals(result.candidate().verdict()) && originalReads != null
+                && !originalReads.complete(context.scope().id(), context.runId()))
+            return Decision.rejected(true, List.of(new MachineCandidateSubmission.Problem("DOCUMENT_ORIGINAL_READ_INCOMPLETE",
+                    "/verdict", "尚未读取本版全部原文章节，不能判定通过。请使用文档目录和原文工具核对遗漏；读取不代表理解或满足。", List.of())));
         if (result.accepted()) return Decision.accepted(result.canonicalCandidateJson());
         return Decision.rejected(result.retryable(), false,
                 result.problems().stream().map(JudgeDecisionCompilation.Problem::submissionProblem).toList());

@@ -13,6 +13,8 @@ final class DocumentTemplateTopology {
         var b = FiniteStateMachine.builder(LifecycleMachineType.DOCUMENT_TEMPLATE_RUN,
                 DocumentTemplateState.class, LifecycleEvent.class)
                 .transition(PREPARING, ANALYZE_DOCUMENT_REQUIREMENTS, ANALYZING)
+                .transition(PREPARING, DESIGN_DOCUMENT_REQUIREMENTS, DESIGNING)
+                .transition(PREPARING, ASSESS_REQUIREMENT_CODE, ASSESSING)
                 .transition(ANALYZING, REVIEW_DOCUMENT_REQUIREMENTS, REVIEWING)
                 .transition(REVIEWING, ANALYZE_DOCUMENT_REQUIREMENTS, ANALYZING)
                 .transition(REVIEWING, DESIGN_DOCUMENT_REQUIREMENTS, DESIGNING)
