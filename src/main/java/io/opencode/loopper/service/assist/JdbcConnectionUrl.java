@@ -52,8 +52,9 @@ public final class JdbcConnectionUrl {
             parameters.put(key,value);
         }
         DatabaseDialect.forType(c.type()).validateParameters(parameters);
-        // The bundled openGauss driver exposes the PostgreSQL JDBC protocol under its isolated profile.
-        String driverPrefix = c.type() == DatabaseConfig.Type.OPENGAUSS ? "jdbc:postgresql://" : prefix;
+        // Match the frozen driver class, including the historical 6.0.3 PostgreSQL namespace.
+        String driverPrefix = c.type() == DatabaseConfig.Type.OPENGAUSS
+                ? (c.driverClass() != null && c.driverClass().startsWith("org.postgresql.") ? "jdbc:postgresql://" : "jdbc:opengauss://") : prefix;
         return new Parsed(driverPrefix + parts[0], firstHost, firstPort, database, Map.copyOf(parameters));
     }
     private static String decode(String text) {

@@ -132,6 +132,8 @@ public class DatabaseQueryService implements AutoCloseable {
             throw new AssistFailure("DATABASE_QUERY_TIMEOUT","查询超时，已请求取消；结果未知，请勿自动重复执行","STOP_AND_INSPECT");
         } catch(InterruptedException interrupted) { expired.set(true);Thread.currentThread().interrupt(); throw new AssistFailure("DATABASE_QUERY_INTERRUPTED","查询等待已中断，请检查连接状态后再决定是否重试","STOP_AND_INSPECT"); }
         catch(ExecutionException failure) { if(failure.getCause() instanceof AssistFailure safe) throw safe;
+            if(failure.getCause() instanceof SQLException sql && sql.getSQLState()!=null && sql.getSQLState().startsWith("28"))
+                throw new AssistFailure("DATABASE_AUTHENTICATION_FAILED","数据库拒绝登录。请核对用户名、密码、目标数据库及节点，并与可连接客户端的驱动版本保持一致；这不一定表示密码输入错误","CONFIGURE");
             throw new AssistFailure("DATABASE_QUERY_FAILED","数据库读取失败，请检查驱动、只读账号、连接及 SQL 字段；底层异常已隐藏","CONFIGURE_OR_FIX_QUERY"); }
     }
     private static String required(String table) { if(table==null || table.isBlank()) throw new AssistFailure("DATABASE_TABLE_REQUIRED","请指定表名"); return table; }

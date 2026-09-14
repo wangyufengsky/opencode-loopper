@@ -24,6 +24,22 @@ class DatabaseQueryServiceTest {
             verify(connection).rollback();verify(connection).close();verify(statement).setMaxRows(2);
         }
     }
+    @Test void authenticationFailureIsActionableWithoutLeakingDriverDetailsOrChangingDraftPassword() throws Exception {
+        for(String state:Arrays.asList("28P01","28000","08001",null)) {
+            var drivers=mock(DatabaseDriverRegistry.class);var secrets=mock(DatabaseSecretStore.class);
+            var config=BundledDatabaseDrivers.resolve(BundledDatabaseDriversTest.input(DatabaseConfig.Type.OPENGAUSS));
+            String password=" p@ss+&=%密 ";
+            when(drivers.diagnose(config,password)).thenThrow(new SQLException("sensitive-host and "+password,state));
+            try(var service=new DatabaseQueryService(drivers,secrets,new ObjectMapper())) {
+                assertThatThrownBy(()->service.test(new DatabaseConnectionService.Bound("draft","draft",config,null,0),password))
+                        .isInstanceOfSatisfying(AssistFailure.class,f->{
+                            assertThat(f.code()).isEqualTo(state!=null && state.startsWith("28")?"DATABASE_AUTHENTICATION_FAILED":"DATABASE_QUERY_FAILED");
+                            assertThat(f.getMessage()).doesNotContain(password,"sensitive-host");
+                        });
+                verifyNoInteractions(secrets);verify(drivers).diagnose(config,password);
+            }
+        }
+    }
     @Test void rejectedSqlNeverOpensAConnection() {
         var drivers=mock(DatabaseDriverRegistry.class);try(var query=new DatabaseQueryService(drivers,mock(DatabaseSecretStore.class),new ObjectMapper())) {
             assertThatThrownBy(()->query.query(new DatabaseConnectionService.Bound("id","name",AssistSafetyTest.config(DatabaseConfig.Type.MYSQL),"ref",0),"DELETE FROM app.t")).isInstanceOf(AssistFailure.class);verifyNoInteractions(drivers);

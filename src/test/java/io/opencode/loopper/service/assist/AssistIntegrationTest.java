@@ -59,6 +59,27 @@ class AssistIntegrationTest {
         assertThat(policies.catalog(project.id(),"third-party",List.of("search"),true).getFirst().enabled()).isTrue();
         assertThatThrownBy(()->policies.update("","@loopper-internal","submit_candidate",0,0)).isInstanceOf(AssistFailure.class);
     }
+    @Test void upgradingOpenGaussPreservesCredentialsAndFrozenTasksWhileNewTasksUseNewDriver() throws Exception {
+        var project=projects.create("gauss",Files.createDirectory(temp.resolve("gauss")).toString());
+        var oldConfig=BundledDatabaseDriversTest.configuration("opengauss-6.0.3","jdbc:opengauss://db1:8000,db2:8000/app?targetServerType=master");
+        var saved=databases.save(null,new DatabaseConnectionService.Request("旧连接",oldConfig,"fixture-password",true,false,List.of(project.id()),0));
+        var oldTask=task(project.id(),"report.md");String frozen=mapper.resources("TASK:"+oldTask.id());
+        String credential=databases.forTest(saved.id()).credentialRef();
+        var disabled=databases.save(saved.id(),new DatabaseConnectionService.Request(saved.name(),saved.config(),null,false,false,saved.projectIds(),saved.version()));
+        assertThat(disabled.config()).isEqualTo(oldConfig);
+        var edit=new DatabaseConfig(oldConfig.type(),oldConfig.host(),oldConfig.port(),oldConfig.database(),oldConfig.username(),"","",oldConfig.schemas(),oldConfig.parameters(),10,200,null,oldConfig.jdbcUrl());
+        var request=new DatabaseConnectionService.Request(saved.name(),edit,null,true,false,saved.projectIds(),disabled.version());
+        clearInvocations(secrets);
+        assertThat(databases.draft(saved.id(),request).config().driverProfile()).isEqualTo("opengauss-7.0.0-RC3-og");
+        assertThat(databases.get(saved.id()).config()).isEqualTo(oldConfig);
+        var updated=databases.save(saved.id(),request);
+        assertThat(updated.config().driverClass()).isEqualTo("org.opengauss.Driver");
+        assertThat(databases.forTest(saved.id()).credentialRef()).isEqualTo(credential);verifyNoInteractions(secrets);
+        assertThat(mapper.resources("TASK:"+oldTask.id())).isEqualTo(frozen).contains("opengauss-6.0.3");
+        var newTask=task(project.id(),"report.md");
+        assertThat(mapper.resources("TASK:"+newTask.id())).contains("opengauss-7.0.0-RC3-og").doesNotContain("opengauss-6.0.3");
+        assertThatThrownBy(()->databases.save(saved.id(),request)).isInstanceOf(ConflictException.class);
+    }
     @Test void draftDoesNotPersistSecretsAndFiltersUseStableCursor() {
         clearInvocations(secrets);
         var input=new DatabaseConnectionService.Request("业务库",BundledDatabaseDriversTest.input(DatabaseConfig.Type.MYSQL),"private",true,false,List.of(),0);

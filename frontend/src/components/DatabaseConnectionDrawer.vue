@@ -11,6 +11,7 @@ const form = ref(blank()), password = ref(''), schemas = ref(''), error = ref(''
 let revision = 0
 const urlPlaceholder = computed(() => form.value.config.type === 'OPENGAUSS' ? 'jdbc:opengauss://host1:8000,host2:8000/database?targetServerType=master' : form.value.config.type === 'DAMENG' ? 'jdbc:dm://host:5236' : 'jdbc:mysql://host:3306/database')
 const profile = computed(() => props.types.find(p => p.type === form.value.config.type))
+const upgradingDriver = computed(() => props.row?.config.type === form.value.config.type && !!profile.value && props.row?.config.driverProfile !== profile.value.id)
 const mysql = computed(() => form.value.config.type === 'MYSQL')
 watch(() => props.modelValue, open => {
   revision++; password.value = ''; error.value = ''; probe.value = null
@@ -58,7 +59,7 @@ async function test() {
       <section><h3><span>01</span>基本信息</h3><div class="fields">
         <el-form-item label="连接名称"><el-input v-model="form.name" maxlength="100" placeholder="例如：业务只读库" /></el-form-item>
         <el-form-item label="数据库类型"><el-select v-model="form.config.type" @change="changeType"><el-option v-for="type in types" :key="type.id" :value="type.type" :label="type.label" /></el-select></el-form-item>
-      </div><p class="driver-note">{{ profile ? `已内置 ${profile.label} 驱动 · ${profile.binaries[0]?.filename}` : '此历史类型暂不支持新增或修改连接配置' }}</p></section>
+      </div><p class="driver-note">{{ profile ? `已内置 ${profile.label} 驱动 · ${profile.binaries[0]?.filename}` : '此历史类型暂不支持新增或修改连接配置' }}</p><p v-if="upgradingDriver" class="hint">测试和保存将使用上述驱动；保存后供新会话使用，历史任务保留原驱动。</p></section>
       <section><h3><span>02</span>连接信息</h3>
       <el-form-item label="JDBC URL"><el-input v-model="form.config.jdbcUrl" type="textarea" :rows="3" :placeholder="urlPlaceholder" aria-label="JDBC URL" /></el-form-item>
       <el-form-item label="用户名"><el-input v-model="form.config.username" autocomplete="off" /></el-form-item>

@@ -11,7 +11,7 @@ public class DatabaseConnectionController {
     private final DatabaseConnectionService connections;private final DatabaseQueryService queries;private final DatabaseDriverRegistry drivers;
     public DatabaseConnectionController(DatabaseConnectionService connections,DatabaseQueryService queries,DatabaseDriverRegistry drivers){this.connections=connections;this.queries=queries;this.drivers=drivers;}
     @GetMapping public CursorPage<DatabaseConnectionService.View> list(@RequestParam(required=false)String cursor,@RequestParam(required=false)Integer limit,@RequestParam(required=false)String query,@RequestParam(required=false)String type,@RequestParam(required=false)String state){return connections.list(cursor,limit,query,type,state);}
-    @GetMapping("/types") public List<BundledDatabaseDrivers.Profile> types(){return BundledDatabaseDrivers.PROFILES;}
+    @GetMapping("/types") public List<BundledDatabaseDrivers.Profile> types(){return BundledDatabaseDrivers.defaults();}
     @PostMapping("/test") public Map<String,Object> draftTest(@RequestHeader("X-Loopper-Local-UI")String ui,@RequestParam(required=false)String id,@RequestBody DatabaseConnectionService.Request body){
         local(ui);var bound=connections.draft(id,body);return queries.test(bound,body.password());
     }
