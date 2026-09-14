@@ -619,7 +619,7 @@ public class TaskService {
         LoopSpec spec = spec(task);
         TaskExecutionCycleRow activeCycle = executionCycles.active(task.id());
         Instant cycleStarted = activeCycle == null ? Instant.parse(task.createdAt()) : Instant.parse(activeCycle.startedAt());
-        if (cycleStarted.plusSeconds(effectiveMaxDurationSeconds(spec)).isBefore(StoryAccountingClock.taskNow(mapper, taskId, cycleStarted.toString()))) {
+        if (spec.limits().timeoutsEnabled() && cycleStarted.plusSeconds(effectiveMaxDurationSeconds(spec)).isBefore(StoryAccountingClock.taskNow(mapper, taskId, cycleStarted.toString()))) {
             if (TaskState.VERIFYING.name().equals(task.state())) {
                 VerifierOutcome runtimeStop = managedVerifierRuntimes.stopTask(taskId, "task-duration-exhausted");
                 if (runtimeStop != null && runtimeStop.state() == VerificationState.ERROR) {
@@ -631,7 +631,7 @@ public class TaskService {
             return;
         }
         for (AttemptRow attempt : mapper.listAttempts(taskId)) {
-            if (AttemptState.RUNNING.name().equals(attempt.state())
+            if (spec.limits().timeoutsEnabled() && AttemptState.RUNNING.name().equals(attempt.state())
                     && Instant.parse(attempt.createdAt()).plusSeconds(effectiveAttemptTimeoutSeconds(spec)).isBefore(StoryAccountingClock.taskNow(mapper, taskId, attempt.createdAt()))) {
                 sessionFailed(taskId, attempt.id(), "SESSION_TIMEOUT", "Attempt exceeded its session timeout");
             }
@@ -2112,7 +2112,7 @@ public class TaskService {
         LoopSpec frozen = spec(task);
         return new JudgeDecisionCandidateWorkflow.Context(judge, batch, Path.of(requireWorktree(task)),
                 judgeModel(frozen, ModelResponseMode.TEXT_MARKER), taskEvidence.judgeCandidateSource(task, attempt, judge.role(), frozen),
-                Instant.parse(judge.createdAt()).plusSeconds(frozen.limits().attemptTimeoutSeconds()));
+                frozen.limits().timeoutsEnabled() ? Instant.parse(judge.createdAt()).plusSeconds(frozen.limits().attemptTimeoutSeconds()) : null);
     }
     private void handleCandidateJudgeResult(TaskRow inputTask, JudgeDecisionCandidateWorkflow.Result result) {
         if (result == null || result.judge() == null) return;
@@ -2176,7 +2176,7 @@ public class TaskService {
         if (!JudgeRunState.RUNNING.name().equals(judge.state()) || judge.externalSessionId() == null) return;
         try {
             long timeoutSeconds = spec(inputTask).limits().attemptTimeoutSeconds();
-            if (Instant.parse(judge.createdAt()).plusSeconds(timeoutSeconds).isBefore(StoryAccountingClock.sessionNow(mapper, judge.externalSessionId(), judge.createdAt()))) {
+            if (spec(inputTask).limits().timeoutsEnabled() && Instant.parse(judge.createdAt()).plusSeconds(timeoutSeconds).isBefore(StoryAccountingClock.sessionNow(mapper, judge.externalSessionId(), judge.createdAt()))) {
                 handleJudgeSessionFailure(inputTask, judge, new SessionFailure("JUDGE_TIMEOUT", "Judge exceeded its configured session timeout"));
                 return;
             }
@@ -2633,6 +2633,7 @@ public class TaskService {
     }
     private String now() { return Instant.now().toString(); }
     private Duration remainingTaskDuration(TaskRow task, LoopSpec spec) {
+        if (!spec.limits().timeoutsEnabled()) return null;
         Instant deadline;
         try {
             TaskExecutionCycleRow cycle = executionCycles.active(task.id());
@@ -2651,10 +2652,10 @@ public class TaskService {
         Duration configured = Duration.ofSeconds(Math.min(spec.limits().verifierTimeoutSeconds(),
                 defaults.getVerifierTimeout().toSeconds()));
         Duration remaining = remainingTaskDuration(task, spec);
-        return configured.compareTo(remaining) <= 0 ? configured : remaining;
+        return remaining == null || configured.compareTo(remaining) <= 0 ? configured : remaining;
     }
-    private long effectiveMaxDurationSeconds(LoopSpec spec) { return Math.min(spec.limits().maxDurationSeconds(), defaults.getMaxDuration().toSeconds()); }
-    private long effectiveAttemptTimeoutSeconds(LoopSpec spec) { return Math.min(spec.limits().attemptTimeoutSeconds(), defaults.getAttemptTimeout().toSeconds()); }
+    private long effectiveMaxDurationSeconds(LoopSpec spec) { return spec.limits().timeoutEnabled() == null ? Math.min(spec.limits().maxDurationSeconds(), defaults.getMaxDuration().toSeconds()) : spec.limits().maxDurationSeconds(); }
+    private long effectiveAttemptTimeoutSeconds(LoopSpec spec) { return spec.limits().timeoutEnabled() == null ? Math.min(spec.limits().attemptTimeoutSeconds(), defaults.getAttemptTimeout().toSeconds()) : spec.limits().attemptTimeoutSeconds(); }
     private boolean blank(String value) { return value == null || value.isBlank(); }
     private String safeMessage(Throwable t) { return safeMessage(t.getMessage()); }
     private String safeMessage(String value) { return value == null ? "Unknown error" : value.substring(0, Math.min(value.length(), 4000)); }

@@ -11,7 +11,7 @@ import { userFacingError } from '@/utils/displayLabels'
 const defaults = (): AppSettings => ({
   runtime: { serverPort: 8080, openBrowser: true, allowedRoot: '', monitorDelaySeconds: 2, designerMonitorDelayMillis: 750, abortCleanupAttempts: 3 },
   openCode: { cliPath: 'opencode', mode: 'managed', baseUrl: 'http://127.0.0.1:4096', provider: '', model: '', connectTimeoutSeconds: 5, requestTimeoutSeconds: 30, startupTimeoutSeconds: 15 },
-  limits: { maxStageAttempts: 3, maxTaskAttempts: 12, sessionErrorLimit: 3, maxDurationMinutes: 120, attemptTimeoutMinutes: 30, verifierTimeoutMinutes: 10, designerTimeoutMinutes: 30 },
+  limits: { timeoutEnabled: false, maxStageAttempts: 3, maxTaskAttempts: 12, sessionErrorLimit: 3, maxDurationMinutes: 120, attemptTimeoutMinutes: 30, verifierTimeoutMinutes: 10, designerTimeoutMinutes: 30 },
   retryWait: { rateLimitBaseSeconds: 60, rateLimitMaxSeconds: 300, sessionBaseSeconds: 10, sessionMaxSeconds: 60, verificationBaseSeconds: 5, verificationMaxSeconds: 30 },
   publication: { httpWebHosts: ['gitlab.spdb.com'], gitlabHost: 'gitlab.spdb.com', gitlabApiBaseUrl: 'http://gitlab.spdb.com/api/v4', connectTimeoutSeconds: 3, requestTimeoutSeconds: 10 },
   appliedLiveFields: [], restartRequiredFields: [],
@@ -131,10 +131,11 @@ onMounted(load)
       </article>
 
       <article class="card card-pad">
-        <div class="card-header"><div><p class="eyebrow">执行限制</p><h2 class="card-title">全局执行上限</h2></div><span class="activation live">立即生效</span></div>
+        <div class="card-header"><div><p class="eyebrow">执行限制</p><h2 class="card-title">全局执行上限</h2></div><span class="activation live">新任务生效</span></div>
+        <div class="timeout-policy-control"><div><strong>启用业务超时限制</strong><p>默认关闭，任务、设计和评审不因运行时长自动停止。</p></div><el-switch v-model="settings.limits.timeoutEnabled" aria-label="启用业务超时限制" /></div>
         <el-form label-position="top"><div class="form-grid limits-grid">
           <el-form-item label="阶段最大尝试"><el-input-number v-model="settings.limits.maxStageAttempts" :min="1" :max="10" /></el-form-item><el-form-item label="任务最大尝试"><el-input-number v-model="settings.limits.maxTaskAttempts" :min="1" :max="50" /></el-form-item><el-form-item label="会话错误上限"><el-input-number v-model="settings.limits.sessionErrorLimit" :min="1" :max="10" /></el-form-item>
-          <el-form-item label="任务总时长（分钟）"><el-input-number v-model="settings.limits.maxDurationMinutes" :min="1" :max="1440" /></el-form-item><el-form-item label="尝试超时（分钟）"><el-input-number v-model="settings.limits.attemptTimeoutMinutes" :min="1" :max="120" /></el-form-item><el-form-item label="验证超时（分钟）"><el-input-number v-model="settings.limits.verifierTimeoutMinutes" :min="1" :max="120" /></el-form-item><el-form-item label="设计超时（分钟）"><el-input-number v-model="settings.limits.designerTimeoutMinutes" :min="1" :max="120" /></el-form-item>
+          <el-form-item v-if="settings.limits.timeoutEnabled" label="任务总时长（分钟）"><el-input-number v-model="settings.limits.maxDurationMinutes" :min="1" :max="10080" /></el-form-item><el-form-item v-if="settings.limits.timeoutEnabled" label="尝试超时（分钟）"><el-input-number v-model="settings.limits.attemptTimeoutMinutes" :min="1" :max="1440" /></el-form-item><el-form-item label="验证超时（分钟）"><el-input-number v-model="settings.limits.verifierTimeoutMinutes" :min="1" :max="120" /></el-form-item><el-form-item v-if="settings.limits.timeoutEnabled" label="设计超时（分钟）"><el-input-number v-model="settings.limits.designerTimeoutMinutes" :min="1" :max="1440" /></el-form-item>
         </div></el-form>
       </article>
 
@@ -161,11 +162,15 @@ onMounted(load)
 </template>
 
 <style scoped>
+.timeout-policy-control { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 22px; font-size: 13px; }
+.timeout-policy-control p { margin: 6px 0 0; color: var(--color-text-secondary); font-size: 12px; line-height: 1.6; }
+.timeout-policy-control .el-switch { flex-shrink: 0; }
+
 .settings-notice { margin-bottom: 16px; }
 .settings-layout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .retry-settings, .publication-settings { grid-column: 1 / -1; }
 .form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-.limits-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: end; }
+.limits-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; }
 .retry-grid { display: grid; grid-template-columns: minmax(100px, .5fr) repeat(2, minmax(0, 1fr)); gap: 8px 16px; align-items: center; }
 .retry-grid strong { color: var(--color-text-secondary); }
 .activation { border: 1px solid; border-radius: 999px; padding: 3px 8px; font-size: 11px; }

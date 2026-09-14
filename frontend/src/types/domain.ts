@@ -123,7 +123,7 @@ export interface AppSettings {
   }
   limits: {
     maxStageAttempts: number; maxTaskAttempts: number; sessionErrorLimit: number
-    maxDurationMinutes: number; attemptTimeoutMinutes: number; verifierTimeoutMinutes: number; designerTimeoutMinutes: number
+    timeoutEnabled?: boolean; maxDurationMinutes: number; attemptTimeoutMinutes: number; verifierTimeoutMinutes: number; designerTimeoutMinutes: number
   }
   retryWait: {
     rateLimitBaseSeconds: number; rateLimitMaxSeconds: number
@@ -897,6 +897,7 @@ export interface LoopSpec {
     sessionErrorLimit?: number
     stagnationLimit?: number
     maxDuration: string
+    timeoutEnabled?: boolean
     attemptTimeout: string
     verifierTimeout?: string
   }
@@ -1528,7 +1529,7 @@ export interface TemplateTaskSummary {
 }
 export interface DatabaseConfig {
   type: 'MYSQL' | 'OPENGAUSS' | 'GAUSSDB' | 'GOLDENDB' | 'DAMENG'
-  host: string; port: number; database: string; username: string
+  jdbcUrl?: string | null; host: string; port: number; database: string; username: string
   driverProfile?: string | null; driverFile: string; driverClass: string; schemas: string[]; parameters: Record<string, string>
   timeoutSeconds: number; maxRows: number
 }

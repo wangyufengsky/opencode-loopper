@@ -26,7 +26,7 @@ public final class TemplateTaskContractFactory {
     public Frozen freeze(TemplateTaskDefinition definition, String projectId, TemplateDateRange range, String documentPath) {
         LoopSpec.Limits limits = new LoopSpec.Limits(properties.getMaxStageAttempts(), properties.getMaxTaskAttempts(),
                 properties.getSessionErrorLimit(), 2, properties.getMaxDuration().toSeconds(),
-                properties.getAttemptTimeout().toSeconds(), properties.getVerifierTimeout().toSeconds());
+                properties.getAttemptTimeout().toSeconds(), properties.getVerifierTimeout().toSeconds(), properties.isTimeoutEnabled());
         String title = definition.title() + " · " + range.startDate() + " 至 " + range.endDate();
         String context = "使用任务独立的 Git 快照，按北京时间和 committer 时间完整覆盖选定范围；"
                 + "程序采集证据，模型提交结构化分析，程序验证并渲染 Markdown。"

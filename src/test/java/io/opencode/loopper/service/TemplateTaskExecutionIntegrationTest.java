@@ -64,6 +64,31 @@ class TemplateTaskExecutionIntegrationTest {
         projectId = projects.create("project", source.toString(), "test").id();
     }
 
+    @Test void disabledTimeoutCompletesAfterBothHistoricalDeadlinesAndIgnoresLaterGlobalChange() {
+        properties.setTimeoutEnabled(false);
+        TaskRow task = create("CODE_REVIEW");
+        assertThat(evidence.contract(task.id()).spec().limits().timeoutsEnabled()).isFalse();
+        states.start(task.id(), evidence.contract(task.id()));
+        for (int i=0; i<8 && mapper.latestAttempt(mapper.listStages(task.id()).get(1).id()).isEmpty(); i++) driver.advance(task.id());
+        assertThat(mapper.latestAttempt(mapper.listStages(task.id()).get(1).id())).isPresent();
+        String old = java.time.Instant.now().minus(java.time.Duration.ofDays(2)).toString();
+        jdbc.update("UPDATE task_execution_cycle SET started_at=? WHERE task_id=?", old, task.id());
+        jdbc.update("UPDATE attempt SET created_at=? WHERE stage_id IN (SELECT id FROM stage WHERE task_id=?)", old, task.id());
+        properties.setTimeoutEnabled(true);
+        try { run(task.id(),false); assertThat(states.task(task.id()).state()).isEqualTo("COMPLETED"); }
+        finally { properties.setTimeoutEnabled(false); }
+    }
+    @Test void enabledTimeoutStillStopsAfterItsFrozenDuration() {
+        properties.setTimeoutEnabled(true);
+        TaskRow task;
+        try { task=create("CODE_REVIEW"); } finally { properties.setTimeoutEnabled(false); }
+        states.start(task.id(), evidence.contract(task.id()));
+        states.prepare(task.id());
+        jdbc.update("UPDATE task_execution_cycle SET started_at=? WHERE task_id=?", java.time.Instant.now().minus(java.time.Duration.ofDays(2)).toString(), task.id());
+        driver.advance(task.id());
+        assertThat(states.task(task.id()).state()).isEqualTo("WAITING_INPUT");
+        assertThat(tasks.errors(task.id())).anyMatch(error -> error.code().equals("TEMPLATE_DURATION_EXHAUSTED"));
+    }
     @Test void legacyBoundCodeReviewCompletesOnlyAfterTwoJudgesAndPreservesSource() throws Exception {
         String head = git.read(source, "rev-parse", "HEAD");
         Files.writeString(source.resolve("local-work.txt"), "uncommitted\n");

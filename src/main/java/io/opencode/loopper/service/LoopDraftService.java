@@ -33,6 +33,7 @@ public class LoopDraftService {
             "JUNIT_XML", "BROWSER", "DATABASE_QUERY", "DOCUMENT_STRUCTURE", "TABULAR_DATA");
     private static final Set<String> BROWSER_ASSERTIONS = Set.of(
             "EXISTS", "VISIBLE", "TEXT_CONTAINS", "COUNT", "ATTRIBUTE_EQUALS");
+    private final io.opencode.loopper.config.LoopperProperties defaults;
     private final LoopperMapper mapper;
     private final LifecycleTransitionService lifecycle;
     private final ProjectService projects;
@@ -42,9 +43,9 @@ public class LoopDraftService {
     private final LoopSpecAcceptanceService acceptance;
     public LoopDraftService(LoopperMapper mapper, LifecycleTransitionService lifecycle,
                             ProjectService projects, ObjectMapper json, TaskService tasks,
-                            Validator validator, LoopSpecAcceptanceService acceptance) {
+                            Validator validator, LoopSpecAcceptanceService acceptance, io.opencode.loopper.config.LoopperProperties defaults) {
         this.mapper = mapper; this.lifecycle = lifecycle; this.projects = projects;
-        this.json = json; this.tasks = tasks; this.validator = validator; this.acceptance = acceptance;
+        this.json = json; this.tasks = tasks; this.validator = validator; this.acceptance = acceptance; this.defaults = defaults;
     }
     @Transactional
     public LoopDraftRow create(LoopSpec spec) {
@@ -60,6 +61,11 @@ public class LoopDraftService {
         }
         reject(validator.validate(spec).stream()
                 .map(violation -> violation.getPropertyPath() + ": " + violation.getMessage()).sorted().toList());
+        var limits = spec.limits();
+        if (limits.timeoutEnabled() == null) spec = new LoopSpec(spec.schemaVersion(), spec.projectId(), spec.goal(), spec.context(),
+                spec.stages(), new LoopSpec.Limits(limits.maxStageAttempts(), limits.maxTaskAttempts(), limits.sessionErrorLimit(),
+                limits.stagnationLimit(), limits.maxDurationSeconds(), limits.attemptTimeoutSeconds(), limits.verifierTimeoutSeconds(),
+                defaults.isTimeoutEnabled()), spec.model(), spec.sessionPolicy(), spec.nextAttemptPromptTemplate(), spec.budget());
         return insert(spec);
     }
 

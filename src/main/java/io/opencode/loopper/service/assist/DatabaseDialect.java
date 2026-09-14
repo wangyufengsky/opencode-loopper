@@ -11,11 +11,12 @@ public sealed interface DatabaseDialect permits DatabaseDialect.MySql, DatabaseD
         DatabaseDialect.Golden, DatabaseDialect.Dameng {
     String prefix();
     default String url(DatabaseConfig config) {
+        if (config.jdbcUrl() != null) return JdbcConnectionUrl.parse(config).driverUrl();
         String host = config.host().contains(":") ? "[" + config.host() + "]" : config.host();
         return prefix() + host + ":" + config.port() + "/" + config.database();
     }
     default void validateParameters(Map<String,String> parameters) {
-        Set<String> allowed = Set.of("ssl", "sslmode", "useSSL", "requireSSL", "verifyServerCertificate", "serverTimezone", "characterEncoding");
+        Set<String> allowed = Set.of("ssl", "sslmode", "useSSL", "requireSSL", "verifyServerCertificate", "serverTimezone", "characterEncoding", "targetServerType", "loadBalanceHosts", "hostRecheckSeconds");
         if (parameters.size() > 8 || parameters.entrySet().stream().anyMatch(e -> !allowed.contains(e.getKey())
                 || e.getValue() == null || !e.getValue().matches("[a-zA-Z0-9_+/:.-]{1,80}")))
             throw new AssistFailure("DATABASE_PARAMETER_FORBIDDEN", "连接参数不在允许列表；不能覆盖只读、超时或本地文件访问保护");
@@ -48,6 +49,7 @@ public sealed interface DatabaseDialect permits DatabaseDialect.MySql, DatabaseD
     final class Gauss implements DatabaseDialect {
         public String prefix() { return "jdbc:gaussdb://"; }
         public String url(DatabaseConfig c) {
+            if (c.jdbcUrl() != null) return DatabaseDialect.super.url(c);
             String url = DatabaseDialect.super.url(c);
             if (c.driverClass().startsWith("org.opengauss.")) return url.replace("jdbc:gaussdb:","jdbc:opengauss:");
             if (c.driverClass().startsWith("org.postgresql.")) return url.replace("jdbc:gaussdb:","jdbc:postgresql:");
@@ -76,7 +78,7 @@ public sealed interface DatabaseDialect permits DatabaseDialect.MySql, DatabaseD
     }
     final class Dameng implements DatabaseDialect {
         public String prefix() { return "jdbc:dm://"; }
-        public String url(DatabaseConfig c) { return DatabaseDialect.super.url(c).replace("/"+c.database(),""); }
+        public String url(DatabaseConfig c) { return c.jdbcUrl() != null ? DatabaseDialect.super.url(c) : DatabaseDialect.super.url(c).replace("/"+c.database(),""); }
         public Properties properties(DatabaseConfig c,String password) {
             Properties p=DatabaseDialect.super.properties(c,password); p.setProperty("schema",c.schemas().getFirst());
             p.setProperty("loginTimeout","5"); p.setProperty("socketTimeout","30000"); return p;

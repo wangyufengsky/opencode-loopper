@@ -199,7 +199,7 @@ ratchet. It is intentionally dependency-free so it runs in every Maven test and
 release build. Lower a legacy cap in the same change that extracts responsibility;
 never raise a cap to make a build green.
 
-The current compatibility ratchets are 5,373 physical lines for
+The current compatibility ratchets are 5,324 physical lines for
 `DesignerSessionService`, 2,668 for `TaskService`, and 1,159 for `LocalSyncConflictService`. Rolling package behavior must stay in the
 collaborators above; a later change may only preserve or lower those caps.
 

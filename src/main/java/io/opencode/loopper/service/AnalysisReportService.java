@@ -75,7 +75,7 @@ public class AnalysisReportService {
         AnalysisReportRow row = new AnalysisReportRow(UUID.randomUUID().toString(), sessionId, profile.id(),
                 "RUNNING", "只读分析报告", "", "[]", null, null, null, null, now, now, 0,
                 null, "PENDING", discussion.snapshotMarkdown(), profile.rolePackId(), profile.rolePackVersion(),
-                REVIEWER_CONTRACT, responseMode, "[]", Instant.now().plusSeconds(120).toString(),
+                REVIEWER_CONTRACT, responseMode, "[]", DesignerTimeoutPolicy.reviewerDeadline(mapper, sessionId, Instant.now()),
                 discussion.revision());
         if (mapper.insertAnalysisReport(row) != 1) throw new ConflictException("REPORT_CREATE_CONFLICT", "报告无法持久化");
         try {
@@ -157,9 +157,9 @@ public class AnalysisReportService {
         if (row.deadlineAt() != null && StoryAccountingClock.sessionNow(mapper, row.externalSessionId(), row.createdAt()).isAfter(Instant.parse(row.deadlineAt()))) {
             try { openCode.abort(remote); } catch (Exception ignored) { }
             update(row, "FAILED", row.title(), row.markdown(), readEvidence(row.evidenceJson()), null, null,
-                    "REVIEWER_TIMEOUT", "Independent Reviewer exceeded its 120 second boundary", remote.id(), "FAILED");
+                    "REVIEWER_TIMEOUT", "独立评审已达到本次保存的业务时限", remote.id(), "FAILED");
             return new PollResult(row.designerSessionId(), row.id(), false, "REVIEWER_TIMEOUT",
-                    "Independent Reviewer exceeded its 120 second boundary");
+                    "独立评审已达到本次保存的业务时限");
         }
         OpenCodeClient.SessionStatus status = openCode.sessionStatus(remote);
         if (status.retrying()) {

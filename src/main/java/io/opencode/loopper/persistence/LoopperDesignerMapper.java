@@ -205,8 +205,6 @@ public interface LoopperDesignerMapper extends DocumentDesignContextMapper {
     int updateDesignerSession(DesignerSessionRow row);
     @Update("UPDATE designer_session SET access_mode=#{accessMode}, external_session_id=#{externalSessionId}, external_session_state=#{externalSessionState}, loop_draft_id=#{loopDraftId}, workflow_phase=#{workflowPhase}, design_revision=#{designRevision}, redesign_count=#{redesignCount}, current_requirement_revision=#{currentRequirementRevision}, active_work_package_id=#{activeWorkPackageId}, discussion_scope=#{discussionScope}, discussion_revision=#{discussionRevision}, candidate_sync_state=#{candidateSyncState}, updated_at=#{updatedAt}, version=version+1 WHERE id=#{id} AND version=#{version}")
     int updateDesignerSessionProjection(DesignerSessionRow row);
-    @Delete("DELETE FROM designer_session WHERE loop_draft_id=#{draftId}")
-    int deleteDesignerSessionsByDraft(String draftId);
     @Select("SELECT COALESCE(MAX(ordinal), 0) + 1 FROM designer_message WHERE designer_session_id=#{sessionId}")
     int nextDesignerMessageOrdinal(String sessionId);
     @Insert("INSERT INTO designer_message(id,designer_session_id,ordinal,role,content,delivery_state,created_at,actor,requirement_revision,work_package_id) VALUES(#{id},#{designerSessionId},#{ordinal},#{role},#{content},#{deliveryState},#{createdAt},#{actor},#{requirementRevision},#{workPackageId})")

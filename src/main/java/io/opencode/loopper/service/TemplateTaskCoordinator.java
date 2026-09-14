@@ -87,7 +87,7 @@ public final class TemplateTaskCoordinator {
         if (!task.state().equals("RUNNING")) return;
         var contract = evidence.contract(taskId);
         var cycle = mapper.activeTaskExecutionCycle(taskId).orElseThrow();
-        if (Duration.between(Instant.parse(cycle.startedAt()), Instant.now()).toSeconds() > contract.spec().limits().maxDurationSeconds()) {
+        if (contract.spec().limits().timeoutsEnabled() && Duration.between(Instant.parse(cycle.startedAt()), Instant.now()).toSeconds() > contract.spec().limits().maxDurationSeconds()) {
             states.waiting(taskId, "TEMPLATE_DURATION_EXHAUSTED", "已达到本轮执行时限，请查看已生成证据后重新发起任务"); return;
         }
         if (!mapper.listStages(taskId).getFirst().state().equals("SUCCEEDED")) {
@@ -100,7 +100,7 @@ public final class TemplateTaskCoordinator {
     }
 
     private void analyze(TaskRow task, AttemptRow attempt, TemplateTaskContractFactory.Frozen contract) {
-        if (Duration.between(Instant.parse(attempt.createdAt()), Instant.now()).toSeconds() > contract.spec().limits().attemptTimeoutSeconds()) {
+        if (contract.spec().limits().timeoutsEnabled() && Duration.between(Instant.parse(attempt.createdAt()), Instant.now()).toSeconds() > contract.spec().limits().attemptTimeoutSeconds()) {
             states.waiting(task.id(), "TEMPLATE_ATTEMPT_TIMEOUT", "报告分析已达到本轮时限，停止确认后可重新发起任务"); return;
         }
         var run = evidence.require(task.id());

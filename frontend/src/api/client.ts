@@ -215,6 +215,7 @@ function parseLoopSpec(value: unknown): LoopSpec {
       sessionErrorLimit: asNumber(limits.sessionErrorLimit, 3),
       stagnationLimit: asNumber(limits.stagnationLimit, 2),
       maxDuration: asString(limits.maxDuration, String(asNumber(limits.maxDurationSeconds, 7200))),
+      timeoutEnabled: limits.timeoutEnabled !== false,
       attemptTimeout: asString(limits.attemptTimeout, String(asNumber(limits.attemptTimeoutSeconds, 1800))),
       verifierTimeout: asString(limits.verifierTimeout, String(asNumber(limits.verifierTimeoutSeconds, 600))),
     },
@@ -859,7 +860,7 @@ function normalizeSettings(value: unknown): AppSettings {
   return {
     runtime: { serverPort: asNumber(runtime.serverPort, 8080), openBrowser: runtime.openBrowser !== false, allowedRoot: asString(runtime.allowedRoot), monitorDelaySeconds: asNumber(runtime.monitorDelaySeconds, 2), designerMonitorDelayMillis: asNumber(runtime.designerMonitorDelayMillis, 750), abortCleanupAttempts: asNumber(runtime.abortCleanupAttempts, 3) },
     openCode: { cliPath: asString(openCode.cliPath, 'opencode'), mode: ['managed', 'auto', 'http'].includes(openCodeMode) ? openCodeMode as AppSettings['openCode']['mode'] : 'managed', baseUrl: asString(openCode.baseUrl, 'http://127.0.0.1:4096'), provider: asString(openCode.provider), model: asString(openCode.model), connectTimeoutSeconds: asNumber(openCode.connectTimeoutSeconds, 5), requestTimeoutSeconds: asNumber(openCode.requestTimeoutSeconds, 30), startupTimeoutSeconds: asNumber(openCode.startupTimeoutSeconds, 15) },
-    limits: { maxStageAttempts: asNumber(limits.maxStageAttempts, 3), maxTaskAttempts: asNumber(limits.maxTaskAttempts, 12), sessionErrorLimit: asNumber(limits.sessionErrorLimit, 3), maxDurationMinutes: asNumber(limits.maxDurationMinutes, 120), attemptTimeoutMinutes: asNumber(limits.attemptTimeoutMinutes, 30), verifierTimeoutMinutes: asNumber(limits.verifierTimeoutMinutes, 10), designerTimeoutMinutes: asNumber(limits.designerTimeoutMinutes, 30) },
+    limits: { timeoutEnabled: limits.timeoutEnabled === true, maxStageAttempts: asNumber(limits.maxStageAttempts, 3), maxTaskAttempts: asNumber(limits.maxTaskAttempts, 12), sessionErrorLimit: asNumber(limits.sessionErrorLimit, 3), maxDurationMinutes: asNumber(limits.maxDurationMinutes, 120), attemptTimeoutMinutes: asNumber(limits.attemptTimeoutMinutes, 30), verifierTimeoutMinutes: asNumber(limits.verifierTimeoutMinutes, 10), designerTimeoutMinutes: asNumber(limits.designerTimeoutMinutes, 30) },
     retryWait: { rateLimitBaseSeconds: asNumber(retryWait.rateLimitBaseSeconds, 60), rateLimitMaxSeconds: asNumber(retryWait.rateLimitMaxSeconds, 300), sessionBaseSeconds: asNumber(retryWait.sessionBaseSeconds, 10), sessionMaxSeconds: asNumber(retryWait.sessionMaxSeconds, 60), verificationBaseSeconds: asNumber(retryWait.verificationBaseSeconds, 5), verificationMaxSeconds: asNumber(retryWait.verificationMaxSeconds, 30) },
     publication: { httpWebHosts: asArray(publication.httpWebHosts).map(String), gitlabHost: asString(publication.gitlabHost, 'gitlab.spdb.com'), gitlabApiBaseUrl: asString(publication.gitlabApiBaseUrl, 'http://gitlab.spdb.com/api/v4'), connectTimeoutSeconds: asNumber(publication.connectTimeoutSeconds, 3), requestTimeoutSeconds: asNumber(publication.requestTimeoutSeconds, 10) },
     startupConfigPath: asString(raw.startupConfigPath) || undefined,
@@ -1177,6 +1178,7 @@ function backendLoopSpec(spec: LoopSpec): JsonRecord {
       maxTaskAttempts: spec.limits.maxTaskAttempts,
       sessionErrorLimit: spec.limits.sessionErrorLimit ?? 3,
       stagnationLimit: spec.limits.stagnationLimit ?? 2,
+      ...(spec.limits.timeoutEnabled !== undefined ? { timeoutEnabled: spec.limits.timeoutEnabled } : {}),
       maxDurationSeconds: durationSeconds(spec.limits.maxDuration, '任务最长运行时间'),
       attemptTimeoutSeconds: durationSeconds(spec.limits.attemptTimeout, '单次尝试超时'),
       verifierTimeoutSeconds: durationSeconds(spec.limits.verifierTimeout ?? '600', '验收器超时'),
@@ -1612,6 +1614,7 @@ export const api = {
   saveDatabaseConnection: (id: string | null, body: DatabaseConnectionInput) => request<DatabaseConnection>(`/database-connections${id ? `/${encodeURIComponent(id)}` : ''}`, { method: id ? 'PUT' : 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(body) }),
   testDatabaseConnection: (id: string) => request<DatabaseProbe>(`/database-connections/${encodeURIComponent(id)}/test`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } }),
   getMcpToolPolicies: (projectId: string, serverId: string) => request<McpPolicyCatalog>(`/runtime/tool-policies?projectId=${encodeURIComponent(projectId)}&serverId=${encodeURIComponent(serverId)}`),
+  disableMcpSource: (body: { projectId: string; serverId: string; tools: { toolName: string; version: number }[] }) => request<void>('/runtime/tool-policies/disable-source', { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(body) }),
   updateMcpToolPolicy: (body: { projectId: string; serverId: string; toolName: string; enabled: number; version: number }) => request<void>('/runtime/tool-policies', { method: 'PUT', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(body) }),
   createDocumentTemplate: (input: DocumentTemplateRequest, files: File[]) => {
     const body = new FormData()

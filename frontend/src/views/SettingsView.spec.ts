@@ -37,6 +37,10 @@ describe('Settings model selection', () => {
     await flushPromises()
 
     const limits = wrapper.get('.limits-grid')
+    expect(wrapper.get('.timeout-policy-control').text()).toContain('启用业务超时限制')
+    expect(limits.text()).not.toContain('尝试超时（分钟）')
+    wrapper.get('.timeout-policy-control').findComponent({ name: 'ElSwitch' }).vm.$emit('update:modelValue', true)
+    await flushPromises()
     expect(limits.findAll('.el-form-item')).toHaveLength(7)
     expect(limits.text()).toContain('尝试超时（分钟）')
     expect(limits.text()).toContain('验证超时（分钟）')

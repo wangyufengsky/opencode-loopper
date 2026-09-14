@@ -21,10 +21,14 @@ describe('database connection drawer',()=>{
   finish({connected:true,sessionReadOnly:true,serverProduct:'server',serverVersion:'1',driverVersion:'1',driverSha256:'s',compatibilityVerified:false,detail:'旧测试结果'});await flushPromises()
   expect(document.body.textContent).not.toContain('旧测试结果');expect(save).not.toHaveBeenCalled();w.unmount()
  })
- it('auto selects driver and preserves a manually customized port when changing type',async()=>{
+ it('converts a legacy address to URL and submits a multi-host URL with credentials separately',async()=>{
+  const save=vi.spyOn(api,'saveDatabaseConnection').mockResolvedValue(row)
   const w=mountDrawer();await w.setProps({modelValue:true});await flushPromises()
-  const number=w.findAllComponents({name:'ElInputNumber'})[0]!;number.vm.$emit('update:modelValue',15432);await flushPromises()
+  const url=document.querySelector('textarea')!;expect(url.value).toBe('jdbc:mysql://db:3306/app')
   const select=w.findAllComponents({name:'ElSelect'})[0]!;select.vm.$emit('update:modelValue','OPENGAUSS');select.vm.$emit('change','OPENGAUSS');await flushPromises()
-  expect(number.props('modelValue')).toBe(15432);expect(document.body.textContent).not.toContain('厂商驱动类');w.unmount()
+  url.value='jdbc:opengauss://db1:8000,db2:8000/app?targetServerType=master';url.dispatchEvent(new Event('input',{bubbles:true}));await flushPromises()
+  Array.from(document.querySelectorAll('button')).find(b=>b.textContent?.includes('保存连接'))!.click();await flushPromises()
+  expect(save).toHaveBeenCalledWith('c',expect.objectContaining({password:null,config:expect.objectContaining({jdbcUrl:url.value,type:'OPENGAUSS',username:'reader'})}))
+  expect(document.body.textContent).not.toContain('厂商驱动类');w.unmount()
  })
 })

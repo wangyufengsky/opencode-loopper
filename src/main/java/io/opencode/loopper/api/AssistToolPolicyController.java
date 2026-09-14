@@ -25,4 +25,15 @@ public class AssistToolPolicyController {
         policy.update(scope,body.serverId(),body.toolName(),body.enabled(),body.version());
     }
     private Path directory(String project){return project.isBlank()?Path.of(System.getProperty("user.dir")).toAbsolutePath():Path.of(projects.get(project).rootPath());}
+    public record DisableSource(String projectId,String serverId,List<AssistToolPolicyService.Revision> tools) { }
+    @PostMapping("/disable-source") public void disableSource(@RequestHeader("X-Loopper-Local-UI")String ui,@RequestBody DisableSource body) {
+        DatabaseConnectionController.local(ui);
+        String scope=body.projectId()==null?"":body.projectId();
+        var current=get(scope,body.serverId());
+        if (!current.complete() || body.tools()==null || body.tools().stream().anyMatch(Objects::isNull)
+                || !new HashSet<>(current.tools().stream().map(AssistToolPolicyService.View::name).toList())
+                    .equals(new HashSet<>(body.tools().stream().map(AssistToolPolicyService.Revision::toolName).toList())))
+            throw new AssistFailure("MCP_POLICY_CONFLICT","来源工具清单已变化或不完整，请刷新后重试");
+        policy.disableSource(scope,body.serverId(),body.tools());
+    }
 }

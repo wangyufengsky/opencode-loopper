@@ -923,7 +923,7 @@ async function applyBriefTemplate(prompt: string) {
 }
 
 function blankSpec(projectId: string, goal: string, settings: AppSettings): LoopDraft['spec'] {
-  return { schemaVersion: 'v2', projectId, goal, context: '', stages: [{ objective: '分析目标并实现最小可验证改动', allowedPaths: [], forbiddenPaths: [], deliverables: ['可验证实现'], implementationKind: 'NON_JAVA', acceptanceCriteria: [], verifiers: [] }], limits: { maxStageAttempts: settings.limits.maxStageAttempts, maxTaskAttempts: settings.limits.maxTaskAttempts, maxDuration: `PT${settings.limits.maxDurationMinutes}M`, attemptTimeout: `PT${settings.limits.attemptTimeoutMinutes}M` } }
+  return { schemaVersion: 'v2', projectId, goal, context: '', stages: [{ objective: '分析目标并实现最小可验证改动', allowedPaths: [], forbiddenPaths: [], deliverables: ['可验证实现'], implementationKind: 'NON_JAVA', acceptanceCriteria: [], verifiers: [] }], limits: { timeoutEnabled: settings.limits.timeoutEnabled ?? false, maxStageAttempts: settings.limits.maxStageAttempts, maxTaskAttempts: settings.limits.maxTaskAttempts, maxDuration: `PT${settings.limits.maxDurationMinutes}M`, attemptTimeout: `PT${settings.limits.attemptTimeoutMinutes}M` } }
 }
 
 async function startDraft() {

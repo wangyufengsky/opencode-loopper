@@ -278,7 +278,10 @@ public record LoopSpec(
                          @Min(1) @Max(20) Integer stagnationLimit,
                          @Min(1) @Max(604800) Long maxDurationSeconds,
                          @Min(1) @Max(86400) Long attemptTimeoutSeconds,
-                         @Min(1) @Max(3600) Long verifierTimeoutSeconds) {
+                         @Min(1) @Max(3600) Long verifierTimeoutSeconds, Boolean timeoutEnabled) {
+        public Limits(Integer stage, Integer task, Integer errors, Integer stagnation, Long duration, Long attempt, Long verifier) {
+            this(stage, task, errors, stagnation, duration, attempt, verifier, null);
+        }
         public Limits {
             maxStageAttempts = maxStageAttempts == null ? 3 : maxStageAttempts;
             maxTaskAttempts = maxTaskAttempts == null ? 12 : maxTaskAttempts;
@@ -288,6 +291,7 @@ public record LoopSpec(
             attemptTimeoutSeconds = attemptTimeoutSeconds == null ? 1800L : attemptTimeoutSeconds;
             verifierTimeoutSeconds = verifierTimeoutSeconds == null ? 600L : verifierTimeoutSeconds;
         }
+        public boolean timeoutsEnabled() { return !Boolean.FALSE.equals(timeoutEnabled); }
         public static Limits defaults() { return new Limits(3, 12, 3, 2, 7200L, 1800L, 600L); }
     }
 

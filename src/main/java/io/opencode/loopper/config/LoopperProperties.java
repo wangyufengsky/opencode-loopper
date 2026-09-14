@@ -12,6 +12,9 @@ public class LoopperProperties {
     private int maxStageAttempts = 3;
     private int maxTaskAttempts = 12;
     private int sessionErrorLimit = 3;
+    private boolean timeoutEnabled = false;
+    public boolean isTimeoutEnabled() { return timeoutEnabled; }
+    public void setTimeoutEnabled(boolean value) { timeoutEnabled = value; }
     private Duration maxDuration = Duration.ofHours(2);
     private Duration attemptTimeout = Duration.ofMinutes(30);
     private Duration verifierTimeout = Duration.ofMinutes(10);

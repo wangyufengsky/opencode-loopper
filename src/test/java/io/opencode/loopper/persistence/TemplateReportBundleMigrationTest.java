@@ -19,7 +19,7 @@ class TemplateReportBundleMigrationTest {
             sql.executeUpdate("INSERT INTO attempt(id,task_id,stage_id,ordinal,state,created_at) VALUES('a','t','s',1,'RUNNING','now')");
         }
         var migrated = Flyway.configure().dataSource(url, null, null).load(); migrated.migrate(); migrated.validate();
-        assertThat(migrated.info().current().getVersion().getVersion()).isEqualTo("105");
+        assertThat(migrated.info().current().getVersion().getVersion()).isEqualTo("106");
         try (var db = DriverManager.getConnection(url); var sql = db.createStatement()) {
             sql.executeUpdate("INSERT INTO template_report_sequence VALUES('namespace',1)");
             assertThatThrownBy(() -> sql.executeUpdate("INSERT INTO template_report_bundle VALUES('missing','t','namespace',1,'项目','目录','主报告.md')"))

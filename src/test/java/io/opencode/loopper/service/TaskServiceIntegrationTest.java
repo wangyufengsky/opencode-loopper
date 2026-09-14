@@ -694,6 +694,23 @@ class TaskServiceIntegrationTest {
     }
 
     @Test
+    void disabledTaskAndAttemptTimeoutsPreserveWriterUntilExplicitCancellation() throws Exception {
+        ProjectRow project = projects.create("unlimited-task", gitProject());
+        LoopSpec source=spec(project.id());
+        LoopSpec unlimited=new LoopSpec(source.schemaVersion(),source.projectId(),source.goal(),source.context(),source.stages(),
+                new LoopSpec.Limits(3,12,3,2,1L,1L,30L,false),source.model(),source.sessionPolicy(),source.nextAttemptPromptTemplate());
+        TaskRow task=drafts.confirm(drafts.create(unlimited).id(),"unlimited"); tasks.start(task.id());
+        String old=Instant.now().minus(Duration.ofDays(2)).toString();
+        jdbc.update("UPDATE task_execution_cycle SET started_at=? WHERE task_id=?",old,task.id());
+        jdbc.update("UPDATE attempt SET created_at=? WHERE stage_id IN (SELECT id FROM stage WHERE task_id=?)",old,task.id());
+        tasks.enforceTimeouts(task.id());
+        assertThat(tasks.get(task.id()).state()).isEqualTo("RUNNING");
+        assertThat(mapper.activeSessions(task.id())).hasSize(1);
+        tasks.cancel(task.id());
+        assertThat(tasks.get(task.id()).state()).isEqualTo("CANCELLED");
+    }
+
+    @Test
     void taskDurationFailureKeepsUnconfirmedWriterVisibleUntilCleanupConfirmsAbort() throws Exception {
         ProjectRow project = projects.create("task-timeout-cleanup", gitProject());
         LoopSpec shortTask = new LoopSpec("v1", project.id(), "Bound task cleanup", null,

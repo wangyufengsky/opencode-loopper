@@ -10,7 +10,7 @@ spring:
           enabled: false
         protocol: STREAMABLE
         name: opencode-loopper
-        version: 0.4.23
+        version: 0.4.24
         type: SYNC
         instructions: >-
           Use the six Loopper tools only. Designer access is READ_ONLY; proposals synchronize
@@ -80,6 +80,7 @@ loopper:
   max-stage-attempts: ${LOOPPER_MAX_STAGE_ATTEMPTS:3}
   max-task-attempts: ${LOOPPER_MAX_TASK_ATTEMPTS:12}
   session-error-limit: ${LOOPPER_SESSION_ERROR_LIMIT:3}
+  timeout-enabled: ${LOOPPER_TIMEOUT_ENABLED:false}
   max-duration: ${LOOPPER_MAX_DURATION:2h}
   allowed-root: ${LOOPPER_ALLOWED_ROOT:}
   attempt-timeout: ${LOOPPER_ATTEMPT_TIMEOUT:30m}

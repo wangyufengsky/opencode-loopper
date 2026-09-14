@@ -55,6 +55,7 @@ function normalizeSpec(value: LoopSpec): LoopSpec {
       maxTaskAttempts: value.limits?.maxTaskAttempts ?? 12,
       sessionErrorLimit: value.limits?.sessionErrorLimit ?? 3,
       stagnationLimit: value.limits?.stagnationLimit ?? 2,
+      timeoutEnabled: value.limits?.timeoutEnabled ?? true,
       maxDuration: value.limits?.maxDuration ?? 'PT2H',
       attemptTimeout: value.limits?.attemptTimeout ?? 'PT30M',
       verifierTimeout: value.limits?.verifierTimeout ?? 'PT10M',
@@ -347,8 +348,9 @@ function configureVerifier(verifier: LoopVerifierSpec) {
           <label><span>每阶段最大尝试次数</span><el-input-number v-model="spec.limits.maxStageAttempts" :min="1" :max="20" aria-label="每阶段最大尝试次数" data-testid="max-stage-attempts" /></label>
           <label><span>整个任务最大尝试次数</span><el-input-number v-model="spec.limits.maxTaskAttempts" :min="1" :max="100" /></label>
           <label><span>连续停滞阈值</span><el-input-number v-model="spec.limits.stagnationLimit" :min="1" :max="20" aria-label="连续停滞阈值" /></label>
-          <label><span>任务最长运行时间</span><el-input v-model="spec.limits.maxDuration" class="mono" placeholder="PT2H" /><small>支持 ISO-8601（PT2H）或秒数（7200）</small></label>
-          <label><span>单次尝试超时</span><el-input v-model="spec.limits.attemptTimeout" class="mono" placeholder="PT30M" /><small>支持 ISO-8601（PT30M）或秒数（1800）</small></label>
+          <label v-if="spec.limits.timeoutEnabled"><span>任务最长运行时间</span><el-input v-model="spec.limits.maxDuration" class="mono" placeholder="PT2H" /><small>支持 ISO-8601（PT2H）或秒数（7200）</small></label>
+          <label><span>启用业务超时限制</span><el-switch v-model="spec.limits.timeoutEnabled" aria-label="任务超时限制" /><small v-if="!spec.limits.timeoutEnabled">未启用超时限制</small></label>
+          <label v-if="spec.limits.timeoutEnabled"><span>单次尝试超时</span><el-input v-model="spec.limits.attemptTimeout" class="mono" placeholder="PT30M" /><small>支持 ISO-8601（PT30M）或秒数（1800）</small></label>
         </div>
         <div class="retry-policy-grid">
           <label class="switch-field"><span>验证失败后自动新建会话</span><el-switch v-model="createFreshOnVerifierFailure" aria-label="验证失败后自动新建会话" /></label>

@@ -371,7 +371,7 @@ public class RollingPackagePlanGenerationService {
     }
 
     private boolean timedOut(TaskPackagePlanRevisionRow row) {
-        Duration timeout = DocumentRequirementContext.attemptTimeout(mapper, row.designerSessionId(), properties.getDesignerTimeout());
+        Duration timeout = DocumentRequirementContext.attemptTimeout(mapper, row.designerSessionId(), DesignerTimeoutPolicy.duration(mapper, row.designerSessionId(), properties.getDesignerTimeout()));
         if (timeout == null || timeout.isZero() || timeout.isNegative()) return false;
         try { return Duration.between(Instant.parse(row.createdAt()), Instant.now()).compareTo(timeout) > 0; }
         catch (RuntimeException ignored) { return false; }

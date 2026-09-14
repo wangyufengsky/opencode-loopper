@@ -7,7 +7,7 @@ import org.apache.ibatis.annotations.Mapper;
  * New services should depend on the narrowest parent interface they use.
  */
 @Mapper
-public interface LoopperMapper extends AutomationMapper, MonitorReadMapper, PackageSemanticPreparationMapper, LoopperInfrastructureMapper, LoopperProjectMapper,
+public interface LoopperMapper extends DesignerTimeoutMapper, AutomationMapper, MonitorReadMapper, PackageSemanticPreparationMapper, LoopperInfrastructureMapper, LoopperProjectMapper,
         LoopperDesignerMapper, LoopperTaskMapper, LoopperAttachmentMapper, LoopperMachineCandidateMapper,
         LoopperAcceptanceCandidateLaunchMapper, LoopperAcceptanceCandidateTerminationMapper,
         LoopperGenericCandidateLaunchMapper, LoopperGenericCandidateTerminationMapper,

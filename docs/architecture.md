@@ -430,7 +430,7 @@ Task directory and other bare executables against the Loopper process
 absolute executable and forces the JDK's strict Windows command quoting mode;
 the LoopSpec still cannot supply `cmd`, PowerShell, shell syntax, expansion,
 pipes, or redirects. Linux/macOS retain native direct-argv lookup and executable
-permission semantics. The Task `maxDurationSeconds` deadline remains
+permission semantics. When business timeouts are enabled, the Task `maxDurationSeconds` deadline remains
 authoritative after entering `VERIFYING`: every verifier and failed-attempt
 handoff receives the smaller of its configured timeout and the remaining Task
 budget, while the monitor can fail an already-running verification and late
@@ -1581,3 +1581,9 @@ to pass validation. See [role changes, configuration and qualification boundarie
 ## 工作包 V2 默认启用（0.3.75）
 
 新建持久会话默认冻结 V2 profile 与唯一 `submit_package_design_v2` 工具，旧 V1 会话不升级，显式关闭只控制新会话。V2 自动准备冻结证据；编译后的 Stage/GIT_DIFF 路径必须为冻结工作包范围的子集，并保留禁止删除约束。集合删除和指代文件移动不能经候选分支绕过。兼容、诊断及验证边界见 [V2 加固与启用](package-design-v2-enablement.md)。
+
+## 业务超时开关
+
+全局 `loopper.timeout-enabled` / `LOOPPER_TIMEOUT_ENABLED` 默认 false，控制新任务／设计运行的业务计时。设置页面保存开关和保留时长；未带该字段的旧全局设置解释为关闭。新 LoopSpec、报告模板及文档模板明确冻结 `timeoutEnabled`；关闭时任务总时长、尝试、模型分析和 Judge 不生成有效截止时间，验证器仍使用自身技术超时。新版明确冻结的值不再被后续全局时长缩短；历史 LoopSpec 缺失／null 字段沿用原启用及全局上限语义，旧文档模板缺失字段沿用启用。普通新设计在 V106 与会话创建同事务保存开关与时长，独立评审据此保存可空截止时间；历史设计无该记录保持原行为，文档关联设计优先使用文档冻结合同。任务／会话重启与精确恢复不重新读取新默认来覆盖已有合同。
+
+开启时设置页允许任务总时长最多 7 天、尝试和设计最多 24 小时。关闭仍保留用户取消、明确模型失败、权限、独立预算与停滞守卫；技术连接、启动、请求、Git、文件解析和验证命令超时保持。取消及迟到结果仍经过既有停止证明与身份／版本校验。无任务总时限时，验证器不计算虚假的剩余任务时间。

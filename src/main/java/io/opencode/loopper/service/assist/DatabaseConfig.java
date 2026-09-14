@@ -6,17 +6,23 @@ import java.util.Map;
 /** Non-secret, versioned connection settings. Passwords never form part of a JDBC URL. */
 public record DatabaseConfig(Type type, String host, int port, String database, String username,
                              String driverFile, String driverClass, List<String> schemas,
-                             Map<String,String> parameters, int timeoutSeconds, int maxRows, String driverProfile) {
+                             Map<String,String> parameters, int timeoutSeconds, int maxRows, String driverProfile, String jdbcUrl) {
     public enum Type { MYSQL, OPENGAUSS, GAUSSDB, GOLDENDB, DAMENG }
     public DatabaseConfig(Type type,String host,int port,String database,String username,String driverFile,String driverClass,
                           List<String> schemas,Map<String,String> parameters,int timeoutSeconds,int maxRows) {
         this(type,host,port,database,username,driverFile,driverClass,schemas,parameters,timeoutSeconds,maxRows,null);
     }
+    public DatabaseConfig(Type type,String host,int port,String database,String username,String driverFile,String driverClass,
+                          List<String> schemas,Map<String,String> parameters,int timeoutSeconds,int maxRows,String driverProfile) {
+        this(type,host,port,database,username,driverFile,driverClass,schemas,parameters,timeoutSeconds,maxRows,driverProfile,null);
+    }
     public DatabaseConfig {
+        jdbcUrl = jdbcUrl == null || jdbcUrl.isBlank() ? null : jdbcUrl.trim();
         schemas = schemas == null ? List.of() : List.copyOf(schemas);
         parameters = parameters == null ? Map.of() : Map.copyOf(parameters);
     }
     public DatabaseConfig validated() {
+        if (jdbcUrl != null) JdbcConnectionUrl.parse(this);
         if (type == null || host == null || !host.matches("[a-zA-Z0-9_.:-]{1,253}")
                 || port < 1 || port > 65535 || database == null || !database.matches("[\\p{L}\\p{N}_$-]{1,128}")
                 || username == null || username.isBlank() || username.length() > 128

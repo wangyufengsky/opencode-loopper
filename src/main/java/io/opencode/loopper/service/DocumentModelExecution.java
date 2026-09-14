@@ -34,7 +34,7 @@ public class DocumentModelExecution {
         var row = store.require(id);
         if (TemplateBatchState.valueOf(row.state()).terminal()) return row;
         store.requireActive(row.runId());
-        if (Instant.now().isAfter(Instant.parse(row.createdAt()).plusSeconds(contract.attemptTimeoutSeconds())))
+        if (contract.timeoutEnabled() && Instant.now().isAfter(Instant.parse(row.createdAt()).plusSeconds(contract.attemptTimeoutSeconds())))
             throw failure("DOCUMENT_MODEL_TIMEOUT", "本批分析时限已耗尽，已保留冻结输入和已接受结果");
         return switch (TemplateBatchState.valueOf(row.state())) {
             case PREPARED -> prepare(row, contract);

@@ -48,7 +48,7 @@ public class DocumentDevelopmentBootstrap {
             var draft = drafts.createNew(new LoopSpec("v2", run.projectId(), run.title(), index,
                     List.of(new LoopSpec.StageSpec("根据冻结需求形成可验证的软件设计", List.of(), List.of(), List.of(), List.of())),
                     new LoopSpec.Limits(contract.maxStageAttempts(), contract.maxTaskAttempts(), contract.sessionErrorLimit(),
-                            null, contract.maxDurationSeconds(), contract.attemptTimeoutSeconds(), null),
+                            null, contract.maxDurationSeconds(), contract.attemptTimeoutSeconds(), null, contract.timeoutEnabled()),
                     model(contract.model()), null, null));
             var designer = new DesignerSessionRow(designerId, run.projectId(), DesignerSessionState.PENDING_HANDOFF.name(),
                     "READ_ONLY", now, now, 0, null, "PENDING", draft.id(), DesignWorkflowPhase.DECOMPOSING.name(),

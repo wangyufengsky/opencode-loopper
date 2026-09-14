@@ -16,14 +16,16 @@ public final class BundledDatabaseDrivers {
         return PROFILES.stream().filter(p->p.id().equals(id)).findFirst().orElseThrow(BundledDatabaseDrivers::unavailable);
     }
     public static DatabaseConfig resolve(DatabaseConfig c) {
-        Profile p=PROFILES.stream().filter(x->x.type()==c.type()).findFirst().orElseThrow(()->
+        c = JdbcConnectionUrl.normalize(c);
+        DatabaseConfig input = c;
+        Profile p=PROFILES.stream().filter(x->x.type()==input.type()).findFirst().orElseThrow(()->
             new AssistFailure("DATABASE_TYPE_UNAVAILABLE","当前可新增 MySQL、openGauss 和达梦；其他类型请保留历史配置或等待匹配驱动","CONFIGURE"));
         if(c.driverProfile()!=null && !p.id().equals(c.driverProfile())
             || c.driverFile()!=null && !c.driverFile().isBlank() && !p.binaries().getFirst().filename().equals(c.driverFile())
             || c.driverClass()!=null && !c.driverClass().isBlank() && !p.driverClass().equals(c.driverClass()))
             throw new AssistFailure("DATABASE_DRIVER_MISMATCH","驱动由数据库类型自动匹配，请刷新配置后重试");
         return new DatabaseConfig(c.type(),c.host(),c.port(),c.database(),c.username(),p.binaries().getFirst().filename(),
-            p.driverClass(),c.schemas(),c.parameters(),c.timeoutSeconds(),c.maxRows(),p.id()).validated();
+            p.driverClass(),c.schemas(),c.parameters(),c.timeoutSeconds(),c.maxRows(),p.id(),c.jdbcUrl()).validated();
     }
     public static List<Path> materialize(Path root,DatabaseConfig c) throws Exception {
         Profile p=profile(c.driverProfile());

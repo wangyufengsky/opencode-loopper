@@ -30,7 +30,7 @@ if exist "%SCRIPT_DIR%jdk21\" (
 if not defined LOOPPER_DATA_DIR set "LOOPPER_DATA_DIR=%APP_HOME%\data"
 set "STARTUP_OVERRIDES=%LOOPPER_DATA_DIR%\config\startup-overrides.properties"
 if exist "%STARTUP_OVERRIDES%" (
-  powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$rules=@{SERVER_PORT='^\d+$';LOOPPER_OPEN_BROWSER='^(true|false)$';LOOPPER_ALLOWED_ROOT='^.*$';LOOPPER_MONITOR_DELAY='^\d+(ms|s|m|h)$';LOOPPER_DESIGNER_MONITOR_DELAY='^\d+(ms|s|m|h)$';LOOPPER_ABORT_CLEANUP_ATTEMPTS='^\d+$';LOOPPER_OPENCODE_MODE='^(managed|auto|http)$';OPENCODE_BASE_URL='^https?://\S+$';OPENCODE_EXECUTABLE='^.+$';OPENCODE_MODEL='^.+$';OPENCODE_ENABLE_QUESTION_TOOL='^(true|false)$';LOOPPER_OPENCODE_CONNECT_TIMEOUT='^\d+(ms|s|m|h)$';LOOPPER_OPENCODE_REQUEST_TIMEOUT='^\d+(ms|s|m|h)$';LOOPPER_OPENCODE_STARTUP_TIMEOUT='^\d+(ms|s|m|h)$';LOOPPER_MAX_STAGE_ATTEMPTS='^\d+$';LOOPPER_MAX_TASK_ATTEMPTS='^\d+$';LOOPPER_SESSION_ERROR_LIMIT='^\d+$';LOOPPER_MAX_DURATION='^\d+(ms|s|m|h)$';LOOPPER_ATTEMPT_TIMEOUT='^\d+(ms|s|m|h)$';LOOPPER_VERIFIER_TIMEOUT='^\d+(ms|s|m|h)$';LOOPPER_DESIGNER_TIMEOUT='^\d+(ms|s|m|h)$';LOOPPER_RETRY_RATE_LIMIT_BASE='^\d+(ms|s|m|h)$';LOOPPER_RETRY_RATE_LIMIT_MAX='^\d+(ms|s|m|h)$';LOOPPER_RETRY_SESSION_BASE='^\d+(ms|s|m|h)$';LOOPPER_RETRY_SESSION_MAX='^\d+(ms|s|m|h)$';LOOPPER_RETRY_VERIFICATION_BASE='^\d+(ms|s|m|h)$';LOOPPER_RETRY_VERIFICATION_MAX='^\d+(ms|s|m|h)$';LOOPPER_PUBLICATION_HTTP_WEB_HOSTS='^.*$';LOOPPER_GITLAB_HOST='^.+$';LOOPPER_GITLAB_API_BASE_URL='^https?://\S+$';LOOPPER_GITLAB_CONNECT_TIMEOUT='^\d+(ms|s|m|h)$';LOOPPER_GITLAB_REQUEST_TIMEOUT='^\d+(ms|s|m|h)$'}; foreach($line in Get-Content -LiteralPath $env:STARTUP_OVERRIDES -Encoding UTF8){if(!$line -or $line.StartsWith('#')){continue};$parts=$line.Split('=',2);if($parts.Count-ne 2){Write-Error ('Invalid startup setting line: '+$line);exit 2};if(!$rules.ContainsKey($parts[0])){Write-Warning ('Ignoring unknown startup setting: '+$parts[0]);continue};if($parts[1] -notmatch $rules[$parts[0]]){Write-Error ('Invalid startup setting value: '+$parts[0]);exit 2}}"
+  powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$rules=@{LOOPPER_TIMEOUT_ENABLED='^(true|false)$';SERVER_PORT='^\d+$';LOOPPER_OPEN_BROWSER='^(true|false)$';LOOPPER_ALLOWED_ROOT='^.*$';LOOPPER_MONITOR_DELAY='^\d+(ms|s|m|h)$';LOOPPER_DESIGNER_MONITOR_DELAY='^\d+(ms|s|m|h)$';LOOPPER_ABORT_CLEANUP_ATTEMPTS='^\d+$';LOOPPER_OPENCODE_MODE='^(managed|auto|http)$';OPENCODE_BASE_URL='^https?://\S+$';OPENCODE_EXECUTABLE='^.+$';OPENCODE_MODEL='^.+$';OPENCODE_ENABLE_QUESTION_TOOL='^(true|false)$';LOOPPER_OPENCODE_CONNECT_TIMEOUT='^\d+(ms|s|m|h)$';LOOPPER_OPENCODE_REQUEST_TIMEOUT='^\d+(ms|s|m|h)$';LOOPPER_OPENCODE_STARTUP_TIMEOUT='^\d+(ms|s|m|h)$';LOOPPER_MAX_STAGE_ATTEMPTS='^\d+$';LOOPPER_MAX_TASK_ATTEMPTS='^\d+$';LOOPPER_SESSION_ERROR_LIMIT='^\d+$';LOOPPER_MAX_DURATION='^\d+(ms|s|m|h)$';LOOPPER_ATTEMPT_TIMEOUT='^\d+(ms|s|m|h)$';LOOPPER_VERIFIER_TIMEOUT='^\d+(ms|s|m|h)$';LOOPPER_DESIGNER_TIMEOUT='^\d+(ms|s|m|h)$';LOOPPER_RETRY_RATE_LIMIT_BASE='^\d+(ms|s|m|h)$';LOOPPER_RETRY_RATE_LIMIT_MAX='^\d+(ms|s|m|h)$';LOOPPER_RETRY_SESSION_BASE='^\d+(ms|s|m|h)$';LOOPPER_RETRY_SESSION_MAX='^\d+(ms|s|m|h)$';LOOPPER_RETRY_VERIFICATION_BASE='^\d+(ms|s|m|h)$';LOOPPER_RETRY_VERIFICATION_MAX='^\d+(ms|s|m|h)$';LOOPPER_PUBLICATION_HTTP_WEB_HOSTS='^.*$';LOOPPER_GITLAB_HOST='^.+$';LOOPPER_GITLAB_API_BASE_URL='^https?://\S+$';LOOPPER_GITLAB_CONNECT_TIMEOUT='^\d+(ms|s|m|h)$';LOOPPER_GITLAB_REQUEST_TIMEOUT='^\d+(ms|s|m|h)$'}; foreach($line in Get-Content -LiteralPath $env:STARTUP_OVERRIDES -Encoding UTF8){if(!$line -or $line.StartsWith('#')){continue};$parts=$line.Split('=',2);if($parts.Count-ne 2){Write-Error ('Invalid startup setting line: '+$line);exit 2};if(!$rules.ContainsKey($parts[0])){Write-Warning ('Ignoring unknown startup setting: '+$parts[0]);continue};if($parts[1] -notmatch $rules[$parts[0]]){Write-Error ('Invalid startup setting value: '+$parts[0]);exit 2}}"
   if errorlevel 1 exit /b 1
   for /f "usebackq tokens=1,* delims==" %%K in ("%STARTUP_OVERRIDES%") do (
     if /I "%%K"=="SERVER_PORT" if not defined SERVER_PORT set "SERVER_PORT=%%L"
@@ -51,6 +51,7 @@ if exist "%STARTUP_OVERRIDES%" (
     if /I "%%K"=="LOOPPER_MAX_TASK_ATTEMPTS" if not defined LOOPPER_MAX_TASK_ATTEMPTS set "LOOPPER_MAX_TASK_ATTEMPTS=%%L"
     if /I "%%K"=="LOOPPER_SESSION_ERROR_LIMIT" if not defined LOOPPER_SESSION_ERROR_LIMIT set "LOOPPER_SESSION_ERROR_LIMIT=%%L"
     if /I "%%K"=="LOOPPER_MAX_DURATION" if not defined LOOPPER_MAX_DURATION set "LOOPPER_MAX_DURATION=%%L"
+    if /I "%%K"=="LOOPPER_TIMEOUT_ENABLED" if not defined LOOPPER_TIMEOUT_ENABLED set "LOOPPER_TIMEOUT_ENABLED=%%L"
     if /I "%%K"=="LOOPPER_ATTEMPT_TIMEOUT" if not defined LOOPPER_ATTEMPT_TIMEOUT set "LOOPPER_ATTEMPT_TIMEOUT=%%L"
     if /I "%%K"=="LOOPPER_VERIFIER_TIMEOUT" if not defined LOOPPER_VERIFIER_TIMEOUT set "LOOPPER_VERIFIER_TIMEOUT=%%L"
     if /I "%%K"=="LOOPPER_DESIGNER_TIMEOUT" if not defined LOOPPER_DESIGNER_TIMEOUT set "LOOPPER_DESIGNER_TIMEOUT=%%L"
@@ -132,12 +133,12 @@ for %%I in ("%JAVA_BIN_DIR%..") do set "JAVA_HOME=%%~fI"
 set "PATH=%JAVA_HOME%\bin;%PATH%"
 
 if defined LOOPPER_JAR_PATH goto jar_from_environment
-if exist "%APP_HOME%\target\opencode-loopper-0.4.23.jar" (
-  set "JAR_PATH=%APP_HOME%\target\opencode-loopper-0.4.23.jar"
+if exist "%APP_HOME%\target\opencode-loopper-0.4.24.jar" (
+  set "JAR_PATH=%APP_HOME%\target\opencode-loopper-0.4.24.jar"
   goto jar_ready
 )
-if exist "%APP_HOME%\opencode-loopper-0.4.23.jar" (
-  set "JAR_PATH=%APP_HOME%\opencode-loopper-0.4.23.jar"
+if exist "%APP_HOME%\opencode-loopper-0.4.24.jar" (
+  set "JAR_PATH=%APP_HOME%\opencode-loopper-0.4.24.jar"
   goto jar_ready
 )
 goto jar_missing
@@ -249,7 +250,7 @@ echo [Loopper] ERROR: JDK 21 or newer is required. Current version: %JAVA_VERSIO
 exit /b 1
 
 :jar_missing
-echo [Loopper] ERROR: opencode-loopper-0.4.23.jar was not found under "%APP_HOME%". Put the release JAR beside this script or set LOOPPER_JAR_PATH. 1>&2
+echo [Loopper] ERROR: opencode-loopper-0.4.24.jar was not found under "%APP_HOME%". Put the release JAR beside this script or set LOOPPER_JAR_PATH. 1>&2
 exit /b 1
 
 :data_dir_failed

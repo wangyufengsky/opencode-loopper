@@ -13,6 +13,15 @@ describe('tool policy', () => {
     expect(save).toHaveBeenCalledWith({ projectId: 'project', serverId: '@loopper-assist', toolName: 'read_document', enabled: 0, version: -1 })
     expect(wrapper.text()).toContain('请刷新'); expect(wrapper.text()).toContain('继承全局'); wrapper.unmount()
   })
+  it('disables all tools in one versioned request and reports a conflict without changing switches', async () => {
+    vi.spyOn(api, 'getMcpToolPolicies').mockResolvedValue({ complete: true, detail: '', tools: ['one', 'two'].map(name => ({ name, configurable: true, writes: false, globalEnabled: true, projectOverride: 'INHERIT', enabled: true, source: 'GLOBAL', globalVersion: 3, projectVersion: -1 })) })
+    const save = vi.spyOn(api, 'disableMcpSource').mockRejectedValue(new Error('配置已改变，请刷新'))
+    const wrapper = mount(McpToolPolicyPanel, { props: { projectId: '', serverId: 'external' }, global: { plugins: [ElementPlus] } }); await flushPromises()
+    await wrapper.findAll('button').find(button => button.text().includes('关闭此来源全部工具'))!.trigger('click'); await flushPromises()
+    expect(save).toHaveBeenCalledWith({ projectId: '', serverId: 'external', tools: [{ toolName: 'one', version: 3 }, { toolName: 'two', version: 3 }] })
+    expect(wrapper.findAllComponents({ name: 'ElSwitch' }).every(item => item.props('modelValue') === true)).toBe(true)
+    expect(wrapper.text()).toContain('请刷新'); wrapper.unmount()
+  })
   it('renders required tools without switches', async () => {
     vi.spyOn(api, 'getMcpToolPolicies').mockResolvedValue({ complete: true, detail: '', tools: [{ name: 'submit_candidate', configurable: false, writes: false, globalEnabled: true, projectOverride: 'INHERIT', enabled: true, source: 'SYSTEM', globalVersion: -1, projectVersion: -1 }] })
     const wrapper = mount(McpToolPolicyPanel, { props: { projectId: '', serverId: '@loopper-internal' }, global: { plugins: [ElementPlus] } }); await flushPromises()

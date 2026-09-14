@@ -103,7 +103,7 @@ public class DocumentTemplateControl {
         admission.transition(run, next, resumeEvent(next), null, null);
     }
     public void budget(DocumentTemplateRunRow run, DocumentTemplateService.Contract contract) {
-        if (models.elapsedMillis(run.id(), Instant.now().toString()) >= contract.maxDurationSeconds() * 1000)
+        if (contract.timeoutEnabled() && models.elapsedMillis(run.id(), Instant.now().toString()) >= contract.maxDurationSeconds() * 1000)
             throw new BadRequestException("DOCUMENT_DURATION_EXHAUSTED", "本次文档分析总时限已耗尽，已保存已完成范围和证据");
     }
     public void healthy(String id) { controls.clearError(id); }

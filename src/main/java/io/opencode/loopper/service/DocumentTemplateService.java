@@ -63,7 +63,7 @@ public class DocumentTemplateService {
             String contract = json.writeValueAsString(new Contract(request.templateVersion(), model,
                     properties.getMaxDuration().toSeconds(), properties.getAttemptTimeout().toSeconds(),
                     properties.getMaxTaskAttempts(), properties.getMaxStageAttempts(), properties.getSessionErrorLimit(),
-                    !definition.review(), definition.review() ? "STATIC_ONLY" : "CURRENT_DIRECTORY"));
+                    !definition.review(), definition.review() ? "STATIC_ONLY" : "CURRENT_DIRECTORY", properties.isTimeoutEnabled()));
             String now = Instant.now().toString();
             var proposed = new DocumentTemplateRunRow(UUID.randomUUID().toString(), request.requestKey(), digest,
                     project.id(), definition.name(), request.templateVersion(), definition.title() + " · " + project.name(),
@@ -96,5 +96,10 @@ public class DocumentTemplateService {
     private static String hash(String value) { return DocumentTemplateStorage.hash(value.getBytes(StandardCharsets.UTF_8)); }
     public record Request(String requestKey, String templateId, String templateVersion, String projectId, String branchId) { }
     public record Contract(String version, String model, long maxDurationSeconds, long attemptTimeoutSeconds,
-            int maxTaskAttempts, int maxStageAttempts, int sessionErrorLimit, boolean autoDevelopment, String executionPolicy) { }
+            int maxTaskAttempts, int maxStageAttempts, int sessionErrorLimit, boolean autoDevelopment, String executionPolicy, Boolean timeoutEnabled) {
+        public Contract { timeoutEnabled = timeoutEnabled == null ? true : timeoutEnabled; }
+        public Contract(String version,String model,long total,long attempt,int tasks,int stages,int errors,boolean auto,String policy) {
+            this(version,model,total,attempt,tasks,stages,errors,auto,policy,true);
+        }
+    }
 }

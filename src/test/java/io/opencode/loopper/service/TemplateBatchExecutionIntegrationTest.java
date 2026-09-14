@@ -362,6 +362,10 @@ class TemplateBatchExecutionIntegrationTest {
     }
 
     @Test void expiredTaskDeadlineBlocksPersistedContinuationBeforeDispatch() {
+        var frozen = (tools.jackson.databind.node.ObjectNode) json.valueToTree(contract);
+        ((tools.jackson.databind.node.ObjectNode) frozen.get("spec").get("limits")).put("timeoutEnabled", true);
+        contract = json.treeToValue(frozen, TemplateTaskContractFactory.Frozen.class);
+        jdbc.update("UPDATE template_task_run SET contract_json=? WHERE task_id=?", json.writeValueAsString(contract), task.id());
         startContinuable(); batch = execution.advance(batch, contract);
         int calls = fake.promptCalls();
         jdbc.update("UPDATE task_execution_cycle SET started_at='2000-01-01T00:00:00Z' WHERE task_id=?", task.id());

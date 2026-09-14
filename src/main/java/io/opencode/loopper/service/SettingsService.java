@@ -115,10 +115,10 @@ public class SettingsService {
                 between(inputLimits.maxStageAttempts(), 1, 10, "MAX_STAGE_ATTEMPTS_INVALID", "Maximum stage attempts"),
                 between(inputLimits.maxTaskAttempts(), 1, 50, "MAX_TASK_ATTEMPTS_INVALID", "Maximum task attempts"),
                 between(inputLimits.sessionErrorLimit(), 1, 10, "SESSION_ERROR_LIMIT_INVALID", "Session error limit"),
-                between(inputLimits.maxDurationMinutes(), 1, 1_440, "MAX_DURATION_INVALID", "Maximum task duration"),
-                between(inputLimits.attemptTimeoutMinutes(), 1, 120, "ATTEMPT_TIMEOUT_INVALID", "Attempt timeout"),
+                between(inputLimits.maxDurationMinutes(), 1, 10_080, "MAX_DURATION_INVALID", "Maximum task duration"),
+                between(inputLimits.attemptTimeoutMinutes(), 1, 1_440, "ATTEMPT_TIMEOUT_INVALID", "Attempt timeout"),
                 between(inputLimits.verifierTimeoutMinutes(), 1, 120, "VERIFIER_TIMEOUT_INVALID", "Verifier timeout"),
-                between(inputLimits.designerTimeoutMinutes(), 1, 120, "DESIGNER_TIMEOUT_INVALID", "Designer timeout"));
+                between(inputLimits.designerTimeoutMinutes(), 1, 1_440, "DESIGNER_TIMEOUT_INVALID", "Designer timeout"), inputLimits.timeoutEnabled());
 
         RetryWaitSettings retry = validateRetry(value.retryWait());
         PublicationSettings inputPublication = value.publication();
@@ -182,7 +182,7 @@ public class SettingsService {
                 new LimitSettings(properties.getMaxStageAttempts(), properties.getMaxTaskAttempts(),
                         properties.getSessionErrorLimit(), minutes(properties.getMaxDuration()),
                         minutes(properties.getAttemptTimeout()), minutes(properties.getVerifierTimeout()),
-                        minutes(properties.getDesignerTimeout())),
+                        minutes(properties.getDesignerTimeout()), properties.isTimeoutEnabled()),
                 new RetryWaitSettings(seconds(retry.getRateLimitBase()), seconds(retry.getRateLimitMax()),
                         seconds(retry.getSessionBase()), seconds(retry.getSessionMax()),
                         seconds(retry.getVerificationBase()), seconds(retry.getVerificationMax())),
@@ -232,6 +232,7 @@ public class SettingsService {
         properties.setMaxStageAttempts(limits.maxStageAttempts());
         properties.setMaxTaskAttempts(limits.maxTaskAttempts());
         properties.setSessionErrorLimit(limits.sessionErrorLimit());
+        properties.setTimeoutEnabled(limits.timeoutEnabled());
         properties.setMaxDuration(Duration.ofMinutes(limits.maxDurationMinutes()));
         properties.setAttemptTimeout(Duration.ofMinutes(limits.attemptTimeoutMinutes()));
         properties.setVerifierTimeout(Duration.ofMinutes(limits.verifierTimeoutMinutes()));
@@ -268,6 +269,7 @@ public class SettingsService {
         values.put("LOOPPER_MAX_TASK_ATTEMPTS", String.valueOf(limits.maxTaskAttempts()));
         values.put("LOOPPER_SESSION_ERROR_LIMIT", String.valueOf(limits.sessionErrorLimit()));
         values.put("LOOPPER_MAX_DURATION", limits.maxDurationMinutes() + "m");
+        values.put("LOOPPER_TIMEOUT_ENABLED", Boolean.toString(limits.timeoutEnabled()));
         values.put("LOOPPER_ATTEMPT_TIMEOUT", limits.attemptTimeoutMinutes() + "m");
         values.put("LOOPPER_VERIFIER_TIMEOUT", limits.verifierTimeoutMinutes() + "m");
         values.put("LOOPPER_DESIGNER_TIMEOUT", limits.designerTimeoutMinutes() + "m");
@@ -388,7 +390,12 @@ public class SettingsService {
                                    int startupTimeoutSeconds) { }
     public record LimitSettings(int maxStageAttempts, int maxTaskAttempts, int sessionErrorLimit,
                                 int maxDurationMinutes, int attemptTimeoutMinutes,
-                                int verifierTimeoutMinutes, int designerTimeoutMinutes) { }
+                                int verifierTimeoutMinutes, int designerTimeoutMinutes, Boolean timeoutEnabled) {
+        public LimitSettings { timeoutEnabled = Boolean.TRUE.equals(timeoutEnabled); }
+        public LimitSettings(int stages,int tasks,int errors,int duration,int attempt,int verifier,int designer) {
+            this(stages,tasks,errors,duration,attempt,verifier,designer,false);
+        }
+    }
     public record RetryWaitSettings(int rateLimitBaseSeconds, int rateLimitMaxSeconds,
                                     int sessionBaseSeconds, int sessionMaxSeconds,
                                     int verificationBaseSeconds, int verificationMaxSeconds) { }

@@ -72,7 +72,7 @@ class DocumentTemplateHttpRestartTest {
     }
     private ConfigurableApplicationContext start(Path data) {
         return new SpringApplicationBuilder(LoopperApplication.class).run("--server.address=127.0.0.1", "--server.port=0",
-                "--loopper.data-dir=" + data, "--spring.datasource.url=jdbc:sqlite:" + data.resolve("loopper.db") + "?foreign_keys=on&busy_timeout=5000&journal_mode=WAL",
+                "--loopper.data-dir=" + data, "--spring.datasource.url=jdbc:sqlite:" + data.resolve("loopper.db") + "?foreign_keys=on&busy_timeout=5000&journal_mode=WAL&transaction_mode=IMMEDIATE",
                 "--loopper.opencode.mode=fake", "--loopper.opencode.model=fake/test-model", "--loopper.scheduling.enabled=false",
                 "--loopper.startup-recovery.enabled=false", "--spring.main.banner-mode=off");
     }

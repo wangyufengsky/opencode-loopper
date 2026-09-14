@@ -40,11 +40,15 @@ class SettingsServiceTest {
                 new SettingsService.RuntimeSettings(8080, true, "", 2, 750, 3),
                 new SettingsService.OpenCodeSettings("opencode", "managed", "http://127.0.0.1:4096",
                         "deepseek", "deepseek-chat", 5, 30, 15),
-                new SettingsService.LimitSettings(3, 9, 3, 120, 25, 10, 30),
+                new SettingsService.LimitSettings(3, 9, 3, 1440, 240, 10, 240, true),
                 new SettingsService.RetryWaitSettings(60, 300, 10, 60, 5, 30),
                 new SettingsService.PublicationSettings(List.of("gitlab.spdb.com"), "gitlab.spdb.com",
                         "http://gitlab.spdb.com/api/v4", 3, 10), null, List.of(), List.of(), null));
 
+        assertThat(saved.limits().timeoutEnabled()).isTrue();
+        assertThat(properties.isTimeoutEnabled()).isTrue();
+        assertThat(saved.limits().attemptTimeoutMinutes()).isEqualTo(240);
+        verify(startupFile).prepare(org.mockito.ArgumentMatchers.argThat(values -> "true".equals(values.get("LOOPPER_TIMEOUT_ENABLED"))));
         assertThat(saved.openCode().mode()).isEqualTo("managed");
         assertThat(properties.getOpenCode().getMode()).isEqualTo("managed");
         verify(startupFile).prepare(org.mockito.ArgumentMatchers.argThat(

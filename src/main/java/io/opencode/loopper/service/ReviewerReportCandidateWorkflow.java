@@ -188,7 +188,7 @@ final class ReviewerReportCandidateWorkflow {
                 close(run, MachineCandidateSubmission.CandidateCloseReason.TIMEOUT);
                 return terminate(context, report, launch,
                         GenericCandidateInternalTerminationPreparer.IntentKind.PROTOCOL_FAILURE,
-                        "REVIEWER_TIMEOUT", "Independent Reviewer exceeded its 120 second boundary", false);
+                        "REVIEWER_TIMEOUT", "独立评审已达到本次保存的业务时限", false);
             }
             OpenCodeClient.SessionStatus status = openCode.sessionStatus(remote);
             if (status.retrying() || !status.completed() && !status.failed()) return Result.running();

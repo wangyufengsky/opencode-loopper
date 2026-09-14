@@ -30,6 +30,21 @@ class AssistIntegrationTest {
     @MockitoBean DatabaseSecretStore secrets;
     @TempDir Path temp;
     @BeforeEach void reset(){mcpSession=null;flyway.clean();flyway.migrate();when(secrets.save(anyString())).thenAnswer(i->UUID.randomUUID().toString());}
+    @Test void sourceDisableIsAtomicAndDoesNotAffectOtherScopesOrSources() {
+        policies.catalog("", "external", List.of("read_one", "read_two"), true);
+        policies.catalog("", "other", List.of("read_one"), true);
+        policies.update("project", "external", "read_two", 1, -1);
+        assertThatThrownBy(() -> policies.disableSource("", "external", List.of(
+                new AssistToolPolicyService.Revision("read_one", 0), new AssistToolPolicyService.Revision("read_two", 99))))
+                .isInstanceOf(ConflictException.class);
+        assertThat(policies.catalog("", "external", List.of("read_one", "read_two"), true)).allMatch(AssistToolPolicyService.View::enabled);
+        policies.disableSource("", "external", List.of(new AssistToolPolicyService.Revision("read_one", 0), new AssistToolPolicyService.Revision("read_two", 0)));
+        assertThat(policies.catalog("", "external", List.of("read_one", "read_two", "new_tool"), true)).noneMatch(AssistToolPolicyService.View::enabled);
+        assertThat(policies.catalog("project", "external", List.of("read_two"), true)).allMatch(AssistToolPolicyService.View::enabled);
+        assertThat(policies.catalog("", "other", List.of("read_one"), true)).allMatch(AssistToolPolicyService.View::enabled);
+        assertThatThrownBy(() -> policies.disableSource("", "@loopper-internal", List.of(new AssistToolPolicyService.Revision("submit", 0))))
+                .isInstanceOf(AssistFailure.class);
+    }
     @Test void policiesFreezeAdmissionAndConnectionVersions() throws Exception {
         var project=projects.create("data",Files.createDirectory(temp.resolve("project")).toString());
         var saved=databases.save(null,new DatabaseConnectionService.Request("内网",new DatabaseConfig(DatabaseConfig.Type.MYSQL,"localhost",3306,"app","reader","","",List.of("app"),Map.of(),10,200),"private",true,false,List.of(project.id()),0));

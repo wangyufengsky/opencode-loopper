@@ -52,4 +52,16 @@ public class AssistToolPolicyService {
         if(server==null || server.length()>160 || tool==null || !tool.matches("[a-zA-Z0-9_-]{1,128}"))
             throw new AssistFailure("MCP_TOOL_ID_INVALID","工具名称无法精确授权，请检查服务配置");
     }
+
+    public record Revision(String toolName, long version) { }
+    @Transactional
+    public void disableSource(String scope, String server, List<Revision> revisions) {
+        if (server == null || server.startsWith("@loopper-") || revisions == null || revisions.isEmpty() || revisions.size() > 512)
+            throw new AssistFailure("MCP_POLICY_INVALID", "请选择第三方来源的完整工具清单后重试");
+        Set<String> names = new HashSet<>();
+        for (Revision revision : revisions) {
+            if (revision == null || !names.add(revision.toolName())) throw new AssistFailure("MCP_POLICY_INVALID", "工具清单重复或无效，请刷新后重试");
+            update(scope, server, revision.toolName(), 0, revision.version());
+        }
+    }
 }

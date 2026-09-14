@@ -17,8 +17,10 @@ final class DocumentRequirementContext {
         return mapper.documentDesignerContract(designer).map(value -> JSON.readValue(value, DocumentTemplateService.Contract.class).model()).orElse(fallback);
     }
     static java.time.Duration attemptTimeout(DocumentDesignContextMapper mapper, String designer, java.time.Duration fallback) {
-        return mapper.documentDesignerContract(designer).map(value -> java.time.Duration.ofSeconds(
-                JSON.readValue(value, DocumentTemplateService.Contract.class).attemptTimeoutSeconds())).orElse(fallback);
+        var value = mapper.documentDesignerContract(designer);
+        if (value.isEmpty()) return fallback;
+        var contract = JSON.readValue(value.get(), DocumentTemplateService.Contract.class);
+        return contract.timeoutEnabled() ? java.time.Duration.ofSeconds(contract.attemptTimeoutSeconds()) : null;
     }
     static String index(DocumentTemplateRunRow run, String manifest, int count) {
         return INDEX + JSON.writeValueAsString(Map.of("runId", run.id(), "revision", run.requirementRevision(),
