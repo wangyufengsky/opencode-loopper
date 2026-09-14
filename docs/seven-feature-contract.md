@@ -429,6 +429,8 @@ old ID even when a repair or finalizer later replaces the source projection.
 
 ### 内置模板任务
 
+本节定义第一期 Git 报告模板。第二期需求开发与需求代码评审使用独立版本、文档输入、发起记录和完成策略，规范见[文档模板任务合同](document-template-contract.md)。模板来源筛选涵盖两期，不能由 `TEMPLATE_REPORT` 执行模式推断所有模板。
+
 V77 将新任务入口改为 `/template-tasks`，旧 `/automations` 页面重定向到新入口。内置目录由服务端代码持有，首批为 `CODE_REVIEW` 与 `CONTRIBUTION_REPORT`；新任务版本为 `7`，历史版本 `1`、`2`、`3`、`4`、`5`、`6` 继续按冻结合同恢复。用户只能手动选择模板和参数，不编辑 LoopSpec JSON、创建自定义模板或定时/事件规则。旧模板、规则、检测健康与运行记录保留查询；旧 API 的创建、编辑、导入、手动触发、确认触发和 Webhook 均返回 `LEGACY_AUTOMATION_RETIRED`。升级将 ENABLED 规则停用，后台只对既有 run 做状态对账，不再探测 Git HEAD 或派发 CRON。
 
 参数必须来自已登记项目及该项目当前可选分支。项目与分支使用可搜索、服务端分页的下拉框。优先使用远程 origin 的默认分支；其他来源只有能明确识别主分支才可默认选择，不能用当前 checkout 分支猜测。缺少明确默认时要求用户选择。切换项目清空分支，拒绝旧查询结果覆盖新项目。日期传输为 `YYYY-MM-DD`，默认北京时间今天及之前六天；同日允许，结束日期不得早于开始日期。后端与前端均校验，范围为 Asia/Shanghai 的开始日零点至结束次日零点（右开）。

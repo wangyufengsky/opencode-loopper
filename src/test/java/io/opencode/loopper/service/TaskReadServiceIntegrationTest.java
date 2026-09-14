@@ -76,6 +76,11 @@ class TaskReadServiceIntegrationTest {
         for (String id : List.of("template-a", "template-b")) {
             jdbc.update("INSERT INTO task(id,project_id,title,state,created_at,updated_at,execution_mode,workspace_policy) VALUES(?,?,?,?,?,?,?,?)",
                     id, "p", "Template", "RUNNING", "2026-01-01T00:00:00Z", "2026-01-04T00:00:00Z", "TEMPLATE_REPORT", "ISOLATED_REPORT");
+            jdbc.update("""
+                INSERT INTO template_task_run(task_id,request_key,request_sha256,template_id,template_version,
+                  branch_id,branch_label,branch_ref,start_date,end_date,contract_json,created_at,updated_at)
+                VALUES(?,?,?,'CODE_REVIEW','7','branch','main','refs/heads/main','2026-01-01','2026-01-04','{}',?,?)
+                """, id, id, "a".repeat(64), "2026-01-01T00:00:00Z", "2026-01-04T00:00:00Z");
         }
         var first = reads.summaries("p", List.of(), null, "ALL", null, "newest", null, 1, "TEMPLATE");
         assertThat(first.items()).extracting(TaskReadService.TaskSummary::id).containsExactly("template-b");
@@ -89,6 +94,32 @@ class TaskReadServiceIntegrationTest {
         assertThat(ordinary.facets()).containsEntry("TOTAL", 2L);
         assertThatThrownBy(() -> reads.summaries(null, List.of(), null, "ALL", null, "newest", null, 100, "invalid"))
                 .isInstanceOf(BadRequestException.class);
+    }
+
+    @Test void documentIntakesAndLinkedTasksShareOneStableRowAndConsistentFacets() {
+        for (String id : List.of("doc-a", "doc-b", "doc-c")) {
+            jdbc.update("""
+                INSERT INTO document_template_run(id,request_key,request_sha256,project_id,template_id,template_version,
+                  title,state,task_id,contract_json,created_at,updated_at)
+                VALUES(?,?,?,'p','REQUIREMENT_DEVELOPMENT','1','上传开发',?,?,'{}',?,?)
+                """, id, id, "b".repeat(64), id.equals("doc-a") ? "EXECUTING" : "ANALYZING",
+                    id.equals("doc-a") ? "task-a" : null, "2026-01-04T00:00:00Z", "2026-01-04T00:00:00Z");
+        }
+        var first = reads.summaries("p", List.of(), "PROCESSING", "ALL", "上传", "newest", null, 2, "TEMPLATE");
+        assertThat(first.items()).extracting(TaskReadService.TaskSummary::id).containsExactly("doc-c", "doc-b");
+        assertThat(first.facets()).containsEntry("TOTAL", 3L).containsEntry("PROCESSING", 3L).containsEntry("MATCHED_TOTAL", 3L);
+        var last = reads.summaries("p", List.of(), "PROCESSING", "ALL", "上传", "newest", first.nextCursor(), 2, "TEMPLATE");
+        assertThat(last.items()).singleElement().satisfies(item -> {
+            assertThat(item.id()).isEqualTo("doc-a"); assertThat(item.linkedTaskId()).isEqualTo("task-a");
+            assertThat(item.executionMode()).isEqualTo("LEGACY_AGGREGATE");
+            assertThat(item.sourceTemplateId()).isEqualTo("REQUIREMENT_DEVELOPMENT");
+        });
+        assertThat(reads.summaries("p", List.of(), null, "ALL", null, "newest", null, 100, "STANDARD").items())
+                .extracting(TaskReadService.TaskSummary::id).containsExactly("task-b");
+        jdbc.update("INSERT INTO task_archive(task_id,archived_at) VALUES('task-a','2026-01-05T00:00:00Z')");
+        var archived = reads.summaries("p", List.of(), null, "ARCHIVED", null, "newest", null, 100, "TEMPLATE");
+        assertThat(archived.items()).extracting(TaskReadService.TaskSummary::id).containsExactly("doc-a");
+        assertThat(archived.facets()).containsEntry("TOTAL", 1L).containsEntry("ARCHIVED_TOTAL", 1L);
     }
 
     @Test

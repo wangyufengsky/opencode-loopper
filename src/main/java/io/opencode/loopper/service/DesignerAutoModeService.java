@@ -54,6 +54,7 @@ public class DesignerAutoModeService {
     }
 
     public View initialize(String sessionId, boolean enabled) {
+        if (enabled) requireOrdinaryAutoPolicy(sessionId);
         DesignerAutoModeRow existing = mapper.findDesignerAutoMode(sessionId).orElse(null);
         if (existing != null) return view(existing);
         DesignerSessionRow session = designerSessions.get(sessionId);
@@ -78,6 +79,7 @@ public class DesignerAutoModeService {
     }
 
     public View setEnabled(String sessionId, boolean enabled, long expectedVersion) {
+        if (enabled) requireOrdinaryAutoPolicy(sessionId);
         DesignerSessionRow session = designerSessions.get(sessionId);
         DesignerAutoModeRow current = mapper.findDesignerAutoMode(sessionId).orElse(null);
         if (current == null) {
@@ -150,6 +152,10 @@ public class DesignerAutoModeService {
         if (mode == null || !DesignerAutoModeState.ACTIVE.name().equals(mode.state())) return;
         try {
             DesignerSessionRow session = designerSessions.get(sessionId);
+            if (mapper.documentDesigner(sessionId)) {
+                block(mode, session, "DOCUMENT_TEMPLATE_AUTO_POLICY", "需求开发使用模板的范围授权推进，业务问题必须由用户回答");
+                return;
+            }
             if (DesignerSessionState.STOPPING.name().equals(session.state())
                     || DesignerSessionState.CANCELLED.name().equals(session.state())) return;
             LoopDraftRow draft = designerSessions.draft(sessionId);
@@ -301,6 +307,11 @@ public class DesignerAutoModeService {
         designerSessions.recordAutoModeNotice(session.id(),
                 "全自动设计已完成并请求启动任务，后续执行期决策仍需人工处理。",
                 "AUTO_MODE_COMPLETED");
+    }
+
+    private void requireOrdinaryAutoPolicy(String sessionId) {
+        if (mapper.documentDesigner(sessionId)) throw new ConflictException("DOCUMENT_TEMPLATE_AUTO_POLICY",
+                "需求开发已使用模板自动推进策略，业务问题需要你回答，无需开启普通全自动模式");
     }
 
     private void requireEnableAllowed(DesignerSessionRow session) {

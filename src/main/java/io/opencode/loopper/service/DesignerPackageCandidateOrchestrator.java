@@ -117,7 +117,7 @@ final class DesignerPackageCandidateOrchestrator {
         }
         if (v2) {
             var requirement = conversationMapper.findDesignRequirementRevision(workPackage.requirementRevisionId()).orElseThrow();
-            return new Start(remote, run, PackageDesignV2Prompt.build(basePrompt + "\n冻结有界仓库证据：\n" + conversationMapper.findPackageDesignEvidence(run.runId()).orElseThrow().snapshotJson(), requirement.requirementText(), run,
+            return new Start(remote, run, PackageDesignV2Prompt.build(basePrompt + "\n冻结有界仓库证据：\n" + conversationMapper.findPackageDesignEvidence(run.runId()).orElseThrow().snapshotJson(), DocumentRequirementContext.resolve(conversationMapper, requirement, workPackage), run,
                     privateServer + "_" + InternalMcpContractCatalog.PACKAGE_V2_TOOL));
         }
         return new Start(remote, run, prompt(basePrompt, run,

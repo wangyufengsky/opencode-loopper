@@ -116,7 +116,8 @@ final class DesignerMutationObligationExtractor {
 
     private void extractRequirement(String requirementText, Map<String, Draft> drafts, List<String> issues,
                                     List<String> negativePaths, List<String> frozenPositivePaths) {
-        String source = requirementText == null ? "" : requirementText.replace("\r\n", "\n");
+        String original = DocumentRequirementContext.text(requirementText);
+        String source = original == null ? "" : original.replace("\r\n", "\n");
         MutationOperation contextOperation = null;
         boolean negativeContext = false;
         boolean exampleContext = false;

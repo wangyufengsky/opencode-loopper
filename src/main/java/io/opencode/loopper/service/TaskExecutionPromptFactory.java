@@ -32,10 +32,7 @@ final class TaskExecutionPromptFactory {
     }
 
     String prompt(TaskRow task, LoopSpec spec, StageRow stage, Path workspace, String recovery) {
-        if (stage.ordinal() < 0 || stage.ordinal() >= spec.stages().size()) {
-            throw new TaskFailure("STAGE_CONTRACT_MISSING", "Current Stage has no matching frozen StageSpec");
-        }
-        LoopSpec.StageSpec stageContract = spec.stages().get(stage.ordinal());
+        LoopSpec.StageSpec stageContract = stageContract(spec, stage);
         String designContext = designContext(task.id(), stage);
         TestPolicy testPolicy;
         try {
@@ -66,6 +63,21 @@ final class TaskExecutionPromptFactory {
                 + "仅当用户目标明确要求其他语言时才切换语言。报告实际修改、验证命令和结果及未解决项；不得把计划或 Todo 状态当作验收证据。\n" + recovery;
     }
 
+    LoopSpec.StageSpec stageContract(LoopSpec spec, StageRow stage) {
+        if (stage.packageRunId() == null) {
+            if (stage.ordinal() < 0 || stage.ordinal() >= spec.stages().size()) throw missingContract();
+            return spec.stages().get(stage.ordinal());
+        }
+        String frozen = mapper.frozenStageContract(stage.id()).orElseThrow(TaskExecutionPromptFactory::missingContract);
+        var contract = json.readValue(frozen, LoopSpec.StageSpec.class);
+        if (!contract.objective().equals(stage.objective()) || !java.util.Objects.equals(contract.workPackageId(), stage.workPackageId())
+                || !json.valueToTree(contract.verifiers()).equals(json.readTree(stage.verifiersJson()))) throw missingContract();
+        return contract;
+    }
+    private static TaskFailure missingContract() {
+        return new TaskFailure("STAGE_CONTRACT_MISSING", "当前阶段缺少匹配的冻结合同，不能使用历史阶段序号推断新计划");
+    }
+
     String todoInstructions() {
         return """
 
@@ -78,6 +90,14 @@ final class TaskExecutionPromptFactory {
     }
 
     private String designContext(String taskId, StageRow stage) {
+        if (stage.packageRunId() != null) {
+            var frozen = mapper.frozenStageDesign(stage.id());
+            if (frozen.isPresent()) {
+                String content = frozen.get();
+                return content.length() <= MAX_DESIGN_CONTEXT_CHARS ? content : content.substring(0, MAX_DESIGN_CONTEXT_CHARS)
+                        + "\n… 冻结设计正文已截断；完整设计保留在关联工作包，阶段合同与冻结需求读取仍然有效。";
+            }
+        }
         if (stage.workPackageId() != null && !stage.workPackageId().isBlank()) {
             return packageContext(taskId, stage.workPackageId());
         }

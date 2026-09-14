@@ -27,17 +27,9 @@ class PersistentMachineCandidateSubmissionTest {
     @EnumSource(MachineCandidateKind.class)
     void everyMcpRoleReturnsTheCompleteCandidateDiagnosticV2EnvelopeBeyondItsFormerSubmissionCap(
             MachineCandidateKind kind) throws Exception {
-        String owner = switch (kind) {
-            case DECOMPOSITION_PLAN_V2 -> "TASK_DECOMPOSITION";
-            case ACCEPTANCE_CLOSED_CHOICE_V7 -> "LOOP_SPEC_COMPILATION";
-            case PACKAGE_DESIGN_V1 -> "DESIGN_WORK_PACKAGE";
-            case ROLLING_PACKAGE_PLAN_V1 -> "TASK_PACKAGE_PLAN_REVISION";
-            case REVIEWER_REPORT_V1 -> "ANALYSIS_REPORT";
-            case PROJECT_CONVENTION_V1 -> "PROJECT_CONVENTION_DRAFT";
-            case JUDGE_DECISION_V1 -> "JUDGE_RUN";
-        };
+        String owner = MachineCandidateProtocolPolicy.contract(kind).ownerType().name();
         boolean task = kind == MachineCandidateKind.ROLLING_PACKAGE_PLAN_V1 || kind == MachineCandidateKind.JUDGE_DECISION_V1;
-        boolean project = kind == MachineCandidateKind.PROJECT_CONVENTION_V1;
+        boolean project = MachineCandidateProtocolPolicy.contract(kind).scopeType() == MachineCandidateSubmission.CandidateScopeType.PROJECT;
         var row = new CandidateSubmissionRunRow("run", task || project ? null : "designer",
                 task ? "task" : null, project ? "project" : null, owner, "owner", kind.name(), kind.name(), 1, 1,
                 "INTERNAL_MCP", kind.name(), "generation", "remote", "OPEN", kind.maximumAttempts(),

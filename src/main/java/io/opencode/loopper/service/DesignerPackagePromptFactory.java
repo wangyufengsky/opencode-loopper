@@ -104,7 +104,7 @@ final class DesignerPackagePromptFactory {
                 """.formatted(MachineRoleContractCatalog.packageDesignerCard(candidateChannel) + "\n"
                         + rolePrompts.packageDesignerInstructions(taskProfiles.current(session.id()),
                         packageRole.rolePackId(), packageRole.executionStrategy(), packageRole.technologies(),
-                        packageRole.testPolicy()), project.rootPath(), revision.revision(), revision.requirementText(),
+                        packageRole.testPolicy()), project.rootPath(), revision.revision(), context.original(revision, workPackage),
                 decomposition.planJson(), workPackage.packageId(), context.packageScope(workPackage),
                 context.prerequisites(revision.id(), workPackage), context.previousDesign(workPackage),
                 context.decisions(session, workPackage), repositoryContext(session.taskId() != null), turnContract,

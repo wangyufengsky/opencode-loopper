@@ -55,8 +55,8 @@ public final class DesignerConversationCoordinator {
                 .map(row -> row.profile().startsWith("PACKAGE_DESIGN_CANDIDATE_V2_")).orElse(false);
     }
 
-    private OpenCodeClient.SessionProfile packageProfile(boolean question) {
-        boolean v2 = properties != null && properties.getInternalCandidate().isPackageDesignV2Enabled();
+    private OpenCodeClient.SessionProfile packageProfile(boolean question, boolean documentTemplate) {
+        boolean v2 = documentTemplate || properties != null && properties.getInternalCandidate().isPackageDesignV2Enabled();
         return v2 ? question ? OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_V2_INTERACTIVE_READ_ONLY
                 : OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_V2_READ_ONLY
                 : question ? OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY
@@ -136,8 +136,12 @@ public final class DesignerConversationCoordinator {
             }
             int generation = mapper.latestDesignerConversation(designerId, scope).map(item -> item.generation() + 1).orElse(1);
             String id = UUID.randomUUID().toString();
+            boolean documentTemplate = mapper instanceof io.opencode.loopper.persistence.DocumentDesignContextMapper documents
+                    && documents.documentDesigner(designerId);
+            if (documentTemplate && !candidate) throw new ConflictException("DOCUMENT_PACKAGE_MCP_REQUIRED",
+                    "需求开发使用冻结的 V2 来源合同，当前候选 MCP 尚未可用；恢复运行环境后继续");
             var profile = candidate
-                    ? packageProfile(question)
+                    ? packageProfile(question, documentTemplate)
                     : question ? OpenCodeClient.SessionProfile.DESIGNER_INTERACTIVE_READ_ONLY : OpenCodeClient.SessionProfile.GENERAL_READ_ONLY;
             String now = Instant.now().toString();
             row = new DesignerConversationRow(id, designerId, scope, generation, null, null, null, root.toString(),

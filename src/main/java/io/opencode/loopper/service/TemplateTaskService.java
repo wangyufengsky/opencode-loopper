@@ -5,6 +5,8 @@ import io.opencode.loopper.persistence.TemplateTaskMapper;
 import io.opencode.loopper.template.ContributionScore;
 import io.opencode.loopper.template.TemplateDateRange;
 import io.opencode.loopper.template.TemplateTaskDefinition;
+import io.opencode.loopper.template.TemplateCatalogEntry;
+import io.opencode.loopper.template.DocumentTemplateDefinition;
 import java.time.Clock;
 import java.util.Arrays;
 import java.util.List;
@@ -33,7 +35,10 @@ public class TemplateTaskService {
 
     public Catalog catalog() {
         var dates = TemplateDateRange.parse(null, null, Clock.systemUTC());
-        return new Catalog(Arrays.stream(TemplateTaskDefinition.values()).map(TemplateTaskDefinition::view).toList(),
+        var entries = java.util.stream.Stream.concat(
+                Arrays.stream(DocumentTemplateDefinition.values()).map(TemplateCatalogEntry::document),
+                Arrays.stream(TemplateTaskDefinition.values()).map(TemplateCatalogEntry::report)).toList();
+        return new Catalog(entries,
                 TemplateDateRange.ZONE.getId(), dates.startDate().toString(), dates.endDate().toString(),
                 ContributionScore.VERSION, ContributionScore.FORMULA, ContributionScore.DIMENSIONS);
     }
@@ -78,6 +83,6 @@ public class TemplateTaskService {
             this(requestKey, templateId, templateVersion, projectId, branchId, startDate, endDate, story, null);
         }
     }
-    public record Catalog(List<TemplateTaskDefinition.View> templates, String timezone, String defaultStartDate,
+    public record Catalog(List<TemplateCatalogEntry> templates, String timezone, String defaultStartDate,
                            String defaultEndDate, String scoringVersion, String scoreFormula, List<ContributionScore.Dimension> dimensions) { }
 }

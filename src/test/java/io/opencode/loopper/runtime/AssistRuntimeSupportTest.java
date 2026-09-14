@@ -16,7 +16,7 @@ class AssistRuntimeSupportTest {
         when(inventory.tools(path,"external")).thenReturn(new McpToolCatalogReader.Catalog(List.of(new McpToolCatalogReader.Tool("allowed","read"),new McpToolCatalogReader.Tool("off","write")),true,null));
         when(policy.catalog(eq("p"),eq("external"),anyList(),eq(true))).thenReturn(List.of(setting("allowed",true),setting("off",false)));
         when(policy.catalog(eq("p"),eq(AssistToolCatalog.SERVER),anyList(),eq(true))).thenReturn(List.of(setting("read_document",true),setting("generate_word",false)));
-        var support=new AssistRuntimeSupport(mapper,policy,inventory,scopes,new ObjectMapper());
+        var support=new AssistRuntimeSupport(mapper,policy,inventory,scopes,new ObjectMapper(),mock(io.opencode.loopper.service.DocumentDevelopmentScope.class));
         var permissions=support.permissions(path,OpenCodeClient.SessionProfile.IMPLEMENTATION,List.of("external","private","private_assist"),"private",false);
         assertThat(permissions).contains(Map.of("permission","external_*","pattern","*","action","deny"),Map.of("permission","external_allowed","pattern","*","action","allow"));
         assertThat(permissions).doesNotContain(Map.of("permission","external_off","pattern","*","action","allow"));
@@ -27,7 +27,7 @@ class AssistRuntimeSupportTest {
     }
     @Test void candidatesKeepOnlyExplicitAuxiliaryExtrasAndNeverQueryThirdPartyCatalogs() {
         var mapper=mock(AssistMapper.class);var policy=mock(AssistToolPolicyService.class);var inventory=mock(OpenCodeToolInventory.class);
-        var support=new AssistRuntimeSupport(mapper,policy,inventory,mock(AssistScopeService.class),new ObjectMapper());
+        var support=new AssistRuntimeSupport(mapper,policy,inventory,mock(AssistScopeService.class),new ObjectMapper(),mock(io.opencode.loopper.service.DocumentDevelopmentScope.class));
         var permission=support.permissions(Path.of("/project"),OpenCodeClient.SessionProfile.DECOMPOSER_CANDIDATE_READ_ONLY,List.of("third"),"private",true);
         assertThat(permission).noneMatch(p->p.get("permission").equals("third_*")&&p.get("action").equals("allow"));verifyNoInteractions(inventory);
     }

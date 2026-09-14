@@ -333,3 +333,19 @@ export function judgeRoleLabel(role: string) {
 export function evidenceCaptureLabel(state: string): string {
   return ({ COMPLETE: '采集完整', TRUNCATED: '内容已截断', INCOMPLETE: '采集不完整', UNCONFIRMED: '来源未确认', LIMIT: '达到采集上限', PREPARED: '持久化未完成', UNAVAILABLE: '采集不可用' } as Record<string, string>)[state] ?? '状态待核实'
 }
+
+export function documentTemplateStateLabel(value: string): string {
+  const labels: Record<string, string> = { PREPARING: '准备文档', ANALYZING: '整理需求', REVIEWING: '复核原文',
+    DESIGNING: '设计开发方案', EXECUTING: '开发与验收', ASSESSING: '静态代码评审', VERIFYING: '复核评审结论',
+    REPORTING: '生成报告', WAITING_INPUT: '等待处理', STOPPING: '等待停止确认', CANCELLED: '已取消', COMPLETED: '已完成' }
+  return labels[value] ?? '状态待确认'
+}
+export function requirementConclusionLabel(value: string | null | undefined): string {
+  const labels: Record<string, string> = { SATISFIED: '符合需求', PARTIAL: '部分实现', INCORRECT: '实现不符',
+    NOT_IMPLEMENTED: '未实现', UNDETERMINED: '无法判断' }
+  return value ? labels[value] ?? '结论待确认' : '尚未形成结论'
+}
+export function requirementKindLabel(value: string): string {
+  const labels: Record<string, string> = { FUNCTION: '功能', RULE: '规则', PERMISSION: '权限', EXCEPTION: '异常', ACCEPTANCE: '验收场景', CONSTRAINT: '约束' }
+  return labels[value] ?? '需求'
+}

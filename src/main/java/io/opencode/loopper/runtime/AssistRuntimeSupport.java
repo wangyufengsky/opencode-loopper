@@ -16,8 +16,11 @@ public class AssistRuntimeSupport {
     private final OpenCodeToolInventory inventory;
     private final AssistScopeService scopes;
     private final ObjectMapper json;
-    public AssistRuntimeSupport(AssistMapper mapper,AssistToolPolicyService policy,OpenCodeToolInventory inventory,AssistScopeService scopes,ObjectMapper json) {
+    private final io.opencode.loopper.service.DocumentDevelopmentScope documents;
+    public AssistRuntimeSupport(AssistMapper mapper,AssistToolPolicyService policy,OpenCodeToolInventory inventory,AssistScopeService scopes,ObjectMapper json,
+            io.opencode.loopper.service.DocumentDevelopmentScope documents) {
         this.mapper=mapper;this.policy=policy;this.inventory=inventory;this.scopes=scopes;this.json=json;
+        this.documents=documents;
     }
     List<Map<String,String>> permissions(Path directory,OpenCodeClient.SessionProfile profile,List<String> servers,String internal,boolean localOnly) {
         List<Map<String,String>> base=new ArrayList<>(OpenCodePermissionPolicy.rules(profile,servers,internal));
@@ -43,6 +46,8 @@ public class AssistRuntimeSupport {
             }
         }
         if(internal!=null) {
+            if (DocumentDevelopmentProfiles.supports(profile.name())) DocumentDevelopmentProfiles.TOOLS
+                    .forEach(tool -> base.add(rule(internal + "_" + tool)));
             var allowed=AssistToolCatalog.allowed(profile.name());
             for(var setting:policy.catalog(project,AssistToolCatalog.SERVER,AssistToolCatalog.tools().stream().map(AssistToolCatalog.Tool::name).toList(),true))
                 if(setting.enabled()&&allowed.contains(setting.name()))base.add(rule(AssistToolCatalog.serverName(internal)+"_"+setting.name()));
@@ -59,6 +64,7 @@ public class AssistRuntimeSupport {
         mapper.insertSession(new AssistMapper.Session(session,generation,directory.toString(),profile.name(),encoded,json.writeValueAsString(tools),Instant.now().toString()));
     }
     void enrich(String session,Map<String,Object> body) {
+        documents.enrich(session, body);
         scopes.requireDeclaredCapabilities(session);
         String grant=scopes.grant(session);if(grant.isEmpty())return;
         var scope=scopes.resolve(session);
@@ -82,6 +88,9 @@ public class AssistRuntimeSupport {
         List<OpenCodeClient.SessionPermissionRule> filtered=plan.permissionPolicy().stream().filter(r->!(r.permission().startsWith(prefix)
                 &&allowed.contains(r.permission().substring(prefix.length()))&&r.action().equals("allow")&&r.pattern().equals("*"))).toList();
         filtered=filtered.stream().filter(r->!(r.permission().equals(AssistToolCatalog.serverName(plan.internalMcpServer())+"_*")&&r.action().equals("deny")&&r.pattern().equals("*"))).toList();
+        if (DocumentDevelopmentProfiles.supports(plan.profile().name())) filtered = filtered.stream().filter(rule ->
+                !(DocumentDevelopmentProfiles.TOOLS.stream().anyMatch(tool -> rule.permission().equals(plan.internalMcpServer()+"_"+tool))
+                        && rule.action().equals("allow") && rule.pattern().equals("*"))).toList();
         return filtered.equals(base);
     }
     private String project(Path directory){var matches=mapper.projectsAt(directory.toString());return matches.size()==1?matches.getFirst():"";}

@@ -9,7 +9,7 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 /** Domain-focused persistence contract composed by {@link LoopperMapper}. */
-public interface LoopperDesignerMapper {
+public interface LoopperDesignerMapper extends DocumentDesignContextMapper {
     @Insert("INSERT INTO designer_session(id,project_id,state,access_mode,external_session_id,external_session_state,loop_draft_id,workflow_phase,design_revision,redesign_count,current_requirement_revision,active_work_package_id,discussion_scope,discussion_revision,candidate_sync_state,created_at,updated_at,version) VALUES(#{id},#{projectId},#{state},#{accessMode},#{externalSessionId},#{externalSessionState},#{loopDraftId},#{workflowPhase},#{designRevision},#{redesignCount},#{currentRequirementRevision},#{activeWorkPackageId},#{discussionScope},#{discussionRevision},#{candidateSyncState},#{createdAt},#{updatedAt},#{version})")
     int insertDesignerSession(DesignerSessionRow row);
     @Select("SELECT * FROM designer_session WHERE id=#{id}") Optional<DesignerSessionRow> findDesignerSession(String id);
@@ -458,6 +458,17 @@ public interface LoopperDesignerMapper {
     Optional<LoopSpecCompilationRow> findLoopSpecCompilationForPackageRevision(
             @Param("sessionId") String sessionId, @Param("packageId") String packageId,
             @Param("designRevision") int designRevision);
+    @Select("SELECT * FROM loop_spec_compilation WHERE designer_session_id=#{sessionId} AND source_design_message_id=#{source} AND design_revision=#{revision} ORDER BY created_at DESC LIMIT 1")
+    Optional<LoopSpecCompilationRow> findLoopSpecCompilationForDesignSource(@Param("sessionId") String sessionId,
+            @Param("source") String source,@Param("revision") int revision);
+    @Select("""
+        SELECT c.* FROM loop_spec_compilation c JOIN design_work_package w
+          ON w.designer_session_id=c.designer_session_id AND w.package_id=c.work_package_id
+        WHERE w.id=#{id} AND c.state='COMPLETED' AND c.created_at>=w.created_at
+          AND (w.superseded_at IS NULL OR c.created_at<=w.superseded_at)
+        ORDER BY c.design_revision DESC,c.created_at DESC LIMIT 1
+        """)
+    Optional<LoopSpecCompilationRow> findLatestCompletedCompilationForWorkPackage(String id);
     @Select("""
             SELECT compilation.* FROM loop_spec_compilation compilation
             WHERE compilation.state IN ('PENDING_HANDOFF','RUNNING')

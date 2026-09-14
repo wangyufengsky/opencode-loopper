@@ -26,6 +26,10 @@ final class DesignerPackageContext {
         this.json = json;
     }
 
+    String original(io.opencode.loopper.persistence.DesignRequirementRevisionRow revision, DesignWorkPackageRow workPackage) {
+        return DocumentRequirementContext.prompt(DocumentRequirementContext.resolve(mapper, revision, workPackage));
+    }
+
     String prerequisites(String requirementRevisionId, DesignWorkPackageRow workPackage) {
         Set<String> dependencyIds = new LinkedHashSet<>(strings(workPackage.dependenciesJson()));
         if (dependencyIds.isEmpty()) return "[]";

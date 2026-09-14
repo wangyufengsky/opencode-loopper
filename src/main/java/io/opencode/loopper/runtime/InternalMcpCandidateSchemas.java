@@ -18,6 +18,10 @@ final class InternalMcpCandidateSchemas {
             case REVIEWER_REPORT_V1 -> reviewerReport();
             case PROJECT_CONVENTION_V1 -> projectConvention();
             case JUDGE_DECISION_V1 -> judgeDecision();
+            case DOCUMENT_REQUIREMENTS_V1 -> DocumentCandidateSchemas.requirements();
+            case DOCUMENT_REQUIREMENT_REVIEW_V1 -> DocumentCandidateSchemas.requirementReview();
+            case REQUIREMENT_CODE_ASSESSMENT_V1 -> DocumentCandidateSchemas.assessment();
+            case REQUIREMENT_ASSESSMENT_REVIEW_V1 -> DocumentCandidateSchemas.assessmentReview();
         });
     }
 

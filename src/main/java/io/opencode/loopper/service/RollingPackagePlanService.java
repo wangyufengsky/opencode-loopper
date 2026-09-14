@@ -82,9 +82,12 @@ public class RollingPackagePlanService {
                 compiled.canonicalImpactJson(),
                 null, null, null, null, context.checkpoint().id(), context.task().version(),
                 context.current().id(), context.current().version(), now, now, null, null, 0);
-        lifecycle.create(planSubject(proposal), proposal.state(), Map.of("origin", origin, "revision", revision),
-                () -> mapper.insertTaskPackagePlanRevision(proposal),
-                () -> new ConflictException("PACKAGE_PLAN_PROPOSAL_CONFLICT", "剩余拆包提案被并发创建"));
+        transactions.executeWithoutResult(ignored -> {
+            lifecycle.create(planSubject(proposal), proposal.state(), Map.of("origin", origin, "revision", revision),
+                    () -> mapper.insertTaskPackagePlanRevision(proposal),
+                    () -> new ConflictException("PACKAGE_PLAN_PROPOSAL_CONFLICT", "剩余拆包提案被并发创建"));
+            mapper.freezeDocumentPlanSource(proposal.id());
+        });
         events.emit(taskId, "package.plan_proposed", Map.of("revision", revision, "impact", compiled.impact()));
         return proposal(proposal);
     }
@@ -129,6 +132,8 @@ public class RollingPackagePlanService {
                 ? RollingPackageCommandPolicy.Command.ADD_CORRECTION
                 : RollingPackageCommandPolicy.Command.REPLAN;
         Context context = safeContext(taskId, expectedTaskVersion, true, command);
+        if (mapper.documentDesigner(context.session().id()) && !mapper.documentPlanSourceCurrent(proposalId))
+            throw new ConflictException("DOCUMENT_PLAN_SOURCE_CHANGED", "需求版本已变化，请按当前冻结需求重新生成剩余计划");
         List<PlanPackage> packages = readPackages(proposed.planJson());
         DispatchAnchor dispatch = transactions.execute(ignored -> {
             String now = now();
@@ -242,9 +247,12 @@ public class RollingPackagePlanService {
                 PackagePlanRevisionState.GENERATING.name(), "AI", "[]", "{}", null, "PENDING",
                 null, null, context.checkpoint().id(), context.task().version(), context.current().id(),
                 context.current().version(), now, now, null, null, 0);
-        lifecycle.create(planSubject(row), row.state(), Map.of("origin", "AI", "revision", revision),
-                () -> mapper.insertTaskPackagePlanRevision(row),
-                () -> new ConflictException("PACKAGE_PLAN_SUGGESTION_CONFLICT", "AI 拆包建议被并发创建"));
+        transactions.executeWithoutResult(ignored -> {
+            lifecycle.create(planSubject(row), row.state(), Map.of("origin", "AI", "revision", revision),
+                    () -> mapper.insertTaskPackagePlanRevision(row),
+                    () -> new ConflictException("PACKAGE_PLAN_SUGGESTION_CONFLICT", "AI 拆包建议被并发创建"));
+            mapper.freezeDocumentPlanSource(row.id());
+        });
         events.emit(taskId, "package.plan_suggestion_started", Map.of("revision", revision));
         return new SuggestionAnchor(mapper.findTaskPackagePlanRevision(row.id()).orElse(row), context);
     }

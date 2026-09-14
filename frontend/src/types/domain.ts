@@ -1468,6 +1468,8 @@ export interface StoryAccountingCall {
 }
 
 export interface TemplateTaskDefinition {
+  inputs?: { documents: boolean; branch: boolean; dates: boolean; extensions: string[]; maxFiles: number; maxFileMiB: number; maxTotalMiB: number }
+  workflow?: string
   id: string
   icon?: string
   category?: string
@@ -1569,3 +1571,52 @@ export interface EvidenceFailurePage { items: EvidenceFailure[]; nextCursor: str
 export interface EvidenceBody extends ExecutionEvidence { content: string; nextOffset: number }
 export interface EvidenceSearch { items: { reference: string; offset: number; excerpt: string; source: string }[]; complete: boolean; nextCursor: string; scannedBytes: number }
 export interface EvidenceFailureDetail { failure: { name: string; className: string; state: string; message: string; stack: string; output: string }; source: ExecutionEvidence }
+
+export type DocumentTemplateState = 'PREPARING' | 'ANALYZING' | 'REVIEWING' | 'DESIGNING' | 'EXECUTING'
+  | 'ASSESSING' | 'VERIFYING' | 'REPORTING' | 'WAITING_INPUT' | 'STOPPING' | 'CANCELLED' | 'COMPLETED'
+export type RequirementConclusion = 'SATISFIED' | 'PARTIAL' | 'INCORRECT' | 'NOT_IMPLEMENTED' | 'UNDETERMINED'
+export interface DocumentSupplementRequest { requestKey: string; expectedVersion: number; expectedTaskVersion: number }
+export interface DocumentSupplementOptions { available: boolean; message: string; request: DocumentSupplementRequest | null }
+export interface DocumentTemplateRequest {
+  requestKey: string; templateId: string; templateVersion: string; projectId: string; branchId?: string
+}
+export interface DocumentTemplateOverview {
+  id: string; projectId: string; templateId: string; templateVersion: string; title: string; state: DocumentTemplateState
+  waitingReasonCode: string | null; waitingMessage: string | null; designerId: string | null; taskId: string | null
+  requirementRevision: number; version: number; createdAt: string; updatedAt: string
+  canCancel: boolean; canResume: boolean; archived: boolean; uploadReady: boolean; snapshotSha: string | null
+  taskState?: TaskStatus | null
+  progress: { attempts: number; validated: number; active: number; stopped: number; requirements: number; reports: number; revision: number }
+  files: Array<{ id: string; filename: string; format: string; sizeBytes: number; sha256: string; representationSha256: string
+    parserVersion: string; sectionCount: number; limitations: string[] }>
+}
+export interface DocumentRequirementSummary {
+  requirementKey: string; ordinal: number; title: string; groupName: string; kind: string; issueCount: number; conclusion: RequirementConclusion | null
+}
+export interface DocumentRequirementPage { items: DocumentRequirementSummary[]; nextOffset: number | null; revision: number }
+export interface DocumentRequirementSource { fileId: string; section: number; quote: string }
+export interface RequirementCodeReference { path: string; blobSha: string; startLine: number; endLine: number; quote: string }
+export interface DocumentRequirementDetail {
+  requirement: { key: string; title: string; group: string; kind: string; statement: string; sources: DocumentRequirementSource[]; acceptance: string[]; issues: string[] }
+  assessment: { requirementKey: string; conclusion: RequirementConclusion; rationale: string; evidence: RequirementCodeReference[]
+    checkedPaths: string[]; missingEntryEvidence: string | null; testSourceCoverage: string; limitations: string[] } | null
+}
+export interface DocumentSection { fileId: string; ordinal: number; title: string; content: string; sha256: string }
+export interface DocumentReportSummary { id: string; name: string; kind: string; sha256: string; bytes: number; createdAt: string }
+
+/** List entries retain intake identity independently from executable Task details. */
+export interface TaskListItem {
+  id: string; projectId: string; projectName: string; title: string; goal: string; branch: string
+  status: TaskStatus | DocumentTemplateState; retryCause?: Task['retryCause']; retryDueAt?: string
+  executionMode?: Task['executionMode']; hasDesignHistory?: boolean; archived?: boolean; attemptCount: number; maxAttempts: number
+  createdAt: string; updatedAt: string; version?: number
+  documentRunId?: string; documentState?: DocumentTemplateState; linkedTaskId?: string; sourceTemplateId?: string
+}
+
+export interface DocumentClarification {
+  sourceRevision: number; requirementKey: string; statement: string; issues: string[]; answer: string
+}
+export interface DocumentClarificationRequest {
+  requestKey: string; expectedVersion: number; requirementRevision: number
+  answers: { requirementKey: string; answer: string }[]
+}

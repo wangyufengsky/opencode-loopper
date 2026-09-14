@@ -1,8 +1,9 @@
+import type { DocumentSupplementRequest, DocumentSupplementOptions, DocumentClarification, DocumentClarificationRequest, TaskListItem, DocumentTemplateRequest, DocumentTemplateOverview, DocumentRequirementPage, DocumentRequirementDetail, DocumentSection, DocumentReportSummary } from '@/types/domain'
 import type { ProjectAssistConfig, AssistEvidenceSource, EvidencePage, EvidenceFailurePage, EvidenceBody, EvidenceSearch, EvidenceFailureDetail } from '@/types/domain'
 import type { TemplateTaskCatalog, TemplateProjectChoice, TemplateBranchPage, TemplateTaskRequest, TemplateTaskCreated, TemplateTaskSummary } from '@/types/domain'
 import type { AppSettings, Artifact, Attempt, AutomationImportPreview, AutomationImportResult, AutomationRule, AutomationRuleMutation, AutomationRun, AutomationRunFeed, AvailableModel, BrowserAssertion, CommitMessageSuggestion, CreateAutomationRuleInput, DesignerActivity, DesignerAnsweredQuestion, DesignerAppendResult, DesignerHistoryItem, DesignerMessage, DesignerSession, DesignerSessionState, DesignerSessionSummary, DesignerStopResult, DesignerStreamEvent, DirectorySelection, DirtyWorkspaceAction, DirtyWorkspaceResolution, DirtyWorkspaceState, ErrorEvent, GitDiffScopeApproval, GitDiffScopeDecisionAction, InsightsSnapshot, Interaction, InteractionAction, JudgeRun, LocalSyncConflictContent, LocalSyncConflictFile, LocalSyncConflictSession, LocalSyncResolution, LoopDraft, LoopSpec, LoopSpecAssessment, LoopSpecTemplate, LoopSpecTemplateVersion, LoopVerifierSpec, MergeRequestDraft, Project, ProjectConventionActivity, ProjectConventionDraft, ProjectConventionSnapshot, RecoveryDraft, RecoveryMode, RuntimeInfo, SessionCheckpoint, SessionForkResult, SessionRevertResult, SessionSummaryResult, SessionTodo, Stage, Task, TaskDecision, TaskDesignHistory, TaskDiffPreview, TaskEvent, TaskInsight, TaskPublicationStatus, TaskQueueStatus, TaskSessionActivity, TaskSessionActivityPart, TaskSessionPendingQuestion, TaskSessionSummary, UsageAggregate } from '@/types/domain'
 import type { AnalysisReport, DesignerTaskProfileUpdatePreview, ProjectStackProfile, RollingPackageCapabilities, RollingPackageDetail, RollingPackageFact, RollingPackageRun, RollingPackageWorkbench, RollingPlanPackage, RollingPlanProposal } from '@/types/domain'
-import { DESIGNER_SESSION_STATES, DESIGN_WORK_PACKAGE_STATES, LOOP_DRAFT_STATUSES, STAGE_STATUSES, TASK_PACKAGE_RUN_STATES, TASK_STATUSES, WORK_PACKAGE_AGGREGATE_STATUSES, requirePublicState } from '@/types/states'
+import { DOCUMENT_TEMPLATE_STATES, DESIGNER_SESSION_STATES, DESIGN_WORK_PACKAGE_STATES, LOOP_DRAFT_STATUSES, STAGE_STATUSES, TASK_PACKAGE_RUN_STATES, TASK_STATUSES, WORK_PACKAGE_AGGREGATE_STATUSES, requirePublicState } from '@/types/states'
 import type { InsightQuery, JudgeApproval, McpServerInfo, McpToolCatalog, SkillInventory, SkillDocument } from '@/types/domain'
 import type { StoryAccountingCall, StoryBindingCapability, StoryBindingConfiguration } from '@/types/domain'
 import type { DatabaseConnection, DatabaseConnectionInput, DatabaseDriver, DatabaseProbe, DatabaseTypeProfile, McpPolicyCatalog } from '@/types/domain'
@@ -471,7 +472,7 @@ function pageQuery(input: TaskSummaryQuery): string {
   return encoded ? `?${encoded}` : ''
 }
 
-function normalizeTaskPage(value: unknown): CursorPage<Task> {
+function normalizeTaskPage(value: unknown): CursorPage<TaskListItem> {
   const raw = asRecord(value)
   const facets = asRecord(raw.facets)
   return {
@@ -481,14 +482,19 @@ function normalizeTaskPage(value: unknown): CursorPage<Task> {
   }
 }
 
-function normalizeTaskSummary(value: unknown): Task {
+function normalizeTaskSummary(value: unknown): TaskListItem {
   const raw = asRecord(value)
   requireBooleanFields(raw, ['hasDesignHistory', 'archived'], 'TaskSummary')
   return {
     id: requiredString(raw, 'id', 'TaskSummary'), projectId: asString(raw.projectId),
     projectName: asString(raw.projectName, 'Unknown project'), title: asString(raw.title),
-    goal: asString(raw.goal), branch: asString(raw.branch) || '等待选择执行模式', worktreePath: '',
-    status: requirePublicState(TASK_STATUSES, raw.status, 'TaskSummary'),
+    goal: asString(raw.goal), branch: asString(raw.branch) || (raw.documentRunId ? '项目当前目录' : '等待选择执行模式'),
+    status: raw.documentRunId ? requirePublicState([...TASK_STATUSES, ...DOCUMENT_TEMPLATE_STATES], raw.status, 'Document list item')
+      : requirePublicState(TASK_STATUSES, raw.status, 'TaskSummary'),
+    documentRunId: asString(raw.documentRunId) || undefined,
+    documentState: raw.documentRunId ? requirePublicState(DOCUMENT_TEMPLATE_STATES, raw.documentState, 'Document intake') : undefined,
+    linkedTaskId: asString(raw.linkedTaskId) || (raw.documentRunId ? undefined : asString(raw.id)), sourceTemplateId: asString(raw.sourceTemplateId) || undefined,
+    version: asNumber(raw.version),
     retryCause: ['RATE_LIMIT', 'SESSION', 'VERIFICATION'].includes(asString(raw.retryCause))
       ? asString(raw.retryCause) as Task['retryCause'] : undefined,
     retryDueAt: asString(raw.retryDueAt) || undefined,
@@ -496,7 +502,6 @@ function normalizeTaskSummary(value: unknown): Task {
     hasDesignHistory: raw.hasDesignHistory as boolean, archived: raw.archived as boolean,
     attemptCount: asNumber(raw.attemptCount), maxAttempts: asNumber(raw.maxAttempts, 12),
     createdAt: asString(raw.createdAt), updatedAt: asString(raw.updatedAt),
-    stages: [], workPackages: [], attempts: [], errors: [], judges: [], artifacts: [],
   }
 }
 
@@ -1608,6 +1613,39 @@ export const api = {
   testDatabaseConnection: (id: string) => request<DatabaseProbe>(`/database-connections/${encodeURIComponent(id)}/test`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } }),
   getMcpToolPolicies: (projectId: string, serverId: string) => request<McpPolicyCatalog>(`/runtime/tool-policies?projectId=${encodeURIComponent(projectId)}&serverId=${encodeURIComponent(serverId)}`),
   updateMcpToolPolicy: (body: { projectId: string; serverId: string; toolName: string; enabled: number; version: number }) => request<void>('/runtime/tool-policies', { method: 'PUT', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(body) }),
+  createDocumentTemplate: (input: DocumentTemplateRequest, files: File[]) => {
+    const body = new FormData()
+    body.append('metadata', new Blob([JSON.stringify(input)], { type: 'application/json' }))
+    files.forEach(file => body.append('files', file, file.name))
+    return request<DocumentTemplateOverview>('/template-tasks/document-runs', { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body })
+  },
+  documentTemplate: (id: string) => request<DocumentTemplateOverview>(`/template-tasks/document-runs/${encodeURIComponent(id)}`),
+  documentTemplateRequest: (key: string) => request<DocumentTemplateOverview>(`/template-tasks/document-runs/by-request/${encodeURIComponent(key)}`),
+  documentTemplateCommand: (id: string, action: 'cancel' | 'resume' | 'archive' | 'unarchive', input: { requestKey: string; expectedVersion: number }) =>
+    request<DocumentTemplateOverview>(`/template-tasks/document-runs/${encodeURIComponent(id)}/${action}`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(input) }),
+  documentClarifications: (id: string, revision: number) => request<DocumentClarification[]>(`/template-tasks/document-runs/${encodeURIComponent(id)}/clarifications?revision=${revision}`),
+  documentSupplementOptions: (id: string) => request<DocumentSupplementOptions>(`/template-tasks/document-runs/${encodeURIComponent(id)}/supplements`),
+  uploadDocumentSupplement: (id: string, input: DocumentSupplementRequest, files: File[]) => {
+    const body = new FormData()
+    body.append('metadata', new Blob([JSON.stringify(input)], { type: 'application/json' }))
+    files.forEach(file => body.append('files', file))
+    return request<DocumentTemplateOverview>(`/template-tasks/document-runs/${encodeURIComponent(id)}/supplements`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body })
+  },
+  answerDocumentRequirements: (id: string, input: DocumentClarificationRequest) => request<DocumentTemplateOverview>(`/template-tasks/document-runs/${encodeURIComponent(id)}/clarifications`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(input) }),
+  documentRequirements: (id: string, revision: number, after = -1, issuesOnly = false) =>
+    request<DocumentRequirementPage>(`/template-tasks/document-runs/${encodeURIComponent(id)}/requirements?${new URLSearchParams({ revision: String(revision), after: String(after), issuesOnly: String(issuesOnly) })}`),
+  documentRequirement: (id: string, revision: number, key: string) => request<DocumentRequirementDetail>(`/template-tasks/document-runs/${encodeURIComponent(id)}/requirements/${encodeURIComponent(key)}?revision=${revision}`),
+  documentSection: (id: string, fileId: string, ordinal: number, expectedSha: string) => request<DocumentSection>(`/template-tasks/document-runs/${encodeURIComponent(id)}/documents/${encodeURIComponent(fileId)}/sections/${ordinal}?expectedSha=${encodeURIComponent(expectedSha)}`),
+  documentReports: (id: string, cursor = '') => request<CursorPage<DocumentReportSummary>>(`/template-tasks/document-runs/${encodeURIComponent(id)}/reports?cursor=${encodeURIComponent(cursor)}`),
+  documentReport: (id: string, artifactId: string) => request<DocumentReportSummary & { content: string }>(`/template-tasks/document-runs/${encodeURIComponent(id)}/reports/${encodeURIComponent(artifactId)}`),
+  documentReportByName: (id: string, name: string) => request<DocumentReportSummary & { content: string }>(`/template-tasks/document-runs/${encodeURIComponent(id)}/reports/content?name=${encodeURIComponent(name)}`),
+  downloadDocumentReport: async (id: string) => {
+    const response = await fetch(`${apiBase}/template-tasks/document-runs/${encodeURIComponent(id)}/reports/download`, { headers: { Accept: 'application/zip' } })
+    if (!response.ok) throw new ApiError('报告下载未完成，请刷新状态后重试', response.status)
+    return response.blob()
+  },
+  documentEvents: (id: string) => new EventSource(`${apiBase}/template-tasks/document-runs/${encodeURIComponent(id)}/events`),
+  templateProject: (id: string) => request<TemplateProjectChoice>(`/template-tasks/projects/${encodeURIComponent(id)}`),
   templateCatalog: () => request<TemplateTaskCatalog>('/template-tasks/catalog'),
   templateProjects: (query = '', cursor?: string) => request<CursorPage<TemplateProjectChoice>>(`/template-tasks/projects?${new URLSearchParams({ query, ...(cursor ? { cursor } : {}) })}`),
   templateBranches: (projectId: string, query = '', cursor?: string) => request<TemplateBranchPage>(`/template-tasks/projects/${encodeURIComponent(projectId)}/branches?${new URLSearchParams({ query, ...(cursor ? { cursor } : {}) })}`),

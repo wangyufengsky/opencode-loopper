@@ -7,7 +7,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 import tools.jackson.databind.ObjectMapper;
 
 class AllRoleModelProbeTest {
-    @ParameterizedTest @EnumSource(MachineCandidateKind.class)
+    @ParameterizedTest @EnumSource(value = MachineCandidateKind.class, names = {"DOCUMENT_REQUIREMENTS_V1", "DOCUMENT_REQUIREMENT_REVIEW_V1", "REQUIREMENT_CODE_ASSESSMENT_V1", "REQUIREMENT_ASSESSMENT_REVIEW_V1"}, mode = EnumSource.Mode.EXCLUDE)
     void realCompilerFixtureAcceptsAndRepairableShapeFaultCanBeCorrected(MachineCandidateKind kind) {
         var json = new ObjectMapper();
         var probe = new AllRoleModelProbe(kind);
@@ -29,6 +29,9 @@ class AllRoleModelProbeTest {
 
     private String valid(MachineCandidateKind kind) {
         return switch (kind) {
+            case DOCUMENT_REQUIREMENTS_V1, DOCUMENT_REQUIREMENT_REVIEW_V1,
+                    REQUIREMENT_CODE_ASSESSMENT_V1, REQUIREMENT_ASSESSMENT_REVIEW_V1 ->
+                    throw new IllegalArgumentException("Document template roles use separate scoped gold fixtures");
             case DECOMPOSITION_PLAN_V2 -> """
                 {
                   "outcome": "READY",

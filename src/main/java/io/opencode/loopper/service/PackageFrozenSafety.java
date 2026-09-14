@@ -12,6 +12,7 @@ final class PackageFrozenSafety {
 
     /** Collection/deictic file requests need no fabricated path resolution to prove a forbidden operation. */
     static List<String> fileRemovalRequests(String original) {
+        original = DocumentRequirementContext.text(original);
         if (original == null) return List.of();
         var requests = new java.util.ArrayList<String>();
         var removal = Pattern.compile("(?:删除|移除|移动|重命名|迁移)\\s*(?:(?:全部|所有|现有|既有|当前|该|此|本|这些|这个)\\s*)*"
@@ -35,6 +36,7 @@ final class PackageFrozenSafety {
     }
 
     static boolean externalConflict(String original) {
+        original = DocumentRequirementContext.text(original);
         if (original == null || !RESTRICTED.matcher(original).find()) return false;
         // Canonicalize named external objects, not the action/negation scope. Domain event publication is untouched.
         String classified = original.replaceAll("(?i)外部\\s*(?:CRM|ERP|SaaS)\\b", "外部系统")

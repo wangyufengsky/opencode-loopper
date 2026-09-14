@@ -10,14 +10,18 @@ public final class InternalMcpContractCatalog {
     public static final String ENDPOINT_PATH = "/api/internal-mcp-streamable";
     public static final String TOOL_NAME = "submit_candidate";
 
-    private static final Map<MachineCandidateKind, String> ROLE_TOOLS = Map.of(
-            MachineCandidateKind.DECOMPOSITION_PLAN_V2, "submit_decomposition_plan",
-            MachineCandidateKind.ACCEPTANCE_CLOSED_CHOICE_V7, "submit_acceptance_choice",
-            MachineCandidateKind.PACKAGE_DESIGN_V1, "submit_package_design",
-            MachineCandidateKind.ROLLING_PACKAGE_PLAN_V1, "submit_rolling_package_plan",
-            MachineCandidateKind.REVIEWER_REPORT_V1, "submit_reviewer_report",
-            MachineCandidateKind.PROJECT_CONVENTION_V1, "submit_project_convention",
-            MachineCandidateKind.JUDGE_DECISION_V1, "submit_judge_decision");
+    private static final Map<MachineCandidateKind, String> ROLE_TOOLS = Map.ofEntries(
+            Map.entry(MachineCandidateKind.DECOMPOSITION_PLAN_V2, "submit_decomposition_plan"),
+            Map.entry(MachineCandidateKind.ACCEPTANCE_CLOSED_CHOICE_V7, "submit_acceptance_choice"),
+            Map.entry(MachineCandidateKind.PACKAGE_DESIGN_V1, "submit_package_design"),
+            Map.entry(MachineCandidateKind.ROLLING_PACKAGE_PLAN_V1, "submit_rolling_package_plan"),
+            Map.entry(MachineCandidateKind.REVIEWER_REPORT_V1, "submit_reviewer_report"),
+            Map.entry(MachineCandidateKind.PROJECT_CONVENTION_V1, "submit_project_convention"),
+            Map.entry(MachineCandidateKind.JUDGE_DECISION_V1, "submit_judge_decision"),
+            Map.entry(MachineCandidateKind.DOCUMENT_REQUIREMENTS_V1, "submit_document_requirements"),
+            Map.entry(MachineCandidateKind.DOCUMENT_REQUIREMENT_REVIEW_V1, "submit_document_requirement_review"),
+            Map.entry(MachineCandidateKind.REQUIREMENT_CODE_ASSESSMENT_V1, "submit_requirement_code_assessment"),
+            Map.entry(MachineCandidateKind.REQUIREMENT_ASSESSMENT_REVIEW_V1, "submit_requirement_assessment_review"));
 
     private InternalMcpContractCatalog() { }
 
@@ -30,6 +34,12 @@ public final class InternalMcpContractCatalog {
                 toolName(MachineCandidateKind.REVIEWER_REPORT_V1),
                 toolName(MachineCandidateKind.PROJECT_CONVENTION_V1),
                 toolName(MachineCandidateKind.JUDGE_DECISION_V1),
+                toolName(MachineCandidateKind.DOCUMENT_REQUIREMENTS_V1),
+                toolName(MachineCandidateKind.DOCUMENT_REQUIREMENT_REVIEW_V1),
+                toolName(MachineCandidateKind.REQUIREMENT_CODE_ASSESSMENT_V1),
+                toolName(MachineCandidateKind.REQUIREMENT_ASSESSMENT_REVIEW_V1),
+                "list_requirement_documents", "list_document_sections", "read_document_section", "list_requirement_code", "read_requirement_code", "search_requirement_code", "list_requirement_assessments", "read_requirement_assessment",
+                "list_development_requirements", "read_development_requirement", "read_development_source",
                 PACKAGE_V2_TOOL, TEMPLATE_TOOL, legacyToolName());
     }
 
@@ -42,6 +52,10 @@ public final class InternalMcpContractCatalog {
     public static Optional<String> toolName(OpenCodeClient.SessionProfile profile) {
         if (profile == null) return Optional.empty();
         return switch (profile) {
+            case DOCUMENT_REQUIREMENTS_NO_TOOLS -> optional(MachineCandidateKind.DOCUMENT_REQUIREMENTS_V1);
+            case DOCUMENT_REQUIREMENT_REVIEW_NO_TOOLS -> optional(MachineCandidateKind.DOCUMENT_REQUIREMENT_REVIEW_V1);
+            case REQUIREMENT_CODE_ASSESSMENT_NO_TOOLS -> optional(MachineCandidateKind.REQUIREMENT_CODE_ASSESSMENT_V1);
+            case REQUIREMENT_ASSESSMENT_REVIEW_NO_TOOLS -> optional(MachineCandidateKind.REQUIREMENT_ASSESSMENT_REVIEW_V1);
             case TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS -> Optional.of(TEMPLATE_TOOL);
             case DECOMPOSER_CANDIDATE_READ_ONLY -> optional(MachineCandidateKind.DECOMPOSITION_PLAN_V2);
             case ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS ->

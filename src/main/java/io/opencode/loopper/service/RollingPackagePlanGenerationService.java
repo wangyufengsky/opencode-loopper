@@ -39,13 +39,15 @@ public class RollingPackagePlanGenerationService {
     private final LoopperProperties properties;
     private final AiOutputExtractor extractor;
     private final RollingPackagePlanCandidateOrchestrator candidates;
+    private final Object documentIo = new Object();
+    private final DocumentRollingPlanTransport documentTransport;
 
     public RollingPackagePlanGenerationService(LoopperMapper mapper, RollingPackagePlanService plans,
                                                tools.jackson.databind.ObjectMapper json,
                                                TaskWorkspaceCheckpointService checkpoints,
                                                OpenCodeClient openCode, LoopperProperties properties,
                                                AiOutputExtractor extractor,
-                                               RollingPackagePlanCandidateOrchestrator candidates) {
+                                               RollingPackagePlanCandidateOrchestrator candidates,DocumentRollingPlanTransport documentTransport) {
         this.mapper = mapper;
         this.plans = plans;
         this.codec = new RollingPackageCodec(json);
@@ -54,6 +56,7 @@ public class RollingPackagePlanGenerationService {
         this.properties = properties;
         this.extractor = extractor;
         this.candidates = candidates;
+        this.documentTransport = documentTransport;
     }
 
     public RollingPackagePlanService.Proposal suggest(String taskId, long expectedTaskVersion,
@@ -68,10 +71,32 @@ public class RollingPackagePlanGenerationService {
 
     public void pollGenerating() {
         for (TaskPackagePlanRevisionRow row : mapper.listGeneratingTaskPackagePlanRevisions()) {
+            if (mapper.documentDesigner(row.designerSessionId())) {
+                synchronized (documentIo) {
+                    if (mapper.documentTaskState(row.taskId()).filter("DESIGNING"::equals).isPresent()) pollOne(row);
+                }
+            } else pollOne(row);
+        }
+    }
+    /** Template cancellation waits for the local dispatch to return before asking for independent remote stop proof. */
+    public boolean stopDocumentTask(String taskId) {
+        synchronized (documentIo) {
+            for (var row : mapper.listGeneratingTaskPackagePlanRevisions()) {
+                if (!row.taskId().equals(taskId) || !mapper.documentDesigner(row.designerSessionId())) continue;
+                if (!documentTransport.stop(row)) return false;
+            }
+            return true;
+        }
+    }
+    private void pollOne(TaskPackagePlanRevisionRow row) {
             try {
                 poll(mapper.findTaskPackagePlanRevision(row.id()).orElse(row));
             } catch (RuntimeException failure) {
                 TaskPackagePlanRevisionRow current = mapper.findTaskPackagePlanRevision(row.id()).orElse(row);
+                if (mapper.documentDesigner(current.designerSessionId())) {
+                    plans.disconnectSuggestion(current,code(failure),"规划会话或投递尚未确认，保留同一请求等待恢复");
+                    return;
+                }
                 if (PackagePlanRevisionState.GENERATING.name().equals(current.state())) {
                     if (candidates.find(current).isPresent()) {
                         try {
@@ -85,12 +110,19 @@ public class RollingPackagePlanGenerationService {
                     }
                 }
             }
-        }
     }
 
     private void poll(TaskPackagePlanRevisionRow row) {
+        if (mapper.documentDesigner(row.designerSessionId()) && timedOut(row)) {
+            if (!documentTransport.stop(row)) throw new ConflictException("DOCUMENT_PLAN_STOP_UNCONFIRMED","规划预算已耗尽，停止尚未确认");
+            return;
+        }
+        if (mapper.documentDesigner(row.designerSessionId()) && !"RUNNING".equals(row.externalSessionState())) {
+            documentTransport.advance(row,verifiedSnapshot(row),candidateFacts(row),configuredModel(row.designerSessionId()));
+            return;
+        }
         if (candidates.find(row).isPresent()) {
-            handleCandidate(row, candidates.poll(row, verifiedSnapshot(row), timedOut(row.createdAt())));
+            handleCandidate(row, candidates.poll(row, verifiedSnapshot(row), timedOut(row)));
             return;
         }
         if ("DISCONNECTED".equals(row.externalSessionState())) return;
@@ -104,7 +136,7 @@ public class RollingPackagePlanGenerationService {
             dispatch(mapper.findTaskPackagePlanRevision(row.id()).orElse(row));
             return;
         }
-        if (timedOut(row.createdAt())) {
+        if (timedOut(row)) {
             abort(row);
             plans.failSuggestion(mapper.findTaskPackagePlanRevision(row.id()).orElse(row),
                     "PACKAGE_PLAN_SUGGESTION_TIMEOUT", "AI 剩余拆包建议超过只读设计超时");
@@ -137,6 +169,14 @@ public class RollingPackagePlanGenerationService {
     }
 
     private void dispatch(TaskPackagePlanRevisionRow input) {
+        if (mapper.documentDesigner(input.designerSessionId())) {
+            synchronized (documentIo) {
+                documentTransport.advance(input,verifiedSnapshot(input),candidateFacts(input),configuredModel(input.designerSessionId()));
+            }
+            return;
+        }
+        if (mapper.documentDesigner(input.designerSessionId()) && !candidates.eligibility().candidate())
+            throw new ConflictException("DOCUMENT_MCP_REQUIRED", "需求开发重规划需要托管模型的冻结文档读取与候选 MCP");
         if (candidates.eligibility().candidate()) {
             dispatchCandidate(input);
         } else {
@@ -151,7 +191,7 @@ public class RollingPackagePlanGenerationService {
                     "PACKAGE_PLAN_OPENCODE_UNAVAILABLE", "OpenCode 只读运行时不可用");
             Path snapshot = verifiedSnapshot(row);
             OpenCodeClient.OpenCodeSession remote = openCode.createSession(snapshot,
-                    "OpenCode Loopper Rolling Task Decomposer (READ_ONLY)", configuredModel(),
+                    "OpenCode Loopper Rolling Task Decomposer (READ_ONLY)", configuredModel(row.designerSessionId()),
                     OpenCodeClient.SessionProfile.DECOMPOSER_READ_ONLY);
             row = plans.attachSuggestionSession(row, remote.id(), "PROMPTING");
             openCode.promptAsync(remote, new OpenCodeClient.PromptRequest(prompt(row),
@@ -173,7 +213,7 @@ public class RollingPackagePlanGenerationService {
             if (!openCode.healthy()) throw new ConflictException(
                     "PACKAGE_PLAN_OPENCODE_UNAVAILABLE", "OpenCode 只读运行时不可用");
             snapshot = verifiedSnapshot(row);
-            OpenCodeClient.OpenCodeSession remote = candidates.create(snapshot, row.id(), configuredModel());
+            OpenCodeClient.OpenCodeSession remote = candidates.create(snapshot, row.id(), configuredModel(row.designerSessionId()));
             row = plans.attachSuggestionSession(row, remote.id(), "PROMPTING");
             RollingPackagePlanCandidateOrchestrator.Start start = candidates.open(
                     row, remote, candidateFacts(row));
@@ -273,7 +313,7 @@ public class RollingPackagePlanGenerationService {
 
                 已冻结事实索引：
                 %s
-                """.formatted(requirement.requirementText(), codec.write(unfinished), facts);
+                """.formatted(DocumentRequirementContext.planPrompt(mapper, row.id(), requirement.requirementText()), codec.write(unfinished), facts);
     }
 
     private List<RollingPackagePlanService.PlanPackage> toPlanPackages(TaskPackagePlanRevisionRow row,
@@ -318,8 +358,8 @@ public class RollingPackagePlanGenerationService {
         } catch (RuntimeException ignored) { }
     }
 
-    private OpenCodeClient.OpenCodeModel configuredModel() {
-        String configured = properties.getOpenCode().getModel();
+    private OpenCodeClient.OpenCodeModel configuredModel(String designer) {
+        String configured = DocumentRequirementContext.model(mapper, designer, properties.getOpenCode().getModel());
         if (configured == null) return null;
         String value = configured.trim();
         int separator = value.indexOf('/');
@@ -330,10 +370,10 @@ public class RollingPackagePlanGenerationService {
                 : new OpenCodeClient.OpenCodeModel(provider, model, null);
     }
 
-    private boolean timedOut(String createdAt) {
-        Duration timeout = properties.getDesignerTimeout();
+    private boolean timedOut(TaskPackagePlanRevisionRow row) {
+        Duration timeout = DocumentRequirementContext.attemptTimeout(mapper, row.designerSessionId(), properties.getDesignerTimeout());
         if (timeout == null || timeout.isZero() || timeout.isNegative()) return false;
-        try { return Duration.between(Instant.parse(createdAt), Instant.now()).compareTo(timeout) > 0; }
+        try { return Duration.between(Instant.parse(row.createdAt()), Instant.now()).compareTo(timeout) > 0; }
         catch (RuntimeException ignored) { return false; }
     }
 

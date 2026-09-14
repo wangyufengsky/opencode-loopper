@@ -278,6 +278,7 @@ onBeforeUnmount(clearConventionPoll)
         <div class="project-footer">
           <div class="project-stats"><span class="execution-mode"><Icon :icon="project.executionMode === 'WORKTREE' ? 'lucide:git-branch' : 'lucide:folder-cog'" /><span class="mono tiny">{{ project.executionMode === 'WORKTREE' ? project.branch : project.executionMode === 'UNAVAILABLE' ? '目录不可访问' : '原项目目录' }}</span></span><span class="tiny muted">{{ project.taskCount }} 个任务 · {{ project.openDesignerSessionCount }} 个待继续设计</span></div>
           <div class="project-actions">
+            <button type="button" class="convention-action" @click="router.push({ path: '/template-tasks', query: { projectId: project.id } })"><Icon icon="lucide:workflow" /><span>模板任务</span></button>
             <button type="button" class="convention-action" @click="assistProject = project"><Icon icon="lucide:plug" /><span>GitLab 与证据</span></button>
             <button type="button" class="convention-action" aria-label="设置项目文档路径" @click="documentProject = project"><Icon icon="lucide:folder-output" /><span>文档路径</span></button>
             <button v-if="project.openDesignerSessionCount" type="button" class="convention-action resume-design-action" aria-label="继续项目设计" title="查看并继续未确认的设计" @click="continueDesign(project)">

@@ -10,14 +10,18 @@ import org.junit.jupiter.api.Test;
 import tools.jackson.databind.json.JsonMapper;
 
 class CandidateShapeValidatorTest {
-    private static final Map<MachineCandidateKind, Integer> REQUIRED_ROOT_FIELDS = Map.of(
-            MachineCandidateKind.DECOMPOSITION_PLAN_V2, 7,
-            MachineCandidateKind.ACCEPTANCE_CLOSED_CHOICE_V7, 2,
-            MachineCandidateKind.PACKAGE_DESIGN_V1, 8,
-            MachineCandidateKind.ROLLING_PACKAGE_PLAN_V1, 1,
-            MachineCandidateKind.REVIEWER_REPORT_V1, 4,
-            MachineCandidateKind.PROJECT_CONVENTION_V1, 4,
-            MachineCandidateKind.JUDGE_DECISION_V1, 5);
+    private static final Map<MachineCandidateKind, Integer> REQUIRED_ROOT_FIELDS = Map.ofEntries(
+            Map.entry(MachineCandidateKind.DECOMPOSITION_PLAN_V2, 7),
+            Map.entry(MachineCandidateKind.ACCEPTANCE_CLOSED_CHOICE_V7, 2),
+            Map.entry(MachineCandidateKind.PACKAGE_DESIGN_V1, 8),
+            Map.entry(MachineCandidateKind.ROLLING_PACKAGE_PLAN_V1, 1),
+            Map.entry(MachineCandidateKind.REVIEWER_REPORT_V1, 4),
+            Map.entry(MachineCandidateKind.PROJECT_CONVENTION_V1, 4),
+            Map.entry(MachineCandidateKind.JUDGE_DECISION_V1, 5),
+            Map.entry(MachineCandidateKind.DOCUMENT_REQUIREMENTS_V1, 2),
+            Map.entry(MachineCandidateKind.DOCUMENT_REQUIREMENT_REVIEW_V1, 4),
+            Map.entry(MachineCandidateKind.REQUIREMENT_CODE_ASSESSMENT_V1, 4),
+            Map.entry(MachineCandidateKind.REQUIREMENT_ASSESSMENT_REVIEW_V1, 5));
 
     @Test
     void conventionReportsTheExactOversizedArrayBeforeTheModelHasToGuess() {

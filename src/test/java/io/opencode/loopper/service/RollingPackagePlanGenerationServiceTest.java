@@ -46,7 +46,7 @@ class RollingPackagePlanGenerationServiceTest {
         prompting = row("remote-1", "PROMPTING", 1);
         running = row("remote-1", "RUNNING", 2);
         service = new RollingPackagePlanGenerationService(mapper, plans, new ObjectMapper(), checkpoints,
-                openCode, properties, extractor, candidates);
+                openCode, properties, extractor, candidates, mock(DocumentRollingPlanTransport.class));
         TaskRow task = mock(TaskRow.class);
         TaskPackageRunRow baseRun = mock(TaskPackageRunRow.class);
         TaskWorkspaceCheckpointRow checkpoint = mock(TaskWorkspaceCheckpointRow.class);

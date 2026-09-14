@@ -86,7 +86,7 @@ public class RollingPackageService {
         this.transactions = new TransactionTemplate(transactionManager);
     }
     public boolean eligible(String designerSessionId) {
-        if (!properties.isRollingPackagesEnabled()) return false;
+        if (!properties.isRollingPackagesEnabled() && !mapper.documentDesigner(designerSessionId)) return false;
         var profile = mapper.findCurrentDesignerTaskProfile(designerSessionId).orElse(null);
         return profile != null
                 && "FROZEN".equals(profile.state())
@@ -266,6 +266,16 @@ public class RollingPackageService {
                 RollingPackageCommandPolicy.Command.APPROVE_DESIGN);
         designers.getObject().approvePackage(context.session().id(), context.run().packageKey(),
                 expectedDiscussionRevision, expectedDesignRevision);
+    }
+
+    public void approveDocumentDesign(String taskId, String packageRunId, long expectedTaskVersion,
+                                      long expectedPackageVersion, int discussionRevision, int designRevision) {
+        CommandContext context = command(taskId, packageRunId, expectedTaskVersion, expectedPackageVersion,
+                RollingPackageCommandPolicy.Command.APPROVE_DESIGN);
+        if (!mapper.documentDesigner(context.session().id()))
+            throw new ConflictException("DOCUMENT_TEMPLATE_REQUIRED", "此自动动作仅适用于需求开发模板");
+        designers.getObject().approvePackageAutomatically(context.session().id(), context.run().packageKey(),
+                discussionRevision, designRevision);
     }
 
     public void redesign(String taskId, String packageRunId, long expectedTaskVersion,
@@ -484,9 +494,11 @@ public class RollingPackageService {
     private void appendSpecAndStages(TaskRow task, TaskPackageRunRow run, DesignWorkPackageRow workPackage,
                                      LoopSpec cumulative, List<LoopSpec.StageSpec> appended, int revision) {
         String serialized = codec.write(cumulative);
-        mapper.insertTaskSpecRevision(new TaskSpecRevisionRow(UUID.randomUUID().toString(), task.id(), revision,
+        String specRevisionId = UUID.randomUUID().toString();
+        mapper.insertTaskSpecRevision(new TaskSpecRevisionRow(specRevisionId, task.id(), revision,
                 run.id(), serialized, codec.sha256(serialized), cumulative.stages().size(), now()));
         int ordinal = mapper.listStages(task.id()).size();
+        int contractIndex = cumulative.stages().size() - appended.size();
         WorkPackageRoleProfileRow role = mapper.findWorkPackageRoleProfile(workPackage.id()).orElse(null);
         for (LoopSpec.StageSpec stage : appended) {
             StageRow row = new StageRow(UUID.randomUUID().toString(), task.id(), ordinal++, stage.objective(),
@@ -506,6 +518,8 @@ public class RollingPackageService {
             lifecycle.create(stageSubject(row), row.state(), Map.of("packageRunId", run.id()),
                     () -> mapper.insertStage(row),
                     () -> new ConflictException("STAGE_CREATE_CONFLICT", "工作包 Stage 被并发创建"));
+            if (mapper.bindStageContract(row.id(), specRevisionId, contractIndex++) != 1)
+                throw new ConflictException("STAGE_CONTRACT_CONFLICT", "工作包阶段的冻结合同未能绑定");
         }
     }
 

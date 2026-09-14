@@ -1,13 +1,6 @@
 package io.opencode.loopper.service;
 
 import io.opencode.loopper.persistence.TemplateReportBundleMapper;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
-import java.util.HashSet;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
 import org.springframework.stereotype.Service;
 
 /** Explicit bounded download of one immutable attempt; never reads source files or another task's artifacts. */
@@ -27,28 +20,10 @@ public final class TemplateReportDownloadService {
         if (reports.size() != count || reports.stream().noneMatch(report -> report.name().equals(bundle.mainPath()))) {
             throw new ConflictException("TEMPLATE_REPORT_INCOMPLETE", "报告尚未完整生成，请稍后重试");
         }
-        try (var output = new ByteArrayOutputStream(); var zip = new ZipOutputStream(output, StandardCharsets.UTF_8)) {
-            var paths = new HashSet<String>();
-            long bytes = 0;
-            for (var report : reports) {
-                Path path = Path.of(report.name());
-                if (path.isAbsolute() || !path.normalize().equals(path) || path.startsWith("..")
-                        || report.name().contains("\\") || !paths.add(report.name())) {
-                    throw new ConflictException("TEMPLATE_REPORT_PATH_INVALID", "报告路径无效，无法打包");
-                }
-                byte[] content = report.content().getBytes(StandardCharsets.UTF_8);
-                bytes += content.length;
-                if (bytes > MAX_BYTES) throw tooLarge();
-                ZipEntry entry = new ZipEntry(bundle.folderName() + "/" + report.name());
-                entry.setTime(0);
-                zip.putNextEntry(entry); zip.write(content); zip.closeEntry();
-            }
-            zip.finish();
-            return new Download(bundle.folderName() + ".zip", output.toByteArray());
-        } catch (IOException failure) {
-            throw new ConflictException("TEMPLATE_REPORT_DOWNLOAD_FAILED", "报告打包失败，请重试");
-        }
+        return new Download(bundle.folderName() + ".zip", ReportBundleArchive.zip(bundle.folderName(), reports.stream()
+                .map(report -> new ReportBundleArchive.Entry(report.name(), report.content())).toList()));
     }
+
     private static ConflictException tooLarge() {
         return new ConflictException("TEMPLATE_REPORT_DOWNLOAD_TOO_LARGE", "报告超过整包下载上限（64 MiB 或 10000 个文件），请从报告保存目录读取");
     }

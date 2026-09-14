@@ -1,16 +1,22 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import { ElAlert, ElDatePicker } from 'element-plus'
 import { api } from '@/api/client'
 import PageHeader from '@/components/PageHeader.vue'
 import DirectoryPathInput from '@/components/DirectoryPathInput.vue'
+import { documentUploadError, useDocumentTemplateStore } from '@/stores/documentTemplateStore'
 import { useTemplateTaskStore } from '@/stores/templateTaskStore'
 import { userFacingError } from '@/utils/displayLabels'
 import type { TemplateBranchChoice, TemplateProjectChoice, TemplateTaskDefinition } from '@/types/domain'
 
 const router = useRouter()
+const route = useRoute()
+const documents = useDocumentTemplateStore()
+const files = ref<File[]>([])
+const fileError = computed(() => files.value.length ? documentUploadError(files.value) : '')
+const busy = computed(() => store.submitting || documents.submitting)
 const store = useTemplateTaskStore()
 const selected = ref<TemplateTaskDefinition['id']>('')
 const templateQuery = ref('')
@@ -39,9 +45,15 @@ const branchError = ref('')
 let projectGeneration = 0
 let branchGeneration = 0
 const definition = computed(() => store.catalog?.templates.find(item => item.id === selected.value))
+const isDocument = computed(() => definition.value?.inputs?.documents === true)
+const needsBranch = computed(() => definition.value?.inputs?.branch ?? true)
+const needsDates = computed(() => definition.value?.inputs?.dates ?? true)
 const dateError = computed(() => startDate.value && endDate.value && endDate.value < startDate.value ? '结束日期不能早于开始日期' : '')
-const valid = computed(() => definition.value && projectId.value && branchId.value && startDate.value && endDate.value
-  && !dateError.value && !loadingBranches.value && !pickingDocumentPath.value)
+const valid = computed(() => definition.value && projectId.value && !busy.value
+  && (!needsBranch.value || (branchId.value && !loadingBranches.value))
+  && (!needsDates.value || (startDate.value && endDate.value && !dateError.value))
+  && (isDocument.value ? files.value.length > 0 && !fileError.value : !pickingDocumentPath.value))
+function selectFiles(event: Event) { files.value = Array.from((event.target as HTMLInputElement).files ?? []) }
 
 async function searchProjects(query = '', append = false) {
   const generation = ++projectGeneration
@@ -78,7 +90,11 @@ watch(projectId, () => {
   ++branchGeneration
   branches.value = []; branchId.value = ''; branchCursor.value = null; branchQuery.value = ''
   documentPath.value = projects.value.find(project => project.id === projectId.value)?.documentPath ?? ''
-  if (projectId.value) void searchBranches('', false, true)
+  if (projectId.value && needsBranch.value) void searchBranches('', false, true)
+})
+watch(needsBranch, value => {
+  ++branchGeneration; loadingBranches.value = false; branchError.value = ''; branches.value = []; branchId.value = ''
+  if (value && projectId.value) void searchBranches('', false, true)
 })
 function calendarDate(date: Date) { return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}` }
 function disableEnd(date: Date) { return !!startDate.value && calendarDate(date) < startDate.value }
@@ -86,6 +102,12 @@ async function submit() {
   if (!valid.value || !definition.value) return
   error.value = ''
   try {
+    if (isDocument.value) {
+      const id = await documents.start({ templateId: selected.value, templateVersion: definition.value.version,
+        projectId: projectId.value, ...(needsBranch.value ? { branchId: branchId.value } : {}) }, files.value)
+      if (id) await router.push(`/template-tasks/document-runs/${id}`)
+      return
+    }
     const id = await store.start({ templateId: selected.value, templateVersion: definition.value.version, projectId: projectId.value,
       branchId: branchId.value, startDate: startDate.value, endDate: endDate.value, documentPath: documentPath.value.trim() || undefined })
     if (id) await router.push(`/tasks/${id}`)
@@ -96,6 +118,14 @@ onMounted(async () => {
     selected.value = store.catalog?.templates[0]?.id ?? ''
     startDate.value = store.catalog?.defaultStartDate ?? ''; endDate.value = store.catalog?.defaultEndDate ?? ''
   }).catch(failure => { error.value = userFacingError(failure, '模板目录加载失败，请刷新页面') })])
+  if (typeof route.query.projectId === 'string') {
+    try {
+      const inherited = await api.templateProject(route.query.projectId)
+      if (!projects.value.some(project => project.id === inherited.id)) projects.value.unshift(inherited)
+      projectId.value = inherited.id
+    } catch (failure) { error.value = userFacingError(failure, '无法读取入口项目，请重新选择') }
+  }
+  try { await documents.restore() } catch (failure) { error.value = userFacingError(failure, '上次上传状态读取失败，可从历史任务查看') }
 })
 onBeforeUnmount(() => { ++projectGeneration; ++branchGeneration })
 </script>
@@ -113,7 +143,7 @@ onBeforeUnmount(() => { ++projectGeneration; ++branchGeneration })
       <el-select v-if="categories.length > 2" v-model="category" aria-label="模板分类"><el-option v-for="item in categories" :key="item" :value="item" :label="item === '全部' ? '全部分类' : item" /></el-select>
       <section class="template-choices" aria-label="选择模板任务">
         <button v-for="item in visibleTemplates" :key="item.id" type="button" class="template-choice"
-          :class="{ selected: selected === item.id }" :aria-pressed="selected === item.id" :disabled="store.submitting" @click="selected = item.id">
+          :class="{ selected: selected === item.id }" :aria-pressed="selected === item.id" :disabled="busy" @click="selected = item.id">
           <Icon :icon="item.icon?.startsWith('lucide:') ? item.icon : 'lucide:workflow'" width="22" />
           <span><strong>{{ item.title }}</strong><span class="muted tiny">{{ item.description }}</span></span>
           <Icon v-if="selected === item.id" icon="lucide:check" width="18" />
@@ -126,22 +156,32 @@ onBeforeUnmount(() => { ++projectGeneration; ++branchGeneration })
     <form v-if="definition" class="card card-pad task-parameters" aria-label="模板任务参数" @submit.prevent="submit">
       <header class="parameter-heading"><h2>{{ definition.title }}</h2><p class="muted">{{ definition.description }}</p></header>
       <div class="parameter-grid">
-        <label>项目<el-select v-model="projectId" aria-label="项目" filterable remote :remote-method="searchProjects" :loading="loadingProjects" :disabled="store.submitting" placeholder="搜索并选择项目">
+        <label>项目<el-select v-model="projectId" aria-label="项目" filterable remote :remote-method="searchProjects" :loading="loadingProjects" :disabled="busy" placeholder="搜索并选择项目">
           <el-option v-for="project in projects" :key="project.id" :value="project.id" :label="project.name" />
           <template v-if="projectCursor" #footer><el-button text :loading="loadingProjects" @click="searchProjects(projectQuery, true)">加载更多项目</el-button></template>
         </el-select></label>
-        <label>分支<el-select v-model="branchId" aria-label="分支" filterable remote :remote-method="searchBranches" :loading="loadingBranches" :disabled="!projectId || store.submitting" placeholder="默认主分支，可搜索切换">
+        <label v-if="needsBranch">分支<el-select v-model="branchId" aria-label="分支" filterable remote :remote-method="searchBranches" :loading="loadingBranches" :disabled="!projectId || busy" placeholder="默认主分支，可搜索切换">
           <el-option v-for="branch in branches" :key="branch.id" :value="branch.id" :label="branch.label" />
           <template v-if="branchCursor" #footer><el-button text :loading="loadingBranches" @click="searchBranches(branchQuery, true)">加载更多分支</el-button></template>
         </el-select></label>
-        <label>开始日期<el-date-picker v-model="startDate" aria-label="开始日期" type="date" value-format="YYYY-MM-DD" format="YYYY-MM-DD" :disabled="store.submitting" :clearable="false" /></label>
-        <label>结束日期<el-date-picker v-model="endDate" aria-label="结束日期" type="date" value-format="YYYY-MM-DD" format="YYYY-MM-DD" :disabled="store.submitting" :disabled-date="disableEnd" :clearable="false" /></label>
+        <label v-if="needsDates">开始日期<el-date-picker v-model="startDate" aria-label="开始日期" type="date" value-format="YYYY-MM-DD" format="YYYY-MM-DD" :disabled="busy" :clearable="false" /></label>
+        <label v-if="needsDates">结束日期<el-date-picker v-model="endDate" aria-label="结束日期" type="date" value-format="YYYY-MM-DD" format="YYYY-MM-DD" :disabled="busy" :disabled-date="disableEnd" :clearable="false" /></label>
       </div>
-      <div class="document-path">文档生成路径<DirectoryPathInput v-model="documentPath" v-model:picking="pickingDocumentPath" label="文档生成路径" :scope-key="projectId" :disabled="store.submitting" placeholder="项目相对路径或绝对路径；留空使用默认目录" /></div>
-      <el-alert v-if="dateError" :title="dateError" type="error" :closable="false" />
-      <el-alert v-if="branchError" :title="branchError" type="error" :closable="false"><el-button text @click="searchBranches('', false, true)">重新读取分支</el-button></el-alert>
-      <el-alert v-else-if="!remoteAvailable" title="部分远程分支暂不可访问，请检查连接后重新读取，或明确选择可用的本地分支" type="warning" :closable="false" />
-      <div class="run-action"><el-button type="primary" native-type="submit" :loading="store.submitting" :disabled="!valid">开始执行</el-button></div>
+      <div v-if="!isDocument" class="document-path">文档生成路径<DirectoryPathInput v-model="documentPath" v-model:picking="pickingDocumentPath" label="文档生成路径" :scope-key="projectId" :disabled="busy" placeholder="项目相对路径或绝对路径；留空使用默认目录" /></div>
+      <div v-if="isDocument" class="document-path">
+        <label for="requirement-files">需求文档</label>
+        <input id="requirement-files" type="file" multiple accept=".docx,.md,.markdown,.pdf" :disabled="busy" @change="selectFiles" />
+        <p class="muted tiny">最多 10 份，每份 20 MiB，总计 50 MiB。支持 DOCX、Markdown、文本 PDF；图片和流程图的提取局限会在结果中列出。</p>
+        <ul v-if="files.length"><li v-for="(file, index) in files" :key="index">{{ file.name }} · {{ (file.size / 1024).toFixed(1) }} KiB</li></ul>
+        <el-alert v-if="fileError" :title="fileError" type="error" :closable="false" />
+        <p v-if="definition.id === 'REQUIREMENT_DEVELOPMENT'" class="muted">在项目当前目录开发，按需求自动设计、编码与测试；业务待决事项会暂停等待处理。</p>
+        <p v-else class="muted">评审冻结分支的相关代码；本次不修改代码、不执行构建或测试。</p>
+        <RouterLink v-if="documents.previousRun" :to="`/template-tasks/document-runs/${documents.previousRun.id}`">查看上次上传：{{ documents.previousRun.title }}</RouterLink>
+      </div>
+      <el-alert v-if="needsDates && dateError" :title="dateError" type="error" :closable="false" />
+      <el-alert v-if="needsBranch && branchError" :title="branchError" type="error" :closable="false"><el-button text @click="searchBranches('', false, true)">重新读取分支</el-button></el-alert>
+      <el-alert v-else-if="needsBranch && !remoteAvailable" title="部分远程分支暂不可访问，请检查连接后重新读取，或明确选择可用的本地分支" type="warning" :closable="false" />
+      <div class="run-action"><el-button type="primary" native-type="submit" :loading="busy" :disabled="!valid">{{ isDocument ? (definition.id === 'REQUIREMENT_DEVELOPMENT' ? '开始开发' : '开始评审') : '开始执行' }}</el-button></div>
     </form>
     <details v-if="definition?.scoringVersion && store.catalog" class="card card-pad rubric">
       <summary>内置评分标准 · 满分 100</summary>

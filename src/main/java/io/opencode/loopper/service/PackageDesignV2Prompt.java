@@ -44,7 +44,7 @@ final class PackageDesignV2Prompt {
                 all = joint conditions; any = alternative applicable branches, ALL branches still need behavior and coverage;
                 unless has two operands, base behavior then exception behavior. Operands reference scenarios or relation nodes.
                 At most 32 relation nodes and 4 relation levels, no cycles. If too complex, request a split; never truncate logic.
-                sourceBindings map candidateRefs to the frozen REQ-Lxxx sourceRefs below. Bind every requirement/scenario and preserve every source.
+                sourceBindings map candidateRefs to the frozen sourceRefs below (ordinary REQ-Lxxx or document RQ-n). Bind every requirement/scenario and preserve every source.
                 References prove provenance only. Re-check negation, exceptions, state changes, idempotency, compensation, cross-stage invariants.
                 For each state transition, precondition describes the state BEFORE the triggering action; observableResult describes
                 the state AFTER it. Never assume the requested post-state in precondition. Keep the initial transition and repeated

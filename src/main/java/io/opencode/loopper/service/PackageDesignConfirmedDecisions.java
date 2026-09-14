@@ -9,7 +9,7 @@ import java.util.regex.Pattern;
 
 /** Explicit source-addressed user feedback; candidate prose and AI messages can never resolve a business decision. */
 final class PackageDesignConfirmedDecisions {
-    private static final Pattern ENTRY = Pattern.compile("(?m)^\\s*(REQ-L[0-9]{3})\\s*[=:：]\\s*([^\\r\\n]{1,1000})\\s*$");
+    private static final Pattern ENTRY = Pattern.compile("(?m)^\\s*(REQ-L[0-9]{3}|RQ-[1-9][0-9]*)\\s*[=:：]\\s*([^\\r\\n]{1,1000})\\s*$");
     private PackageDesignConfirmedDecisions() { }
     static Map<String, String> load(LoopperDesignerMapper mapper, DesignWorkPackageRow owner, String original, int requirementRevision) {
         var known = PackageRequirementSources.index(original).keySet();

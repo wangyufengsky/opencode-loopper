@@ -82,7 +82,7 @@ public class TaskReadService {
                 throw new BadRequestException("TASK_STATUS_FILTER_CONFLICT",
                         "status and statusGroup cannot be used together");
             }
-            if (normalizedGroup != null) normalizedStates = normalizedGroup.states().stream().map(Enum::name).toList();
+            if (normalizedGroup != null) normalizedStates = listStates(normalizedGroup);
             String queryPattern = likePattern(query);
             boolean oldest = "oldest".equalsIgnoreCase(order);
             PageCursor decoded = PageCursor.decode(cursor);
@@ -96,11 +96,12 @@ public class TaskReadService {
             reads.taskFacets(blankToNull(projectId), normalizedStates, archiveMode, queryPattern, taskType)
                     .forEach(row -> facets.put(row.state(), row.count()));
             for (TaskStatusGroup group : TaskStatusGroup.values()) {
-                facets.put(group.name(), group.states().stream()
-                        .mapToLong(state -> facets.getOrDefault(state.name(), 0L)).sum());
+                facets.put(group.name(), listStates(group).stream()
+                        .mapToLong(state -> facets.getOrDefault(state, 0L)).sum());
             }
-            facets.put("TOTAL", java.util.Arrays.stream(TaskState.values())
-                    .mapToLong(state -> facets.getOrDefault(state.name(), 0L)).sum());
+            facets.put("TOTAL", java.util.stream.Stream.concat(java.util.Arrays.stream(TaskState.values()).map(Enum::name),
+                    java.util.Arrays.stream(io.opencode.loopper.domain.DocumentTemplateState.values()).map(Enum::name))
+                    .distinct().mapToLong(state -> facets.getOrDefault(state, 0L)).sum());
             String next = hasMore ? new PageCursor(pageRows.getLast().updatedAt(), pageRows.getLast().id()).encode() : null;
             recordRows("task-summaries", items.size());
             return new CursorPage<>(items, next, facets);
@@ -219,7 +220,8 @@ public class TaskReadService {
         return new TaskSummary(row.id(), row.projectId(), row.projectName(), row.title(), row.goalPreview(),
                 blankToDefault(row.branchName(), "等待选择执行模式"), row.state(), row.retryCause(), row.retryDueAt(),
                 row.hasDesignHistory() == 1, row.archived() == 1, row.attemptCount(), row.maxAttempts(),
-                row.createdAt(), row.updatedAt(), row.executionMode());
+                row.createdAt(), row.updatedAt(), row.executionMode(), row.documentRunId(), row.documentState(),
+                row.linkedTaskId(), row.sourceTemplateId(), row.version());
     }
 
     private StageSummary stage(TaskStageReadRow row) {
@@ -289,13 +291,21 @@ public class TaskReadService {
         }).toList();
     }
 
+    private List<String> listStates(TaskStatusGroup group) {
+        var states = new java.util.LinkedHashSet<>(group.states().stream().map(Enum::name).toList());
+        if (group == TaskStatusGroup.PROCESSING) java.util.Arrays.stream(io.opencode.loopper.domain.DocumentTemplateState.values())
+                .filter(state -> !state.terminal()).map(Enum::name).forEach(states::add);
+        return List.copyOf(states);
+    }
+
     private List<String> normalizedStates(List<String> states) {
         if (states == null || states.isEmpty()) return List.of();
         return states.stream().filter(value -> value != null && !value.isBlank()).map(value -> {
             String normalized = value.trim().toUpperCase(Locale.ROOT);
             try { TaskState.valueOf(normalized); }
             catch (IllegalArgumentException invalid) {
-                throw new BadRequestException("TASK_STATE_INVALID", "Unknown task state: " + value);
+                try { io.opencode.loopper.domain.DocumentTemplateState.valueOf(normalized); }
+                catch (IllegalArgumentException unknown) { throw new BadRequestException("TASK_STATE_INVALID", "请选择有效的任务状态"); }
             }
             return normalized;
         }).distinct().toList();
@@ -359,7 +369,8 @@ public class TaskReadService {
     public record TaskSummary(String id, String projectId, String projectName, String title, String goal,
                               String branch, String status, String retryCause, String retryDueAt,
                               boolean hasDesignHistory, boolean archived, int attemptCount, int maxAttempts,
-                              String createdAt, String updatedAt, String executionMode) { }
+                              String createdAt, String updatedAt, String executionMode, String documentRunId, String documentState,
+                              String linkedTaskId, String sourceTemplateId, long version) { }
     public record TaskOverview(String id, String projectId, String projectName, String title, String goal,
                                String branch, String worktreePath, String status, String retryCause,
                                Integer retryOrdinal, String retryScheduledAt, String retryDueAt,

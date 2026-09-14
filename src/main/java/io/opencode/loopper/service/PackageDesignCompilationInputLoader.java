@@ -59,14 +59,14 @@ interface PackageDesignCompilationInputLoader {
                     frozenRole.projectStackProfileId(), read(frozenRole.componentKeysJson()),
                     frozenRole.stackFingerprint());
             var input = new PackageDesignCompilation.Input(targetRevision(owner, Math.toIntExact(context.sourceRevision())),
-                    requirement.requirementText(), role, read(owner.scopeInJson()), read(owner.scopeOutJson()),
+                    DocumentRequirementContext.resolve(mapper, requirement, owner), role, read(owner.scopeInJson()), read(owner.scopeOutJson()),
                     read(owner.deliverablesJson()), direct ? 6 : 3, direct).withContract(context.contractVersion());
             if (mapper instanceof io.opencode.loopper.persistence.PackageDesignEvidenceMapper evidence) {
                 var row = evidence.findPackageDesignEvidence(context.runId()).orElse(null);
                 if (row != null) input = input.withEvidence(json.readValue(row.snapshotJson(), PackageDesignEvidencePreparation.Snapshot.class));
             }
             if ("PACKAGE_DESIGN_V2".equals(context.contractVersion())) input = input.withDecisions(
-                    PackageDesignConfirmedDecisions.load(mapper, owner, requirement.requirementText(), requirement.revision()));
+                    PackageDesignConfirmedDecisions.load(mapper, owner, DocumentRequirementContext.resolve(mapper, requirement, owner), requirement.revision()));
             return input;
         }
 

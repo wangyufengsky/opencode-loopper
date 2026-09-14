@@ -23,9 +23,11 @@ beforeEach(async () => {
   const store = useTaskStore()
   store.usingDemo = true
   store.tasks = structuredClone(tasks)
+  store.taskItems = structuredClone(tasks)
   router = createRouter({ history: createMemoryHistory(), routes: [
     { path: '/tasks', component: TasksView },
     { path: '/tasks/:id', component: { template: '<div />' } },
+    { path: '/template-tasks/document-runs/:id', component: { template: '<div />' } },
     { path: '/tasks/:id/design', component: { template: '<div />' } },
     { path: '/designer', component: { template: '<div />' } },
     { path: '/projects', component: { template: '<div />' } },
@@ -74,6 +76,23 @@ function mountView() {
 }
 
 describe('Tasks filters and design history', () => {
+  it('keeps report completion separate from a linked execution awaiting disposition', async () => {
+    const store = useTaskStore()
+    store.usingDemo = false
+    store.projects = [{ id: 'project-a', name: '项目 A', rootPath: '/a', status: 'READY', updatedAt: 'now', taskCount: 1, openDesignerSessionCount: 0 }]
+    vi.spyOn(store, 'loadProjects').mockResolvedValue([])
+    vi.spyOn(store, 'loadTaskSummaries').mockResolvedValue(undefined)
+    store.taskItems = [{ ...structuredClone(tasks[0]!), id: 'document', status: 'AWAITING_DECISION',
+      documentRunId: 'document', documentState: 'COMPLETED', linkedTaskId: 'linked', sourceTemplateId: 'REQUIREMENT_DEVELOPMENT' }]
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('button[aria-label^="归档任务"]').exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'StatusBadge' }).attributes('status')).toBe('AWAITING_DECISION')
+    store.taskItems[0]!.status = 'COMPLETED'
+    await flushPromises()
+    expect(wrapper.find('button[aria-label^="归档任务"]').exists()).toBe(true)
+    wrapper.unmount()
+  })
   it('routes template filters to the server and keeps the selection in the URL', async () => {
     const store = useTaskStore()
     store.usingDemo = false

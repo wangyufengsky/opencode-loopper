@@ -9,7 +9,10 @@ import io.opencode.loopper.domain.TemplateBatchState;
 final class TemplateBatchTopology {
     private TemplateBatchTopology() { }
     static FiniteStateMachine<TemplateBatchState, LifecycleEvent> machine() {
-        var builder = FiniteStateMachine.builder(LifecycleMachineType.TEMPLATE_BATCH, TemplateBatchState.class, LifecycleEvent.class)
+        return machine(LifecycleMachineType.TEMPLATE_BATCH);
+    }
+    static FiniteStateMachine<TemplateBatchState, LifecycleEvent> machine(LifecycleMachineType type) {
+        var builder = FiniteStateMachine.builder(type, TemplateBatchState.class, LifecycleEvent.class)
                 .transition(PREPARED, PREPARE, CREATING).transition(CREATING, PREPARATION_SUCCEEDED, PROMPT_READY)
                 .transition(PROMPT_READY, DISPATCH, DISPATCHING).transition(DISPATCHING, START, RUNNING)
                 .transition(RUNNING, COMPLETE, VALIDATED).transition(PREPARED, COMPLETE, VALIDATED)

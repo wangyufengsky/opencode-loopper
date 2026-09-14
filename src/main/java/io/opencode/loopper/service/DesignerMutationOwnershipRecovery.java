@@ -27,8 +27,8 @@ final class DesignerMutationOwnershipRecovery {
     }
 
     Projection inspect(DesignerSessionRow session, DesignWorkPackageRow workPackage) {
-        LoopSpecCompilationRow compilation = mapper.findLoopSpecCompilationForPackageRevision(
-                session.id(), workPackage.packageId(), workPackage.designRevision()).orElse(null);
+        LoopSpecCompilationRow compilation = mapper.findLoopSpecCompilationForDesignSource(
+                session.id(), workPackage.designMessageId(), workPackage.designRevision()).orElse(null);
         AcceptancePlanningStatus planning = workflow.status(compilation);
         if (planning == null || planning.unresolvedMutationObligationCount() <= 0
                 || !"BLOCKED".equals(planning.pathConservation())) return NONE;

@@ -205,8 +205,8 @@ describe('Loopper REST contract adapter', () => {
     const page = await api.getTaskSummaries()
     expect(page.items).toHaveLength(1)
     expect(page.items[0]?.id).toBe('task-1')
-    expect(page.items[0]?.loopRetryAvailable).toBeUndefined()
-    expect(page.items[0]?.cancellationAvailable).toBeUndefined()
+    expect(page.items[0]).not.toHaveProperty('loopRetryAvailable')
+    expect(page.items[0]).not.toHaveProperty('cancellationAvailable')
   })
 
   it('previews a Designer task-setting change without using the mutation endpoint', async () => {

@@ -41,7 +41,7 @@ final class PackageDesignEvidencePreparation {
         if (!paths.isArray()) throw new ConflictException("CANDIDATE_PACKAGE_SNAPSHOT_INVALID", "冻结范围不是数组");
         List<String> scope = new ArrayList<>();
         for (var path : paths) scope.add(path.asText());
-        Snapshot snapshot = prepare(root, requirement.id(), requirement.requirementText(), scope);
+        Snapshot snapshot = prepare(root, requirement.id(), DocumentRequirementContext.resolve(mapper, requirement, owner), scope);
         String encoded = json.writeValueAsString(snapshot);
         var row = new PackageDesignEvidenceRow(runId, PackageDesignGapAssessment.VERSION, snapshot.requirementSha256(),
                 encoded, hash(encoded.getBytes(StandardCharsets.UTF_8)), Instant.now().toString());

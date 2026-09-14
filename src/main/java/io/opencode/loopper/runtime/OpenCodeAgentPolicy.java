@@ -8,7 +8,7 @@ final class OpenCodeAgentPolicy {
 
     /** Zero means Loopper imposes no fixed agentic-step limit. */
     static int stepLimit(OpenCodeClient.SessionProfile profile) {
-        if (profile == null) return 0;
+        if (profile == null || DocumentTemplateProfiles.contains(profile)) return 0;
         return switch (profile) {
             case GENERAL_READ_ONLY, DESIGNER_INTERACTIVE_READ_ONLY, IMPLEMENTATION, TEMPLATE_ANALYSIS_NO_TOOLS, TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS,
                     PACKAGE_DESIGN_CANDIDATE_READ_ONLY, PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY,

@@ -2,7 +2,7 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { api, ApiError, type TaskSummaryQuery } from '@/api/client'
 import { demoArtifacts, demoProjects, demoRuntime, demoTasks, demoTaskStatusGroups } from '@/mock/demoData'
-import type { Artifact, DirtyWorkspaceAction, Project, RuntimeInfo, Task, TaskEvent, TaskStatus } from '@/types/domain'
+import type { TaskListItem, Artifact, DirtyWorkspaceAction, Project, RuntimeInfo, Task, TaskEvent, TaskStatus } from '@/types/domain'
 import { STAGE_STATUSES, TASK_STATUSES, requirePublicState } from '@/types/states'
 import { createTaskEventSubscription } from './taskEventSubscription'
 import { displayLabel } from '@/utils/displayLabels'
@@ -55,6 +55,7 @@ export function aiOutputNotice(event: TaskEvent): string | undefined {
 export const useTaskStore = defineStore('task', () => {
   const projects = ref<Project[]>([])
   const tasks = ref<Task[]>([])
+  const taskItems = ref<TaskListItem[]>([])
   const runtime = ref<RuntimeInfo>()
   const artifacts = ref<Artifact[]>([])
   const loading = ref(false)
@@ -95,6 +96,7 @@ export const useTaskStore = defineStore('task', () => {
     usingDemo.value = true
     projects.value = copy(demoProjects)
     tasks.value = copy(demoTasks)
+    taskItems.value = copy(demoTasks)
     taskFacets.value = tasks.value.reduce<Record<string, number>>((facets, task) => {
       facets[task.status] = (facets[task.status] ?? 0) + 1
       const group = demoTaskStatusGroups[task.status]
@@ -112,6 +114,7 @@ export const useTaskStore = defineStore('task', () => {
     usingDemo.value = false
     projects.value = []
     tasks.value = []
+    taskItems.value = []
     runtime.value = undefined
     artifacts.value = []
     error.value = undefined
@@ -169,7 +172,11 @@ export const useTaskStore = defineStore('task', () => {
     try {
       const page = await api.getTaskSummaries({ ...query, ...(append ? { cursor: taskNextCursor.value } : {}) })
       if (generation !== summaryGeneration || usingDemo.value) return
-      tasks.value = append ? [...tasks.value, ...page.items.filter(item => !tasks.value.some(task => task.id === item.id))] : page.items
+      taskItems.value = append ? [...taskItems.value, ...page.items.filter(item => !taskItems.value.some(task => task.id === item.id))] : page.items
+      // Only real Task entries enter the executable detail cache.
+      tasks.value = taskItems.value.filter(item => !item.documentRunId).map(item => ({ ...item,
+        status: requirePublicState(TASK_STATUSES, item.status, 'Task list cache'), worktreePath: '',
+        stages: [], workPackages: [], attempts: [], errors: [], judges: [], artifacts: [] }))
       taskNextCursor.value = page.nextCursor
       taskFacets.value = page.facets
     } catch (cause) {
@@ -452,7 +459,7 @@ export const useTaskStore = defineStore('task', () => {
     }
   }
 
-  return { projects, tasks, runtime, artifacts, taskNotices, loading, auditLoading, auditErrors,
+  return { projects, tasks, taskItems, runtime, artifacts, taskNotices, loading, auditLoading, auditErrors,
     taskNextCursor, taskFacets, error, usingDemo, streamState, selectedTask, activateDemo,
     deactivateDemo, loadOverview, loadProjects, loadTaskSummaries, invalidateTaskSummaries, loadTaskOverview, loadTaskAudit, loadTask,
     updateTask, retryJudges, retryWaitingLoop, resolveDirtyWorkspace, cancelDirtyWorkspace, reworkTask,

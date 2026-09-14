@@ -288,6 +288,7 @@ final class DesignerDecompositionPromptFactory {
     }
 
     private String numberedSegments(DesignRequirementRevisionRow revision) {
+        if (DocumentRequirementContext.document(revision.requirementText())) return "通过 list_development_requirements 分页读取全部 RQ 编号与完整需求，再形成无遗漏的覆盖关系。";
         return readSegments(revision.requirementSegmentsJson()).stream()
                 .map(segment -> segment.id() + ": " + segment.text())
                 .collect(java.util.stream.Collectors.joining("\n"));

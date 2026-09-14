@@ -8,6 +8,8 @@ import org.apache.ibatis.annotations.Select;
 /** Bounded summaries; none of these queries reads frozen contracts, source patches or report bodies. */
 @Mapper
 public interface TemplateTaskReadMapper {
+    @org.apache.ibatis.annotations.Select("SELECT id,name,created_at,document_path FROM project WHERE id=#{id}")
+    java.util.Optional<ProjectChoice> project(String id);
     @Select("""
             WITH current AS (
                 SELECT attempt.id FROM attempt JOIN stage ON stage.id=attempt.stage_id

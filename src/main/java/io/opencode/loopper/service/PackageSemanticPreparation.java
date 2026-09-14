@@ -52,7 +52,7 @@ final class PackageSemanticPreparation {
         var row = mapper.findPackageSemanticPreparation(owner.id(), discussion.revision()).orElse(null);
         if (row == null || "DISPATCHED".equals(row.state())) return false;
         var original = mapper.findDesignRequirementRevision(owner.requirementRevisionId()).orElseThrow(() -> conflict("冻结原始需求不存在"));
-        if (!PackageDesignEvidencePreparation.hash(original.requirementText().getBytes(StandardCharsets.UTF_8)).equals(row.requirementSha256()))
+        if (!PackageDesignEvidencePreparation.hash(DocumentRequirementContext.resolve(mapper, original, owner).getBytes(StandardCharsets.UTF_8)).equals(row.requirementSha256()))
             throw conflict("整理材料的原始需求哈希已变化");
         if (!remote.id().equals(row.remoteId())) throw conflict("整理回合属于其他冻结会话");
         if (timedOut) {

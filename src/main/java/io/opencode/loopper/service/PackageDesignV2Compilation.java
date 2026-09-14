@@ -14,7 +14,7 @@ final class PackageDesignV2Compilation {
 
     Result compile(Input input, String candidateJson, BiFunction<Input, String, Result> lower) {
         var frozenInput = input.confirmedDecisions().isEmpty() ? input : new Input(input.workPackage(),
-                input.requirementText() + "\n用户明确补充：\n" + String.join("\n", input.confirmedDecisions().values()), input.role(),
+                DocumentRequirementContext.text(input.requirementText()) + "\n用户明确补充：\n" + String.join("\n", input.confirmedDecisions().values()), input.role(),
                 input.scopeIn(), input.scopeOut(), input.deliverables(), input.stageLimit(), input.directSoftwareMode(), "PACKAGE_DESIGN_V2");
         var frozen = PackageDesignInputPreflight.problems(frozenInput);
         if (!frozen.isEmpty()) return rejected(Outcome.NEEDS_INPUT, null, frozen.stream().map(problem -> new Problem(
@@ -36,6 +36,8 @@ final class PackageDesignV2Compilation {
         if (!compiled.accepted()) return new Result(compiled.outcome(), canonical, compiled.canonicalMarkdown(),
                 null, null, noFallback(compiled.problems()));
         var plan = compiled.compiledPlan();
+        var documentProblems = DocumentPackageAcceptance.validate(input, decoded.document(), plan);
+        if (!documentProblems.isEmpty()) return rejected(Outcome.REJECTED, canonical, documentProblems);
         var scopeProblems = PackageDesignScopeGuard.validate(frozenInput, plan);
         if (!scopeProblems.isEmpty()) return rejected(Outcome.NEEDS_INPUT, canonical, scopeProblems);
         String context = semanticContext(input, decoded, false);
@@ -48,7 +50,7 @@ final class PackageDesignV2Compilation {
                 join(item.judgeRubric(), context), item.judgeOnlyReason(), item.verifierStrategy(), item.testCommand(),
                 item.testTargets(), item.designerExcerpts())).toList();
         var enriched = new DesignerSemanticContracts.PackageCompilationPlanEnvelope(plan.contractVersion(), plan.status(),
-                plan.summary(), plan.stages(), mappings, join(plan.handoffSummary(), semanticContext(input, decoded, true) + "\n冻结原文（整理不能覆盖）：\n" + input.requirementText()), plan.designGaps());
+                plan.summary(), plan.stages(), mappings, join(plan.handoffSummary(), semanticContext(input, decoded, true) + "\n冻结原文（整理不能覆盖）：\n" + DocumentRequirementContext.prompt(input.requirementText())), plan.designGaps());
         return new Result(Outcome.ACCEPTED, canonical, compiled.canonicalMarkdown(), enriched,
                 json.writeValueAsString(enriched), List.of());
     }

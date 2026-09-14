@@ -31,7 +31,11 @@ public enum LifecycleEvent implements DescribedEnum {
     BEGIN_PACKAGE_CHECKPOINT("开始冻结工作包事实"), FREEZE_PACKAGE_FACT("冻结工作包事实"),
     SUPERSEDE_PACKAGE("替代未执行工作包"), BEGIN_PACKAGE_REPLAN("开始生成剩余拆包建议"),
     COMPLETE_PACKAGE_REPLAN("完成剩余拆包建议"), FAIL_PACKAGE_REPLAN("剩余拆包建议生成失败"),
-    APPROVE_PACKAGE_REPLAN("确认剩余拆包计划");
+    APPROVE_PACKAGE_REPLAN("确认剩余拆包计划"),
+    ANALYZE_DOCUMENT_REQUIREMENTS("整理文档需求"), REVIEW_DOCUMENT_REQUIREMENTS("复核文档需求"),
+    DESIGN_DOCUMENT_REQUIREMENTS("设计文档需求"), EXECUTE_DOCUMENT_REQUIREMENTS("执行文档需求"),
+    ASSESS_REQUIREMENT_CODE("评审需求代码"), VERIFY_REQUIREMENT_ASSESSMENT("复核需求评审"),
+    RENDER_REQUIREMENT_REPORT("生成需求报告");
 
     private final String description;
     LifecycleEvent(String description) { this.description = description; }

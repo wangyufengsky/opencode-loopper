@@ -14,6 +14,8 @@
 
 普通设计确认事务本身仍只创建 `PENDING_START`，随后 Start 是独立动作。自动模式可以代行已授权动作，不能把两个事务与证据合并。
 
+文档模板的需求开发采用[独立模板授权](document-template-contract.md#需求开发)：发起时冻结范围内的设计确认、单包或滚动包 Start 与测试推进许可，不能启用普通 Designer 的推荐业务答案策略。该策略只应用于有持久化文档来源的需求开发任务，不改变上表普通 Designer 的滚动包人工边界。
+
 已冻结 Task/Stage/Recovery 使用原合同与画像。`WorkPackageRoleService.get` 的既有兼容修复仅针对设计工作包：父画像是 `DIRECT_SOFTWARE_DESIGN` 且 intent 为软件/历史软件，已存包 rolePackId 缺失或不是 `software-` 时，按已确认父画像重新赋予包角色。该修复不授权随项目重析改写已冻结执行 Stage、历史证据或 Recovery；其他不一致须按具体迁移/修复合同处理。
 
 The UI is a desktop-first developer console. Figma is the visual source of

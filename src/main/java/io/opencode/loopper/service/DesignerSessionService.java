@@ -307,12 +307,12 @@ public class DesignerSessionService {
             Integer targetRevision = DesignWorkPackageState.APPROVED.name().equals(row.state())
                     ? row.approvedDesignRevision() : row.designRevision() > 0 ? row.designRevision() : null;
             if (targetRevision == null) continue;
-            LoopSpecCompilationRow compilation = mapper.findLoopSpecCompilationForPackageRevision(
-                    sessionId, row.packageId(), targetRevision).orElse(null);
+            LoopSpecCompilationRow compilation = mapper.findLoopSpecCompilationForDesignSource(
+                    sessionId, row.designMessageId(), targetRevision).orElse(null);
             if (compilation == null || !LoopSpecCompilationState.COMPLETED.name().equals(compilation.state())
                     || blank(compilation.compiledPackageJson())) {
-                compilation = mapper.findLatestCompletedLoopSpecCompilationForPackage(
-                        sessionId, row.packageId()).orElse(null);
+                compilation = mapper.findLatestCompletedCompilationForWorkPackage(
+                        row.id()).orElse(null);
             }
             if (compilation == null || !LoopSpecCompilationState.COMPLETED.name().equals(compilation.state())
                     || blank(compilation.compiledPackageJson())) continue;
@@ -689,26 +689,19 @@ public class DesignerSessionService {
                             : "全自动模式已确认整体需求并开始拆包。",
                     "AUTO_APPROVED", revision.revision(), null);
         }
-        if (directSoftware) createDirectSoftwarePackage(get(sessionId), revision);
-        else {
+        if (directSoftware) {
+            var prepared = prepareDirectSoftwarePackage(get(sessionId), revision);
+            dispatchPackageDesigner(get(sessionId), prepared, null, PackageDesignDispatch.CONTINUE);
+        } else {
             conversations.retire(session.externalSessionId(), "REQUIREMENT_CONFIRMED");
             dispatchDecomposer(get(sessionId), revision, false);
         }
     }
 
-    private void createDirectSoftwarePackage(DesignerSessionRow session, DesignRequirementRevisionRow revision) {
+    DesignWorkPackageRow prepareDirectSoftwarePackage(DesignerSessionRow session, DesignRequirementRevisionRow revision) {
         requirementDraftGuard.requireUnchanged(session, revision.sourceDraftVersion());
-        List<String> requirementRefs = decompositionOutputs.requirementIds(revision.requirementSegmentsJson());
-        DecomposedWorkPackage workPackage = new DecomposedWorkPackage("WP-1", "默认单包设计",
-                bounded(revision.requirementText(), 12_000), List.of("当前完整软件需求"), List.of(), List.of(),
-                List.of("完成当前需求的软件变更"), List.of("满足完整需求中的可观察业务结果"), requirementRefs);
-        List<RequirementCoverageMapping> coverage = requirementRefs.stream()
-                .map(ref -> new RequirementCoverageMapping(ref, "WORK_PACKAGE", "WP-1",
-                        "默认单包完整覆盖该需求段"))
-                .toList();
-        DecompositionPlanEnvelope plan = new DecompositionPlanEnvelope("DIRECT_DESIGN",
-                bounded(revision.requirementText(), 12_000), List.of(), List.of(workPackage), coverage,
-                List.of(), List.of(), null).normalized();
+        DecompositionPlanEnvelope plan = DesignerDirectPackagePlan.create(revision.requirementText(),
+                decompositionOutputs.requirementIds(revision.requirementSegmentsJson()));
         decompositionOutputs.validatePlan(plan, revision);
         String now = now();
         TaskDecompositionRow pending = new TaskDecompositionRow(UUID.randomUUID().toString(), session.id(),
@@ -737,7 +730,7 @@ public class DesignerSessionService {
         appendMessage(session.id(), DesignerActor.SYSTEM,
                 "普通软件任务已由服务端建立默认工作包 WP-1；未创建或调用任务规划师。",
                 "COMPLETED", revision.revision(), null);
-        dispatchPackageDesigner(get(session.id()), packages.getFirst(), null, PackageDesignDispatch.CONTINUE);
+        return packages.getFirst();
     }
     public void reopenRequirement(String sessionId, int expectedDiscussionRevision) {
         DesignerSessionRow session = get(sessionId);
@@ -927,7 +920,7 @@ public class DesignerSessionService {
         int discussionRevision = nextDiscussionRevision(session.id(), packageId);
         boolean directSoftware = directSoftwareMode(session.id());
         if (recovery.required()) reactivateRequirement(currentRequirement(sessionId), true);
-        createDiscussion(session, packageId, packageId, discussionRevision, user.id(), 0, !recovery.required() && !directSoftware);
+        createDiscussion(session, packageId, packageId, discussionRevision, user.id(), 0, !recovery.required() && !directSoftware && !mapper.documentDesigner(session.id()));
         DesignWorkPackageRow revised = updateWorkPackage(workPackage, recovery.nextState(),
                 workPackage.designerExternalSessionId(), workPackage.designerExternalSessionState(),
                 workPackage.designMessageId(), workPackage.designRevision(), workPackage.redesignCount(),
@@ -989,7 +982,7 @@ public class DesignerSessionService {
     public void approvePackageAutomatically(String sessionId, String packageId, int expectedDiscussionRevision,
                                             int expectedDesignRevision) {
         approvePackage(sessionId, packageId, expectedDiscussionRevision, expectedDesignRevision,
-                "AUTO_RECOMMENDED");
+                mapper.documentDesigner(sessionId) ? "TEMPLATE_AUTHORIZED" : "AUTO_RECOMMENDED");
     }
     private void approvePackage(String sessionId, String packageId, int expectedDiscussionRevision,
                                 int expectedDesignRevision, String source) {
@@ -1001,8 +994,8 @@ public class DesignerSessionService {
             throw new ConflictException("WORK_PACKAGE_APPROVAL_STALE",
                     "只能接受当前已验证的设计修订，请刷新后重试");
         }
-        LoopSpecCompilationRow compilation = mapper.findLoopSpecCompilationForPackageRevision(
-                session.id(), packageId, expectedDesignRevision).orElseThrow(() -> new ConflictException(
+        LoopSpecCompilationRow compilation = mapper.findLoopSpecCompilationForDesignSource(
+                session.id(), workPackage.designMessageId(), expectedDesignRevision).orElseThrow(() -> new ConflictException(
                 "WORK_PACKAGE_CANDIDATE_MISSING", "当前设计修订没有可接受的候选 LoopSpec"));
         if (!LoopSpecCompilationState.COMPLETED.name().equals(compilation.state())) {
             throw new ConflictException("WORK_PACKAGE_CANDIDATE_INVALID", "当前候选尚未通过确定性校验");
@@ -1123,7 +1116,7 @@ public class DesignerSessionService {
                 }
                 DesignDiscussionRevisionRow activeDiscussion = selectedDiscussion;
                 OpenCodeClient.OpenCodeSession remote = conversations.requirement(input, Path.of(project.rootPath()),
-                        configuredModel(), directSoftwareMode(input.id()) && packageDesignCandidates.eligibility().candidate(), nativeQuestion, questionRepair);
+                        configuredModel(input.id()), directSoftwareMode(input.id()) && packageDesignCandidates.eligibility().candidate(), nativeQuestion, questionRepair);
                 DesignerSessionRow running = updateDesignerDiscussionProjection(input, DesignerSessionState.RUNNING,
                         DesignWorkflowPhase.DISCUSSING_REQUIREMENT, remote.id(), "RUNNING", "REQUIREMENT",
                         activeDiscussion.revision(), "SYNCING", null);
@@ -1401,7 +1394,7 @@ public class DesignerSessionService {
             try {
                 LoopSpecCompilationRow compilation = getCompilation(compilationId);
                 acceptanceCandidateWorkflow.poll(acceptanceCandidatePort, compilation,
-                        get(compilation.designerSessionId()), responseModel(ModelResponseMode.TEXT_MARKER), false);
+                        get(compilation.designerSessionId()), responseModel(compilation.designerSessionId(), ModelResponseMode.TEXT_MARKER), false);
             } catch (RuntimeException ignoredConcurrentRecovery) { }
         }
         List<String> routed = taskProfiles.pollActive();
@@ -1511,32 +1504,11 @@ public class DesignerSessionService {
     private DesignRequirementRevisionRow freezeRequirementRevision(DesignerSessionRow session,
                                                                     DesignerMessageRow sourceMessage) {
         requireBoundDraft(session);
-        int revision = mapper.listDesignRequirementRevisions(session.id()).stream()
-                .mapToInt(DesignRequirementRevisionRow::revision).max().orElse(0) + 1;
-        // Every discussion turn stores a complete replacement snapshot. Freezing the historical
-        // user messages again would duplicate requirements and manufacture uncovered RQ segments.
-        // The conversation and decision log remain persisted separately for audit and recovery.
-        String requirement = sourceMessage.content();
-        List<RequirementSegment> segments = DesignerRequirementSegmenter.segment(requirement);
-        LoopDraftRow draft = drafts.get(session.loopDraftId());
-        String now = now();
-        DesignRequirementRevisionRow row = new DesignRequirementRevisionRow(UUID.randomUUID().toString(),
-                session.id(), revision, sourceMessage.id(), requirement, write(segments), draft.version(),
-                DesignRequirementRevisionState.ACTIVE.name(), openRequirementDiscussionModelCalls(session.id()),
-                MAX_MODEL_CALLS, now, now, 0);
-        lifecycle.create(requirementSubject(row, session.projectId()), row.state(), Map.of("revision", revision),
-                () -> mapper.insertDesignRequirementRevision(row),
-                () -> new ConflictException("DESIGN_REQUIREMENT_REVISION_CREATE_CONFLICT",
-                        "The complete requirement revision could not be frozen"));
-        TaskProfileService.View profile = taskProfiles.current(session.id());
-        if (profile.id() != null && mapper.bindTaskProfileRequirement(profile.id(), row.id(), now) != 1) {
-            throw new ConflictException("TASK_PROFILE_REQUIREMENT_BIND_CONFLICT",
-                    "冻结任务设置未能绑定需求版本");
-        }
-        mapper.bindOpenRequirementDiscussions(session.id(), revision);
+        DesignRequirementRevisionRow row = DesignerRequirementFreeze.freeze(mapper, drafts, taskProfiles, lifecycle, json,
+                session, sourceMessage, openRequirementDiscussionModelCalls(session.id()), MAX_MODEL_CALLS);
         updateDesignerProjection(get(session.id()), DesignerSessionState.PENDING_HANDOFF,
                 DesignWorkflowPhase.DECOMPOSING, null, "PENDING", session.designRevision(), 0,
-                revision, null);
+                row.revision(), null);
         return getRequirement(row.id());
     }
 
@@ -1584,10 +1556,10 @@ public class DesignerSessionService {
     private DesignerMessageRow dispatchClassicJsonDecomposer(
             TaskDecompositionRow pending, DesignerSessionRow input,
             DesignRequirementRevisionRow revision, ProjectRow project, boolean explicitRetry) {
-        ModelResponseMode mode = preferredResponseMode();
+        ModelResponseMode mode = preferredResponseMode(input.id());
         OpenCodeClient.OpenCodeSession remote = openCode.createSession(
                 Path.of(project.rootPath()), "OpenCode Loopper Task Decomposer (READ_ONLY)",
-                responseModel(mode), OpenCodeClient.SessionProfile.DECOMPOSER_READ_ONLY);
+                responseModel(input.id(), mode), OpenCodeClient.SessionProfile.DECOMPOSER_READ_ONLY);
         TaskDecompositionRow transport = decompositionTransport(
                 pending, true, mode, schemaId(mode, OpenCodeStructuredSchemas.DECOMPOSITION_SEMANTIC_V2), false);
         transport = decompositionTransport(
@@ -1616,7 +1588,7 @@ public class DesignerSessionService {
     private DesignerMessageRow dispatchInternalMcpDecomposer(TaskDecompositionRow pending, DesignerSessionRow input,
             DesignRequirementRevisionRow revision, ProjectRow project, boolean explicitRetry) {
         OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
-                "OpenCode Loopper Task Decomposer candidate (READ_ONLY)", responseModel(ModelResponseMode.TEXT_MARKER),
+                "OpenCode Loopper Task Decomposer candidate (READ_ONLY)", responseModel(input.id(), ModelResponseMode.TEXT_MARKER),
                 OpenCodeClient.SessionProfile.DECOMPOSER_CANDIDATE_READ_ONLY);
         TaskDecompositionRow running = updateDecomposition(pending, TaskDecompositionState.RUNNING,
                 null, null, "[]", "{}", remote.id(), "RUNNING", 0, 0, null, null);
@@ -1648,7 +1620,7 @@ public class DesignerSessionService {
     private DesignerMessageRow dispatchLegacyDecomposer(TaskDecompositionRow current, DesignerSessionRow input,
             DesignRequirementRevisionRow revision, ProjectRow project, boolean explicitRetry, String reason) {
         OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()), "OpenCode Loopper Task Decomposer legacy candidate (READ_ONLY)",
-                responseModel(ModelResponseMode.TEXT_MARKER), OpenCodeClient.SessionProfile.DECOMPOSER_READ_ONLY);
+                responseModel(input.id(), ModelResponseMode.TEXT_MARKER), OpenCodeClient.SessionProfile.DECOMPOSER_READ_ONLY);
         TaskDecompositionRow running = updateDecomposition(current, TaskDecompositionState.RUNNING,
                 current.resultType(), current.normalizedGoal(), current.globalConstraintsJson(), current.planJson(),
                 remote.id(), "RUNNING", current.repairCount(), current.transportRetryCount(), null, null);
@@ -2032,7 +2004,7 @@ public class DesignerSessionService {
             try {
                 boolean directSoftware = directSoftwareMode(session.id());
                 var frozenProblems = PackageDesignInputPreflight.problems(new PackageDesignCompilation.Input(
-                        input, revision.requirementText(), workPackageRoles.get(input), strings(input.scopeInJson()),
+                        input, DocumentRequirementContext.resolve(mapper, revision, input), workPackageRoles.get(input), strings(input.scopeInJson()),
                         strings(input.scopeOutJson()), strings(input.deliverablesJson()), directSoftware ? 6 : 3, directSoftware));
                 if (!frozenProblems.isEmpty()) {
                     packageDesignCandidateWorkflow.rejectFrozenInput(this, session, revision, input,
@@ -2044,7 +2016,7 @@ public class DesignerSessionService {
                         session.id(), input.packageId()).filter(row -> Set.of("QUESTIONING", "DESIGNING",
                                 CHAT_QUESTIONING, WAITING_CHAT_ANSWER, CHAT_DESIGNING).contains(row.state()))
                         .orElseGet(() -> createDiscussion(session, input.packageId(), input.packageId(),
-                                nextDiscussionRevision(session.id(), input.packageId()), null, 0, !directSoftware));
+                                nextDiscussionRevision(session.id(), input.packageId()), null, 0, !directSoftware && !mapper.documentDesigner(session.id())));
                 boolean questionRequired = discussion.questionRequired() && !discussion.questionAnswered();
                 boolean nativeQuestion = questionRequired && questionSupport.nativeQuestionAvailable(
                         Path.of(project.rootPath()));
@@ -2059,7 +2031,7 @@ public class DesignerSessionService {
                             discussion.candidateCompilationId(), null, null);
                 }
                 OpenCodeClient.OpenCodeSession remote = conversations.workPackage(session, input, Path.of(project.rootPath()),
-                        configuredModel(), candidateEligibility.candidate(), usePackageCandidate, nativeQuestion, directSoftware, questionRepair);
+                        configuredModel(session.id()), candidateEligibility.candidate(), usePackageCandidate, nativeQuestion, directSoftware, questionRepair);
                 usePackageCandidate = candidateTurn && conversations.candidate(remote.id(), usePackageCandidate);
                 int redesignCount = mode.redesign() ? input.redesignCount() + 1 : input.redesignCount();
                 DesignWorkPackageRow designing = updateWorkPackage(input, !questionRequired || usePackageCandidate
@@ -2080,7 +2052,7 @@ public class DesignerSessionService {
                         mapper.findTaskDecompositionByRevision(revision.id()).orElseThrow(),
                         questionRequired, nativeQuestion, usePackageCandidate);
                 if (prefix != null) basePrompt = prefix + "\n\n" + basePrompt;
-                if (usePackageCandidate && semanticPreparation.start(designing, discussion, remote, revision.requirementText(), basePrompt)) return;
+                if (usePackageCandidate && semanticPreparation.start(designing, discussion, remote, DocumentRequirementContext.resolve(mapper, revision, designing), basePrompt)) return;
                 conversations.begin(remote, questionRequired ? "PACKAGE_QUESTION" : "PACKAGE_DESIGN");
                 String prompt = usePackageCandidate
                         ? packageDesignCandidates.open(designing, remote, basePrompt).prompt() : basePrompt;
@@ -2251,7 +2223,7 @@ public class DesignerSessionService {
         boolean v6Acceptance = deterministicAcceptance && RolePackRegistry.supportsClosedAcceptance(role.rolePackVersion());
         if (deterministicAcceptance) {
             try {
-                acceptanceWorkflow.preflight(workPackage, revision.requirementText(), source.content(),
+                acceptanceWorkflow.preflight(workPackage, DocumentRequirementContext.resolve(mapper, revision, workPackage), source.content(),
                         strings(workPackage.scopeInJson()), strings(workPackage.scopeOutJson()),
                         strings(workPackage.deliverablesJson()), role);
             } catch (BadRequestException invalid) {
@@ -2260,7 +2232,7 @@ public class DesignerSessionService {
             }
         }
         String now = now();
-        ModelResponseMode responseMode = preferredResponseMode();
+        ModelResponseMode responseMode = preferredResponseMode(session.id());
         LoopSpecCompilationRow pending = new LoopSpecCompilationRow(UUID.randomUUID().toString(), session.id(),
                 workPackage.designRevision(), LoopSpecCompilationState.PENDING_HANDOFF.name(), null, "PENDING", 0,
                 source.id(), revision.sourceDraftVersion(), null, null, now, now, 0,
@@ -2276,7 +2248,7 @@ public class DesignerSessionService {
                 () -> new ConflictException("LOOPSPEC_COMPILATION_CREATE_CONFLICT",
                         "Work-package compilation could not be created"));
         if (deterministicAcceptance) {
-            acceptanceWorkflow.freeze(pending, workPackage, revision.requirementText(), source.content(),
+            acceptanceWorkflow.freeze(pending, workPackage, DocumentRequirementContext.resolve(mapper, revision, workPackage), source.content(),
                     strings(workPackage.scopeInJson()), strings(workPackage.scopeOutJson()), strings(workPackage.deliverablesJson()), role, now);
             DesignerAcceptanceWorkflow.RoutingResult routing = acceptanceWorkflow.routeCurrent(pending.id(), directSoftwareMode(session.id()), role.rolePackVersion());
             if (RolePackRegistry.VERSION.equals(role.rolePackVersion())) {
@@ -2312,7 +2284,7 @@ public class DesignerSessionService {
             OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
                     "OpenCode Loopper LoopSpec Compiler " + workPackage.packageId()
                             + (deterministicAcceptance ? " (NO_TOOLS_BINDING)" : " (READ_ONLY)"),
-                    responseModel(responseMode),
+                    responseModel(session.id(), responseMode),
                     deterministicAcceptance ? OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS
                             : OpenCodeClient.SessionProfile.COMPILER_READ_ONLY);
             LoopSpecCompilationRow running = updateCompilation(pending, LoopSpecCompilationState.RUNNING,
@@ -2340,7 +2312,7 @@ public class DesignerSessionService {
     private void dispatchAcceptanceCandidate(
             LoopSpecCompilationRow pending, DesignerSessionRow session) {
         if (!acceptanceCandidateWorkflow.poll(acceptanceCandidatePort, pending, session,
-                responseModel(ModelResponseMode.TEXT_MARKER), false)) {
+                responseModel(session.id(), ModelResponseMode.TEXT_MARKER), false)) {
             throw new ConflictException("ACCEPTANCE_INTERNAL_LAUNCH_NOT_PREPARED",
                     "验收闭集候选 internal launch 未能进入可恢复流程");
         }
@@ -2354,7 +2326,7 @@ public class DesignerSessionService {
             MachineCandidateSubmission.SubmissionResult rejected, String unopenedProof) {
         acceptanceCandidateWorkflow.dispatchLegacy(acceptanceCandidatePort, designProject(session), current,
                 session, revision, workPackage, planning, routing,
-                responseModel(ModelResponseMode.TEXT_MARKER), rejected, unopenedProof);
+                responseModel(session.id(), ModelResponseMode.TEXT_MARKER), rejected, unopenedProof);
     }
 
     private void runServerDirectCompilation(LoopSpecCompilationRow pending, DesignerSessionRow session,
@@ -2410,7 +2382,7 @@ public class DesignerSessionService {
             OpenCodeClient.OpenCodeSession remote = reusableDesigner(input)
                     ? designerRemote(input)
                     : openCode.createSession(Path.of(project.rootPath()),
-                    "OpenCode Loopper Designer (READ_ONLY)", configuredModel(),
+                    "OpenCode Loopper Designer (READ_ONLY)", configuredModel(input.id()),
                     OpenCodeClient.SessionProfile.DESIGNER_INTERACTIVE_READ_ONLY);
             current = updateDesignerProjection(input, DesignerSessionState.RUNNING, phase,
                     remote.id(), "CREATED", input.designRevision(), redesignCount);
@@ -2511,7 +2483,7 @@ public class DesignerSessionService {
         try {
             ProjectRow project = projects.get(session.projectId());
             OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
-                    "OpenCode Loopper LoopSpec Compiler (READ_ONLY)", responseModel(ModelResponseMode.TEXT_MARKER),
+                    "OpenCode Loopper LoopSpec Compiler (READ_ONLY)", responseModel(session.id(), ModelResponseMode.TEXT_MARKER),
                     OpenCodeClient.SessionProfile.COMPILER_READ_ONLY);
             LoopSpecCompilationRow running = updateCompilation(pending, LoopSpecCompilationState.RUNNING,
                     remote.id(), "RUNNING", 0, null, null, session.projectId());
@@ -2529,10 +2501,10 @@ public class DesignerSessionService {
     private void pollCompiler(LoopSpecCompilationRow compilation) {
         DesignerSessionRow session = get(compilation.designerSessionId());
         if (acceptanceCandidateWorkflow.poll(acceptanceCandidatePort, compilation, session,
-                responseModel(ModelResponseMode.TEXT_MARKER), timedOut(compilation.updatedAt(), compilation.externalSessionId()))) return;
+                responseModel(session.id(), ModelResponseMode.TEXT_MARKER), timedOut(compilation.updatedAt(), compilation.externalSessionId()))) return;
         if (acceptanceCandidateWorkflow.advanceLegacyHandoffIfRequired(
                 acceptanceCandidatePort, compilation, session,
-                responseModel(ModelResponseMode.TEXT_MARKER))) return;
+                responseModel(session.id(), ModelResponseMode.TEXT_MARKER))) return;
         if ("MCP_ACCEPTED".equals(compilation.compilationSource())
                 && blank(compilation.externalSessionId())
                 && "SERVER_DIRECT".equals(compilation.externalSessionState())) {
@@ -2729,7 +2701,7 @@ public class DesignerSessionService {
             try { openCode.abort(failedRemote); } catch (RuntimeException ignored) { }
             OpenCodeClient.OpenCodeSession finalizer = openCode.createSession(Path.of(project.rootPath()),
                     "OpenCode Loopper Task Decomposer Finalizer (MCP_ONLY)",
-                    responseModel(currentResponseMode(row.workflowStep(), row.planningResponseMode(),
+                    responseModel(session.id(), currentResponseMode(row.workflowStep(), row.planningResponseMode(),
                             row.finalResponseMode())),
                     OpenCodeClient.SessionProfile.MACHINE_FINALIZER_NO_TOOLS);
             updateDecomposition(row, TaskDecompositionState.RUNNING, row.resultType(), row.normalizedGoal(),
@@ -2776,7 +2748,7 @@ public class DesignerSessionService {
             try { openCode.abort(failedRemote); } catch (RuntimeException ignored) { }
             OpenCodeClient.OpenCodeSession finalizer = openCode.createSession(Path.of(project.rootPath()),
                     "OpenCode Loopper Compiler Finalizer (MCP_ONLY)",
-                    responseModel(currentResponseMode(row.workflowStep(), row.planningResponseMode(),
+                    responseModel(session.id(), currentResponseMode(row.workflowStep(), row.planningResponseMode(),
                             row.finalResponseMode())),
                     OpenCodeClient.SessionProfile.MACHINE_FINALIZER_NO_TOOLS);
             updateCompilation(row, LoopSpecCompilationState.RUNNING, finalizer.id(), "FINALIZER_RUNNING",
@@ -3180,7 +3152,7 @@ public class DesignerSessionService {
                     : planning ? repairing.planningResponseSchemaId() : repairing.finalResponseSchemaId();
             OpenCodeClient.OpenCodeSession repairRemote = openCode.createSession(Path.of(project.rootPath()),
                     "OpenCode Loopper LoopSpec Compiler Repair " + workPackage.packageId() + " (MCP_ONLY)",
-                    responseModel(repairMode), OpenCodeClient.SessionProfile.COMPILER_REPAIR_NO_TOOLS);
+                    responseModel(session.id(), repairMode), OpenCodeClient.SessionProfile.COMPILER_REPAIR_NO_TOOLS);
             repairing = updateCompilation(repairing, LoopSpecCompilationState.RUNNING,
                     repairRemote.id(), "REPAIRING_" + repair + "_NO_TOOLS", repairing.repairCount(),
                     code, safeMessage(detail), session.projectId(), repairing.compiledPackageJson());
@@ -3312,8 +3284,8 @@ public class DesignerSessionService {
                 throw new ConflictException("WORK_PACKAGE_APPROVAL_MISSING",
                         "Missing approved revision for " + workPackage.packageId());
             }
-            LoopSpecCompilationRow compilation = mapper.findLoopSpecCompilationForPackageRevision(
-                    session.id(), workPackage.packageId(), workPackage.approvedDesignRevision())
+            LoopSpecCompilationRow compilation = mapper.findLoopSpecCompilationForDesignSource(
+                    session.id(), workPackage.designMessageId(), workPackage.approvedDesignRevision())
                     .orElseThrow(() -> new ConflictException(
                     "WORK_PACKAGE_COMPILATION_MISSING", "Missing compilation for " + workPackage.packageId()));
             if (!LoopSpecCompilationState.COMPLETED.name().equals(compilation.state())
@@ -3420,7 +3392,7 @@ public class DesignerSessionService {
             ProjectRow project = projects.get(session.projectId());
             OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
                     "OpenCode Loopper Task Decomposer format fallback (READ_ONLY)",
-                    responseModel(ModelResponseMode.TEXT_MARKER),
+                    responseModel(session.id(), ModelResponseMode.TEXT_MARKER),
                     OpenCodeClient.SessionProfile.DECOMPOSER_READ_ONLY);
             TaskDecompositionRow transport = decompositionTransport(row, planning,
                     ModelResponseMode.TEXT_MARKER, null, true);
@@ -3467,7 +3439,7 @@ public class DesignerSessionService {
                     ? projects.get(session.projectId()) : designProject(session);
             OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
                     "OpenCode Loopper LoopSpec Compiler format fallback",
-                    responseModel(ModelResponseMode.TEXT_MARKER),
+                    responseModel(session.id(), ModelResponseMode.TEXT_MARKER),
                     acceptanceWorkflow.present(row.id())
                             ? OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS
                             : OpenCodeClient.SessionProfile.COMPILER_READ_ONLY);
@@ -3535,7 +3507,7 @@ public class DesignerSessionService {
             try {
                 OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
                         "OpenCode Loopper Task Decomposer retry (READ_ONLY)",
-                        responseModel(currentResponseMode(decomposition.workflowStep(),
+                        responseModel(session.id(), currentResponseMode(decomposition.workflowStep(),
                                 decomposition.planningResponseMode(), decomposition.finalResponseMode())),
                         OpenCodeClient.SessionProfile.DECOMPOSER_READ_ONLY);
                 TaskDecompositionRow retried = updateDecomposition(decomposition, TaskDecompositionState.RUNNING,
@@ -3612,7 +3584,7 @@ public class DesignerSessionService {
             try {
                 OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
                         "OpenCode Loopper LoopSpec Compiler " + workPackage.packageId() + " retry",
-                        responseModel(currentResponseMode(compilation.workflowStep(),
+                        responseModel(session.id(), currentResponseMode(compilation.workflowStep(),
                                 compilation.planningResponseMode(), compilation.finalResponseMode())),
                         acceptanceWorkflow.present(compilation.id())
                                 ? OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS
@@ -5005,9 +4977,9 @@ public class DesignerSessionService {
         catch (JacksonException failure) { throw new IllegalStateException("Unable to serialize design workflow", failure); }
     }
 
-    private ModelResponseMode preferredResponseMode() {
+    private ModelResponseMode preferredResponseMode(String designerId) {
         OpenCodeClient.StructuredOutputCapability capability = openCode.structuredOutputCapability(
-                responseModel(ModelResponseMode.JSON_SCHEMA));
+                responseModel(designerId, ModelResponseMode.JSON_SCHEMA));
         return capability.transport() == OpenCodeClient.CapabilityState.UNAVAILABLE
                 || capability.selectedModel() == OpenCodeClient.CapabilityState.UNAVAILABLE
                 ? ModelResponseMode.TEXT_MARKER : ModelResponseMode.JSON_SCHEMA;
@@ -5247,13 +5219,13 @@ public class DesignerSessionService {
                 requirement == null ? MAX_MODEL_CALLS : requirement.maxModelCalls(), structuredModelStep(session.id()));
     }
 
-    private OpenCodeClient.OpenCodeModel configuredModel() {
-        return io.opencode.loopper.runtime.OpenCodeModelSelection.configured(defaults.getOpenCode().getModel());
+    private OpenCodeClient.OpenCodeModel configuredModel(String designerId) {
+        return io.opencode.loopper.runtime.OpenCodeModelSelection.configured(DocumentRequirementContext.model(mapper, designerId, defaults.getOpenCode().getModel()));
     }
 
-    private OpenCodeClient.OpenCodeModel responseModel(ModelResponseMode mode) {
+    private OpenCodeClient.OpenCodeModel responseModel(String designerId, ModelResponseMode mode) {
         return io.opencode.loopper.runtime.OpenCodeModelSelection.forStructuredResponse(
-                defaults.getOpenCode().getModel(), mode == ModelResponseMode.JSON_SCHEMA);
+                DocumentRequirementContext.model(mapper, designerId, defaults.getOpenCode().getModel()), mode == ModelResponseMode.JSON_SCHEMA);
     }
 
     private ModelResponseMode currentResponseMode(String workflowStep, String planningMode, String finalMode) {

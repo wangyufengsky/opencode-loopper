@@ -246,7 +246,8 @@ class OpenCodePermissionPolicyTest {
     @Test
     void everyNonRouterRoleAllowsConfiguredMcpToolsWithoutRemovingItsBuiltInBoundary() {
         for (OpenCodeClient.SessionProfile profile : OpenCodeClient.SessionProfile.values()) {
-            if (profile == OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS
+            if (DocumentTemplateProfiles.contains(profile)
+                    || profile == OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS
                     || profile == OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS
                     || profile == OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_NO_TOOLS
                     || profile == OpenCodeClient.SessionProfile.DECOMPOSER_CANDIDATE_READ_ONLY

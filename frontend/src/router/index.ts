@@ -13,6 +13,7 @@ export const router = createRouter({
     { path: '/insights', component: () => import('@/views/InsightsDashboardView.vue') },
     { path: '/automations', redirect: '/template-tasks' },
     { path: '/template-tasks', component: () => import('@/views/TemplateTasksView.vue') },
+    { path: '/template-tasks/document-runs/:id', component: () => import('@/views/DocumentTemplateView.vue') },
     { path: '/tasks/:id', component: () => import('@/views/TaskDetailView.vue') },
     { path: '/tasks/:id/recovery', component: () => import('@/views/RecoveryStudioView.vue') },
     { path: '/tasks/:id/design', component: () => import('@/views/TaskDesignHistoryView.vue') },

@@ -30,6 +30,14 @@ public class ApiExceptionHandler {
     }
     @ExceptionHandler(HttpMessageNotReadableException.class)
     ResponseEntity<ProblemDetail> invalidJson(HttpMessageNotReadableException ex) { return problem(HttpStatus.BAD_REQUEST, "INVALID_JSON", "Request JSON is invalid"); }
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    ResponseEntity<ProblemDetail> uploadSize(org.springframework.web.multipart.MaxUploadSizeExceededException ex) {
+        return problem(HttpStatus.PAYLOAD_TOO_LARGE, "DOCUMENT_UPLOAD_TOO_LARGE", "上传超过大小限制，请检查单文件 20 MiB、整批 50 MiB 的上限后重试");
+    }
+    @ExceptionHandler(org.springframework.web.multipart.support.MissingServletRequestPartException.class)
+    ResponseEntity<ProblemDetail> missingUploadPart(org.springframework.web.multipart.support.MissingServletRequestPartException ex) {
+        return problem(HttpStatus.BAD_REQUEST, "UPLOAD_PART_REQUIRED", "上传内容不完整，请重新选择文档并提交");
+    }
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseEntity<ProblemDetail> invalidFields(MethodArgumentNotValidException ex) {
         ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "One or more fields are invalid");

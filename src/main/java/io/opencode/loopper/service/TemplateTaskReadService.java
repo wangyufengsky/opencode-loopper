@@ -12,6 +12,9 @@ import org.springframework.stereotype.Service;
 public final class TemplateTaskReadService {
     private final TemplateTaskReadMapper mapper;
     TemplateTaskReadService(TemplateTaskReadMapper mapper) { this.mapper = mapper; }
+    public TemplateTaskReadMapper.ProjectChoice project(String id) {
+        return mapper.project(id).orElseThrow(() -> new NotFoundException("项目不存在，请重新选择项目"));
+    }
 
     public CursorPage<TemplateTaskReadMapper.ProjectChoice> projects(String query, String cursor, int limit) {
         var after = cursor(cursor); requireLimit(limit);

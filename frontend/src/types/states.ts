@@ -36,3 +36,6 @@ export function requirePublicState<const T extends readonly string[]>(values: T,
   if (typeof value === 'string' && (values as readonly string[]).includes(value)) return value as T[number]
   throw new Error(`${owner} returned unknown state: ${String(value)}`)
 }
+
+export const DOCUMENT_TEMPLATE_STATES = ['PREPARING', 'ANALYZING', 'REVIEWING', 'DESIGNING', 'EXECUTING', 'ASSESSING',
+  'VERIFYING', 'REPORTING', 'WAITING_INPUT', 'STOPPING', 'CANCELLED', 'COMPLETED'] as const

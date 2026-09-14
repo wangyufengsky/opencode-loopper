@@ -172,6 +172,17 @@ public interface LoopperTaskMapper {
             VALUES(#{id},#{taskId},#{revision},#{packageRunId},#{specJson},#{specSha256},#{stageCount},#{createdAt})
             """)
     int insertTaskSpecRevision(TaskSpecRevisionRow row);
+    @Insert("""
+        INSERT INTO task_stage_contract(stage_id,spec_revision_id,stage_index,design_message_id)
+        SELECT #{stage},#{revision},#{index},w.design_message_id FROM stage s
+        JOIN task_package_run p ON p.id=s.package_run_id JOIN design_work_package w ON w.id=p.design_work_package_id
+        WHERE s.id=#{stage} AND w.approved_design_revision=p.design_revision AND w.design_message_id IS NOT NULL
+        """)
+    int bindStageContract(@Param("stage") String stage,@Param("revision") String revision,@Param("index") int index);
+    @Select("SELECT json_extract(r.spec_json,'$.stages['||c.stage_index||']') FROM task_stage_contract c JOIN task_spec_revision r ON r.id=c.spec_revision_id JOIN stage s ON s.id=c.stage_id WHERE s.id=#{stage} AND r.task_id=s.task_id AND r.package_run_id=s.package_run_id")
+    Optional<String> frozenStageContract(String stage);
+    @Select("SELECT m.content FROM task_stage_contract c JOIN designer_message m ON m.id=c.design_message_id WHERE c.stage_id=#{stage}")
+    Optional<String> frozenStageDesign(String stage);
     @Select("SELECT * FROM task_spec_revision WHERE task_id=#{taskId} ORDER BY revision DESC LIMIT 1")
     Optional<TaskSpecRevisionRow> latestTaskSpecRevision(String taskId);
     @Select("SELECT * FROM task_spec_revision WHERE task_id=#{taskId} ORDER BY revision")

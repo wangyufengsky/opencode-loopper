@@ -10,43 +10,25 @@ import org.apache.ibatis.annotations.Select;
 public interface ReadModelMapper {
     @Select("""
             <script>
-            SELECT t.id,t.project_id,p.name AS project_name,t.title,
-              substr(COALESCE(d.goal,''),1,240) AS goal_preview,t.branch_name,t.state,
-              retry.cause AS retry_cause,retry.due_at AS retry_due_at,
-              CASE WHEN d.id IS NULL THEN 0 ELSE 1 END AS has_design_history,
-              CASE WHEN archive.task_id IS NULL THEN 0 ELSE 1 END AS archived,
-              COALESCE(attempts.attempt_count,0) AS attempt_count,
-              COALESCE(CAST(json_extract(d.spec_json,'$.limits.maxTaskAttempts') AS INTEGER),12) AS max_attempts,
-              t.created_at,t.updated_at,t.version,t.execution_mode,t.workspace_policy
-            FROM task t
-            JOIN project p ON p.id=t.project_id
-            LEFT JOIN loop_draft d ON d.id=t.loop_draft_id
-            LEFT JOIN task_archive archive ON archive.task_id=t.id
-            LEFT JOIN (
-              SELECT task_id,COUNT(*) AS attempt_count FROM attempt GROUP BY task_id
-            ) attempts ON attempts.task_id=t.id
-            LEFT JOIN task_retry_schedule retry ON retry.id=(
-              SELECT candidate.id FROM task_retry_schedule candidate
-              WHERE candidate.task_id=t.id AND candidate.state IN ('SCHEDULED','PAUSED','CLAIMED')
-              ORDER BY CASE candidate.state WHEN 'SCHEDULED' THEN 0 WHEN 'PAUSED' THEN 1 ELSE 2 END,
-                candidate.updated_at DESC,candidate.id DESC LIMIT 1
-            )
+            SELECT id,project_id,project_name,title,goal_preview,branch_name,state,retry_cause,retry_due_at,
+              has_design_history,archived,attempt_count,max_attempts,created_at,updated_at,execution_mode,
+              document_run_id,document_state,linked_task_id,source_template_id,version FROM task_list_item t
             WHERE 1=1
             <if test="projectId != null">AND t.project_id=#{projectId}</if>
-            <if test="taskType == 'TEMPLATE'">AND t.execution_mode='TEMPLATE_REPORT'</if>
-            <if test="taskType == 'STANDARD'">AND t.execution_mode!='TEMPLATE_REPORT'</if>
+            <if test="taskType == 'TEMPLATE'">AND t.source_template_id IS NOT NULL</if>
+            <if test="taskType == 'STANDARD'">AND t.source_template_id IS NULL</if>
             <if test="states != null and !states.isEmpty()">
               AND t.state IN
               <foreach collection="states" item="state" open="(" separator="," close=")">#{state}</foreach>
             </if>
             <choose>
-              <when test="archiveMode == 'ACTIVE'">AND archive.task_id IS NULL</when>
-              <when test="archiveMode == 'ARCHIVED'">AND archive.task_id IS NOT NULL</when>
+              <when test="archiveMode == 'ACTIVE'">AND t.archived=0</when>
+              <when test="archiveMode == 'ARCHIVED'">AND t.archived=1</when>
             </choose>
             <if test="queryPattern != null">
               AND (lower(t.title) LIKE #{queryPattern} ESCAPE '\\'
-                OR lower(COALESCE(d.goal,'')) LIKE #{queryPattern} ESCAPE '\\'
-                OR lower(p.name) LIKE #{queryPattern} ESCAPE '\\'
+                OR lower(t.search_goal) LIKE #{queryPattern} ESCAPE '\\'
+                OR lower(t.project_name) LIKE #{queryPattern} ESCAPE '\\'
                 OR lower(COALESCE(t.branch_name,'')) LIKE #{queryPattern} ESCAPE '\\')
             </if>
             <if test="cursorValue != null">
@@ -117,18 +99,15 @@ public interface ReadModelMapper {
     @Select("""
             <script>
             WITH scoped AS (
-              SELECT t.id,t.state,CASE WHEN archive.task_id IS NULL THEN 0 ELSE 1 END AS archived
-              FROM task t JOIN project p ON p.id=t.project_id
-              LEFT JOIN loop_draft d ON d.id=t.loop_draft_id
-              LEFT JOIN task_archive archive ON archive.task_id=t.id
+              SELECT t.id,t.state,t.archived FROM task_list_item t
               WHERE 1=1
               <if test="projectId != null">AND t.project_id=#{projectId}</if>
-            <if test="taskType == 'TEMPLATE'">AND t.execution_mode='TEMPLATE_REPORT'</if>
-            <if test="taskType == 'STANDARD'">AND t.execution_mode!='TEMPLATE_REPORT'</if>
+            <if test="taskType == 'TEMPLATE'">AND t.source_template_id IS NOT NULL</if>
+            <if test="taskType == 'STANDARD'">AND t.source_template_id IS NULL</if>
               <if test="queryPattern != null">
                 AND (lower(t.title) LIKE #{queryPattern} ESCAPE '\\'
-                  OR lower(COALESCE(d.goal,'')) LIKE #{queryPattern} ESCAPE '\\'
-                  OR lower(p.name) LIKE #{queryPattern} ESCAPE '\\'
+                  OR lower(t.search_goal) LIKE #{queryPattern} ESCAPE '\\'
+                  OR lower(t.project_name) LIKE #{queryPattern} ESCAPE '\\'
                   OR lower(COALESCE(t.branch_name,'')) LIKE #{queryPattern} ESCAPE '\\')
               </if>
             ), base AS (

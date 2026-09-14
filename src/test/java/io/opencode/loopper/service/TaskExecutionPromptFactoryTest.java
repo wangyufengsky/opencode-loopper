@@ -41,7 +41,7 @@ class TaskExecutionPromptFactoryTest {
         LoopSpec spec = new LoopSpec("v2", "project", "goal", "", List.of(stage("a", "b")), null, null, null, null);
         for (int ordinal : List.of(-1, 1)) {
             assertThatThrownBy(() -> prompts.prompt(mock(TaskRow.class), spec, row(ordinal), Path.of("."), ""))
-                    .isInstanceOf(TaskFailure.class).hasMessageContaining("matching frozen StageSpec");
+                    .isInstanceOf(TaskFailure.class).hasMessageContaining("冻结合同");
         }
         verifyNoInteractions(mapper);
     }

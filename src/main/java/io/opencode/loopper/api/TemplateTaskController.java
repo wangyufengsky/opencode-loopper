@@ -16,6 +16,7 @@ public class TemplateTaskController {
         this.templates = templates; this.branches = branches; this.reads = reads; this.tasks = tasks;
     }
     @GetMapping("/catalog") public TemplateTaskService.Catalog catalog() { return templates.catalog(); }
+    @GetMapping("/projects/{id}") public TemplateTaskReadMapper.ProjectChoice project(@PathVariable String id) { return reads.project(id); }
     @GetMapping("/projects") public CursorPage<TemplateTaskReadMapper.ProjectChoice> projects(
             @RequestParam(required = false) String query, @RequestParam(required = false) String cursor,
             @RequestParam(defaultValue = "50") int limit) { return reads.projects(query, cursor, limit); }

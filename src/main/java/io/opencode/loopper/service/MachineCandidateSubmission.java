@@ -90,7 +90,8 @@ public interface MachineCandidateSubmission {
         TASK_PACKAGE_PLAN_REVISION("任务工作包计划修订"),
         ANALYSIS_REPORT("分析报告"),
         PROJECT_CONVENTION_DRAFT("项目公约草稿"),
-        JUDGE_RUN("评审运行");
+        JUDGE_RUN("评审运行"),
+        DOCUMENT_TEMPLATE_MODEL_RUN("文档模板角色运行");
 
         private final String description;
         CandidateOwnerType(String description) { this.description = description; }

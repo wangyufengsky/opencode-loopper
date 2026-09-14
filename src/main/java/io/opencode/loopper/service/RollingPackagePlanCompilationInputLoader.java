@@ -72,6 +72,11 @@ interface RollingPackagePlanCompilationInputLoader {
                     frozenKeys.add(run.packageKey());
                 }
             }
+            var documentRefs = mapper.documentTaskRequirementRefs(taskId);
+            if (!documentRefs.isEmpty()) {
+                if (documentRefs.size() > 4096) throw new ConflictException("DOCUMENT_PLAN_CAPACITY", "本版需求超过剩余计划容量，请拆分任务");
+                requirementRefs.clear(); requirementRefs.addAll(documentRefs);
+            }
             return new RollingPackagePlanCompilation.Input(
                     List.copyOf(current), List.copyOf(frozenKeys), List.copyOf(requirementRefs));
         }

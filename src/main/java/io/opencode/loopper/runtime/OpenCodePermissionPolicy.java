@@ -21,6 +21,16 @@ final class OpenCodePermissionPolicy {
         if (profile != OpenCodeClient.SessionProfile.IMPLEMENTATION) {
             List<Map<String, String>> rules = new ArrayList<>();
             rules.add(rule("*", "*", "deny"));
+            if (DocumentTemplateProfiles.contains(profile)) {
+                rules.add(rule("external_directory", "*", "deny"));
+                allowInternalSubmission(rules, internalMcpServer, profile);
+                if (internalMcpServer != null && !internalMcpServer.isBlank()) {
+                    for (String tool : DocumentTemplateProfiles.readTools(profile)) {
+                        rules.add(rule(sanitize(internalMcpServer) + "_" + tool, "*", "allow"));
+                    }
+                }
+                return List.copyOf(rules);
+            }
             if (isNoTools(profile)) {
                 rules.add(rule("external_directory", "*", "deny"));
                 // Router receives a bounded server snapshot and must remain a true zero-tool classifier.

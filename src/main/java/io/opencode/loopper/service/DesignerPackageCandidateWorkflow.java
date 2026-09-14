@@ -200,8 +200,8 @@ final class DesignerPackageCandidateWorkflow {
                     "CANDIDATE_ACCEPTED", Math.max(session.designRevision(), workPackage.designRevision()),
                     workPackage.redesignCount(), revision.revision(), workPackage.packageId());
         }
-        LoopSpecCompilationRow compilation = mapper.findLoopSpecCompilationForPackageRevision(
-                session.id(), workPackage.packageId(), Math.toIntExact(accepted.sourceRevision())).orElse(null);
+        LoopSpecCompilationRow compilation = mapper.findLoopSpecCompilationForDesignSource(
+                session.id(), source.id(), Math.toIntExact(accepted.sourceRevision())).orElse(null);
         boolean created = compilation == null;
         if (created) {
             String now = now();

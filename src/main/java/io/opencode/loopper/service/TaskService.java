@@ -807,7 +807,7 @@ public class TaskService {
             LoopSpec spec = spec(initial);
             List<LoopSpec.VerifierSpec> verifierSpecs = read(stage.verifiersJson(), new TypeReference<>() {});
             List<PendingVerification> pending = new ArrayList<>();
-            LoopSpec.StageSpec stageContract = spec.stages().get(stage.ordinal());
+            LoopSpec.StageSpec stageContract = executionPrompts.stageContract(spec, stage);
             ManagedVerificationRuntimeService.Lease managedRuntime = null;
             try {
                 if ("v2".equals(spec.schemaVersion()) && stageContract.verificationRuntime() != null) {
@@ -1150,6 +1150,7 @@ public class TaskService {
         events.emit(taskId, "task.resumed", Map.of("state", TaskState.RUNNING.name()));
         return get(taskId);
     }
+    boolean writersStopped(String taskId) { return mapper.activeSessions(taskId).isEmpty() && !writerTermination.hasUnconfirmedWriter(taskId); }
     public TaskRow cancel(String taskId) {
         if (TemplateWorkspaceService.applies(get(taskId)) && !templateTasks.getObject().stopBeforeCancellation(taskId)) return get(taskId);
         return settleCancelledLease(cancellations.cancel(taskId));
