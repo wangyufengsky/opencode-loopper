@@ -71,9 +71,9 @@ public class TemplateGitEvidenceCollector {
     }
 
     private Commit commit(Context context, String sha, TemplateDateRange dates) {
-        String[] metadata = git.read(context.repository(), "show", "-s", "--format=%H%x00%P%x00%an%x00%ae%x00%ct%x00%B", sha, "--")
-                .split("\u0000", 6);
-        if (metadata.length != 6 || !sha.equals(metadata[0])) throw invalid("提交元数据无效");
+        String[] metadata = git.read(context.repository(), "show", "-s", "--format=%H%x00%P%x00%an%x00%ae%x00%ct%x00%cn%x00%ce%x00%at%x00%B", sha, "--")
+                .split("\u0000", 9);
+        if (metadata.length != 9 || !sha.equals(metadata[0])) throw invalid("提交元数据无效");
         Instant time = Instant.ofEpochSecond(Long.parseLong(metadata[4]));
         if (!dates.contains(time)) return null;
         List<String> parents = metadata[1].isBlank() ? List.of() : List.of(metadata[1].split(" "));
@@ -83,7 +83,20 @@ public class TemplateGitEvidenceCollector {
         if (parents.size() > 2) throw new TaskFailure("TEMPLATE_OCTOPUS_MERGE", "范围内包含多父合并，当前版本无法完整重建其独有变更，请调整范围");
         List<Change> changes = changes(context, sha, parents);
         String disposition = parents.size() == 2 ? "MERGE_RESOLUTION" : changes.isEmpty() ? "EMPTY" : "ANALYZE";
-        return new Commit(sha, parents, time.toString(), metadata[5].strip(), contributors, disposition, changes);
+        var author = identity(context, metadata[2], metadata[3], Instant.ofEpochSecond(Long.parseLong(metadata[7])).toString());
+        var committer = identity(context, metadata[5], metadata[6], time.toString());
+        List<TemplateGitEvidence.CommitIdentity> coauthors = new ArrayList<>();
+        String trailers = git.read(context.repository(), "show", "-s", "--format=%(trailers:key=Co-authored-by,valueonly)", sha, "--");
+        for (String trailer : trailers.lines().filter(value -> !value.isBlank()).toList()) {
+            var match = AUTHOR.matcher(trailer.strip());
+            if (match.matches()) coauthors.add(identity(context, match.group(1), match.group(2), null));
+        }
+        return new Commit(sha, parents, time.toString(), metadata[8].strip(), contributors, disposition, changes, author, committer, coauthors);
+    }
+
+    private TemplateGitEvidence.CommitIdentity identity(Context context, String name, String email, String time) {
+        var mapped = contributor(context, name + " <" + email + ">");
+        return new TemplateGitEvidence.CommitIdentity(name, email, mapped.name(), mapped.email(), time);
     }
 
     private List<Contributor> contributors(Context context, String sha, String name, String email) {
@@ -131,6 +144,7 @@ public class TemplateGitEvidenceCollector {
             long deletions = binary ? 0 : Long.parseLong(fields[1]);
             List<String> patchCommand = showArguments(sha, parents.size() == 2 ? before : null);
             patchCommand.add(path);
+            patchCommand.addFirst("--literal-pathspecs");
             String patch = sensitive(path) ? "" : git.read(context.repository(), patchCommand.toArray(String[]::new));
             String reason = sensitive(path) ? "SENSITIVE_CONTENT_WITHHELD" : excluded(context.repository(), sha, path, binary, patch);
             result.add(new Change(hash(sha + "\n" + path), path,
@@ -166,7 +180,7 @@ public class TemplateGitEvidenceCollector {
     }
 
     private String blob(Path repository, String sha, String path) {
-        String entry = git.read(repository, "ls-tree", "-z", sha, "--", path);
+        String entry = git.read(repository, "--literal-pathspecs", "ls-tree", "-z", sha, "--", path);
         if (entry.isEmpty()) return null;
         int tab = entry.indexOf('\t');
         if (tab < 0 || !entry.substring(tab + 1).equals(path + "\u0000")) throw invalid("文件证据路径无效");
@@ -203,7 +217,7 @@ public class TemplateGitEvidenceCollector {
                         change.additions(), change.deletions(), change.binary(), 0, "DUPLICATE_PATCH", change.patch());
             }).toList();
             return new Commit(commit.sha(), commit.parents(), commit.committedAt(), commit.message(),
-                    commit.contributors(), commit.disposition(), changes);
+                    commit.contributors(), commit.disposition(), changes, commit.author(), commit.committer(), commit.coauthors());
         }).toList();
     }
 

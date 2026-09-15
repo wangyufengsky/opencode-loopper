@@ -61,9 +61,11 @@ final class TemplateAnalysisMcpTool {
         var assessment = object(Map.of("level", Map.of("type", "integer", "minimum", 0, "maximum", 4), "reason", text, "evidenceIds", array(text)));
         var contributor = object(Map.of("identity", text, "summary", text, "value", assessment, "difficulty", assessment,
                 "quality", assessment, "maintenance", assessment));
+        var candidates = new java.util.ArrayList<Map<String, Object>>(List.of(object(Map.of("reviews", array(review))), contributor));
+        candidates.addAll(SnapshotReviewSchemas.candidates());
         return object(Map.of("runId", text, "idempotencyKey", Map.of("type", "string", "minLength", 1, "maxLength", 128),
                 "expectedSubmissionRevision", Map.of("type", "integer", "minimum", 0),
-                "candidate", Map.of("anyOf", List.of(object(Map.of("reviews", array(review))), contributor))));
+                "candidate", Map.of("anyOf", candidates)));
     }
     private static Map<String, Object> array(Map<String, Object> items) { return Map.of("type", "array", "items", items); }
     private static Map<String, Object> object(Map<String, Object> properties) {

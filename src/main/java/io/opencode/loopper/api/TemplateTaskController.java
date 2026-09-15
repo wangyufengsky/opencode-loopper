@@ -45,6 +45,11 @@ public class TemplateTaskController {
         if (!TemplateWorkspaceService.applies(tasks.get(taskId))) throw new BadRequestException("TEMPLATE_TASK_REQUIRED", "请选择模板任务");
         return reads.failedBatches(taskId, cursor, limit);
     }
+    @GetMapping("/{taskId}/snapshot-batches") public CursorPage<TemplateTaskReadMapper.SnapshotBatchSummary> snapshotBatches(
+            @PathVariable String taskId, @RequestParam(defaultValue = "") String after, @RequestParam(defaultValue = "50") int limit) {
+        if (!TemplateWorkspaceService.applies(tasks.get(taskId))) throw new BadRequestException("TEMPLATE_TASK_REQUIRED", "请选择模板任务");
+        return reads.snapshotBatches(taskId, after, limit);
+    }
     @PostMapping("/{taskId}/batches/{batchId}/retry") public Created retry(@PathVariable String taskId,
             @PathVariable String batchId, @RequestHeader(value = "X-Loopper-Local-UI", required = false) String localUi,
             @RequestBody Retry request) {

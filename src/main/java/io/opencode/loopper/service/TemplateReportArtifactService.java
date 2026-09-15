@@ -42,7 +42,9 @@ public final class TemplateReportArtifactService {
         var snapshot = evidence.read(run);
         var definition = TemplateTaskDefinition.valueOf(run.templateId());
         var layout = evidence.contract(task.id()).reportTemplates();
-        var bundle = layout != null && layout.hierarchical() ? bundles.prepare(task, attempt, definition, snapshot) : null;
+        var bundle = layout != null && TemplateReportLayout.HISTORY_VERSION.equals(layout.version())
+                ? bundles.prepareNamed(task, attempt, "历史提交审查", snapshot.startDate(), snapshot.endDate())
+                : layout != null && layout.hierarchical() ? bundles.prepare(task, attempt, definition, snapshot) : null;
         var report = TemplateReportCompiler.compile(definition,
                 bundle == null ? mapper.findProject(task.projectId()).orElseThrow().name() : bundle.projectName(),
                 snapshot, accepted, layout, bundle == null ? 1 : bundle.sequence());
@@ -63,6 +65,23 @@ public final class TemplateReportArtifactService {
                 if (previous == null) mapper.insertTaskArtifact(item);
                 else if (!previous.content().equals(item.content()) && !(item.contentType().equals("application/json")
                         && json.readTree(previous.content()).equals(json.readTree(item.content())))) throw new ConflictException("TEMPLATE_ARTIFACT_CHANGED", "冻结报告内容不一致");
+            }
+            events.emit(task.id(), "artifact.template_reports_saved", Map.of("attemptId", attempt.id(), "reportCount", report.documents().size()));
+        });
+        materialize(task, attempt.id());
+    }
+
+    public void publishCompiled(AttemptRow attempt, TemplateReportCompiler.Result report, TemplateReportBundleRow bundle) {
+        var task = mapper.findTask(attempt.taskId()).orElseThrow();
+        var items = report.documents().stream().map(document -> row(task, attempt, 0, "TEMPLATE_REPORT", document.path(), "text/markdown", document.markdown(), bundle)).toList();
+        transactions.executeWithoutResult(ignored -> {
+            if (!mapper.findTask(task.id()).orElseThrow().state().equals("RUNNING") || !mapper.findAttempt(attempt.id()).orElseThrow().state().equals("RUNNING"))
+                throw new ConflictException("TEMPLATE_ARTIFACT_OWNER_CHANGED", "报告生成期间任务状态已改变");
+            var stored = artifacts(task.id(), attempt.id());
+            for (var item : items) {
+                var previous = stored.stream().filter(a -> a.name().equals(item.name()) && a.kind().equals(item.kind())).findFirst().orElse(null);
+                if (previous == null) mapper.insertTaskArtifact(item);
+                else if (!previous.content().equals(item.content())) throw new ConflictException("TEMPLATE_ARTIFACT_CHANGED", "冻结报告内容不一致");
             }
             events.emit(task.id(), "artifact.template_reports_saved", Map.of("attemptId", attempt.id(), "reportCount", report.documents().size()));
         });

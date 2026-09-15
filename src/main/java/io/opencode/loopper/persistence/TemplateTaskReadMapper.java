@@ -71,6 +71,39 @@ public interface TemplateTaskReadMapper {
     List<ProjectChoice> projects(@Param("query") String query, @Param("time") String time, @Param("id") String id, @Param("limit") int limit);
 
     @Select("""
+            SELECT sr.mode,json_extract(sr.snapshot_json,'$.targetSha') AS target_sha,
+                json_extract(sr.snapshot_json,'$.baselineSha') AS baseline_sha,sr.plan_revision,
+                (SELECT group_concat(state,',') FROM (SELECT state FROM stage WHERE task_id=sr.task_id ORDER BY ordinal)) AS stages,
+                SUM(CASE WHEN b.purpose IN ('SNAPSHOT_PLAN','SNAPSHOT_LINKS') THEN 1 ELSE 0 END) AS planning,
+                SUM(CASE WHEN b.purpose IN ('SNAPSHOT_PLAN','SNAPSHOT_LINKS') AND b.state='VALIDATED' THEN 1 ELSE 0 END) AS planned,
+                SUM(CASE WHEN b.purpose IN ('SNAPSHOT_ANALYSIS','SNAPSHOT_SUPPLEMENT','SNAPSHOT_RELATION_ANALYSIS') THEN 1 ELSE 0 END) AS analyses,
+                SUM(CASE WHEN b.purpose IN ('SNAPSHOT_ANALYSIS','SNAPSHOT_SUPPLEMENT','SNAPSHOT_RELATION_ANALYSIS') AND b.state='VALIDATED' THEN 1 ELSE 0 END) AS analyzed,
+                SUM(CASE WHEN b.purpose IN ('SNAPSHOT_REVIEW','SNAPSHOT_RELATION_REVIEW') THEN 1 ELSE 0 END) AS reviews,
+                SUM(CASE WHEN b.purpose IN ('SNAPSHOT_REVIEW','SNAPSHOT_RELATION_REVIEW') AND b.state='VALIDATED' THEN 1 ELSE 0 END) AS reviewed,
+                SUM(CASE WHEN b.state IN ('CREATING','PROMPT_READY','DISPATCHING','RUNNING','STOPPING') THEN 1 ELSE 0 END) AS active,
+                SUM(CASE WHEN b.state='FAILED' OR b.state='STOPPED' AND b.session_id IS NOT NULL THEN 1 ELSE 0 END) AS failed,
+                SUM(CASE WHEN b.purpose='SNAPSHOT_SUPPLEMENT' THEN 1 ELSE 0 END) AS supplements,
+                (SELECT COUNT(*) FROM task_artifact WHERE task_id=sr.task_id AND kind='TEMPLATE_REPORT') AS report_count,
+                json_extract(tr.contract_json,'$.documentPath') AS document_path,
+                (SELECT folder_name FROM template_report_bundle WHERE task_id=sr.task_id ORDER BY sequence DESC LIMIT 1) AS folder
+            FROM snapshot_review_run sr JOIN template_task_run tr ON tr.task_id=sr.task_id
+            LEFT JOIN template_task_batch b ON b.task_id=sr.task_id
+                AND NOT EXISTS (SELECT 1 FROM template_task_batch n WHERE n.attempt_id=b.attempt_id AND n.purpose=b.purpose AND n.ordinal=b.ordinal AND n.generation>b.generation)
+            WHERE sr.task_id=#{taskId} GROUP BY sr.task_id
+            """)
+    java.util.Optional<SnapshotReviewProgressRow> snapshotProgress(String taskId);
+
+    @Select("""
+            SELECT b.id,b.purpose,b.state,b.ordinal,b.generation,b.created_at,
+                json_extract(b.input_json,'$.snapshot.objective') AS title,b.error_message
+            FROM template_task_batch b WHERE b.task_id=#{taskId} AND b.purpose LIKE 'SNAPSHOT_%'
+                AND NOT EXISTS (SELECT 1 FROM template_task_batch n WHERE n.attempt_id=b.attempt_id AND n.purpose=b.purpose AND n.ordinal=b.ordinal AND n.generation>b.generation)
+                AND (#{time} IS NULL OR b.created_at>#{time} OR (b.created_at=#{time} AND b.id>#{id})) ORDER BY b.created_at,b.id LIMIT #{limit}
+            """)
+    List<SnapshotBatchSummary> snapshotBatches(String taskId, String time, String id, int limit);
+    record SnapshotBatchSummary(String id, String purpose, String state, int ordinal, int generation, String createdAt, String title, String errorMessage) { }
+
+    @Select("""
             SELECT task.id,task.title,task.state,project.name AS project_name,run.template_id,run.branch_label,
                 run.start_date,run.end_date,run.repair_round,task.created_at,task.updated_at
             FROM task JOIN template_task_run run ON run.task_id=task.id JOIN project ON project.id=task.project_id

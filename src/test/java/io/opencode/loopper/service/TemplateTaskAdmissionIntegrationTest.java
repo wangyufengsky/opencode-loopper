@@ -59,7 +59,7 @@ class TemplateTaskAdmissionIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM designer_session", Integer.class)).isZero();
         assertThat(mapper.findTaskStoryBinding(task.id())).isEmpty();
         assertThat(templates.findRun(task.id()).orElseThrow().contractJson()).contains("test-model", "CONTRIBUTION_SCORE_V1", "Asia/Shanghai",
-                "REPORT_LAYOUT_V3", "CODE_REVIEW_V3", "CONTRIBUTION_REPORT_V3", "PERSONAL_CONTRIBUTION_V3", "sha256");
+                "HISTORY_REPORT_LAYOUT_V1", "HISTORY_REVIEW_V1", "CONTRIBUTION_REPORT_V3", "PERSONAL_CONTRIBUTION_V3", "sha256");
     }
 
     @Test void rejectsNewStoryEnabledRequestsWithoutCreatingTasksOrBindings() {

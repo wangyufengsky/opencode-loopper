@@ -32,6 +32,7 @@ const projectId = ref('')
 const branchId = ref('')
 const startDate = ref('')
 const endDate = ref('')
+const reviewMode = ref<'DATE_INCREMENTAL' | 'FULL'>('DATE_INCREMENTAL')
 const projects = ref<TemplateProjectChoice[]>([])
 const branches = ref<TemplateBranchChoice[]>([])
 const projectCursor = ref<string | null>()
@@ -48,7 +49,8 @@ let branchGeneration = 0
 const definition = computed(() => store.catalog?.templates.find(item => item.id === selected.value))
 const isDocument = computed(() => definition.value?.inputs?.documents === true)
 const needsBranch = computed(() => definition.value?.inputs?.branch ?? true)
-const needsDates = computed(() => definition.value?.inputs?.dates ?? true)
+const isSnapshot = computed(() => definition.value?.workflow === 'SNAPSHOT_CODE_REVIEW')
+const needsDates = computed(() => isSnapshot.value ? reviewMode.value === 'DATE_INCREMENTAL' : definition.value?.inputs?.dates ?? true)
 const dateError = computed(() => startDate.value && endDate.value && endDate.value < startDate.value ? '结束日期不能早于开始日期' : '')
 const valid = computed(() => definition.value && projectId.value && !busy.value
   && (!needsBranch.value || (branchId.value && !loadingBranches.value))
@@ -109,7 +111,8 @@ async function submit() {
       return
     }
     const id = await store.start({ templateId: selected.value, templateVersion: definition.value.version, projectId: projectId.value,
-      branchId: branchId.value, startDate: startDate.value, endDate: endDate.value, documentPath: documentPath.value.trim() || undefined })
+      branchId: branchId.value, ...(needsDates.value ? { startDate: startDate.value, endDate: endDate.value } : {}),
+      ...(isSnapshot.value ? { reviewMode: reviewMode.value } : {}), documentPath: documentPath.value.trim() || undefined })
     if (id) await router.push(`/tasks/${id}`)
   } catch (failure) { error.value = userFacingError(failure, '未能开始执行，请重试；已确认的任务会继续复用') }
 }
@@ -155,6 +158,10 @@ onBeforeUnmount(() => { ++projectGeneration; ++branchGeneration })
     <div class="template-configuration">
     <form v-if="definition" class="card card-pad task-parameters" aria-label="模板任务参数" @submit.prevent="submit">
       <header class="parameter-heading"><h2>{{ definition.title }}</h2><p class="muted">{{ definition.description }}</p></header>
+      <div v-if="isSnapshot" class="parameter-grid">
+        <label>审查范围<el-select v-model="reviewMode" aria-label="审查范围" :disabled="busy"><el-option value="DATE_INCREMENTAL" label="日期增量审查" /><el-option value="FULL" label="全面审查" /></el-select></label>
+        <p class="muted">{{ reviewMode === 'FULL' ? '审查所选分支的冻结目标版本。' : '对比开始日期 00:00 与结束日期 24:00 前的主线版本，审查最终差异。' }}</p>
+      </div>
       <div class="parameter-grid">
         <label>项目<el-select v-model="projectId" aria-label="项目" filterable remote :remote-method="searchProjects" :loading="loadingProjects" :disabled="busy" placeholder="搜索并选择项目">
           <el-option v-for="project in projects" :key="project.id" :value="project.id" :label="project.name" />

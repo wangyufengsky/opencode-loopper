@@ -70,7 +70,7 @@ public final class InternalMcpContractCatalog {
             case DOCUMENT_CODE_REVIEW_V2_NO_TOOLS -> optional(MachineCandidateKind.DOCUMENT_CODE_REVIEW_V2);
             case REQUIREMENT_CODE_ASSESSMENT_NO_TOOLS -> optional(MachineCandidateKind.REQUIREMENT_CODE_ASSESSMENT_V1);
             case REQUIREMENT_ASSESSMENT_REVIEW_NO_TOOLS -> optional(MachineCandidateKind.REQUIREMENT_ASSESSMENT_REVIEW_V1);
-            case TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS -> Optional.of(TEMPLATE_TOOL);
+            case TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS, SNAPSHOT_CODE_REVIEW_NO_TOOLS -> Optional.of(TEMPLATE_TOOL);
             case DECOMPOSER_CANDIDATE_READ_ONLY -> optional(MachineCandidateKind.DECOMPOSITION_PLAN_V2);
             case ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS ->
                     optional(MachineCandidateKind.ACCEPTANCE_CLOSED_CHOICE_V7);

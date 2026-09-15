@@ -12,7 +12,12 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 public final class TemplateCandidateCodec {
     private final ObjectMapper json;
+    private SnapshotReviewProtocol snapshots;
     public TemplateCandidateCodec(ObjectMapper json) { this.json = json; }
+    @org.springframework.beans.factory.annotation.Autowired
+    public TemplateCandidateCodec(ObjectMapper json, SnapshotReviewProtocol snapshots) { this.json = json; this.snapshots = snapshots; }
+    public String snapshotPrompt(io.opencode.loopper.persistence.TemplateTaskBatchRow row) { return snapshots.prompt(row); }
+    public String snapshot(io.opencode.loopper.persistence.TemplateTaskBatchRow row, String output) { return snapshots.validate(row, output); }
 
     public String review(String response, List<TemplateAnalysis.Unit> units) {
         try {

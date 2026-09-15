@@ -1138,3 +1138,7 @@ to pass validation. See [role changes, configuration and qualification boundarie
 ### 内部候选参数查询
 
 内部提交角色可调用只读 `describe_submission_contract(runId,pointer)`，获取本运行实际注册工具的参数 Schema、当前提交 revision 和字段说明。查询按正式候选的所有者、作用域与运行代际验证，仅返回本角色冻结提交工具；不增加提交权限或候选接受事实。启动计划的单一提交入口验证只统计提交工具，参数查询与文档导航属于独立只读能力。详细文档导航、预检和冻结兼容规则见[文档模板合同](document-template-contract.md#模型导航与参数预检版本-3)。
+
+### 冻结版本审查专用读取
+
+`SNAPSHOT_CODE_REVIEW_NO_TOOLS` 仅开放专用快照导航/读取/检索/已接受结果与 `submit_template_analysis`、合同查询，保持托管代次与角色凭据隔离。不开放目标项目构建测试、原生文件和命令工具，不设 agentic 步数上限；预算、时限及停止证明独立生效。具体候选和范围合同见[冻结版本代码审查](snapshot-code-review-contract.md)。

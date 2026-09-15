@@ -1,6 +1,6 @@
 import type { DocumentSectionPage, DocumentSupplementRequest, DocumentSupplementOptions, DocumentClarification, DocumentClarificationRequest, TaskListItem, DocumentTemplateRequest, DocumentTemplateOverview, DocumentRequirementPage, DocumentRequirementDetail, DocumentSection, DocumentReportSummary } from '@/types/domain'
 import type { ProjectAssistConfig, AssistEvidenceSource, EvidencePage, EvidenceFailurePage, EvidenceBody, EvidenceSearch, EvidenceFailureDetail } from '@/types/domain'
-import type { TemplateFailedBatch, TemplateTaskCatalog, TemplateProjectChoice, TemplateBranchPage, TemplateTaskRequest, TemplateTaskCreated, TemplateTaskSummary } from '@/types/domain'
+import type { SnapshotReviewBatch, TemplateFailedBatch, TemplateTaskCatalog, TemplateProjectChoice, TemplateBranchPage, TemplateTaskRequest, TemplateTaskCreated, TemplateTaskSummary } from '@/types/domain'
 import type { AppSettings, Artifact, Attempt, AutomationImportPreview, AutomationImportResult, AutomationRule, AutomationRuleMutation, AutomationRun, AutomationRunFeed, AvailableModel, BrowserAssertion, CommitMessageSuggestion, CreateAutomationRuleInput, DesignerActivity, DesignerAnsweredQuestion, DesignerAppendResult, DesignerHistoryItem, DesignerMessage, DesignerSession, DesignerSessionState, DesignerSessionSummary, DesignerStopResult, DesignerStreamEvent, DirectorySelection, DirtyWorkspaceAction, DirtyWorkspaceResolution, DirtyWorkspaceState, ErrorEvent, GitDiffScopeApproval, GitDiffScopeDecisionAction, InsightsSnapshot, Interaction, InteractionAction, JudgeRun, LocalSyncConflictContent, LocalSyncConflictFile, LocalSyncConflictSession, LocalSyncResolution, LoopDraft, LoopSpec, LoopSpecAssessment, LoopSpecTemplate, LoopSpecTemplateVersion, LoopVerifierSpec, MergeRequestDraft, Project, ProjectConventionActivity, ProjectConventionDraft, ProjectConventionSnapshot, RecoveryDraft, RecoveryMode, RuntimeInfo, SessionCheckpoint, SessionForkResult, SessionRevertResult, SessionSummaryResult, SessionTodo, Stage, Task, TaskDecision, TaskDesignHistory, TaskDiffPreview, TaskEvent, TaskInsight, TaskPublicationStatus, TaskQueueStatus, TaskSessionActivity, TaskSessionActivityPart, TaskSessionPendingQuestion, TaskSessionSummary, UsageAggregate } from '@/types/domain'
 import type { AnalysisReport, DesignerTaskProfileUpdatePreview, ProjectStackProfile, RollingPackageCapabilities, RollingPackageDetail, RollingPackageFact, RollingPackageRun, RollingPackageWorkbench, RollingPlanPackage, RollingPlanProposal } from '@/types/domain'
 import { DOCUMENT_TEMPLATE_STATES, DESIGNER_SESSION_STATES, DESIGN_WORK_PACKAGE_STATES, LOOP_DRAFT_STATUSES, STAGE_STATUSES, TASK_PACKAGE_RUN_STATES, TASK_STATUSES, WORK_PACKAGE_AGGREGATE_STATUSES, requirePublicState } from '@/types/states'
@@ -538,6 +538,15 @@ function normalizeReadContent(value: unknown): ReadContent {
     content: asString(raw.content), metadata: asRecord(raw.metadata) }
 }
 
+function normalizeSnapshotProgress(value: unknown): NonNullable<Task['templateProgress']>['snapshot'] {
+  if (!value) return null
+  const raw = asRecord(value)
+  if (raw.mode !== 'DATE_INCREMENTAL' && raw.mode !== 'FULL') throw new Error('代码审查模式无效')
+  return { mode: raw.mode, targetSha: asString(raw.targetSha) || null, baselineSha: asString(raw.baselineSha) || null,
+    planRevision: asNumber(raw.planRevision), supplements: asNumber(raw.supplements), phases: asArray(raw.phases).map(value => {
+      const phase = asRecord(value); return { label: asString(phase.label), total: asNumber(phase.total), completed: asNumber(phase.completed) }
+    }) }
+}
 function normalizeTemplateProgress(value: unknown): NonNullable<Task['templateProgress']> {
   const raw = asRecord(value)
   return { steps: asArray(raw.steps).map(value => { const step = asRecord(value); return { key: asString(step.key), label: asString(step.label), state: asString(step.state) } }), currentPhase: asString(raw.currentPhase) || undefined, dualReviewRequired: raw.dualReviewRequired !== false,
@@ -546,7 +555,7 @@ function normalizeTemplateProgress(value: unknown): NonNullable<Task['templatePr
     contributorBatches: typeof raw.contributorBatches === 'number' ? raw.contributorBatches : null,
     completedReviews: asNumber(raw.completedReviews), completedContributors: asNumber(raw.completedContributors),
     activeBatches: asNumber(raw.activeBatches), failedBatches: asNumber(raw.failedBatches), repairRound: asNumber(raw.repairRound),
-    documentPath: asString(raw.documentPath) || null }
+    documentPath: asString(raw.documentPath) || null, snapshot: normalizeSnapshotProgress(raw.snapshot) }
 }
 
 function normalizeTask(value: unknown): Task {
@@ -1652,6 +1661,7 @@ export const api = {
   templateProject: (id: string) => request<TemplateProjectChoice>(`/template-tasks/projects/${encodeURIComponent(id)}`),
   documentFailedBatches: (id: string, cursor = '') => request<CursorPage<TemplateFailedBatch>>(`/template-tasks/document-runs/${encodeURIComponent(id)}/failed-batches?cursor=${encodeURIComponent(cursor)}`),
   retryDocumentBatch: (id: string, batch: TemplateFailedBatch) => request<{ id: string; state: string }>(`/template-tasks/document-runs/${encodeURIComponent(id)}/batches/${encodeURIComponent(batch.id)}/retry`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify({ expectedVersion: batch.version }) }),
+  snapshotReviewBatches: (id: string, after = '') => request<CursorPage<SnapshotReviewBatch>>(`/template-tasks/${encodeURIComponent(id)}/snapshot-batches?after=${encodeURIComponent(after)}`),
   templateFailedBatches: (id: string, cursor = '') => request<CursorPage<TemplateFailedBatch>>(`/template-tasks/${encodeURIComponent(id)}/failed-batches?cursor=${encodeURIComponent(cursor)}`),
   retryTemplateBatch: (id: string, batch: TemplateFailedBatch) => request<{ id: string; state: string }>(`/template-tasks/${encodeURIComponent(id)}/batches/${encodeURIComponent(batch.id)}/retry`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify({ expectedVersion: batch.version }) }),
   retrySelectedTemplateBatches: (id: string, batches: TemplateFailedBatch[]) => request<{ id: string; state: string }[]>(`/template-tasks/${encodeURIComponent(id)}/batches/retry`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify({ batches: batches.map(batch => ({ id: batch.id, expectedVersion: batch.version })) }) }),

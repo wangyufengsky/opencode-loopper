@@ -31,9 +31,11 @@ public class TemplateTaskAdmission {
     private final LifecycleTransitionService lifecycle;
     private final TaskEvidenceService evidence;
     private final ObjectMapper json;
+    private final io.opencode.loopper.persistence.SnapshotReviewMapper snapshots;
 
     TemplateTaskAdmission(LoopperMapper mapper, TemplateTaskMapper templates, LifecycleTransitionService lifecycle,
-                            TaskEvidenceService evidence, ObjectMapper json) {
+                            TaskEvidenceService evidence, ObjectMapper json, io.opencode.loopper.persistence.SnapshotReviewMapper snapshots) {
+        this.snapshots = snapshots;
         this.mapper = mapper; this.templates = templates; this.lifecycle = lifecycle;
         this.evidence = evidence; this.json = json;
     }
@@ -58,6 +60,8 @@ public class TemplateTaskAdmission {
                 command.contract().definition().id(), command.contract().definition().version(), branch.id(), branch.label(), branch.ref(), branch.remote(),
                 command.dates().startDate().toString(), command.dates().endDate().toString(), json.writeValueAsString(command.contract()),
                 null, null, 0, command.bypassCache() ? 1 : 0, now, now, 0));
+        if (io.opencode.loopper.template.SnapshotReview.applies(command.contract().definition().id()))
+            snapshots.insert(taskId, command.contract().reviewMode());
         evidence.persistConfirmedDesignContext(task, draft);
         LoopDraftRow confirmed = new LoopDraftRow(draft.id(), draft.projectId(), draft.goal(), draft.specJson(), "CONFIRMED", now, now, 0);
         lifecycle.transition(draftSubject(draft), draft.status(), confirmed.status(), LifecycleEvent.CONFIRM,

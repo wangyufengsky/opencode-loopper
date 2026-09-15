@@ -204,6 +204,8 @@ public class TemplateBatchStore {
     }
 
     public TemplateTaskBatchRow require(String id) { return templates.findBatch(id).orElseThrow(() -> new NotFoundException("模板批次不存在")); }
+    public java.util.List<String> candidateRepairErrors(String taskId) { return templates.candidateRepairErrors(taskId); }
+
     public void requireRunning(String taskId, String attemptId) {
         var task = mapper.findTask(taskId).orElseThrow();
         var attempt = mapper.findAttempt(attemptId).orElseThrow();

@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { Icon } from '@iconify/vue'
 import type { Task } from '@/types/domain'
 import { displayLabel } from '@/utils/displayLabels'
+import SnapshotReviewBatchesPanel from './SnapshotReviewBatchesPanel.vue'
 import StageRail from './StageRail.vue'
 import TemplateBatchRecoveryPanel from './TemplateBatchRecoveryPanel.vue'
 const props = defineProps<{ task: Task }>()
@@ -12,10 +13,10 @@ const total = computed(() => progress.value?.reviewBatches == null || progress.v
 const completed = computed(() => (progress.value?.completedReviews ?? 0) + (progress.value?.completedContributors ?? 0))
 const remaining = computed(() => total.value == null ? null : Math.max(0, total.value - completed.value))
 const percentage = computed(() => total.value ? Math.min(100, Math.floor(completed.value / total.value * 100)) : 0)
-const categories = computed(() => [{ label: '代码分析', done: progress.value?.completedReviews ?? 0, total: progress.value?.reviewBatches }, ...(progress.value?.contributorBatches ? [{ label: '人员贡献', done: progress.value.completedContributors, total: progress.value.contributorBatches }] : [])])
+const categories = computed(() => progress.value?.snapshot ? progress.value.snapshot.phases.map(p => ({ label: p.label, done: p.completed, total: p.total })) : [{ label: '代码分析', done: progress.value?.completedReviews ?? 0, total: progress.value?.reviewBatches }, ...(progress.value?.contributorBatches ? [{ label: '人员贡献', done: progress.value.completedContributors, total: progress.value.contributorBatches }] : [])])
 const phase = computed(() => {
   if (['COMPLETED','CANCELLED','FAILED','STOPPING','WAITING_INPUT','PENDING_START','QUEUED','PREPARING','PAUSED','RETRY_WAIT'].includes(props.task.status)) return displayLabel(props.task.status)
-  const labels: Record<string,string> = { COLLECT:'采集提交', CODE:'分析代码', CONTRIBUTORS:'分析人员贡献', REPORT:'生成并校验报告', REVIEW:'评审报告', COMPLETE:'已确认完成' }
+  const labels: Record<string,string> = { SNAPSHOT:'冻结证据', PLAN:'规划范围', ANALYSIS:'功能分析', SNAPSHOT_REVIEW:'独立复核与报告', COLLECT:'采集提交', CODE:'分析代码', CONTRIBUTORS:'分析人员贡献', REPORT:'生成并校验报告', REVIEW:'评审报告', COMPLETE:'已确认完成' }
   if (progress.value?.currentPhase) return labels[progress.value.currentPhase] ?? displayLabel(progress.value.currentPhase)
   if (props.task.status === 'AWAITING_DECISION' && progress.value?.dualReviewRequired === false) return '完成收尾'
   if (['JUDGING','AWAITING_DECISION'].includes(props.task.status)) return '评审报告'
@@ -33,17 +34,22 @@ async function copyPath() { try { await navigator.clipboard.writeText(progress.v
     </ol>
     <div class="progress-body">
       <div class="ring-block">
-        <div class="ring" role="img" :aria-label="total ? `分析批次完成 ${completed}/${total}，${percentage}%` : total === 0 ? '无需模型分析' : '分析批次总数待确定'">
+        <div class="ring" role="img" :aria-label="progress?.snapshot ? `已验证 ${completed} 个审查批次` : total ? `分析批次完成 ${completed}/${total}，${percentage}%` : total === 0 ? '无需模型分析' : '分析批次总数待确定'">
           <svg viewBox="0 0 128 128" aria-hidden="true"><circle class="ring-track" cx="64" cy="64" r="55" /><circle class="ring-value" cx="64" cy="64" r="55" pathLength="100" :stroke-dasharray="`${percentage} 100`" /></svg>
-          <div><strong v-if="total">{{ percentage }}<small>%</small></strong><Icon v-else-if="total === 0" icon="lucide:minus" width="28" /><strong v-else class="unknown">待确定</strong><span>分析批次</span></div>
+          <div><strong v-if="progress?.snapshot">{{ completed }}</strong><strong v-else-if="total">{{ percentage }}<small>%</small></strong><Icon v-else-if="total === 0" icon="lucide:minus" width="28" /><strong v-else class="unknown">待确定</strong><span>{{ progress?.snapshot ? '已验证批次' : '分析批次' }}</span></div>
         </div>
-        <strong v-if="total" class="ring-caption">已完成 {{ completed }} / {{ total }} 个分析批次</strong><span v-else-if="total === 0">所选范围无需模型分析</span><span v-else>采集完成后显示分析批次总数</span>
+        <strong v-if="progress?.snapshot" class="ring-caption">已验证 {{ completed }} 个审查批次</strong><strong v-else-if="total" class="ring-caption">已完成 {{ completed }} / {{ total }} 个分析批次</strong><span v-else-if="total === 0">所选范围无需模型分析</span><span v-else>采集完成后显示分析批次总数</span>
       </div>
       <div class="analysis-details">
         <div v-for="item in categories" :key="item.label" class="category"><div><span>{{ item.label }}</span><strong>{{ item.done }} / {{ item.total ?? '—' }}</strong></div><div class="meter" aria-hidden="true"><i :style="{ width: `${item.total ? Math.min(100, item.done / item.total * 100) : 0}%` }" /></div></div>
         <div class="batch-counts"><span v-if="remaining !== null"><b>{{ remaining }}</b><span :aria-label="`剩余 ${remaining} 个`">剩余批次</span></span><span><b>{{ progress?.activeBatches ?? 0 }}</b>执行中</span><span :class="{ attention: progress?.failedBatches }"><b>{{ progress?.failedBatches ?? 0 }}</b>需处理</span></div>
-        <p class="progress-note">{{ task.status === 'COMPLETED' ? '报告已校验并保存。' : total && percentage === 100 ? '分析已完成，继续生成、校验或评审报告。' : '按已验证批次更新，分析进度不代表任务最终完成。' }}</p>
+        <p class="progress-note">{{ task.status === 'COMPLETED' ? '报告已校验并保存。' : progress?.snapshot ? '显示已生成批次；功能、衔接和补充计划可能增加批次，完成以四阶段状态为准。' : total && percentage === 100 ? '分析已完成，继续生成、校验或评审报告。' : '按已验证批次更新，分析进度不代表任务最终完成。' }}</p>
       </div>
+    </div>
+    <div v-if="progress?.snapshot" class="progress-note">
+      <p>{{ progress.snapshot.mode === 'FULL' ? '全面审查' : '日期增量审查' }} · 计划修订 {{ progress.snapshot.planRevision }} · 补充批次 {{ progress.snapshot.supplements }}</p>
+      <details v-if="progress.snapshot.targetSha"><summary>审查版本</summary><p v-if="progress.snapshot.baselineSha">基线：{{ progress.snapshot.baselineSha }}</p><p>目标：{{ progress.snapshot.targetSha }}</p></details>
+      <SnapshotReviewBatchesPanel :task="task" />
     </div>
     <TemplateBatchRecoveryPanel v-if="task.status === 'RUNNING' || task.status === 'WAITING_INPUT'" :task="task" />
     <footer v-if="progress?.documentPath" class="output-directory"><Icon icon="lucide:folder" width="16" /><details><summary>{{ folderName }}</summary><code>{{ progress.documentPath }}</code></details><el-button text size="small" @click="copyPath">{{ copied ? '已复制' : '复制路径' }}</el-button></footer>

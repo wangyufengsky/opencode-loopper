@@ -43,6 +43,11 @@ public class TaskReadService {
     private final RollingPackageCommandPolicy packageCommands;
     private final RollingPackageCommandContextService packageCommandContexts;
 
+    private TemplateTaskProgress templateProgress(TaskOverviewRow task) {
+        var snapshot = templateReads.snapshotProgress(task.id());
+        if (snapshot.isPresent()) return TemplateTaskProgress.snapshot(snapshot.get(), task.id(), task.worktreePath(), task.state());
+        return templateReads.progress(task.id()).map(row -> TemplateTaskProgress.from(row, task.id(), task.worktreePath(), task.state())).orElse(null);
+    }
     public TaskReadService(ReadModelMapper reads, LoopperMapper mapper, ObjectMapper json, MeterRegistry meters,
                            RollingPackageCommandPolicy packageCommands,
                            RollingPackageCommandContextService packageCommandContexts,
@@ -144,8 +149,7 @@ public class TaskReadService {
                     currentPackage == null ? null : new CurrentPackage(currentPackage.id(), currentPackage.packageKey(),
                             currentPackage.ordinal(), currentPackage.title(), currentPackage.state(), currentPackage.version()),
                     packageRuns.size(), frozenPackages, packageCapabilities,
-                    "TEMPLATE_REPORT".equals(task.executionMode()) ? templateReads.progress(taskId)
-                            .map(row -> TemplateTaskProgress.from(row, taskId, task.worktreePath(), task.state())).orElse(null) : null);
+                    "TEMPLATE_REPORT".equals(task.executionMode()) ? templateProgress(task) : null);
         });
     }
 

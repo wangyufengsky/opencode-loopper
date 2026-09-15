@@ -248,6 +248,7 @@ class OpenCodePermissionPolicyTest {
         for (OpenCodeClient.SessionProfile profile : OpenCodeClient.SessionProfile.values()) {
             if (DocumentTemplateProfiles.contains(profile)
                     || profile == OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS
+                    || profile == OpenCodeClient.SessionProfile.SNAPSHOT_CODE_REVIEW_NO_TOOLS
                     || profile == OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS
                     || profile == OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_NO_TOOLS
                     || profile == OpenCodeClient.SessionProfile.DECOMPOSER_CANDIDATE_READ_ONLY
@@ -268,6 +269,15 @@ class OpenCodePermissionPolicyTest {
                     .as(profile.name())
                     .contains(java.util.Map.of("permission", "external_directory", "pattern", "*", "action", "deny"));
         }
+    }
+
+    @Test void snapshotReviewOnlyAllowsBoundedPrivateEvidenceAndSubmissionTools() {
+        var rules = OpenCodePermissionPolicy.rules(OpenCodeClient.SessionProfile.SNAPSHOT_CODE_REVIEW_NO_TOOLS, java.util.List.of("untrusted", "internal"), "internal");
+        var allow = rules.stream().filter(r -> r.get("action").equals("allow")).map(r -> r.get("permission")).toList();
+        assertThat(allow).contains("internal_submit_template_analysis", "internal_read_snapshot_review_code", "internal_list_snapshot_review_results");
+        assertThat(allow).allMatch(p -> p.startsWith("internal_") && !p.endsWith("*"));
+        assertThat(allow).doesNotContain("read", "bash", "edit", "question", "untrusted_*");
+        assertThat(OpenCodeAgentPolicy.stepLimit(OpenCodeClient.SessionProfile.SNAPSHOT_CODE_REVIEW_NO_TOOLS)).isZero();
     }
 
     @Test

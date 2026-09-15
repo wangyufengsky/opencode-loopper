@@ -20,9 +20,15 @@ public final class TemplateReportLayout {
     private static final Map<String, String> RESOURCES = Map.of("review", "code-review-v3.md",
             "total", "contribution-report-v3.md", "personal", "personal-contribution-v3.md",
             "detail", "report-detail-v3.md");
+    public static final String HISTORY_VERSION = "HISTORY_REPORT_LAYOUT_V1";
     private TemplateReportLayout() { }
 
     public static Frozen freeze() { return freeze(VERSION, RESOURCES); }
+    public static Frozen freezeHistory() {
+        var resources = new LinkedHashMap<>(RESOURCES);
+        resources.put("review", "history-review-v1.md");
+        return freeze(HISTORY_VERSION, resources);
+    }
     public static Frozen freezeV2() { return freeze(LEGACY_VERSION, LEGACY_RESOURCES); }
     private static Frozen freeze(String version, Map<String, String> resources) {
         Map<String, String> templates = new LinkedHashMap<>();
@@ -38,13 +44,13 @@ public final class TemplateReportLayout {
     public record Frozen(String version, Map<String, String> templates, String sha256) {
         public Frozen {
             templates = Map.copyOf(templates);
-            var resources = VERSION.equals(version) ? RESOURCES : LEGACY_VERSION.equals(version) ? LEGACY_RESOURCES : Map.<String, String>of();
+            var resources = (VERSION.equals(version) || HISTORY_VERSION.equals(version)) ? RESOURCES : LEGACY_VERSION.equals(version) ? LEGACY_RESOURCES : Map.<String, String>of();
             if (resources.isEmpty() || !templates.keySet().equals(resources.keySet()) || !digest(templates).equals(sha256)) {
                 throw new IllegalArgumentException("冻结报告模板版本或校验和不一致");
             }
         }
 
-        public boolean hierarchical() { return VERSION.equals(version); }
+        public boolean hierarchical() { return VERSION.equals(version) || HISTORY_VERSION.equals(version); }
 
         public String render(String kind, Map<String, String> content) {
             String template = templates.get(kind);

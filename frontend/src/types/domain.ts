@@ -1470,6 +1470,7 @@ export interface StoryAccountingCall {
 
 export interface TemplateTaskDefinition {
   inputs?: { documents: boolean; branch: boolean; dates: boolean; extensions: string[]; maxFiles: number; maxFileMiB: number; maxTotalMiB: number }
+  reviewModes?: Array<'DATE_INCREMENTAL' | 'FULL'>
   workflow?: string
   id: string
   icon?: string
@@ -1505,10 +1506,13 @@ export interface TemplateTaskRequest {
   documentPath?: string
   projectId: string
   branchId: string
-  startDate: string
-  endDate: string
+  startDate?: string
+  endDate?: string
+  reviewMode?: 'DATE_INCREMENTAL' | 'FULL'
 }
+export interface SnapshotReviewBatch { id: string; purpose: string; state: string; ordinal: number; generation: number; createdAt: string; title: string; errorMessage: string | null }
 export interface TemplateTaskProgress {
+  snapshot?: { mode: 'DATE_INCREMENTAL' | 'FULL'; targetSha: string | null; baselineSha: string | null; planRevision: number; supplements: number; phases: Array<{ label: string; total: number; completed: number }> } | null
   steps?: { key: string; label: string; state: string }[]
   currentPhase?: string
   dualReviewRequired?: boolean

@@ -10,7 +10,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.ObjectMapper;
 
-/** Short transactions for the two fixed stages. No filesystem or Provider work occurs here. */
+/** Short transactions for frozen report stages. No filesystem or Provider work occurs here. */
 @Service
 public final class TemplateTaskStateService {
     private final LoopperMapper mapper;
@@ -98,7 +98,7 @@ public final class TemplateTaskStateService {
             states.updateAttempt(states.finishAttempt(attempt, AttemptState.SUCCEEDED, null, summary));
             states.updateStage(states.stageState(stage, StageState.SUCCEEDED), LifecycleEvent.COMPLETE);
             states.updateTask(states.taskState(task(attempt.taskId()), TaskState.VERIFYING), LifecycleEvent.BEGIN_VERIFICATION);
-            if (stage.ordinal() == 0) {
+            if (stage.ordinal() < mapper.listStages(attempt.taskId()).size() - 1) {
                 states.updateTask(states.taskState(task(attempt.taskId()), TaskState.RUNNING), LifecycleEvent.ADVANCE_STAGE);
             } else if (json.readValue(templates.findRun(attempt.taskId()).orElseThrow().contractJson(),
                     TemplateTaskContractFactory.Frozen.class).requiresDualReview()) {

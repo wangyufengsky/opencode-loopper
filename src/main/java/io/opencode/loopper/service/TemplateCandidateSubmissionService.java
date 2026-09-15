@@ -50,7 +50,7 @@ public class TemplateCandidateSubmissionService {
         String result;
         try {
             var input = json.readValue(batch.inputJson(), TemplateBatchExecution.Input.class);
-            output = batch.purpose().equals("REVIEW") ? codec.review(candidate, input.units())
+            output = input.snapshot() != null ? codec.snapshot(batch, candidate) : batch.purpose().equals("REVIEW") ? codec.review(candidate, input.units())
                     : codec.contributor(candidate, input.person().author().identity(), input.person().evidenceIds());
             result = response("ACCEPTED", revision + 1, "STOP", null, null, null);
         } catch (BadRequestException invalid) {
@@ -72,7 +72,10 @@ public class TemplateCandidateSubmissionService {
         var context = new java.util.LinkedHashMap<String, Object>();
         context.put("batchOrdinal", batch.ordinal() + 1); context.put("generation", batch.generation());
         context.put("purpose", batch.purpose()); context.put("readOnly", true);
-        if (batch.purpose().equals("REVIEW")) context.put("requiredReviews", input.units().stream().map(unit -> Map.of(
+        if (input.snapshot() != null) {
+            context.put("phase", input.snapshot().phase());
+            context.put("candidateShape", SnapshotReviewProtocol.shape(input.snapshot().phase()));
+        } else if (batch.purpose().equals("REVIEW")) context.put("requiredReviews", input.units().stream().map(unit -> Map.of(
                 "unitId", unit.id(), "path", unit.path(), "locations", TemplateAnalysisPromptFactory.locations(unit))).toList());
         else {
             context.put("identity", input.person().author().identity());
@@ -88,7 +91,8 @@ public class TemplateCandidateSubmissionService {
         var plan = json.readValue(batch.creationPlanJson(), OpenCodeClient.SessionCreationPlan.class);
         var active = access.current().orElseThrow(() -> conflict("TEMPLATE_SUBMISSION_GENERATION_CHANGED", "托管运行环境未就绪"));
         var session = mapper.findSession(batch.sessionId()).orElseThrow();
-        if (plan.profile() != OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS
+        if ((plan.profile() != OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS
+                && plan.profile() != OpenCodeClient.SessionProfile.SNAPSHOT_CODE_REVIEW_NO_TOOLS)
                 || !plan.managed() || !active.generation().equals(plan.runtimeGenerationId())
                 || !active.serverName().equals(plan.internalMcpServer())
                 || !batch.taskId().equals(session.taskId()) || !batch.attemptId().equals(session.attemptId())

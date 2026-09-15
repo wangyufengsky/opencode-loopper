@@ -78,6 +78,21 @@ class TemplateGitEvidenceIntegrationTest {
         assertThat(evidence.commits().getFirst().contributors()).extracting(TemplateGitEvidence.Contributor::identity).doesNotHaveDuplicates();
     }
 
+    @Test void preservesDifferentAuthorCommitterAndTheirRawMailmapIdentitiesAndTimes() throws Exception {
+        commit(".mailmap", "Canonical <canonical@example.test> Author <author@example.test>\n", "2026-09-10T01:00:00Z", "map");
+        Files.writeString(root.resolve("code.java"), "class Main {}\n"); git.read(root, "add", "--", "code.java");
+        var result = runner.run(root, List.of("git", "-c", "core.hooksPath=/dev/null", "commit", "-m", "work\n\nCo-authored-by: Author <other@example.test>\n"), Duration.ofSeconds(10),
+                Map.of("GIT_AUTHOR_NAME", "Author", "GIT_AUTHOR_EMAIL", "author@example.test", "GIT_AUTHOR_DATE", "2026-09-09T01:00:00Z",
+                        "GIT_COMMITTER_NAME", "Builder[bot]", "GIT_COMMITTER_EMAIL", "bot@example.test", "GIT_COMMITTER_DATE", "2026-09-11T01:00:00Z"));
+        assertThat(result.exitCode()).isZero();
+        var commit = collect(snapshots.freeze("identities", "project", main())).commits().getFirst();
+        assertThat(commit.author().rawName()).isEqualTo("Author"); assertThat(commit.author().rawEmail()).isEqualTo("author@example.test");
+        assertThat(commit.author().name()).isEqualTo("Canonical"); assertThat(commit.author().email()).isEqualTo("canonical@example.test");
+        assertThat(commit.author().time()).isEqualTo("2026-09-09T01:00:00Z");
+        assertThat(commit.committer().name()).isEqualTo("Builder[bot]"); assertThat(commit.committer().time()).isEqualTo("2026-09-11T01:00:00Z");
+        assertThat(commit.coauthors()).extracting(TemplateGitEvidence.CommitIdentity::rawEmail).containsExactly("other@example.test");
+    }
+
     @Test void excludesDeclaredGeneratedCodeButPreservesIndentationChangesAndUnusualPaths() throws Exception {
         assertGeneratedCodeAndIndentationEvidence("space file.py");
     }
@@ -100,6 +115,14 @@ class TemplateGitEvidenceIntegrationTest {
         assertThat(generated.exclusionReason()).isEqualTo("DECLARED_LINGUIST_GENERATED");
         assertThat(evidence.commits().getLast().changes().getFirst().effectiveLines()).isEqualTo(2);
         assertThat(evidence.commits().getLast().changes().getFirst().path()).isEqualTo(fileName);
+    }
+
+    @Test void literalGitPathCannotExpandIntoProtectedFiles() throws Exception {
+        commit(".env", "PRIVATE_MARKER=not-source\n", "2026-09-11T01:00:00Z", "secret fixture");
+        commit(":(glob)**", "safe source\n", "2026-09-11T02:00:00Z", "literal name");
+        var evidence=collect(snapshots.freeze("literal", "project", main()));
+        assertThat(evidence.commits().stream().flatMap(c->c.changes().stream())).allMatch(c->!c.patch().contains("PRIVATE_MARKER"));
+        assertThat(evidence.commits().getLast().changes().getFirst().patch()).contains("+safe source");
     }
 
     @Test void branchDiscoveryDefaultsToMainNotCurrentBranchAndSeparatesRemoteSource() throws Exception {

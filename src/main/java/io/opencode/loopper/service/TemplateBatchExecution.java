@@ -58,12 +58,12 @@ public class TemplateBatchExecution {
 
     private TemplateTaskBatchRow prepare(TemplateTaskBatchRow row, TemplateTaskContractFactory.Frozen contract) {
         var run = templates.findRun(row.taskId()).orElseThrow();
-        if (run.bypassCache() == 0 && run.repairRound() == 0 && row.generation() == 0) {
+        if (!io.opencode.loopper.template.SnapshotReview.batch(row.purpose()) && run.bypassCache() == 0 && run.repairRound() == 0 && row.generation() == 0) {
             String cached = templates.acceptedCachedOutput(row.inputSha256()).orElse(null);
             if (cached != null) return store.validated(row, validate(row, cached), true);
         }
         Input input = input(row);
-        String text = row.purpose().equals("REVIEW") ? prompts.review(input.units(), input.feedback())
+        String text = input.snapshot() != null ? codec.snapshotPrompt(row) : row.purpose().equals("REVIEW") ? prompts.review(input.units(), input.feedback())
                 : prompts.contributor(input.person(), input.reviews(), input.units(), input.feedback());
         var configured = contract.spec().model();
         var model = new OpenCodeClient.OpenCodeModel(configured.providerId(), configured.modelId(), configured.thinking());
@@ -71,15 +71,16 @@ public class TemplateBatchExecution {
         // while using their default would authorize hidden retries outside the frozen two-round policy.
         Path root = Path.of(mapper.findTask(row.taskId()).orElseThrow().worktreePath());
         byte[] nonce = new byte[32]; new SecureRandom().nextBytes(nonce);
-        var profile = List.of("5", "6", "7", "8", "9").contains(contract.definition().version())
+        var profile = input.snapshot() != null ? OpenCodeClient.SessionProfile.SNAPSHOT_CODE_REVIEW_NO_TOOLS : List.of("5", "6", "7", "8", "9", "10").contains(contract.definition().version())
                 ? OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS
                 : OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_NO_TOOLS;
         var plan = openCode.prepareSessionCreation(root, "模板报告分析 " + (row.ordinal() + 1), model,
                 profile, Base64.getUrlEncoder().withoutPadding().encodeToString(nonce));
-        if (profile == OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS) {
+        if ((profile == OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS || profile == OpenCodeClient.SessionProfile.SNAPSHOT_CODE_REVIEW_NO_TOOLS)) {
             if (!plan.managed()) throw unavailable("TEMPLATE_MCP_REQUIRED", "新模板分析需要托管 OpenCode 的专用 MCP 提交工具");
             text = prompts.internal(text, row.id(), plan.internalMcpServer() + "_"
                     + InternalMcpContractCatalog.TEMPLATE_TOOL);
+            if (input.snapshot() != null) text = text.replace("不调用其他工具", "仅调用本合同允许的快照读取、合同查询和候选提交工具");
         }
         var prompt = new TemplateBatchStore.FrozenPrompt(text, "msg_" + row.id().replace("-", ""), null, null);
         return store.prepareSession(row, plan, prompt);
@@ -140,11 +141,11 @@ public class TemplateBatchExecution {
         if (status.failed()) {
             return store.candidateFailed(row, "TEMPLATE_MODEL_FAILED", "分析会话已失败，其他批次完成后可选择重试");
         }
-        if (plan(row).profile() == OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS) {
+        if ((plan(row).profile() == OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS || plan(row).profile() == OpenCodeClient.SessionProfile.SNAPSHOT_CODE_REVIEW_NO_TOOLS)) {
             var accepted = submissions.accepted(row.id());
             if (accepted.isPresent()) return store.validated(row, validate(row, accepted.get()), false);
             var missing = openCode.sessionResult(remote);
-            if (List.of("6", "7", "8", "9").contains(contract.definition().version())
+            if ((io.opencode.loopper.template.SnapshotReview.batch(row.purpose()) || List.of("6", "7", "8", "9", "10").contains(contract.definition().version()))
                     && "OPENCODE_OUTPUT_LENGTH_EXHAUSTED".equals(missing.errorType())) {
                 try { return store.prepareContinuation(row); }
                 catch (SessionFailure failure) {
@@ -168,6 +169,7 @@ public class TemplateBatchExecution {
 
     private String validate(TemplateTaskBatchRow row, String output) {
         Input input = input(row);
+        if (input.snapshot() != null) return codec.snapshot(row, output);
         return row.purpose().equals("REVIEW") ? codec.review(output, input.units())
                 : codec.contributor(output, input.person().author().identity(), input.person().evidenceIds());
     }
@@ -224,5 +226,11 @@ public class TemplateBatchExecution {
     }
     private static SessionFailure unavailable(String code, String message) { return new SessionFailure(code, message); }
     public record Input(List<TemplateAnalysis.Unit> units, TemplateContributionFacts.Person person,
-                         List<TemplateAnalysis.UnitReview> reviews, String feedback) { }
+                         List<TemplateAnalysis.UnitReview> reviews, String feedback,
+                         @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+                         io.opencode.loopper.template.SnapshotReview.Input snapshot) {
+        public Input(List<TemplateAnalysis.Unit> units, TemplateContributionFacts.Person person, List<TemplateAnalysis.UnitReview> reviews, String feedback) {
+            this(units, person, reviews, feedback, null);
+        }
+    }
 }

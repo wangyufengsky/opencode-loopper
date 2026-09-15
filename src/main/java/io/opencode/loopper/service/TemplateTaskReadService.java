@@ -39,6 +39,12 @@ public final class TemplateTaskReadService {
                 java.util.Map.of("retrySelectionReady", mapper.retrySelectionReady(taskId) ? 1L : 0L));
     }
 
+    public CursorPage<TemplateTaskReadMapper.SnapshotBatchSummary> snapshotBatches(String taskId, String after, int limit) {
+        requireLimit(limit); var position = cursor(after);
+        var rows = mapper.snapshotBatches(taskId, position[0], position[1], limit + 1);
+        var items = rows.stream().limit(limit).toList();
+        return new CursorPage<>(items, rows.size() > limit ? encode(items.getLast().createdAt(), items.getLast().id()) : null);
+    }
     private static void requireLimit(int limit) {
         if (limit < 1 || limit > 100) throw new BadRequestException("PAGE_LIMIT_INVALID", "每页数量应为 1–100");
     }

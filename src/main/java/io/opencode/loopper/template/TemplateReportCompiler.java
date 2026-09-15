@@ -36,6 +36,8 @@ public final class TemplateReportCompiler {
         TemplateAnalysisValidation.batch(units, new BatchCandidate(candidate.reviews()));
         Map<String, UnitReview> reviews = candidate.reviews().stream().collect(Collectors.toMap(UnitReview::unitId, Function.identity()));
         var names = TemplateReportNames.of(definition, project, evidence, sequence);
+        if (definition == TemplateTaskDefinition.CODE_REVIEW && TemplateReportLayout.HISTORY_VERSION.equals(layout.version()))
+            return HistoryReviewReportCompiler.compile(project, evidence, units, reviews, layout, sequence);
         if (definition == TemplateTaskDefinition.CODE_REVIEW) {
             if (layout.hierarchical()) return HierarchicalReportCompiler.review(project, evidence, units, reviews, layout, names);
             String markdown = layout.render("review", Map.of("scope", scope(project, evidence, units.size()),
@@ -247,7 +249,7 @@ public final class TemplateReportCompiler {
         };
     }
     static String number(double value) { return BigDecimal.valueOf(value).setScale(2, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString(); }
-    static String text(String value) {
+    public static String text(String value) {
         return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\\", "\\\\")
                 .replace("`", "\\`").replace("*", "\\*").replace("_", "\\_").replace("[", "\\[").replace("]", "\\]")
                 .replace("|", "\\|").replace("#", "\\#").replace("\r\n", "\n").replace("\r", "\n").replace("\n", "<br>");

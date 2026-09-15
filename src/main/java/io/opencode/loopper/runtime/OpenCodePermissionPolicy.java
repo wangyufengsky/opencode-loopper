@@ -21,6 +21,14 @@ final class OpenCodePermissionPolicy {
         if (profile != OpenCodeClient.SessionProfile.IMPLEMENTATION) {
             List<Map<String, String>> rules = new ArrayList<>();
             rules.add(rule("*", "*", "deny"));
+            if (profile == OpenCodeClient.SessionProfile.SNAPSHOT_CODE_REVIEW_NO_TOOLS) {
+                rules.add(rule("external_directory", "*", "deny"));
+                allowInternalSubmission(rules, internalMcpServer, profile);
+                if (internalMcpServer != null && !internalMcpServer.isBlank())
+                    for (String tool : List.of("list_snapshot_review_results", "get_snapshot_review_work", "get_snapshot_review_groups", "list_snapshot_review_code", "read_snapshot_review_code", "search_snapshot_review_code", "read_snapshot_review_result"))
+                        rules.add(rule(sanitize(internalMcpServer) + "_" + tool, "*", "allow"));
+                return List.copyOf(rules);
+            }
             if (DocumentTemplateProfiles.contains(profile)) {
                 rules.add(rule("external_directory", "*", "deny"));
                 allowInternalSubmission(rules, internalMcpServer, profile);

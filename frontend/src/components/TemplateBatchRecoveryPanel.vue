@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { templateBatchPurpose } from '@/utils/templateSessionLabels'
 import { computed, ref, watch } from 'vue'
 import { api } from '@/api/client'
 import type { Task, TemplateFailedBatch, DocumentTemplateOverview } from '@/types/domain'
@@ -57,7 +58,7 @@ watch(() => [ownerId.value, props.task?.status, props.task?.templateProgress?.fa
       <ul>
         <li v-for="batch in rows" :key="batch.id">
           <label><input v-model="selected" type="checkbox" :value="batch.id" :disabled="busy">
-            <span><strong>{{ batch.purpose === 'CONTRIBUTOR' ? '人员贡献' : batch.purpose === 'DOCUMENT_CODE_REVIEW_V2' ? '独立复核' : '代码分析' }} · 第 {{ batch.ordinal + 1 }} 批</strong>
+            <span><strong>{{ templateBatchPurpose(batch.purpose) }} · 第 {{ batch.ordinal + 1 }} 批</strong>
               <span class="failure-message">{{ batch.errorMessage || '该批次已停止，尚未完成分析。' }}</span>
             </span>
           </label>
