@@ -217,14 +217,16 @@ final class AcceptanceCandidateInternalLaunchPlanCodec {
         String roleTool = prefix + InternalMcpContractCatalog.toolName(
                 MachineCandidateKind.ACCEPTANCE_CLOSED_CHOICE_V7);
         String legacyTool = prefix + InternalMcpContractCatalog.legacyToolName();
-        if (policy.size() != 3
+        var description = new OpenCodeClient.SessionPermissionRule(
+                prefix + InternalMcpContractCatalog.DESCRIBE_TOOL, "*", "allow");
+        if (policy.size() != (policy.contains(description) ? 4 : 3)
                 || !policy.contains(new OpenCodeClient.SessionPermissionRule("*", "*", "deny"))
                 || !policy.contains(new OpenCodeClient.SessionPermissionRule(
                         "external_directory", "*", "deny"))) return null;
         List<String> candidateTools = policy.stream()
                 .filter(rule -> "allow".equals(rule.action()) && "*".equals(rule.pattern()))
                 .map(OpenCodeClient.SessionPermissionRule::permission)
-                .filter(permission -> InternalMcpContractCatalog.toolNames().stream()
+                .filter(permission -> InternalMcpContractCatalog.submissionToolNames().stream()
                         .map(prefix::concat).anyMatch(permission::equals))
                 .toList();
         if (candidateTools.size() != 1) return null;

@@ -43,7 +43,7 @@ public final class DocumentDevelopmentScope {
                 + "本任务来源于已授权的需求开发模板，软件开发意图已经确定。冻结需求版本=" + scope.requirementRevision()
                 + "；需求清单哈希=" + scope.manifestSha256() + "。"
                 + (run.directDocuments() ? "使用 list_development_documents 查看冻结文档，再用 list_development_sections 查看每份文档目录，read_development_source 按段读取正文。DOC 编号代表原文文档，不是已提取需求。结合原文和代码形成设计与验收清单。" : "使用 list_development_requirements 分页定位本包需求，再用 read_development_requirement 读取完整规则、场景和原文引用，")
-                + "需要核对原文时调用 read_development_source。所有调用使用 scope=" + token + "。"
+                + "先调用 get_development_task_guide 查看当前角色、目录、冻结阶段目标与交付物。需要核对原文时调用 read_development_source。所有调用使用 scope=" + token + "。"
                 + "此凭证仅供工具调用，不写入产物、日志或总结。不得截断或把索引标题当作完整需求。"
                 + "只在冻结范围内按仓库规范选择实现；无依据的业务规则、冲突或扩大范围必须提出待决，禁止默认采用推荐答案。"
                 + "未提取的图片或流程图先作为局限保留，缺失信息影响实现或验收时再提出具体问题；不要假设缺失内容已满足。最终需求评审必须直接对照全部原文检查遗漏，不能仅检查设计列出的项目。"
@@ -69,6 +69,28 @@ public final class DocumentDevelopmentScope {
                 .manifestSha256().equals(scope.manifestSha256())) throw denied();
         return scope;
     }
+    public Map<String, Object> guide(String token) {
+        var scope = authorize(token);
+        var session = sessions.session(scope.externalSessionId());
+        var owner = owner(session.externalSessionId(), session.profile());
+        var result = new LinkedHashMap<String, Object>();
+        result.put("role", session.profile()); result.put("directory", session.directory());
+        result.put("sourceRevision", scope.requirementRevision());
+        result.put("navigation", List.of("list_development_documents", "list_development_sections", "read_development_source"));
+        if (owner.stageId() != null) {
+            var stage = domain.findStage(owner.stageId()).orElseThrow(DocumentDevelopmentScope::denied);
+            if (!stage.taskId().equals(owner.taskId())) throw denied();
+            result.put("stageObjective", stage.objective());
+            result.put("deliverables", json.readTree(stage.deliverablesJson()));
+            result.put("allowedPaths", json.readTree(stage.allowedPathsJson()));
+            result.put("forbiddenPaths", json.readTree(stage.forbiddenPathsJson()));
+        }
+        result.put("instruction", session.profile().equals("IMPLEMENTATION")
+                ? "按冻结阶段目标与路径许可实现交付物并测试；文件名依据代码结构确定，文档名不是输出路径。此查询不增加写权限。"
+                : "当前角色先对照原文和代码完成设计或评审，按本角色专属工具提交；不要提前修改项目。尚未生成阶段时不得虚构要修改的文件。" );
+        authorize(token); return result;
+    }
+
     public List<FileIdentity> files(DocumentDevelopmentMapper.Scope scope) {
         return List.of(json.readValue(scope.filesJson(), FileIdentity[].class));
     }

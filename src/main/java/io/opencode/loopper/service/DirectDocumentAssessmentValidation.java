@@ -17,6 +17,11 @@ public final class DirectDocumentAssessmentValidation {
                                                          DirectDocumentAssessment.Candidate candidate) {
         require(candidate != null && candidate.entries() != null && candidate.entries().size() <= 256
                 && candidate.skippedSections() != null && candidate.skippedSections().size() <= 2048, "评审条目或未适用章节缺失、超限");
+        if (candidate.snapshotSha() == null && input.interactionVersion() >= 1)
+            candidate = new DirectDocumentAssessment.Candidate(input.snapshotSha(), candidate.entries(), candidate.findings(),
+                    candidate.skippedSections(), candidate.limitations());
+        if (!Objects.equals(input.snapshotSha(), candidate.snapshotSha()))
+            throw new DocumentCandidateProblem("/candidate/snapshotSha", "快照不匹配；新交互合同请填 null，由服务端绑定，历史合同须使用冻结输入 SHA。");
         var covered = new HashSet<DirectDocumentAssessment.Source>();
         for (var entry : candidate.entries()) {
             require(entry != null, "评审条目缺失"); text(entry.title(), 300); text(entry.statement(), 12000);
@@ -34,12 +39,24 @@ public final class DirectDocumentAssessmentValidation {
             source(model, input, skipped.source(), true);
             require(covered.add(skipped.source()), "无需为已引用的章节重复登记未适用说明");
         }
-        require(covered.containsAll(assigned(input)), "本批仍有未说明的原文章节，请继续检查或明确无法判断");
+        var missing = assigned(input).stream().filter(ref -> !covered.contains(ref))
+                .sorted(java.util.Comparator.comparing(DirectDocumentAssessment.Source::fileId).thenComparingInt(DirectDocumentAssessment.Source::section)).toList();
+        if (!missing.isEmpty()) throw new DocumentCandidateProblem("/candidate/entries",
+                "本批未覆盖原文章节：" + missing + "。请读取并纳入 entries.sources；确无要求的章节在 skippedSections 说明，不能为过校验跳过需求。");
+        for (int i = 0; i < candidate.entries().size(); i++) {
+            var entry = candidate.entries().get(i);
+            if (!entry.issues().isEmpty() && entry.assessment().conclusion() != RequirementCodeAssessment.Conclusion.UNDETERMINED)
+                throw new DocumentCandidateProblem("/candidate/entries/" + i + "/issues",
+                        "issues 表示业务规则未澄清，非空时结论必须为 UNDETERMINED；代码证据缺口应写 assessment.limitations 或 VALIDATION_GAP，不能无依据删除业务歧义。");
+        }
         code.assessment(model, convertedInput(model, input, candidate), converted(candidate));
         return candidate;
     }
     public DirectDocumentAssessment.Review review(DocumentTemplateModelRow model, DocumentModelInput input,
                                                    DirectDocumentAssessment.Review review) {
+        if (review != null && review.snapshotSha() == null && input.interactionVersion() >= 1)
+            review = new DirectDocumentAssessment.Review(input.snapshotSha(), review.approved(), review.reviewedRequirementKeys(),
+                    review.reviewedFindingKeys(), review.checkedSections(), review.corrections());
         var original = input.directAssessment();
         require(original != null && review != null && Objects.equals(input.snapshotSha(), review.snapshotSha()), "复核快照或输入不匹配");
         var expected = new HashSet<>(assigned(input));
@@ -78,7 +95,8 @@ public final class DirectDocumentAssessmentValidation {
     }
     private DocumentModelInput convertedInput(DocumentTemplateModelRow model, DocumentModelInput input, DirectDocumentAssessment.Candidate candidate) {
         return new DocumentModelInput(input.sections(), requirements(model, input, candidate), null,
-                input.snapshotSha(), converted(candidate), null);
+                input.snapshotSha(), converted(candidate), null, input.clarifications(), candidate, null,
+                input.sourceRevision(), input.interactionVersion());
     }
     private DocumentTemplateMapper.Section source(DocumentTemplateModelRow model, DocumentModelInput input, DirectDocumentAssessment.Source ref, boolean read) {
         require(ref != null && input.sourceRevision() > 0, "原文版本或位置缺失");

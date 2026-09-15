@@ -131,8 +131,10 @@ final class OpenCodePermissionPolicy {
     private static void allowInternalSubmission(
             List<Map<String, String>> rules, String internalMcpServer, OpenCodeClient.SessionProfile profile) {
         if (internalMcpServer != null && !internalMcpServer.isBlank()) {
-            InternalMcpContractCatalog.toolName(profile).ifPresent(toolName ->
-                    rules.add(rule(sanitize(internalMcpServer) + "_" + toolName, "*", "allow")));
+            InternalMcpContractCatalog.toolName(profile).ifPresent(toolName -> {
+                rules.add(rule(sanitize(internalMcpServer) + "_" + toolName, "*", "allow"));
+                rules.add(rule(sanitize(internalMcpServer) + "_" + InternalMcpContractCatalog.DESCRIBE_TOOL, "*", "allow"));
+            });
         }
     }
 

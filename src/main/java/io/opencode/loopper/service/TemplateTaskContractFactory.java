@@ -60,7 +60,7 @@ public final class TemplateTaskContractFactory {
     public record Frozen(TemplateTaskDefinition.View definition, LoopSpec spec, String scoringVersion, String scoreFormula,
                           List<ContributionScore.Dimension> dimensions, String timezone, String timePolicy, int repairLimit,
                           TemplateReportLayout.Frozen reportTemplates, String documentPath, Integer analysisConcurrency) {
-        public Frozen { analysisConcurrency = !"8".equals(definition.version()) || analysisConcurrency == null ? 1 : analysisConcurrency; }
+        public Frozen { analysisConcurrency = !List.of("8", "9").contains(definition.version()) || analysisConcurrency == null ? 1 : analysisConcurrency; }
         public Frozen(TemplateTaskDefinition.View definition, LoopSpec spec, String scoringVersion, String scoreFormula,
                 List<ContributionScore.Dimension> dimensions, String timezone, String timePolicy, int repairLimit,
                 TemplateReportLayout.Frozen reportTemplates, String documentPath) {

@@ -11,7 +11,7 @@ public interface DocumentDesignContextMapper extends DesignerTimeoutMapper, Docu
         SELECT ref FROM (
           SELECT r.requirement_key AS ref,r.ordinal FROM document_template_run d JOIN document_requirement r
             ON r.run_id=d.id AND r.revision=d.requirement_revision
-            WHERE d.task_id=#{task} AND d.template_id='REQUIREMENT_DEVELOPMENT' AND d.template_version<>'2'
+            WHERE d.task_id=#{task} AND d.template_id='REQUIREMENT_DEVELOPMENT' AND d.template_version NOT IN ('2','3')
           UNION ALL
           SELECT 'DOC-'||(f.ordinal+1) AS ref,f.ordinal FROM document_template_run d
             JOIN document_basis_revision b ON b.run_id=d.id AND b.revision=d.source_revision
@@ -40,9 +40,9 @@ public interface DocumentDesignContextMapper extends DesignerTimeoutMapper, Docu
     Optional<DocumentDevelopmentMapper.Design> documentDesign(@Param("revision") String revision, @Param("designer") String designer);
     @Insert("""
         INSERT INTO document_development_plan_source(plan_revision_id,run_id,document_revision,manifest_sha256,created_at)
-        SELECT p.id,d.id,(CASE WHEN d.template_version='2' THEN d.source_revision ELSE d.requirement_revision END),r.manifest_sha256,p.created_at
+        SELECT p.id,d.id,(CASE WHEN d.template_version IN ('2','3') THEN d.source_revision ELSE d.requirement_revision END),r.manifest_sha256,p.created_at
         FROM task_package_plan_revision p JOIN document_template_run d ON d.task_id=p.task_id
-        JOIN document_basis_revision r ON r.run_id=d.id AND r.revision=(CASE WHEN d.template_version='2' THEN d.source_revision ELSE d.requirement_revision END)
+        JOIN document_basis_revision r ON r.run_id=d.id AND r.revision=(CASE WHEN d.template_version IN ('2','3') THEN d.source_revision ELSE d.requirement_revision END)
         WHERE p.id=#{planId} AND d.template_id='REQUIREMENT_DEVELOPMENT'
         ON CONFLICT(plan_revision_id) DO NOTHING
         """)
@@ -61,7 +61,7 @@ public interface DocumentDesignContextMapper extends DesignerTimeoutMapper, Docu
           LEFT JOIN document_development_plan_source s ON s.plan_revision_id=p.id
           LEFT JOIN document_development_design b ON b.requirement_revision_id=p.requirement_revision_id
           WHERE p.id=#{planId} AND d.template_id='REQUIREMENT_DEVELOPMENT'
-            AND (coalesce(s.document_revision,b.document_revision,-1)<>(CASE WHEN d.template_version='2' THEN d.source_revision ELSE d.requirement_revision END)))
+            AND (coalesce(s.document_revision,b.document_revision,-1)<>(CASE WHEN d.template_version IN ('2','3') THEN d.source_revision ELSE d.requirement_revision END)))
         """)
     boolean documentPlanSourceCurrent(String planId);
     @Options(flushCache = Options.FlushCachePolicy.TRUE, useCache = false)

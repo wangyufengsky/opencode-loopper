@@ -374,6 +374,64 @@ class TemplateBatchExecutionIntegrationTest {
         assertThat(fake.promptCalls()).isEqualTo(calls);
     }
 
+    @Test void failedBatchRetriesWithFreshIdentityThenAllowsOneManualAttemptWithoutLosingSuccess() {
+        enableMcp("9");
+        var attempt = mapper.findAttempt(batch.attemptId()).orElseThrow();
+        var sibling = batches.create(attempt, 1, "REVIEW", batch.inputJson(), batch.inputSha256());
+        sibling = batches.validated(sibling, valid(), true);
+        batches.plan(task.id(), 2, 0);
+        String siblingId = sibling.id();
+        for (int generation = 0; generation <= 2; generation++) {
+            for (int i = 0; i < 4; i++) batch = execution.advance(batch, contract);
+            fake.setSessionState(mapper.findSession(batch.sessionId()).orElseThrow().externalSessionId(), "COMPLETED");
+            batch = execution.advance(batch, contract);
+            assertThat(batch.state()).isEqualTo("FAILED");
+            assertThat(current().state()).isEqualTo("RUNNING");
+            var old = batch;
+            batch = batches.retry(old, old.version(), false);
+            if (generation < 2) {
+                assertThat(batch.id()).isNotEqualTo(old.id());
+                assertThat(batch.generation()).isEqualTo(generation + 1);
+                assertThat(batches.require(old.id()).state()).isEqualTo("FAILED");
+                assertThatThrownBy(() -> submissions.submit(old.id(), "late", 0, valid())).isInstanceOf(ConflictException.class);
+            } else assertThat(batch.id()).isEqualTo(old.id());
+        }
+        var exhausted = batch;
+        var manual = batches.retry(exhausted, exhausted.version(), true);
+        assertThat(manual.generation()).isEqualTo(3);
+        assertThat(batches.retry(exhausted, exhausted.version(), true).id()).isEqualTo(manual.id());
+        assertThat(batches.require(siblingId).outputJson()).isEqualTo(valid());
+        assertThat(templates.batches(task.id(), attempt.id())).hasSize(5);
+        assertThat(templates.findBatchOrdinal(task.id(), attempt.id(), "REVIEW", 0).orElseThrow().id()).isEqualTo(manual.id());
+        assertThat(jdbc.queryForList("PRAGMA foreign_key_check")).isEmpty();
+    }
+
+    @Test void remoteFailureIsAStoppedFailedSessionAndDoesNotStopItsTask() {
+        enableMcp("9");
+        for (int i = 0; i < 4; i++) batch = execution.advance(batch, contract);
+        var description = submissions.contract(batch.id());
+        assertThat(description.context()).containsKeys("requiredReviews", "batchOrdinal");
+        fake.setSessionState(mapper.findSession(batch.sessionId()).orElseThrow().externalSessionId(), "FAILED");
+        batch = execution.advance(batch, contract);
+        assertThat(batch.state()).isEqualTo("FAILED");
+        assertThat(mapper.findSession(batch.sessionId()).orElseThrow().state()).isEqualTo("FAILED");
+        assertThat(current().state()).isEqualTo("RUNNING");
+    }
+
+    @Test void retryRejectsActiveBatchAndNeverBypassesTaskWaitingOrCancellation() {
+        enableMcp("9");
+        for (int i = 0; i < 4; i++) batch = execution.advance(batch, contract);
+        var active = batch;
+        assertThatThrownBy(() -> batches.retry(active, active.version(), true)).isInstanceOf(ConflictException.class);
+        fake.setSessionState(mapper.findSession(batch.sessionId()).orElseThrow().externalSessionId(), "COMPLETED");
+        batch = execution.advance(batch, contract);
+        states.updateTask(states.taskState(current(), TaskState.WAITING_INPUT), LifecycleEvent.REQUIRE_INPUT,
+                "TASK_BUDGET_WAITING_INPUT", Map.of());
+        var failed = batch;
+        assertThatThrownBy(() -> batches.retry(failed, failed.version(), true)).isInstanceOf(ConflictException.class);
+        assertThat(templates.batches(task.id(), batch.attemptId())).hasSize(1);
+    }
+
     private void startContinuable() {
         enableMcp();
         var tree = (tools.jackson.databind.node.ObjectNode) json.valueToTree(contract);

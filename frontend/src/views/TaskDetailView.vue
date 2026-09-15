@@ -118,7 +118,7 @@ const nextAction = computed(() => {
       ? '报告已通过完整性校验和双评审，可在上方预览或下载。'
       : '报告已通过程序校验并保存，可在上方预览或下载。'
     if (task.value.status === 'WAITING_INPUT') return dualReviewRequired.value
-      ? '请查看当前错误或评审意见。自动返修受轮次与预算限制；可重试双评审、取消，或重新发起模板任务。'
+      ? '请查看当前错误或评审意见。分析失败可在执行进度中重试该批次，已完成结果保留；总预算或时限耗尽时须先处理对应限制。'
       : '请查看当前错误。自动修正受轮次与预算限制；可取消或重新发起模板任务。'
     if (task.value.status === 'AWAITING_DECISION' && task.value.executionResult === 'SUCCEEDED') return '报告已校验，正在确认执行结束并释放任务资源。'
     if (task.value.status === 'CANCELLED') return '任务已取消，采集证据和各版报告仍保留。'

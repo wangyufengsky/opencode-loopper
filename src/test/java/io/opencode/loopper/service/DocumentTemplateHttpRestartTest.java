@@ -100,7 +100,7 @@ class DocumentTemplateHttpRestartTest {
         return http.send(request.build(), HttpResponse.BodyHandlers.ofString());
     }
     private byte[] multipart(String project, String key) {
-        String metadata = json.writeValueAsString(new DocumentTemplateService.Request(key, "REQUIREMENT_DEVELOPMENT", "2", project, null));
+        String metadata = json.writeValueAsString(new DocumentTemplateService.Request(key, "REQUIREMENT_DEVELOPMENT", io.opencode.loopper.template.DocumentTemplateDefinition.VERSION, project, null));
         return ("--loopper-fixture\r\nContent-Disposition: form-data; name=\"metadata\"\r\nContent-Type: application/json\r\n\r\n" + metadata
                 + "\r\n--loopper-fixture\r\nContent-Disposition: form-data; name=\"files\"; filename=\"payment.md\"\r\nContent-Type: text/markdown\r\n\r\n# 付款\n付款必须鉴权"
                 + "\r\n--loopper-fixture\r\nContent-Disposition: form-data; name=\"files\"; filename=\"errors.md\"\r\nContent-Type: text/markdown\r\n\r\n# 异常\n权限不足时提示原因"

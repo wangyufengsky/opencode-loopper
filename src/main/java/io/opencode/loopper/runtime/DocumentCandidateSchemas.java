@@ -45,17 +45,20 @@ final class DocumentCandidateSchemas {
         var old = (Map<String, Object>) assessment().get("properties");
         var item = (Map<String, Object>) ((Map<String, Object>) old.get("items")).get("items");
         var entry = object("title", text(300), "statement", text(12000), "sources", array(sourceRef(), 64),
-                "issues", strings(32, 2000), "assessment", item);
-        return object("snapshotSha", text(64), "entries", array(entry, 256), "findings", old.get("findings"),
+                "issues", described(strings(32, 2000), "仅填写业务规则歧义或冲突；非空时 conclusion 必须为 UNDETERMINED。代码证据缺口写 assessment.limitations 或 VALIDATION_GAP。"), "assessment", item);
+        return object("snapshotSha", described(nullable(64), "新交互合同填 null，由服务端绑定冻结代码快照；历史合同须填原始 SHA。显式错误 SHA 不会被覆盖。"), "entries", array(entry, 256), "findings", old.get("findings"),
                 "skippedSections", array(object("source", sourceRef(), "reason", text(2000)), 2048),
                 "limitations", strings(64, 2000));
     }
     static Map<String, Object> directReview() {
         var sourceOrNull = new LinkedHashMap<>(sourceRef()); sourceOrNull.put("type", List.of("object", "null"));
-        return object("snapshotSha", text(64), "approved", bool(), "reviewedRequirementKeys", strings(256, 32),
+        return object("snapshotSha", described(nullable(64), "新交互合同填 null，由服务端绑定冻结代码快照；历史合同须填原始 SHA。显式错误 SHA 不会被覆盖。"), "approved", bool(), "reviewedRequirementKeys", strings(256, 32),
                 "reviewedFindingKeys", strings(256, 64), "checkedSections", array(sourceRef(), 2048),
                 "corrections", array(object("requirementKey", nullable(32), "findingKey", nullable(64),
                         "source", sourceOrNull, "detail", text(4000)), 256));
+    }
+    private static Map<String, Object> described(Map<String, Object> schema, String description) {
+        var result = new LinkedHashMap<>(schema); result.put("description", description); return result;
     }
     private static Map<String, Object> sourceRef() { return object("fileId", text(64), "section", integer(0)); }
     private static Map<String, Object> codeReferences() {

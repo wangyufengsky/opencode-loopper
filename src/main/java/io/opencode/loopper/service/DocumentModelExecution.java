@@ -41,7 +41,7 @@ public class DocumentModelExecution {
             case CREATING -> create(row);
             case PROMPT_READY -> store.transition(row, DISPATCHING, LifecycleEvent.DISPATCH, null);
             case DISPATCHING -> dispatch(row);
-            case RUNNING -> poll(row);
+            case RUNNING -> poll(row, contract);
             default -> row;
         };
     }
@@ -90,13 +90,20 @@ public class DocumentModelExecution {
         if (!lookup.exists()) { store.requireActive(row.runId()); runtime.promptAsync(remote, request); }
         return store.transition(row, RUNNING, LifecycleEvent.START, null);
     }
-    private DocumentTemplateModelRow poll(DocumentTemplateModelRow row) {
+    private DocumentTemplateModelRow poll(DocumentTemplateModelRow row, DocumentTemplateService.Contract contract) {
         var plan = plan(row); var remote = remote(row);
         runtime.restoreDesignTurn(remote, plan.profile(), plan.model(), prompt(row).messageId());
         var status = runtime.sessionStatus(remote);
         if (status.retrying() || !status.completed() && !status.failed()) return row;
-        if (status.failed()) throw failure("DOCUMENT_MODEL_FAILED", "分析会话失败，已保留本次输入和输出证据");
         row = store.require(row.id());
+        if ((status.failed() || row.outputJson() == null) && "3".equals(contract.version()) && !contract.autoDevelopment()) {
+            var candidate = submissions.find(row.id());
+            if (candidate.isPresent() && !candidate.get().state().terminal())
+                submissions.close(new MachineCandidateSubmission.CloseCommand(row.id(), candidate.get().version()));
+            return store.transition(row, FAILED, LifecycleEvent.VERIFICATION_FAIL,
+                    status.failed() ? "DOCUMENT_MODEL_FAILED" : "DOCUMENT_SUBMISSION_MISSING");
+        }
+        if (status.failed()) throw failure("DOCUMENT_MODEL_FAILED", "分析会话失败，已保留本次输入和输出证据");
         if (row.outputJson() == null) throw failure("DOCUMENT_SUBMISSION_MISSING", "模型已结束但没有提交有效候选，请检查预算或模型配置后恢复");
         return store.transition(row, VALIDATED, LifecycleEvent.COMPLETE, null);
     }

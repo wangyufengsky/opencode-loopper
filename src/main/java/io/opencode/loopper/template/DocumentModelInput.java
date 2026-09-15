@@ -7,7 +7,15 @@ public record DocumentModelInput(List<SectionRef> sections, DocumentRequirements
         DocumentRequirements.Review requirementFeedback, String snapshotSha,
         RequirementCodeAssessment.Candidate assessment, RequirementCodeAssessment.Review assessmentFeedback,
         List<Clarification> clarifications, DirectDocumentAssessment.Candidate directAssessment,
-        DirectDocumentAssessment.Review directFeedback, int sourceRevision) {
+        DirectDocumentAssessment.Review directFeedback, int sourceRevision, int interactionVersion) {
+    public DocumentModelInput(List<SectionRef> sections, DocumentRequirements.Candidate requirements,
+            DocumentRequirements.Review requirementFeedback, String snapshotSha,
+            RequirementCodeAssessment.Candidate assessment, RequirementCodeAssessment.Review assessmentFeedback,
+            List<Clarification> clarifications, DirectDocumentAssessment.Candidate directAssessment,
+            DirectDocumentAssessment.Review directFeedback, int sourceRevision) {
+        this(sections, requirements, requirementFeedback, snapshotSha, assessment, assessmentFeedback,
+                clarifications, directAssessment, directFeedback, sourceRevision, 0);
+    }
     public DocumentModelInput { clarifications = clarifications == null ? List.of() : List.copyOf(clarifications); }
     public DocumentModelInput(List<SectionRef> sections, DocumentRequirements.Candidate requirements,
             DocumentRequirements.Review requirementFeedback, String snapshotSha,

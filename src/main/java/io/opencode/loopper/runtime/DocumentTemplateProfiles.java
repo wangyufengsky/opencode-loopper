@@ -34,6 +34,11 @@ public final class DocumentTemplateProfiles {
     }
     public static List<String> readTools(OpenCodeClient.SessionProfile profile) {
         if (!contains(profile)) return List.of();
+        if (profile == OpenCodeClient.SessionProfile.DOCUMENT_CODE_ASSESSMENT_V2_NO_TOOLS
+                || profile == OpenCodeClient.SessionProfile.DOCUMENT_CODE_REVIEW_V2_NO_TOOLS)
+            return List.of("get_document_review_work", "check_document_review_candidate", "read_document_resource",
+                    "list_requirement_documents", "list_document_sections", "read_document_section", "list_requirement_code",
+                    "read_requirement_code", "search_requirement_code", "list_requirement_assessments", "read_requirement_assessment");
         if (profile == OpenCodeClient.SessionProfile.REQUIREMENT_CODE_ASSESSMENT_NO_TOOLS
                 || profile == OpenCodeClient.SessionProfile.REQUIREMENT_ASSESSMENT_REVIEW_NO_TOOLS
                 || profile == OpenCodeClient.SessionProfile.DOCUMENT_CODE_ASSESSMENT_V2_NO_TOOLS

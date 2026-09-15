@@ -109,7 +109,7 @@ final class GenericCandidateInternalLaunchPlanCodec {
         List<String> candidateTools = plan.permissionPolicy().stream()
                 .filter(rule -> "allow".equals(rule.action()) && "*".equals(rule.pattern()))
                 .map(OpenCodeClient.SessionPermissionRule::permission)
-                .filter(permission -> InternalMcpContractCatalog.toolNames().stream()
+                .filter(permission -> InternalMcpContractCatalog.submissionToolNames().stream()
                         .map(prefix::concat).anyMatch(permission::equals))
                 .toList();
         if (candidateTools.size() != 1) return null;

@@ -31,6 +31,13 @@ public final class TemplateTaskReadService {
         return new CursorPage<>(page, rows.size() > limit ? encode(page.getLast().createdAt(), page.getLast().id()) : null);
     }
 
+    public CursorPage<TemplateTaskReadMapper.FailedBatch> failedBatches(String taskId, String cursor, int limit) {
+        var after = cursor(cursor); requireLimit(limit);
+        var rows = mapper.failedBatches(taskId, after[0], after[1], limit + 1);
+        var page = rows.stream().limit(limit).toList();
+        return new CursorPage<>(page, rows.size() > limit ? encode(page.getLast().createdAt(), page.getLast().id()) : null);
+    }
+
     private static void requireLimit(int limit) {
         if (limit < 1 || limit > 100) throw new BadRequestException("PAGE_LIMIT_INVALID", "每页数量应为 1–100");
     }

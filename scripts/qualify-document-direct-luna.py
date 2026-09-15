@@ -23,6 +23,9 @@ def tool_specs(data):
     text = {"type": "string", "maxLength": 1024}
     number = lambda lo, hi: {"type": "integer", "minimum": lo, "maximum": hi}
     fields = {
+        "describe_submission_contract": dict(runId=text, pointer={"type": "string", "maxLength": 512}),
+        "get_document_review_work": dict(runId=text, offset=number(0, 100000), limit=number(1, 100)),
+        "check_document_review_candidate": dict(runId=text, candidate=data["schema"]["properties"]["candidate"]),
         "list_requirement_code": dict(runId=text, query=text, after=text, limit=number(1, 100)),
         "read_requirement_code": dict(runId=text, path=text, blobSha=text, startLine=number(1, 10000000), limit=number(1, 200)),
         "search_requirement_code": dict(runId=text, path=text, blobSha=text, query=text, afterLine=number(0, 10000000)),
@@ -59,7 +62,31 @@ def bridge(path):
                     base.validate_shape(args, specs[name]["inputSchema"])
                     if name != "read_document_resource" and args["runId"] != data["runId"]: raise ValueError("冻结运行身份不匹配")
                     if args.get("fileId", "azx0-document") != "azx0-document": raise ValueError("冻结文档身份不匹配")
-                    if name == "list_requirement_documents":
+                    if name == "describe_submission_contract":
+                        selected = data["schema"]
+                        if args["pointer"]:
+                            if not args["pointer"].startswith("/"): raise ValueError("参数路径必须为 JSON Pointer")
+                            for key in args["pointer"][1:].split("/"):
+                                key = key.replace("~1", "/").replace("~0", "~")
+                                selected = selected[int(key)] if isinstance(selected, list) else selected[key]
+                        value = dict(contract=dict(toolName=data["toolName"], expectedSubmissionRevision=revision), inputSchema=selected,
+                            guidance=["issues 仅写业务待澄清；代码证据缺口放 assessment.limitations。", "snapshotSha 填 null，由服务端绑定。"])
+                    elif name == "get_document_review_work":
+                        page = list(sources.values())[args["offset"]:args["offset"]+args["limit"]]
+                        entries = (data["assessment"] or {}).get("entries", [])
+                        value = dict(batchOrdinal=1, sourceRevision=1, assignedSectionTotal=len(sources),
+                            sections=[dict(position=x["section"], fileId=x["fileId"], section=x["section"], title=x["title"], sha256=x["sha256"], alreadyRead=x["section"] in reads) for x in page],
+                            nextOffset=args["offset"]+len(page) if args["offset"]+len(page)<len(sources) else -1,
+                            existingRequirements=[dict(key=x["assessment"]["requirementKey"], title=x["title"], sources=x["sources"]) for x in entries[args["offset"]:args["offset"]+args["limit"]]],
+                            requirementTotal=len(entries), instruction="章节目录不是已编译需求。每段必须在 entries.sources 或 skippedSections 有交代；只在读取后判断。")
+                    elif name == "check_document_review_candidate":
+                        submitted = dict(candidate=None if data["assessment"] is not None else args["candidate"], review=args["candidate"] if data["assessment"] is not None else None,
+                                         sourceReads=sorted(reads), codeReads=code_reads)
+                        child.stdin.write(json.dumps(submitted, ensure_ascii=False)+"\n"); child.stdin.flush()
+                        checked = json.loads(child.stdout.readline())
+                        value = dict(valid=checked["outcome"] == "ACCEPTED", accepted=False,
+                            detail=checked.get("detail", "预检通过，必须正式提交"), expectedSubmissionRevision=revision)
+                    elif name == "list_requirement_documents":
                         value = {"documents": [dict(fileId="azx0-document", name="AZX0模拟需规.docx", sections=len(sources), limitations=data["limitations"])]}
                     elif name == "list_document_sections":
                         page = [s for n, s in sources.items() if n > args["after"]][:args["limit"]]
@@ -113,7 +140,7 @@ def bridge(path):
                             value = json.loads(child.stdout.readline()); revision += 1; value["submissionRevision"] = revision
                             keys[key] = (digest, value)
                             if value["outcome"] == "ACCEPTED":
-                                Path(cfg["accepted"]).write_text(json.dumps(args["candidate"], ensure_ascii=False, indent=2)); terminal = True
+                                Path(cfg["accepted"]).write_text(json.dumps(value["canonicalCandidate"], ensure_ascii=False, indent=2)); terminal = True
                     ledger.append(dict(tool=name, arguments=args, result=value))
                 except (ValueError, KeyError) as exc:
                     error = True; value = {"error": str(exc)}; ledger.append(dict(tool=name, error=value))

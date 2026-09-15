@@ -154,6 +154,12 @@ public final class TemplateTaskCoordinator {
             if (!states.task(row.taskId()).state().equals("RUNNING")) return false;
             validated(row, contract);
         }
+        if ("9".equals(contract.definition().version()) || rows.stream().anyMatch(row -> row.generation() > 0)) {
+            for (var row : rows) if (Set.of("FAILED", "STOPPED").contains(row.state()) && row.generation() < 2)
+                batchStore.retry(row, row.version(), false);
+            // Failed batches remain visible; independent batches retain their window slots.
+            return false;
+        }
         if (selected.isEmpty()) {
             rows.stream().filter(row -> row.state().equals("FAILED")).findFirst()
                     .ifPresent(row -> validated(row, contract));

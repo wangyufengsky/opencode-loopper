@@ -108,7 +108,7 @@ class DocumentTemplateAdmissionIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT state FROM document_template_model_run WHERE id='old-analysis'", String.class)).isEqualTo("STOPPED");
     }
     private DocumentTemplateService.Request request() {
-        return new DocumentTemplateService.Request(UUID.randomUUID().toString(), "REQUIREMENT_DEVELOPMENT", "2", projectId, null);
+        return new DocumentTemplateService.Request(UUID.randomUUID().toString(), "REQUIREMENT_DEVELOPMENT", io.opencode.loopper.template.DocumentTemplateDefinition.VERSION, projectId, null);
     }
     private static List<DocumentTemplateStorage.Incoming> files(String text) {
         return List.of(new DocumentTemplateStorage.Incoming("requirements.md", ("# 需求\n" + text).getBytes(StandardCharsets.UTF_8)));

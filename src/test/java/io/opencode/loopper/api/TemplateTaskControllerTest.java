@@ -17,8 +17,16 @@ class TemplateTaskControllerTest {
     private final ProjectBranchService branches = mock(ProjectBranchService.class);
     private final TemplateTaskReadService reads = mock(TemplateTaskReadService.class);
     private final TaskService tasks = mock(TaskService.class);
-    private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new TemplateTaskController(admission, branches, reads, tasks))
+    private final TemplateBatchRetryService retries = mock(TemplateBatchRetryService.class);
+    private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new TemplateTaskController(admission, branches, reads, tasks, retries))
             .setControllerAdvice(new ApiExceptionHandler()).build();
+
+    @Test void batchRetryRequiresLocalAuthorityBeforeStartingAnyWork() throws Exception {
+        mvc.perform(post("/api/template-tasks/task/batches/batch/retry").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"expectedVersion\":4}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("LOCAL_UI_HEADER_REQUIRED"));
+        verifyNoInteractions(retries);
+    }
 
     @Test void localHeaderIsRequiredBeforeConfirmationOrStart() throws Exception {
         mvc.perform(post("/api/template-tasks").contentType(MediaType.APPLICATION_JSON).content("{}"))

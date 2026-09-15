@@ -7,7 +7,7 @@ public record DocumentTemplateRunRow(String id, String requestKey, String reques
         String createdAt, String updatedAt, long version, int sourceRevision) {
     @org.apache.ibatis.annotations.AutomapConstructor
     public DocumentTemplateRunRow { }
-    public boolean directDocuments() { return "2".equals(templateVersion); }
+    public boolean directDocuments() { return java.util.List.of("2", "3").contains(templateVersion); }
     public int basisRevision() { return directDocuments() ? sourceRevision : requirementRevision; }
     public DocumentTemplateRunRow(String id, String requestKey, String requestSha256, String projectId,
             String templateId, String templateVersion, String title, String state, String resumeState,

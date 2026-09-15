@@ -109,7 +109,8 @@ class FakeOpenCodeClientTest {
                 new OpenCodeClient.SessionPermissionRule("read", ".env.example", "allow"),
                 new OpenCodeClient.SessionPermissionRule("external_directory", "*", "deny"),
                 new OpenCodeClient.SessionPermissionRule(
-                        "loopper-private-reviewer_submit_reviewer_report", "*", "allow"));
+                        "loopper-private-reviewer_submit_reviewer_report", "*", "allow"),
+                new OpenCodeClient.SessionPermissionRule("loopper-private-reviewer_describe_submission_contract", "*", "allow"));
     }
 
     @Test
@@ -140,7 +141,8 @@ class FakeOpenCodeClientTest {
                 new OpenCodeClient.SessionPermissionRule("read", ".env.example", "allow"),
                 new OpenCodeClient.SessionPermissionRule("external_directory", "*", "deny"),
                 new OpenCodeClient.SessionPermissionRule(
-                        "loopper-private-convention_submit_project_convention", "*", "allow"));
+                        "loopper-private-convention_submit_project_convention", "*", "allow"),
+                new OpenCodeClient.SessionPermissionRule("loopper-private-convention_describe_submission_contract", "*", "allow"));
     }
 
     @Test
@@ -171,7 +173,8 @@ class FakeOpenCodeClientTest {
                 new OpenCodeClient.SessionPermissionRule("read", ".env.example", "allow"),
                 new OpenCodeClient.SessionPermissionRule("external_directory", "*", "deny"),
                 new OpenCodeClient.SessionPermissionRule(
-                        "loopper-private-judge_submit_judge_decision", "*", "allow"));
+                        "loopper-private-judge_submit_judge_decision", "*", "allow"),
+                new OpenCodeClient.SessionPermissionRule("loopper-private-judge_describe_submission_contract", "*", "allow"));
     }
 
     @Test

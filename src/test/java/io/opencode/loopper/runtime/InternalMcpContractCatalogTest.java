@@ -24,6 +24,9 @@ class InternalMcpContractCatalogTest {
                 "submit_document_requirement_review",
                 "submit_requirement_code_assessment",
                 "submit_requirement_assessment_review",
+                "get_document_review_work",
+                "check_document_review_candidate",
+                "get_development_task_guide",
                 "list_requirement_documents",
                 "list_document_sections",
                 "read_document_section",
@@ -38,6 +41,7 @@ class InternalMcpContractCatalogTest {
                 "list_development_documents",
                 "list_development_sections",
                 "read_document_resource",
+                "describe_submission_contract",
                 "submit_package_design_v2",
                 "submit_template_analysis",
                 "submit_candidate");

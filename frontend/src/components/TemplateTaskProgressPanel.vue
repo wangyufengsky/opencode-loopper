@@ -4,6 +4,7 @@ import { Icon } from '@iconify/vue'
 import type { Task } from '@/types/domain'
 import { displayLabel } from '@/utils/displayLabels'
 import StageRail from './StageRail.vue'
+import TemplateBatchRecoveryPanel from './TemplateBatchRecoveryPanel.vue'
 const props = defineProps<{ task: Task }>()
 const copied = ref(false)
 const progress = computed(() => props.task.templateProgress)
@@ -44,6 +45,7 @@ async function copyPath() { try { await navigator.clipboard.writeText(progress.v
         <p class="progress-note">{{ task.status === 'COMPLETED' ? '报告已校验并保存。' : total && percentage === 100 ? '分析已完成，继续生成、校验或评审报告。' : '按已验证批次更新，分析进度不代表任务最终完成。' }}</p>
       </div>
     </div>
+    <TemplateBatchRecoveryPanel v-if="task.status === 'RUNNING' || task.status === 'WAITING_INPUT'" :task="task" />
     <footer v-if="progress?.documentPath" class="output-directory"><Icon icon="lucide:folder" width="16" /><details><summary>{{ folderName }}</summary><code>{{ progress.documentPath }}</code></details><el-button text size="small" @click="copyPath">{{ copied ? '已复制' : '复制路径' }}</el-button></footer>
     <details v-if="task.stages?.length" class="stage-details"><summary>阶段详情</summary><StageRail :stages="task.stages" /></details>
   </section>

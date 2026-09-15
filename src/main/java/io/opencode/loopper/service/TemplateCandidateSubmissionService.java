@@ -62,6 +62,27 @@ public class TemplateCandidateSubmissionService {
         return result;
     }
 
+    public SubmissionContractReadService.Contract contract(String batchId) {
+        var batch = batches.require(batchId);
+        requireIdentity(batch);
+        batches.requireRunning(batch.taskId(), batch.attemptId());
+        if (!List.of("DISPATCHING", "RUNNING").contains(batch.state()))
+            throw conflict("TEMPLATE_SUBMISSION_CLOSED", "批次当前不接受新候选");
+        var input = json.readValue(batch.inputJson(), TemplateBatchExecution.Input.class);
+        var context = new java.util.LinkedHashMap<String, Object>();
+        context.put("batchOrdinal", batch.ordinal() + 1); context.put("generation", batch.generation());
+        context.put("purpose", batch.purpose()); context.put("readOnly", true);
+        if (batch.purpose().equals("REVIEW")) context.put("requiredReviews", input.units().stream().map(unit -> Map.of(
+                "unitId", unit.id(), "path", unit.path(), "locations", TemplateAnalysisPromptFactory.locations(unit))).toList());
+        else {
+            context.put("identity", input.person().author().identity());
+            context.put("evidenceIds", input.person().evidenceIds());
+            context.put("instruction", "只评价该身份的本人贡献；证据编号从给定集合选取，评分等级按冻结维度填写。");
+        }
+        return new SubmissionContractReadService.Contract(io.opencode.loopper.runtime.InternalMcpContractCatalog.TEMPLATE_TOOL,
+                batch.purpose(), receipts.revision(batchId), Map.copyOf(context));
+    }
+
     private void requireIdentity(TemplateTaskBatchRow batch) {
         if (batch.creationPlanJson() == null || batch.sessionId() == null) throw conflict("TEMPLATE_SUBMISSION_CLOSED", "批次没有冻结会话");
         var plan = json.readValue(batch.creationPlanJson(), OpenCodeClient.SessionCreationPlan.class);

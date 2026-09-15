@@ -22,6 +22,7 @@ final class CandidateCorrectionPolicy {
     static String prompt(Integer correctionLimit) {
         return (correctionLimit == null ? "MCP submissions have no count limit."
                 : "This run permits at most " + correctionLimit + " total submissions including the first.")
+                + " Before composing or repairing parameters, call describe_submission_contract with this runId and pointer=empty string for the actual schema and revision. "
                 + " Follow the returned action and submissionRevision. On REJECTED, repair all reported root problems; "
                 + "preserve valid fields, entity keys, frozen references and the evidence-grounded conclusion. "
                 + "Submit a complete replacement with a fresh idempotencyKey only after changing rejected content. "

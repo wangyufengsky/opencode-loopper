@@ -80,6 +80,23 @@ public class DocumentModelStore {
                     () -> models.insert(row), DocumentModelStore::conflict);
         }
     }
+    @Transactional
+    public DocumentTemplateModelRow retry(String id, long expectedVersion, boolean manual, DocumentTemplateService.Contract contract) {
+        var previous = require(id);
+        requireActive(previous.runId());
+        if (previous.version() != expectedVersion || !java.util.Set.of("FAILED", "STOPPED").contains(previous.state())) throw conflict();
+        var current = models.exact(previous.runId(), previous.candidateKind(), previous.ordinal(), previous.generation()).orElseThrow();
+        if (!current.id().equals(id)) return current;
+        if (!manual && previous.attempt() >= Math.min(2, Math.max(0, contract.maxStageAttempts() - 1))) return previous;
+        String now = Instant.now().toString();
+        var next = new DocumentTemplateModelRow(UUID.randomUUID().toString(), previous.runId(), previous.candidateKind(),
+                previous.ordinal(), previous.generation(), "PREPARED", previous.inputJson(), previous.inputSha256(),
+                null, null, null, null, null, null, null, now, now, 0, previous.attempt() + 1);
+        lifecycle.create(subject(next), next.state(), Map.of("replaces", id, "manual", manual),
+                () -> models.insert(next), DocumentModelStore::conflict);
+        return require(next.id());
+    }
+
     public DocumentTemplateRunRow requireActive(String id) {
         var run = runs.find(id).orElseThrow(DocumentModelStore::conflict);
         if (DocumentTemplateState.valueOf(run.state()).terminal() || run.state().equals("WAITING_INPUT")

@@ -100,7 +100,7 @@ public class DocumentTemplateService {
             int maxTaskAttempts, int maxStageAttempts, int sessionErrorLimit, boolean autoDevelopment, String executionPolicy, Boolean timeoutEnabled, Integer analysisConcurrency) {
         public Contract {
             timeoutEnabled = timeoutEnabled == null ? true : timeoutEnabled;
-            analysisConcurrency = !"2".equals(version) || autoDevelopment || analysisConcurrency == null ? 1 : analysisConcurrency;
+            analysisConcurrency = !java.util.List.of("2", "3").contains(version) || autoDevelopment || analysisConcurrency == null ? 1 : analysisConcurrency;
         }
         public Contract(String version,String model,long total,long attempt,int tasks,int stages,int errors,boolean auto,String policy,Boolean timeout) {
             this(version,model,total,attempt,tasks,stages,errors,auto,policy,timeout,1);

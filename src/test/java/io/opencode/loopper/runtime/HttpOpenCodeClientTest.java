@@ -1093,7 +1093,8 @@ class HttpOpenCodeClientTest {
                 new OpenCodeClient.SessionPermissionRule("*", "*", "deny"),
                 new OpenCodeClient.SessionPermissionRule("external_directory", "*", "deny"),
                 new OpenCodeClient.SessionPermissionRule(
-                        "loopper-private-7_submit_acceptance_choice", "*", "allow"));
+                        "loopper-private-7_submit_acceptance_choice", "*", "allow"),
+                new OpenCodeClient.SessionPermissionRule("loopper-private-7_describe_submission_contract", "*", "allow"));
         assertThat(first.permissionPolicyDigest()).hasSize(64);
         assertThat(first.createRequestSha256()).hasSize(64);
         assertThat(rolling.permissionPolicy()).containsExactly(
@@ -1106,13 +1107,14 @@ class HttpOpenCodeClientTest {
                 new OpenCodeClient.SessionPermissionRule("read", ".env.example", "allow"),
                 new OpenCodeClient.SessionPermissionRule("external_directory", "*", "deny"),
                 new OpenCodeClient.SessionPermissionRule(
-                        "loopper-private-7_submit_rolling_package_plan", "*", "allow"));
-        assertThat(reviewer.permissionPolicy().getLast().permission())
-                .isEqualTo("loopper-private-7_submit_reviewer_report");
-        assertThat(convention.permissionPolicy().getLast().permission())
-                .isEqualTo("loopper-private-7_submit_project_convention");
-        assertThat(judge.permissionPolicy().getLast().permission())
-                .isEqualTo("loopper-private-7_submit_judge_decision");
+                        "loopper-private-7_submit_rolling_package_plan", "*", "allow"),
+                new OpenCodeClient.SessionPermissionRule("loopper-private-7_describe_submission_contract", "*", "allow"));
+        assertThat(reviewer.permissionPolicy()).extracting(OpenCodeClient.SessionPermissionRule::permission)
+                .contains("loopper-private-7_submit_reviewer_report", "loopper-private-7_describe_submission_contract");
+        assertThat(convention.permissionPolicy()).extracting(OpenCodeClient.SessionPermissionRule::permission)
+                .contains("loopper-private-7_submit_project_convention", "loopper-private-7_describe_submission_contract");
+        assertThat(judge.permissionPolicy()).extracting(OpenCodeClient.SessionPermissionRule::permission)
+                .contains("loopper-private-7_submit_judge_decision", "loopper-private-7_describe_submission_contract");
 
         mcpBody.set("{\"loopper-private-7\":{\"status\":\"connected\"}}");
         client.requireCandidateSessionReady(first);

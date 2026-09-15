@@ -74,7 +74,7 @@ class DirectDocumentDevelopmentIntegrationTest {
         properties.getOpenCode().setModel("fake/test-model");
         source = Files.createDirectory(temporary.resolve("source")); Files.writeString(source.resolve("existing.txt"), "用户未提交内容");
         String project = projects.create("原文开发", source.toString(), "test").id();
-        run = service.create(new DocumentTemplateService.Request(UUID.randomUUID().toString(), "REQUIREMENT_DEVELOPMENT", "2", project, null),
+        run = service.create(new DocumentTemplateService.Request(UUID.randomUUID().toString(), "REQUIREMENT_DEVELOPMENT", io.opencode.loopper.template.DocumentTemplateDefinition.VERSION, project, null),
                 List.of(new DocumentTemplateStorage.Incoming("需求.md", ("# EventBus 回归\n工作包范围：`src/test/java/example/EventBusTest.java`。"
                         + "新增 EventBusTest 聚焦验证未注册事件安全忽略，并回归既有分发行为。").getBytes(StandardCharsets.UTF_8))));
         contract = json.readValue(run.contractJson(), DocumentTemplateService.Contract.class);
@@ -226,7 +226,7 @@ class DirectDocumentDevelopmentIntegrationTest {
                 fake.setSessionState(judge.externalSessionId(), "COMPLETED"); completed.add(judge.id());
             }
         }
-        assertThat(completed).hasSize(2);
+        assertThat(completed).as("task=%s judges=%s errors=%s", tasks.get(taskId).state(), domain.listJudgeRuns(taskId), jdbc.queryForList("SELECT code,message FROM error_event WHERE task_id=?", taskId)).hasSize(2);
     }
     private void prepareMavenProject(boolean gitProject) throws Exception {
         Files.writeString(source.resolve("pom.xml"), """

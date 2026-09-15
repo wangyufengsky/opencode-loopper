@@ -13,6 +13,7 @@ public final class DocumentDevelopmentReads {
     public DocumentDevelopmentReads(DocumentDevelopmentScope scopes, DocumentRequirementMapper requirements, DocumentTemplateReadService reads) {
         this.scopes = scopes; this.requirements = requirements; this.reads = reads;
     }
+    public Map<String, Object> guide(String grant) { return scopes.guide(grant); }
     public Object index(String grant, int after) {
         var scope = scopes.authorize(grant);
         if (after < -1) throw new BadRequestException("DOCUMENT_REQUIREMENT_CURSOR", "需求分页位置无效");

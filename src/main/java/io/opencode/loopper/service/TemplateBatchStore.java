@@ -91,6 +91,28 @@ public class TemplateBatchStore {
         return row;
     }
 
+    /** A retry keeps the failed generation immutable and replaces only its logical batch. */
+    @Transactional
+    public TemplateTaskBatchRow retry(TemplateTaskBatchRow failed, long expectedVersion, boolean manual) {
+        var row = require(failed.id());
+        if (row.version() != expectedVersion) throw conflict();
+        var current = templates.findBatchOrdinal(row.taskId(), row.attemptId(), row.purpose(), row.ordinal()).orElseThrow();
+        if (!current.id().equals(row.id())) return current;
+        if (!java.util.Set.of("FAILED", "STOPPED").contains(row.state())) throw conflict();
+        if (row.sessionId() != null && !SessionState.valueOf(mapper.findSession(row.sessionId()).orElseThrow().state()).terminal()) {
+            throw new ConflictException("TEMPLATE_BATCH_STOP_UNCONFIRMED", "旧批次会话尚未确认停止，暂不能重试");
+        }
+        requireRunning(row.taskId(), row.attemptId());
+        if (!manual && row.generation() >= 2) return row;
+        String now = Instant.now().toString();
+        var next = new TemplateTaskBatchRow(UUID.randomUUID().toString(), row.taskId(), row.attemptId(), null,
+                row.ordinal(), row.purpose(), row.inputJson(), row.inputSha256(), "PREPARED", null, null, null,
+                null, null, null, now, now, 0, row.generation() + 1);
+        lifecycle.create(subject(next), next.state(), Map.of("retryOf", row.id(), "generation", next.generation(), "manual", manual),
+                () -> templates.insertBatch(next), TemplateBatchStore::conflict);
+        return next;
+    }
+
     @Transactional
     public TemplateTaskBatchRow prepareSession(TemplateTaskBatchRow row, OpenCodeClient.SessionCreationPlan plan, FrozenPrompt prompt) {
         requireRunning(row.taskId(), row.attemptId());
@@ -132,7 +154,7 @@ public class TemplateBatchStore {
         requireState(row, TemplateBatchState.RUNNING);
         TemplateTaskBatchRow saved = transport(row, row.sessionId(), row.creationPlanJson(), row.promptJson(), row.promptSha256(), null, code, message);
         var session = mapper.findSession(row.sessionId()).orElseThrow();
-        states.updateSession(states.sessionState(session, SessionState.COMPLETED));
+        states.updateSession(states.sessionState(session, "TEMPLATE_MODEL_FAILED".equals(code) ? SessionState.FAILED : SessionState.COMPLETED));
         return transition(saved, TemplateBatchState.FAILED, LifecycleEvent.VERIFICATION_FAIL);
     }
 
@@ -166,7 +188,7 @@ public class TemplateBatchStore {
     public TemplateTaskBatchRow transition(TemplateTaskBatchRow row, TemplateBatchState state, LifecycleEvent event) {
         var changed = new TemplateTaskBatchRow(row.id(), row.taskId(), row.attemptId(), row.sessionId(), row.ordinal(), row.purpose(),
                 row.inputJson(), row.inputSha256(), state.name(), row.creationPlanJson(), row.promptJson(), row.promptSha256(),
-                row.outputJson(), row.errorCode(), row.errorMessage(), row.createdAt(), Instant.now().toString(), row.version());
+                row.outputJson(), row.errorCode(), row.errorMessage(), row.createdAt(), Instant.now().toString(), row.version(), row.generation());
         lifecycle.transition(subject(row), row.state(), state.name(), event, null,
                 Map.of("ordinal", row.ordinal(), "purpose", row.purpose()), () -> templates.updateBatchState(changed), TemplateBatchStore::conflict);
         return require(row.id());
@@ -176,7 +198,7 @@ public class TemplateBatchStore {
                                              String output, String errorCode, String errorMessage) {
         var changed = new TemplateTaskBatchRow(row.id(), row.taskId(), row.attemptId(), sessionId, row.ordinal(), row.purpose(),
                 row.inputJson(), row.inputSha256(), row.state(), plan, prompt, promptHash, output, errorCode, errorMessage,
-                row.createdAt(), Instant.now().toString(), row.version());
+                row.createdAt(), Instant.now().toString(), row.version(), row.generation());
         lifecycle.mutateWithoutTransition(() -> templates.updateBatchTransport(changed), TemplateBatchStore::conflict);
         return require(row.id());
     }

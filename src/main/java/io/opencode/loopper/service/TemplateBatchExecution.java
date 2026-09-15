@@ -58,7 +58,7 @@ public class TemplateBatchExecution {
 
     private TemplateTaskBatchRow prepare(TemplateTaskBatchRow row, TemplateTaskContractFactory.Frozen contract) {
         var run = templates.findRun(row.taskId()).orElseThrow();
-        if (run.bypassCache() == 0 && run.repairRound() == 0) {
+        if (run.bypassCache() == 0 && run.repairRound() == 0 && row.generation() == 0) {
             String cached = templates.acceptedCachedOutput(row.inputSha256()).orElse(null);
             if (cached != null) return store.validated(row, validate(row, cached), true);
         }
@@ -71,7 +71,7 @@ public class TemplateBatchExecution {
         // while using their default would authorize hidden retries outside the frozen two-round policy.
         Path root = Path.of(mapper.findTask(row.taskId()).orElseThrow().worktreePath());
         byte[] nonce = new byte[32]; new SecureRandom().nextBytes(nonce);
-        var profile = List.of("5", "6", "7", "8").contains(contract.definition().version())
+        var profile = List.of("5", "6", "7", "8", "9").contains(contract.definition().version())
                 ? OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS
                 : OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_NO_TOOLS;
         var plan = openCode.prepareSessionCreation(root, "模板报告分析 " + (row.ordinal() + 1), model,
@@ -137,15 +137,25 @@ public class TemplateBatchExecution {
         openCode.restoreDesignTurn(remote, plan(row).profile(), plan(row).model(), request.messageId());
         var status = openCode.sessionStatus(remote);
         if (status.retrying() || !status.completed() && !status.failed()) return row;
-        if (status.failed()) throw unavailable("TEMPLATE_MODEL_FAILED", "分析会话已失败，请检查模型连接后重试");
+        if (status.failed()) {
+            if (("9".equals(contract.definition().version()) || row.generation() > 0)) return store.candidateFailed(row, "TEMPLATE_MODEL_FAILED", "分析会话已失败，可重试该批次");
+            throw unavailable("TEMPLATE_MODEL_FAILED", "分析会话已失败，请检查模型连接后重试");
+        }
         if (plan(row).profile() == OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS) {
             var accepted = submissions.accepted(row.id());
             if (accepted.isPresent()) return store.validated(row, validate(row, accepted.get()), false);
             var missing = openCode.sessionResult(remote);
-            if (List.of("6", "7", "8").contains(contract.definition().version())
+            if (List.of("6", "7", "8", "9").contains(contract.definition().version())
                     && "OPENCODE_OUTPUT_LENGTH_EXHAUSTED".equals(missing.errorType())) {
-                return store.prepareContinuation(row);
+                try { return store.prepareContinuation(row); }
+                catch (SessionFailure failure) {
+                    if (("9".equals(contract.definition().version()) || row.generation() > 0) && "TEMPLATE_ANALYSIS_STALLED".equals(failure.code()))
+                        return store.candidateFailed(row, failure.code(), failure.getMessage());
+                    throw failure;
+                }
             }
+            if (("9".equals(contract.definition().version()) || row.generation() > 0)) return store.candidateFailed(row,
+                    "TEMPLATE_SUBMISSION_MISSING", "模型会话已结束，但没有通过 MCP 提交有效分析结果；可重试该批次");
             throw unavailable("TEMPLATE_SUBMISSION_MISSING", "OPENCODE_OUTPUT_LENGTH_EXHAUSTED".equals(missing.errorType())
                     ? "模型生成长度耗尽，尚未通过 MCP 提交分析结果；请调整运行环境的单次输出额度后重新发起"
                     : "模型会话已结束，但没有通过 MCP 提交有效分析结果");

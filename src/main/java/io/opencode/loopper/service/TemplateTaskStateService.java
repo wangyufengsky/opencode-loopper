@@ -145,6 +145,21 @@ public final class TemplateTaskStateService {
         }));
     }
 
+    /** Explicit batch recovery does not reset execution time or task budget. */
+    public void resumeBatch(String taskId) {
+        transactions.executeWithoutResult(ignored -> {
+            var task = task(taskId);
+            if (task.state().equals("RUNNING")) return;
+            String reason = TaskWaitingInputPolicy.reasonCode(task, mapper);
+            if (!task.state().equals("WAITING_INPUT") || !java.util.Set.of("TEMPLATE_SUBMISSION_MISSING",
+                    "TEMPLATE_MODEL_FAILED", "TEMPLATE_CONTENT_INVALID", "TEMPLATE_ANALYSIS_STALLED")
+                    .contains(reason == null ? "" : reason))
+                throw new ConflictException("TEMPLATE_RETRY_UNAVAILABLE", "请先处理当前任务的预算、时限或运行环境问题，再重试批次");
+            states.updateTask(states.taskState(task, TaskState.RUNNING), LifecycleEvent.RECOVER,
+                    Map.of("recovery", "EXPLICIT_BATCH_RETRY"));
+        });
+    }
+
     public void requestStop(String taskId) {
         transactions.executeWithoutResult(ignored -> {
             var task = task(taskId);

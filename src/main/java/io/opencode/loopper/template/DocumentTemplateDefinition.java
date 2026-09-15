@@ -7,7 +7,7 @@ public enum DocumentTemplateDefinition {
     REQUIREMENT_DEVELOPMENT("需求开发", "根据需求文档完成代码开发、测试和验收", "软件开发", "lucide:code-xml"),
     REQUIREMENT_CODE_REVIEW("需求代码评审", "核对分支代码的需求完整性、正确性和质量问题", "代码质量", "lucide:clipboard-check");
 
-    public static final String VERSION = "2";
+    public static final String VERSION = "3";
     private final String title;
     private final String description;
     private final String category;

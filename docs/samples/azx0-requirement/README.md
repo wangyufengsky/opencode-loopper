@@ -46,3 +46,6 @@ python3 scripts/qualify-document-luna.py --document docs/samples/azx0-requiremen
 `review-fixture/` 是三个合成 Java 文件，仅用于静态阅读。已知缺陷：`payerComments` 为空字符串时仍写入 `RsrvFld1`；正确处理应保留纯空格并排除缺失、null 和空字符串。序列化、实际 AZX0 发送／响应边界与测试源码不在该样例中，因此不能判断传输字符一致性或声称测试已通过。不要把这些文件用于真实交易。
 
 真实效果入口为 `scripts/qualify-document-direct-luna.py`，使用生产解析、提示、候选 Schema、原文／代码引用校验器与隔离读取适配器；不是生产数据库／HTTP 编排替代物。0.4.27 的一次修正后试跑仍未通过四次候选提交校验，详见[交付记录](../../deliveries/0.4.27.md)，不能作为 Luna 已完成两角色评审的证明。
+
+
+2026-09-15，0.4.29 候选的原文直读效果试跑完成了分析与独立复核：分别一次正式提交接受，分析前两次预检将缺少证据的确定性结论修正为无法判断。共读取 15 个原文分段，保留 R1–R4 及验收证据要求；发现空字符串写入缺陷，保留出站、序列化和测试证据缺口。独立复核批准该报告，并不表示需求全部满足。证据位于 `data/qualification/azx0-guided-luna-20260915-r2/`，其中 `qualification-summary.json` 记录样例检查及局限。这仅是一个合成样例的真实模型效果，不能替代生产 HTTP/数据库编排验收或需求开发的真实试跑；最初因适配器 Schema 检查失败而中断的记录仍保留。

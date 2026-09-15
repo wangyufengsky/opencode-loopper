@@ -1134,3 +1134,7 @@ to pass validation. See [role changes, configuration and qualification boundarie
 文档模板版本 2 通过 `loopper-document://{role}/{scope}/{file}/{section}` 暴露受限原文，原生 Resource 与 `read_document_resource` Tool 共用冻结源与当前角色许可。新的静态分析及独立复核会话分别使用 `DOCUMENT_CODE_ASSESSMENT_V2_NO_TOOLS`、`DOCUMENT_CODE_REVIEW_V2_NO_TOOLS`，仅允许自己的候选提交工具。原文阅读不授予项目脚本或写入能力；开发和双 Judge 按原会话边界读取来源。详见[文档模板任务合同](document-template-contract.md)。
 
 非需求开发模板允许独立批次按冻结窗口调度，默认 4、设置范围 1–16；创建、送达未知及停止中的会话仍计入占用。每个批次独立保持 Session、候选版本、投递和停止证明，不能用窗口补位绕过未知投递恢复。历史模板按原版本恢复，窗口不增加原预算。
+
+### 内部候选参数查询
+
+内部提交角色可调用只读 `describe_submission_contract(runId,pointer)`，获取本运行实际注册工具的参数 Schema、当前提交 revision 和字段说明。查询按正式候选的所有者、作用域与运行代际验证，仅返回本角色冻结提交工具；不增加提交权限或候选接受事实。启动计划的单一提交入口验证只统计提交工具，参数查询与文档导航属于独立只读能力。详细文档导航、预检和冻结兼容规则见[文档模板合同](document-template-contract.md#模型导航与参数预检版本-3)。

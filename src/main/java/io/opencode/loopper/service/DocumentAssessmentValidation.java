@@ -19,13 +19,15 @@ public final class DocumentAssessmentValidation {
         var keys = keys(input);
         require(candidate.items() != null && candidate.items().size() == keys.size(), "每项需求必须恰有一个结论");
         Set<String> seen = new HashSet<>();
-        for (var item : candidate.items()) {
+        for (int itemIndex = 0; itemIndex < candidate.items().size(); itemIndex++) {
+            var item = candidate.items().get(itemIndex);
             require(item != null && keys.contains(item.requirementKey()) && seen.add(item.requirementKey())
                     && item.conclusion() != null, "需求结论缺失、重复或引用错误");
             text(item.rationale(), 8000); text(item.testSourceCoverage(), 4000); strings(item.limitations(), 32, 2000);
             strings(item.checkedPaths(), 256, 1024);
             for (var path : item.checkedPaths()) require(code.file(model.runId(), path).isPresent(), "检查路径不在冻结代码树中");
-            references(model, item.evidence());
+            references(model, item.evidence(), input.directAssessment() == null ? "/candidate/items/" + itemIndex + "/evidence"
+                    : "/candidate/entries/" + itemIndex + "/assessment/evidence");
             if (item.conclusion() != Conclusion.UNDETERMINED) {
                 require(!item.evidence().isEmpty(), "确定性结论必须附实际读取过的代码证据；证据不足请选择无法判断");
             }
@@ -42,7 +44,8 @@ public final class DocumentAssessmentValidation {
         strings(candidate.limitations(), 64, 2000);
         require(candidate.findings() != null && candidate.findings().size() <= 256, "问题明细缺失或超限");
         Set<String> findingKeys = new HashSet<>(), roots = new HashSet<>();
-        for (var finding : candidate.findings()) {
+        for (int findingIndex = 0; findingIndex < candidate.findings().size(); findingIndex++) {
+            var finding = candidate.findings().get(findingIndex);
             require(finding != null && findingKeys.add(finding.key()) && finding.kind() != null
                     && finding.severity() != null, "问题编号重复或类型缺失");
             text(finding.key(), 64); text(finding.rootCauseKey(), 128); text(finding.title(), 300);
@@ -50,7 +53,7 @@ public final class DocumentAssessmentValidation {
             strings(finding.requirementKeys(), 256, 32);
             require(!finding.requirementKeys().isEmpty() && keys.containsAll(finding.requirementKeys()), "问题必须关联本批需求");
             require(roots.add(finding.rootCauseKey()), "同根因问题应合并并保留全部需求引用");
-            references(model, finding.evidence());
+            references(model, finding.evidence(), "/candidate/findings/" + findingIndex + "/evidence");
             require(finding.kind() != FindingKind.DEFECT || !finding.evidence().isEmpty(), "确认缺陷必须有代码证据");
         }
         return candidate;
@@ -79,13 +82,18 @@ public final class DocumentAssessmentValidation {
     }
 
     private void references(DocumentTemplateModelRow model, List<CodeReference> refs) {
+        references(model, refs, "/candidate/evidence");
+    }
+    private void references(DocumentTemplateModelRow model, List<CodeReference> refs, String pointer) {
         require(refs != null && refs.size() <= 64, "代码引用清单缺失或超限");
-        for (var ref : refs) {
+        for (int refIndex = 0; refIndex < refs.size(); refIndex++) {
+            var ref = refs.get(refIndex);
             require(ref != null && ref.startLine() > 0 && ref.endLine() >= ref.startLine(), "代码行号无效");
             text(ref.quote(), 8000);
             var receipt = code.evidence(model.id(), ref.path(), ref.startLine(), ref.endLine())
                     .orElseThrow(() -> invalid("引用未由本次冻结读取证据支持"));
-            require(receipt.blobSha().equals(ref.blobSha()), "代码引用内容身份发生变化");
+            if (!receipt.blobSha().equals(ref.blobSha())) throw new DocumentCandidateProblem("DOCUMENT_ASSESSMENT_INVALID", pointer + "/" + refIndex + "/blobSha",
+                    "代码引用内容身份发生变化（哈希不匹配），路径=" + ref.path() + "；该次冻结读取的 blobSha=" + receipt.blobSha() + "，请使用读取工具返回的原值，不要抄写或猜测其他哈希。");
             var lines = receipt.content().split("\n", -1);
             int first = ref.startLine() - receipt.startLine(), last = ref.endLine() - receipt.startLine();
             require(last < lines.length && String.join("\n", Arrays.copyOfRange(lines, first, last + 1)).contains(ref.quote()),

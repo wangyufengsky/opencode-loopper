@@ -1623,3 +1623,14 @@ export interface DocumentClarificationRequest {
   requestKey: string; expectedVersion: number; requirementRevision: number
   answers: { requirementKey: string; answer: string }[]
 }
+
+export interface TemplateFailedBatch {
+  id: string
+  ordinal: number
+  purpose: 'REVIEW' | 'CONTRIBUTOR' | 'DOCUMENT_CODE_ASSESSMENT_V2' | 'DOCUMENT_CODE_REVIEW_V2'
+  generation: number
+  state: 'FAILED' | 'STOPPED'
+  errorMessage: string | null
+  version: number
+  createdAt: string
+}

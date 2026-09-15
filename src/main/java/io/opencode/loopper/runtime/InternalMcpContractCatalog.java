@@ -8,6 +8,7 @@ import java.util.Optional;
 /** Stable, server-owned contracts for the private candidate-submission MCP. */
 public final class InternalMcpContractCatalog {
     public static final String ENDPOINT_PATH = "/api/internal-mcp-streamable";
+    public static final String DESCRIBE_TOOL = "describe_submission_contract";
     public static final String TOOL_NAME = "submit_candidate";
 
     private static final Map<MachineCandidateKind, String> ROLE_TOOLS = Map.ofEntries(
@@ -27,6 +28,13 @@ public final class InternalMcpContractCatalog {
 
     private InternalMcpContractCatalog() { }
 
+    /** Submission authority is distinct from the read-only discovery catalog. */
+    public static List<String> submissionToolNames() {
+        var names = new java.util.ArrayList<>(ROLE_TOOLS.values());
+        names.add(PACKAGE_V2_TOOL); names.add(TEMPLATE_TOOL); names.add(legacyToolName());
+        return List.copyOf(names);
+    }
+
     public static List<String> toolNames() {
         return List.of(
                 toolName(MachineCandidateKind.DECOMPOSITION_PLAN_V2),
@@ -42,9 +50,9 @@ public final class InternalMcpContractCatalog {
                 toolName(MachineCandidateKind.DOCUMENT_REQUIREMENT_REVIEW_V1),
                 toolName(MachineCandidateKind.REQUIREMENT_CODE_ASSESSMENT_V1),
                 toolName(MachineCandidateKind.REQUIREMENT_ASSESSMENT_REVIEW_V1),
-                "list_requirement_documents", "list_document_sections", "read_document_section", "list_requirement_code", "read_requirement_code", "search_requirement_code", "list_requirement_assessments", "read_requirement_assessment",
+                "get_document_review_work", "check_document_review_candidate", "get_development_task_guide", "list_requirement_documents", "list_document_sections", "read_document_section", "list_requirement_code", "read_requirement_code", "search_requirement_code", "list_requirement_assessments", "read_requirement_assessment",
                 "list_development_requirements", "read_development_requirement", "read_development_source", "list_development_documents", "list_development_sections", "read_document_resource",
-                PACKAGE_V2_TOOL, TEMPLATE_TOOL, legacyToolName());
+                DESCRIBE_TOOL, PACKAGE_V2_TOOL, TEMPLATE_TOOL, legacyToolName());
     }
 
     public static String toolName(MachineCandidateKind kind) {

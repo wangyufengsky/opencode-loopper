@@ -59,7 +59,7 @@ class DirectDocumentReviewIntegrationTest {
         Files.writeString(source.resolve("build.sh"), "#!/bin/sh\ntouch must-not-execute\n");
         git.read(source, "add", "."); git.read(source, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "-m", "missing permission fixture");
         String project = projects.create("权限评审", source.toString(), "test").id(); properties.getOpenCode().setModel("fake/test-model");
-        run = service.create(new DocumentTemplateService.Request(UUID.randomUUID().toString(), "REQUIREMENT_CODE_REVIEW", "2", project,
+        run = service.create(new DocumentTemplateService.Request(UUID.randomUUID().toString(), "REQUIREMENT_CODE_REVIEW", io.opencode.loopper.template.DocumentTemplateDefinition.VERSION, project,
                 "local:refs/heads/main"), List.of(new DocumentTemplateStorage.Incoming("权限.md", "# 付款\n付款入口必须检查权限。".getBytes(StandardCharsets.UTF_8))));
         contract = json.readValue(run.contractJson(), DocumentTemplateService.Contract.class);
     }
@@ -85,7 +85,26 @@ class DirectDocumentReviewIntegrationTest {
         var direct = new DirectDocumentAssessment.Candidate(sha, List.of(new DirectDocumentAssessment.Entry(
                 "付款权限", "付款入口必须检查权限", List.of(sourceRef), List.of(), result.items().getFirst())),
                 result.findings(), List.of(), List.of());
-        complete(assessment, direct);
+        var work = guide.work(assessment.id(), 0, 1);
+        assertThat(work.get("assignedSectionTotal")).isEqualTo(1);
+        assertThat(json.writeValueAsString(work)).contains("alreadyRead\":true", "付款");
+        var bound = new DirectDocumentAssessment.Candidate(null, direct.entries(), direct.findings(), direct.skippedSections(), direct.limitations());
+        var before = submissions.find(assessment.id()).orElseThrow();
+        var wrongSnapshot = new DirectDocumentAssessment.Candidate("f".repeat(40), direct.entries(), direct.findings(), List.of(), List.of());
+        var wrong = guide.check(assessment.id(), json.convertValue(wrongSnapshot, new tools.jackson.core.type.TypeReference<java.util.Map<String,Object>>() { }));
+        assertThat(wrong.get("valid")).isEqualTo(false);
+        assertThat(json.writeValueAsString(wrong)).contains("/candidate/snapshotSha");
+        var omitted = new DirectDocumentAssessment.Candidate(null, List.of(), List.of(), List.of(), List.of());
+        var omission = guide.check(assessment.id(), json.convertValue(omitted, new tools.jackson.core.type.TypeReference<java.util.Map<String,Object>>() { }));
+        assertThat(omission.get("valid")).isEqualTo(false);
+        assertThat(json.writeValueAsString(omission)).contains("/candidate/entries", refSource.fileId());
+        var checkOnly = guide.check(assessment.id(), json.convertValue(bound, new tools.jackson.core.type.TypeReference<java.util.Map<String,Object>>() { }));
+        assertThat(checkOnly.get("valid")).isEqualTo(true);
+        assertThat(checkOnly.get("accepted")).isEqualTo(false);
+        assertThat(submissions.find(assessment.id()).orElseThrow().version()).isEqualTo(before.version());
+        assertThat(models.find(assessment.id()).orElseThrow().outputJson()).isNull();
+        complete(assessment, bound);
+        assertThat(json.readValue(models.find(assessment.id()).orElseThrow().outputJson(), DirectDocumentAssessment.Candidate.class).snapshotSha()).isEqualTo(sha);
         var check = awaitRole("DOCUMENT_CODE_REVIEW_V2");
         var crossBatch = context.list(check.id(), -1, 50).items().getFirst();
         assertThat(((DirectDocumentAssessment.Candidate) context.read(check.id(), crossBatch.ordinal(), crossBatch.sha256())).entries()).hasSize(1);
@@ -119,7 +138,7 @@ class DirectDocumentReviewIntegrationTest {
     }
     @Test void eightyBatchesRetainFourSlotsAndRefillOutOfOrderBeforeIndependentReview() {
         byte[] body = "x".repeat(1_920_000).getBytes(StandardCharsets.UTF_8);
-        run = service.create(new DocumentTemplateService.Request(UUID.randomUUID().toString(), "REQUIREMENT_CODE_REVIEW", "2",
+        run = service.create(new DocumentTemplateService.Request(UUID.randomUUID().toString(), "REQUIREMENT_CODE_REVIEW", io.opencode.loopper.template.DocumentTemplateDefinition.VERSION,
                 run.projectId(), "local:refs/heads/main"), List.of(new DocumentTemplateStorage.Incoming("part-a.md", body),
                 new DocumentTemplateStorage.Incoming("part-b.md", body)));
         contract = json.readValue(run.contractJson(), DocumentTemplateService.Contract.class);
@@ -157,6 +176,31 @@ class DirectDocumentReviewIntegrationTest {
             assertThat(Files.exists(source.resolve("must-not-execute"))).isFalse();
         } finally { properties.setTemplateAnalysisConcurrency(4); }
     }
+    @Autowired DocumentReviewGuideService guide;
+    @Autowired DocumentModelStore modelStore;
+    @Test void failedDirectBatchExhaustsAutomaticAttemptsAndManualRetryKeepsFrozenInput() {
+        var model = awaitRole("DOCUMENT_CODE_ASSESSMENT_V2");
+        String originalInput = model.inputSha256();
+        for (int i = 0; i < 3; i++) {
+            fake.setSessionState(model.externalSessionId(), "COMPLETED");
+            var failed = execution.advance(model.id(), contract);
+            assertThat(failed.state()).isEqualTo("FAILED");
+            assertThat(current().state()).isEqualTo("ASSESSING");
+            var next = modelStore.retry(failed.id(), failed.version(), false, contract);
+            if (i < 2) {
+                for (int tick = 0; tick < 4; tick++) next = execution.advance(next.id(), contract);
+                model = next;
+            } else {
+                assertThat(next.id()).isEqualTo(failed.id());
+                var manual = modelStore.retry(failed.id(), failed.version(), true, contract);
+                assertThat(manual.attempt()).isEqualTo(3);
+                assertThat(manual.inputSha256()).isEqualTo(originalInput);
+                assertThat(modelStore.retry(failed.id(), failed.version(), true, contract).id()).isEqualTo(manual.id());
+                assertThatThrownBy(() -> guide.work(failed.id(), 0, 50)).isInstanceOf(ConflictException.class);
+            }
+        }
+    }
+
     private DocumentTemplateRunRow current() { return runs.find(run.id()).orElseThrow(); }
     private DocumentTemplateModelRow awaitRole(String kind) {
         for (int i = 0; i < 24; i++) {

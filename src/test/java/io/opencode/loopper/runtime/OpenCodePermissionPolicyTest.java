@@ -102,7 +102,7 @@ class OpenCodePermissionPolicyTest {
         assertThat(rules.stream().filter(rule -> "allow".equals(rule.get("action")))
                 .map(rule -> rule.get("permission")).toList())
                 .containsExactly("read", "glob", "grep", "aicoding_*", "read",
-                        "loopper_internal_generation_submit_package_design");
+                        "loopper_internal_generation_submit_package_design", "loopper_internal_generation_describe_submission_contract");
     }
 
     @Test
@@ -123,7 +123,7 @@ class OpenCodePermissionPolicyTest {
         assertThat(rules.stream().filter(rule -> "allow".equals(rule.get("action")))
                 .map(rule -> rule.get("permission")).toList())
                 .containsExactly("read", "glob", "grep", "read",
-                        "loopper_internal_generation_submit_rolling_package_plan");
+                        "loopper_internal_generation_submit_rolling_package_plan", "loopper_internal_generation_describe_submission_contract");
         assertThat(rules).noneMatch(rule -> "allow".equals(rule.get("action"))
                 && ("question".equals(rule.get("permission"))
                 || "bash".equals(rule.get("permission"))
@@ -150,7 +150,7 @@ class OpenCodePermissionPolicyTest {
         assertThat(rules.stream().filter(rule -> "allow".equals(rule.get("action")))
                 .map(rule -> rule.get("permission")).toList())
                 .containsExactly("read", "glob", "grep", "read",
-                        "loopper_internal_generation_submit_reviewer_report");
+                        "loopper_internal_generation_submit_reviewer_report", "loopper_internal_generation_describe_submission_contract");
         assertThat(rules).noneMatch(rule -> "allow".equals(rule.get("action"))
                 && ("question".equals(rule.get("permission"))
                 || "bash".equals(rule.get("permission"))
@@ -177,7 +177,7 @@ class OpenCodePermissionPolicyTest {
         assertThat(rules.stream().filter(rule -> "allow".equals(rule.get("action")))
                 .map(rule -> rule.get("permission")).toList())
                 .containsExactly("read", "glob", "grep", "read",
-                        "loopper_internal_generation_submit_project_convention");
+                        "loopper_internal_generation_submit_project_convention", "loopper_internal_generation_describe_submission_contract");
         assertThat(rules).noneMatch(rule -> "allow".equals(rule.get("action"))
                 && ("question".equals(rule.get("permission"))
                 || "bash".equals(rule.get("permission"))
@@ -204,7 +204,7 @@ class OpenCodePermissionPolicyTest {
         assertThat(rules.stream().filter(rule -> "allow".equals(rule.get("action")))
                 .map(rule -> rule.get("permission")).toList())
                 .containsExactly("read", "glob", "grep", "read",
-                        "loopper_internal_generation_submit_judge_decision");
+                        "loopper_internal_generation_submit_judge_decision", "loopper_internal_generation_describe_submission_contract");
         assertThat(rules).noneMatch(rule -> "allow".equals(rule.get("action"))
                 && (java.util.Set.of("bash", "write", "edit", "question", "todowrite")
                         .contains(rule.get("permission"))
@@ -229,7 +229,7 @@ class OpenCodePermissionPolicyTest {
         assertThat(rules.stream().filter(rule -> "allow".equals(rule.get("action")))
                 .map(rule -> rule.get("permission")).toList())
                 .containsExactly("read", "glob", "grep", "question", "aicoding_*", "read",
-                        "loopper_internal_generation_submit_package_design");
+                        "loopper_internal_generation_submit_package_design", "loopper_internal_generation_describe_submission_contract");
     }
 
     @Test
@@ -322,7 +322,8 @@ class OpenCodePermissionPolicyTest {
         assertThat(rules).containsExactly(
                 java.util.Map.of("permission", "*", "pattern", "*", "action", "deny"),
                 java.util.Map.of("permission", "external_directory", "pattern", "*", "action", "deny"),
-                java.util.Map.of("permission", "loopper_internal_test_submit_template_analysis", "pattern", "*", "action", "allow"));
+                java.util.Map.of("permission", "loopper_internal_test_submit_template_analysis", "pattern", "*", "action", "allow"),
+                java.util.Map.of("permission", "loopper_internal_test_describe_submission_contract", "pattern", "*", "action", "allow"));
         assertThat(OpenCodeAgentPolicy.stepLimit(OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS)).isZero();
     }
 

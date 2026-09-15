@@ -12,8 +12,9 @@ public class TemplateTaskController {
     private final ProjectBranchService branches;
     private final TemplateTaskReadService reads;
     private final TaskService tasks;
-    public TemplateTaskController(TemplateTaskService templates, ProjectBranchService branches, TemplateTaskReadService reads, TaskService tasks) {
-        this.templates = templates; this.branches = branches; this.reads = reads; this.tasks = tasks;
+    private final TemplateBatchRetryService retries;
+    public TemplateTaskController(TemplateTaskService templates, ProjectBranchService branches, TemplateTaskReadService reads, TaskService tasks, TemplateBatchRetryService retries) {
+        this.templates = templates; this.branches = branches; this.reads = reads; this.tasks = tasks; this.retries = retries;
     }
     @GetMapping("/catalog") public TemplateTaskService.Catalog catalog() { return templates.catalog(); }
     @GetMapping("/projects/{id}") public TemplateTaskReadMapper.ProjectChoice project(@PathVariable String id) { return reads.project(id); }
@@ -38,6 +39,21 @@ public class TemplateTaskController {
         var task = tasks.start(taskId);
         return ResponseEntity.accepted().body(new Created(task.id(), task.state()));
     }
+    @GetMapping("/{taskId}/failed-batches") public CursorPage<TemplateTaskReadMapper.FailedBatch> failedBatches(
+            @PathVariable String taskId, @RequestParam(required = false) String cursor,
+            @RequestParam(defaultValue = "50") int limit) {
+        if (!TemplateWorkspaceService.applies(tasks.get(taskId))) throw new BadRequestException("TEMPLATE_TASK_REQUIRED", "请选择模板任务");
+        return reads.failedBatches(taskId, cursor, limit);
+    }
+    @PostMapping("/{taskId}/batches/{batchId}/retry") public Created retry(@PathVariable String taskId,
+            @PathVariable String batchId, @RequestHeader(value = "X-Loopper-Local-UI", required = false) String localUi,
+            @RequestBody Retry request) {
+        requireLocalUi(localUi);
+        var batch = retries.retry(taskId, batchId, request.expectedVersion());
+        return new Created(batch.id(), batch.state());
+    }
+    public record Retry(long expectedVersion) { }
+
     private static void requireLocalUi(String value) {
         if (!"1".equals(value)) throw new BadRequestException("LOCAL_UI_HEADER_REQUIRED", "请从本地页面发起模板任务");
     }

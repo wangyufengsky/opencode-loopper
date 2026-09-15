@@ -51,6 +51,8 @@ public final class DocumentTemplateCandidatePolicy implements CandidatePolicy {
                 default -> throw new IllegalArgumentException("Unsupported document candidate");
             };
             return Decision.accepted(json.writeValueAsString(candidate));
+        } catch (DocumentCandidateProblem invalid) {
+            return Decision.rejected(true, List.of(new MachineCandidateSubmission.Problem(invalid.code(), invalid.pointer(), invalid.getMessage())));
         } catch (BadRequestException invalid) {
             return Decision.rejected(true, List.of(new MachineCandidateSubmission.Problem(invalid.code(), "/candidate", invalid.getMessage())));
         } catch (JacksonException invalid) {

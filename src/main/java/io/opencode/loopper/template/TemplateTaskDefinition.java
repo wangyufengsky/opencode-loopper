@@ -7,7 +7,7 @@ public enum TemplateTaskDefinition {
     CODE_REVIEW("代码审查", "审查所选分支和日期范围内的 Git 提交，生成 Markdown 代码审查报告"),
     CONTRIBUTION_REPORT("项目人员贡献周报", "分析代码贡献，生成贡献排名、项目总报告和个人周报");
 
-    public static final String VERSION = "8";
+    public static final String VERSION = "9";
     public static final int CONTENT_REPAIR_LIMIT = 2;
     private final String title;
     private final String description;
@@ -20,7 +20,7 @@ public enum TemplateTaskDefinition {
     public String title() { return title; }
 
     /** Unknown and historical versions retain the stronger frozen acceptance requirement. */
-    public static boolean requiresDualReview(String version) { return !List.of("7", "8").contains(version == null ? "" : version); }
+    public static boolean requiresDualReview(String version) { return !List.of("7", "8", "9").contains(version == null ? "" : version); }
     public View view() {
         return new View(name(), VERSION, title, description, CONTENT_REPAIR_LIMIT,
                 List.of("采集 Git 证据", "分析与生成报告"),

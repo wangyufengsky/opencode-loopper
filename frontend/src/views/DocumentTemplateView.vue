@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
+import TemplateBatchRecoveryPanel from '@/components/TemplateBatchRecoveryPanel.vue'
 import { api } from '@/api/client'
 import type { DocumentTemplateOverview } from '@/types/domain'
 import PageHeader from '@/components/PageHeader.vue'
@@ -92,6 +93,7 @@ onBeforeUnmount(() => { ++generation; stream?.close(); clearTimeout(timer); clea
         <div class="facts"><span>文档 {{ run.files.length }} 份</span><span v-if="run.sourceKind === 'DOCUMENT_SOURCE'">原文版本 {{ run.sourceRevision }}</span><span v-if="run.sourceKind !== 'DOCUMENT_SOURCE' || run.requirementRevision > 0">{{ run.sourceKind === 'DOCUMENT_SOURCE' ? '评审条目' : '已复核需求' }} {{ run.progress.requirements }} 项</span><span v-if="run.templateId !== 'REQUIREMENT_DEVELOPMENT'">并发上限 {{ run.analysisConcurrency ?? 1 }}</span><span>分析尝试 {{ run.progress.validated }}/{{ run.progress.attempts }} 已完成</span><span v-if="run.progress.active">{{ run.progress.active }} 次分析处理中</span></div>
         <p v-if="run.templateId === 'REQUIREMENT_CODE_REVIEW'" class="muted">{{ run.state === 'COMPLETED' ? '静态评审已完成；需求是否满足以逐项结论为准。' : '按功能检查冻结代码及相关依赖。' }}本次未执行构建或测试。</p>
         <el-alert v-if="run.taskState === 'AWAITING_DECISION'" title="开发执行已结束，结果仍待你处置。请打开开发执行与验收，处理结果后再归档。" type="info" :closable="false" />
+        <TemplateBatchRecoveryPanel v-if="run.templateVersion === '3' && run.templateId === 'REQUIREMENT_CODE_REVIEW' && ['ASSESSING', 'VERIFYING'].includes(run.state)" :document-run="run" />
         <details v-if="run.snapshotSha"><summary>评审代码版本</summary><code>{{ run.snapshotSha }}</code></details>
         <div v-if="run.taskId || run.designerId" class="actions">
           <RouterLink v-if="run.taskId" :to="`/tasks/${run.taskId}`">打开开发执行与验收</RouterLink>

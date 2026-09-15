@@ -34,8 +34,11 @@ public final class DirectDocumentReviewWorkflow {
         for (int i = 0; i < plan.size(); i++) {
             var model = models.exact(run.id(), kind.name(), i, round.round()).orElse(null);
             if (model != null && model.state().equals("VALIDATED")) continue;
-            if (model != null && TemplateBatchState.valueOf(model.state()).terminal())
-                throw new BadRequestException("DOCUMENT_MODEL_REQUIRES_RECOVERY", "原文评审批次已停止，请从冻结输入恢复");
+            if (model != null && TemplateBatchState.valueOf(model.state()).terminal()) {
+                if (!"3".equals(contract.version()))
+                    throw new BadRequestException("DOCUMENT_MODEL_REQUIRES_RECOVERY", "原文评审批次已停止，请从冻结输入恢复");
+                model = store.retry(model.id(), model.version(), false, contract);
+            }
             pending.add(new Work(i, model));
         }
         if (!pending.isEmpty()) {
@@ -50,7 +53,7 @@ public final class DirectDocumentReviewWorkflow {
                             work.ordinal(), round.round() - 1).orElseThrow().outputJson(), DirectDocumentAssessment.Review.class);
                 }
                 store.create(run.id(), kind, work.ordinal(), round.round(), new DocumentModelInput(input.sections(), null, null,
-                        input.snapshotSha(), null, null, List.of(), candidate, feedback, run.sourceRevision()));
+                        input.snapshotSha(), null, null, List.of(), candidate, feedback, run.sourceRevision(), "3".equals(run.templateVersion()) ? 1 : 0));
             }
             return false;
         }

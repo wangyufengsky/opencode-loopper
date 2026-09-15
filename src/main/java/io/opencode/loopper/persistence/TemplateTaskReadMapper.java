@@ -11,6 +11,21 @@ public interface TemplateTaskReadMapper {
     @org.apache.ibatis.annotations.Select("SELECT id,name,created_at,document_path FROM project WHERE id=#{id}")
     java.util.Optional<ProjectChoice> project(String id);
     @Select("""
+            SELECT b.id,b.ordinal,b.purpose,b.generation,b.state,b.error_message,b.version,b.created_at
+            FROM template_task_batch b JOIN attempt a ON a.id=b.attempt_id JOIN stage s ON s.id=a.stage_id
+            WHERE b.task_id=#{taskId} AND b.state IN ('FAILED','STOPPED')
+              AND a.ordinal=(SELECT max(newer.ordinal) FROM attempt newer WHERE newer.stage_id=s.id)
+              AND NOT EXISTS (SELECT 1 FROM template_task_batch n WHERE n.attempt_id=b.attempt_id
+                AND n.purpose=b.purpose AND n.ordinal=b.ordinal AND n.generation>b.generation)
+              AND (#{time} IS NULL OR b.created_at>#{time} OR (b.created_at=#{time} AND b.id>#{id}))
+            ORDER BY b.created_at,b.id LIMIT #{limit}
+            """)
+    List<FailedBatch> failedBatches(@Param("taskId") String taskId, @Param("time") String time,
+            @Param("id") String id, @Param("limit") int limit);
+    record FailedBatch(String id, int ordinal, String purpose, int generation, String state,
+                       String errorMessage, long version, String createdAt) { }
+
+    @Select("""
             WITH current AS (
                 SELECT attempt.id FROM attempt JOIN stage ON stage.id=attempt.stage_id
                 WHERE attempt.task_id=#{taskId} AND stage.ordinal=1
@@ -29,6 +44,8 @@ public interface TemplateTaskReadMapper {
                 (SELECT folder_name FROM template_report_bundle WHERE task_id=run.task_id AND attempt_id=current.id) AS report_folder_name
             FROM template_task_run run LEFT JOIN template_task_plan plan ON plan.task_id=run.task_id
             LEFT JOIN current ON 1=1 LEFT JOIN template_task_batch batch ON batch.attempt_id=current.id AND batch.task_id=run.task_id
+                AND NOT EXISTS (SELECT 1 FROM template_task_batch newer WHERE newer.attempt_id=batch.attempt_id
+                    AND newer.purpose=batch.purpose AND newer.ordinal=batch.ordinal AND newer.generation>batch.generation)
             WHERE run.task_id=#{taskId} GROUP BY run.task_id
             """)
     java.util.Optional<TemplateTaskProgressRow> progress(String taskId);

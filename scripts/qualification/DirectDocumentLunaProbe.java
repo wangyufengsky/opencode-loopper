@@ -43,7 +43,7 @@ public class DirectDocumentLunaProbe {
         var kind = review ? MachineCandidateKind.DOCUMENT_CODE_REVIEW_V2 : MachineCandidateKind.DOCUMENT_CODE_ASSESSMENT_V2;
         var candidate = review ? JSON.readValue(Files.readString(Path.of(args[3])), DirectDocumentAssessment.Candidate.class) : null;
         var input = new DocumentModelInput(sources.stream().map(s -> new DocumentModelInput.SectionRef(FILE, s.section(), s.sha256())).toList(),
-                null, null, snapshot, null, null, List.of(), candidate, null, 1);
+                null, null, snapshot, null, null, List.of(), candidate, null, 1, 1);
         String id = "azx0-" + args[2];
         var row = new DocumentTemplateModelRow(id, OWNER, kind.name(), 0, 0, "RUNNING", JSON.writeValueAsString(input), "", null,
                 "session-" + args[2], null, null, null, null, null, "", "", 0);
@@ -89,10 +89,10 @@ public class DirectDocumentLunaProbe {
                                 throw new UnsupportedOperationException(method.getName());
                             });
                     var validation = new DirectDocumentAssessmentValidation(documents, new DocumentAssessmentValidation(codeMapper));
-                    if (review) validation.review(row, input, submission.review()); else validation.assessment(row, input, submission.candidate());
-                    System.out.println(JSON.writeValueAsString(Map.of("outcome", "ACCEPTED")));
+                    Object canonical = review ? validation.review(row, input, submission.review()) : validation.assessment(row, input, submission.candidate());
+                    System.out.println(JSON.writeValueAsString(Map.of("outcome", "ACCEPTED", "canonicalCandidate", canonical)));
                 } catch (BadRequestException failure) {
-                    System.out.println(JSON.writeValueAsString(Map.of("outcome", "REJECTED", "detail", failure.getMessage())));
+                    System.out.println(JSON.writeValueAsString(Map.of("outcome", "REJECTED", "detail", failure.getMessage(), "jsonPointer", failure instanceof DocumentCandidateProblem specific ? specific.pointer() : "/candidate")));
                 } catch (RuntimeException failure) {
                     System.out.println(JSON.writeValueAsString(Map.of("outcome", "REJECTED", "detail", "候选 JSON 无法按生产合同读取")));
                 }
