@@ -5,6 +5,7 @@ import java.util.Optional;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
@@ -65,6 +66,7 @@ public interface TemplateTaskMapper {
                 #{creationPlanJson},#{promptJson},#{promptSha256},#{outputJson},#{errorCode},#{errorMessage},#{createdAt},#{updatedAt},#{version},#{generation})
             """)
     int insertBatch(TemplateTaskBatchRow row);
+    @Options(flushCache = Options.FlushCachePolicy.TRUE, useCache = false)
     @Select("SELECT * FROM template_task_batch WHERE id=#{id}") Optional<TemplateTaskBatchRow> findBatch(String id);
     @Select("SELECT * FROM template_task_batch WHERE task_id=#{taskId} AND attempt_id=#{attemptId} AND purpose=#{purpose} AND ordinal=#{ordinal} ORDER BY generation DESC LIMIT 1")
     Optional<TemplateTaskBatchRow> findBatchOrdinal(@Param("taskId") String taskId, @Param("attemptId") String attemptId,

@@ -138,8 +138,7 @@ public class TemplateBatchExecution {
         var status = openCode.sessionStatus(remote);
         if (status.retrying() || !status.completed() && !status.failed()) return row;
         if (status.failed()) {
-            if (("9".equals(contract.definition().version()) || row.generation() > 0)) return store.candidateFailed(row, "TEMPLATE_MODEL_FAILED", "分析会话已失败，可重试该批次");
-            throw unavailable("TEMPLATE_MODEL_FAILED", "分析会话已失败，请检查模型连接后重试");
+            return store.candidateFailed(row, "TEMPLATE_MODEL_FAILED", "分析会话已失败，其他批次完成后可选择重试");
         }
         if (plan(row).profile() == OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS) {
             var accepted = submissions.accepted(row.id());
@@ -149,20 +148,17 @@ public class TemplateBatchExecution {
                     && "OPENCODE_OUTPUT_LENGTH_EXHAUSTED".equals(missing.errorType())) {
                 try { return store.prepareContinuation(row); }
                 catch (SessionFailure failure) {
-                    if (("9".equals(contract.definition().version()) || row.generation() > 0) && "TEMPLATE_ANALYSIS_STALLED".equals(failure.code()))
+                    if ("TEMPLATE_ANALYSIS_STALLED".equals(failure.code()))
                         return store.candidateFailed(row, failure.code(), failure.getMessage());
                     throw failure;
                 }
             }
-            if (("9".equals(contract.definition().version()) || row.generation() > 0)) return store.candidateFailed(row,
-                    "TEMPLATE_SUBMISSION_MISSING", "模型会话已结束，但没有通过 MCP 提交有效分析结果；可重试该批次");
-            throw unavailable("TEMPLATE_SUBMISSION_MISSING", "OPENCODE_OUTPUT_LENGTH_EXHAUSTED".equals(missing.errorType())
-                    ? "模型生成长度耗尽，尚未通过 MCP 提交分析结果；请调整运行环境的单次输出额度后重新发起"
-                    : "模型会话已结束，但没有通过 MCP 提交有效分析结果");
+            return store.candidateFailed(row, "TEMPLATE_SUBMISSION_MISSING",
+                    "模型会话已结束，但没有通过 MCP 提交有效分析结果；其他批次完成后可选择重试");
         }
         var result = openCode.sessionResult(remote);
         if ("OPENCODE_OUTPUT_LENGTH_EXHAUSTED".equals(result.errorType())) {
-            throw unavailable("OPENCODE_OUTPUT_LENGTH_EXHAUSTED", "模型生成长度耗尽，未返回完整分析结果；请检查运行环境的单次输出额度");
+            return store.candidateFailed(row, "OPENCODE_OUTPUT_LENGTH_EXHAUSTED", "模型生成长度耗尽，未返回完整分析结果；其他批次完成后可选择重试");
         }
         if (result.structuredRetryCount() != 0) throw unavailable("TEMPLATE_UNBUDGETED_RETRY", "运行环境发生未授权的结构化重试");
         String output = result.hasStructured() ? json.writeValueAsString(result.structured()) : openCode.sessionOutput(remote);

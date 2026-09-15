@@ -201,6 +201,45 @@ class DirectDocumentReviewIntegrationTest {
         }
     }
 
+    @Autowired DocumentBatchRetryService batchRetries;
+    @Test void directFailureWaitsForSelectionInsteadOfAutomaticallyRetrying() {
+        var model = awaitRole("DOCUMENT_CODE_ASSESSMENT_V2");
+        fake.setSessionState(model.externalSessionId(), "COMPLETED");
+        var failed = execution.advance(model.id(), contract);
+        for (int tick = 0; tick < 4; tick++) assessments.advance(current(), contract);
+        assertThat(models.exact(run.id(), model.candidateKind(), 0, 0).orElseThrow().id()).isEqualTo(failed.id());
+        assertThat(current().state()).isEqualTo("ASSESSING");
+        assertThat(models.retrySelectionReady(run.id())).isTrue();
+        assertThat(batchRetries.list(run.id(), null, 50).facets()).containsEntry("retrySelectionReady", 1L);
+        var next = batchRetries.retrySelected(run.id(), new BatchRetrySelection(List.of(
+                new BatchRetrySelection.Item(failed.id(), failed.version())))).getFirst();
+        assertThat(next.attempt()).isEqualTo(1);
+        assertThat(next.inputSha256()).isEqualTo(failed.inputSha256());
+        assertThat(models.retrySelectionReady(run.id())).isFalse();
+    }
+
+    @Test void emptyWindowWithUncreatedBatchesDoesNotOpenManualSelection() {
+        properties.setTemplateAnalysisConcurrency(1);
+        try {
+            run = service.create(new DocumentTemplateService.Request(UUID.randomUUID().toString(), "REQUIREMENT_CODE_REVIEW",
+                    io.opencode.loopper.template.DocumentTemplateDefinition.VERSION, run.projectId(), "local:refs/heads/main"),
+                    List.of(new DocumentTemplateStorage.Incoming("five-batches.md", "x".repeat(240_000).getBytes(StandardCharsets.UTF_8))));
+            contract = json.readValue(run.contractJson(), DocumentTemplateService.Contract.class);
+        } finally { properties.setTemplateAnalysisConcurrency(4); }
+        assertThat(assessments.plan(run)).hasSize(5);
+        var first = awaitRole("DOCUMENT_CODE_ASSESSMENT_V2");
+        fake.setSessionState(first.externalSessionId(), "FAILED");
+        var failed = execution.advance(first.id(), contract);
+        assertThat(models.active(run.id())).isEmpty();
+        assertThat(models.retrySelectionReady(run.id())).isFalse();
+        assertThat(batchRetries.list(run.id(), null, 50).facets()).containsEntry("retrySelectionReady", 0L);
+        assertThatThrownBy(() -> batchRetries.retry(run.id(), failed.id(), failed.version()))
+                .isInstanceOf(ConflictException.class).hasMessageContaining("后续批次");
+        assessments.advance(current(), contract);
+        assertThat(models.exact(run.id(), first.candidateKind(), 0, 0).orElseThrow().id()).isEqualTo(failed.id());
+        assertThat(models.active(run.id())).hasSize(1).allMatch(row -> row.ordinal() == 1);
+    }
+
     private DocumentTemplateRunRow current() { return runs.find(run.id()).orElseThrow(); }
     private DocumentTemplateModelRow awaitRole(String kind) {
         for (int i = 0; i < 24; i++) {

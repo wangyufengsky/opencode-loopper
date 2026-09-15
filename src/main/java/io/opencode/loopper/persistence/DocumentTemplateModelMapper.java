@@ -9,16 +9,37 @@ public interface DocumentTemplateModelMapper {
     @Select("""
         SELECT model.id,model.ordinal,model.candidate_kind AS purpose,model.attempt AS generation,
             model.state,model.error_code AS error_message,model.version,model.created_at
-        FROM document_template_model_run model WHERE run_id=#{runId} AND state IN ('STOPPED','FAILED')
+        FROM document_template_model_run model JOIN document_template_run owner ON owner.id=model.run_id
+          JOIN document_assessment_progress progress ON progress.run_id=owner.id
+        WHERE model.run_id=#{runId} AND model.state IN ('STOPPED','FAILED')
+          AND model.generation=progress.round
+          AND model.candidate_kind=CASE WHEN owner.state='VERIFYING' THEN 'DOCUMENT_CODE_REVIEW_V2' ELSE 'DOCUMENT_CODE_ASSESSMENT_V2' END
           AND attempt=(SELECT max(other.attempt) FROM document_template_model_run other WHERE other.run_id=model.run_id
             AND other.candidate_kind=model.candidate_kind AND other.ordinal=model.ordinal AND other.generation=model.generation)
-          AND generation=(SELECT max(other.generation) FROM document_template_model_run other WHERE other.run_id=model.run_id
+          AND model.generation=(SELECT max(other.generation) FROM document_template_model_run other WHERE other.run_id=model.run_id
             AND other.candidate_kind=model.candidate_kind AND other.ordinal=model.ordinal)
           AND (#{time} IS NULL OR model.created_at>#{time} OR (model.created_at=#{time} AND model.id>#{id}))
         ORDER BY model.created_at,model.id LIMIT #{limit}
         """)
     List<TemplateTaskReadMapper.FailedBatch> failedBatchPage(@Param("runId") String runId, @Param("time") String time,
             @Param("id") String id, @Param("limit") int limit);
+    @Select("""
+        WITH current AS (
+          SELECT m.state,json_array_length(m.input_json,'$.sections') AS sections FROM document_template_model_run m JOIN document_template_run d ON d.id=m.run_id
+          JOIN document_assessment_progress p ON p.run_id=d.id
+          WHERE d.id=#{runId} AND m.generation=p.round
+            AND m.candidate_kind=CASE WHEN d.state='VERIFYING' THEN 'DOCUMENT_CODE_REVIEW_V2' ELSE 'DOCUMENT_CODE_ASSESSMENT_V2' END
+            AND m.attempt=(SELECT max(n.attempt) FROM document_template_model_run n WHERE n.run_id=m.run_id
+              AND n.candidate_kind=m.candidate_kind AND n.ordinal=m.ordinal AND n.generation=m.generation)
+        )
+        SELECT NOT EXISTS(SELECT 1 FROM current WHERE state NOT IN ('VALIDATED','FAILED','STOPPED'))
+          AND (SELECT coalesce(sum(sections),0) FROM current)=
+            (SELECT coalesce(sum(f.section_count),0) FROM document_template_file f
+              JOIN document_template_run d ON d.id=f.run_id JOIN document_basis_revision b ON b.run_id=d.id AND b.revision=d.source_revision
+              WHERE d.id=#{runId} AND b.source_kind='DOCUMENT_SOURCE'
+                AND f.id IN (SELECT json_extract(value,'$.id') FROM json_each(b.source_json,'$.files')))
+        """)
+    boolean retrySelectionReady(String runId);
     @Options(flushCache = Options.FlushCachePolicy.TRUE, useCache = false)
     @Select("SELECT * FROM document_template_model_run WHERE id=#{id}")
     Optional<DocumentTemplateModelRow> find(String id);

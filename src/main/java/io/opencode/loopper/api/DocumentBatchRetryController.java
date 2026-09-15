@@ -24,4 +24,13 @@ public class DocumentBatchRetryController {
         coordinator.dispatch(id);
         return new TemplateTaskController.Created(next.id(), next.state());
     }
+    @PostMapping("/batches/retry") public java.util.List<TemplateTaskController.Created> retrySelected(@PathVariable String id,
+            @RequestHeader(value = "X-Loopper-Local-UI", required = false) String localUi,
+            @RequestBody BatchRetrySelection request) {
+        if (!"1".equals(localUi)) throw new BadRequestException("LOCAL_UI_HEADER_REQUIRED", "请从本地页面重试批次");
+        var next = retries.retrySelected(id, request);
+        coordinator.dispatch(id);
+        return next.stream().map(row -> new TemplateTaskController.Created(row.id(), row.state())).toList();
+    }
+
 }

@@ -144,7 +144,11 @@ public final class TemplateTaskCoordinator {
                                        TemplateBatchExecution.Input input, TemplateTaskRunRow run) {
         String value = json.writeValueAsString(input);
         String hash = TemplateGitEvidenceCollector.hash(run.snapshotSha256() + "\n" + run.contractJson() + "\n" + purpose + "\n" + value);
-        return batchStore.create(attempt, ordinal, purpose, value, hash);
+        var row = batchStore.create(attempt, ordinal, purpose, value, hash);
+        // Older task-wide stops also stopped batches that never created a session.
+        if (row.state().equals("STOPPED") && row.sessionId() == null)
+            return batchStore.retry(row, row.version(), true);
+        return row;
     }
 
     private boolean advanceWindow(List<TemplateTaskBatchRow> rows, TemplateTaskContractFactory.Frozen contract) {
@@ -154,15 +158,9 @@ public final class TemplateTaskCoordinator {
             if (!states.task(row.taskId()).state().equals("RUNNING")) return false;
             validated(row, contract);
         }
-        if ("9".equals(contract.definition().version()) || rows.stream().anyMatch(row -> row.generation() > 0)) {
-            for (var row : rows) if (Set.of("FAILED", "STOPPED").contains(row.state()) && row.generation() < 2)
-                batchStore.retry(row, row.version(), false);
-            // Failed batches remain visible; independent batches retain their window slots.
-            return false;
-        }
-        if (selected.isEmpty()) {
-            rows.stream().filter(row -> row.state().equals("FAILED")).findFirst()
-                    .ifPresent(row -> validated(row, contract));
+        if (selected.isEmpty() && !rows.isEmpty()) {
+            states.waiting(rows.getFirst().taskId(), "TEMPLATE_BATCHES_FAILED",
+                    "本轮独立批次已执行完毕，请选择失败批次重新触发；全部必需结果完成后继续汇总");
         }
         return false;
     }
@@ -181,6 +179,8 @@ public final class TemplateTaskCoordinator {
 
     private void repairIfEligible(TaskRow task) {
         String code = TaskWaitingInputPolicy.reasonCode(task, mapper);
+        // This wait was entered only after all batches stopped. A late polling pass must not stop an explicit retry.
+        if ("TEMPLATE_BATCHES_FAILED".equals(code) || !states.task(task.id()).state().equals("WAITING_INPUT")) return;
         if (Set.of("TEMPLATE_CONTENT_INVALID", "JUDGE_CONFLICT", "JUDGE_REVIEW_NOT_APPROVED").contains(code == null ? "" : code)) {
             if (states.repair(task.id())) return;
         }

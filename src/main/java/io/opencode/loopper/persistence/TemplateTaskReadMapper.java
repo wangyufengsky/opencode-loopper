@@ -13,7 +13,7 @@ public interface TemplateTaskReadMapper {
     @Select("""
             SELECT b.id,b.ordinal,b.purpose,b.generation,b.state,b.error_message,b.version,b.created_at
             FROM template_task_batch b JOIN attempt a ON a.id=b.attempt_id JOIN stage s ON s.id=a.stage_id
-            WHERE b.task_id=#{taskId} AND b.state IN ('FAILED','STOPPED')
+            WHERE b.task_id=#{taskId} AND (b.state='FAILED' OR (b.state='STOPPED' AND b.session_id IS NOT NULL))
               AND a.ordinal=(SELECT max(newer.ordinal) FROM attempt newer WHERE newer.stage_id=s.id)
               AND NOT EXISTS (SELECT 1 FROM template_task_batch n WHERE n.attempt_id=b.attempt_id
                 AND n.purpose=b.purpose AND n.ordinal=b.ordinal AND n.generation>b.generation)
@@ -22,6 +22,19 @@ public interface TemplateTaskReadMapper {
             """)
     List<FailedBatch> failedBatches(@Param("taskId") String taskId, @Param("time") String time,
             @Param("id") String id, @Param("limit") int limit);
+    /** Selection opens only after independent work has drained. */
+    @Select("""
+            SELECT EXISTS (SELECT 1 FROM task WHERE id=#{taskId} AND state='WAITING_INPUT') AND NOT EXISTS (
+                SELECT 1 FROM template_task_batch b
+                JOIN attempt a ON a.id=b.attempt_id JOIN stage s ON s.id=a.stage_id
+                WHERE b.task_id=#{taskId}
+                  AND b.state NOT IN ('VALIDATED','FAILED','STOPPED')
+                  AND a.ordinal=(SELECT max(n.ordinal) FROM attempt n WHERE n.stage_id=s.id)
+                  AND NOT EXISTS (SELECT 1 FROM template_task_batch n WHERE n.attempt_id=b.attempt_id
+                    AND n.purpose=b.purpose AND n.ordinal=b.ordinal AND n.generation>b.generation)
+            )
+            """)
+    boolean retrySelectionReady(String taskId);
     record FailedBatch(String id, int ordinal, String purpose, int generation, String state,
                        String errorMessage, long version, String createdAt) { }
 

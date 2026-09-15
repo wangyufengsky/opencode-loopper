@@ -25,11 +25,27 @@ public class DocumentBatchRetryService {
         var rows = models.failedBatchPage(id, after == null ? null : after.value(), after == null ? null : after.id(), limit + 1);
         var page = rows.stream().limit(limit).map(row -> new TemplateTaskReadMapper.FailedBatch(row.id(), row.ordinal(),
                 row.purpose(), row.generation(), row.state(), message(row.errorMessage()), row.version(), row.createdAt())).toList();
-        return new CursorPage<>(page, rows.size() > limit ? new PageCursor(page.getLast().createdAt(), page.getLast().id()).encode() : null);
+        return new CursorPage<>(page, rows.size() > limit ? new PageCursor(page.getLast().createdAt(), page.getLast().id()).encode() : null,
+                java.util.Map.of("retrySelectionReady", models.retrySelectionReady(id) ? 1L : 0L));
     }
     @Transactional
     public DocumentTemplateModelRow retry(String id, String batchId, long expectedVersion) {
+        return retrySelected(id, new BatchRetrySelection(java.util.List.of(
+                new BatchRetrySelection.Item(batchId, expectedVersion)))).getFirst();
+    }
+    @Transactional
+    public java.util.List<DocumentTemplateModelRow> retrySelected(String id, BatchRetrySelection selection) {
+        selection.validate();
         var run = require(id);
+        if (!models.retrySelectionReady(id))
+            throw new ConflictException("DOCUMENT_BATCHES_STILL_RUNNING", "后续批次仍在执行，完成后再统一选择重试");
+        var contract = json.readValue(run.contractJson(), DocumentTemplateService.Contract.class);
+        control.budget(run, contract);
+        return selection.batches().stream().map(item -> retryOne(run, item, contract)).toList();
+    }
+    private DocumentTemplateModelRow retryOne(DocumentTemplateRunRow run, BatchRetrySelection.Item item,
+            DocumentTemplateService.Contract contract) {
+        String id = run.id(), batchId = item.id();
         if (!java.util.Set.of("ASSESSING", "VERIFYING").contains(run.state()))
             throw new ConflictException("DOCUMENT_BATCH_RETRY_UNAVAILABLE", "请先恢复当前评审阶段，并处理总预算或时限限制");
         var batch = store.require(batchId);
@@ -39,9 +55,7 @@ public class DocumentBatchRetryService {
         var input = json.readValue(batch.inputJson(), io.opencode.loopper.template.DocumentModelInput.class);
         if (!phase.equals(batch.candidateKind()) || batch.generation() != round.round() || input.sourceRevision() != run.sourceRevision())
             throw new ConflictException("DOCUMENT_BATCH_SCOPE_STALE", "该批次属于旧评审轮次或原文版本，请刷新后选择当前批次");
-        var contract = json.readValue(run.contractJson(), DocumentTemplateService.Contract.class);
-        control.budget(run, contract);
-        return store.retry(batchId, expectedVersion, true, contract);
+        return store.retry(batchId, item.expectedVersion(), true, contract);
     }
     private DocumentTemplateRunRow require(String id) {
         var run = runs.find(id).orElseThrow(() -> new NotFoundException("需求任务不存在"));

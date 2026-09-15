@@ -35,7 +35,8 @@ public final class TemplateTaskReadService {
         var after = cursor(cursor); requireLimit(limit);
         var rows = mapper.failedBatches(taskId, after[0], after[1], limit + 1);
         var page = rows.stream().limit(limit).toList();
-        return new CursorPage<>(page, rows.size() > limit ? encode(page.getLast().createdAt(), page.getLast().id()) : null);
+        return new CursorPage<>(page, rows.size() > limit ? encode(page.getLast().createdAt(), page.getLast().id()) : null,
+                java.util.Map.of("retrySelectionReady", mapper.retrySelectionReady(taskId) ? 1L : 0L));
     }
 
     private static void requireLimit(int limit) {

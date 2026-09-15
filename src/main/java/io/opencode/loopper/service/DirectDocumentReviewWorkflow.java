@@ -37,7 +37,7 @@ public final class DirectDocumentReviewWorkflow {
             if (model != null && TemplateBatchState.valueOf(model.state()).terminal()) {
                 if (!"3".equals(contract.version()))
                     throw new BadRequestException("DOCUMENT_MODEL_REQUIRES_RECOVERY", "原文评审批次已停止，请从冻结输入恢复");
-                model = store.retry(model.id(), model.version(), false, contract);
+                // Keep this failure while the window drains the remaining independent batches.
             }
             pending.add(new Work(i, model));
         }

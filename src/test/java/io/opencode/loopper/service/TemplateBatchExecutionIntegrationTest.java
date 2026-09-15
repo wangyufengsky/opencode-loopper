@@ -203,9 +203,10 @@ class TemplateBatchExecutionIntegrationTest {
         for (int i = 0; i < 4; i++) batch = execution.advance(batch, contract);
         fake.setJudgeOutput(valid());
         fake.setSessionState(mapper.findSession(batch.sessionId()).orElseThrow().externalSessionId(), "COMPLETED");
-        assertThatThrownBy(() -> execution.advance(batch, contract)).isInstanceOf(io.opencode.loopper.domain.SessionFailure.class)
-                .hasMessageContaining("没有通过 MCP");
-        assertThat(batches.require(batch.id()).state()).isEqualTo("RUNNING");
+        batch = execution.advance(batch, contract);
+        assertThat(batch.state()).isEqualTo("FAILED");
+        assertThat(batch.errorCode()).isEqualTo("TEMPLATE_SUBMISSION_MISSING");
+        assertThat(current().state()).isEqualTo("RUNNING");
     }
 
     @org.junit.jupiter.params.ParameterizedTest
@@ -286,7 +287,9 @@ class TemplateBatchExecutionIntegrationTest {
             batch = execution.advance(batch, contract);
         }
         int calls = fake.promptCalls();
-        assertThatThrownBy(() -> execution.advance(batch, contract)).hasMessageContaining("连续三次");
+        batch = execution.advance(batch, contract);
+        assertThat(batch.state()).isEqualTo("FAILED");
+        assertThat(batch.errorMessage()).contains("连续三次");
         assertThat(fake.promptCalls()).isEqualTo(calls);
         assertThat(continuations.latest(batch.id()).orElseThrow().ordinal()).isEqualTo(2);
     }
@@ -344,7 +347,9 @@ class TemplateBatchExecutionIntegrationTest {
     @Test void frozenV5LengthRemainsAnErrorAndCreatesNoContinuation() {
         enableMcp(); for (int i = 0; i < 4; i++) batch = execution.advance(batch, contract);
         lengthResult();
-        assertThatThrownBy(() -> execution.advance(batch, contract)).hasMessageContaining("长度耗尽");
+        batch = execution.advance(batch, contract);
+        assertThat(batch.state()).isEqualTo("FAILED");
+        assertThat(batch.errorCode()).isEqualTo("TEMPLATE_SUBMISSION_MISSING");
         assertThat(continuations.latest(batch.id())).isEmpty();
     }
 

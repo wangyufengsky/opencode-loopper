@@ -17,6 +17,9 @@ class DocumentBatchRetryControllerTest {
         String path = "/api/template-tasks/document-runs/run/batches/batch/retry";
         mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content("{\"expectedVersion\":4}"))
                 .andExpect(status().isBadRequest());
+        mvc.perform(post("/api/template-tasks/document-runs/run/batches/retry")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"batches\":[{\"id\":\"batch\",\"expectedVersion\":4}]}"))
+                .andExpect(status().isBadRequest());
         verifyNoInteractions(retries, coordinator);
         when(retries.retry("run", "batch", 4)).thenThrow(new ConflictException("DOCUMENT_BATCH_SCOPE_STALE", "原文已变化"));
         mvc.perform(post(path).header("X-Loopper-Local-UI", "1").contentType(MediaType.APPLICATION_JSON).content("{\"expectedVersion\":4}"))

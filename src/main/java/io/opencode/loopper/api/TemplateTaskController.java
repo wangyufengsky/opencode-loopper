@@ -52,6 +52,12 @@ public class TemplateTaskController {
         var batch = retries.retry(taskId, batchId, request.expectedVersion());
         return new Created(batch.id(), batch.state());
     }
+    @PostMapping("/{taskId}/batches/retry") public java.util.List<Created> retrySelected(@PathVariable String taskId,
+            @RequestHeader(value = "X-Loopper-Local-UI", required = false) String localUi,
+            @RequestBody BatchRetrySelection request) {
+        requireLocalUi(localUi);
+        return retries.retrySelected(taskId, request).stream().map(row -> new Created(row.id(), row.state())).toList();
+    }
     public record Retry(long expectedVersion) { }
 
     private static void requireLocalUi(String value) {

@@ -28,6 +28,14 @@ class TemplateTaskExecutionIntegrationTest {
     @Autowired TemplateTaskCoordinator driver;
     @Autowired TemplateRunEvidenceService evidence;
     @Autowired TemplateTaskMapper templates;
+    @Autowired TemplateBatchStore batchStore;
+    @Autowired TemplateBatchExecution batchExecution;
+    @Autowired TemplateTaskReadMapper batchReads;
+    @Autowired org.springframework.transaction.PlatformTransactionManager transactionManager;
+
+    private TemplateBatchRetryService retryService() {
+        return new TemplateBatchRetryService(batchStore, states, org.mockito.Mockito.mock(TemplateTaskCoordinator.class), transactionManager, batchReads);
+    }
     @Autowired TaskReadService taskReads;
     @Autowired TemplateReportArtifactService reportArtifacts;
     @Autowired TemplateReportBundleMapper bundles;
@@ -208,15 +216,18 @@ class TemplateTaskExecutionIntegrationTest {
         assertThat(mapper.eventsAfter(task.id(), 0)).anyMatch(event -> event.type().equals("artifact.template_reports_saved"));
     }
 
-    @Test void contributionReportRanksAndRepairsMalformedCandidateAtMostTwice() {
+    @Test void contributionReportWaitsForExplicitBatchRetryBeforeRanking() {
         TaskRow task = create("CONTRIBUTION_REPORT");
         states.start(task.id(), evidence.contract(task.id()));
         run(task.id(), true);
         assertThat(states.task(task.id()).state()).isEqualTo("COMPLETED");
-        assertThat(templates.findRun(task.id()).orElseThrow().repairRound()).isEqualTo(1);
+        assertThat(templates.findRun(task.id()).orElseThrow().repairRound()).isZero();
         var finalAttempt = mapper.latestAttempt(mapper.listStages(task.id()).getLast().id()).orElseThrow();
-        assertThat(templates.batches(task.id(), finalAttempt.id())).allSatisfy(batch ->
-                assertThat(batch.promptJson()).contains("报告必须逐项覆盖本批全部证据"));
+        var history = templates.batches(task.id(), finalAttempt.id());
+        assertThat(history.stream().filter(row -> row.state().equals("FAILED"))).hasSize(2);
+        assertThat(history.stream().filter(row -> row.state().equals("VALIDATED"))).hasSize(2);
+        for (var row : history) assertThat(row.inputSha256()).isEqualTo(templates.findBatchOrdinal(
+                task.id(), finalAttempt.id(), row.purpose(), row.ordinal()).orElseThrow().inputSha256());
         var reports = mapper.listTaskArtifacts(task.id()).stream().filter(row -> row.kind().equals("TEMPLATE_REPORT")).toList();
         assertThat(reports).hasSize(4);
         assertThat(reports).anyMatch(row -> row.name().startsWith("项目贡献周报_") && row.content().contains("人员贡献与排名") && row.content().contains("CONTRIBUTION_SCORE_V1"));
@@ -293,6 +304,83 @@ class TemplateTaskExecutionIntegrationTest {
                 assertThat(report.metadataSummary().path("bundleId").asText()).isEqualTo(oldMain.attemptId()));
     }
 
+    @Test void failuresDrainRemainingBatchesThenAtomicSelectionPreservesSuccessAndFinishesReport() throws Exception {
+        for (int i = 0; i < 25; i++) Files.writeString(source.resolve("batch-file-" + i + ".txt"), "change " + i);
+        git.read(source, "add", ".");
+        git.read(source, "-c", "user.name=Test", "-c", "user.email=test@example.test", "commit", "-m", "three batches");
+        TaskRow task = create("CODE_REVIEW");
+        states.start(task.id(), evidence.contract(task.id()));
+        boolean rejectedEarly = false;
+        for (int tick = 0; tick < 40 && !states.task(task.id()).state().equals("WAITING_INPUT"); tick++) {
+            for (var attempt : mapper.listAttempts(task.id())) for (var batch : templates.batches(task.id(), attempt.id())) {
+                if (batch.state().equals("DISPATCHING")) {
+                    var input = json.readValue(batch.inputJson(), TemplateBatchExecution.Input.class);
+                    fake.setJudgeOutput(batch.ordinal() == 1 ? json.writeValueAsString(new TemplateAnalysis.BatchCandidate(input.units().stream()
+                            .map(unit -> new TemplateAnalysis.UnitReview(unit.id(), "保留成功结果", List.of(), List.of())).toList())) : "{\"reviews\":[]}");
+                }
+                if (batch.state().equals("FAILED") && !batchReads.retrySelectionReady(task.id())) {
+                    assertThatThrownBy(() -> retryService().retry(task.id(), batch.id(), batch.version()))
+                            .isInstanceOf(ConflictException.class).hasMessageContaining("后续批次");
+                    rejectedEarly = true;
+                }
+            }
+            driver.advance(task.id());
+        }
+        assertThat(rejectedEarly).isTrue();
+        assertThat(states.task(task.id()).state()).isEqualTo("WAITING_INPUT");
+        var attempt = mapper.latestAttempt(mapper.listStages(task.id()).getLast().id()).orElseThrow();
+        var originals = templates.batches(task.id(), attempt.id());
+        assertThat(originals).hasSize(3).allMatch(row -> row.generation() == 0);
+        var success = originals.stream().filter(row -> row.ordinal() == 1).findFirst().orElseThrow();
+        assertThat(success.state()).isEqualTo("VALIDATED");
+        assertThat(mapper.listTaskArtifacts(task.id())).noneMatch(row -> row.kind().equals("TEMPLATE_REPORT"));
+        var failed = batchReads.failedBatches(task.id(), null, null, 100);
+        assertThat(failed).extracting(TemplateTaskReadMapper.FailedBatch::ordinal).containsExactlyInAnyOrder(0, 2);
+        assertThat(batchReads.retrySelectionReady(task.id())).isTrue();
+        exportFixture(task.id(), System.getenv("LOOPPER_BATCH_FIXTURE_DIR"));
+        var choice = failed.stream().map(row -> new BatchRetrySelection.Item(row.id(), row.version())).toList();
+        assertThatThrownBy(() -> retryService().retrySelected(task.id(), new BatchRetrySelection(List.of(choice.getFirst(),
+                new BatchRetrySelection.Item(choice.getLast().id(), choice.getLast().expectedVersion() + 1)))))
+                .isInstanceOf(ConflictException.class);
+        assertThat(states.task(task.id()).state()).isEqualTo("WAITING_INPUT");
+        assertThat(templates.batches(task.id(), attempt.id())).hasSize(3);
+        var selected = new BatchRetrySelection(choice);
+        var waitingSnapshot = states.task(task.id());
+        assertThat(retryService().retrySelected(task.id(), selected)).hasSize(2).allMatch(row -> row.generation() == 1);
+        assertThatThrownBy(() -> retryService().retrySelected(task.id(), selected)).isInstanceOf(ConflictException.class);
+        assertThat(templates.batches(task.id(), attempt.id())).hasSize(5);
+        org.springframework.test.util.ReflectionTestUtils.invokeMethod(driver, "repairIfEligible", waitingSnapshot);
+        assertThat(templates.batches(task.id(), attempt.id()).stream().filter(row -> row.generation() == 1))
+                .allMatch(row -> row.state().equals("PREPARED"));
+        run(task.id(), false);
+        assertThat(states.task(task.id()).state()).isEqualTo("COMPLETED");
+        assertThat(batchStore.require(success.id())).isEqualTo(success);
+        assertThat(taskReads.overview(task.id()).templateProgress().reportCount()).isPositive();
+    }
+
+    @Test void legacyStopOfUnstartedBatchDoesNotCreateAnotherFailureChoice() throws Exception {
+        for (int i = 0; i < 13; i++) Files.writeString(source.resolve("pending-" + i + ".txt"), "change " + i);
+        git.read(source, "add", ".");
+        git.read(source, "-c", "user.name=Test", "-c", "user.email=test@example.test", "commit", "-m", "two batches");
+        var task = create("CODE_REVIEW");
+        states.start(task.id(), evidence.contract(task.id()));
+        for (int tick = 0; tick < 20 && batchReads.failedBatches(task.id(), null, null, 100).isEmpty(); tick++) {
+            fake.setJudgeOutput("{\"reviews\":[]}"); driver.advance(task.id());
+        }
+        var attempt = mapper.latestAttempt(mapper.listStages(task.id()).getLast().id()).orElseThrow();
+        var pending = templates.findBatchOrdinal(task.id(), attempt.id(), "REVIEW", 1).orElseThrow();
+        assertThat(pending.sessionId()).isNull();
+        assertThat(batchExecution.stop(pending)).isTrue();
+        states.waiting(task.id(), "TEMPLATE_SUBMISSION_MISSING", "历史整轮暂停");
+        var choices = batchReads.failedBatches(task.id(), null, null, 100);
+        assertThat(choices).hasSize(1).allMatch(row -> row.ordinal() == 0);
+        retryService().retry(task.id(), choices.getFirst().id(), choices.getFirst().version());
+        run(task.id(), false);
+        assertThat(states.task(task.id()).state()).isEqualTo("COMPLETED");
+        assertThat(batchStore.require(pending.id()).state()).isEqualTo("STOPPED");
+        assertThat(templates.findBatchOrdinal(task.id(), attempt.id(), "REVIEW", 1).orElseThrow().state()).isEqualTo("VALIDATED");
+    }
+
     @Test void progressIncludesUnstartedBatchesAndResetsCompletedCountsForRepair() throws Exception {
         for (int index = 0; index < 25; index++) Files.writeString(source.resolve("file-" + index + ".txt"), "change " + index);
         git.read(source, "add", ".");
@@ -307,7 +395,7 @@ class TemplateTaskExecutionIntegrationTest {
         assertThat(progress.completedContributors()).isZero();
         run(task.id(), true);
         var completed = taskReads.overview(task.id()).templateProgress();
-        assertThat(completed.repairRound()).isEqualTo(1);
+        assertThat(completed.repairRound()).isZero();
         assertThat(completed.completedReviews()).isEqualTo(3);
         assertThat(completed.completedContributors()).isEqualTo(1);
         assertThat(completed.failedBatches()).isZero();
@@ -315,7 +403,9 @@ class TemplateTaskExecutionIntegrationTest {
     }
 
     private void exportBrowserFixture(String taskId) {
-        String destination = System.getProperty("template.browser.fixtureDir");
+        exportFixture(taskId, System.getProperty("template.browser.fixtureDir"));
+    }
+    private void exportFixture(String taskId, String destination) {
         if (destination == null) return;
         try {
             Path directory = Files.createDirectories(Path.of(destination));
@@ -329,7 +419,7 @@ class TemplateTaskExecutionIntegrationTest {
         } catch (Exception failure) { throw new AssertionError("Unable to export verified browser fixture", failure); }
     }
 
-    @Test void exhaustedContentRepairsRemainWaitingAndManualCancelClosesLease() {
+    @Test void failedContentRemainsWaitingWithoutAutomaticRetriesAndManualCancelClosesLease() {
         TaskRow task = create("CODE_REVIEW");
         states.start(task.id(), evidence.contract(task.id()));
         for (int i = 0; i < 40; i++) {
@@ -337,8 +427,8 @@ class TemplateTaskExecutionIntegrationTest {
             driver.advance(task.id());
         }
         assertThat(states.task(task.id()).state()).isEqualTo("WAITING_INPUT");
-        assertThat(templates.findRun(task.id()).orElseThrow().repairRound()).isEqualTo(2);
-        assertThat(mapper.listAttempts(task.id())).hasSize(4);
+        assertThat(templates.findRun(task.id()).orElseThrow().repairRound()).isZero();
+        assertThat(mapper.listAttempts(task.id())).hasSize(2);
         assertThat(tasks.cancel(task.id()).state()).isEqualTo("CANCELLED");
         assertThat(mapper.findActiveWorkspaceLeaseByHolder(task.id())).isEmpty();
         tasks.archive(task.id()); tasks.deleteArchived(task.id());
@@ -440,6 +530,13 @@ class TemplateTaskExecutionIntegrationTest {
     private void run(String id, boolean malformedFirst, boolean stopAtJudging) {
         for (int i = 0; i < 90 && !states.task(id).state().equals("COMPLETED"); i++) {
             TaskRow task = states.task(id);
+            if (malformedFirst && task.state().equals("WAITING_INPUT")
+                    && "TEMPLATE_BATCHES_FAILED".equals(TaskWaitingInputPolicy.reasonCode(task, mapper))) {
+                var failed = batchReads.failedBatches(id, null, null, 100);
+                retryService().retrySelected(id, new BatchRetrySelection(failed.stream()
+                        .map(row -> new BatchRetrySelection.Item(row.id(), row.version())).toList()));
+                continue;
+            }
             if (stopAtJudging && task.state().equals("AWAITING_DECISION")) return;
             if (task.state().equals("JUDGING")) {
                 // This fixture simulates template MCP only; Judge behavior is covered by its own MCP suite.
@@ -455,7 +552,7 @@ class TemplateTaskExecutionIntegrationTest {
                 boolean mcp = List.of("5", "6", "7").contains(templates.findRun(id).orElseThrow().templateVersion());
                 if (!batch.state().equals("DISPATCHING") && !(mcp && batch.state().equals("RUNNING"))) continue;
                 var input = json.readValue(batch.inputJson(), TemplateBatchExecution.Input.class);
-                if (malformedFirst && templates.findRun(id).orElseThrow().repairRound() == 0) fake.setJudgeOutput("{\"reviews\":[]}");
+                if (malformedFirst && batch.generation() == 0) fake.setJudgeOutput("{\"reviews\":[]}");
                 else if (batch.purpose().equals("REVIEW")) fake.setJudgeOutput(json.writeValueAsString(new TemplateAnalysis.BatchCandidate(input.units().stream()
                         .map(unit -> new TemplateAnalysis.UnitReview(unit.id(), "新增说明内容", List.of(), List.of("未运行测试"))).toList())));
                 else {
