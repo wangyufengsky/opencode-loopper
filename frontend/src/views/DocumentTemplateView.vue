@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DocumentFileSummary from '@/components/DocumentFileSummary.vue'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
@@ -101,7 +102,7 @@ onBeforeUnmount(() => { ++generation; stream?.close(); clearTimeout(timer); clea
         </div>
       </section>
       <section class="card card-pad" aria-label="上传文档"><h2>文档与提取局限</h2>
-        <details v-for="file in run.files" :key="file.id"><summary>{{ file.filename }} · {{ file.sectionCount }} 个分段</summary>
+        <details v-for="file in run.files" :key="file.id"><summary class="document-summary"><DocumentFileSummary :filename="file.filename" :section-count="file.sectionCount" :limitations="file.limitations.length" /></summary>
           <ul><li v-for="(limit, index) in file.limitations" :key="index">{{ limit }}</li></ul>
           <p v-if="!file.limitations.length" class="muted">解析器未报告提取局限；段落处理覆盖仍需原文复核。</p>
         </details>
@@ -114,5 +115,7 @@ onBeforeUnmount(() => { ++generation; stream?.close(); clearTimeout(timer); clea
   </main>
 </template>
 <style scoped>
+.document-summary { list-style: none; }.document-summary::-webkit-details-marker { display: none; }.document-summary:focus-visible { outline: 2px solid var(--color-accent-cyan); outline-offset: 3px; border-radius: var(--radius-control); }
+
 .document-task { display: grid; gap: 20px; }.document-progress { display: grid; gap: 16px; }header, .actions, .facts { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }header { justify-content: space-between; }h2 { font-size: 18px; margin: 0 0 12px; }header h2 { margin: 0; }details { margin-top: 14px; line-height: 1.8; overflow-wrap: anywhere; }summary { cursor: pointer; }.facts { color: var(--color-text-secondary); }@media (max-width: 700px) { .actions { width: 100%; } }
 </style>

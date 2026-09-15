@@ -5,6 +5,7 @@ import { Icon } from '@iconify/vue'
 import { ElAlert, ElDatePicker } from 'element-plus'
 import { api } from '@/api/client'
 import PageHeader from '@/components/PageHeader.vue'
+import DocumentFilePicker from '@/components/DocumentFilePicker.vue'
 import DirectoryPathInput from '@/components/DirectoryPathInput.vue'
 import { documentUploadError, useDocumentTemplateStore } from '@/stores/documentTemplateStore'
 import { useTemplateTaskStore } from '@/stores/templateTaskStore'
@@ -53,7 +54,6 @@ const valid = computed(() => definition.value && projectId.value && !busy.value
   && (!needsBranch.value || (branchId.value && !loadingBranches.value))
   && (!needsDates.value || (startDate.value && endDate.value && !dateError.value))
   && (isDocument.value ? files.value.length > 0 && !fileError.value : !pickingDocumentPath.value))
-function selectFiles(event: Event) { files.value = Array.from((event.target as HTMLInputElement).files ?? []) }
 
 async function searchProjects(query = '', append = false) {
   const generation = ++projectGeneration
@@ -169,10 +169,9 @@ onBeforeUnmount(() => { ++projectGeneration; ++branchGeneration })
       </div>
       <div v-if="!isDocument" class="document-path">文档生成路径<DirectoryPathInput v-model="documentPath" v-model:picking="pickingDocumentPath" label="文档生成路径" :scope-key="projectId" :disabled="busy" placeholder="项目相对路径或绝对路径；留空使用默认目录" /></div>
       <div v-if="isDocument" class="document-path">
-        <label for="requirement-files">需求文档</label>
-        <input id="requirement-files" type="file" multiple accept=".docx,.md,.markdown,.pdf" :disabled="busy" @change="selectFiles" />
-        <p class="muted tiny">最多 10 份，每份 20 MiB，总计 50 MiB。支持 DOCX、Markdown、文本 PDF；图片和流程图的提取局限会在结果中列出。</p>
-        <ul v-if="files.length"><li v-for="(file, index) in files" :key="index">{{ file.name }} · {{ (file.size / 1024).toFixed(1) }} KiB</li></ul>
+        <span>需求文档</span>
+        <DocumentFilePicker v-model="files" input-id="requirement-files" :disabled="busy" />
+        <p class="muted tiny">图片和流程图的提取局限会在结果中列出。</p>
         <el-alert v-if="fileError" :title="fileError" type="error" :closable="false" />
         <p v-if="definition.id === 'REQUIREMENT_DEVELOPMENT'" class="muted">在项目当前目录开发，按需求自动设计、编码与测试；业务待决事项会暂停等待处理。</p>
         <p v-else class="muted">评审冻结分支的相关代码；本次不修改代码、不执行构建或测试。</p>

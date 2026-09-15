@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import DocumentFilePicker from '@/components/DocumentFilePicker.vue'
 import { api } from '@/api/client'
 import type { DocumentSupplementOptions, DocumentTemplateOverview } from '@/types/domain'
 import { userFacingError } from '@/utils/displayLabels'
@@ -20,8 +21,8 @@ async function open() {
   catch (failure) { if (token === generation) error.value = userFacingError(failure, '补充入口读取失败，请重试') }
   finally { if (token === generation) busy.value = false }
 }
-function choose(event: Event) {
-  files.value = Array.from((event.target as HTMLInputElement).files ?? [])
+function choose(selected: File[]) {
+  files.value = selected
   error.value = ''
   if (files.value.some(file => !/\.(docx|md|markdown|pdf)$/i.test(file.name))) error.value = '仅支持 DOCX、Markdown 和文本 PDF'
   else if (files.value.length > 10 || files.value.some(file => !file.size || file.size > 20 * 1024 * 1024)
@@ -45,7 +46,7 @@ async function submit() {
     <template v-else>
       <h2>补充需求文档</h2><p class="muted">{{ options?.message }}</p>
       <template v-if="options?.available">
-        <label>选择文档<input type="file" multiple accept=".docx,.md,.markdown,.pdf" :disabled="busy" @change="choose"></label>
+        <DocumentFilePicker :model-value="files" :disabled="busy" @update:model-value="choose" />
         <el-button type="primary" :loading="busy" :disabled="!files.length || invalidFiles" @click="submit">上传并重新复核需求</el-button>
       </template>
       <el-button :disabled="busy" @click="opened = false; error = ''">收起</el-button>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DocumentFileSummary from '@/components/DocumentFileSummary.vue'
 import { ref, watch } from 'vue'
 import { api } from '@/api/client'
 import type { DocumentTemplateOverview, DocumentSectionPage, DocumentSection } from '@/types/domain'
@@ -39,7 +40,7 @@ async function body(file: DocumentTemplateOverview['files'][number], ordinal: nu
     <h2>原文目录</h2>
     <el-alert v-if="error" :title="error" type="error" :closable="false" />
     <details v-for="file in run.files" :key="file.id" @toggle="($event.target as HTMLDetailsElement).open && sections(file.id)">
-      <summary>{{ file.filename }} · {{ file.sectionCount }} 个分段</summary>
+      <summary class="document-summary"><DocumentFileSummary :filename="file.filename" :section-count="file.sectionCount" /></summary>
       <el-button v-if="!pages[file.id]" :loading="busy[`index:${file.id}`]" @click="sections(file.id)">读取目录</el-button>
       <details v-for="item in pages[file.id]?.items ?? []" :key="item.ordinal" @toggle="($event.target as HTMLDetailsElement).open && body(file, item.ordinal)">
         <summary>{{ item.title || `第 ${item.ordinal + 1} 段` }}</summary>
@@ -51,5 +52,7 @@ async function body(file: DocumentTemplateOverview['files'][number], ordinal: nu
   </section>
 </template>
 <style scoped>
+.document-summary { list-style: none; }.document-summary::-webkit-details-marker { display: none; }.document-summary:focus-visible { outline: 2px solid var(--color-accent-cyan); outline-offset: 3px; border-radius: var(--radius-control); }
+
 h2 { margin: 0 0 12px; font-size: 18px; } details { margin: 12px 0; overflow-wrap: anywhere; } details details { margin-left: 16px; } summary { cursor: pointer; line-height: 1.8; }
 </style>

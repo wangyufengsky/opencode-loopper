@@ -22,6 +22,32 @@ function currentSettings(): AppSettings {
 }
 
 describe('Settings model selection', () => {
+  it('preserves edits across sections and reveals the field that blocks saving', async () => {
+    vi.spyOn(api, 'getSettings').mockResolvedValue(currentSettings())
+    vi.spyOn(api, 'getSettingsModels').mockResolvedValue([{ id: 'opencode/model-a', provider: 'opencode', model: 'model-a', label: 'model-a' }])
+    const update = vi.spyOn(api, 'updateSettings')
+    const wrapper = mount(SettingsView, { attachTo: document.body, global: { plugins: [createPinia(), ElementPlus], stubs: { PageHeader: { template: '<header><slot name="actions" /></header>' }, Icon: true } } })
+    await flushPromises()
+    const path = wrapper.findAllComponents({ name: 'ElFormItem' }).find(item => item.props('label') === '允许项目根（立即生效）')!.get('input')
+    await path.setValue('relative/path')
+    await wrapper.get('[aria-controls="settings-models"]').trigger('click')
+    expect(wrapper.get('#settings-runtime').isVisible()).toBe(false)
+    expect(wrapper.get('#settings-models').isVisible()).toBe(true)
+    await wrapper.get('.settings-save').trigger('click')
+    expect(wrapper.get('#settings-runtime').isVisible()).toBe(true)
+    expect(wrapper.get('#settings-runtime').text()).toContain('允许项目根必须是绝对路径')
+    expect((path.element as HTMLInputElement).value).toBe('relative/path')
+    expect(update).not.toHaveBeenCalled()
+    await path.setValue('/workspace')
+    const cli = wrapper.findAllComponents({ name: 'ElFormItem' }).find(item => item.props('label') === '命令行路径（下次会话生效）')!.get('input')
+    await cli.setValue('')
+    await wrapper.get('.settings-save').trigger('click')
+    expect(wrapper.get('#settings-models').isVisible()).toBe(true)
+    expect(wrapper.get('#settings-models').text()).toContain('OpenCode CLI 路径不能为空')
+    expect(update).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
   it('keeps all execution limit controls in the bottom-aligned limits grid', async () => {
     vi.spyOn(api, 'getSettings').mockResolvedValue(currentSettings())
     vi.spyOn(api, 'getSettingsModels').mockResolvedValue([
