@@ -10,7 +10,7 @@ import { userFacingError } from '@/utils/displayLabels'
 const rows = ref<DatabaseConnection[]>([]), types = ref<DatabaseTypeProfile[]>([]), drivers = ref<DatabaseDriver[]>([]), projects = ref<Project[]>([])
 const cursor = ref<string | null>(null), loading = ref(false), saving = ref(false), error = ref(''), editing = ref(false), selected = ref<DatabaseConnection | null>(null)
 const query = ref(''), type = ref(''), state = ref('AVAILABLE'), probe = ref<Record<string, DatabaseProbe>>({}), testing = ref<string | null>(null)
-const typeLabels = { MYSQL: 'MySQL', OPENGAUSS: 'openGauss', GAUSSDB: 'GaussDB（历史配置）', GOLDENDB: 'GoldenDB（历史配置）', DAMENG: '达梦' }
+const typeLabels = { MYSQL: 'MySQL', OPENGAUSS: 'openGauss', GAUSSDB: 'GaussDB', GOLDENDB: 'GoldenDB（历史配置）', DAMENG: '达梦', ORACLE: 'Oracle', DB2: 'DB2' }
 let generation = 0
 async function load(more = false) {
   const current = ++generation; loading.value = true; error.value = ''

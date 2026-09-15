@@ -51,7 +51,7 @@ public class DatabaseConnectionService {
             throw new AssistFailure("DATABASE_CONFIG_INVALID","请填写连接名称和完整配置");
         DatabaseRow old=id==null?null:require(id);
         DatabaseConfig config=configuration(request.config(),old); List<String> bindings=List.copyOf(new LinkedHashSet<>(request.projectIds()==null?List.of():request.projectIds()));
-        if(old!=null && (config.type()==DatabaseConfig.Type.GAUSSDB || config.type()==DatabaseConfig.Type.GOLDENDB)
+        if(old!=null && config.type()==DatabaseConfig.Type.GOLDENDB
                 && (request.password()!=null || !request.name().equals(old.name()) || !new HashSet<>(bindings).equals(new HashSet<>(mapper.databaseProjects(id)))
                     || request.enabled() && old.enabled()==0 || old.archived()==1 && !request.archived()))
             throw new AssistFailure("DATABASE_TYPE_UNAVAILABLE","此历史类型目前只支持查看、停用和归档；请使用已内置驱动的类型新增连接","CONFIGURE");

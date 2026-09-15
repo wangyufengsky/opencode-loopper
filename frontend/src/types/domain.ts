@@ -1528,7 +1528,7 @@ export interface TemplateTaskSummary {
   branchLabel: string; startDate: string; endDate: string; repairRound: number; createdAt: string; updatedAt: string
 }
 export interface DatabaseConfig {
-  type: 'MYSQL' | 'OPENGAUSS' | 'GAUSSDB' | 'GOLDENDB' | 'DAMENG'
+  type: 'MYSQL' | 'OPENGAUSS' | 'GAUSSDB' | 'GOLDENDB' | 'DAMENG' | 'ORACLE' | 'DB2'
   jdbcUrl?: string | null; host: string; port: number; database: string; username: string
   driverProfile?: string | null; driverFile: string; driverClass: string; schemas: string[]; parameters: Record<string, string>
   timeoutSeconds: number; maxRows: number

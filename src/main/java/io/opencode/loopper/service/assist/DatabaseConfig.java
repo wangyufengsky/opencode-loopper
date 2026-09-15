@@ -7,7 +7,7 @@ import java.util.Map;
 public record DatabaseConfig(Type type, String host, int port, String database, String username,
                              String driverFile, String driverClass, List<String> schemas,
                              Map<String,String> parameters, int timeoutSeconds, int maxRows, String driverProfile, String jdbcUrl) {
-    public enum Type { MYSQL, OPENGAUSS, GAUSSDB, GOLDENDB, DAMENG }
+    public enum Type { MYSQL, OPENGAUSS, GAUSSDB, GOLDENDB, DAMENG, ORACLE, DB2 }
     public DatabaseConfig(Type type,String host,int port,String database,String username,String driverFile,String driverClass,
                           List<String> schemas,Map<String,String> parameters,int timeoutSeconds,int maxRows) {
         this(type,host,port,database,username,driverFile,driverClass,schemas,parameters,timeoutSeconds,maxRows,null);
@@ -24,7 +24,7 @@ public record DatabaseConfig(Type type, String host, int port, String database, 
     public DatabaseConfig validated() {
         if (jdbcUrl != null) JdbcConnectionUrl.parse(this);
         if (type == null || host == null || !host.matches("[a-zA-Z0-9_.:-]{1,253}")
-                || port < 1 || port > 65535 || database == null || !database.matches("[\\p{L}\\p{N}_$-]{1,128}")
+                || port < 1 || port > 65535 || database == null || !database.matches(type == Type.ORACLE ? "[\\p{L}\\p{N}_$.-]{1,128}" : "[\\p{L}\\p{N}_$-]{1,128}")
                 || username == null || username.isBlank() || username.length() > 128
                 || driverFile == null || !driverFile.matches("[a-zA-Z0-9_.-]{1,180}\\.jar")
                 || driverClass == null || !driverClass.matches("[a-zA-Z_$][a-zA-Z0-9_.$]{1,180}")) {

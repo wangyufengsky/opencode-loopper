@@ -17,7 +17,7 @@ class JdbcConnectionUrlTest {
         var config=BundledDatabaseDrivers.resolve(input("jdbc:opengauss://db1:8000,db2:8000,db3:8000/app?targetServerType=master&loadBalanceHosts=true"));
         assertThat(config.database()).isEqualTo("app");
         var dialect=DatabaseDialect.forType(config.type());
-        assertThat(dialect.url(config)).isEqualTo("jdbc:opengauss://db1:8000,db2:8000,db3:8000/app");
+        assertThat(dialect.url(config)).isEqualTo("jdbc:postgresql://db1:8000,db2:8000,db3:8000/app");
         var properties=dialect.properties(config,"secret");
         assertThat(properties).containsEntry("targetServerType","master").containsEntry("allowReadOnly","true").containsEntry("socketTimeout","30");
         var files=BundledDatabaseDrivers.materialize(temp.toRealPath(),config);
@@ -29,11 +29,11 @@ class JdbcConnectionUrlTest {
         assertThat(config.toString()).doesNotContain("secret");
     }
     @Test void bothInputProtocolsMatchTheFrozenDriverAndKeepIndependentCredentials() throws Exception {
-        for(String id:List.of("opengauss-6.0.3","opengauss-7.0.0-RC3-og")) {
+        for(String id:List.of("opengauss-3.1.0","opengauss-6.0.3","opengauss-7.0.0-RC3-og")) {
             for(String protocol:List.of("opengauss","postgresql")) {
                 var config=BundledDatabaseDriversTest.configuration(id,"jdbc:"+protocol+"://[::1]:8000,db2:8000/app?targetServerType=master");
                 var dialect=DatabaseDialect.forType(config.type());
-                assertThat(dialect.url(config)).isEqualTo("jdbc:"+(id.equals("opengauss-6.0.3")?"postgresql":"opengauss")+"://[::1]:8000,db2:8000/app");
+                assertThat(dialect.url(config)).isEqualTo("jdbc:"+(id.equals("opengauss-7.0.0-RC3-og")?"opengauss":"postgresql")+"://[::1]:8000,db2:8000/app");
                 assertThat(dialect.properties(config," p@ss+&=%密 ")).containsEntry("password"," p@ss+&=%密 ").containsEntry("user","reader").containsEntry("targetServerType","master");
                 var files=BundledDatabaseDrivers.materialize(temp.toRealPath(),config);
                 try(var loader=new URLClassLoader(files.stream().map(p->{try{return p.toUri().toURL();}catch(Exception e){throw new RuntimeException(e);}}).toArray(java.net.URL[]::new),ClassLoader.getPlatformClassLoader())) {

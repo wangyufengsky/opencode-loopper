@@ -10,9 +10,17 @@ public final class BundledDatabaseDrivers {
     public record Binary(String filename,String sha256) { }
     public record Profile(DatabaseConfig.Type type,String label,String id,String driverClass,int defaultPort,List<Binary> binaries) { }
     public static final List<Profile> PROFILES=List.of(new Profile(DatabaseConfig.Type.MYSQL,"MySQL","mysql-8.0.33","com.mysql.cj.jdbc.Driver",3306,List.of(new Binary("mysql-connector-j-8.0.33.jar","e2a3b2fc726a1ac64e998585db86b30fa8bf3f706195b78bb77c5f99bf877bd9"),new Binary("protobuf-java-3.25.5.jar","8540247fad9e06baefa8fb45eb313802d019f485f14300e0f9d6b556ed88e753"))),
+        new Profile(DatabaseConfig.Type.GAUSSDB,"GaussDB","gaussdb-opengauss-3.1.0","org.postgresql.Driver",5432,gauss310()),
+        new Profile(DatabaseConfig.Type.OPENGAUSS,"openGauss","opengauss-3.1.0","org.postgresql.Driver",5432,gauss310()),
+        new Profile(DatabaseConfig.Type.ORACLE,"Oracle","oracle-23.7.0.25.01","oracle.jdbc.OracleDriver",1521,List.of(new Binary("ojdbc11-23.7.0.25.01.jar","ec8b7f2020b03b19f572e1bc34f94330610e86d3113ffe1e1f0474b8f5ce88ed"))),
+        new Profile(DatabaseConfig.Type.DB2,"DB2","db2-12.1.0.0","com.ibm.db2.jcc.DB2Driver",50000,List.of(new Binary("jcc-12.1.0.0.jar","29a514dd740a20661d6a22f67a3a118e2c11dc14fa4056e4faeb08afb1738fd8"))),
         new Profile(DatabaseConfig.Type.OPENGAUSS,"openGauss","opengauss-7.0.0-RC3-og","org.opengauss.Driver",5432,List.of(new Binary("opengauss-jdbc-7.0.0-RC3-og.jar","a80bc5b50b8af012d8f99d20546885aa218673dab9c44aa64833abed65745a69"))),
         new Profile(DatabaseConfig.Type.OPENGAUSS,"openGauss","opengauss-6.0.3","org.postgresql.Driver",5432,List.of(new Binary("opengauss-jdbc-6.0.3.jar","4ee4117006db3d1bf905436e25ee96ae5e32cba31dc15a34963474e894c98f63"),new Binary("slf4j-api-2.0.17.jar","7b751d952061954d5abfed7181c1f645d336091b679891591d63329c622eb832"))),
         new Profile(DatabaseConfig.Type.DAMENG,"达梦","dameng-8.1.3.140","dm.jdbc.driver.DmDriver",5236,List.of(new Binary("DmJdbcDriver18-8.1.3.140.jar","9af4ff4d6ed15948507f528a18ab9b7196b3600d9169ad7998c19869031a3c6f"))));
+    private static List<Binary> gauss310() {
+        return List.of(new Binary("opengauss-jdbc-3.1.0.jar","a6c3c1854bacb4020537a50a9dd01265e4db92760ddae78c8df0f07a60722c3a"),
+                new Binary("slf4j-api-2.0.17.jar","7b751d952061954d5abfed7181c1f645d336091b679891591d63329c622eb832"));
+    }
     /** One default per product for new connections; all immutable profiles remain available for recovery. */
     public static List<Profile> defaults() {
         Map<DatabaseConfig.Type,Profile> defaults = new LinkedHashMap<>();
@@ -26,7 +34,7 @@ public final class BundledDatabaseDrivers {
         c = JdbcConnectionUrl.normalize(c);
         DatabaseConfig input = c;
         Profile p=c.driverProfile()!=null ? profile(c.driverProfile()) : defaults().stream().filter(x->x.type()==input.type()).findFirst().orElseThrow(()->
-            new AssistFailure("DATABASE_TYPE_UNAVAILABLE","当前可新增 MySQL、openGauss 和达梦；其他类型请保留历史配置或等待匹配驱动","CONFIGURE"));
+            new AssistFailure("DATABASE_TYPE_UNAVAILABLE","当前可新增 MySQL、GaussDB、openGauss、Oracle、DB2 和达梦；其他类型请保留历史配置","CONFIGURE"));
         if(p.type()!=c.type() || c.driverProfile()!=null && !p.id().equals(c.driverProfile())
             || c.driverFile()!=null && !c.driverFile().isBlank() && !p.binaries().getFirst().filename().equals(c.driverFile())
             || c.driverClass()!=null && !c.driverClass().isBlank() && !p.driverClass().equals(c.driverClass()))

@@ -4,11 +4,32 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/api/client'
 import DatabaseConnectionDrawer from './DatabaseConnectionDrawer.vue'
 import type { DatabaseConnection, DatabaseTypeProfile, DatabaseProbe } from '@/types/domain'
-const types: DatabaseTypeProfile[] = [{ type:'MYSQL', label:'MySQL', id:'mysql-8.0.33', driverClass:'com.mysql.cj.jdbc.Driver', defaultPort:3306, binaries:[{filename:'mysql.jar',sha256:'sha'}] },{ type:'OPENGAUSS',label:'openGauss',id:'opengauss-7.0.0-RC3-og',driverClass:'org.opengauss.Driver',defaultPort:5432,binaries:[{filename:'opengauss-jdbc-7.0.0-RC3-og.jar',sha256:'sha'}] }]
+const types: DatabaseTypeProfile[] = [{ type:'MYSQL', label:'MySQL', id:'mysql-8.0.33', driverClass:'com.mysql.cj.jdbc.Driver', defaultPort:3306, binaries:[{filename:'mysql.jar',sha256:'sha'}] },{ type:'OPENGAUSS',label:'openGauss',id:'opengauss-3.1.0',driverClass:'org.postgresql.Driver',defaultPort:5432,binaries:[{filename:'opengauss-jdbc-7.0.0-RC3-og.jar',sha256:'sha'}] }]
 const row: DatabaseConnection = { id:'c',name:'业务库',config:{type:'MYSQL',host:'db',port:3306,database:'app',username:'reader',driverFile:'legacy.jar',driverClass:'legacy.Driver',schemas:['app'],parameters:{},timeoutSeconds:10,maxRows:200},enabled:true,archived:false,passwordConfigured:true,projectIds:[],version:2,createdAt:'' }
 afterEach(()=>{vi.restoreAllMocks();document.body.innerHTML=''})
 const mountDrawer=()=>mount(DatabaseConnectionDrawer,{props:{modelValue:false,row,types,projects:[]},global:{plugins:[ElementPlus]},attachTo:document.body})
 describe('database connection drawer',()=>{
+ it.each([
+  ['GAUSSDB', 'GaussDB', 'jdbc:postgresql://db:5432/app'],
+  ['ORACLE', 'Oracle', 'jdbc:oracle:thin:@//db:1521/app'],
+  ['DB2', 'DB2', 'jdbc:db2://db:50000/app'],
+ ] as const)('edits and tests %s using the same URL and independently supplied password',async(type,label,url)=>{
+  const port=type==='ORACLE'?1521:type==='DB2'?50000:5432
+  const old:DatabaseConnection={...row,config:{...row.config,type,port}}
+  const profile:DatabaseTypeProfile={type,label,id:'fixture',driverClass:'fixture.Driver',defaultPort:port,binaries:[{filename:'fixture.jar',sha256:'fixture'}]}
+  const test=vi.spyOn(api,'testDatabaseDraft').mockRejectedValue(new Error('测试返回'))
+  const save=vi.spyOn(api,'saveDatabaseConnection').mockResolvedValue(old)
+  const w=mountDrawer();await w.setProps({row:old,types:[...types,profile],modelValue:true});await flushPromises()
+  expect(document.querySelector('textarea')!.value).toBe(url)
+  const password=document.querySelector<HTMLInputElement>('input[type="password"]')!
+  password.value=' 密码+&=% ';password.dispatchEvent(new Event('input',{bubbles:true}));await flushPromises()
+  Array.from(document.querySelectorAll('button')).find(b=>b.textContent?.includes('测试连接'))!.click();await flushPromises()
+  Array.from(document.querySelectorAll('button')).find(b=>b.textContent?.includes('保存连接'))!.click();await flushPromises()
+  expect(test.mock.calls[0]).toEqual(save.mock.calls[0])
+  expect(save).toHaveBeenCalledWith('c',expect.objectContaining({password:' 密码+&=% ',config:expect.objectContaining({type,jdbcUrl:url})}))
+  w.unmount()
+ })
+
  it('tests an unsaved draft without storing it and discards a result after input changes',async()=>{
   let finish!: (value:DatabaseProbe)=>void
   const test=vi.spyOn(api,'testDatabaseDraft').mockImplementation(()=>new Promise(resolve=>{finish=resolve}))

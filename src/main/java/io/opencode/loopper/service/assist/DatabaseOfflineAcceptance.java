@@ -23,7 +23,7 @@ public final class DatabaseOfflineAcceptance {
             var bound=new DatabaseConnectionService.Bound("offline-probe","现场验收",config,reference,0);
             try(var queries=new DatabaseQueryService(registry,secrets,json)) {
                 report.put("connection",queries.test(bound));report.put("schema",summary(queries.inspect(bound,config.schemas().getFirst(),null,"tables",0)));
-                String sql=input.readSql()==null?(config.type()==DatabaseConfig.Type.DAMENG?"SELECT 1 FROM DUAL":"SELECT 1"):input.readSql();
+                String sql=input.readSql()==null?DatabaseDialect.forType(config.type()).probeSql():input.readSql();
                 report.put("read",summary(queries.query(bound,sql)));
                 List<String> rejected=new ArrayList<>();for(String negative:List.of("DELETE FROM forbidden_table","SELECT 1; SELECT 2","SELECT evil(1)","SELECT * FROM forbidden_schema.example")) {
                     try{ReadOnlySqlPolicy.validate(negative,config);throw new IllegalStateException("Readonly boundary probe unexpectedly accepted");}catch(AssistFailure expected){rejected.add(expected.code());}

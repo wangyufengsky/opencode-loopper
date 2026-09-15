@@ -8,7 +8,7 @@ import java.util.Set;
 
 /** Separates vendor URL, session and metadata semantics. Only explicitly supported properties pass. */
 public sealed interface DatabaseDialect permits DatabaseDialect.MySql, DatabaseDialect.Gauss,
-        DatabaseDialect.Golden, DatabaseDialect.Dameng {
+        DatabaseDialect.Golden, DatabaseDialect.Dameng, DatabaseDialect.Oracle, DatabaseDialect.Db2 {
     String prefix();
     default String url(DatabaseConfig config) {
         if (config.jdbcUrl() != null) return JdbcConnectionUrl.parse(config).driverUrl();
@@ -16,7 +16,7 @@ public sealed interface DatabaseDialect permits DatabaseDialect.MySql, DatabaseD
         return prefix() + host + ":" + config.port() + "/" + config.database();
     }
     default void validateParameters(Map<String,String> parameters) {
-        Set<String> allowed = Set.of("ssl", "sslmode", "useSSL", "requireSSL", "verifyServerCertificate", "serverTimezone", "characterEncoding", "targetServerType", "loadBalanceHosts", "hostRecheckSeconds");
+        Set<String> allowed = Set.of("ssl", "sslmode", "useSSL", "requireSSL", "verifyServerCertificate", "serverTimezone", "characterEncoding", "targetServerType", "loadBalanceHosts", "hostRecheckSeconds", "sslConnection");
         if (parameters.size() > 8 || parameters.entrySet().stream().anyMatch(e -> !allowed.contains(e.getKey())
                 || e.getValue() == null || !e.getValue().matches("[a-zA-Z0-9_+/:.-]{1,80}")))
             throw new AssistFailure("DATABASE_PARAMETER_FORBIDDEN", "连接参数不在允许列表；不能覆盖只读、超时或本地文件访问保护");
@@ -33,9 +33,10 @@ public sealed interface DatabaseDialect permits DatabaseDialect.MySql, DatabaseD
         if (!connection.isReadOnly()) throw new SQLException("Read-only session unavailable");
     }
     default String catalog(DatabaseConfig config) { return null; }
+    default String probeSql() { return "SELECT 1"; }
     static DatabaseDialect forType(DatabaseConfig.Type type) {
         return switch (type) { case MYSQL -> new MySql(); case GAUSSDB, OPENGAUSS -> new Gauss();
-            case GOLDENDB -> new Golden(); case DAMENG -> new Dameng(); };
+            case GOLDENDB -> new Golden(); case DAMENG -> new Dameng(); case ORACLE -> new Oracle(); case DB2 -> new Db2(); };
     }
     final class MySql implements DatabaseDialect {
         public String prefix() { return "jdbc:mysql://"; }
@@ -77,6 +78,7 @@ public sealed interface DatabaseDialect permits DatabaseDialect.MySql, DatabaseD
         }
     }
     final class Dameng implements DatabaseDialect {
+        public String probeSql() { return "SELECT 1 FROM DUAL"; }
         public String prefix() { return "jdbc:dm://"; }
         public String url(DatabaseConfig c) { return c.jdbcUrl() != null ? DatabaseDialect.super.url(c) : DatabaseDialect.super.url(c).replace("/"+c.database(),""); }
         public Properties properties(DatabaseConfig c,String password) {
@@ -85,6 +87,38 @@ public sealed interface DatabaseDialect permits DatabaseDialect.MySql, DatabaseD
         }
         public void prepare(Connection connection,DatabaseConfig config) throws SQLException {
             DatabaseDialect.super.prepare(connection, config); connection.setSchema(config.schemas().getFirst());
+        }
+    }
+    final class Oracle implements DatabaseDialect {
+        public String prefix() { return "jdbc:oracle:thin:@//"; }
+        public String probeSql() { return "SELECT 1 FROM DUAL"; }
+        public Properties properties(DatabaseConfig c,String password) {
+            Properties p=DatabaseDialect.super.properties(c,password);
+            p.remove("connectTimeout"); p.remove("socketTimeout");
+            p.setProperty("oracle.net.CONNECT_TIMEOUT","5000");
+            p.setProperty("oracle.net.OUTBOUND_CONNECT_TIMEOUT","5000");
+            p.setProperty("oracle.jdbc.ReadTimeout","30000"); return p;
+        }
+        public void prepare(Connection connection,DatabaseConfig config) throws SQLException {
+            DatabaseDialect.super.prepare(connection,config);
+            connection.setSchema(config.schemas().getFirst());
+            // Oracle's JDBC readOnly flag is a client hint; also constrain this fresh transaction.
+            try(var statement=connection.createStatement()) {
+                statement.setQueryTimeout(config.timeoutSeconds());
+                statement.execute("SET TRANSACTION READ ONLY");
+            }
+        }
+    }
+    final class Db2 implements DatabaseDialect {
+        public String prefix() { return "jdbc:db2://"; }
+        public String probeSql() { return "VALUES 1"; }
+        public Properties properties(DatabaseConfig c,String password) {
+            Properties p=DatabaseDialect.super.properties(c,password);
+            p.remove("connectTimeout"); p.remove("socketTimeout");
+            p.setProperty("loginTimeout","5"); p.setProperty("blockingReadConnectionTimeout","30"); return p;
+        }
+        public void prepare(Connection connection,DatabaseConfig config) throws SQLException {
+            DatabaseDialect.super.prepare(connection,config); connection.setSchema(config.schemas().getFirst());
         }
     }
 }

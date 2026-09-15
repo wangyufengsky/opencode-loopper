@@ -46,15 +46,15 @@ class BundledDatabaseDriversTest {
                 p.binaries().getFirst().filename(),p.driverClass(),List.of("app"),Map.of(),10,200,p.id(),url));
     }
     @Test void defaultsAreUniqueAndHistoricalProfileCannotBeSubstitutedAcrossProducts() {
-        assertThat(BundledDatabaseDrivers.defaults()).extracting(BundledDatabaseDrivers.Profile::type).doesNotHaveDuplicates().hasSize(3);
-        assertThat(BundledDatabaseDrivers.resolve(input(DatabaseConfig.Type.OPENGAUSS)).driverProfile()).isEqualTo("opengauss-7.0.0-RC3-og");
+        assertThat(BundledDatabaseDrivers.defaults()).extracting(BundledDatabaseDrivers.Profile::type).doesNotHaveDuplicates().hasSize(6);
+        assertThat(BundledDatabaseDrivers.resolve(input(DatabaseConfig.Type.OPENGAUSS)).driverProfile()).isEqualTo("opengauss-3.1.0");
         var old=configuration("opengauss-6.0.3",null);
         assertThat(BundledDatabaseDrivers.resolve(old)).isEqualTo(old);
         assertThatThrownBy(()->BundledDatabaseDrivers.resolve(new DatabaseConfig(DatabaseConfig.Type.MYSQL,old.host(),old.port(),old.database(),old.username(),
                 old.driverFile(),old.driverClass(),old.schemas(),old.parameters(),10,200,old.driverProfile()))).isInstanceOf(AssistFailure.class);
     }
     @Test void typeSelectionCannotSupplyArbitraryDriversOrSubstituteVendorProducts() {
-        for(var type:List.of(DatabaseConfig.Type.GAUSSDB,DatabaseConfig.Type.GOLDENDB))
+        for(var type:List.of(DatabaseConfig.Type.GOLDENDB))
             assertThatThrownBy(()->BundledDatabaseDrivers.resolve(input(type))).isInstanceOf(AssistFailure.class);
         assertThatThrownBy(()->BundledDatabaseDrivers.resolve(AssistSafetyTest.config(DatabaseConfig.Type.MYSQL))).isInstanceOf(AssistFailure.class);
     }

@@ -9,7 +9,16 @@ const emit = defineEmits<{ 'update:modelValue': [boolean]; saved: [] }>()
 const blank = (): DatabaseConnectionInput => ({ name: '', password: null, enabled: true, archived: false, projectIds: [], version: 0, config: { type: 'MYSQL', jdbcUrl: '', host: '', port: 3306, database: '', username: '', driverFile: '', driverClass: '', schemas: [], parameters: {}, timeoutSeconds: 10, maxRows: 200 } })
 const form = ref(blank()), password = ref(''), schemas = ref(''), error = ref(''), saving = ref(false), testing = ref(false), probe = ref<DatabaseProbe | null>(null)
 let revision = 0
-const urlPlaceholder = computed(() => form.value.config.type === 'OPENGAUSS' ? 'jdbc:opengauss://host1:8000,host2:8000/database?targetServerType=master' : form.value.config.type === 'DAMENG' ? 'jdbc:dm://host:5236' : 'jdbc:mysql://host:3306/database')
+const urlExamples: Record<DatabaseConnectionInput['config']['type'], string> = {
+  MYSQL: 'jdbc:mysql://host:3306/database',
+  GAUSSDB: 'jdbc:postgresql://host1:8000,host2:8000/database?targetServerType=master',
+  OPENGAUSS: 'jdbc:postgresql://host1:8000,host2:8000/database?targetServerType=master',
+  ORACLE: 'jdbc:oracle:thin:@//host:1521/service',
+  DB2: 'jdbc:db2://host:50000/database',
+  DAMENG: 'jdbc:dm://host:5236',
+  GOLDENDB: 'jdbc:goldendb://host:3306/database',
+}
+const urlPlaceholder = computed(() => urlExamples[form.value.config.type])
 const profile = computed(() => props.types.find(p => p.type === form.value.config.type))
 const upgradingDriver = computed(() => props.row?.config.type === form.value.config.type && !!profile.value && props.row?.config.driverProfile !== profile.value.id)
 const mysql = computed(() => form.value.config.type === 'MYSQL')
@@ -25,12 +34,15 @@ watch(() => props.modelValue, open => {
 })
 watch([form, password, schemas], () => { revision++; probe.value = null }, { deep: true, flush: 'sync' })
 function legacyUrl(c: DatabaseConnectionInput['config']) {
-  const prefix = c.type === 'OPENGAUSS' ? 'opengauss' : c.type === 'DAMENG' ? 'dm' : 'mysql'
+  const prefixes = { MYSQL: 'mysql', GAUSSDB: 'postgresql', OPENGAUSS: 'postgresql', ORACLE: 'oracle:thin:@', DB2: 'db2', DAMENG: 'dm', GOLDENDB: 'goldendb' }
+  const prefix = prefixes[c.type]
   const host = c.host.includes(':') ? `[${c.host}]` : c.host
-  const query = new URLSearchParams(c.parameters).toString()
-  return `jdbc:${prefix}://${host}:${c.port}${c.type === 'DAMENG' ? '' : `/${c.database}`}${query ? `?${query}` : ''}`
+  const query = c.type === 'DB2' ? Object.entries(c.parameters).map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)};`).join('') : new URLSearchParams(c.parameters).toString()
+  if (c.type === 'ORACLE') return `jdbc:oracle:thin:@//${host}:${c.port}/${c.database}${query ? `?${query}` : ''}`
+  return `jdbc:${prefix}://${host}:${c.port}${c.type === 'DAMENG' ? '' : `/${c.database}`}${query ? `${c.type === 'DB2' ? ':' : '?'}${query}` : ''}`
 }
 function changeType() {
+  form.value.config.driverFile = ''; form.value.config.driverClass = ''
   form.value.config.jdbcUrl = ''; form.value.config.parameters = {}; form.value.config.driverProfile = null
 }
 function body(): DatabaseConnectionInput {
