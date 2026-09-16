@@ -9,7 +9,7 @@
 
 OpenCode Loopper 在本机运行，以你已有的项目目录、Git 仓库和 OpenCode 为基础。你用自然语言描述目标，在界面中确认设计和执行范围；Loopper 将它编译为分阶段规范，调度 OpenCode 实施，再用可运行的验证规则和独立评审检查结果。遇到问题，可以查看证据、回答问题、继续修正或从保留的基线恢复。
 
-> 当前版本：`0.4.38`。默认访问 **http://127.0.0.1:8080/**，打开即进入主页。面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.4.40`。默认访问 **http://127.0.0.1:8080/**，打开即进入主页。面向单机本地使用，不是多租户远程执行平台。
 
 ![OpenCode Loopper 实际主页：统一导航、快捷入口与需求到交付的流程](docs/deliveries/0.3.99-home.png)
 
@@ -110,7 +110,7 @@ Skill 正文按需加载，来自 OpenCode 返回的文档内容；原文件的 
 
 | 文件 | 内容 |
 | --- | --- |
-| `opencode-loopper-0.4.38.jar` | 后端、前端页面与 SQLite JDBC |
+| `opencode-loopper-0.4.40.jar` | 后端、前端页面与 SQLite JDBC |
 | `start-linux.sh` | Linux 启动脚本 |
 | `start-windows.bat` | Windows 启动脚本 |
 | `SHA256SUMS` | JAR 与两个脚本的 SHA-256 |
@@ -118,7 +118,7 @@ Skill 正文按需加载，来自 OpenCode 返回的文档内容；原文件的 
 如果下载了清单中的全部三个文件，Linux 可运行 `sha256sum -c SHA256SUMS`，macOS 可运行 `shasum -a 256 -c SHA256SUMS`。只下载部分文件时，对应缺失项会报错；请逐一比对已下载文件的哈希。Windows PowerShell 可运行：
 
 ```powershell
-Get-FileHash .\opencode-loopper-0.4.38.jar -Algorithm SHA256
+Get-FileHash .\opencode-loopper-0.4.40.jar -Algorithm SHA256
 Get-Content .\SHA256SUMS
 ```
 
@@ -143,7 +143,7 @@ chmod +x start-linux.sh
 **macOS，或直接运行 JAR**：在 `java` 指向 JDK 21 的终端执行：
 
 ```bash
-java -jar opencode-loopper-0.4.38.jar
+java -jar opencode-loopper-0.4.40.jar
 ```
 
 启动后访问 **http://127.0.0.1:8080/**。默认使用 `managed` 模式，由 Loopper 启动一个独立 OpenCode 子进程，不需要你预先运行 `opencode serve`。已有外部 OpenCode 的连接方法见 [运行模式与启动配置](docs/operations.md#opencode-运行模式)。
@@ -332,7 +332,7 @@ flowchart TB
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.4.38.jar
+java -jar target/opencode-loopper-0.4.40.jar
 ```
 
 Windows PowerShell 将 Maven 命令替换为 `.\mvnw.cmd clean verify`。完整构建将前端静态资源装入 JAR，开发 profile 的输出不能当成成品交付。

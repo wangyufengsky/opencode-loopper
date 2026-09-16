@@ -34,7 +34,9 @@ class SnapshotReviewIntegrationTest {
     @Autowired TemplateCandidateSubmissionService submissions;
     @Autowired TemplateCandidateSubmissionMapper receipts;
     @Autowired ProjectService projects;
-    @Autowired GitEvidenceProcess git;
+    @org.springframework.test.context.bean.override.mockito.MockitoSpyBean GitEvidenceProcess git;
+    @Autowired SnapshotReviewAuthors authors;
+    @Autowired org.springframework.transaction.PlatformTransactionManager transactionManager;
     @Autowired LoopperProperties properties;
     @Autowired OpenCodeClient client;
     @Autowired InternalMcpRuntimeAccess access;
@@ -160,6 +162,7 @@ class SnapshotReviewIntegrationTest {
         var review = rows.stream().filter(b -> b.purpose().equals("SNAPSHOT_REVIEW")).findFirst().orElseThrow();
         assertThat(json.readValue(review.inputJson(), TemplateBatchExecution.Input.class).snapshot().units()).hasSize(1);
         assertThat(mapper.listTaskArtifacts(task.id())).anyMatch(a -> a.content().contains("复核支持问题 1 项；待确认问题 1 项"));
+        assertThat(mapper.listTaskArtifacts(task.id())).anyMatch(a -> a.content().contains("代码最后修改记录") && a.content().contains("Alice") && a.content().contains("问题引入者：未确定"));
         assertThat(mapper.findActiveWorkspaceLeaseByHolder(task.id())).isEmpty();
     }
     @Test void lightweightRetryKeepsSuccessfulBatchesAndDoesNotAddReviewsForNoFindings() throws Exception {
@@ -254,9 +257,25 @@ class SnapshotReviewIntegrationTest {
         taskService.cancel(task.id());
         var report = partialReports.read(task.id());
         assertThat(report.analyzedUnits()).isEqualTo(1);
-        assertThat(report.content()).contains("CANCELLED", "尚未独立复核（仅候选）", "class Main", "main.java");
+        assertThat(report.content()).contains("CANCELLED", "尚未独立复核（仅候选）", "class Main", "main.java", "代码最后修改记录", "Alice", "问题引入者：未确定");
+        int sessions = mapper.listSessions(task.id()).size();
+        assertThat(partialReports.read(task.id()).content()).contains("Alice");
+        assertThat(mapper.listSessions(task.id())).hasSize(sessions);
         assertThat(report.content()).doesNotContain("独立复核支持");
         assertThat(mapper.listTaskArtifacts(task.id())).noneMatch(a -> a.kind().equals("TEMPLATE_REPORT"));
+    }
+    @Test void authorGitReadsSuspendTheReportDatabaseTransaction() {
+        lightweight = true; var task = create(Mode.FULL); start(task);
+        for (int i = 0; i < 10 && snapshots.require(task.id()).snapshotJson() == null; i++) driver.executeCheckpoint(task.id());
+        var snapshot = snapshots.snapshot(task.id()); var file = snapshot.files().getFirst();
+        var ref = new Reference(file.version(), file.path(), file.blob(), 1, 1, "class Main");
+        org.mockito.Mockito.doAnswer(call -> {
+            assertThat(org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            return call.callRealMethod();
+        }).when(git).run(org.mockito.ArgumentMatchers.any(Path.class), org.mockito.ArgumentMatchers.any(Duration.class), org.mockito.ArgumentMatchers.anyList());
+        var result = new org.springframework.transaction.support.TransactionTemplate(transactionManager)
+                .execute(status -> authors.render(task.id(), snapshot, List.of(ref)));
+        assertThat(result).contains("Alice").doesNotContain("作者追溯不可用");
     }
     @Test void compactReadBoundarySurvivesReplayAndRejectsUnrelatedResults() {
         lightweight = true; var task = create(Mode.FULL); start(task);

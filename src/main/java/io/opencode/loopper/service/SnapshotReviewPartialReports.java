@@ -16,8 +16,9 @@ public class SnapshotReviewPartialReports {
     private final SnapshotReviewMapper records;
     private final LoopperMapper tasks;
     private final ObjectMapper json;
-    public SnapshotReviewPartialReports(SnapshotReviewStore snapshots, SnapshotReviewMapper records, LoopperMapper tasks, ObjectMapper json) {
-        this.snapshots = snapshots; this.records = records; this.tasks = tasks; this.json = json;
+    private final SnapshotReviewAuthors authors;
+    public SnapshotReviewPartialReports(SnapshotReviewStore snapshots, SnapshotReviewMapper records, LoopperMapper tasks, ObjectMapper json, SnapshotReviewAuthors authors) {
+        this.snapshots = snapshots; this.records = records; this.tasks = tasks; this.json = json; this.authors = authors;
     }
     public record Report(String content, String sha256, String capturedAt, int analyzedUnits, int pendingUnits, int excludedUnits) { }
     @Transactional(readOnly = true)
@@ -70,6 +71,9 @@ public class SnapshotReviewPartialReports {
                         .append("\n\n触发条件：").append(text(finding.trigger())).append("\n\n错误行为：").append(text(finding.behavior()))
                         .append("\n\n建议：").append(text(finding.recommendation())).append("\n\n");
                 references(out, finding.evidence());
+                var authorRefs = new ArrayList<>(finding.evidence());
+                if (decision != null) authorRefs.addAll(decision.evidence());
+                out.append(authors.render(taskId, snapshot, authorRefs));
                 if (decision != null) { out.append(text(decision.reason())).append("\n\n"); references(out, decision.evidence()); }
             }
             if (entry.getValue().findings().isEmpty()) out.append("本批未报告候选问题，未经独立复核，不代表证明无缺陷。\n\n");

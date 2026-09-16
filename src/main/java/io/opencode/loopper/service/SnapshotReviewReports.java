@@ -15,9 +15,10 @@ public class SnapshotReviewReports {
     private final LoopperMapper tasks;
     private final SnapshotReviewBatches batches;
     private final SnapshotReviewMapper records;
+    private final SnapshotReviewAuthors authors;
     public SnapshotReviewReports(TemplateReportArtifactService artifacts, TemplateReportBundleService bundles,
-            LoopperMapper tasks, SnapshotReviewBatches batches, SnapshotReviewMapper records) {
-        this.artifacts = artifacts; this.bundles = bundles; this.tasks = tasks; this.batches = batches; this.records = records;
+            LoopperMapper tasks, SnapshotReviewBatches batches, SnapshotReviewMapper records, SnapshotReviewAuthors authors) {
+        this.artifacts = artifacts; this.bundles = bundles; this.tasks = tasks; this.batches = batches; this.records = records; this.authors = authors;
     }
     public void publish(String taskId, AttemptRow attempt, Snapshot snapshot, Plan plan,
                         List<TemplateTaskBatchRow> analyses, List<TemplateTaskBatchRow> relations, List<TemplateTaskBatchRow> reviews) {
@@ -58,7 +59,8 @@ public class SnapshotReviewReports {
             String target = d.duplicateOf().contains("/") ? d.duplicateOf() : reviewIds.get(r.id()) + "/" + d.duplicateOf();
             duplicateSources.computeIfAbsent(target, ignored -> new StringBuilder()).append("\n关联分析来源：")
                     .append(text(batches.input(r).objective())).append("；关联问题：").append(text(f.title())).append("\n\n")
-                    .append("合并依据：").append(text(d.reason())).append("\n\n").append(references(f.evidence())).append(references(d.evidence()));
+                    .append("合并依据：").append(text(d.reason())).append("\n\n").append(references(f.evidence())).append(references(d.evidence()))
+                    .append(authorReferences(taskId, snapshot, f, d));
         }
         int found = 0, pending = 0, ordinal = 0;
         StringBuilder links = new StringBuilder();
@@ -82,7 +84,7 @@ public class SnapshotReviewReports {
                 String body = "### " + text(finding.title()) + "\n\n级别：" + finding.severity() + "；复核：" + verdict(decision.verdict())
                         + "；归因：" + attribution(finding.attribution()) + "\n\n触发条件：" + text(finding.trigger()) + "\n\n错误行为：" + text(finding.behavior())
                         + "\n\n建议：" + text(finding.recommendation()) + "\n\n复核依据：" + text(decision.reason()) + "\n\n"
-                        + references(finding.evidence()) + references(decision.evidence())
+                        + references(finding.evidence()) + references(decision.evidence()) + authorReferences(taskId, snapshot, finding, decision)
                         + (decision.duplicateOf() == null ? "" : "\n合并目标（复核来源 / 问题编号）：" + text(decision.duplicateOf()) + "\n") + "\n";
                 body += duplicateSources.getOrDefault(reviewIds.get(row.id()) + "/" + finding.key(), new StringBuilder());
                 detail.append(body);
@@ -119,6 +121,10 @@ public class SnapshotReviewReports {
                 + "\n## 功能与衔接审查\n\n" + links;
         documents.addFirst(new TemplateReportCompiler.Document(names.main(), summary));
         artifacts.publishCompiled(attempt, new TemplateReportCompiler.Result(List.copyOf(documents), List.of()), bundle);
+    }
+    private String authorReferences(String taskId, Snapshot snapshot, Finding finding, Decision decision) {
+        var refs = new ArrayList<>(finding.evidence()); refs.addAll(decision.evidence());
+        return authors.render(taskId, snapshot, refs);
     }
     private static String references(List<Reference> refs) {
         StringBuilder out = new StringBuilder();
