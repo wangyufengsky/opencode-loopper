@@ -45,9 +45,9 @@ public final class TemplateTaskContractFactory {
         var spec = base.spec();
         var next = new LoopSpec(spec.schemaVersion(), projectId,
                 "代码审查 · " + (mode == SnapshotReview.Mode.FULL ? "全面审查" : range.startDate() + " 至 " + range.endDate()),
-                "冻结目标代码，仅通过受限 MCP 阅读；功能规划、静态分析和独立复核，不运行项目测试或脚本。",
-                List.of(snapshotStage("冻结代码证据", "SNAPSHOT"), snapshotStage("规划功能审查范围", "PLAN"),
-                        snapshotStage("按功能分析目标版本", "ANALYSIS"), snapshotStage("独立复核与生成报告", "REPORT")),
+                "冻结目标代码，仅通过受限 MCP 阅读；程序按容量分批，一轮分析，仅复核候选问题，不递归补充或运行项目测试。",
+                List.of(snapshotStage("冻结代码证据", "SNAPSHOT"), snapshotStage("程序安排分析批次", "PLAN"),
+                        snapshotStage("轻量分析目标版本", "ANALYSIS"), snapshotStage("问题复核与生成报告", "REPORT")),
                 spec.limits(), spec.model(), spec.sessionPolicy(), spec.nextAttemptPromptTemplate(), spec.budget());
         return new Frozen(base.definition(), next, null, null, List.of(),
                 base.timezone(), "FIRST_PARENT_COMMITTER_TIME", base.repairLimit(), base.reportTemplates(), documentPath,
@@ -66,7 +66,7 @@ public final class TemplateTaskContractFactory {
     private static LoopSpec.StageSpec snapshotStage(String title, String criterion) {
         return new LoopSpec.StageSpec(title, List.of("reports/**"), List.of("repository.git/**"),
                 List.of(title), List.of(), List.of(new LoopSpec.AcceptanceCriterion(criterion,
-                "冻结版本不漂移；全部必审单元与关系完整归属；分析与独立复核经过证据凭据校验；所有会话停止得到证明并保存报告。",
+                "冻结版本不漂移；可读片段完整归属且排除项明确记录；候选问题独立复核，无问题结论不二次审查；证据校验、全部会话停止证明和报告保存通过。",
                 "MACHINE", null, null)), null, ImplementationKind.NON_JAVA, null, StageKind.READ_ONLY_ANALYSIS, ExecutionStrategy.READ_ONLY_REPORT, null);
     }
     private static LoopSpec.StageSpec stage(String title, String criterion) {

@@ -71,7 +71,7 @@ public interface TemplateTaskReadMapper {
     List<ProjectChoice> projects(@Param("query") String query, @Param("time") String time, @Param("id") String id, @Param("limit") int limit);
 
     @Select("""
-            SELECT sr.mode,json_extract(sr.snapshot_json,'$.targetSha') AS target_sha,
+            SELECT sr.mode,tr.template_version,json_extract(sr.snapshot_json,'$.targetSha') AS target_sha,
                 json_extract(sr.snapshot_json,'$.baselineSha') AS baseline_sha,sr.plan_revision,
                 (SELECT group_concat(state,',') FROM (SELECT state FROM stage WHERE task_id=sr.task_id ORDER BY ordinal)) AS stages,
                 SUM(CASE WHEN b.purpose IN ('SNAPSHOT_PLAN','SNAPSHOT_LINKS') THEN 1 ELSE 0 END) AS planning,

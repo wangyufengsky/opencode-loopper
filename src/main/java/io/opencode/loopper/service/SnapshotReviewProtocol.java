@@ -31,9 +31,12 @@ public class SnapshotReviewProtocol {
                 缺少证据时明确 limitations 或 UNDETERMINED，不把无命中、超限或片段已读当作无缺陷证明。
                 同根因只记录一次，重复关联保留出处；当前问题必须在目标版本成立，不从历史代码推断当前缺陷。
                 """ + "\n目标版本：" + snapshot.targetSha() + "\n基线版本：" + Objects.toString(snapshot.baselineSha(), "无")
+                + (input.lightweight() ? "\n轻量策略：直接检查具体缺陷，不做前置规划，不输出风格建议或逐函数长篇解说。"
+                        + "在本会话按需读取直接关联代码；不遍历全部组或结果目录。分析 coverage 使用简短结论，supplements 必须为空；"
+                        + "缺少证据写 limitations，不申请新批次。复核只核对依赖分析中的候选问题，未发现问题的代码不重审。" : "")
                 + "\n本批目标：" + input.objective() + "\n阶段：" + input.phase() + "\n候选结构：\n" + shape(input.phase())
                 + "\n冻结本批证据：" + json.writeValueAsString(new Input(input.phase(), input.units(), input.groups(), input.relations(),
-                        input.dependencies().stream().limit(50).toList(), input.objective(), input.analysisBatchId()))
+                        input.dependencies().stream().limit(50).toList(), input.objective(), input.analysisBatchId(), input.policy()))
                 + "\n更多依赖目录通过 get_snapshot_review_work 分页读取。";
     }
     public String validate(TemplateTaskBatchRow row, String body) {
@@ -79,6 +82,8 @@ public class SnapshotReviewProtocol {
     }
     private Analysis analysis(TemplateTaskBatchRow row, Input input, Analysis candidate) {
         if (candidate.coverage() == null || candidate.findings() == null || candidate.supplements() == null) throw invalid("分析结构不完整");
+        if (input.lightweight() && !candidate.supplements().isEmpty())
+            throw invalid("轻量审查不追加补充批次，请在当前会话补读关联代码，将未解决证据缺口写入 limitations，并将 supplements 设为空");
         limitations(candidate.limitations()); Set<String> covered = new HashSet<>(), expected = ids(input.units());
         for (Coverage coverage : candidate.coverage()) {
             if (!expected.contains(coverage.unitId()) || !covered.add(coverage.unitId())) throw invalid("分析包含重复或未知单元");

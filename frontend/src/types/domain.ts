@@ -1512,7 +1512,7 @@ export interface TemplateTaskRequest {
 }
 export interface SnapshotReviewBatch { id: string; purpose: string; state: string; ordinal: number; generation: number; createdAt: string; title: string; errorMessage: string | null }
 export interface TemplateTaskProgress {
-  snapshot?: { mode: 'DATE_INCREMENTAL' | 'FULL'; targetSha: string | null; baselineSha: string | null; planRevision: number; supplements: number; phases: Array<{ label: string; total: number; completed: number }> } | null
+  snapshot?: { mode: 'DATE_INCREMENTAL' | 'FULL'; targetSha: string | null; baselineSha: string | null; planRevision: number; supplements: number; lightweight?: boolean; phases: Array<{ label: string; total: number; completed: number }> } | null
   steps?: { key: string; label: string; state: string }[]
   currentPhase?: string
   dualReviewRequired?: boolean

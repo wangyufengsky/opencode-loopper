@@ -59,7 +59,8 @@ public class SnapshotReviewEvidence {
         boolean same = targetTree.equals(baselineTree);
         List<SnapshotReview.File> files = new ArrayList<>(manifest(taskId, target));
         if (baseline != null && !baseline.equals(target)) files.addAll(manifest(taskId, baseline));
-        List<SnapshotReview.Unit> units = same ? List.of() : units(taskId, baseline, target, files);
+        boolean lightweight = SnapshotReviewLightweightPolicy.applies(contract.path("definition").path("version").asText());
+        List<SnapshotReview.Unit> units = same ? List.of() : units(taskId, baseline, target, files, lightweight);
         return store.freeze(taskId, new SnapshotReview.Snapshot(source.head(), baseline, target, baselineTree, targetTree,
                 Instant.now().toString(), baseline == null ? null : dates.startInclusive().toString(),
                 baseline == null ? null : dates.endExclusive().toString(), baseline == null ? "FROZEN_BRANCH_TIP" : "FIRST_PARENT_COMMITTER_TIME",
@@ -75,7 +76,7 @@ public class SnapshotReviewEvidence {
             return "第三方依赖或构建产物未逐行审查";
         return null;
     }
-    private List<SnapshotReview.Unit> units(String task, String baseline, String target, List<SnapshotReview.File> files) {
+    private List<SnapshotReview.Unit> units(String task, String baseline, String target, List<SnapshotReview.File> files, boolean lightweight) {
         Map<String, SnapshotReview.File> targetFiles = new LinkedHashMap<>(), beforeFiles = new LinkedHashMap<>();
         files.forEach(f -> { if (f.version().equals(target)) targetFiles.put(f.path(), f); else beforeFiles.put(f.path(), f); });
         List<String[]> changes = new ArrayList<>();
@@ -104,7 +105,7 @@ public class SnapshotReviewEvidence {
             size += text.length();
             if (size > 64000000) throw failure("SNAPSHOT_EVIDENCE_LIMIT", "审查代码超过完整证据容量，未生成完整审查报告");
             String id = TemplateGitEvidenceCollector.hash(target + "\n" + change[1] + "\n" + change[2]);
-            result.addAll(SnapshotReviewUnits.compile(id, change, text, limitation));
+            result.addAll(lightweight ? SnapshotReviewUnits.compact(id, change, text, limitation) : SnapshotReviewUnits.compile(id, change, text, limitation));
         }
         return List.copyOf(result);
     }

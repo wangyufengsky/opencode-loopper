@@ -16,6 +16,8 @@ const percentage = computed(() => total.value ? Math.min(100, Math.floor(complet
 const categories = computed(() => progress.value?.snapshot ? progress.value.snapshot.phases.map(p => ({ label: p.label, done: p.completed, total: p.total })) : [{ label: '代码分析', done: progress.value?.completedReviews ?? 0, total: progress.value?.reviewBatches }, ...(progress.value?.contributorBatches ? [{ label: '人员贡献', done: progress.value.completedContributors, total: progress.value.contributorBatches }] : [])])
 const phase = computed(() => {
   if (['COMPLETED','CANCELLED','FAILED','STOPPING','WAITING_INPUT','PENDING_START','QUEUED','PREPARING','PAUSED','RETRY_WAIT'].includes(props.task.status)) return displayLabel(props.task.status)
+  const snapshotStep = progress.value?.snapshot && progress.value.steps?.find(step => step.key === progress.value?.currentPhase)
+  if (snapshotStep) return snapshotStep.label
   const labels: Record<string,string> = { SNAPSHOT:'冻结证据', PLAN:'规划范围', ANALYSIS:'功能分析', SNAPSHOT_REVIEW:'独立复核与报告', COLLECT:'采集提交', CODE:'分析代码', CONTRIBUTORS:'分析人员贡献', REPORT:'生成并校验报告', REVIEW:'评审报告', COMPLETE:'已确认完成' }
   if (progress.value?.currentPhase) return labels[progress.value.currentPhase] ?? displayLabel(progress.value.currentPhase)
   if (props.task.status === 'AWAITING_DECISION' && progress.value?.dualReviewRequired === false) return '完成收尾'
@@ -43,11 +45,11 @@ async function copyPath() { try { await navigator.clipboard.writeText(progress.v
       <div class="analysis-details">
         <div v-for="item in categories" :key="item.label" class="category"><div><span>{{ item.label }}</span><strong>{{ item.done }} / {{ item.total ?? '—' }}</strong></div><div class="meter" aria-hidden="true"><i :style="{ width: `${item.total ? Math.min(100, item.done / item.total * 100) : 0}%` }" /></div></div>
         <div class="batch-counts"><span v-if="remaining !== null"><b>{{ remaining }}</b><span :aria-label="`剩余 ${remaining} 个`">剩余批次</span></span><span><b>{{ progress?.activeBatches ?? 0 }}</b>执行中</span><span :class="{ attention: progress?.failedBatches }"><b>{{ progress?.failedBatches ?? 0 }}</b>需处理</span></div>
-        <p class="progress-note">{{ task.status === 'COMPLETED' ? '报告已校验并保存。' : progress?.snapshot ? '显示已生成批次；功能、衔接和补充计划可能增加批次，完成以四阶段状态为准。' : total && percentage === 100 ? '分析已完成，继续生成、校验或评审报告。' : '按已验证批次更新，分析进度不代表任务最终完成。' }}</p>
+        <p class="progress-note">{{ task.status === 'COMPLETED' ? '报告已校验并保存。' : progress?.snapshot?.lightweight ? '分析批次固定；仅发现候选问题的批次增加复核。' : progress?.snapshot ? '显示已生成批次；功能、衔接和补充计划可能增加批次，完成以四阶段状态为准。' : total && percentage === 100 ? '分析已完成，继续生成、校验或评审报告。' : '按已验证批次更新，分析进度不代表任务最终完成。' }}</p>
       </div>
     </div>
     <div v-if="progress?.snapshot" class="progress-note">
-      <p>{{ progress.snapshot.mode === 'FULL' ? '全面审查' : '日期增量审查' }} · 计划修订 {{ progress.snapshot.planRevision }} · 补充批次 {{ progress.snapshot.supplements }}</p>
+      <p>{{ progress.snapshot.mode === 'FULL' ? '全面审查' : '日期增量审查' }}<template v-if="progress.snapshot.lightweight"> · 轻量审查 · 无问题结论不另行复核</template><template v-else> · 计划修订 {{ progress.snapshot.planRevision }} · 补充批次 {{ progress.snapshot.supplements }}</template></p>
       <details v-if="progress.snapshot.targetSha"><summary>审查版本</summary><p v-if="progress.snapshot.baselineSha">基线：{{ progress.snapshot.baselineSha }}</p><p>目标：{{ progress.snapshot.targetSha }}</p></details>
       <SnapshotReviewBatchesPanel :task="task" />
     </div>

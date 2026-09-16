@@ -545,7 +545,7 @@ function normalizeSnapshotProgress(value: unknown): NonNullable<Task['templatePr
   const raw = asRecord(value)
   if (raw.mode !== 'DATE_INCREMENTAL' && raw.mode !== 'FULL') throw new Error('代码审查模式无效')
   return { mode: raw.mode, targetSha: asString(raw.targetSha) || null, baselineSha: asString(raw.baselineSha) || null,
-    planRevision: asNumber(raw.planRevision), supplements: asNumber(raw.supplements), phases: asArray(raw.phases).map(value => {
+    planRevision: asNumber(raw.planRevision), supplements: asNumber(raw.supplements), lightweight: raw.lightweight === true, phases: asArray(raw.phases).map(value => {
       const phase = asRecord(value); return { label: asString(phase.label), total: asNumber(phase.total), completed: asNumber(phase.completed) }
     }) }
 }

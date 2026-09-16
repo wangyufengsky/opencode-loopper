@@ -17,10 +17,12 @@ public class SnapshotReviewCoordinator {
     private final SnapshotReviewBatches batches;
     private final LoopperMapper tasks;
     private final SnapshotReviewReports reports;
+    private final SnapshotReviewLightweightCoordinator lightweight;
     public SnapshotReviewCoordinator(SnapshotReviewStore store, SnapshotReviewEvidence evidence, TemplateTaskStateService states,
-            TemplateRunEvidenceService contracts, SnapshotReviewBatches batches, LoopperMapper tasks, SnapshotReviewReports reports) {
+            TemplateRunEvidenceService contracts, SnapshotReviewBatches batches, LoopperMapper tasks, SnapshotReviewReports reports, SnapshotReviewLightweightCoordinator lightweight) {
         this.store = store; this.evidence = evidence; this.states = states; this.contracts = contracts;
         this.batches = batches; this.tasks = tasks; this.reports = reports;
+        this.lightweight = lightweight;
     }
     public void advance(String taskId) {
         var task = states.task(taskId);
@@ -34,6 +36,7 @@ public class SnapshotReviewCoordinator {
                 && Duration.between(Instant.parse(a.createdAt()), Instant.now()).toSeconds() > contract.spec().limits().attemptTimeoutSeconds())) {
             states.waiting(taskId, "TEMPLATE_ATTEMPT_TIMEOUT", "审查阶段已达到冻结时限，保留已完成批次和版本"); return;
         }
+        if (SnapshotReviewLightweightPolicy.applies(contract.definition().version())) { lightweight.advance(taskId, contract); return; }
         var stages = tasks.listStages(taskId);
         if (!stages.get(0).state().equals("SUCCEEDED")) {
             var attempt = states.attempt(taskId, 0); var snapshot = evidence.freeze(taskId);

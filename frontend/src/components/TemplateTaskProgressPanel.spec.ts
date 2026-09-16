@@ -10,6 +10,22 @@ function task(status: Task['status'] = 'RUNNING'): Task {
       activeBatches: 1, failedBatches: 0, repairRound: 0, documentPath: '/reports/task/round' } }
 }
 describe('Template progress', () => {
+  it('shows lightweight steps and conditional finding reviews without recursive planning', () => {
+    const value = task()
+    value.templateProgress = { ...value.templateProgress!, reviewBatches: 8, contributorBatches: 1, completedReviews: 4,
+      currentPhase: 'ANALYSIS', steps: [{ key: 'SNAPSHOT', label: '准备范围', state: 'COMPLETE' },
+        { key: 'ANALYSIS', label: '代码分析', state: 'ACTIVE' }, { key: 'SNAPSHOT_REVIEW', label: '问题复核与报告', state: 'PENDING' }],
+      snapshot: { mode: 'DATE_INCREMENTAL', targetSha: 'target', baselineSha: 'base', planRevision: 1, supplements: 0, lightweight: true,
+        phases: [{ label: '代码分析', total: 8, completed: 4 }, { label: '问题复核', total: 1, completed: 0 }] } }
+    const wrapper = mount(TemplateTaskProgressPanel, { props: { task: value }, global: { stubs: { SnapshotReviewBatchesPanel: true, TemplateBatchRecoveryPanel: true } } })
+    expect(wrapper.findAll('.flow li')).toHaveLength(3)
+    expect(wrapper.findAll('.category')).toHaveLength(2)
+    expect(wrapper.text()).toContain('轻量审查')
+    expect(wrapper.text()).toContain('仅发现候选问题的批次增加复核')
+    expect(wrapper.text()).toContain('无问题结论不另行复核')
+    expect(wrapper.text()).not.toContain('计划修订')
+    expect(wrapper.text()).not.toContain('补充批次')
+  })
   it('shows remaining work including analysis batches that have no session yet', () => {
     const wrapper = mount(TemplateTaskProgressPanel, { props: { task: task() }, global: { stubs: { ElProgress: true } } })
     expect(wrapper.text()).toContain('已完成 20 / 30 个分析批次')

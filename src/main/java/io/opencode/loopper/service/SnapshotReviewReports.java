@@ -20,6 +20,14 @@ public class SnapshotReviewReports {
     }
     public void publish(String taskId, AttemptRow attempt, Snapshot snapshot, Plan plan,
                         List<TemplateTaskBatchRow> analyses, List<TemplateTaskBatchRow> relations, List<TemplateTaskBatchRow> reviews) {
+        publish(taskId, attempt, snapshot, plan, analyses, relations, reviews, false);
+    }
+    public void publishLightweight(String taskId, AttemptRow attempt, Snapshot snapshot, Plan plan,
+                        List<TemplateTaskBatchRow> analyses, List<TemplateTaskBatchRow> reviews) {
+        publish(taskId, attempt, snapshot, plan, analyses, List.of(), reviews, true);
+    }
+    private void publish(String taskId, AttemptRow attempt, Snapshot snapshot, Plan plan,
+                        List<TemplateTaskBatchRow> analyses, List<TemplateTaskBatchRow> relations, List<TemplateTaskBatchRow> reviews, boolean lightweight) {
         var task = tasks.findTask(taskId).orElseThrow();
         String start = date(snapshot.startInclusive() == null ? snapshot.capturedAt() : snapshot.startInclusive());
         String end = snapshot.endExclusive() == null ? start : date(Instant.parse(snapshot.endExclusive()).minusNanos(1).toString());
@@ -32,14 +40,19 @@ public class SnapshotReviewReports {
         StringBuilder supported = new StringBuilder(), uncertain = new StringBuilder(), coverage = new StringBuilder();
         coverage.append("| 单元 | 文件 | 分组归属 / 处理情况 |\n| --- | --- | --- |\n");
         for (var unit : snapshot.units()) {
-            var owner = plan.groups().stream().filter(g -> g.unitIds().contains(unit.id())).findFirst().orElseThrow();
-            coverage.append("| ").append(text(unit.id())).append(" | ").append(text(unit.path())).append(" | ").append(text(owner.title()))
+            var owner = plan.groups().stream().filter(g -> g.unitIds().contains(unit.id())).findFirst().orElse(null);
+            if (owner == null && (!lightweight || unit.limitation() == null || !unit.excerpt().isBlank()))
+                throw new ConflictException("SNAPSHOT_COVERAGE_MISSING", "可读代码片段缺少分析归属");
+            coverage.append("| ").append(text(unit.id())).append(" | ").append(text(unit.path())).append(" | ").append(owner == null ? "已记录排除，未调用模型" : text(owner.title()))
                     .append(unit.limitation() == null ? "" : "；" + text(unit.limitation())).append(" |\n");
+            if (lightweight && unit.limitation() != null) uncertain.append("- ").append(text(unit.path())).append("：").append(text(unit.limitation())).append("\n");
         }
         Map<String, StringBuilder> duplicateSources = new HashMap<>();
         Map<String, String> reviewIds = new HashMap<>();
         reviews.forEach(r -> reviewIds.put(batches.input(r).analysisBatchId(), r.id()));
-        for (var r : sources) for (var d : judgments.get(r.id()).decisions()) if (d.verdict() == Verdict.DUPLICATE) {
+        for (var row : sources) if (!judgments.containsKey(row.id()) && (!lightweight || !batches.output(row, Analysis.class).findings().isEmpty()))
+            throw new ConflictException("SNAPSHOT_REVIEW_MISSING", "缺少独立复核，不能生成完整报告");
+        for (var r : sources) for (var d : judgments.containsKey(r.id()) ? judgments.get(r.id()).decisions() : List.<Decision>of()) if (d.verdict() == Verdict.DUPLICATE) {
             var f = batches.output(r, Analysis.class).findings().stream().filter(v -> v.key().equals(d.findingKey())).findFirst().orElseThrow();
             String target = d.duplicateOf().contains("/") ? d.duplicateOf() : reviewIds.get(r.id()) + "/" + d.duplicateOf();
             duplicateSources.computeIfAbsent(target, ignored -> new StringBuilder()).append("\n关联分析来源：")
@@ -50,14 +63,13 @@ public class SnapshotReviewReports {
         StringBuilder links = new StringBuilder();
         for (var row : sources) {
             var analysis = batches.output(row, Analysis.class); var review = judgments.get(row.id());
-            if (review == null) throw new ConflictException("SNAPSHOT_REVIEW_MISSING", "缺少独立复核，不能生成完整报告");
             String path = names.child("功能审查", ++ordinal);
             StringBuilder detail = new StringBuilder("# ").append(text(batches.input(row).objective())).append("\n\n[返回总结](")
                     .append(TemplateReportNames.link(path, names.main())).append(")\n\n");
             links.append("- [").append(text(batches.input(row).objective())).append("](").append(TemplateReportNames.link(names.main(), path)).append(")\n");
             for (var item : analysis.coverage()) detail.append("## 单元 ").append(text(item.unitId())).append("\n\n").append(text(item.conclusion()))
                     .append("\n\n").append(references(item.evidence())).append("\n").append(String.join("\n", item.limitations().stream().map(SnapshotReviewReports::text).toList())).append("\n\n");
-            for (var decision : review.decisions()) {
+            for (var decision : review == null ? List.<Decision>of() : review.decisions()) {
                 var finding = analysis.findings().stream().filter(f -> f.key().equals(decision.findingKey())).findFirst().orElseThrow();
                 String body = "### " + text(finding.title()) + "\n\n级别：" + finding.severity() + "；复核：" + verdict(decision.verdict())
                         + "；归因：" + attribution(finding.attribution()) + "\n\n触发条件：" + text(finding.trigger()) + "\n\n错误行为：" + text(finding.behavior())
@@ -69,9 +81,9 @@ public class SnapshotReviewReports {
                 if (decision.verdict() == Verdict.SUPPORTED) { supported.append(body); found++; }
                 if (decision.verdict() == Verdict.UNDETERMINED) { uncertain.append(body); pending++; }
             }
-            detail.append("## 独立复核与局限\n\n").append(text(review.conclusion())).append("\n\n")
-                    .append(references(review.evidence())).append("\n");
-            var limitations = new ArrayList<>(analysis.limitations()); limitations.addAll(review.limitations());
+            detail.append("## 独立复核与局限\n\n").append(review == null ? "本批未发现候选问题；按轻量策略未进行独立复核，不代表证明无缺陷。" : text(review.conclusion())).append("\n\n")
+                    .append(review == null ? "" : references(review.evidence())).append("\n");
+            var limitations = new ArrayList<>(analysis.limitations()); if (review != null) limitations.addAll(review.limitations());
             analysis.coverage().forEach(c -> c.limitations().forEach(l -> limitations.add(c.unitId() + "：" + l)));
             limitations.forEach(l -> detail.append("- ").append(text(l)).append("\n"));
             if (!limitations.isEmpty()) uncertain.append("### ").append(text(batches.input(row).objective())).append("\n\n")
@@ -89,7 +101,8 @@ public class SnapshotReviewReports {
                 + "\n\n日期范围：" + (snapshot.baselineSha() == null ? "不适用" : start + " 00:00 至 " + end + " 24:00，北京时间")
                 + "\n\n版本依据：" + (snapshot.baselineSha() == null ? "冻结所选分支 tip" : "当前分支第一父链的 committer 时间估算，不证明历史部署状态；结束边界尚未到达时仅覆盖采集时已取得的历史")
                 + (snapshot.nonMonotonic() ? "\n\n发现非单调提交时间，已完整遍历并按拓扑顺序解析边界。" : "")
-                + "\n\n## 结论\n\n" + (snapshot.noChanges() ? "基线与目标没有最终代码差异，未调用分析模型。" : "复核支持问题 " + found + " 项；待确认问题 " + pending + " 项；分析与关系检查 " + sources.size() + " 批。")
+                + (lightweight ? "\n\n## 审查策略\n\n轻量审查：程序按容量分批，一轮代码分析，仅对候选问题独立复核；不追加关系或补充批次。无问题结论未经独立复核。" : "")
+                + "\n\n## 结论\n\n" + (snapshot.noChanges() ? "基线与目标没有最终代码差异，未调用分析模型。" : "复核支持问题 " + found + " 项；待确认问题 " + pending + " 项；分析" + (lightweight ? "" : "与关系检查") + " " + sources.size() + (lightweight ? " 批；独立复核 " + reviews.size() + " 批。" : " 批。"))
                 + "\n\n本轮为静态审查，未执行目标项目构建、测试或脚本；完成不代表证明版本没有缺陷。仅使用文本和可识别的结构提示，不建立通用跨语言调用图；未知语言按文本检查并保留语义局限。\n\n## 详细报告\n\n"
                 + link(names.main(), findingsPath, "当前问题") + link(names.main(), pendingPath, "待确认与局限") + link(names.main(), coveragePath, "覆盖清单")
                 + "\n## 功能与衔接审查\n\n" + links;

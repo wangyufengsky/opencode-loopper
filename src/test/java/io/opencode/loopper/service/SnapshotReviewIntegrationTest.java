@@ -39,6 +39,9 @@ class SnapshotReviewIntegrationTest {
     @Autowired OpenCodeClient client;
     @Autowired InternalMcpRuntimeAccess access;
     @Autowired ObjectMapper json;
+    @Autowired TemplateTaskAdmission frozenAdmission;
+    @Autowired TemplateTaskContractFactory contractFactory;
+    @Autowired ProjectBranchService branches;
     @TempDir Path temporary;
     private Path source;
     private String project;
@@ -46,13 +49,14 @@ class SnapshotReviewIntegrationTest {
     private boolean supplement;
     private boolean findings;
     private boolean failOne;
+    private boolean lightweight;
     @BeforeEach void setup() throws Exception {
         flyway.clean(); flyway.migrate(); fake=(FakeOpenCodeClient)client; fake.reset();
         properties.getOpenCode().setModel("fake/test"); properties.setTimeoutEnabled(false);
         var credentials=new InternalMcpCredentialProvider(()->18083).issue();
         access.activate(credentials); access.connected(credentials.generation()); fake.setManagedRuntime(credentials.generation(),credentials.serverName());
         fake.holdProfileOpen(OpenCodeClient.SessionProfile.SNAPSHOT_CODE_REVIEW_NO_TOOLS,true);
-        source=Files.createDirectory(temporary.resolve("project")); git.read(source,"init","-b","main");
+        source=Files.createDirectory(temporary.resolve("project")).toRealPath(); git.read(source,"init","-b","main");
         git.read(source,"config","user.name","Alice");git.read(source,"config","user.email","alice@example.test");
         commit("main.java","class Main { int value() { return 1; } }\n","2026-08-30T00:00:00Z");
         project=projects.create("静态审查项目",source.toString(),"test").id();
@@ -63,8 +67,15 @@ class SnapshotReviewIntegrationTest {
         assertThat(result.exitCode()).as(result.output()).isZero(); return git.read(source,"rev-parse","HEAD").strip();
     }
     private TaskRow create(Mode mode) {
-        return admission.create(new TemplateTaskService.Request(UUID.randomUUID().toString(),SnapshotReview.ID,"1",project,"local:refs/heads/main",
+        if (lightweight) return admission.create(new TemplateTaskService.Request(UUID.randomUUID().toString(),SnapshotReview.ID,"2",project,"local:refs/heads/main",
                 mode==Mode.FULL?null:"2026-09-01",mode==Mode.FULL?null:"2026-09-10",null,null,mode.name()),false);
+        // Simulate an already-frozen V1 run. Public creation only accepts the current lightweight version.
+        var dates = TemplateDateRange.parse("2026-09-01", "2026-09-10", Clock.systemUTC());
+        var base = contractFactory.freezeSnapshot(project, dates, source.resolve("doc").toString(), mode); var d = base.definition();
+        var legacy = new TemplateTaskDefinition.View(d.id(), "1", d.title(), d.description(), d.contentRepairLimit(), d.stages(), d.scoringVersion(), d.icon(), d.category());
+        var frozen = new TemplateTaskContractFactory.Frozen(legacy, base.spec(), null, null, List.of(), base.timezone(), base.timePolicy(),
+                base.repairLimit(), base.reportTemplates(), base.documentPath(), base.analysisConcurrency(), mode.name());
+        return frozenAdmission.create(new TemplateTaskAdmission.Command(UUID.randomUUID().toString(), "legacy-fixture", branches.require(project, "local:refs/heads/main"), dates, frozen, false));
     }
     private void start(TaskRow task) { states.start(task.id(),contracts.contract(task.id())); }
     @Test void fullReviewRunsPlanningAnalysisIndependentReadsAndCompletesWithoutTouchingDirtyCheckout() throws Exception {
@@ -78,7 +89,9 @@ class SnapshotReviewIntegrationTest {
         assertThat(git.read(source,"rev-parse","HEAD")).isEqualTo(head);assertThat(Files.readString(source.resolve("dirty.txt"))).isEqualTo("keep");
         assertThat(mapper.findActiveWorkspaceLeaseByHolder(task.id())).isEmpty();
     }
-    @Test void intermediateDefectThatWasRevertedProducesNoFinalDifferenceAndNoModelSessions() throws Exception {
+    @org.junit.jupiter.params.ParameterizedTest @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void intermediateDefectThatWasRevertedProducesNoFinalDifferenceAndNoModelSessions(boolean light) throws Exception {
+        lightweight = light;
         String baseline=git.read(source,"rev-parse","HEAD").strip();
         commit("main.java","class Main { int value() { return 0; } }\n","2026-09-03T00:00:00Z");
         String target=commit("main.java","class Main { int value() { return 1; } }\n","2026-09-10T15:59:59Z");
@@ -89,15 +102,50 @@ class SnapshotReviewIntegrationTest {
         assertThat(mapper.listSessions(task.id())).isEmpty();assertThat(states.task(task.id()).state()).isEqualTo("COMPLETED");
     }
     @Test void missingBoundaryIsReportedBeforeCallingModel() {
-        var task=admission.create(new TemplateTaskService.Request(UUID.randomUUID().toString(),SnapshotReview.ID,"1",project,"local:refs/heads/main","2026-01-01","2026-01-02",null,null,"DATE_INCREMENTAL"),false);
+        var task=admission.create(new TemplateTaskService.Request(UUID.randomUUID().toString(),SnapshotReview.ID,"2",project,"local:refs/heads/main","2026-01-01","2026-01-02",null,null,"DATE_INCREMENTAL"),false);
         start(task);
         for(int i=0;i<8;i++)driver.executeCheckpoint(task.id());
         assertThat(states.task(task.id()).state()).isEqualTo("WAITING_INPUT");assertThat(mapper.listSessions(task.id())).isEmpty();
     }
     @Test void dateModeValidationAndRequestReplayAreStable() {
-        var request=new TemplateTaskService.Request(UUID.randomUUID().toString(),SnapshotReview.ID,"1",project,"local:refs/heads/main",null,null,null,null,"FULL");
+        var request=new TemplateTaskService.Request(UUID.randomUUID().toString(),SnapshotReview.ID,"2",project,"local:refs/heads/main",null,null,null,null,"FULL");
         assertThat(admission.create(request,false).id()).isEqualTo(admission.create(request,false).id());
-        assertThatThrownBy(()->admission.create(new TemplateTaskService.Request(UUID.randomUUID().toString(),SnapshotReview.ID,"1",project,"local:refs/heads/main","2026-09-01","2026-09-10",null,null,"FULL"),false)).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(()->admission.create(new TemplateTaskService.Request(UUID.randomUUID().toString(),SnapshotReview.ID,"2",project,"local:refs/heads/main","2026-09-01","2026-09-10",null,null,"FULL"),false)).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(()->admission.create(new TemplateTaskService.Request(UUID.randomUUID().toString(),SnapshotReview.ID,"1",project,"local:refs/heads/main",null,null,null,null,"FULL"),false)).isInstanceOf(ConflictException.class);
+    }
+    @Test void lightweightFullReviewUsesFixedCapacityBatchesAndSkipsEmptyFindingReviews() throws Exception {
+        for (int i = 0; i < 120; i++) Files.writeString(source.resolve("file" + i + ".java"), "class File" + i + " {}\n");
+        git.read(source, "add", "."); commit(".env", "TOKEN=fixture-only\n", "2026-09-03T00:00:00Z");
+        lightweight = true; var task = create(Mode.FULL); start(task); run(task);
+        assertThat(states.task(task.id()).state()).isEqualTo("COMPLETED");
+        assertThat(mapper.listSessions(task.id())).hasSize(2);
+        var p = progress.snapshotProgress(task.id()).orElseThrow();
+        assertThat(p.planning()).isZero(); assertThat(p.reviews()).isZero(); assertThat(p.supplements()).isZero();
+        assertThat(p.analyses()).isEqualTo(2); assertThat(p.planRevision()).isEqualTo(1);
+        var projected = TemplateTaskProgress.snapshot(p, task.id(), source.toString(), "COMPLETED");
+        assertThat(projected.snapshot().lightweight()).isTrue(); assertThat(projected.steps()).hasSize(3);
+        assertThat(projected.steps()).allMatch(s -> s.state().equals("COMPLETE"));
+        assertThat(mapper.listTaskArtifacts(task.id())).anyMatch(a -> a.content().contains("无问题结论未经独立复核"));
+        assertThat(mapper.listTaskArtifacts(task.id())).anyMatch(a -> a.content().contains("已记录排除，未调用模型"));
+    }
+    @Test void lightweightIncrementalReviewOnlyRechecksFindingFilesAndRejectsExpansion() throws Exception {
+        commit("caller.java", "class Caller {}\n", "2026-09-03T00:00:00Z");
+        commit("main.java", "class Main { int value() { return 0; } }\n", "2026-09-04T00:00:00Z");
+        lightweight = true; findings = true; var task = create(Mode.DATE_INCREMENTAL); start(task); run(task);
+        assertThat(states.task(task.id()).state()).isEqualTo("COMPLETED");
+        assertThat(mapper.listSessions(task.id())).hasSize(2);
+        var rows = mapper.listAttempts(task.id()).stream().flatMap(a -> templates.batches(task.id(), a.id()).stream()).toList();
+        assertThat(rows).extracting(TemplateTaskBatchRow::purpose).containsExactlyInAnyOrder("SNAPSHOT_ANALYSIS", "SNAPSHOT_REVIEW");
+        var review = rows.stream().filter(b -> b.purpose().equals("SNAPSHOT_REVIEW")).findFirst().orElseThrow();
+        assertThat(json.readValue(review.inputJson(), TemplateBatchExecution.Input.class).snapshot().units()).hasSize(1);
+        assertThat(mapper.listTaskArtifacts(task.id())).anyMatch(a -> a.content().contains("复核支持问题 1 项；待确认问题 1 项"));
+        assertThat(mapper.findActiveWorkspaceLeaseByHolder(task.id())).isEmpty();
+    }
+    @Test void lightweightRetryKeepsSuccessfulBatchesAndDoesNotAddReviewsForNoFindings() throws Exception {
+        lightweight = true; failOne = true; var task = create(Mode.FULL); start(task); run(task);
+        assertThat(states.task(task.id()).state()).isEqualTo("COMPLETED");
+        assertThat(mapper.listSessions(task.id())).hasSize(2);
+        assertThat(progress.snapshotProgress(task.id()).orElseThrow().reviews()).isZero();
     }
     @Test void supplementsRelationsAndIndependentFindingDecisionsKeepFrozenEvidenceAndAcceptedSiblings() throws Exception {
         commit("caller.java", "class Caller { int get() { return new Main().value(); } }\n", "2026-09-02T00:00:00Z");
@@ -125,7 +173,9 @@ class SnapshotReviewIntegrationTest {
         commit("main.java", "later\n", "2026-09-08T00:00:00Z");
         assertThat(snapshots.snapshot(task.id())).isEqualTo(frozen);
     }
-    @Test void frozenManifestRecordsProtectedSymlinkAndDeletionEvidence() throws Exception {
+    @org.junit.jupiter.params.ParameterizedTest @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void frozenManifestRecordsProtectedSymlinkAndDeletionEvidence(boolean light) throws Exception {
+        lightweight = light;
         commit(".env", "TOKEN=fixture-only\n", "2026-09-02T00:00:00Z");
         Files.createSymbolicLink(source.resolve("alias.java"), Path.of("main.java")); git.read(source,"add","--","alias.java");
         git.read(source,"rm","--","main.java");
@@ -177,13 +227,17 @@ class SnapshotReviewIntegrationTest {
                     }
                     assertThatThrownBy(() -> reads.evidence(row.id(), List.of(new Reference(snapshot.targetSha(),references.getFirst().path(),references.getFirst().blob(),99,100,"伪造原文")),true)).isInstanceOf(BadRequestException.class);
                     if(input.phase().equals("ANALYSIS")) {
+                        if (input.lightweight()) {
+                            var extra = new Group(input.units().getFirst().id(), "补充", "不应创建", List.of(input.units().getFirst().id()), List.of(input.units().getFirst().path()));
+                            assertThat(submissions.submit(row.id(), "expansion", receipts.revision(row.id()), json.writeValueAsString(new Analysis(List.of(), List.of(), List.of(extra), List.of())))).contains("REJECTED");
+                        }
                         List<Group> more=List.of();
                         var contexts=input.groups().stream().flatMap(g->g.contextPaths().stream()).toList();
                         var path=snapshot.files().stream().map(SnapshotReview.File::path).filter(f->!contexts.contains(f)).findFirst();
                         if(supplement && path.isPresent() && !row.purpose().equals("SNAPSHOT_SUPPLEMENT"))
                             more=List.of(new Group(input.units().getFirst().id(),"补充配置检查","检查新的配置关联",List.of(input.units().getFirst().id()),List.of(path.get())));
-                        candidate=new Analysis(input.units().stream().map(u->new Coverage(u.id(),"已核对目标代码",references,List.of())).toList(),
-                                findings ? List.of("finding", "guarded", "pending", "duplicate").stream().map(key -> new Finding(key,TemplateAnalysis.Severity.HIGH,"标注样本 " + key,"标注触发条件","目标代码证据","修复建议",Attribution.UNDETERMINED,references)).toList() : List.of(),more,List.of("静态审查未运行测试"));
+                        candidate=new Analysis(input.units().stream().map(u->new Coverage(u.id(),"已核对目标代码",references.stream().filter(r -> r.path().equals(u.path())).limit(1).toList(),List.of())).toList(),
+                                findings ? List.of("finding", "guarded", "pending", "duplicate").stream().map(key -> new Finding(key,TemplateAnalysis.Severity.HIGH,"标注样本 " + key,"标注触发条件","目标代码证据","修复建议",Attribution.UNDETERMINED,input.lightweight() ? List.of(references.getFirst()) : references)).toList() : List.of(),more,List.of("静态审查未运行测试"));
                     } else {
                         var origin=json.readValue(templates.findBatch(input.analysisBatchId()).orElseThrow().outputJson(),Analysis.class);
                         candidate=new Review(input.units().stream().map(Unit::id).toList(),origin.findings().stream().map(f->new Decision(f.key(), switch(f.key()) { case "guarded" -> Verdict.DISMISSED; case "pending" -> Verdict.UNDETERMINED; case "duplicate" -> Verdict.DUPLICATE; default -> Verdict.SUPPORTED; },"独立读取目标代码证据",f.key().equals("duplicate") ? "finding" : null,references)).toList(),references,"独立读取后给出样本判定",List.of("未运行测试"));

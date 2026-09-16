@@ -8,11 +8,18 @@ public record TemplateTaskProgress(Integer reviewBatches, Integer contributorBat
         int completedContributors, int activeBatches, int failedBatches, int repairRound, String documentPath, boolean dualReviewRequired, int reportCount, java.util.List<Step> steps, String currentPhase, SnapshotStatus snapshot) {
     public record Step(String key, String label, String state) { }
     public record Phase(String label, int total, int completed) { }
-    public record SnapshotStatus(String mode, String targetSha, String baselineSha, int planRevision, int supplements, java.util.List<Phase> phases) { }
+    public record SnapshotStatus(String mode, String targetSha, String baselineSha, int planRevision, int supplements, java.util.List<Phase> phases, boolean lightweight) { }
     public static TemplateTaskProgress snapshot(io.opencode.loopper.persistence.SnapshotReviewProgressRow row, String taskId, String workspace, String state) {
         String[] statuses = row.stages().split(",");
         String[] labels = {"冻结证据", "规划范围", "功能分析", "独立复核与报告"};
         String[] keys = {"SNAPSHOT", "PLAN", "ANALYSIS", "SNAPSHOT_REVIEW"};
+        boolean lightweight = io.opencode.loopper.template.SnapshotReviewLightweightPolicy.applies(row.templateVersion());
+        boolean planDone = statuses[1].equals("SUCCEEDED");
+        if (lightweight) {
+            statuses = new String[]{statuses[0].equals("SUCCEEDED") ? statuses[1] : statuses[0], statuses[2], statuses[3]};
+            labels = new String[]{"准备范围", "代码分析", "问题复核与报告"};
+            keys = new String[]{"SNAPSHOT", "ANALYSIS", "SNAPSHOT_REVIEW"};
+        }
         var steps = new java.util.ArrayList<Step>(); String current = "COMPLETE";
         for (int i = 0; i < statuses.length; i++) {
             boolean done = statuses[i].equals("SUCCEEDED");
@@ -21,11 +28,11 @@ public record TemplateTaskProgress(Integer reviewBatches, Integer contributorBat
         }
         String path = row.documentPath();
         if (row.folder() != null && workspace != null) path = TemplateDocumentPaths.bundleDirectory(path, row.folder(), Path.of(workspace)).toString();
-        var phases = java.util.List.of(new Phase("功能规划与衔接", row.planning(), row.planned()),
+        var phases = lightweight ? java.util.List.of(new Phase("代码分析", row.analyses(), row.analyzed()), new Phase("问题复核", row.reviews(), row.reviewed())) : java.util.List.of(new Phase("功能规划与衔接", row.planning(), row.planned()),
                 new Phase("功能与补充分析", row.analyses(), row.analyzed()), new Phase("独立复核", row.reviews(), row.reviewed()));
-        return new TemplateTaskProgress((row.targetSha() == null || row.planning() == 0 && !statuses[1].equals("SUCCEEDED")) ? null : row.planning() + row.analyses(), row.reviews(), row.planned() + row.analyzed(),
+        return new TemplateTaskProgress((row.targetSha() == null || row.planning() == 0 && !planDone) ? null : row.planning() + row.analyses(), row.reviews(), row.planned() + row.analyzed(),
                 row.reviewed(), row.active(), row.failed(), 0, path, false, row.reportCount(), steps, current,
-                new SnapshotStatus(row.mode(), row.targetSha(), row.baselineSha(), row.planRevision(), row.supplements(), phases));
+                new SnapshotStatus(row.mode(), row.targetSha(), row.baselineSha(), row.planRevision(), row.supplements(), phases, lightweight));
     }
     public static TemplateTaskProgress from(TemplateTaskProgressRow row, String taskId, String workspace, String taskState) {
         String path = row.documentPath();

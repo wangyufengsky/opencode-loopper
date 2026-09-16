@@ -6,6 +6,7 @@ import java.util.List;
 public final class SnapshotReview {
     private SnapshotReview() { }
     public static final String ID = "SNAPSHOT_CODE_REVIEW";
+    public static final String LIGHTWEIGHT = "LIGHTWEIGHT_V2";
     public enum Mode { DATE_INCREMENTAL, FULL }
     public enum Verdict { SUPPORTED, UNDETERMINED, DISMISSED, DUPLICATE }
     public enum Attribution { CHANGE_RELATED, EXISTING, UNDETERMINED }
@@ -26,7 +27,14 @@ public final class SnapshotReview {
     public record Review(List<String> checkedUnitIds, List<Decision> decisions, List<Reference> evidence,
                          String conclusion, List<String> limitations) { }
     public record Input(String phase, List<Unit> units, List<Group> groups, List<Relation> relations,
-                        List<String> dependencies, String objective, String analysisBatchId) { }
+                        List<String> dependencies, String objective, String analysisBatchId,
+                        @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL) String policy) {
+        public Input(String phase, List<Unit> units, List<Group> groups, List<Relation> relations,
+                     List<String> dependencies, String objective, String analysisBatchId) {
+            this(phase, units, groups, relations, dependencies, objective, analysisBatchId, null);
+        }
+        public boolean lightweight() { return LIGHTWEIGHT.equals(policy); }
+    }
     public static boolean applies(String id) { return ID.equals(id); }
     public static boolean batch(String purpose) { return purpose != null && purpose.startsWith("SNAPSHOT_"); }
 }

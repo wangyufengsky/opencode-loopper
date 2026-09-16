@@ -9,13 +9,19 @@ public final class SnapshotReviewUnits {
     private static final Pattern ENTRY = Pattern.compile("^(?:\\s*(?:public|protected|private|static|export|async|final)\\s+)*(?:class|interface|record|enum|function|def|async def|func)\\s+.*|^\\s*(?:public|protected|private)\\s+[^=;]+\\([^;]*\\)\\s*(?:throws[^{}]*)?\\{.*");
     private SnapshotReviewUnits() { }
     public static List<SnapshotReview.Unit> compile(String id, String[] change, String source, String limitation) {
+        return compile(id, change, source, limitation, false);
+    }
+    public static List<SnapshotReview.Unit> compact(String id, String[] change, String source, String limitation) {
+        return compile(id, change, source, limitation, true);
+    }
+    private static List<SnapshotReview.Unit> compile(String id, String[] change, String source, String limitation, boolean compact) {
         List<SnapshotReview.Unit> result = new ArrayList<>();
         String[] lines = source.split("(?<=\\n)");
         StringBuilder chunk = new StringBuilder();
         String hunk = ""; int start = 1, line = 1;
         for (String value : lines) {
             boolean diff = !change[0].equals("FULL");
-            boolean boundary = diff ? value.startsWith("@@ ") : ENTRY.matcher(value.stripTrailing()).matches();
+            boolean boundary = !compact && (diff ? value.startsWith("@@ ") : ENTRY.matcher(value.stripTrailing()).matches());
             if (!chunk.isEmpty() && (boundary || chunk.length() + value.length() > CAPACITY)) {
                 result.add(unit(id, result.size(), change, chunk.toString(), limitation, start, line - 1, hunk)); chunk.setLength(0); start = line;
             }

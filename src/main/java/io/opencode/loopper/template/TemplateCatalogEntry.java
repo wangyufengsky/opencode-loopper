@@ -10,7 +10,7 @@ public record TemplateCatalogEntry(String id, String version, String title, Stri
         var view = definition.view();
         if (definition == TemplateTaskDefinition.SNAPSHOT_CODE_REVIEW)
             return new TemplateCatalogEntry(view.id(), view.version(), view.title(), view.description(), view.contentRepairLimit(),
-                    List.of("冻结证据", "规划范围", "功能分析", "独立复核与报告"), null, "lucide:scan-search", "代码质量",
+                    view.stages(), null, "lucide:scan-search", "代码质量",
                     new DocumentTemplateDefinition.Inputs(false, true, true, List.of(), 0, 0, 0), "SNAPSHOT_CODE_REVIEW", List.of("DATE_INCREMENTAL", "FULL"));
         return new TemplateCatalogEntry(view.id(), view.version(), view.title(), view.description(), view.contentRepairLimit(),
                 view.stages(), view.scoringVersion(), view.icon(), view.category(),
