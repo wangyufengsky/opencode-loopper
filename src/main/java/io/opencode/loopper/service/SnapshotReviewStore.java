@@ -51,7 +51,7 @@ public class SnapshotReviewStore {
     }
     @Transactional
     public void delete(String id) {
-        snapshots.deleteReads(id); snapshots.deleteFiles(id); snapshots.deletePlans(id); snapshots.deleteRun(id);
+        snapshots.deleteReusable(id); snapshots.deleteReuses(id); snapshots.deleteContextRequests(id); snapshots.deleteReads(id); snapshots.deleteFiles(id); snapshots.deletePlans(id); snapshots.deleteRun(id);
     }
     public SnapshotReview.Plan plan(String id) {
         var run = require(id);

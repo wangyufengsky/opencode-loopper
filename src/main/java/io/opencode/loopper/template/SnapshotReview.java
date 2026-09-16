@@ -7,14 +7,28 @@ public final class SnapshotReview {
     private SnapshotReview() { }
     public static final String ID = "SNAPSHOT_CODE_REVIEW";
     public static final String LIGHTWEIGHT = "LIGHTWEIGHT_V2";
+    public static final String COMPACT = "LIGHTWEIGHT_V3";
     public enum Mode { DATE_INCREMENTAL, FULL }
     public enum Verdict { SUPPORTED, UNDETERMINED, DISMISSED, DUPLICATE }
     public enum Attribution { CHANGE_RELATED, EXISTING, UNDETERMINED }
     public record File(String version, String path, String blob, String mode, long bytes, String limitation) { }
-    public record Unit(String id, String path, String beforePath, String change, String excerpt, String limitation) { }
+    public record Unit(String id, String path, String beforePath, String change, String excerpt, String limitation,
+                       @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL) List<Reference> initialEvidence) {
+        public Unit(String id, String path, String beforePath, String change, String excerpt, String limitation) {
+            this(id, path, beforePath, change, excerpt, limitation, null);
+        }
+    }
     public record Snapshot(String sourceSha, String baselineSha, String targetSha, String baselineTree, String targetTree,
                            String capturedAt, String startInclusive, String endExclusive, String selectionBasis,
-                           boolean nonMonotonic, boolean noChanges, List<File> files, List<Unit> units) { }
+                           boolean nonMonotonic, boolean noChanges, List<File> files, List<Unit> units,
+                           @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL) String scopeIdentity) {
+        public Snapshot(String sourceSha, String baselineSha, String targetSha, String baselineTree, String targetTree,
+                        String capturedAt, String startInclusive, String endExclusive, String selectionBasis,
+                        boolean nonMonotonic, boolean noChanges, List<File> files, List<Unit> units) {
+            this(sourceSha, baselineSha, targetSha, baselineTree, targetTree, capturedAt, startInclusive, endExclusive,
+                    selectionBasis, nonMonotonic, noChanges, files, units, null);
+        }
+    }
     public record Group(String key, String title, String objective, List<String> unitIds, List<String> contextPaths) { }
     public record Relation(String key, String fromGroup, String toGroup, String question) { }
     public record Plan(List<Group> groups, List<Relation> relations) { }
@@ -33,7 +47,8 @@ public final class SnapshotReview {
                      List<String> dependencies, String objective, String analysisBatchId) {
             this(phase, units, groups, relations, dependencies, objective, analysisBatchId, null);
         }
-        public boolean lightweight() { return LIGHTWEIGHT.equals(policy); }
+        public boolean lightweight() { return LIGHTWEIGHT.equals(policy) || compact(); }
+        public boolean compact() { return COMPACT.equals(policy); }
     }
     public static boolean applies(String id) { return ID.equals(id); }
     public static boolean batch(String purpose) { return purpose != null && purpose.startsWith("SNAPSHOT_"); }

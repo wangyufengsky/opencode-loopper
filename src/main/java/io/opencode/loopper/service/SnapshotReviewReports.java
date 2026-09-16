@@ -14,9 +14,10 @@ public class SnapshotReviewReports {
     private final TemplateReportBundleService bundles;
     private final LoopperMapper tasks;
     private final SnapshotReviewBatches batches;
+    private final SnapshotReviewMapper records;
     public SnapshotReviewReports(TemplateReportArtifactService artifacts, TemplateReportBundleService bundles,
-            LoopperMapper tasks, SnapshotReviewBatches batches) {
-        this.artifacts = artifacts; this.bundles = bundles; this.tasks = tasks; this.batches = batches;
+            LoopperMapper tasks, SnapshotReviewBatches batches, SnapshotReviewMapper records) {
+        this.artifacts = artifacts; this.bundles = bundles; this.tasks = tasks; this.batches = batches; this.records = records;
     }
     public void publish(String taskId, AttemptRow attempt, Snapshot snapshot, Plan plan,
                         List<TemplateTaskBatchRow> analyses, List<TemplateTaskBatchRow> relations, List<TemplateTaskBatchRow> reviews) {
@@ -62,13 +63,20 @@ public class SnapshotReviewReports {
         int found = 0, pending = 0, ordinal = 0;
         StringBuilder links = new StringBuilder();
         for (var row : sources) {
-            var analysis = batches.output(row, Analysis.class); var review = judgments.get(row.id());
+            var analysis = batches.output(row, Analysis.class); var review = judgments.get(row.id()); var input = batches.input(row);
             String path = names.child("功能审查", ++ordinal);
             StringBuilder detail = new StringBuilder("# ").append(text(batches.input(row).objective())).append("\n\n[返回总结](")
                     .append(TemplateReportNames.link(path, names.main())).append(")\n\n");
             links.append("- [").append(text(batches.input(row).objective())).append("](").append(TemplateReportNames.link(names.main(), path)).append(")\n");
-            for (var item : analysis.coverage()) detail.append("## 单元 ").append(text(item.unitId())).append("\n\n").append(text(item.conclusion()))
-                    .append("\n\n").append(references(item.evidence())).append("\n").append(String.join("\n", item.limitations().stream().map(SnapshotReviewReports::text).toList())).append("\n\n");
+            for (var item : analysis.coverage()) {
+                detail.append("## 单元 ").append(text(item.unitId())).append("\n\n").append(text(item.conclusion()))
+                        .append("\n\n").append(references(item.evidence())).append("\n").append(String.join("\n", item.limitations().stream().map(SnapshotReviewReports::text).toList())).append("\n\n");
+                if (item.evidence().isEmpty() && input.compact()) {
+                    var unit = input.units().stream().filter(u -> u.id().equals(item.unitId())).findFirst().orElseThrow();
+                    for (var ref : unit.initialEvidence()) detail.append("初始证据：").append(text(ref.path())).append("：").append(ref.startLine()).append("–")
+                            .append(ref.endLine()).append("；版本 ").append(ref.version()).append("；blob ").append(ref.blob()).append("\n\n");
+                }
+            }
             for (var decision : review == null ? List.<Decision>of() : review.decisions()) {
                 var finding = analysis.findings().stream().filter(f -> f.key().equals(decision.findingKey())).findFirst().orElseThrow();
                 String body = "### " + text(finding.title()) + "\n\n级别：" + finding.severity() + "；复核：" + verdict(decision.verdict())
@@ -95,6 +103,9 @@ public class SnapshotReviewReports {
         documents.add(new TemplateReportCompiler.Document(pendingPath, "# 待确认项与证据局限\n\n" + uncertain));
         documents.add(new TemplateReportCompiler.Document(coveragePath, "# 审查范围与功能归属\n\n" + coverage
                 + "\n读取记录与处理记录不证明语义无遗漏；测试源码仅作为证据，本轮未执行目标项目测试。\n"));
+        var reuse = records.reuses(taskId).stream().filter(r -> analyses.stream().anyMatch(a -> a.id().equals(r.batchId()))).toList();
+        String reuseSummary = "\n\n复用历史有效分析 " + reuse.size() + " 批；复用项未新建模型会话，历史无问题结论未经独立复核。\n";
+        for (var r : reuse) reuseSummary += "\n- 来源任务 " + r.sourceTaskId() + " / 批次 " + r.sourceBatchId() + "；源结果 SHA-256 " + r.outputSha256();
         String summary = "# 代码审查报告\n\n## 审查版本与范围\n\n项目：" + text(bundle.projectName())
                 + "\n\n来源 SHA：" + snapshot.sourceSha() + "\n\n基线 SHA：" + Objects.toString(snapshot.baselineSha(), "无（全面审查）")
                 + "\n\n目标 SHA：" + snapshot.targetSha() + "\n\n实际采集时间：" + snapshot.capturedAt()
@@ -103,7 +114,7 @@ public class SnapshotReviewReports {
                 + (snapshot.nonMonotonic() ? "\n\n发现非单调提交时间，已完整遍历并按拓扑顺序解析边界。" : "")
                 + (lightweight ? "\n\n## 审查策略\n\n轻量审查：程序按容量分批，一轮代码分析，仅对候选问题独立复核；不追加关系或补充批次。无问题结论未经独立复核。" : "")
                 + "\n\n## 结论\n\n" + (snapshot.noChanges() ? "基线与目标没有最终代码差异，未调用分析模型。" : "复核支持问题 " + found + " 项；待确认问题 " + pending + " 项；分析" + (lightweight ? "" : "与关系检查") + " " + sources.size() + (lightweight ? " 批；独立复核 " + reviews.size() + " 批。" : " 批。"))
-                + "\n\n本轮为静态审查，未执行目标项目构建、测试或脚本；完成不代表证明版本没有缺陷。仅使用文本和可识别的结构提示，不建立通用跨语言调用图；未知语言按文本检查并保留语义局限。\n\n## 详细报告\n\n"
+                + reuseSummary + "\n\n本轮为静态审查，未执行目标项目构建、测试或脚本；完成不代表证明版本没有缺陷。仅使用文本和可识别的结构提示，不建立通用跨语言调用图；未知语言按文本检查并保留语义局限。\n\n## 详细报告\n\n"
                 + link(names.main(), findingsPath, "当前问题") + link(names.main(), pendingPath, "待确认与局限") + link(names.main(), coveragePath, "覆盖清单")
                 + "\n## 功能与衔接审查\n\n" + links;
         documents.addFirst(new TemplateReportCompiler.Document(names.main(), summary));

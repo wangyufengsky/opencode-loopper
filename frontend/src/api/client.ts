@@ -1722,6 +1722,7 @@ export const api = {
   getVerificationEvidence: async (taskId: string, id: string) => normalizeReadContent(await request<unknown>(`/tasks/${encodeURIComponent(taskId)}/verifications/${encodeURIComponent(id)}/evidence`)),
   getErrorEvidence: async (taskId: string, id: string) => normalizeReadContent(await request<unknown>(`/tasks/${encodeURIComponent(taskId)}/errors/${encodeURIComponent(id)}/evidence`)),
   getJudgeOutput: async (taskId: string, id: string) => normalizeReadContent(await request<unknown>(`/tasks/${encodeURIComponent(taskId)}/judges/${encodeURIComponent(id)}/output`)),
+  snapshotReviewPartialReport: (taskId: string) => request<import('@/types/domain').SnapshotReviewPartialReport>(`/tasks/${encodeURIComponent(taskId)}/snapshot-review/partial-report`),
   async downloadTemplateReport(taskId: string, artifactId: string): Promise<Blob> {
     const response = await fetch(`${apiBase}/tasks/${encodeURIComponent(taskId)}/template-reports/${encodeURIComponent(artifactId)}/download`, { headers: { Accept: 'application/zip' } })
     if (!response.ok) {

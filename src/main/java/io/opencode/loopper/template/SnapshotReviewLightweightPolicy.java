@@ -9,7 +9,7 @@ public final class SnapshotReviewLightweightPolicy {
     public static final int MAX_UNITS = 64;
     private SnapshotReviewLightweightPolicy() { }
 
-    public static boolean applies(String version) { return "2".equals(version); }
+    public static boolean applies(String version) { return "2".equals(version) || "3".equals(version); }
 
     public static Plan plan(List<Unit> units) {
         List<Group> groups = new ArrayList<>();
@@ -37,7 +37,7 @@ public final class SnapshotReviewLightweightPolicy {
     public static Input analysis(List<Unit> units, Group group) {
         var ids = new HashSet<>(group.unitIds());
         return new Input("ANALYSIS", units.stream().filter(u -> ids.contains(u.id())).toList(), List.of(group), List.of(),
-                List.of(), group.title() + "：" + group.objective(), null, SnapshotReview.LIGHTWEIGHT);
+                List.of(), group.title() + "：" + group.objective(), null, units.stream().allMatch(u -> u.initialEvidence() != null) ? SnapshotReview.COMPACT : SnapshotReview.LIGHTWEIGHT);
     }
 
     public static Input review(String batchId, Input source, Analysis analysis) {
@@ -45,6 +45,6 @@ public final class SnapshotReviewLightweightPolicy {
         analysis.findings().forEach(f -> f.evidence().forEach(r -> paths.add(r.path())));
         var units = source.units().stream().filter(u -> paths.contains(u.path()) || paths.contains(u.beforePath())).toList();
         return new Input("REVIEW", units, List.of(), List.of(), List.of(batchId),
-                "问题复核：" + source.objective(), batchId, SnapshotReview.LIGHTWEIGHT);
+                "问题复核：" + source.objective(), batchId, source.policy());
     }
 }

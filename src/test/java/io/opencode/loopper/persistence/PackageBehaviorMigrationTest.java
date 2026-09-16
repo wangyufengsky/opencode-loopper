@@ -32,7 +32,7 @@ class PackageBehaviorMigrationTest {
                 }
             } else {
                 rollback.migrate(); rollback.validate();
-                assertThat(rollback.info().current().getVersion().getVersion()).isEqualTo("112");
+                assertThat(rollback.info().current().getVersion().getVersion()).isEqualTo("113");
             }
         }
     }

@@ -41,12 +41,14 @@ public class SnapshotReviewReads {
     }
     public Map<String, Object> groups(String id, int offset, int limit) {
         var row = access.require(id); page(offset, limit);
+        if (input(row).compact()) throw invalid("轻量审查无需遍历其他分组，请处理本批初始证据");
         var groups = store.plan(row.taskId()).groups();
         return Map.of("groups", groups.stream().skip(offset).limit(limit).toList(), "nextOffset", offset + limit < groups.size() ? offset + limit : -1);
     }
     public CursorPage<SnapshotReview.File> files(String id, String version, String after, int limit) {
         var row = access.require(id); page(0, limit); version(row.taskId(), version);
         if (after == null || after.length() > 1024) throw invalid("目录游标无效");
+        contextRequest(row, "files", version, after, limit);
         var rows = snapshots.files(row.taskId(), version, after, limit + 1);
         var items = rows.stream().limit(limit).toList();
         return new CursorPage<>(items, rows.size() > limit ? items.getLast().path() : null);
@@ -56,6 +58,7 @@ public class SnapshotReviewReads {
         var row = access.require(id);
         if (start < 1 || limit < 1 || limit > 200) throw invalid("每次读取须为 1–200 行");
         var file = file(row.taskId(), version, path, blob);
+        contextRequest(row, "read", version, path, blob, start, limit);
         String[] lines = content(row.taskId(), file).split("\n", -1);
         if (start > lines.length) throw invalid("起始行超出冻结文件");
         int end = Math.min(lines.length, start + limit - 1);
@@ -73,6 +76,7 @@ public class SnapshotReviewReads {
         var row = access.require(id);
         if (query == null || query.isBlank() || query.length() > 200 || afterLine < 0) throw invalid("检索参数无效");
         var file = file(row.taskId(), version, path, blob);
+        contextRequest(row, "search", version, path, blob, query, afterLine);
         String[] lines = content(row.taskId(), file).split("\n", -1);
         List<Map<String, Object>> matches = new ArrayList<>(); int next = -1;
         for (int i = afterLine; i < lines.length; i++) {
@@ -85,11 +89,13 @@ public class SnapshotReviewReads {
     }
     public Map<String, Object> results(String id, int offset, int limit) {
         var row = access.require(id); page(offset, limit);
+        if (input(row).compact()) throw invalid("轻量审查只读取本批明确依赖，不遍历全任务结果");
         var values = snapshots.accepted(row.taskId(), offset, limit + 1);
         return Map.of("batches", values.stream().limit(limit).toList(), "nextOffset", values.size() > limit ? offset + limit : -1);
     }
     public Map<String, Object> result(String id, String batchId) {
         var caller = access.require(id); var input = input(caller);
+        if (input.compact() && !input.dependencies().contains(batchId)) throw invalid("只能读取本批明确分配的依赖结果");
         var row = batches.findBatch(batchId).orElseThrow(() -> invalid("依赖批次不存在"));
         if (!row.taskId().equals(caller.taskId()) || !SnapshotReview.batch(row.purpose()) || !row.state().equals("VALIDATED") || row.outputJson() == null) throw invalid("依赖结果尚未验证");
         return Map.of("batchId", batchId, "purpose", row.purpose(), "candidate", json.readTree(row.outputJson()),
@@ -101,11 +107,26 @@ public class SnapshotReviewReads {
         for (var ref : refs) {
             if (ref == null || ref.startLine() < 1 || ref.endLine() < ref.startLine() || ref.quote() == null || ref.quote().isBlank())
                 throw invalid("引用缺少版本、位置或原文");
-            var content = snapshots.receiptContent(batchId, ref).orElseThrow(() -> invalid("引用必须来自本角色实际读取的同版本同位置代码"));
+            var content = initialContent(input(row), ref).or(() -> snapshots.receiptContent(batchId, ref))
+                    .orElseThrow(() -> invalid("引用必须来自本批初始证据或本角色实际读取的同版本同位置代码"));
             if (!content.contains(ref.quote())) throw invalid("引用原文与冻结读取内容不匹配");
             if (target.equals(ref.version())) targetFound = true;
         }
         if (targetRequired && !targetFound) throw invalid("当前缺陷必须引用目标版本代码证据");
+    }
+    private void contextRequest(TemplateTaskBatchRow row, Object... arguments) {
+        if (!input(row).compact()) return;
+        String digest = TemplateGitEvidenceCollector.hash(json.writeValueAsString(arguments));
+        if (snapshots.contextRequest(row.id(), digest) == 0 && snapshots.contextRequestExists(row.id(), digest) == 0)
+            throw invalid("本批 12 次关联读取边界已到达；请使用已交付证据提交结果，将无法确认的疑点写入 limitations，不要继续扩展读取");
+    }
+    static Optional<String> initialContent(SnapshotReview.Input input, SnapshotReview.Reference ref) {
+        if (!input.compact()) return Optional.empty();
+        return input.units().stream().flatMap(u -> u.initialEvidence().stream())
+                .filter(r -> Objects.equals(r.version(), ref.version()) && Objects.equals(r.path(), ref.path())
+                        && Objects.equals(r.blob(), ref.blob()) && r.startLine() <= ref.startLine() && r.endLine() >= ref.endLine())
+                .map(r -> String.join("\n", Arrays.copyOfRange(r.quote().split("\n", -1),
+                        ref.startLine() - r.startLine(), ref.endLine() - r.startLine() + 1))).findFirst();
     }
     private TemplateTaskBatchRow snapshotsForBatch(String id) { return batches.findBatch(id).orElseThrow(() -> invalid("批次不存在")); }
     private SnapshotReview.Input input(TemplateTaskBatchRow row) { return json.readValue(row.inputJson(), TemplateBatchExecution.Input.class).snapshot(); }

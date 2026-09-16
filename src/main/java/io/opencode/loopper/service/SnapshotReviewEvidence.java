@@ -60,11 +60,12 @@ public class SnapshotReviewEvidence {
         List<SnapshotReview.File> files = new ArrayList<>(manifest(taskId, target, targetTree));
         if (baseline != null && !baseline.equals(target)) files.addAll(manifest(taskId, baseline, baselineTree));
         boolean lightweight = SnapshotReviewLightweightPolicy.applies(contract.path("definition").path("version").asText());
-        List<SnapshotReview.Unit> units = same ? List.of() : units(taskId, baseline, target, files, lightweight, baselineTree, targetTree);
+        List<SnapshotReview.Unit> units = same ? List.of() : units(taskId, baseline, target, files, lightweight, "3".equals(contract.path("definition").path("version").asText()), baselineTree, targetTree);
         return store.freeze(taskId, new SnapshotReview.Snapshot(source.head(), baseline, target, baselineTree, targetTree,
                 Instant.now().toString(), baseline == null ? null : dates.startInclusive().toString(),
                 baseline == null ? null : dates.endExclusive().toString(), baseline == null ? "FROZEN_BRANCH_TIP" : "FIRST_PARENT_COMMITTER_TIME",
-                anomaly, same, List.copyOf(files), units));
+                anomaly, same, List.copyOf(files), units, "3".equals(contract.path("definition").path("version").asText())
+                        ? TemplateGitEvidenceCollector.hash(projectId + "\n" + source.projectRoot() + "\n" + source.projectPrefix()) : null));
     }
     private List<SnapshotReview.File> manifest(String task, String sha, String tree) {
         return DocumentCodeSnapshotService.manifest(task, git.read(repository(task), "ls-tree", "-r", "-z", "-l", "--full-tree", tree)).stream()
@@ -76,7 +77,7 @@ public class SnapshotReviewEvidence {
             return "第三方依赖或构建产物未逐行审查";
         return null;
     }
-    private List<SnapshotReview.Unit> units(String task, String baseline, String target, List<SnapshotReview.File> files, boolean lightweight, String baselineTree, String targetTree) {
+    private List<SnapshotReview.Unit> units(String task, String baseline, String target, List<SnapshotReview.File> files, boolean lightweight, boolean compact, String baselineTree, String targetTree) {
         Map<String, SnapshotReview.File> targetFiles = new LinkedHashMap<>(), beforeFiles = new LinkedHashMap<>();
         files.forEach(f -> { if (f.version().equals(target)) targetFiles.put(f.path(), f); else beforeFiles.put(f.path(), f); });
         List<String[]> changes = new ArrayList<>();
@@ -105,7 +106,15 @@ public class SnapshotReviewEvidence {
             size += text.length();
             if (size > 64000000) throw failure("SNAPSHOT_EVIDENCE_LIMIT", "审查代码超过完整证据容量，未生成完整审查报告");
             String id = TemplateGitEvidenceCollector.hash(target + "\n" + change[1] + "\n" + change[2]);
-            result.addAll(lightweight ? SnapshotReviewUnits.compact(id, change, text, limitation) : SnapshotReviewUnits.compile(id, change, text, limitation));
+            var compiled = lightweight ? SnapshotReviewUnits.compact(id, change, text, limitation) : SnapshotReviewUnits.compile(id, change, text, limitation);
+            if (compact) {
+                compiled = SnapshotReviewInitialEvidence.compile(compiled, text, old, f);
+                Map<String, String> blobs = new HashMap<>();
+                for (var ref : compiled.stream().flatMap(u -> u.initialEvidence().stream()).toList())
+                    if (!blobs.containsKey(ref.blob())) blobs.put(ref.blob(), baseline == null ? text : git.read(repository(task), "cat-file", "blob", ref.blob()));
+                compiled = SnapshotReviewInitialEvidence.verified(compiled, blobs);
+            }
+            result.addAll(compiled);
         }
         return List.copyOf(result);
     }

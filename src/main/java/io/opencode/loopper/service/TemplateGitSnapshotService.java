@@ -66,7 +66,7 @@ public class TemplateGitSnapshotService {
             var existing = git.run(repository, Duration.ofSeconds(30), List.of("rev-parse", "--verify", "refs/heads/snapshot^{commit}"));
             if (existing.exitCode() == 0) {
                 requireCompleteHistory(repository);
-                return new Snapshot(directory, repository, existing.output().trim(), prefix);
+                return new Snapshot(directory, repository, existing.output().trim(), prefix, scope.project().toString());
             }
         } else {
             git.read(directory, "init", "--bare", "--template=", "--", repository.toString());
@@ -84,7 +84,7 @@ public class TemplateGitSnapshotService {
         fetched.requireSuccess(List.of("fetch"));
         requireCompleteHistory(repository);
         String head = git.read(repository, "rev-parse", "--verify", "refs/heads/snapshot^{commit}").strip();
-        return new Snapshot(directory, repository, head, prefix);
+        return new Snapshot(directory, repository, head, prefix, scope.project().toString());
     }
 
     private void requireCompleteHistory(Path repository) {
@@ -105,7 +105,8 @@ public class TemplateGitSnapshotService {
         }
     }
 
-    public record Snapshot(Path directory, Path repository, String head, String projectPrefix) {
-        public Snapshot(Path directory, Path repository, String head) { this(directory, repository, head, ""); }
+    public record Snapshot(Path directory, Path repository, String head, String projectPrefix, String projectRoot) {
+        public Snapshot(Path directory, Path repository, String head, String projectPrefix) { this(directory, repository, head, projectPrefix, null); }
+        public Snapshot(Path directory, Path repository, String head) { this(directory, repository, head, "", null); }
     }
 }

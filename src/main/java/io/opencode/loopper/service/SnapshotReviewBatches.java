@@ -7,7 +7,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.ObjectMapper;
 
-/** Scheduling and transport reuse with immutable snapshot-specific inputs and no cross-task result cache. */
+/** Scheduling and transport reuse with immutable snapshot-specific inputs and validated, scope-bound result reuse. */
 @Service
 public class SnapshotReviewBatches {
     private final TemplateBatchStore store;

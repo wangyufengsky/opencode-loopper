@@ -16,10 +16,11 @@ public class SnapshotReviewLightweightCoordinator {
     private final LoopperMapper tasks;
     private final SnapshotReviewReports reports;
 
+    private final SnapshotReviewReuse reuse;
     public SnapshotReviewLightweightCoordinator(SnapshotReviewStore store, SnapshotReviewEvidence evidence,
-            TemplateTaskStateService states, SnapshotReviewBatches batches, LoopperMapper tasks, SnapshotReviewReports reports) {
+            TemplateTaskStateService states, SnapshotReviewBatches batches, LoopperMapper tasks, SnapshotReviewReports reports, SnapshotReviewReuse reuse) {
         this.store = store; this.evidence = evidence; this.states = states;
-        this.batches = batches; this.tasks = tasks; this.reports = reports;
+        this.batches = batches; this.tasks = tasks; this.reports = reports; this.reuse = reuse;
     }
 
     public void advance(String taskId, TemplateTaskContractFactory.Frozen contract) {
@@ -44,8 +45,9 @@ public class SnapshotReviewLightweightCoordinator {
         var plan = store.plan(taskId);
         var analyses = new ArrayList<TemplateTaskBatchRow>(); var reviews = new ArrayList<TemplateTaskBatchRow>();
         for (int i = 0; i < plan.groups().size(); i++) {
-            var row = batches.create(analysisAttempt, i, "SNAPSHOT_ANALYSIS",
-                    SnapshotReviewLightweightPolicy.analysis(snapshot.units(), plan.groups().get(i)));
+            var input = SnapshotReviewLightweightPolicy.analysis(snapshot.units(), plan.groups().get(i));
+            var row = batches.create(analysisAttempt, i, "SNAPSHOT_ANALYSIS", input);
+            row = reuse.consider(row, input, snapshot, contract);
             analyses.add(row);
             if (row.state().equals("VALIDATED")) {
                 var result = batches.output(row, Analysis.class);

@@ -40,6 +40,9 @@ class SnapshotReviewIntegrationTest {
     @Autowired InternalMcpRuntimeAccess access;
     @Autowired ObjectMapper json;
     @Autowired TemplateTaskAdmission frozenAdmission;
+    @Autowired SnapshotReviewMapper snapshotRecords;
+    @Autowired TaskService taskService;
+    @Autowired SnapshotReviewPartialReports partialReports;
     @Autowired TemplateTaskContractFactory contractFactory;
     @Autowired ProjectBranchService branches;
     @TempDir Path temporary;
@@ -50,6 +53,8 @@ class SnapshotReviewIntegrationTest {
     private boolean findings;
     private boolean failOne;
     private boolean lightweight;
+    private boolean legacyV2;
+    private boolean stopAfterAnalysis;
     @BeforeEach void setup() throws Exception {
         flyway.clean(); flyway.migrate(); fake=(FakeOpenCodeClient)client; fake.reset();
         properties.getOpenCode().setModel("fake/test"); properties.setTimeoutEnabled(false);
@@ -67,12 +72,12 @@ class SnapshotReviewIntegrationTest {
         assertThat(result.exitCode()).as(result.output()).isZero(); return git.read(source,"rev-parse","HEAD").strip();
     }
     private TaskRow create(Mode mode) {
-        if (lightweight) return admission.create(new TemplateTaskService.Request(UUID.randomUUID().toString(),SnapshotReview.ID,"2",project,"local:refs/heads/main",
+        if (lightweight && !legacyV2) return admission.create(new TemplateTaskService.Request(UUID.randomUUID().toString(),SnapshotReview.ID,"3",project,"local:refs/heads/main",
                 mode==Mode.FULL?null:"2026-09-01",mode==Mode.FULL?null:"2026-09-10",null,null,mode.name()),false);
         // Simulate an already-frozen V1 run. Public creation only accepts the current lightweight version.
         var dates = TemplateDateRange.parse("2026-09-01", "2026-09-10", Clock.systemUTC());
         var base = contractFactory.freezeSnapshot(project, dates, source.resolve("doc").toString(), mode); var d = base.definition();
-        var legacy = new TemplateTaskDefinition.View(d.id(), "1", d.title(), d.description(), d.contentRepairLimit(), d.stages(), d.scoringVersion(), d.icon(), d.category());
+        var legacy = new TemplateTaskDefinition.View(d.id(), legacyV2 ? "2" : "1", d.title(), d.description(), d.contentRepairLimit(), d.stages(), d.scoringVersion(), d.icon(), d.category());
         var frozen = new TemplateTaskContractFactory.Frozen(legacy, base.spec(), null, null, List.of(), base.timezone(), base.timePolicy(),
                 base.repairLimit(), base.reportTemplates(), base.documentPath(), base.analysisConcurrency(), mode.name());
         return frozenAdmission.create(new TemplateTaskAdmission.Command(UUID.randomUUID().toString(), "legacy-fixture", branches.require(project, "local:refs/heads/main"), dates, frozen, false));
@@ -118,15 +123,15 @@ class SnapshotReviewIntegrationTest {
         assertThat(mapper.listSessions(task.id())).isEmpty();assertThat(states.task(task.id()).state()).isEqualTo("COMPLETED");
     }
     @Test void missingBoundaryIsReportedBeforeCallingModel() {
-        var task=admission.create(new TemplateTaskService.Request(UUID.randomUUID().toString(),SnapshotReview.ID,"2",project,"local:refs/heads/main","2026-01-01","2026-01-02",null,null,"DATE_INCREMENTAL"),false);
+        var task=admission.create(new TemplateTaskService.Request(UUID.randomUUID().toString(),SnapshotReview.ID,"3",project,"local:refs/heads/main","2026-01-01","2026-01-02",null,null,"DATE_INCREMENTAL"),false);
         start(task);
         for(int i=0;i<8;i++)driver.executeCheckpoint(task.id());
         assertThat(states.task(task.id()).state()).isEqualTo("WAITING_INPUT");assertThat(mapper.listSessions(task.id())).isEmpty();
     }
     @Test void dateModeValidationAndRequestReplayAreStable() {
-        var request=new TemplateTaskService.Request(UUID.randomUUID().toString(),SnapshotReview.ID,"2",project,"local:refs/heads/main",null,null,null,null,"FULL");
+        var request=new TemplateTaskService.Request(UUID.randomUUID().toString(),SnapshotReview.ID,"3",project,"local:refs/heads/main",null,null,null,null,"FULL");
         assertThat(admission.create(request,false).id()).isEqualTo(admission.create(request,false).id());
-        assertThatThrownBy(()->admission.create(new TemplateTaskService.Request(UUID.randomUUID().toString(),SnapshotReview.ID,"2",project,"local:refs/heads/main","2026-09-01","2026-09-10",null,null,"FULL"),false)).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(()->admission.create(new TemplateTaskService.Request(UUID.randomUUID().toString(),SnapshotReview.ID,"3",project,"local:refs/heads/main","2026-09-01","2026-09-10",null,null,"FULL"),false)).isInstanceOf(BadRequestException.class);
         assertThatThrownBy(()->admission.create(new TemplateTaskService.Request(UUID.randomUUID().toString(),SnapshotReview.ID,"1",project,"local:refs/heads/main",null,null,null,null,"FULL"),false)).isInstanceOf(ConflictException.class);
     }
     @Test void lightweightFullReviewUsesFixedCapacityBatchesAndSkipsEmptyFindingReviews() throws Exception {
@@ -212,10 +217,70 @@ class SnapshotReviewIntegrationTest {
         assertThat(all).filteredOn(b->b.state().equals("FAILED")).hasSize(1);
         assertThat(mapper.listAttempts(task.id())).hasSize(4);
     }
+    @Test void legacyV2StillRequiresReadsAndRunsAfterUpgrade() {
+        lightweight = true; legacyV2 = true;
+        var task = create(Mode.FULL); start(task); run(task);
+        assertThat(states.task(task.id()).state()).isEqualTo("COMPLETED");
+        assertThat(snapshots.snapshot(task.id()).units()).allMatch(u -> u.initialEvidence() == null);
+    }
+    @Test void compactReusesOnlyIdenticalScopeModelAndCompleteDependencyTrees() throws Exception {
+        lightweight = true;
+        var first = create(Mode.FULL); start(first); run(first);
+        assertThat(mapper.listSessions(first.id())).hasSize(1);
+        git.read(source, "-c", "core.hooksPath=/dev/null", "commit", "--allow-empty", "-m", "new week same tree");
+        var second = create(Mode.FULL); start(second); run(second);
+        assertThat(mapper.listSessions(second.id())).isEmpty();
+        assertThat(snapshotRecords.reuses(second.id())).hasSize(1);
+        assertThat(partialReports.read(second.id()).content()).contains(first.id(), "复用历史有效分析 1 批");
+        commit("caller.java", "class Caller {}\n", "2026-09-11T00:00:00Z");
+        var changed = create(Mode.FULL); start(changed); run(changed);
+        assertThat(mapper.listSessions(changed.id())).hasSize(1);
+        assertThat(snapshotRecords.reuses(changed.id())).isEmpty();
+        properties.getOpenCode().setModel("fake/other");
+        var otherModel = create(Mode.FULL); start(otherModel); run(otherModel);
+        assertThat(mapper.listSessions(otherModel.id())).hasSize(1);
+    }
+    @Test void partialReportShowsPendingBeforeCompletionWithoutAnyModelCall() {
+        lightweight = true; var task = create(Mode.FULL); start(task);
+        for (int i = 0; i < 10 && snapshots.require(task.id()).snapshotJson() == null; i++) driver.executeCheckpoint(task.id());
+        var report = partialReports.read(task.id());
+        assertThat(report.pendingUnits()).isEqualTo(1); assertThat(report.analyzedUnits()).isZero();
+        assertThat(report.content()).contains("非完整报告", "尚未完成分析");
+        assertThat(mapper.listSessions(task.id())).isEmpty();
+    }
+    @Test void cancelledTaskKeepsAnalyzedCandidateEvidenceWithoutClaimingIndependentSupport() {
+        lightweight = true; findings = true; stopAfterAnalysis = true;
+        var task = create(Mode.FULL); start(task); run(task);
+        taskService.cancel(task.id());
+        var report = partialReports.read(task.id());
+        assertThat(report.analyzedUnits()).isEqualTo(1);
+        assertThat(report.content()).contains("CANCELLED", "尚未独立复核（仅候选）", "class Main", "main.java");
+        assertThat(report.content()).doesNotContain("独立复核支持");
+        assertThat(mapper.listTaskArtifacts(task.id())).noneMatch(a -> a.kind().equals("TEMPLATE_REPORT"));
+    }
+    @Test void compactReadBoundarySurvivesReplayAndRejectsUnrelatedResults() {
+        lightweight = true; var task = create(Mode.FULL); start(task);
+        TemplateTaskBatchRow running = null;
+        for (int i = 0; i < 20 && running == null; i++) {
+            driver.executeCheckpoint(task.id());
+            running = snapshotRecords.currentBatches(task.id()).stream().filter(r -> r.state().equals("RUNNING")).findFirst().orElse(null);
+        }
+        final var row = Objects.requireNonNull(running);
+        var f = snapshots.snapshot(task.id()).files().getFirst();
+        for (int i = 0; i < 12; i++) reads.search(row.id(), f.version(), f.path(), f.blob(), "query" + i, 0);
+        reads.search(row.id(), f.version(), f.path(), f.blob(), "query0", 0);
+        assertThatThrownBy(() -> reads.search(row.id(), f.version(), f.path(), f.blob(), "more", 0)).hasMessageContaining("12 次关联读取");
+        assertThatThrownBy(() -> reads.results(row.id(), 0, 10)).hasMessageContaining("不遍历");
+        var input = json.readValue(row.inputJson(), TemplateBatchExecution.Input.class).snapshot();
+        reads.evidence(row.id(), input.units().getFirst().initialEvidence(), true);
+        assertThat(snapshotRecords.readCount(row.id())).isZero();
+        assertThat(protocol.prompt(row)).contains("无需重复读取初始证据", "最多 160 字");
+    }
     private void run(TaskRow task) {
         Set<String> completed=new HashSet<>();
         for(int turn=0;turn<800&&!states.task(task.id()).state().equals("COMPLETED");turn++) {
             driver.executeCheckpoint(task.id());
+            if (stopAfterAnalysis && snapshotRecords.currentBatches(task.id()).stream().anyMatch(r -> r.purpose().equals("SNAPSHOT_ANALYSIS") && r.state().equals("VALIDATED"))) return;
             if (states.task(task.id()).state().equals("WAITING_INPUT") && mapper.listErrors(task.id()).stream().anyMatch(e -> e.code().equals("TEMPLATE_BATCHES_FAILED"))) {
                 assertThat(progress.retrySelectionReady(task.id())).isTrue(); states.resumeBatch(task.id());
                 for (var a : mapper.listAttempts(task.id())) for (var failed : templates.batches(task.id(),a.id()))
@@ -236,7 +301,8 @@ class SnapshotReviewIntegrationTest {
                         ? List.of(new Relation("call",input.groups().getFirst().key(),input.groups().getLast().key(),"核对调用接口与配置")) : List.of());
                 else {
                     List<Reference> references=new ArrayList<>();var snapshot=snapshots.snapshot(task.id());
-                    for(var unit:input.units()) {
+                    if (input.compact()) input.units().forEach(u -> references.addAll(u.initialEvidence().stream().filter(r -> r.version().equals(snapshot.targetSha())).toList()));
+                    else for(var unit:input.units()) {
                         var file=snapshot.files().stream().filter(f->f.version().equals(snapshot.targetSha())&&f.path().equals(unit.path())).findFirst().orElseThrow();
                         var read=reads.read(row.id(),file.version(),file.path(),file.blob(),1,100);
                         references.add((Reference)read.get("reference"));
@@ -252,8 +318,8 @@ class SnapshotReviewIntegrationTest {
                         var path=snapshot.files().stream().map(SnapshotReview.File::path).filter(f->!contexts.contains(f)).findFirst();
                         if(supplement && path.isPresent() && !row.purpose().equals("SNAPSHOT_SUPPLEMENT"))
                             more=List.of(new Group(input.units().getFirst().id(),"补充配置检查","检查新的配置关联",List.of(input.units().getFirst().id()),List.of(path.get())));
-                        candidate=new Analysis(input.units().stream().map(u->new Coverage(u.id(),"已核对目标代码",references.stream().filter(r -> r.path().equals(u.path())).limit(1).toList(),List.of())).toList(),
-                                findings ? List.of("finding", "guarded", "pending", "duplicate").stream().map(key -> new Finding(key,TemplateAnalysis.Severity.HIGH,"标注样本 " + key,"标注触发条件","目标代码证据","修复建议",Attribution.UNDETERMINED,input.lightweight() ? List.of(references.getFirst()) : references)).toList() : List.of(),more,List.of("静态审查未运行测试"));
+                        candidate=new Analysis(input.units().stream().map(u->new Coverage(u.id(),"已核对目标代码",input.compact() ? List.of() : references.stream().filter(r -> r.path().equals(u.path())).limit(1).toList(),List.of())).toList(),
+                                findings ? List.of("finding", "guarded", "pending", "duplicate").stream().map(key -> new Finding(key,TemplateAnalysis.Severity.HIGH,"标注样本 " + key,"标注触发条件","目标代码证据","修复建议",Attribution.UNDETERMINED,input.lightweight() ? List.of(references.getFirst()) : references)).toList() : List.of(),more,input.compact() ? List.of() : List.of("静态审查未运行测试"));
                     } else {
                         var origin=json.readValue(templates.findBatch(input.analysisBatchId()).orElseThrow().outputJson(),Analysis.class);
                         candidate=new Review(input.units().stream().map(Unit::id).toList(),origin.findings().stream().map(f->new Decision(f.key(), switch(f.key()) { case "guarded" -> Verdict.DISMISSED; case "pending" -> Verdict.UNDETERMINED; case "duplicate" -> Verdict.DUPLICATE; default -> Verdict.SUPPORTED; },"独立读取目标代码证据",f.key().equals("duplicate") ? "finding" : null,references)).toList(),references,"独立读取后给出样本判定",List.of("未运行测试"));

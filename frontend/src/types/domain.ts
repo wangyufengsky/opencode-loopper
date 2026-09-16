@@ -1679,3 +1679,5 @@ export interface GitCredentialInput {
   version: number
   repositoryUrl?: string
 }
+
+export interface SnapshotReviewPartialReport { content: string; sha256: string; capturedAt: string; analyzedUnits: number; pendingUnits: number; excludedUnits: number }

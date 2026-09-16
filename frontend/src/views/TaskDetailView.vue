@@ -4,6 +4,7 @@ import { Icon } from '@iconify/vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
+import SnapshotReviewPartialReport from '@/components/SnapshotReviewPartialReport.vue'
 import TemplateReportsPanel from '@/components/TemplateReportsPanel.vue'
 import TemplateTaskProgressPanel from '@/components/TemplateTaskProgressPanel.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
@@ -376,6 +377,7 @@ async function confirmRework() {
         <div class="overview-meta"><span><b>{{ task.attemptCount }}</b> / {{ task.maxAttempts }} 次尝试</span><span v-if="store.streamState !== 'idle'" :class="['stream-state', store.streamState]">{{ store.streamState === 'connected' ? '实时连接正常' : '实时连接恢复中' }}</span></div>
       </section>
       <TemplateTaskProgressPanel v-if="isTemplateTask" :task="task" />
+      <SnapshotReviewPartialReport v-if="task.templateProgress?.snapshot?.targetSha && task.status !== 'COMPLETED'" :task-id="task.id" />
       <TemplateReportsPanel v-if="isTemplateTask" :task-id="task.id" :artifacts="artifacts" :accepted="task.status === 'COMPLETED'" :dual-review-required="dualReviewRequired" :loading-metadata="store.auditLoading?.[task.id]" :metadata-error="store.auditErrors?.[task.id]" @reload="store.loadTaskAudit(task.id)" />
       <RollingPackageWorkbench v-if="task.executionMode === 'ROLLING_PACKAGES'" :task="task" @refresh="load" />
       <TaskDecisionPanel v-if="!isTemplateTask && task.status === 'AWAITING_DECISION'" :task-id="task.id" @reload="load" @open-task="(taskId) => router.push(`/tasks/${taskId}`)" />
