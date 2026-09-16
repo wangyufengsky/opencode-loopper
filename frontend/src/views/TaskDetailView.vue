@@ -141,7 +141,7 @@ const nextAction = computed(() => {
   if (task.value.status === 'WAITING_INPUT') return '回答页面中的待处理问题，任务将从当前阶段继续。'
   if (task.value.status === 'PAUSED') return '确认当前状态后点击“继续”，任务会从原阶段恢复。'
   if (task.value.status === 'READY') return '执行目录已准备完成，Loopper 正在自动启动任务；若不再执行，也可直接取消并保留任务证据。'
-  return '任务正在推进；实时会话和阶段状态会自动更新。'
+  return '任务尚未结束；会话与阶段状态会自动检查，连接正常不代表持续有进展。'
 })
 
 let loadGeneration = 0
@@ -441,7 +441,7 @@ async function confirmRework() {
       <section v-for="error in verifierErrors" :key="error.id" style="margin-top: 16px"><LayeredErrorPanel :error="error" :judges="currentJudges" /></section>
       <section v-for="error in sessionErrors" :key="error.id" style="margin-top: 16px"><LayeredErrorPanel :error="error" /></section>
       <section v-for="error in taskErrors" :key="error.id" style="margin-top: 16px"><LayeredErrorPanel :error="error" :task-state="task.status" /></section>
-      <SessionMonitorPanel :task-id="task.id" />
+      <SessionMonitorPanel :task-id="task.id" :template-task="isTemplateTask" :task-status="task.status" />
       <section v-if="store.auditErrors?.[id]" class="error-panel error-panel-verification" role="status">
         <Icon class="error-panel-icon" icon="lucide:database-zap" /><div><h3>审计信息加载失败</h3><p>{{ userFacingError(store.auditErrors?.[id]) }}</p><el-button size="small" plain @click="store.loadTaskAudit?.(id)">重试</el-button></div>
       </section>

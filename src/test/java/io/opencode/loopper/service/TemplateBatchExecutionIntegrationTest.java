@@ -57,6 +57,9 @@ class TemplateBatchExecutionIntegrationTest {
     @Autowired org.springframework.transaction.PlatformTransactionManager transactionManager;
     @Autowired io.opencode.loopper.runtime.InternalMcpRuntimeAccess access;
     @Autowired io.opencode.loopper.persistence.TemplateCandidateSubmissionMapper receipts;
+    @Autowired TemplateBatchRecoveryStore recovery;
+    @Autowired io.opencode.loopper.persistence.TemplateBatchRecoveryMapper recoveryLedger;
+    @Autowired TemplateSessionDiagnostics diagnostics;
     @TempDir Path temporary;
     private TaskRow task;
     private TemplateTaskBatchRow batch;
@@ -435,6 +438,261 @@ class TemplateBatchExecutionIntegrationTest {
         var failed = batch;
         assertThatThrownBy(() -> batches.retry(failed, failed.version(), true)).isInstanceOf(ConflictException.class);
         assertThat(templates.batches(task.id(), batch.attemptId())).hasSize(1);
+    }
+
+    @Test void acceptedBusyWaitsForToolResponseGraceThenStopsAndReusesTheReceipt() {
+        startRecoverable(true);
+        int prompts = fake.promptCalls();
+        batch = execution.advance(batch, contract);
+        assertThat(batch.state()).isEqualTo("RUNNING");
+        assertThat(recoveryLedger.find(batch.id()).orElseThrow().proof()).isNull();
+        org.mockito.Mockito.verify(client, org.mockito.Mockito.never()).abortWithConfirmation(org.mockito.ArgumentMatchers.any());
+        assertThat(diagnostics.get(task.id(), batch.id()).phase()).isEqualTo("ACCEPTED_WAITING_STOP");
+        dueRecovery();
+        batch = execution.advance(batch, contract);
+        assertThat(batch.state()).isEqualTo("VALIDATED");
+        assertThat(batch.outputJson()).isEqualTo(receipts.accepted(batch.id()).orElseThrow());
+        assertThat(recoveryLedger.find(batch.id()).orElseThrow().proof()).isEqualTo("ABORT_ACKNOWLEDGED");
+        assertThat(fake.promptCalls()).isEqualTo(prompts);
+        assertThat(fake.createReadOnlySessionCalls()).isEqualTo(1);
+    }
+
+    @Test void oldAcceptedReceiptImmediatelyStartsRecoveryWithoutResettingGraceOnRestart() {
+        startRecoverable(true);
+        jdbc.update("UPDATE template_candidate_submission SET created_at=? WHERE batch_id=?", Instant.now().minusSeconds(120).toString(), batch.id());
+        batch = execution.advance(batch, contract);
+        assertThat(batch.state()).isEqualTo("VALIDATED");
+        assertThat(fake.promptCalls()).isEqualTo(1);
+    }
+
+    @Test void unconfirmedStopRetainsCandidateAndBlocksDuplicateAbortUntilRetryWindow() {
+        startRecoverable(true);
+        recovery.accepted(batch); dueRecovery();
+        fake.failNextAborts(1);
+        batch = execution.advance(batch, contract);
+        assertThat(batch.state()).isEqualTo("RUNNING");
+        assertThat(recoveryLedger.find(batch.id()).orElseThrow().proof()).isNull();
+        assertThat(receipts.accepted(batch.id())).isPresent();
+        assertThat(diagnostics.get(task.id(), batch.id()).phase()).isEqualTo("STOP_UNCONFIRMED");
+        batch = execution.advance(batch, contract);
+        org.mockito.Mockito.verify(client, org.mockito.Mockito.times(1)).abortWithConfirmation(org.mockito.ArgumentMatchers.any());
+        jdbc.update("UPDATE template_batch_recovery SET last_attempt_at=? WHERE batch_id=?", Instant.now().minusSeconds(30).toString(), batch.id());
+        batch = execution.advance(batch, contract);
+        assertThat(batch.state()).isEqualTo("VALIDATED");
+        assertThat(fake.promptCalls()).isEqualTo(1);
+    }
+
+    @Test void durableStopProofCompletesAfterRestartEvenWhenRemoteStatusIsUnavailable() {
+        startRecoverable(true);
+        recovery.accepted(batch);
+        recovery.proof(batch, CandidateSessionTerminationProof.ABORT_ACKNOWLEDGED);
+        org.mockito.Mockito.doThrow(new IllegalStateException("remote unavailable")).when(client).sessionStatus(org.mockito.ArgumentMatchers.any());
+        org.mockito.Mockito.clearInvocations(client);
+        batch = execution.advance(batches.require(batch.id()), contract);
+        assertThat(batch.state()).isEqualTo("VALIDATED");
+        org.mockito.Mockito.verify(client, org.mockito.Mockito.never()).sessionStatus(org.mockito.ArgumentMatchers.any());
+        org.mockito.Mockito.verify(client, org.mockito.Mockito.never()).sessionTranscript(org.mockito.ArgumentMatchers.any());
+        org.mockito.Mockito.verify(client, org.mockito.Mockito.never()).abortWithConfirmation(org.mockito.ArgumentMatchers.any());
+        org.mockito.Mockito.verify(client, org.mockito.Mockito.never()).promptAsync(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(OpenCodeClient.PromptRequest.class));
+    }
+
+    @Test void acceptedCandidateSurvivesRemoteFailureAndDoesNotRepeatAnalysis() {
+        startRecoverable(true);
+        fake.setSessionState(remote().id(), "FAILED");
+        batch = execution.advance(batch, contract);
+        assertThat(batch.state()).isEqualTo("VALIDATED");
+        assertThat(batch.outputJson()).contains("新增内容");
+        assertThat(recoveryLedger.find(batch.id()).orElseThrow().proof()).isEqualTo("REMOTE_COMPLETED");
+        assertThat(fake.promptCalls()).isEqualTo(1);
+    }
+
+    @Test void manualStopRejectsLateSubmissionsAndPreservesOneHundredCompletedSiblings() {
+        startRecoverable(false);
+        var attempt = mapper.findAttempt(batch.attemptId()).orElseThrow();
+        for (int ordinal = 1; ordinal <= 100; ordinal++) {
+            var sibling = batches.create(attempt, ordinal, "REVIEW", batch.inputJson(), batch.inputSha256());
+            batches.validated(sibling, valid(), true);
+        }
+        recovery.request(task.id(), batch.id(), "STOP", batch.version(), UUID.randomUUID().toString());
+        assertThat(diagnostics.get(task.id(), batch.id()).phase()).isEqualTo("STOP_REQUESTED");
+        assertThatThrownBy(() -> submissions.submit(batch.id(), "late", 0, valid())).isInstanceOf(ConflictException.class);
+        batch = execution.advance(batch, contract);
+        assertThat(batch.state()).isEqualTo("FAILED");
+        assertThat(batch.errorCode()).isEqualTo("TEMPLATE_BATCH_MANUALLY_STOPPED");
+        assertThat(receipts.accepted(batch.id())).isEmpty();
+        assertThat(templates.batches(task.id(), attempt.id()).stream().filter(row -> row.state().equals("VALIDATED"))).hasSize(100);
+        assertThat(current().state()).isEqualTo("RUNNING");
+        assertThat(fake.promptCalls()).isEqualTo(1);
+    }
+
+    @Test void manualFinalizeIsReplayableAfterCompletionButIdentityAndVersionReuseAreRejected() {
+        startRecoverable(true);
+        String command = UUID.randomUUID().toString();
+        long version = batch.version();
+        assertThatThrownBy(() -> recovery.request("another-task", batch.id(), "FINALIZE", version, command)).isInstanceOf(NotFoundException.class);
+        assertThatThrownBy(() -> recovery.request(task.id(), batch.id(), "FINALIZE", version - 1, command)).isInstanceOf(ConflictException.class);
+        assertThatThrownBy(() -> recovery.request(task.id(), batch.id(), "STOP", version, command)).isInstanceOf(ConflictException.class);
+        recovery.request(task.id(), batch.id(), "FINALIZE", version, command);
+        batch = execution.advance(batch, contract);
+        assertThat(batch.state()).isEqualTo("VALIDATED");
+        recovery.request(task.id(), batch.id(), "FINALIZE", version, command);
+        assertThatThrownBy(() -> recovery.request(task.id(), batch.id(), "STOP", version, command)).isInstanceOf(ConflictException.class);
+        assertThatThrownBy(() -> recovery.request(task.id(), batch.id(), "FINALIZE", version + 1, command)).isInstanceOf(ConflictException.class);
+        var sibling = batches.create(mapper.findAttempt(batch.attemptId()).orElseThrow(), 1, "REVIEW", batch.inputJson(), batch.inputSha256());
+        assertThatThrownBy(() -> recovery.request(task.id(), sibling.id(), "FINALIZE", version, command)).isInstanceOf(ConflictException.class);
+        org.mockito.Mockito.verify(client, org.mockito.Mockito.times(1)).abortWithConfirmation(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test void stopRequestCommittedDuringStatusReadCannotDispatchLengthContinuation() {
+        startContinuable();
+        String originalPrompt = batch.promptSha256();
+        int calls = fake.promptCalls();
+        org.mockito.Mockito.doAnswer(invocation -> {
+            recovery.request(task.id(), batch.id(), "STOP", batch.version(), UUID.randomUUID().toString());
+            return new OpenCodeClient.SessionStatus("COMPLETED", null);
+        }).when(client).sessionStatus(org.mockito.ArgumentMatchers.any());
+        batch = execution.advance(batch, contract);
+        assertThat(batch.state()).isEqualTo("FAILED");
+        assertThat(batch.errorCode()).isEqualTo("TEMPLATE_BATCH_MANUALLY_STOPPED");
+        assertThat(batch.promptSha256()).isEqualTo(originalPrompt);
+        assertThat(continuations.latest(batch.id())).isEmpty();
+        assertThat(fake.promptCalls()).isEqualTo(calls);
+    }
+
+    @Test void acceptedReceiptCommittedDuringFailureStatusReadMustBeReused() {
+        startRecoverable(false);
+        org.mockito.Mockito.doAnswer(invocation -> {
+            assertThat(submissions.submit(batch.id(), "late-accepted", 0, valid())).contains("ACCEPTED");
+            return new OpenCodeClient.SessionStatus("FAILED", null);
+        }).when(client).sessionStatus(org.mockito.ArgumentMatchers.any());
+        batch = execution.advance(batch, contract);
+        assertThat(batch.state()).isEqualTo("VALIDATED");
+        assertThat(batch.outputJson()).isEqualTo(receipts.accepted(batch.id()).orElseThrow());
+        assertThat(fake.promptCalls()).isEqualTo(1);
+    }
+
+    @Test void acceptedReceiptCommittedBeforeStatusFailureIsRetainedAndRecoveryContinues() {
+        startRecoverable(false);
+        int calls = fake.promptCalls();
+        org.mockito.Mockito.doAnswer(invocation -> {
+            assertThat(submissions.submit(batch.id(), "accepted-before-disconnect", 0, valid())).contains("ACCEPTED");
+            throw new IllegalStateException("status transport disconnected after acceptance");
+        }).when(client).sessionStatus(org.mockito.ArgumentMatchers.any());
+        batch = execution.advance(batch, contract);
+        assertThat(batch.state()).isEqualTo("RUNNING");
+        assertThat(batch.outputJson()).isNull();
+        assertThat(receipts.accepted(batch.id())).isPresent();
+        var intent = recoveryLedger.find(batch.id()).orElseThrow();
+        assertThat(intent.action()).isEqualTo("FINALIZE");
+        assertThat(intent.proof()).isNull();
+        assertThat(fake.promptCalls()).isEqualTo(calls);
+        org.mockito.Mockito.verify(client, org.mockito.Mockito.never()).abortWithConfirmation(org.mockito.ArgumentMatchers.any());
+        org.mockito.Mockito.doThrow(new IllegalStateException("status still unavailable")).when(client).sessionStatus(org.mockito.ArgumentMatchers.any());
+        dueRecovery();
+        batch = execution.advance(batch, contract);
+        assertThat(batch.state()).isEqualTo("VALIDATED");
+        assertThat(batch.outputJson()).isEqualTo(receipts.accepted(batch.id()).orElseThrow());
+        assertThat(recoveryLedger.find(batch.id()).orElseThrow().proof()).isEqualTo("ABORT_ACKNOWLEDGED");
+        assertThat(fake.promptCalls()).isEqualTo(calls);
+        org.mockito.Mockito.verify(client, org.mockito.Mockito.times(1)).abortWithConfirmation(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test void cancellationDuringAbortCannotStoreProofOrCompleteAcceptedBatch() {
+        startRecoverable(true);
+        recovery.request(task.id(), batch.id(), "FINALIZE", batch.version(), UUID.randomUUID().toString());
+        org.mockito.Mockito.doAnswer(invocation -> {
+            states.updateTask(states.taskState(current(), TaskState.STOPPING), LifecycleEvent.CANCEL, Map.of());
+            return OpenCodeClient.AbortConfirmation.ACKNOWLEDGED;
+        }).when(client).abortWithConfirmation(org.mockito.ArgumentMatchers.any());
+        assertThatThrownBy(() -> execution.advance(batch, contract)).isInstanceOf(ConflictException.class);
+        assertThat(current().state()).isEqualTo("STOPPING");
+        assertThat(batches.require(batch.id()).state()).isEqualTo("RUNNING");
+        assertThat(batches.require(batch.id()).outputJson()).isNull();
+        assertThat(recoveryLedger.find(batch.id()).orElseThrow().proof()).isNull();
+        assertThat(receipts.accepted(batch.id())).isPresent();
+        assertThat(diagnostics.get(task.id(), batch.id()).canFinalize()).isFalse();
+    }
+
+    @Test void repeatedIdenticalObservationRefreshesConnectionWithoutResettingActivityOrProgress() {
+        startRecoverable(false);
+        fake.setJudgeOutput("private-model-prompt OPENCODE_SERVER_PASSWORD=private-password");
+        batch = execution.advance(batch, contract);
+        var original = recoveryLedger.observation(batch.id()).orElseThrow();
+        String old = Instant.now().minusSeconds(360).toString();
+        jdbc.update("UPDATE template_batch_observation SET observed_at=?,last_activity_at=?,last_progress_at=? WHERE batch_id=?", old, old, old, batch.id());
+        batch = execution.advance(batch, contract);
+        var observation = recoveryLedger.observation(batch.id()).orElseThrow();
+        assertThat(observation.observedAt()).isNotEqualTo(old);
+        assertThat(observation.lastActivityAt()).isEqualTo(old);
+        assertThat(observation.lastProgressAt()).isEqualTo(old);
+        assertThat(observation.fingerprint()).isEqualTo(original.fingerprint());
+        var detail = diagnostics.get(task.id(), batch.id());
+        assertThat(detail.phase()).isEqualTo("STALLED");
+        assertThat(detail.connected()).isTrue();
+        assertThat(detail.canStop()).isTrue();
+        assertThat(detail.sessionKey()).isEqualTo("execution:" + batch.sessionId());
+        assertThat(detail.externalSessionId()).isEqualTo(remote().id());
+        assertThat(detail.worktreePath()).isEqualTo(current().worktreePath());
+        assertThat(detail.requestMessageId()).isNotBlank();
+        assertThat(json.writeValueAsString(detail)).doesNotContain("private-model-prompt", "private-password", "promptJson", "outputJson", "candidateJson");
+        assertThat(diagnostics.list(task.id(), "ATTENTION", null, 50).items()).extracting(TemplateSessionDiagnostics.Diagnostic::batchId).containsExactly(batch.id());
+        jdbc.update("UPDATE template_batch_observation SET observed_at=? WHERE batch_id=?", old, batch.id());
+        assertThat(diagnostics.get(task.id(), batch.id()).phase()).isEqualTo("DISCONNECTED");
+        assertThat(diagnostics.get(task.id(), batch.id()).connected()).isFalse();
+    }
+
+    @Test void diagnosticsUseServerFiltersBoundedStableCursorAndTaskOwnership() {
+        startRecoverable(true);
+        var attempt = mapper.findAttempt(batch.attemptId()).orElseThrow();
+        var success = batches.create(attempt, 1, "REVIEW", batch.inputJson(), batch.inputSha256());
+        batches.validated(success, valid(), true);
+        var pending = batches.create(attempt, 2, "REVIEW", batch.inputJson(), batch.inputSha256());
+        jdbc.update("UPDATE template_task_batch SET created_at=? WHERE task_id=?", "2026-01-01T00:00:00Z", task.id());
+        var first = diagnostics.list(task.id(), "ALL", null, 2);
+        var second = diagnostics.list(task.id(), "ALL", first.nextCursor(), 2);
+        assertThat(first.items()).hasSize(2);
+        assertThat(first.nextCursor()).isNotBlank();
+        assertThat(second.items()).hasSize(1);
+        assertThat(second.nextCursor()).isNull();
+        var ids = java.util.stream.Stream.concat(first.items().stream(), second.items().stream()).map(TemplateSessionDiagnostics.Diagnostic::batchId).toList();
+        assertThat(ids).containsExactlyInAnyOrder(batch.id(), success.id(), pending.id()).doesNotHaveDuplicates();
+        assertThat(first.items()).allSatisfy(row -> { assertThat(row.worktreePath()).isNull(); assertThat(row.requestMessageId()).isNull(); });
+        assertThat(diagnostics.list(task.id(), "ACTIVE", null, 100).items()).extracting(TemplateSessionDiagnostics.Diagnostic::batchId).containsExactlyInAnyOrder(batch.id(), pending.id());
+        assertThat(diagnostics.list(task.id(), "ATTENTION", null, 100).items()).extracting(TemplateSessionDiagnostics.Diagnostic::batchId).containsExactly(batch.id());
+        assertThatThrownBy(() -> diagnostics.list(task.id(), "ALL", null, 101)).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> diagnostics.list(task.id(), "ALL", null, 0)).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> diagnostics.list(task.id(), "INVALID", null, 10)).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> diagnostics.list(task.id(), "ALL", "bad-cursor", 10)).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> diagnostics.get(task.id(), "another-batch")).isInstanceOf(NotFoundException.class);
+        assertThatThrownBy(() -> diagnostics.get("another-task", batch.id())).isInstanceOf(NotFoundException.class);
+    }
+
+    @Test void recoveryObservationAndCommandCleanupRollBackTogetherWithBatch() {
+        startRecoverable(true);
+        recovery.request(task.id(), batch.id(), "FINALIZE", batch.version(), UUID.randomUUID().toString());
+        fake.failNextAborts(1);
+        batch = execution.advance(batch, contract);
+        var transaction = new org.springframework.transaction.support.TransactionTemplate(transactionManager);
+        transaction.executeWithoutResult(status -> { coordinator.deleteBeforeAttempts(task.id()); status.setRollbackOnly(); });
+        assertThat(recoveryLedger.find(batch.id())).isPresent();
+        assertThat(recoveryLedger.observation(batch.id())).isPresent();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM template_batch_recovery_command WHERE batch_id=?", Integer.class, batch.id())).isEqualTo(1);
+        transaction.executeWithoutResult(status -> coordinator.deleteBeforeAttempts(task.id()));
+        assertThat(recoveryLedger.find(batch.id())).isEmpty();
+        assertThat(recoveryLedger.observation(batch.id())).isEmpty();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM template_batch_recovery_command WHERE batch_id=?", Integer.class, batch.id())).isZero();
+        assertThat(jdbc.queryForList("PRAGMA foreign_key_check")).isEmpty();
+    }
+
+    private void startRecoverable(boolean accepted) {
+        enableMcp("9");
+        for (int i = 0; i < 4; i++) batch = execution.advance(batch, contract);
+        assertThat(batch.state()).isEqualTo("RUNNING");
+        if (accepted) assertThat(submissions.submit(batch.id(), "accepted", 0, valid())).contains("ACCEPTED");
+    }
+
+    private void dueRecovery() {
+        jdbc.update("UPDATE template_batch_recovery SET not_before=? WHERE batch_id=?", Instant.now().minusSeconds(1).toString(), batch.id());
     }
 
     private void startContinuable() {

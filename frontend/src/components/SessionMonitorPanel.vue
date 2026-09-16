@@ -4,12 +4,13 @@ import { Icon } from '@iconify/vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { api } from '@/api/client'
 import OpenCodeTodoProgress from '@/components/OpenCodeTodoProgress.vue'
+import TemplateSessionDiagnosticsPanel from '@/components/TemplateSessionDiagnosticsPanel.vue'
 import TokenUsageWindow from '@/components/TokenUsageWindow.vue'
 import type { TaskSessionActivity, TaskSessionPendingQuestion, TaskSessionSummary } from '@/types/domain'
 import { templateSessionTitle, templateSessionDetail } from '@/utils/templateSessionLabels'
 import { activityLabel, activityTypeLabel, sessionLabel, statusLabel, userFacingError } from '@/utils/displayLabels'
 
-const props = defineProps<{ taskId: string }>()
+const props = defineProps<{ taskId: string; templateTask?: boolean; taskStatus?: string }>()
 const outputViewportStyle = {
   '--model-output-min-height': '500px',
   '--model-output-max-height': '680px',
@@ -283,9 +284,11 @@ onBeforeUnmount(() => {
       </div>
       <div class="monitor-actions">
         <TokenUsageWindow :key="taskId" :total-tokens="activity?.usage.totalTokens" />
-        <div class="live-indicator" :class="{ active }"><span />{{ active ? '实时 · 1.2 秒' : '监控 · 3 秒' }}</div>
+        <div class="live-indicator" :class="{ active }"><span />{{ active ? '检查 · 1.2 秒' : '检查 · 3 秒' }}</div>
       </div>
     </header>
+
+    <TemplateSessionDiagnosticsPanel v-if="templateTask || sessions.some(session => session.templateBatch)" :task-id="taskId" :active="['RUNNING', 'VERIFYING', 'PREPARING', 'STOPPING', 'RETRY_WAIT'].includes(taskStatus ?? '') || sessions.some(session => ['CREATING', 'RUNNING'].includes(session.state))" @select="selectSession" />
 
     <div v-if="loading && !sessions.length" class="monitor-empty"><span class="monitor-spinner" /><p>正在连接任务会话…</p></div>
     <div v-else-if="!sessions.length" class="monitor-empty"><Icon icon="lucide:message-square-dashed" width="26" /><p>这个任务尚未创建模型会话。</p></div>
@@ -306,7 +309,7 @@ onBeforeUnmount(() => {
       <article :class="['session-console', { 'has-todo-dock': selected?.kind === 'IMPLEMENTATION' && pendingQuestions.length === 0 }]">
         <div class="console-toolbar">
           <div><strong>{{ sessionTitle(selected) }}<template v-if="selected?.templateBatch?.purpose"> · {{ selected.templateBatch.purpose === 'CONTRIBUTOR' ? '人员贡献' : '代码分析' }}</template></strong><span class="mono">{{ statusLabel(activity?.remoteState ?? selected?.state) }}</span></div>
-          <div><span :class="['transport-dot', { live: activity?.live }]" />{{ activity?.live ? 'OpenCode 已连接' : '持久化状态' }} · {{ observedTime }}</div>
+          <div><span :class="['transport-dot', { live: activity?.live }]" />{{ activity?.live ? 'OpenCode 可读取' : '持久化状态' }} · 最后检查 {{ observedTime }}</div>
         </div>
         <div v-if="selected?.kind === 'IMPLEMENTATION' && pendingQuestions.length === 0" class="todo-dock">
           <OpenCodeTodoProgress
@@ -365,9 +368,9 @@ onBeforeUnmount(() => {
             </div>
             <footer><el-button plain :disabled="Boolean(submittingQuestion)" @click="rejectQuestion(pending)">拒绝</el-button><el-button type="primary" :loading="submittingQuestion === pending.id" :disabled="!canSubmit(pending) || Boolean(submittingQuestion && submittingQuestion !== pending.id)" @click="submitAnswer(pending)">提交回答并继续</el-button></footer>
           </section>
-          <div v-if="thinking" class="live-thinking" role="status" aria-label="模型正在思考">
+          <div v-if="thinking" class="live-thinking" role="status" aria-label="等待会话更新">
             <span class="thinking-orbit"><span /></span>
-            <div><strong>模型正在思考<span class="thinking-dots"><i /><i /><i /></span></strong></div>
+            <div><strong>等待会话更新<span class="thinking-dots"><i /><i /><i /></span></strong></div>
           </div>
           <div v-if="!thinking && !error && activity && activity.parts.length === 0" class="monitor-placeholder">当前会话没有可显示的模型输出。</div>
         </div>

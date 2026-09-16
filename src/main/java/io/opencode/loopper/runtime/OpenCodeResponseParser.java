@@ -99,7 +99,7 @@ final class OpenCodeResponseParser {
             }
             messageIndex++;
         }
-        return new SessionTranscript(result, usage(messages));
+        return new SessionTranscript(result, usage(messages), OpenCodeActivityFingerprint.of(messages));
     }
 
     List<SessionMessageRef> messageRefs(JsonNode messages) {

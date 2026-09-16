@@ -21,11 +21,14 @@ public class TemplateCandidateSubmissionService {
     private final InternalMcpRuntimeAccess access;
     private final TemplateCandidateCodec codec;
     private final ObjectMapper json;
+    private final io.opencode.loopper.persistence.TemplateBatchRecoveryMapper recovery;
 
     TemplateCandidateSubmissionService(TemplateBatchStore batches, TemplateCandidateSubmissionMapper receipts,
-            LoopperMapper mapper, InternalMcpRuntimeAccess access, TemplateCandidateCodec codec, ObjectMapper json) {
+            LoopperMapper mapper, InternalMcpRuntimeAccess access, TemplateCandidateCodec codec, ObjectMapper json,
+            io.opencode.loopper.persistence.TemplateBatchRecoveryMapper recovery) {
         this.batches = batches; this.receipts = receipts; this.mapper = mapper;
         this.access = access; this.codec = codec; this.json = json;
+        this.recovery = recovery;
     }
 
     @Transactional
@@ -39,6 +42,7 @@ public class TemplateCandidateSubmissionService {
             return replay.responseJson();
         }
         batches.requireRunning(batch.taskId(), batch.attemptId());
+        if (recovery.find(batchId).isPresent()) throw conflict("TEMPLATE_SUBMISSION_CLOSED", "批次正在收尾或停止，不再接受新提交");
         if (!List.of("DISPATCHING", "RUNNING").contains(batch.state())) {
             throw conflict("TEMPLATE_SUBMISSION_CLOSED", "批次已停止或尚未允许投递，不接受新候选");
         }

@@ -1,3 +1,5 @@
+import type { TemplateDiagnosticFilter, TemplateRecoveryAction } from '@/types/domain'
+import { normalizeTemplateDiagnostic, normalizeTemplateDiagnosticPage } from './templateSessionDiagnostics'
 import type { DocumentSectionPage, DocumentSupplementRequest, DocumentSupplementOptions, DocumentClarification, DocumentClarificationRequest, TaskListItem, DocumentTemplateRequest, DocumentTemplateOverview, DocumentRequirementPage, DocumentRequirementDetail, DocumentSection, DocumentReportSummary } from '@/types/domain'
 import type { ProjectAssistConfig, AssistEvidenceSource, EvidencePage, EvidenceFailurePage, EvidenceBody, EvidenceSearch, EvidenceFailureDetail } from '@/types/domain'
 import type { SnapshotReviewBatch, TemplateFailedBatch, TemplateTaskCatalog, TemplateProjectChoice, TemplateBranchPage, TemplateTaskRequest, TemplateTaskCreated, TemplateTaskSummary } from '@/types/domain'
@@ -1752,6 +1754,13 @@ export const api = {
     return { filename: asString(raw.filename), previewKind: asString(raw.previewKind), mediaType: asString(raw.mediaType), text: asString(raw.text) || undefined, inlineContentAvailable: raw.inlineContentAvailable === true }
   },
   taskDesignAttachmentContentUrl: (id: string, attachmentId: string) => `${apiBase}/tasks/${encodeURIComponent(id)}/design-attachments/${encodeURIComponent(attachmentId)}/content`,
+  getTemplateSessionDiagnostics: async (taskId: string, filter: TemplateDiagnosticFilter = 'ATTENTION', cursor?: string, limit = 50) => {
+    const query = new URLSearchParams({ filter, limit: String(limit) })
+    if (cursor) query.set('cursor', cursor)
+    return normalizeTemplateDiagnosticPage(await request<unknown>(`/tasks/${encodeURIComponent(taskId)}/session-diagnostics?${query}`))
+  },
+  getTemplateSessionDiagnostic: async (taskId: string, batchId: string) => normalizeTemplateDiagnostic(await request<unknown>(`/tasks/${encodeURIComponent(taskId)}/session-diagnostics/${encodeURIComponent(batchId)}`)),
+  recoverTemplateSession: async (taskId: string, batchId: string, input: { action: TemplateRecoveryAction; expectedVersion: number; commandId: string }) => normalizeTemplateDiagnostic(await request<unknown>(`/tasks/${encodeURIComponent(taskId)}/session-diagnostics/${encodeURIComponent(batchId)}/recover`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(input) })),
   getTaskSessions: async (id: string) => (await request<unknown[]>(`/tasks/${encodeURIComponent(id)}/sessions`)).map(normalizeTaskSession),
   getTaskSessionActivity: async (taskId: string, sessionKey: string) => normalizeTaskSessionActivity(await request<unknown>(`/tasks/${encodeURIComponent(taskId)}/sessions/${encodeURIComponent(sessionKey)}`)),
   getTaskSessionTodos: async (taskId: string, sessionId: string) => (await request<unknown[]>(`/tasks/${encodeURIComponent(taskId)}/sessions/${encodeURIComponent(sessionId)}/todos`)).map(normalizeSessionTodo),

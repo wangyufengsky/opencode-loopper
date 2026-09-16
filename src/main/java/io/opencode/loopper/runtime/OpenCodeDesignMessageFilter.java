@@ -9,7 +9,7 @@ final class OpenCodeDesignMessageFilter {
     private OpenCodeDesignMessageFilter() { }
     static OpenCodeClient.SessionTranscript transcript(JsonNode messages, String messageId, OpenCodeResponseParser parser) {
         var current = parser.transcript(filter(messages, messageId));
-        return new OpenCodeClient.SessionTranscript(current.parts(), parser.usage(messages));
+        return new OpenCodeClient.SessionTranscript(current.parts(), parser.usage(messages), current.activityFingerprint());
     }
     static JsonNode interactions(JsonNode requests, JsonNode messages, String messageId) {
         if (messageId == null || requests == null || !requests.isArray()) return requests;

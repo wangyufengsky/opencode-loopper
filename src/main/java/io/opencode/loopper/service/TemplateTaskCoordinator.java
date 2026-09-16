@@ -27,15 +27,18 @@ public final class TemplateTaskCoordinator {
     private final TemplateGitCaptureGuard gitGuard;
     private final ObjectProvider<SnapshotReviewCoordinator> snapshotCoordinator;
     private final ObjectProvider<SnapshotReviewStore> snapshotStore;
+    private final TemplateBatchRecoveryMapper recovery;
     private final ConcurrentHashMap<String, Thread> workers = new ConcurrentHashMap<>();
     private volatile boolean closing;
 
     TemplateTaskCoordinator(LoopperMapper mapper, TemplateTaskMapper templates, TemplateTaskStateService states,
             TemplateRunEvidenceService evidence, TemplateHistoryReviewBatches history,
-            TemplateBatchExecution batches, ObjectProvider<TaskService> tasks, TemplateGitCaptureGuard gitGuard, ObjectProvider<SnapshotReviewCoordinator> snapshotCoordinator, ObjectProvider<SnapshotReviewStore> snapshotStore) {
+            TemplateBatchExecution batches, ObjectProvider<TaskService> tasks, TemplateGitCaptureGuard gitGuard, ObjectProvider<SnapshotReviewCoordinator> snapshotCoordinator, ObjectProvider<SnapshotReviewStore> snapshotStore,
+            TemplateBatchRecoveryMapper recovery) {
         this.snapshotCoordinator = snapshotCoordinator; this.snapshotStore = snapshotStore;
         this.mapper = mapper; this.templates = templates; this.states = states; this.evidence = evidence;
         this.gitGuard = gitGuard; this.history = history; this.batches = batches; this.tasks = tasks;
+        this.recovery = recovery;
     }
 
     public TaskRow start(String taskId) {
@@ -144,6 +147,9 @@ public final class TemplateTaskCoordinator {
     }
 
     void deleteBeforeAttempts(String taskId) {
+        recovery.deleteCommands(taskId);
+        recovery.deleteObservations(taskId);
+        recovery.deleteRecovery(taskId);
         snapshotStore.getObject().delete(taskId);
         templates.deleteReportBundlesForTask(taskId);
         templates.deletePlanForTask(taskId);

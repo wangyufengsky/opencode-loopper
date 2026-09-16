@@ -30,13 +30,16 @@ public class TemplateBatchStore {
     private final ObjectMapper json;
     private final io.opencode.loopper.persistence.TemplateContinuationMapper continuations;
     private final io.opencode.loopper.persistence.TemplateCandidateSubmissionMapper submissions;
+    private final io.opencode.loopper.persistence.TemplateBatchRecoveryMapper recovery;
 
     TemplateBatchStore(TemplateTaskMapper templates, LoopperMapper mapper, LifecycleTransitionService lifecycle,
                        TaskStateStore states, ObjectMapper json,
                        io.opencode.loopper.persistence.TemplateContinuationMapper continuations,
-                       io.opencode.loopper.persistence.TemplateCandidateSubmissionMapper submissions) {
+                       io.opencode.loopper.persistence.TemplateCandidateSubmissionMapper submissions,
+                       io.opencode.loopper.persistence.TemplateBatchRecoveryMapper recovery) {
         this.templates = templates; this.mapper = mapper; this.lifecycle = lifecycle; this.states = states; this.json = json;
         this.continuations = continuations; this.submissions = submissions;
+        this.recovery = recovery;
     }
 
     /** Called only after the current exact prompt has reached a proven length terminal. */
@@ -45,6 +48,7 @@ public class TemplateBatchStore {
         requireRunning(row.taskId(), row.attemptId());
         requireState(row, TemplateBatchState.RUNNING);
         if (require(row.id()).version() != row.version()) throw conflict();
+        if (recovery.find(row.id()).isPresent()) return require(row.id());
         if (submissions.accepted(row.id()).isPresent()) return row;
         var previous = continuations.latest(row.id()).orElse(null);
         int distinct = continuations.distinctSubmissions(row.id());
@@ -141,6 +145,7 @@ public class TemplateBatchStore {
     public TemplateTaskBatchRow validated(TemplateTaskBatchRow row, String output, boolean cached) {
         requireRunning(row.taskId(), row.attemptId());
         requireState(row, cached ? TemplateBatchState.PREPARED : TemplateBatchState.RUNNING);
+        if (recovery.find(row.id()).filter(intent -> intent.action().equals("STOP")).isPresent()) return require(row.id());
         TemplateTaskBatchRow saved = transport(row, row.sessionId(), row.creationPlanJson(), row.promptJson(), row.promptSha256(), output, null, null);
         if (!cached) {
             var session = mapper.findSession(row.sessionId()).orElseThrow();
@@ -151,7 +156,11 @@ public class TemplateBatchStore {
 
     @Transactional
     public TemplateTaskBatchRow candidateFailed(TemplateTaskBatchRow row, String code, String message) {
+        requireRunning(row.taskId(), row.attemptId());
         requireState(row, TemplateBatchState.RUNNING);
+        // A receipt committed while the remote status was being read wins over a transport failure.
+        if (!"TEMPLATE_BATCH_MANUALLY_STOPPED".equals(code) && submissions.accepted(row.id()).isPresent()) return require(row.id());
+        if (!"TEMPLATE_BATCH_MANUALLY_STOPPED".equals(code) && recovery.find(row.id()).isPresent()) return require(row.id());
         TemplateTaskBatchRow saved = transport(row, row.sessionId(), row.creationPlanJson(), row.promptJson(), row.promptSha256(), null, code, message);
         var session = mapper.findSession(row.sessionId()).orElseThrow();
         states.updateSession(states.sessionState(session, "TEMPLATE_MODEL_FAILED".equals(code) ? SessionState.FAILED : SessionState.COMPLETED));

@@ -33,12 +33,15 @@ public class TemplateBatchExecution {
     private final TemplateCandidateCodec codec;
     private final ObjectMapper json;
     private final TemplateCandidateSubmissionMapper submissions;
+    private final TemplateBatchFinalization finalization;
 
     TemplateBatchExecution(TemplateBatchStore store, TemplateTaskMapper templates, LoopperMapper mapper,
                            OpenCodeClient openCode, TemplateAnalysisPromptFactory prompts,
-                           TemplateCandidateCodec codec, ObjectMapper json, TemplateCandidateSubmissionMapper submissions) {
+                           TemplateCandidateCodec codec, ObjectMapper json, TemplateCandidateSubmissionMapper submissions,
+                           TemplateBatchFinalization finalization) {
         this.store = store; this.templates = templates; this.mapper = mapper; this.openCode = openCode;
         this.prompts = prompts; this.codec = codec; this.json = json; this.submissions = submissions;
+        this.finalization = finalization;
     }
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -105,9 +108,8 @@ public class TemplateBatchExecution {
             var accepted = submissions.accepted(row.id());
             if (accepted.isPresent()) {
                 // A late receipt can make the persisted continuation unnecessary. Stop proof still applies.
-                openCode.abortWithConfirmation(remote);
                 var running = store.transition(row, TemplateBatchState.RUNNING, LifecycleEvent.START);
-                return store.validated(running, validate(running, accepted.get()), false);
+                return poll(running, null);
             }
         }
         var request = prompt(row).request();
@@ -136,7 +138,9 @@ public class TemplateBatchExecution {
         var remote = remote(row);
         var request = prompt(row).request();
         openCode.restoreDesignTurn(remote, plan(row).profile(), plan(row).model(), request.messageId());
-        var status = openCode.sessionStatus(remote);
+        var observation = finalization.poll(row, remote, output -> validate(row, output));
+        if (observation.handled() != null) return observation.handled();
+        var status = observation.status();
         if (status.retrying() || !status.completed() && !status.failed()) return row;
         if (status.failed()) {
             return store.candidateFailed(row, "TEMPLATE_MODEL_FAILED", "分析会话已失败，其他批次完成后可选择重试");

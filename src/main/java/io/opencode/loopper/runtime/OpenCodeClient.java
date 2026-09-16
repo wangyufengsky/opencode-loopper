@@ -500,7 +500,8 @@ public interface OpenCodeClient {
     }
     default boolean cancelCommand(OpenCodeSession session, String messageId) { return false; }
     record CommandResult(String runId, String output) { }
-    record SessionTranscript(List<SessionPart> parts, List<UsageRecord> usage) {
+    record SessionTranscript(List<SessionPart> parts, List<UsageRecord> usage, String activityFingerprint) {
+        public SessionTranscript(List<SessionPart> parts, List<UsageRecord> usage) { this(parts, usage, null); }
         public SessionTranscript(List<SessionPart> parts) { this(parts, List.of()); }
         public SessionTranscript {
             parts = parts == null ? List.of() : List.copyOf(parts);

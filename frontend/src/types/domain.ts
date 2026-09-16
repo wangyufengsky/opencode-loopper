@@ -1638,3 +1638,23 @@ export interface TemplateFailedBatch {
   version: number
   createdAt: string
 }
+
+export type TemplateDiagnosticFilter = 'ATTENTION' | 'ACTIVE' | 'ALL'
+export type TemplateRecoveryAction = 'FINALIZE' | 'STOP'
+export interface TemplateSessionDiagnostic {
+  batchId: string; batchVersion: number; sessionKey: string | null
+  localSessionId: string | null; externalSessionId: string | null
+  purpose: string; ordinal: number; generation: number; stageOrdinal: number
+  state: string; phase: string; reason: string
+  acceptedAt: string | null; observedAt: string | null
+  lastActivityAt: string | null; lastProgressAt: string | null
+  remoteState: string | null; connected: boolean
+  stopProof: string | null; stopConfirmedAt: string | null
+  canFinalize: boolean; canStop: boolean
+  worktreePath?: string | null; requestMessageId?: string | null
+  submissionRevision?: number; candidateAccepted?: boolean
+  recoveryRequestedAt?: string | null; recoveryAction?: string | null
+}
+export interface TemplateSessionDiagnosticPage {
+  items: TemplateSessionDiagnostic[]; nextCursor: string | null; hasMore: boolean
+}
