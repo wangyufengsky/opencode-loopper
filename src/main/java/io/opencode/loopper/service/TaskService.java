@@ -529,7 +529,7 @@ public class TaskService {
                     safeMessage(checkpoint.blockerCode() + ": " + checkpoint.blockerMessage()));
         }
         DirectWorkspaceLeaseCoordinator.Admission admission = directLeases.acquireOrEnqueue(
-                DirectWorkspaceLeaseCoordinator.identify(root), task.id(), "PUBLICATION", null);
+                directLeases.identifyForTask(root, task.id()), task.id(), "PUBLICATION", null);
         if (TaskQueueState.QUEUED.name().equals(admission.state())) {
             throw new ConflictException("TASK_PUBLICATION_QUEUED", "项目工作区正被其他任务使用，发布已按 FIFO 排队，请稍后重试");
         }

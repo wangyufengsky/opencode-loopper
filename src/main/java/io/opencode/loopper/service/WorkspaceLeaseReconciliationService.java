@@ -144,7 +144,7 @@ public class WorkspaceLeaseReconciliationService {
         }
         Path root = Path.of(project.rootPath());
         try {
-            DirectWorkspaceLeaseCoordinator.WorkspaceIdentity identity = DirectWorkspaceLeaseCoordinator.identify(root);
+            DirectWorkspaceLeaseCoordinator.WorkspaceIdentity identity = DirectWorkspaceLeaseCoordinator.identify(root, lease.canonicalRoot());
             if (!lease.canonicalRoot().equals(identity.canonicalRoot())
                     || !lease.rootFingerprint().equals(identity.rootFingerprint())) {
                 return block(task, lease, normalizedTrigger, false, "DIRECT_ROOT_FINGERPRINT_MISMATCH",

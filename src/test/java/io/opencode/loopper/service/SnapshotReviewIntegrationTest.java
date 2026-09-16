@@ -78,6 +78,22 @@ class SnapshotReviewIntegrationTest {
         return frozenAdmission.create(new TemplateTaskAdmission.Command(UUID.randomUUID().toString(), "legacy-fixture", branches.require(project, "local:refs/heads/main"), dates, frozen, false));
     }
     private void start(TaskRow task) { states.start(task.id(),contracts.contract(task.id())); }
+    @org.junit.jupiter.params.ParameterizedTest @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void subdirectoryReviewFreezesOnlyModuleFilesWhileRemoteIsUnavailable(boolean existedAtStart) throws Exception {
+        Path module = Files.createDirectory(source.resolve("module"));
+        commit("module/code.java", "class Module { int value = 1; }\n", existedAtStart ? "2026-08-31T00:00:00Z" : "2026-09-03T00:00:00Z");
+        commit("module/code.java", "class Module { int value = 2; }\n", "2026-09-05T00:00:00Z");
+        git.read(source, "remote", "add", "origin", "http://127.0.0.1:1/unavailable.git");
+        project = projects.create("模块审查", module.toString(), "module").id();
+        lightweight = true;
+        var task = create(Mode.DATE_INCREMENTAL); start(task); run(task);
+        var snapshot = snapshots.snapshot(task.id());
+        assertThat(snapshot.files()).extracting(SnapshotReview.File::path).containsOnly("code.java");
+        assertThat(snapshot.units()).allMatch(unit -> unit.path().equals("code.java"));
+        assertThat(states.task(task.id()).state()).isEqualTo("COMPLETED");
+        assertThat(git.read(source, "status", "--porcelain")).isBlank();
+    }
+
     @Test void fullReviewRunsPlanningAnalysisIndependentReadsAndCompletesWithoutTouchingDirtyCheckout() throws Exception {
         Files.writeString(source.resolve("dirty.txt"),"keep");String head=git.read(source,"rev-parse","HEAD");
         var task=create(Mode.FULL); assertThat(mapper.findTaskQueue(task.id())).isEmpty();start(task);run(task);

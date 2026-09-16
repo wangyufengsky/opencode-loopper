@@ -221,7 +221,7 @@ describe('Projects management', () => {
   it('shows the real Git task-branch or direct execution mode', () => {
     const store = useTaskStore()
     store.projects = [
-      { id: 'git-project', name: 'Git project', rootPath: '/tmp/git', description: 'Isolated changes', status: 'READY', executionMode: 'WORKTREE', branch: 'main', updatedAt: 'now', taskCount: 2, openDesignerSessionCount: 0 },
+      { id: 'git-project', name: 'Git project', rootPath: '/tmp/git/module', repositoryRoot: '/tmp/git', description: 'Isolated changes', status: 'READY', executionMode: 'WORKTREE', branch: 'main', updatedAt: 'now', taskCount: 2, openDesignerSessionCount: 0 },
       { id: 'plain-project', name: 'Plain project', rootPath: '/tmp/plain', status: 'NEEDS_GIT', executionMode: 'DIRECT', updatedAt: 'now', taskCount: 1, openDesignerSessionCount: 0 },
     ]
 
@@ -230,6 +230,8 @@ describe('Projects management', () => {
     })
 
     expect(wrapper.text()).toContain('Git 分支模式')
+    expect(wrapper.text()).toContain('Git 仓库：/tmp/git')
+    expect(wrapper.text()).toContain('/tmp/git/module')
     expect(wrapper.text()).toContain('main')
     expect(wrapper.text()).toContain('Isolated changes')
     expect(wrapper.text()).toContain('直接模式')

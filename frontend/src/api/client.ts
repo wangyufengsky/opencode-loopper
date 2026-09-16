@@ -1,3 +1,4 @@
+import type { GitCredentialView, GitCredentialInput } from '@/types/domain'
 import type { TemplateDiagnosticFilter, TemplateRecoveryAction } from '@/types/domain'
 import { normalizeTemplateDiagnostic, normalizeTemplateDiagnosticPage } from './templateSessionDiagnostics'
 import type { DocumentSectionPage, DocumentSupplementRequest, DocumentSupplementOptions, DocumentClarification, DocumentClarificationRequest, TaskListItem, DocumentTemplateRequest, DocumentTemplateOverview, DocumentRequirementPage, DocumentRequirementDetail, DocumentSection, DocumentReportSummary } from '@/types/domain'
@@ -244,7 +245,7 @@ function normalizeProject(value: unknown): Project {
   const status = asString(raw.status)
   const executionMode = asString(raw.executionMode)
   const stackState = asString(raw.stackProfileState)
-  return { id: asString(raw.id), name: asString(raw.name), rootPath: asString(raw.rootPath), branch: asString(raw.branch) || undefined, description: asString(raw.description) || undefined, documentPath: asString(raw.documentPath) || undefined, version: typeof raw.version === 'number' ? raw.version : undefined, status: status === 'INVALID' || status === 'NEEDS_GIT' ? status : 'READY', executionMode: executionMode === 'WORKTREE' || executionMode === 'DIRECT' || executionMode === 'UNAVAILABLE' ? executionMode : undefined, updatedAt: asString(raw.updatedAt), taskCount: asNumber(raw.taskCount), openDesignerSessionCount: asNumber(raw.openDesignerSessionCount), stackProfileState: stackState === 'READY' || stackState === 'PARTIAL' || stackState === 'FAILED' ? stackState : 'UNANALYZED', stackTechnologyFamilies: asArray(raw.stackTechnologyFamilies).map(String), stackComponentCount: asNumber(raw.stackComponentCount), stackAnalyzedAt: asString(raw.stackAnalyzedAt) || undefined }
+  return { id: asString(raw.id), name: asString(raw.name), rootPath: asString(raw.rootPath), repositoryRoot: asString(raw.repositoryRoot) || undefined, branch: asString(raw.branch) || undefined, description: asString(raw.description) || undefined, documentPath: asString(raw.documentPath) || undefined, version: typeof raw.version === 'number' ? raw.version : undefined, status: status === 'INVALID' || status === 'NEEDS_GIT' ? status : 'READY', executionMode: executionMode === 'WORKTREE' || executionMode === 'DIRECT' || executionMode === 'UNAVAILABLE' ? executionMode : undefined, updatedAt: asString(raw.updatedAt), taskCount: asNumber(raw.taskCount), openDesignerSessionCount: asNumber(raw.openDesignerSessionCount), stackProfileState: stackState === 'READY' || stackState === 'PARTIAL' || stackState === 'FAILED' ? stackState : 'UNANALYZED', stackTechnologyFamilies: asArray(raw.stackTechnologyFamilies).map(String), stackComponentCount: asNumber(raw.stackComponentCount), stackAnalyzedAt: asString(raw.stackAnalyzedAt) || undefined }
 }
 
 function normalizeStackComponent(value: unknown) {
@@ -1608,6 +1609,10 @@ function normalizeStoryAccountingCall(value: unknown): StoryAccountingCall {
 }
 
 export const api = {
+  gitCredentials: (projectId?: string) => request<GitCredentialView>(`/git-credentials${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`),
+  saveGitCredentials: (projectId: string | undefined, body: GitCredentialInput) => request<GitCredentialView>(`/git-credentials${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`, { method: 'PUT', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(body) }),
+  testGitCredentials: (projectId: string | undefined, body: GitCredentialInput) => request<{ success: boolean; message: string }>(`/git-credentials/test${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(body) }),
+
   projectAssistConfig: (id: string) => request<ProjectAssistConfig>(`/projects/${encodeURIComponent(id)}/assist-config`),
   saveProjectAssistConfig: (id: string, version: number, repository: string, sources: AssistEvidenceSource[]) => request<ProjectAssistConfig>(`/projects/${encodeURIComponent(id)}/assist-config`, { method: 'PUT', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify({ version, repository, sources }) }),
   checkProjectGitLab: (id: string, version: number) => request<ProjectAssistConfig>(`/projects/${encodeURIComponent(id)}/assist-config/check`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify({ version }) }),

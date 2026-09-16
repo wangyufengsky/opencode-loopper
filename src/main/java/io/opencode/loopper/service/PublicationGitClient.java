@@ -65,17 +65,7 @@ final class PublicationGitClient {
     }
 
     void requireExactRepository(Path workspace) {
-        String top = required(workspace, List.of("git", "rev-parse", "--show-toplevel"),
-                "GIT_REPOSITORY_UNAVAILABLE");
-        try {
-            if (!Path.of(top).toRealPath().equals(workspace.toRealPath())) {
-                throw new ConflictException("TASK_REPOSITORY_MISMATCH", "任务执行目录不是当前 Git 仓库根目录");
-            }
-        } catch (ConflictException failure) {
-            throw failure;
-        } catch (Exception failure) {
-            throw new ConflictException("TASK_REPOSITORY_UNAVAILABLE", "无法确认任务 Git 仓库边界");
-        }
+        io.opencode.loopper.runtime.GitProjectScope.require(runner, workspace);
     }
 
     List<String> targetBranches(Path workspace, String remoteName, String sourceBranch) {

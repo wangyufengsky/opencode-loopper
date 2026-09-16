@@ -167,7 +167,7 @@ public class RecoveryService {
                         "Direct recovery requires the parent workspace fingerprint"));
         DirectWorkspaceLeaseCoordinator.WorkspaceIdentity current;
         try {
-            current = DirectWorkspaceLeaseCoordinator.identify(Path.of(project.rootPath()));
+            current = DirectWorkspaceLeaseCoordinator.identify(Path.of(project.rootPath()), recorded.canonicalRoot());
         } catch (RuntimeException unavailable) {
             throw new ConflictException("RECOVERY_WORKSPACE_FINGERPRINT_MISMATCH",
                     "Direct workspace is unavailable or no longer matches the failed task");

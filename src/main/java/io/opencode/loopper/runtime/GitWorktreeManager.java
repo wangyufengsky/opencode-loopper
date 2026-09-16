@@ -25,10 +25,15 @@ public class GitWorktreeManager {
     private final GitDirtyWorkspaceManager dirtyWorkspaces;
     private final GitWorkspaceCheckpointManager checkpoints;
     private final GitSourceBranchRestorer sourceBranches;
+    private GitEvidenceProcess remoteGit;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void remoteGit(GitEvidenceProcess git) { this.remoteGit = git; }
 
     public GitWorktreeManager(SafeProcessRunner runner, LoopperProperties properties,
                               DirectWorkspaceBaselineManager directBaselines) {
         this.runner = runner;
+        this.remoteGit = new GitEvidenceProcess(runner);
         this.properties = properties;
         this.directBaselines = directBaselines;
         this.dirtyWorkspaces = new GitDirtyWorkspaceManager(runner);
@@ -62,7 +67,7 @@ public class GitWorktreeManager {
                 if (requestedBaseline != null) throw new TaskFailure("REWORK_REPOSITORY_REQUIRED", "Rework requires an isolated Git repository");
                 return direct(root, taskId);
             }
-            if (!repositoryRoot.equals(root)) {
+            if (!root.startsWith(repositoryRoot)) {
                 if (requestedBaseline != null) throw new TaskFailure("REWORK_REPOSITORY_REQUIRED", "Rework requires the registered Git repository root");
                 return direct(root, taskId);
             }
@@ -71,6 +76,7 @@ public class GitWorktreeManager {
                 if (requestedBaseline != null) throw new TaskFailure("REWORK_BASELINE_UNAVAILABLE", "Rework baseline cannot be resolved");
                 return direct(root, taskId);
             }
+            GitProjectScope.require(runner, root).requireContainedChanges(runner, "HEAD", null);
             String baseline = head.output().trim();
             String sourceBranch = optionalOutput(root, List.of("git", "symbolic-ref", "--quiet", "--short", "HEAD"));
             if (requestedBaseline != null) {
@@ -118,7 +124,7 @@ public class GitWorktreeManager {
                 if (!resolved.startsWith(base.toRealPath())) {
                     throw new TaskFailure("WORKTREE_ESCAPE", "Created worktree did not remain inside the managed worktree directory");
                 }
-                return new Worktree(resolved, branch, baseline, sourceBranch);
+                return new Worktree(resolved.resolve(repositoryRoot.relativize(root)).toRealPath(), branch, baseline, sourceBranch);
             }
             throw new TaskFailure("WORKTREE_BRANCH_EXHAUSTED", "Too many isolated branches already use this task name");
         } catch (TaskFailure e) {
@@ -147,7 +153,7 @@ public class GitWorktreeManager {
                         "Source-branch execution requires a Git repository root with a valid HEAD");
             }
             Path repositoryRoot = Path.of(topLevel.output().trim()).toRealPath();
-            if (!repositoryRoot.equals(root)) {
+            if (!root.startsWith(repositoryRoot)) {
                 throw new TaskFailure("SOURCE_BRANCH_REPOSITORY_ROOT_REQUIRED",
                         "Source-branch execution requires the registered Git repository root");
             }
@@ -171,6 +177,7 @@ public class GitWorktreeManager {
             } else {
                 baseline = refreshRemoteBaseline(root, baseline);
             }
+            GitProjectScope.require(runner, root).projectTree(runner, baseline);
             for (int occurrence = 1; occurrence <= MAX_BRANCH_OCCURRENCES; occurrence++) {
                 String branch = branchNameForTask(taskName, taskId, occurrence);
                 if (branchExists(root, branch)) continue;
@@ -204,10 +211,9 @@ public class GitWorktreeManager {
         try {
             Path root = projectRoot.toRealPath();
             if (!Files.isDirectory(root)) return RepositoryInspection.unavailable();
-            ProcessResult result = runner.run(root,
-                    List.of("git", "rev-parse", "--is-inside-work-tree", "--show-toplevel", "HEAD", "--abbrev-ref", "HEAD"),
-                    Duration.ofSeconds(3));
-            if (result.timedOut() || result.outputTruncated() || result.exitCode() != 0) {
+            var result = new GitEvidenceProcess(runner).run(root, Duration.ofSeconds(3),
+                    List.of("rev-parse", "--is-inside-work-tree", "--show-toplevel", "HEAD", "--abbrev-ref", "HEAD"));
+            if (result.exitCode() != 0) {
                 return RepositoryInspection.direct();
             }
             String[] lines = result.output().lines().map(String::trim).filter(line -> !line.isEmpty()).toArray(String[]::new);
@@ -215,10 +221,10 @@ public class GitWorktreeManager {
             Path repositoryRoot;
             try { repositoryRoot = Path.of(lines[1]).toRealPath(); }
             catch (Exception invalidTopLevel) { return RepositoryInspection.direct(); }
-            if (!repositoryRoot.equals(root)) return RepositoryInspection.direct();
+            if (!root.startsWith(repositoryRoot)) return RepositoryInspection.direct();
             String head = lines[2];
             String branch = "HEAD".equals(lines[3]) ? "detached@" + head.substring(0, Math.min(12, head.length())) : lines[3];
-            return new RepositoryInspection(true, true, branch);
+            return new RepositoryInspection(true, true, branch, repositoryRoot.toString());
         } catch (Exception unavailable) {
             return RepositoryInspection.unavailable();
         }
@@ -330,7 +336,9 @@ public class GitWorktreeManager {
             throw new TaskFailure("PACKAGE_DESIGN_SNAPSHOT_INVALID", "Package design snapshot identity is invalid");
         }
         try {
-            Path root = projectRoot.toRealPath();
+            GitProjectScope scope = GitProjectScope.require(runner, projectRoot);
+            Path root = scope.repository();
+            checkpointTree = scope.projectTree(runner, checkpointTree);
             Path base = properties.getDataDir().toAbsolutePath().normalize().resolve("package-design-snapshots");
             Files.createDirectories(base);
             Path snapshot = base.resolve(taskId).resolve(checkpointId).normalize();
@@ -419,6 +427,7 @@ public class GitWorktreeManager {
     }
 
     private void requireSourceBranch(Path root, String expectedBranch, String baseline) {
+        GitProjectScope.require(runner, root).requireContainedChanges(runner, baseline == null ? "HEAD" : baseline, null);
         String branch = optionalOutput(root, List.of("git", "branch", "--show-current"));
         if (!expectedBranch.equals(branch)) {
             throw new TaskFailure("SOURCE_BRANCH_MISMATCH",
@@ -460,11 +469,10 @@ public class GitWorktreeManager {
             }
             upstream = remote + "/" + branch;
         }
-        ProcessResult fetched = runner.run(root, List.of("git", "fetch", "--prune", "--no-tags", remote),
-                GIT_TIMEOUT, Map.of("GIT_TERMINAL_PROMPT", "0"));
-        if (fetched.timedOut() || fetched.outputTruncated() || fetched.exitCode() != 0) {
+        var fetched = remoteGit.remote(root, root, GIT_TIMEOUT, List.of("fetch", "--prune", "--no-tags", remote), remote);
+        if (fetched.exitCode() != 0) {
             throw new TaskFailure("WORKTREE_REMOTE_FETCH_FAILED",
-                    "Unable to refresh remote " + remote + " before Task isolation: " + trim(fetched.output()));
+                    "任务开始前无法更新远程分支：" + fetched.diagnostic().message());
         }
         String remoteHead = optionalOutput(root, List.of("git", "rev-parse", "--verify", upstream + "^{commit}"));
         if (remoteHead == null) return localHead;
@@ -538,7 +546,10 @@ public class GitWorktreeManager {
         public boolean clean() { return files == null || files.isEmpty(); }
     }
     public record DirtyFileResolution(String path, DirtyFileAction action) { }
-    public record RepositoryInspection(boolean pathAvailable, boolean isolatedWorktree, String branch) {
+    public record RepositoryInspection(boolean pathAvailable, boolean isolatedWorktree, String branch, String repositoryRoot) {
+        public RepositoryInspection(boolean pathAvailable, boolean isolatedWorktree, String branch) {
+            this(pathAvailable, isolatedWorktree, branch, null);
+        }
         private static RepositoryInspection direct() { return new RepositoryInspection(true, false, null); }
         private static RepositoryInspection unavailable() { return new RepositoryInspection(false, false, null); }
     }

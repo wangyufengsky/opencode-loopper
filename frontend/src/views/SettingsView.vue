@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { ElMessage } from 'element-plus'
 import PageHeader from '@/components/PageHeader.vue'
+import GitCredentialForm from '@/components/GitCredentialForm.vue'
 import { api } from '@/api/client'
 import type { AppSettings, AvailableModel } from '@/types/domain'
 import { useTaskStore } from '@/stores/taskStore'
@@ -33,6 +34,7 @@ const sections = [
   { id: 'models', title: '模型服务', subtitle: 'OpenCode 与默认模型', icon: 'lucide:bot' },
   { id: 'limits', title: '执行限制', subtitle: '并发、尝试与超时', icon: 'lucide:sliders-horizontal' },
   { id: 'retry', title: '重试等待', subtitle: '各类失败的等待时间', icon: 'lucide:timer' },
+  { id: 'git-credentials', title: 'Git 账号', subtitle: '全局默认账号与凭据', icon: 'lucide:key-round' },
   { id: 'publication', title: '发布网络', subtitle: 'GitLab 与连接配置', icon: 'lucide:globe' },
   { id: 'demo', title: '开发辅助', subtitle: '演示数据模式', icon: 'lucide:flask-conical' },
 ] as const
@@ -116,7 +118,7 @@ onMounted(load)
 
 <template>
   <PageHeader eyebrow="系统" title="设置">
-    <template #actions><el-button class="settings-save" type="primary" :loading="saving" :disabled="loading" @click="save"><Icon icon="lucide:save" />保存设置</el-button></template>
+    <template #actions><el-button v-if="activeSection !== 'git-credentials'" class="settings-save" type="primary" :loading="saving" :disabled="loading" @click="save"><Icon icon="lucide:save" />保存设置</el-button></template>
   </PageHeader>
   <main id="main-content" class="content settings-content" tabindex="-1" v-loading="loading">
     <div class="settings-layout">
@@ -133,6 +135,7 @@ onMounted(load)
         <p class="nav-note"><Icon icon="lucide:info" width="16" />修改后请保存设置。各项生效时间见面板说明。</p>
       </nav>
       <div class="settings-panels">
+      <article v-if="activeSection === 'git-credentials'" id="settings-git-credentials" class="card settings-panel"><div class="card-header"><h2 class="card-title">全局 Git 账号</h2></div><GitCredentialForm :demo="store.usingDemo" /></article>
       <article v-show="activeSection === 'runtime'" id="settings-runtime" class="card settings-panel runtime-settings" aria-labelledby="runtime-title">
         <div class="card-header"><div><p class="eyebrow">运行环境</p><h2 id="runtime-title" class="card-title">服务设置</h2></div><span class="activation restart">重启生效</span></div>
         <el-form label-position="top">

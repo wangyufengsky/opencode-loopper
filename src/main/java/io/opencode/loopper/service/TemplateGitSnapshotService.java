@@ -45,6 +45,19 @@ public class TemplateGitSnapshotService {
         Path directory = prepareDirectory(taskId);
         git.requireSupported(directory);
         Path repository = directory.resolve("repository.git");
+        Path source = Path.of(projects.get(projectId).rootPath());
+        var scope = io.opencode.loopper.runtime.GitProjectScope.require(git, source);
+        Path scopeFile = directory.resolve("project-prefix.txt");
+        String prefix;
+        try {
+            if (Files.isSymbolicLink(scopeFile)) throw new IOException("scope symlink");
+            if (Files.exists(scopeFile)) prefix = Files.readString(scopeFile);
+            else {
+                prefix = Files.exists(repository.resolve("HEAD")) ? "" : scope.prefix();
+                Files.writeString(scopeFile, prefix, java.nio.file.StandardOpenOption.CREATE_NEW);
+            }
+            if (!prefix.equals(scope.prefix()) && !prefix.isEmpty()) throw new IOException("scope changed");
+        } catch (IOException invalid) { throw new TaskFailure("TEMPLATE_SNAPSHOT_SCOPE_INVALID", "冻结项目范围无法确认，请检查项目目录"); }
         ensureOwned(directory);
         if (Files.exists(repository, LinkOption.NOFOLLOW_LINKS) && Files.isSymbolicLink(repository)) {
             throw new TaskFailure("TEMPLATE_SNAPSHOT_PATH_INVALID", "模板快照目录不能是符号链接");
@@ -53,13 +66,12 @@ public class TemplateGitSnapshotService {
             var existing = git.run(repository, Duration.ofSeconds(30), List.of("rev-parse", "--verify", "refs/heads/snapshot^{commit}"));
             if (existing.exitCode() == 0) {
                 requireCompleteHistory(repository);
-                return new Snapshot(directory, repository, existing.output().trim());
+                return new Snapshot(directory, repository, existing.output().trim(), prefix);
             }
         } else {
             git.read(directory, "init", "--bare", "--template=", "--", repository.toString());
         }
-        Path source = Path.of(projects.get(projectId).rootPath());
-        String remote = source.toAbsolutePath().toString();
+        String remote = scope.repository().toString();
         if (branch.remote() != null) remote = git.read(source, "remote", "get-url", "--", branch.remote()).strip();
         else if ("true".equals(git.read(source, "rev-parse", "--is-shallow-repository").strip())) {
             throw new TaskFailure("TEMPLATE_SHALLOW_SOURCE", "本地分支历史不完整，请先补齐历史或选择远程分支");
@@ -67,12 +79,12 @@ public class TemplateGitSnapshotService {
         if (remote.startsWith("ext::") || remote.indexOf('\n') >= 0) {
             throw new TaskFailure("TEMPLATE_REMOTE_INVALID", "该远程来源不支持模板任务快照");
         }
-        var fetched = git.run(repository, Duration.ofSeconds(60), List.of("fetch", "--no-tags", "--no-write-fetch-head",
-                "--", remote, "+" + branch.ref() + ":refs/heads/snapshot"));
+        var fetched = git.remote(repository, source, Duration.ofSeconds(60), List.of("fetch", "--no-tags", "--no-write-fetch-head",
+                "--", remote, "+" + branch.ref() + ":refs/heads/snapshot"), remote);
         fetched.requireSuccess(List.of("fetch"));
         requireCompleteHistory(repository);
         String head = git.read(repository, "rev-parse", "--verify", "refs/heads/snapshot^{commit}").strip();
-        return new Snapshot(directory, repository, head);
+        return new Snapshot(directory, repository, head, prefix);
     }
 
     private void requireCompleteHistory(Path repository) {
@@ -93,5 +105,7 @@ public class TemplateGitSnapshotService {
         }
     }
 
-    public record Snapshot(Path directory, Path repository, String head) { }
+    public record Snapshot(Path directory, Path repository, String head, String projectPrefix) {
+        public Snapshot(Path directory, Path repository, String head) { this(directory, repository, head, ""); }
+    }
 }

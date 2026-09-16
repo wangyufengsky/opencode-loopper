@@ -531,7 +531,7 @@ public final class OpenCodeRuntimeManager implements AutoCloseable {
         builder.redirectOutput(ProcessBuilder.Redirect.DISCARD);
         builder.redirectError(ProcessBuilder.Redirect.DISCARD);
         builder.environment().putAll(environment);
-        return builder.start();
+        return ChildProcessEnvironment.start(builder);
     }
 
     private String randomSecret() {

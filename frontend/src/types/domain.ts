@@ -7,6 +7,7 @@ export interface Project {
   id: string
   name: string
   rootPath: string
+  repositoryRoot?: string
   documentPath?: string
   version?: number
   branch?: string
@@ -1498,6 +1499,7 @@ export interface TemplateBranchPage {
   defaultBranchId: string | null
   defaultBranch: TemplateBranchChoice | null
   remoteAvailable: boolean
+  remoteProblems?: string[]
 }
 export interface TemplateTaskRequest {
   requestKey: string
@@ -1657,4 +1659,23 @@ export interface TemplateSessionDiagnostic {
 }
 export interface TemplateSessionDiagnosticPage {
   items: TemplateSessionDiagnostic[]; nextCursor: string | null; hasMore: boolean
+}
+export interface GitCredentialView {
+  mode: 'CUSTOM' | 'INHERIT' | 'DISABLED'
+  serverUrl: string
+  username: string
+  kind: 'TOKEN' | 'PASSWORD'
+  configured: boolean
+  source: 'GLOBAL' | 'PROJECT' | 'SYSTEM'
+  version: number
+  updatedAt: string | null
+}
+export interface GitCredentialInput {
+  mode: GitCredentialView['mode']
+  serverUrl: string
+  username: string
+  kind: GitCredentialView['kind']
+  secret?: string
+  version: number
+  repositoryUrl?: string
 }

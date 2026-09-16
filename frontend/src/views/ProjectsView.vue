@@ -4,6 +4,7 @@ import { Icon } from '@iconify/vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
+import GitCredentialForm from '@/components/GitCredentialForm.vue'
 import ProjectAssistDialog from '@/components/ProjectAssistDialog.vue'
 import ProjectDocumentPathDialog from '@/components/ProjectDocumentPathDialog.vue'
 import DirectoryPathInput from '@/components/DirectoryPathInput.vue'
@@ -19,6 +20,7 @@ const router = useRouter()
 const dialogVisible = ref(false)
 const documentProject = ref<Project>()
 const assistProject = ref<Project>()
+const gitProject = ref<Project>()
 function savedDocumentProject(project: Project) {
   const index = store.projects.findIndex(item => item.id === project.id)
   if (index >= 0) store.projects[index] = project
@@ -274,11 +276,13 @@ onBeforeUnmount(clearConventionPoll)
         <p v-if="project.documentPath" class="mono tiny muted project-path">文档：{{ project.documentPath }}</p>
         <p v-if="project.description" class="card-description">{{ project.description }}</p>
         <div class="divider" /><p class="mono tiny muted project-path">{{ project.rootPath }}</p>
+        <p v-if="project.repositoryRoot && project.repositoryRoot !== project.rootPath" class="mono tiny muted project-path">Git 仓库：{{ project.repositoryRoot }}</p>
         <div class="stack-summary"><Icon icon="lucide:layers-3" /><strong>{{ stackLabel(project) }}</strong><span class="tiny muted">{{ project.stackComponentCount ?? 0 }} 个组件</span></div>
         <div class="project-footer">
           <div class="project-stats"><span class="execution-mode"><Icon :icon="project.executionMode === 'WORKTREE' ? 'lucide:git-branch' : 'lucide:folder-cog'" /><span class="mono tiny">{{ project.executionMode === 'WORKTREE' ? project.branch : project.executionMode === 'UNAVAILABLE' ? '目录不可访问' : '原项目目录' }}</span></span><span class="tiny muted">{{ project.taskCount }} 个任务 · {{ project.openDesignerSessionCount }} 个待继续设计</span></div>
           <div class="project-actions">
             <button type="button" class="convention-action" @click="router.push({ path: '/template-tasks', query: { projectId: project.id } })"><Icon icon="lucide:workflow" /><span>模板任务</span></button>
+            <button type="button" class="convention-action" @click="gitProject = project"><Icon icon="lucide:key-round" /><span>Git 账号</span></button>
             <button type="button" class="convention-action" @click="assistProject = project"><Icon icon="lucide:plug" /><span>GitLab 与证据</span></button>
             <button type="button" class="convention-action" aria-label="设置项目文档路径" @click="documentProject = project"><Icon icon="lucide:folder-output" /><span>文档路径</span></button>
             <button v-if="project.openDesignerSessionCount" type="button" class="convention-action resume-design-action" aria-label="继续项目设计" title="查看并继续未确认的设计" @click="continueDesign(project)">
@@ -297,6 +301,7 @@ onBeforeUnmount(clearConventionPoll)
     <section v-else class="card empty-state"><div><Icon icon="lucide:folder-plus" width="28" aria-hidden="true" /><strong>尚未登记项目</strong><el-button type="primary" @click="openDialog">登记第一个项目</el-button></div></section>
   </main>
 
+  <el-dialog :model-value="!!gitProject" :title="`${gitProject?.name ?? ''} · Git 账号`" width="min(760px, 94vw)" destroy-on-close @close="gitProject = undefined"><GitCredentialForm v-if="gitProject" :key="gitProject.id" :project-id="gitProject.id" :demo="store.usingDemo" /></el-dialog>
   <ProjectAssistDialog :project="assistProject" :demo="store.usingDemo" @close="assistProject = undefined" />
   <ProjectDocumentPathDialog :project="documentProject" :demo="store.usingDemo" @close="documentProject = undefined" @saved="savedDocumentProject" />
   <el-dialog v-model="dialogVisible" title="登记项目根目录" width="min(640px, calc(100vw - 32px))" :close-on-click-modal="false">

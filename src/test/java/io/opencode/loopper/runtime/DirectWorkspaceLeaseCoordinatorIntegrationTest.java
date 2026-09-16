@@ -34,6 +34,53 @@ class DirectWorkspaceLeaseCoordinatorIntegrationTest {
     }
 
     @Test
+    void siblingModulesAndRepositoryRootShareOneFifoLease() throws Exception {
+        Path repo = Files.createDirectory(temporaryDirectory.resolve("repo"));
+        Files.createDirectory(repo.resolve(".git"));
+        Path firstModule = Files.createDirectory(repo.resolve("first"));
+        Path secondModule = Files.createDirectory(repo.resolve("second"));
+        task("module-first", firstModule); task("module-second", secondModule); task("repo-task", repo);
+        assertThat(leases.acquireOrEnqueue(firstModule, "module-first", "MANUAL", null).state()).isEqualTo("ADMITTED");
+        assertThat(leases.acquireOrEnqueue(secondModule, "module-second", "MANUAL", null).state()).isEqualTo("QUEUED");
+        assertThat(leases.acquireOrEnqueue(repo, "repo-task", "MANUAL", null).state()).isEqualTo("QUEUED");
+        assertThat(mapper.findTaskQueue("module-second").orElseThrow().canonicalRoot()).isEqualTo(repo.toRealPath().toString());
+        var release = leases.releaseAfterWriterStopped(firstModule, "module-first", "stopped");
+        assertThat(release.admittedNext().taskId()).isEqualTo("module-second");
+        assertThat(leases.requireWritableLease(secondModule, "module-second").holderTaskId()).isEqualTo("module-second");
+    }
+
+    @Test
+    void legacyModuleLeaseKeepsItsKeyAndBlocksRepositoryAdmissionUntilStopped() throws Exception {
+        Path repo = Files.createDirectory(temporaryDirectory.resolve("legacy-repo"));
+        Files.createDirectory(repo.resolve(".git"));
+        Path module = Files.createDirectory(repo.resolve("module"));
+        task("legacy", module); task("new-task", repo);
+        leases.acquireOrEnqueue(DirectWorkspaceLeaseCoordinator.identifyDirectory(module), "legacy", "MANUAL", null);
+        assertThat(leases.requireWritableLease(module, "legacy").holderTaskId()).isEqualTo("legacy");
+        assertThatThrownBy(() -> leases.acquireOrEnqueue(repo, "new-task", "MANUAL", null))
+                .isInstanceOfSatisfying(TaskFailure.class, failure -> assertThat(failure.code()).isEqualTo("WORKSPACE_OVERLAPPING_LEASE"));
+        leases.releaseAfterWriterStopped(module, "legacy", "stopped");
+        assertThat(leases.acquireOrEnqueue(repo, "new-task", "MANUAL", null).state()).isEqualTo("ADMITTED");
+        assertThat(mapper.findTaskQueue("legacy").orElseThrow().canonicalRoot()).isEqualTo(module.toRealPath().toString());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void privateReportDirectoryInsideCheckoutDoesNotBlockSourceWriter(boolean reportFirst) throws Exception {
+        Path repo = Files.createDirectory(temporaryDirectory.resolve("source"));
+        Files.createDirectory(repo.resolve(".git"));
+        Path report = Files.createDirectories(repo.resolve("data/template-tasks/report"));
+        task("source-writer", repo); task("report", report, "TEMPLATE_REPORT");
+        var repoIdentity = DirectWorkspaceLeaseCoordinator.identify(repo);
+        var reportIdentity = DirectWorkspaceLeaseCoordinator.identifyDirectory(report);
+        assertThat(leases.acquireOrEnqueue(reportFirst ? reportIdentity : repoIdentity,
+                reportFirst ? "report" : "source-writer", "MANUAL", null).state()).isEqualTo("ADMITTED");
+        assertThat(leases.acquireOrEnqueue(reportFirst ? repoIdentity : reportIdentity,
+                reportFirst ? "source-writer" : "report", "MANUAL", null).state()).isEqualTo("ADMITTED");
+        assertThat(leases.requireWritableLease(report, "report").holderTaskId()).isEqualTo("report");
+        assertThat(leases.requireWritableLease(repo, "source-writer").holderTaskId()).isEqualTo("source-writer");
+    }
+
+    @Test
     void canonicalAliasesShareOnePersistentFifoLeaseAndAdmitOnlyAfterRelease() throws Exception {
         Path root = Files.createDirectory(temporaryDirectory.resolve("direct-root"));
         Path alias = temporaryDirectory.resolve("direct-root-alias");
@@ -161,6 +208,10 @@ class DirectWorkspaceLeaseCoordinatorIntegrationTest {
     }
 
     private void task(String id, Path root) throws Exception {
+        task(id, root, "LEGACY_AGGREGATE");
+    }
+
+    private void task(String id, Path root, String mode) throws Exception {
         String now = Instant.now().toString();
         String canonicalRoot = root.toRealPath().toString();
         String projectId = mapper.findProjectByRoot(canonicalRoot).map(ProjectRow::id).orElseGet(() -> {
@@ -168,6 +219,7 @@ class DirectWorkspaceLeaseCoordinatorIntegrationTest {
             mapper.insertProject(new ProjectRow(created, created, canonicalRoot, "", now, now, 1, 0));
             return created;
         });
-        mapper.insertTask(new TaskRow(id, projectId, null, id, "READY", canonicalRoot, "DIRECT", "direct:test", now, now, 0));
+        mapper.insertTask(new TaskRow(id, projectId, null, id, "READY", canonicalRoot, "DIRECT", null,
+                "direct:test", now, now, 0, null, null, null, mode, null));
     }
 }

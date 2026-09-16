@@ -25,7 +25,7 @@ public final class TemplateWorkspaceService {
     /** Only formal Start may call this method. Parameter confirmation never creates this directory. */
     public DirectWorkspaceLeaseCoordinator.WorkspaceIdentity prepareStart(TaskRow task) {
         requireTemplate(task);
-        return DirectWorkspaceLeaseCoordinator.identify(snapshots.prepareDirectory(task.id()));
+        return DirectWorkspaceLeaseCoordinator.identifyDirectory(snapshots.prepareDirectory(task.id()));
     }
 
     public DirectWorkspaceLeaseCoordinator.Admission admitInTransaction(TaskRow task, DirectWorkspaceLeaseCoordinator.WorkspaceIdentity identity) {

@@ -19,7 +19,7 @@
 - Git fetch/分支检查和 checkout 必须暂停调用方 SQLite transaction；远端 fetch 设置 `GIT_TERMINAL_PROMPT=0`，不得因凭据提示无限等待。
 - 外部 I/O 的单次等待、集合与诊断输出必须有明确边界。角色总时限、agentic 步数、MCP 提交次数是独立策略，按 docs/opencode-contract.md 的预算矩阵执行；不为明确豁免的角色自行补设限制。重启必须恢复已提交的中间状态。
 - 浏览器 SSE 只是权威状态的尽力投影：Task 事件提交后再发布，各订阅者必须隔离；断线、超时、`IOException` 或已关闭的 Servlet `AsyncContext` 只移除对应订阅，不得升级为 Designer、OpenCode Session、Attempt 或 Task 失败。
-- Secret 默认只来自进程环境/内存，不写入 SQLite、日志、artifact 或测试快照。数据库管理允许一个受控例外：本地页面提供的数据库密码以 AES-GCM 密文版本保存在独立受管凭据目录，SQLite 只保存引用；主密钥来自环境或用户专属密钥目录，不能随普通数据导出。权限、原子写入、缺失密钥和恢复规则见 [辅助 MCP 合同](../docs/assist-mcp-contract.md)。此例外不适用于 Provider、MCP bearer 或模型作用域凭证。
+- Secret 默认只来自进程环境/内存，不写入 SQLite、日志、artifact 或测试快照。数据库和 Git 账号管理允许受控例外：本地页面提供的数据库密码及 Git 密码/令牌以 AES-GCM 密文版本保存在独立受管凭据目录，SQLite 只保存引用；主密钥来自环境或用户专属密钥目录，不能随普通数据导出。权限、原子写入、缺失密钥和恢复规则见 [辅助 MCP 合同](../docs/assist-mcp-contract.md)。Git 全局默认、项目覆盖及独立密钥规则见 [Git 凭据合同](../docs/git-credentials.md)。此例外不适用于 Provider、MCP bearer 或模型作用域凭证。
 - 长列表必须使用 `CursorPage<T>` 的时间加 ID 稳定游标，默认 50、最大 100；筛选改变时重置游标，不得用全量载入后在浏览器筛选代替服务端查询。
 - Task 列表、详情核心、审计元数据和正文必须保持分层：摘要/overview/audit 禁止读取或返回 `spec_json`、完整 `evidence_json.output`、Judge `raw_output` 或 artifact `content`；正文接口必须同时校验记录属于路径中的 Task。
 - 读模型使用独立只读 Service/Mapper、集合查询、聚合或窗口函数；固定查询上限由 MyBatis 统计器测试保护，禁止返回行数增加时产生 N+1。

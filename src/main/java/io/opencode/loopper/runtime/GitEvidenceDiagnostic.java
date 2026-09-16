@@ -12,8 +12,9 @@ public record GitEvidenceDiagnostic(String code, String message) {
         if (error.contains("unknown option") || error.contains("unrecognized argument") || error.contains("unknown switch"))
             return new GitEvidenceDiagnostic("TEMPLATE_GIT_COMMAND_UNSUPPORTED", "当前 Git 不支持采集命令的参数，请检查实际调用的 Git 版本");
         if (error.contains("authentication failed") || error.contains("permission denied (publickey")
+                || error.contains("returned error: 401") || error.contains("returned error: 403")
                 || error.contains("could not read username") || error.contains("could not read password"))
-            return new GitEvidenceDiagnostic("TEMPLATE_GIT_AUTH_FAILED", "Git 身份认证失败，请检查启动程序所用账号的凭据或 SSH 配置");
+            return new GitEvidenceDiagnostic("TEMPLATE_GIT_AUTH_FAILED", "Git 身份认证失败，请检查全局或项目 Git 账号；使用 SSH 时请检查系统 SSH 配置");
         if (error.contains("dubious ownership") || error.contains("safe.directory") || error.contains("safe.barerepository"))
             return new GitEvidenceDiagnostic("TEMPLATE_GIT_REPOSITORY_UNSAFE", "Git 拒绝访问当前仓库，请核对仓库所有者与信任配置");
         if (error.contains("could not resolve host") || error.contains("connection refused") || error.contains("failed to connect")
@@ -29,9 +30,12 @@ public record GitEvidenceDiagnostic(String code, String message) {
     }
 
     public TaskFailure failure(List<String> arguments, int exitCode) {
-        Set<String> commands = Set.of("init", "fetch", "log", "show", "remote", "rev-parse", "ls-tree", "for-each-ref",
+        return new TaskFailure(code, message + "（操作：git " + operation(arguments) + "；退出码：" + exitCode + "）");
+    }
+
+    public static String operation(List<String> arguments) {
+        Set<String> commands = Set.of("init", "fetch", "push", "ls-remote", "log", "show", "remote", "rev-parse", "ls-tree", "for-each-ref",
                 "check-attr", "check-mailmap", "read-tree", "merge-base", "merge-recursive", "ls-files", "add", "write-tree", "diff", "--version");
-        String operation = arguments.stream().filter(commands::contains).findFirst().orElse("仓库操作");
-        return new TaskFailure(code, message + "（操作：git " + operation + "；退出码：" + exitCode + "）");
+        return arguments.stream().filter(commands::contains).findFirst().orElse("仓库操作");
     }
 }

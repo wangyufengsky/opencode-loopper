@@ -39,7 +39,11 @@ final class GitDirtyWorkspaceManager {
                     List.of("git", "status", "--porcelain=v1", "-z", "--untracked-files=all"), INSPECTION_TIMEOUT);
             requireSuccess(result, "SOURCE_BRANCH_STATUS_FAILED",
                     "Unable to list uncommitted files in the registered source checkout");
-            List<DirtyFile> files = parseDirtyFiles(result.output());
+            GitProjectScope scope = GitProjectScope.require(runner, root);
+            List<DirtyFile> files = parseDirtyFiles(result.output()).stream()
+                    .map(file -> new DirtyFile(scope.projectPath(file.path()),
+                            file.originalPath() == null ? null : scope.projectPath(file.originalPath()),
+                            file.indexStatus(), file.workTreeStatus(), file.untracked())).toList();
             StringBuilder fingerprint = new StringBuilder(branch).append('\0').append(head).append('\0');
             for (DirtyFile file : files) {
                 fingerprint.append(file.indexStatus()).append(file.workTreeStatus()).append('\0')
@@ -97,21 +101,7 @@ final class GitDirtyWorkspaceManager {
     }
 
     private Path requireRepositoryRoot(Path projectRoot) {
-        try {
-            Path root = projectRoot.toRealPath();
-            String topLevel = requiredOutput(root, List.of("git", "rev-parse", "--show-toplevel"),
-                    "SOURCE_BRANCH_REPOSITORY_REQUIRED", "The registered checkout must be a Git repository root");
-            if (!Path.of(topLevel).toRealPath().equals(root)) {
-                throw new TaskFailure("SOURCE_BRANCH_REPOSITORY_ROOT_REQUIRED",
-                        "The registered checkout must be the Git repository root");
-            }
-            return root;
-        } catch (TaskFailure failure) {
-            throw failure;
-        } catch (Exception failure) {
-            throw new TaskFailure("SOURCE_BRANCH_REPOSITORY_REQUIRED",
-                    "Unable to resolve the registered Git repository root: " + failure.getMessage());
-        }
+        return GitProjectScope.require(runner, projectRoot).project();
     }
 
     private List<DirtyFile> parseDirtyFiles(String output) {

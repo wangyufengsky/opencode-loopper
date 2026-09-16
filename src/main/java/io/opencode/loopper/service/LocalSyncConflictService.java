@@ -925,8 +925,8 @@ public class LocalSyncConflictService {
     }
 
     private byte[] readGitBlob(Path workspace, String objectId) throws IOException {
-        Process process = new ProcessBuilder("git", "cat-file", "blob", objectId).directory(workspace.toFile())
-                .redirectErrorStream(true).start();
+        Process process = io.opencode.loopper.runtime.ChildProcessEnvironment.start(new ProcessBuilder("git", "cat-file", "blob", objectId).directory(workspace.toFile())
+                .redirectErrorStream(true));
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try (var input = process.getInputStream()) {
             byte[] buffer = new byte[8192];

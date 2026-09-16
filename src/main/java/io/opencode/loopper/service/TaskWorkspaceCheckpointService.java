@@ -76,7 +76,7 @@ public class TaskWorkspaceCheckpointService {
         if (existing != null && !WorkspaceCheckpointState.CAPTURING.name().equals(existing.state())) return existing;
         ProjectRow project = projects.get(task.projectId());
         Path root = Path.of(project.rootPath());
-        DirectWorkspaceLeaseCoordinator.WorkspaceIdentity identity = DirectWorkspaceLeaseCoordinator.identify(root);
+        DirectWorkspaceLeaseCoordinator.WorkspaceIdentity identity = DirectWorkspaceLeaseCoordinator.identifyDirectory(root);
         String now = Instant.now().toString();
         TaskWorkspaceCheckpointRow row = existing;
         if (row == null) {
@@ -138,7 +138,7 @@ public class TaskWorkspaceCheckpointService {
         }
         ProjectRow project = projects.get(task.projectId());
         DirectWorkspaceLeaseCoordinator.WorkspaceIdentity current =
-                DirectWorkspaceLeaseCoordinator.identify(Path.of(project.rootPath()));
+                DirectWorkspaceLeaseCoordinator.identifyDirectory(Path.of(project.rootPath()));
         if (!checkpoint.canonicalRoot().equals(current.canonicalRoot())
                 || !checkpoint.rootFingerprint().equals(current.rootFingerprint())) {
             throw new ConflictException("RECOVERY_WORKSPACE_FINGERPRINT_MISMATCH",

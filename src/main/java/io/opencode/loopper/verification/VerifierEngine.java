@@ -109,10 +109,10 @@ public class VerifierEngine {
             result = stageBaselines.patch(worktree, baseline, path, boundedTimeout);
         } else if (!taskBranchCheckedOut) {
             result = runner.run(worktree, List.of("git", "--literal-pathspecs", "diff", "--no-ext-diff", "--no-textconv",
-                    "--no-color", "--unified=80", baseline, "refs/heads/" + taskBranch, "--", path), boundedTimeout);
+                    "--no-color", "--relative", "--unified=80", baseline, "refs/heads/" + taskBranch, "--", path), boundedTimeout);
         } else {
             result = runner.run(worktree, List.of("git", "--literal-pathspecs", "diff", "--no-ext-diff", "--no-textconv",
-                    "--no-color", "--unified=80", baseline, "--", path), boundedTimeout);
+                    "--no-color", "--relative", "--unified=80", baseline, "--", path), boundedTimeout);
         }
         boolean acceptedExit = untracked ? result.exitCode() == 0 || result.exitCode() == 1 : result.exitCode() == 0;
         if (result.timedOut()) {
@@ -134,7 +134,7 @@ public class VerifierEngine {
         managedRelative(repository, path);
         ProcessResult result = runner.run(repository,
                 List.of("git", "--literal-pathspecs", "diff", "--no-ext-diff", "--no-textconv",
-                        "--no-color", "--unified=80", baseline, targetRef, "--", path), boundedTimeout);
+                        "--no-color", "--relative", "--unified=80", baseline, targetRef, "--", path), boundedTimeout);
         if (result.timedOut()) throw new TaskFailure("DIFF_PREVIEW_TIMEOUT", "Diff preview timed out");
         if (result.exitCode() != 0) {
             throw new TaskFailure("DIFF_PREVIEW_FAILED", "Unable to generate checkpoint diff preview: " + truncate(result.output()));
@@ -369,6 +369,7 @@ public class VerifierEngine {
         String baselineScope = "TASK";
         String stageId = null;
         if (baseline.startsWith(StageWorkspaceBaselineManager.PREFIX)) {
+            io.opencode.loopper.runtime.GitProjectScope.requireNoSiblingChanges(runner, worktree, "HEAD");
             if (stageBaselines == null) {
                 throw new TaskFailure("STAGE_WORKSPACE_BASELINE_UNAVAILABLE",
                         "Stage workspace diff support is unavailable");
@@ -384,7 +385,8 @@ public class VerifierEngine {
             result = diff.tracked();
             untrackedResult = diff.untracked();
         } else {
-            result = runner.run(worktree, List.of("git", "diff", "--name-status", "-z", baseline), timeout);
+            io.opencode.loopper.runtime.GitProjectScope.requireNoSiblingChanges(runner, worktree, baseline);
+            result = runner.run(worktree, List.of("git", "diff", "--relative", "--name-status", "-z", baseline, "--", "."), timeout);
             untrackedResult = runner.run(worktree, List.of("git", "ls-files", "-z", "--others", "--exclude-standard"), timeout);
         }
         if (result.outputTruncated()) {

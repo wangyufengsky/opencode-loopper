@@ -54,20 +54,20 @@ public class SnapshotReviewEvidence {
                 baseline = selected.baseline(); target = selected.target(); anomaly = selected.nonMonotonic();
             } catch (IllegalArgumentException missing) { throw failure("SNAPSHOT_BOUNDARY_MISSING", missing.getMessage()); }
         }
-        String targetTree = git.read(source.repository(), "rev-parse", target + "^{tree}").strip();
-        String baselineTree = baseline == null ? null : git.read(source.repository(), "rev-parse", baseline + "^{tree}").strip();
+        String targetTree = scopedTree(source, target);
+        String baselineTree = baseline == null ? null : scopedTree(source, baseline);
         boolean same = targetTree.equals(baselineTree);
-        List<SnapshotReview.File> files = new ArrayList<>(manifest(taskId, target));
-        if (baseline != null && !baseline.equals(target)) files.addAll(manifest(taskId, baseline));
+        List<SnapshotReview.File> files = new ArrayList<>(manifest(taskId, target, targetTree));
+        if (baseline != null && !baseline.equals(target)) files.addAll(manifest(taskId, baseline, baselineTree));
         boolean lightweight = SnapshotReviewLightweightPolicy.applies(contract.path("definition").path("version").asText());
-        List<SnapshotReview.Unit> units = same ? List.of() : units(taskId, baseline, target, files, lightweight);
+        List<SnapshotReview.Unit> units = same ? List.of() : units(taskId, baseline, target, files, lightweight, baselineTree, targetTree);
         return store.freeze(taskId, new SnapshotReview.Snapshot(source.head(), baseline, target, baselineTree, targetTree,
                 Instant.now().toString(), baseline == null ? null : dates.startInclusive().toString(),
                 baseline == null ? null : dates.endExclusive().toString(), baseline == null ? "FROZEN_BRANCH_TIP" : "FIRST_PARENT_COMMITTER_TIME",
                 anomaly, same, List.copyOf(files), units));
     }
-    private List<SnapshotReview.File> manifest(String task, String sha) {
-        return DocumentCodeSnapshotService.manifest(task, git.read(repository(task), "ls-tree", "-r", "-z", "-l", "--full-tree", sha)).stream()
+    private List<SnapshotReview.File> manifest(String task, String sha, String tree) {
+        return DocumentCodeSnapshotService.manifest(task, git.read(repository(task), "ls-tree", "-r", "-z", "-l", "--full-tree", tree)).stream()
                 .map(f -> new SnapshotReview.File(sha, f.path(), f.blobSha(), f.mode(), f.sizeBytes(),
                         f.limitation() != null ? f.limitation() : excluded(f.path()))).toList();
     }
@@ -76,13 +76,13 @@ public class SnapshotReviewEvidence {
             return "第三方依赖或构建产物未逐行审查";
         return null;
     }
-    private List<SnapshotReview.Unit> units(String task, String baseline, String target, List<SnapshotReview.File> files, boolean lightweight) {
+    private List<SnapshotReview.Unit> units(String task, String baseline, String target, List<SnapshotReview.File> files, boolean lightweight, String baselineTree, String targetTree) {
         Map<String, SnapshotReview.File> targetFiles = new LinkedHashMap<>(), beforeFiles = new LinkedHashMap<>();
         files.forEach(f -> { if (f.version().equals(target)) targetFiles.put(f.path(), f); else beforeFiles.put(f.path(), f); });
         List<String[]> changes = new ArrayList<>();
         if (baseline == null) targetFiles.keySet().forEach(path -> changes.add(new String[]{"FULL", path, path}));
         else {
-            String[] fields = git.read(repository(task), "--literal-pathspecs", "diff", "--no-ext-diff", "--no-textconv", "--name-status", "-z", "--find-renames", baseline, target, "--").split("\u0000");
+            String[] fields = git.read(repository(task), "--literal-pathspecs", "diff", "--no-ext-diff", "--no-textconv", "--name-status", "-z", "--find-renames", baselineTree, targetTree, "--").split("\u0000");
             for (int i = 0; i < fields.length;) {
                 String change = fields[i++], before = fields[i++], after = before;
                 if (change.startsWith("R") || change.startsWith("C")) after = fields[i++];
@@ -97,7 +97,7 @@ public class SnapshotReviewEvidence {
             String text = "";
             if (limitation == null) {
                 text = baseline == null ? git.read(repository(task), "cat-file", "blob", f.blob())
-                        : git.read(repository(task), "--literal-pathspecs", "diff", "--no-ext-diff", "--no-textconv", "--unified=8", baseline, target, "--", change[1], change[2]);
+                        : git.read(repository(task), "--literal-pathspecs", "diff", "--no-ext-diff", "--no-textconv", "--unified=8", baselineTree, targetTree, "--", change[1], change[2]);
                 if (text.indexOf('\u0000') >= 0 || text.indexOf('\uFFFD') >= 0 || text.startsWith("Binary files") || text.contains("\nBinary files")) {
                     text = ""; limitation = "二进制或非 UTF-8 内容未作为文本审查";
                 }
@@ -108,6 +108,17 @@ public class SnapshotReviewEvidence {
             result.addAll(lightweight ? SnapshotReviewUnits.compact(id, change, text, limitation) : SnapshotReviewUnits.compile(id, change, text, limitation));
         }
         return List.copyOf(result);
+    }
+    private String scopedTree(TemplateGitSnapshotService.Snapshot source, String commit) {
+        if (source.projectPrefix().isEmpty()) return git.read(source.repository(), "rev-parse", commit + "^{tree}").strip();
+        String path = source.projectPrefix().substring(0, source.projectPrefix().length() - 1);
+        String entry = git.read(source.repository(), "--literal-pathspecs", "ls-tree", "-z", commit, "--", path);
+        // A module not yet present at a date boundary has an empty tree, never the entire repository.
+        if (entry.isEmpty()) return git.read(source.repository(), "mktree").strip();
+        String[] fields = entry.substring(0, entry.indexOf('\t')).split(" ");
+        if (fields.length != 3 || !fields[1].equals("tree"))
+            throw failure("TEMPLATE_SNAPSHOT_SCOPE_INVALID", "冻结版本中的项目路径不是目录，请检查所选分支和日期范围");
+        return fields[2];
     }
     private static TaskFailure failure(String code, String message) { return new TaskFailure(code, message); }
 }

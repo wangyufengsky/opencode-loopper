@@ -137,7 +137,7 @@ public class DirectoryPickerService {
     private static final class SystemPickerProcess implements PickerProcess {
         @Override
         public PickerResult run(List<String> command, Duration timeout) throws IOException, InterruptedException {
-            Process picker = new ProcessBuilder(command).redirectErrorStream(true).start();
+            Process picker = io.opencode.loopper.runtime.ChildProcessEnvironment.start(new ProcessBuilder(command).redirectErrorStream(true));
             if (!picker.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS)) {
                 picker.destroy();
                 if (!picker.waitFor(1, TimeUnit.SECONDS)) picker.destroyForcibly();

@@ -56,7 +56,7 @@ public class SafeProcessRunner {
                     .directory(directory.toFile())
                     .redirectErrorStream(true);
             builder.environment().putAll(environment);
-            Process process = builder.start();
+            Process process = ChildProcessEnvironment.start(builder);
             ByteArrayOutputStream captured = new ByteArrayOutputStream();
             CappedOutputStream capped = new CappedOutputStream(captured, 1_000_000, () -> {
                 terminateTree(process);
@@ -109,7 +109,7 @@ public class SafeProcessRunner {
             ProcessBuilder builder = new ProcessBuilder(new ArrayList<>(resolution.argv()))
                     .directory(directory.toFile()).redirectErrorStream(true);
             builder.environment().putAll(environment);
-            Process process = builder.start();
+            Process process = ChildProcessEnvironment.start(builder);
             ByteArrayOutputStream captured = new ByteArrayOutputStream();
             CappedOutputStream capped = new CappedOutputStream(captured, 1_000_000, () -> {
                 terminateTree(process);

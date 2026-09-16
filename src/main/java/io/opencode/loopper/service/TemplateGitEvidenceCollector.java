@@ -41,7 +41,7 @@ public class TemplateGitEvidenceCollector {
     public TemplateGitEvidence collect(TemplateGitSnapshotService.Snapshot snapshot, String branchId, TemplateDateRange dates) {
         Path repository = snapshot.repository();
         String head = snapshot.head();
-        var context = new Context(repository, head, new HashMap<>());
+        var context = new Context(repository, head, new HashMap<>(), snapshot.projectPrefix());
         List<Commit> commits = new ArrayList<>();
         long characters = 0;
         // Git 2.30 has no since-as-filter. Walk every reachable commit, then filter exact timestamps in Java.
@@ -54,7 +54,7 @@ public class TemplateGitEvidenceCollector {
                 if (!dates.contains(Instant.ofEpochSecond(Long.parseLong(fields[1])))) continue;
                 String sha = fields[0];
                 Commit commit = commit(context, sha, dates);
-                if (commit == null) continue;
+                if (commit == null || !context.prefix().isEmpty() && commit.changes().isEmpty()) continue;
                 commits.add(commit);
                 characters += commit.changes().stream().mapToLong(change -> change.patch().length()).sum();
                 if (characters > MAX_PATCH_CHARACTERS || commits.size() > MAX_COMMITS) {
@@ -139,15 +139,17 @@ public class TemplateGitEvidenceCollector {
             String[] fields = item.split("\\t", 3);
             if (fields.length != 3) throw invalid("文件变更计数无效");
             String path = fields[2];
+            if (!path.startsWith(context.prefix())) continue;
             boolean binary = fields[0].equals("-") || fields[1].equals("-");
             long additions = binary ? 0 : Long.parseLong(fields[0]);
             long deletions = binary ? 0 : Long.parseLong(fields[1]);
             List<String> patchCommand = showArguments(sha, parents.size() == 2 ? before : null);
+            if (!context.prefix().isEmpty()) patchCommand.add(1, "--relative=" + context.prefix());
             patchCommand.add(path);
             patchCommand.addFirst("--literal-pathspecs");
             String patch = sensitive(path) ? "" : git.read(context.repository(), patchCommand.toArray(String[]::new));
             String reason = sensitive(path) ? "SENSITIVE_CONTENT_WITHHELD" : excluded(context.repository(), sha, path, binary, patch);
-            result.add(new Change(hash(sha + "\n" + path), path,
+            result.add(new Change(hash(sha + "\n" + path), path.substring(context.prefix().length()),
                     before == null ? null : blob(context.repository(), before, path),
                     blob(context.repository(), sha, path), additions, deletions, binary,
                     reason == null ? additions + deletions : 0, reason, patch));
@@ -221,5 +223,5 @@ public class TemplateGitEvidenceCollector {
         }).toList();
     }
 
-    private record Context(Path repository, String head, Map<String, Contributor> identities) { }
+    private record Context(Path repository, String head, Map<String, Contributor> identities, String prefix) { }
 }

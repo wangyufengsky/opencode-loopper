@@ -21,8 +21,26 @@ public final class GitEvidenceProcess {
     private static final Map<String, String> ENVIRONMENT = Map.of(
             "GIT_TERMINAL_PROMPT", "0", "GIT_OPTIONAL_LOCKS", "0", "LC_ALL", "C", "GIT_NO_REPLACE_OBJECTS", "1", "GIT_ATTR_NOSYSTEM", "1");
     private final SafeProcessRunner runner;
+    private GitCredentialProvider credentials;
 
     public GitEvidenceProcess(SafeProcessRunner runner) { this.runner = runner; }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void credentialProvider(GitCredentialProvider provider) { this.credentials = provider; }
+
+    /** Caller supplies the registered project even when the command runs in a private bare snapshot. */
+    public Result remote(Path directory, Path project, Duration timeout, List<String> arguments, String remote) {
+        String url = remote;
+        if (!remote.contains(":") && !remote.startsWith("/") && !remote.startsWith("\\\\")) {
+            var lookup = new ArrayList<>(List.of("remote", "get-url"));
+            if (!arguments.isEmpty() && arguments.getFirst().equals("push")) lookup.add("--push");
+            lookup.add("--"); lookup.add(remote);
+            url = read(directory, lookup.toArray(String[]::new)).strip();
+        }
+        Map<String, String> environment = credentials != null && (url.startsWith("http://") || url.startsWith("https://"))
+                ? credentials.environment(project, url) : Map.of();
+        return run(directory, timeout, arguments, environment);
+    }
 
     public String read(Path directory, String... arguments) {
         Result result = run(directory, Duration.ofSeconds(60), List.of(arguments));
@@ -45,7 +63,7 @@ public final class GitEvidenceProcess {
         return run(directory, timeout, arguments, Map.of());
     }
 
-    /** Overrides are server-owned scratch paths only, never model/user supplied environment. */
+    /** Overrides are server-owned scratch paths or scoped credentials, never arbitrary model/user environment. */
     public Result run(Path directory, Duration timeout, List<String> arguments, Map<String, String> environment) {
         List<String> argv = new ArrayList<>(List.of("git", "-c", "core.safecrlf=false", "-c", "color.ui=false",
                 "-c", "core.quotePath=false", "-c", "core.hooksPath=" + nullDevice(),
@@ -57,10 +75,11 @@ public final class GitEvidenceProcess {
         try {
             ProcessBuilder builder = new ProcessBuilder(resolution.argv()).directory(directory.toFile());
             builder.environment().keySet().removeIf(key -> key.startsWith("GIT_") && !key.equals("GIT_SSH_COMMAND"));
+            if (environment.containsKey("GIT_CONFIG_PARAMETERS")) builder.environment().remove("SSH_ASKPASS");
             builder.environment().putAll(ENVIRONMENT);
             builder.environment().putAll(environment);
-            scope = new ProcessScope(builder.start());
-            return collect(scope, timeout);
+            scope = new ProcessScope(ChildProcessEnvironment.start(builder));
+            return collect(scope, timeout, arguments);
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
             throw new TaskFailure("TEMPLATE_GIT_INTERRUPTED", "Git 证据读取已中断");
@@ -71,7 +90,7 @@ public final class GitEvidenceProcess {
         }
     }
 
-    private Result collect(ProcessScope scope, Duration timeout) throws InterruptedException, IOException {
+    private Result collect(ProcessScope scope, Duration timeout, List<String> arguments) throws InterruptedException, IOException {
         Process process = scope.process;
         var output = new ByteArrayOutputStream();
         var errors = new ByteArrayOutputStream();
@@ -83,7 +102,8 @@ public final class GitEvidenceProcess {
         if (!done) scope.stop();
         stdout.join(2000);
         stderr.join(2000);
-        if (!done) throw new TaskFailure("TEMPLATE_GIT_TIMEOUT", "Git 操作超时，请检查仓库连接后重试");
+        if (!done) throw new TaskFailure("TEMPLATE_GIT_TIMEOUT", "Git 操作超时（操作：git " + GitEvidenceDiagnostic.operation(arguments)
+                + "；时限：" + timeout.toSeconds() + " 秒），请检查该操作的仓库访问或本地处理耗时后重试");
         if (exceeded.get() || stdout.isAlive() || stderr.isAlive()) {
             throw new TaskFailure("TEMPLATE_GIT_EVIDENCE_LIMIT", "单次 Git 证据超过读取上限，未生成完整报告");
         }

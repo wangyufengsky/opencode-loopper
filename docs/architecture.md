@@ -1331,9 +1331,19 @@ lease, fetch refs, capture a baseline and switch the registered checkout. Once t
 request is accepted, admission and dirty-workspace resolution continue automatically
 through the transient `READY` state into `RUNNING`; users do not click Start twice.
 
+The registered project may be a canonical subdirectory of its Git checkout. Its execution directory,
+relative verifier paths, dirty-file choices and read-only code evidence remain rooted in that project.
+Branch and index ownership belong to the containing checkout: newly admitted sibling projects share
+the checkout's FIFO writer lease. Historical queues retain their frozen directory identity; an overlapping
+historical holder blocks new admission until its writer has positively stopped and released its lease.
+Changes outside a registered subdirectory, including staged-only changes, block branch preparation,
+checkpoint cleanup and publication; they are never offered as that project's cleanup choices.
+Checkpoints preserve the repository tree for branch restoration but expose only the project subtree to
+read-only roles. The project-directory fingerprint remains separate from the checkout lease identity.
+
 When a project has a valid Git HEAD, execution first snapshots the registered checkout. A dirty checkout
 moves the admitted Task to `WAITING_INPUT` while retaining its writer lease and
-exposes every porcelain-status path to the local UI. The user must choose
+exposes project-relative porcelain-status paths to the local UI. The user must choose
 `COMMIT`, `STASH`, or `REMOVE` per path, or cancel the Task without changing the
 files. Cancellation interrupts the active Execution Cycle and reaches `CANCELLED`;
 it does not manufacture a Task failure. Cleanup is accepted only against the same branch, HEAD,

@@ -68,3 +68,17 @@ it('defaults to date increment and sends no dates in full review', async () => {
   expect(request).not.toHaveProperty('startDate'); expect(request).not.toHaveProperty('endDate')
   wrapper.unmount()
 })
+
+it('shows the authentication cause and lets an explicit local branch start review', async () => {
+  vi.mocked(api.templateCatalog).mockResolvedValue({ templates: definitions, dimensions: [], defaultStartDate: '2026-09-01', defaultEndDate: '2026-09-14' } as unknown as TemplateTaskCatalog)
+  const branch = { id: 'local:refs/heads/main', label: 'main（本地）', ref: 'refs/heads/main', remote: null }
+  vi.mocked(api.templateBranches).mockResolvedValue({ page: { items: [branch], facets: {}, nextCursor: null }, defaultBranch: null, defaultBranchId: null, remoteAvailable: false, remoteProblems: ['Git 身份认证失败，请检查启动程序所用账号的凭据或 SSH 配置'] })
+  vi.mocked(api.createTemplateTask).mockResolvedValue({ id: 'created' } as Awaited<ReturnType<typeof api.createTemplateTask>>)
+  const { wrapper } = await render()
+  expect(wrapper.text()).toContain('Git 身份认证失败')
+  const select = wrapper.findAllComponents({ name: 'ElSelect' }).find(s => s.props('ariaLabel') === '分支')!
+  select.vm.$emit('update:modelValue', branch.id); await flushPromises()
+  await wrapper.get('form').trigger('submit'); await flushPromises()
+  expect(api.createTemplateTask).toHaveBeenCalledWith(expect.objectContaining({ projectId: 'inherited', branchId: branch.id }))
+  wrapper.unmount()
+})

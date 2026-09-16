@@ -42,6 +42,7 @@ const branchQuery = ref('')
 const loadingProjects = ref(false)
 const loadingBranches = ref(false)
 const remoteAvailable = ref(true)
+const remoteProblems = ref<string[]>([])
 const error = ref('')
 const branchError = ref('')
 let projectGeneration = 0
@@ -81,6 +82,7 @@ async function searchBranches(query = '', append = false, chooseDefault = false)
     branches.value = append ? [...branches.value, ...result.page.items] : result.page.items
     branchCursor.value = result.page.nextCursor
     remoteAvailable.value = result.remoteAvailable
+    remoteProblems.value = result.remoteProblems ?? []
     if (chooseDefault && result.defaultBranch) {
       if (!branches.value.some(item => item.id === result.defaultBranchId)) branches.value.unshift(result.defaultBranch)
       branchId.value = result.defaultBranch.id
@@ -186,7 +188,7 @@ onBeforeUnmount(() => { ++projectGeneration; ++branchGeneration })
       </div>
       <el-alert v-if="needsDates && dateError" :title="dateError" type="error" :closable="false" />
       <el-alert v-if="needsBranch && branchError" :title="branchError" type="error" :closable="false"><el-button text @click="searchBranches('', false, true)">重新读取分支</el-button></el-alert>
-      <el-alert v-else-if="needsBranch && !remoteAvailable" title="部分远程分支暂不可访问，请检查连接后重新读取，或明确选择可用的本地分支" type="warning" :closable="false" />
+      <el-alert v-else-if="needsBranch && !remoteAvailable" :title="remoteProblems.length ? `${remoteProblems.join('；')}；也可明确选择可用的本地分支` : '部分远程分支暂不可访问，请检查连接后重新读取，或明确选择可用的本地分支'" type="warning" :closable="false" />
       <div class="run-action"><el-button type="primary" native-type="submit" :loading="busy" :disabled="!valid">{{ isDocument ? (definition.id === 'REQUIREMENT_DEVELOPMENT' ? '开始开发' : '开始评审') : '开始执行' }}</el-button></div>
     </form>
     <details v-if="definition?.scoringVersion && store.catalog" class="card card-pad rubric">

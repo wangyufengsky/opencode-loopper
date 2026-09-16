@@ -34,6 +34,24 @@ class VerifierEngineTest {
     @TempDir Path directory;
 
     @Test
+    void moduleDiffUsesProjectRelativePathsAndRejectsSiblingChanges() throws Exception {
+        git("init"); git("config", "user.email", "test@example.invalid"); git("config", "user.name", "test");
+        Path module = Files.createDirectory(directory.resolve("module"));
+        Files.writeString(module.resolve("file.txt"), "before");
+        Files.writeString(directory.resolve("sibling.txt"), "sibling");
+        git("add", "."); git("commit", "-m", "initial");
+        String baseline = git("rev-parse", "HEAD").strip();
+        Files.writeString(module.resolve("file.txt"), "after");
+        var verifier = new VerifierSpec("GIT_DIFF", null, null, true, List.of("file.txt"), List.of(), false);
+        var result = engine.verify(module, baseline, verifier, Duration.ofSeconds(10));
+        assertThat(result.state()).isEqualTo(VerificationState.PASS);
+        assertThat(result.evidence().get("changedPaths")).isEqualTo(List.of("file.txt"));
+        Files.writeString(directory.resolve("sibling.txt"), "outside");
+        assertThatThrownBy(() -> engine.verify(module, baseline, verifier, Duration.ofSeconds(10)))
+                .isInstanceOfSatisfying(TaskFailure.class, failure -> assertThat(failure.code()).isEqualTo("GIT_PROJECT_OUTSIDE_CHANGES"));
+    }
+
+    @Test
     void gitDiffIncludesUntrackedFilesAndAppliesForbiddenPolicy() throws Exception {
         git("init"); git("config", "user.email", "test@example.invalid"); git("config", "user.name", "test");
         Files.writeString(directory.resolve("tracked.txt"), "base"); git("add", "tracked.txt"); git("commit", "-m", "base");

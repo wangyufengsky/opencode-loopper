@@ -44,6 +44,24 @@ class TemplateGitEvidenceIntegrationTest {
         snapshots = new TemplateGitSnapshotService(projects, git, properties);
     }
 
+    @Test void localModuleSelectionNeverQueriesRemoteAndCollectsOnlyModuleHistory() throws Exception {
+        Files.createDirectory(root.resolve("module"));
+        String moduleCommit = commit("module/file.txt", "module", "2026-09-11T01:00:00Z", "module change");
+        commit("sibling.txt", "sibling", "2026-09-11T02:00:00Z", "sibling change");
+        git.read(root, "remote", "add", "origin", "http://127.0.0.1:1/unavailable.git");
+        when(projects.get("project").rootPath()).thenReturn(root.resolve("module").toString());
+        var branches = new ProjectBranchService(projects, git);
+        var selected = branches.require("project", "local:refs/heads/main");
+        assertThat(selected.remote()).isNull();
+        var snapshot = snapshots.freeze("module-run", "project", selected);
+        assertThat(snapshot.projectPrefix()).isEqualTo("module/");
+        var evidence = collect(snapshot);
+        assertThat(evidence.commits()).extracting(TemplateGitEvidence.Commit::sha).containsExactly(moduleCommit);
+        assertThat(evidence.commits().getFirst().changes()).extracting(TemplateGitEvidence.Change::path).containsExactly("file.txt");
+        assertThat(snapshots.freeze("module-run", "project", selected).projectPrefix()).isEqualTo("module/");
+        assertThat(git.read(root, "status", "--porcelain")).isBlank();
+    }
+
     @Test void freezesSelectedBranchWithoutChangingDirtyCheckoutAndUsesExactCommitTime() throws Exception {
         commit("before.txt", "before", "2026-09-10T15:59:59Z", "before");
         String first = commit("inside.txt", "inside", "2026-09-10T16:00:00Z", "inside");

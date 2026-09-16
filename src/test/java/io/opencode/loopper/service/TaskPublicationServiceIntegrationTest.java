@@ -53,6 +53,24 @@ class TaskPublicationServiceIntegrationTest {
     }
 
     @Test
+    void publishesModuleChangesAndRestoresSharedBranchWithoutIncludingSibling() throws Exception {
+        Path repo = repositoryWithoutRemote();
+        Path module = Files.createDirectory(repo.resolve("module"));
+        Files.writeString(module.resolve("file.txt"), "module baseline\n");
+        run(repo, "git", "add", "."); run(repo, "git", "commit", "-m", "module baseline");
+        ProjectRow project = projects.create("module-publish", module.toString());
+        TaskRow task = succeededTask(project);
+        assertThat(Path.of(task.worktreePath())).isEqualTo(module.toRealPath());
+        Files.writeString(module.resolve("feature.txt"), "verified module change\n");
+        var committed = publication.commitAndPush(task.id(), "#3032_子模块提交");
+        assertThat(committed.state()).isEqualTo("SYNCED_LOCAL");
+        assertThat(run(repo, "git", "diff", "--name-only", task.baselineCommit(), task.branchName()).strip())
+                .isEqualTo("module/feature.txt");
+        assertThat(Files.readString(repo.resolve("README.md"))).isEqualTo("fixture\n");
+        assertThat(run(repo, "git", "branch", "--show-current").strip()).isEqualTo("main");
+    }
+
+    @Test
     void aiSuggestionCommitPushAndGitLabMergeRequestDraftFollowTheSuccessFlow() throws Exception {
         Repository fixture = repositoryWithRemote();
         ProjectRow project = projects.create("publish-fixture", fixture.project().toString());

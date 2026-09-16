@@ -57,7 +57,7 @@ public class DirectWorkspaceLeaseCoordinator {
      * make a concurrent contender fail closed rather than create two writers.
      */
     public Admission acquireOrEnqueue(Path root, String taskId, String source, String writerSessionId) {
-        return acquireOrEnqueue(identify(root), taskId, source, writerSessionId);
+        return acquireOrEnqueue(identifyForTask(root, taskId), taskId, source, writerSessionId);
     }
 
     /**
@@ -105,7 +105,7 @@ public class DirectWorkspaceLeaseCoordinator {
 
     /** Records the remote writer id without changing queue ownership. */
     public LeaseSnapshot heartbeat(Path root, String taskId, String writerSessionId) {
-        WorkspaceIdentity workspace = identify(root);
+        WorkspaceIdentity workspace = identifyForTask(root, taskId);
         return required(transactions.execute(status -> {
             WorkspaceLeaseRow lease = holder(workspace, taskId);
             if (!WorkspaceLeaseState.HELD.name().equals(lease.state())
@@ -123,7 +123,7 @@ public class DirectWorkspaceLeaseCoordinator {
      * This is intentionally separate from task terminality and has no automatic expiry.
      */
     public LeaseSnapshot markWriterUnconfirmed(Path root, String taskId, String writerSessionId, String reason) {
-        WorkspaceIdentity workspace = identify(root);
+        WorkspaceIdentity workspace = identifyForTask(root, taskId);
         return required(transactions.execute(status -> {
             WorkspaceLeaseRow lease = holder(workspace, taskId);
             if (WorkspaceLeaseState.RELEASED.name().equals(lease.state())) {
@@ -138,7 +138,7 @@ public class DirectWorkspaceLeaseCoordinator {
 
     /** Clears a positively-terminated writer while retaining ownership for a paused/retrying task. */
     public LeaseSnapshot retainAfterWriterStopped(Path root, String taskId, String reason) {
-        WorkspaceIdentity workspace = identify(root);
+        WorkspaceIdentity workspace = identifyForTask(root, taskId);
         return required(transactions.execute(status -> {
             WorkspaceLeaseRow lease = holder(workspace, taskId);
             String detail = reason == null || reason.isBlank() ? null : bounded(reason);
@@ -175,7 +175,7 @@ public class DirectWorkspaceLeaseCoordinator {
 
     /** A new writer may start only for the current HELD owner, never for RELEASE_PENDING. */
     public LeaseSnapshot requireWritableLease(Path root, String taskId) {
-        WorkspaceIdentity workspace = identify(root);
+        WorkspaceIdentity workspace = identifyForTask(root, taskId);
         WorkspaceLeaseRow lease = holder(workspace, taskId);
         if (!WorkspaceLeaseState.HELD.name().equals(lease.state())) {
             throw new TaskFailure("DIRECT_WRITER_TERMINATION_UNCONFIRMED",
@@ -190,7 +190,7 @@ public class DirectWorkspaceLeaseCoordinator {
      * finished and admits exactly the earliest compatible queued row.
      */
     public Release releaseAfterWriterStopped(Path root, String taskId, String reason) {
-        WorkspaceIdentity workspace = identify(root);
+        WorkspaceIdentity workspace = identifyForTask(root, taskId);
         return required(transactions.execute(status -> release(workspace, taskId, reason)));
     }
 
@@ -214,7 +214,30 @@ public class DirectWorkspaceLeaseCoordinator {
     }
 
     /** Resolve aliases before persistence; the hash is intentionally stable across restarts. */
-    public static WorkspaceIdentity identify(Path input) {
+    public WorkspaceIdentity identifyForTask(Path input, String taskId) {
+        return identify(input, mapper.findTaskQueue(taskId).map(TaskQueueRow::canonicalRoot).orElse(null));
+    }
+
+    public static WorkspaceIdentity identify(Path input) { return identify(input, null); }
+
+    /** Historical directory leases retain their frozen key; new Git tasks share the checkout key. */
+    public static WorkspaceIdentity identify(Path input, String frozenRoot) {
+        try {
+            Path project = input.toRealPath();
+            Path repository = GitProjectScope.checkoutRoot(project);
+            if (frozenRoot == null) return identifyDirectory(repository);
+            Path frozen = Path.of(frozenRoot).toRealPath();
+            if (!frozen.equals(project) && !frozen.equals(repository)) {
+                throw new TaskFailure("DIRECT_ROOT_FINGERPRINT_MISMATCH", "任务已冻结的工作区与当前项目或仓库不匹配");
+            }
+            return identifyDirectory(frozen);
+        } catch (TaskFailure failure) { throw failure; }
+        catch (Exception failure) {
+            throw new TaskFailure("DIRECT_WORKSPACE_UNAVAILABLE", "无法确认项目工作区，请检查目录及权限");
+        }
+    }
+
+    public static WorkspaceIdentity identifyDirectory(Path input) {
         if (input == null) throw new TaskFailure("DIRECT_WORKSPACE_REQUIRED", "Direct workspace root is required");
         try {
             Path canonical = input.toRealPath();
@@ -238,6 +261,14 @@ public class DirectWorkspaceLeaseCoordinator {
     }
 
     private Admission acquire(WorkspaceIdentity workspace, String taskId, String source, String writerSessionId) {
+        // Old subdirectory leases cannot be silently moved into the new repository-wide queue.
+        Path requested = Path.of(workspace.canonicalRoot());
+        for (WorkspaceLeaseRow active : mapper.blockingSourceWorkspaceLeases(taskId)) {
+            Path held = Path.of(active.canonicalRoot());
+            if (!held.equals(requested) && (held.startsWith(requested) || requested.startsWith(held))) {
+                throw new TaskFailure("WORKSPACE_OVERLAPPING_LEASE", "同一仓库仍有旧目录任务持有写租约，请待其安全结束后重试");
+            }
+        }
         TaskQueueRow existingQueue = mapper.findTaskQueue(taskId).orElse(null);
         if (existingQueue != null) {
             requireSameWorkspace(existingQueue, workspace);
@@ -430,7 +461,7 @@ public class DirectWorkspaceLeaseCoordinator {
         boolean fingerprintMatches = false;
         String observed = null;
         try {
-            WorkspaceIdentity workspace = identify(Path.of(lease.canonicalRoot()));
+            WorkspaceIdentity workspace = identifyDirectory(Path.of(lease.canonicalRoot()));
             available = true;
             observed = workspace.rootFingerprint();
             fingerprintMatches = lease.rootFingerprint().equals(workspace.rootFingerprint());

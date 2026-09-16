@@ -46,6 +46,7 @@ public class TaskStartPreflight {
                 && !(rollingPackages.applies(current.id()) && GitWorktreeManager.DIRECT_BRANCH.equals(current.branchName()))) {
             throw new TaskFailure("REWORK_REPOSITORY_REQUIRED", "Rework requires a Git source branch");
         }
-        return Optional.of(DirectWorkspaceLeaseCoordinator.identify(root));
+        return Optional.of(DirectWorkspaceLeaseCoordinator.identify(root, mapper.findTaskQueue(current.id())
+                .map(io.opencode.loopper.persistence.TaskQueueRow::canonicalRoot).orElse(null)));
     }
 }

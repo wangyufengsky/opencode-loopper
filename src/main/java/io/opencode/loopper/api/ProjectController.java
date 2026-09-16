@@ -125,7 +125,7 @@ public class ProjectController {
         String executionMode = inspection.isolatedWorktree() ? "WORKTREE" : inspection.pathAvailable() ? "DIRECT" : "UNAVAILABLE";
         return new ProjectDto(row.id(), row.name(), row.rootPath(), status, row.description(), inspection.branch(),
                 executionMode, row.updatedAt(), service.taskCount(row.id()), service.openDesignerSessionCount(row.id()),
-                stack.state().name(), stack.technologyFamilies(), stack.components().size(), stack.analyzedAt(), row.documentPath(), row.version());
+                stack.state().name(), stack.technologyFamilies(), stack.components().size(), stack.analyzedAt(), row.documentPath(), row.version(), inspection.repositoryRoot());
     }
     private ProjectConventionDto conventionDto(ProjectConventionDraftRow row) {
         return new ProjectConventionDto(row.id(), row.projectId(), row.state(), row.sourceExists() == 1 ? "UPDATE" : "CREATE",
@@ -141,7 +141,7 @@ public class ProjectController {
                              String executionMode, String updatedAt, int taskCount,
                              int openDesignerSessionCount, String stackProfileState,
                              List<String> stackTechnologyFamilies, int stackComponentCount,
-                             String stackAnalyzedAt, String documentPath, long version) { }
+                             String stackAnalyzedAt, String documentPath, long version, String repositoryRoot) { }
     public record ProjectStackProfileDto(String id, String projectId, String state, String manifestFingerprint,
                                          List<String> technologyFamilies, List<String> technologies,
                                          int filesScanned, String errorCode, String errorDetail, String analyzedAt,

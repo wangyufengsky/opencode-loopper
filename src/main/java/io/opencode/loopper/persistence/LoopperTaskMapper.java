@@ -372,6 +372,13 @@ public interface LoopperTaskMapper {
     Optional<WorkspaceLeaseRow> findWorkspaceLease(String canonicalRoot);
     @Select("SELECT * FROM workspace_lease WHERE state IN ('HELD','RELEASE_PENDING') ORDER BY heartbeat_at")
     List<WorkspaceLeaseRow> blockingWorkspaceLeases();
+    @Select("""
+            SELECT lease.* FROM workspace_lease lease JOIN task holder ON holder.id=lease.holder_task_id
+            JOIN task requester ON requester.id=#{taskId}
+            WHERE lease.state IN ('HELD','RELEASE_PENDING')
+              AND holder.execution_mode != 'TEMPLATE_REPORT' AND requester.execution_mode != 'TEMPLATE_REPORT'
+            """)
+    List<WorkspaceLeaseRow> blockingSourceWorkspaceLeases(String taskId);
     @Select("SELECT * FROM workspace_lease WHERE holder_task_id=#{taskId} AND state IN ('HELD','RELEASE_PENDING') LIMIT 1")
     Optional<WorkspaceLeaseRow> findActiveWorkspaceLeaseByHolder(String taskId);
     @Select("""

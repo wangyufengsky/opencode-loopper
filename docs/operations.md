@@ -148,6 +148,10 @@ jar tf "$LOOPPER_JAR_PATH" \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
+## Git 账号
+
+HTTP(S) Git 账号在“设置 → Git 账号”中独立维护：项目默认继承全局账号，项目卡片的“Git 账号”可改为独立配置。填写服务器协议、主机和端口，另用完整仓库地址验证连接。保存后用于后续远程 Git 操作，不依赖 IDEA，也不修改系统 Git 配置。验证是只读操作，不证明推送权限；令牌过期或撤销后需更新。安全和恢复规则见 [Git 账号管理](git-credentials.md)。
+
 ## 数据、安全与备份
 
 ### 数据目录
@@ -161,7 +165,7 @@ jar tf "$LOOPPER_JAR_PATH" \
 - `artifacts/`：浏览器截图、trace 等二进制证据；
 - `publication-patches/`、`local-sync-conflicts/`：发布与同步冲突材料。
 
-要迁移或备份，先正常停止 Loopper，再整体复制 `LOOPPER_DATA_DIR`。被登记的源项目不在数据目录内，需要按项目自己的 Git/备份策略单独保护。恢复时应同时保持源项目路径和 Git 历史可用。
+要迁移或备份，先正常停止 Loopper，再整体复制 `LOOPPER_DATA_DIR`。被登记的源项目不在数据目录内，需要按项目自己的 Git/备份策略单独保护。恢复时应同时保持源项目路径和 Git 历史可用。使用页面保存的 Git 或数据库凭据时，还必须单独保管对应主密钥（环境变量，或 `~/.opencode-loopper/keys/git-master.key` 与 `database-master.key`）；只备份数据目录无法恢复这些凭据。主密钥不随普通数据导出或发布包分发。
 
 ### 安全边界
 

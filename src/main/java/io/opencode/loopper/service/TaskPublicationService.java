@@ -42,6 +42,10 @@ public class TaskPublicationService {
     private final TaskPublicationTracker publicationTracker;
     private final CommitMessagePromptFactory commitMessages;
     private final ReentrantLock[] taskLocks = lockStripes(PUBLICATION_LOCK_STRIPES);
+    private io.opencode.loopper.runtime.GitEvidenceProcess remoteGit;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void remoteGit(io.opencode.loopper.runtime.GitEvidenceProcess git) { this.remoteGit = git; }
 
     public TaskPublicationService(TaskService tasks, ProjectService projects, GitWorktreeManager worktrees,
                                   SafeProcessRunner runner, OpenCodeClient openCode, LoopperProperties properties,
@@ -51,6 +55,7 @@ public class TaskPublicationService {
         this.projects = projects;
         this.worktrees = worktrees;
         this.runner = runner;
+        this.remoteGit = new io.opencode.loopper.runtime.GitEvidenceProcess(runner);
         this.openCode = openCode;
         this.properties = properties;
         this.localConflicts = localConflicts;
@@ -156,7 +161,9 @@ public class TaskPublicationService {
             if ("READY".equals(before.state())) {
                 String commitMessage = requireCommitMessage(requestedMessage);
                 Path taskCheckout = workspace(task);
-                runRequired(taskCheckout, List.of("git", "add", "--all"), GIT_WRITE_TIMEOUT,
+                io.opencode.loopper.runtime.GitProjectScope.require(runner, taskCheckout)
+                        .requireContainedChanges(runner, task.baselineCommit(), null);
+                runRequired(taskCheckout, List.of("git", "add", "--all", "--", "."), GIT_WRITE_TIMEOUT,
                         "GIT_STAGE_FAILED", "无法暂存任务变更");
                 runRequired(taskCheckout, List.of("git", "commit", "-m", commitMessage), GIT_WRITE_TIMEOUT,
                         "GIT_COMMIT_FAILED", "无法创建任务提交");
@@ -190,10 +197,11 @@ public class TaskPublicationService {
                 confirmAwaitingDecision(task, "LOCAL_COMMIT", committed.commitSha());
                 return status(task.id());
             }
-            runRequired(workspace,
-                    List.of("git", "push", "--set-upstream", committed.remoteName(),
-                            "refs/heads/" + committed.branch() + ":refs/heads/" + committed.branch()),
-                    GIT_WRITE_TIMEOUT, "GIT_PUSH_FAILED", "提交已创建，但推送失败；可以稍后继续推送");
+            var pushedResult = remoteGit.remote(workspace, Path.of(projects.get(task.projectId()).rootPath()), GIT_WRITE_TIMEOUT,
+                    List.of("push", "--set-upstream", committed.remoteName(),
+                            "refs/heads/" + committed.branch() + ":refs/heads/" + committed.branch()), committed.remoteName());
+            if (pushedResult.exitCode() != 0) throw new ConflictException("GIT_PUSH_FAILED",
+                    "提交已创建，但推送失败：" + pushedResult.diagnostic().message());
             PublicationStatus pushed = inspect(task);
             if (!"PUSHED".equals(pushed.state())) {
                 throw new ConflictException("GIT_PUSH_STATE_UNCONFIRMED", "Git push 返回成功，但远端跟踪分支尚未与本地提交一致");
@@ -345,6 +353,8 @@ public class TaskPublicationService {
         String taskRef = "refs/heads/" + branch;
         String head = requiredOutput(workspace, List.of("git", "rev-parse", "--verify", taskRef + "^{commit}"),
                 "GIT_TASK_BRANCH_UNAVAILABLE");
+        if (task.baselineCommit() != null) io.opencode.loopper.runtime.GitProjectScope.require(runner, workspace)
+                .requireContainedChanges(runner, task.baselineCommit(), taskRef);
         String currentBranch = optionalOutput(workspace, List.of("git", "branch", "--show-current"));
         boolean taskCheckedOut = branch.equals(currentBranch);
         String status = taskCheckedOut ? requiredOutputAllowEmpty(workspace,

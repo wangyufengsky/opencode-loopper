@@ -29,7 +29,8 @@ public class DocumentCodeSnapshotService {
         var branch = json.readValue(run.branchJson(), ProjectBranchService.Branch.class);
         var existing = run.snapshotJson() == null ? null : json.readValue(run.snapshotJson(), DocumentCodeSnapshotStore.Snapshot.class);
         if (existing != null && existing.ready()) return existing;
-        String remote = source.toAbsolutePath().toUri().toString();
+        var scope = io.opencode.loopper.runtime.GitProjectScope.require(git, source);
+        String remote = scope.repository().toUri().toString();
         if (branch.remote() != null) remote = git.read(source, "remote", "get-url", "--", branch.remote()).strip();
         if (remote.startsWith("ext::") || remote.startsWith("-") || remote.chars().anyMatch(Character::isISOControl))
             throw failure("DOCUMENT_CODE_SOURCE_INVALID", "该来源不支持受控快照读取");
@@ -40,13 +41,14 @@ public class DocumentCodeSnapshotService {
             git.read(repository.getParent(), "init", "--bare", "--template=", "--", repository.toString());
         var found = git.run(repository, Duration.ofSeconds(10), List.of("cat-file", "-e", intent.sha() + "^{commit}"));
         if (found.exitCode() != 0) {
-            var fetched = git.run(repository, Duration.ofSeconds(60), List.of("fetch", "--depth=1", "--no-tags",
-                    "--no-write-fetch-head", "--", remote, intent.sha() + ":refs/heads/frozen"));
+            var fetched = git.remote(repository, source, Duration.ofSeconds(60), List.of("fetch", "--depth=1", "--no-tags",
+                    "--no-write-fetch-head", "--", remote, intent.sha() + ":refs/heads/frozen"), remote);
             fetched.requireSuccess(List.of("fetch"));
         }
         String actual = git.read(repository, "rev-parse", "--verify", intent.sha() + "^{commit}").strip();
         if (!intent.sha().equals(actual)) throw failure("DOCUMENT_CODE_SHA_CHANGED", "代码来源与冻结提交不一致");
-        String tree = git.read(repository, "rev-parse", "--verify", actual + "^{tree}").strip();
+        String tree = git.read(repository, "rev-parse", "--verify", scope.nested()
+                ? actual + ":" + scope.prefix().substring(0, scope.prefix().length() - 1) : actual + "^{tree}").strip();
         var manifest = manifest(run.id(), git.read(repository, "ls-tree", "-r", "-z", "-l", "--full-tree", tree));
         return store.finish(run, new DocumentCodeSnapshotStore.Snapshot(actual, tree, true, manifest.size()), manifest);
     }
@@ -60,7 +62,9 @@ public class DocumentCodeSnapshotService {
     }
     private String resolve(Path source, String remote, ProjectBranchService.Branch branch) {
         if (branch.remote() == null) return sha(git.read(source, "rev-parse", "--verify", branch.ref() + "^{commit}").strip());
-        var lines = git.read(source, "ls-remote", "--refs", "--", remote, branch.ref()).lines().toList();
+        var result = git.remote(source, source, Duration.ofSeconds(60), List.of("ls-remote", "--refs", "--", remote, branch.ref()), remote);
+        result.requireSuccess(List.of("ls-remote"));
+        var lines = result.output().lines().toList();
         var matches = lines.stream().map(line -> line.split("\t", 2))
                 .filter(fields -> fields.length == 2 && fields[1].equals(branch.ref())).toList();
         if (matches.size() != 1) throw failure("DOCUMENT_BRANCH_UNAVAILABLE", "无法唯一确定评审分支，请重新选择");

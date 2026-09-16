@@ -68,6 +68,21 @@ const generalLabels: Record<string, string> = {
 }
 
 const errorCodeLabels: Record<string, string> = {
+  GIT_CREDENTIAL_REQUIRED: '请配置 Git 账号',
+  GIT_CREDENTIAL_HOST_MISMATCH: 'Git 账号与服务器不匹配',
+  GIT_CREDENTIAL_UNAVAILABLE: 'Git 凭据无法安全保存或读取',
+  GIT_CREDENTIAL_VERSION_CONFLICT: 'Git 账号设置已变化，请重新加载',
+  GIT_CREDENTIAL_URL_INVALID: 'Git 服务器地址无效',
+  GIT_CREDENTIAL_MODE_INVALID: 'Git 账号来源无效',
+  GIT_CREDENTIAL_USERNAME_INVALID: 'Git 用户名无效',
+  GIT_CREDENTIAL_KIND_INVALID: 'Git 认证方式无效',
+  GIT_CREDENTIAL_SECRET_INVALID: 'Git 密码或令牌格式无效',
+  GIT_CREDENTIAL_SECRET_REQUIRED: '请重新输入 Git 密码或令牌',
+  GIT_CREDENTIAL_TEST_URL_REQUIRED: '请填写完整验证仓库地址',
+  GIT_PROJECT_OUTSIDE_CHANGES: '同一 Git 仓库的项目目录外存在变更，请先在对应模块处理后重试；本任务不会处理这些文件。',
+  GIT_PROJECT_SCOPE_MISMATCH: '项目目录与所属 Git 仓库不匹配，请检查登记目录和 Git 配置。',
+  GIT_PROJECT_SCOPE_UNAVAILABLE: '无法确认项目所属的 Git 仓库，请检查目录及访问权限。',
+  WORKSPACE_OVERLAPPING_LEASE: '同一仓库仍有旧目录任务占用，请待该任务安全结束后重试。',
   STAGE_WORKSPACE_BASELINE_CREATE_FAILED: '阶段文件基线创建失败',
   STAGE_WORKSPACE_BASELINE_UNSTABLE: '阶段文件基线采集期间文件持续变化',
   PACKAGE_COMPILED_SCOPE_EXPANSION: '设计路径需要修正',

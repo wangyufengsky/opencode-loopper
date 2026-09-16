@@ -1546,8 +1546,8 @@ class TaskServiceIntegrationTest {
         Files.move(unavailableRoot, unavailableRoot.resolveSibling(unavailableRoot.getFileName() + "-moved"));
 
         assertThatThrownBy(() -> tasks.reconcileQueue(unavailableWaiter.id()))
-                .isInstanceOf(ConflictException.class)
-                .hasMessageContaining("cannot be resolved");
+                .isInstanceOfSatisfying(ConflictException.class,
+                        failure -> assertThat(failure.code()).isEqualTo("DIRECT_WORKSPACE_UNAVAILABLE"));
         assertThat(mapper.findTaskQueue(unavailableWaiter.id()).orElseThrow().state()).isEqualTo("QUEUED");
 
         Path branchRoot = Path.of(gitProject());
