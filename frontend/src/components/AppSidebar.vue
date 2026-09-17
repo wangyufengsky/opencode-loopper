@@ -10,6 +10,7 @@ const { runtime } = storeToRefs(taskStore)
 const navigation = [
   { to: '/', icon: 'lucide:house', label: '主页' },
   { to: '/projects', icon: 'lucide:folder-kanban', label: '项目' },
+  { to: '/knowledge', icon: 'lucide:book-open', label: '知识库' },
   { to: '/designer', icon: 'lucide:sparkles', label: '设计与执行规范' },
   { to: '/designs', icon: 'lucide:history', label: '历史设计' },
   { to: '/tasks', icon: 'lucide:orbit', label: '任务' },

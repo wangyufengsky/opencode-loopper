@@ -22,9 +22,10 @@ public class AssistScopeService {
     private final DatabaseConnectionService databases;
     private final ObjectMapper json;
     private final BatchAssistConfigService batch;
+    private final KnowledgeMapper knowledge;
     public AssistScopeService(AssistMapper mapper,LoopperMapper domain,InternalMcpRuntimeAccess runtime,
-                              DatabaseConnectionService databases,ObjectMapper json,BatchAssistConfigService batch) {
-        this.mapper=mapper;this.domain=domain;this.runtime=runtime;this.databases=databases;this.json=json;this.batch=batch;
+                              DatabaseConnectionService databases,ObjectMapper json,BatchAssistConfigService batch,KnowledgeMapper knowledge) {
+        this.mapper=mapper;this.domain=domain;this.runtime=runtime;this.databases=databases;this.json=json;this.batch=batch;this.knowledge=knowledge;
     }
     public record Scope(String externalSessionId,String ownerKey,String projectId,String taskId,String stageId,
                         String attemptId,String designerId,String profile,Path directory,List<String> tools,
@@ -54,6 +55,7 @@ public class AssistScopeService {
     public Scope resolve(String session) {
         var snapshot=mapper.session(session);var current=runtime.current().orElseThrow(AssistScopeService::denied);
         if(snapshot==null || !snapshot.generation().equals(current.generation()))throw denied();
+        if (snapshot.profile().equals("KNOWLEDGE_READ_ONLY")) return knowledgeScope(session, snapshot);
         AssistMapper.Owner owner;
         if(snapshot.profile().equals("IMPLEMENTATION") || snapshot.profile().startsWith("TEMPLATE_ANALYSIS"))owner=mapper.executionOwner(session);
         else if(snapshot.profile().contains("CANDIDATE"))owner=mapper.candidateOwner(session);
@@ -74,6 +76,19 @@ public class AssistScopeService {
         batch.frozen(key,owner.projectId());
         return new Scope(session,key,owner.projectId(),owner.taskId(),owner.stageId(),owner.attemptId(),owner.designerId(),snapshot.profile(),
                 Path.of(snapshot.directory()),json.readValue(snapshot.toolsJson(),new TypeReference<>(){}),json.readValue(resources,new TypeReference<>(){}));
+    }
+    private Scope knowledgeScope(String session, AssistMapper.Session snapshot) {
+        var conversation = knowledge.remote(session).filter(c -> c.state().equals("RUNNING")).orElseThrow(AssistScopeService::denied);
+        if (knowledge.active(conversation.id()).filter(t -> Set.of("SENDING", "UNKNOWN", "RUNNING").contains(t.state())).isEmpty()) throw denied();
+        var project = domain.findProject(conversation.projectId()).orElseThrow(AssistScopeService::denied);
+        try {
+            var expected = Path.of(conversation.rootPath()).toRealPath();
+            if (!expected.equals(Path.of(snapshot.directory()).toRealPath()) || !expected.equals(Path.of(project.rootPath()).toRealPath())) throw denied();
+        } catch (java.io.IOException failure) { throw denied(); }
+        String key = "KNOWLEDGE:" + conversation.id();
+        mapper.bindScopeOwner(session, key); if (!key.equals(mapper.scopeOwner(session))) throw denied();
+        return new Scope(session, key, conversation.projectId(), null, null, null, null, snapshot.profile(), Path.of(snapshot.directory()),
+                json.readValue(snapshot.toolsJson(), new TypeReference<>() {}), json.readValue(conversation.connectionsJson(), new TypeReference<>() {}));
     }
     private String signature(String data) {
         try {var current=runtime.current().orElseThrow(AssistScopeService::denied); Mac mac=Mac.getInstance("HmacSHA256");

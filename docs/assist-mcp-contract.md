@@ -129,3 +129,7 @@ JUnit 解析禁用 DTD 和外部实体，按 testcase 叶子统计，保留失�
 新增 `list_test_failures`、`read_test_failure`、`search_evidence`，已有上下文／失败证据工具增加快照目录，`read_task_evidence` 支持 `snapshot:`。搜索仅字面匹配已保存快照，一次最多 32 MiB、3 秒、50 个片段和 12,000 字符；达到边界明确 incomplete，并返回可用续查游标。评审只读取会话建立前的快照，不获得实时 GitLab、外部路径或其他评审结果。
 
 任务接口位于 `/api/tasks/{id}/execution-evidence`，子接口 `body`、`failures`、`failure`、`search` 均验证任务归属。现有验证详情页增加折叠的“日志与测试快照”，展开才取目录，正文按引用分段读取；页面切换丢弃迟到响应。没有旧快照时显示“未采集”，不会从当前文件重建过去的证据。
+
+## 知识库资料读取
+
+知识库复用辅助 MCP 传输、连接配置和只读数据库执行器，以独立所有者及工具白名单访问冻结来源。权限、分页、上传恢复及引用证据规则见 [项目知识库合同](knowledge-contract.md)。

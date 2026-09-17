@@ -16,6 +16,8 @@ public final class LifecycleRegistry {
     private final Map<LifecycleMachineType, RegisteredMachine<?>> machines = new EnumMap<>(LifecycleMachineType.class);
 
     public LifecycleRegistry() {
+        register(LifecycleMachineType.KNOWLEDGE_CONVERSATION, KnowledgeConversationState.class, KnowledgeTopology.conversation(), set(KnowledgeConversationState.IDLE), Set.of());
+        register(LifecycleMachineType.KNOWLEDGE_TURN, KnowledgeTurnState.class, KnowledgeTopology.turn(), set(KnowledgeTurnState.PREPARED), Set.of());
         register(LifecycleMachineType.TASK, TaskState.class, TaskLifecycleTopology.task(), set(TaskState.PENDING_START),
                 set(TaskState.SUCCEEDED, TaskState.FAILED));
         register(LifecycleMachineType.STAGE, StageState.class, stage(), set(StageState.PENDING), Set.of());

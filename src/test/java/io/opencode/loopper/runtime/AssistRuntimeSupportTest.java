@@ -31,5 +31,18 @@ class AssistRuntimeSupportTest {
         var permission=support.permissions(Path.of("/project"),OpenCodeClient.SessionProfile.DECOMPOSER_CANDIDATE_READ_ONLY,List.of("third"),"private",true);
         assertThat(permission).noneMatch(p->p.get("permission").equals("third_*")&&p.get("action").equals("allow"));verifyNoInteractions(inventory);
     }
+    @Test void knowledgeGetsOnlyExplicitPrivateReadToolsAndNoThirdPartyOrTaskCapabilities() {
+        var mapper=mock(AssistMapper.class);var policy=mock(AssistToolPolicyService.class);var inventory=mock(OpenCodeToolInventory.class);
+        when(policy.catalog(anyString(), eq(AssistToolCatalog.SERVER), anyList(), eq(true)))
+            .thenReturn(AssistToolCatalog.tools().stream().map(t -> setting(t.name(), true)).toList());
+        var support=new AssistRuntimeSupport(mapper,policy,inventory,mock(AssistScopeService.class),new ObjectMapper(),mock(io.opencode.loopper.service.DocumentDevelopmentScope.class));
+        var rules=support.permissions(Path.of("/project"),OpenCodeClient.SessionProfile.KNOWLEDGE_READ_ONLY,List.of("external","private"),"private",false);
+        assertThat(rules.stream().filter(r -> r.get("action").equals("allow")).map(r -> r.get("permission"))).containsExactlyInAnyOrder(
+            "private_assist_list_knowledge_sources", "private_assist_browse_knowledge_source", "private_assist_search_knowledge", "private_assist_read_knowledge_source",
+            "private_assist_list_database_connections", "private_assist_inspect_database_schema", "private_assist_query_database_readonly");
+        assertThat(OpenCodeAgentPolicy.stepLimit(OpenCodeClient.SessionProfile.KNOWLEDGE_READ_ONLY)).isZero();
+        assertThat(AssistToolCatalog.allowed("IMPLEMENTATION")).noneMatch(AssistToolCatalog::knowledgeTool);
+        verifyNoInteractions(inventory);
+    }
     private static AssistToolPolicyService.View setting(String name,boolean enabled){return new AssistToolPolicyService.View(name,true,false,true,"INHERIT",enabled,"GLOBAL",0,-1,"");}
 }

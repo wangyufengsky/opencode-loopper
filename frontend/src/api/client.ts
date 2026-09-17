@@ -27,7 +27,7 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const multipart = typeof FormData !== 'undefined' && init?.body instanceof FormData
   const response = await fetch(`${apiBase}${path}`, {
     ...init,

@@ -20,7 +20,15 @@ public final class AssistToolCatalog {
                 tool("get_execution_context","读取当前阶段权威合同、附件与证据目录；大正文另行读取",false,Map.of("cursor","string")),
                 tool("get_failure_evidence","读取本阶段最近完成尝试或指定 attemptId 的验证事实",false,Map.of("attemptId","string")),
                 tool("read_task_evidence","读取本任务 evidence:、verification: 或 call: 前缀的证据ID；offset 为字符游标",false,Map.of("reference","string","offset","integer"))));
-        result.addAll(batchTools()); return List.copyOf(result);
+        result.addAll(knowledgeTools()); result.addAll(batchTools()); return List.copyOf(result);
+    }
+    public static boolean knowledgeTool(String name) { return name.contains("knowledge"); }
+    private static List<Tool> knowledgeTools() {
+        return List.of(
+            tool("list_knowledge_sources", "列出当前知识会话冻结授权的代码、文档和数据库", false, Map.of()),
+            tool("browse_knowledge_source", "分页浏览资料目录；path 为来源内相对路径", false, Map.of("sourceId","string","path","string","query","string","cursor","string")),
+            tool("search_knowledge", "有界关键词检索；中文短词按字面匹配，分页及不完整范围见结果", false, Map.of("sourceId","string","path","string","query","string","cursor","string")),
+            tool("read_knowledge_source", "读取代码行片段或文档 section；section=-1 查看目录，返回真实证据 citationId", false, Map.of("sourceId","string","path","string","section","integer","startLine","integer","expectedSha","string","offset","integer")));
     }
     private static List<Tool> batchTools() {
         var tools=new ArrayList<Tool>();
@@ -42,13 +50,14 @@ public final class AssistToolCatalog {
         Map<String,Object> properties=new LinkedHashMap<>(); properties.put("scope",Map.of("type","string","description","使用当前系统提示签发的作用域凭证"));
         inputs.forEach((key,type)->properties.put(key,Map.of("type",type)));
         List<String> required=new ArrayList<>(List.of("scope"));
-        for(String key:List.of("connectionId","sql","schema","source","idempotencyKey"))if(inputs.containsKey(key))required.add(key);
+        for(String key:List.of("connectionId","sql","schema","source","sourceId","idempotencyKey"))if(inputs.containsKey(key))required.add(key);
         return new Tool(name,description,writes,Map.of("type","object","properties",properties,"required",required,"additionalProperties",false));
     }
     public static List<String> allowed(String profile) {
         if(profile==null || profile.contains("NO_TOOLS")&&!profile.startsWith("TEMPLATE_ANALYSIS") || profile.equals("PROJECT_CONVENTION_CANDIDATE_READ_ONLY")) return List.of();
+        if (profile.equals("KNOWLEDGE_READ_ONLY")) return tools().stream().map(Tool::name).filter(n -> knowledgeTool(n) || List.of("list_database_connections", "inspect_database_schema", "query_database_readonly").contains(n)).toList();
         boolean review=profile.contains("JUDGE") || profile.contains("REVIEWER");
-        return tools().stream().filter(t->(!t.writes() || profile.equals("IMPLEMENTATION"))
+        return tools().stream().filter(t->!knowledgeTool(t.name()) && (!t.writes() || profile.equals("IMPLEMENTATION"))
                 && (!review || t.name().contains("evidence") || t.name().equals("get_execution_context") || t.name().equals("list_test_failures") || t.name().equals("read_test_failure")))
                 .map(Tool::name).toList();
     }

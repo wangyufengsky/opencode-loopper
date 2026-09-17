@@ -6,10 +6,12 @@ import { splitThinkingContent } from '@/utils/thinkingContent'
 
 const props = withDefaults(defineProps<{
   content: string
+  allowImages?: boolean
   collapsible?: boolean
   collapsedLines?: number
 }>(), {
   collapsible: false,
+  allowImages: true,
   collapsedLines: 3,
 })
 const documentRoot = ref<HTMLElement>()
@@ -28,6 +30,11 @@ const markdown = new MarkdownIt({
   linkify: true,
   typographer: true,
 })
+
+const renderImage = markdown.renderer.rules.image!
+markdown.renderer.rules.image = (tokens, index, options, env, self) => props.allowImages
+  ? renderImage(tokens, index, options, env, self)
+  : markdown.utils.escapeHtml(tokens[index]?.content || '图片')
 
 markdown.renderer.rules.link_open = (tokens, index, options, _env, self) => {
   tokens[index]!.attrSet('target', '_blank')

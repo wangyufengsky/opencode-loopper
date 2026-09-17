@@ -21,6 +21,7 @@ final class OpenCodePermissionPolicy {
         if (profile != OpenCodeClient.SessionProfile.IMPLEMENTATION) {
             List<Map<String, String>> rules = new ArrayList<>();
             rules.add(rule("*", "*", "deny"));
+            if (profile == OpenCodeClient.SessionProfile.KNOWLEDGE_READ_ONLY) return List.copyOf(rules);
             if (profile == OpenCodeClient.SessionProfile.SNAPSHOT_CODE_REVIEW_NO_TOOLS) {
                 rules.add(rule("external_directory", "*", "deny"));
                 allowInternalSubmission(rules, internalMcpServer, profile);

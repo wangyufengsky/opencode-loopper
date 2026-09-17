@@ -1142,3 +1142,7 @@ to pass validation. See [role changes, configuration and qualification boundarie
 ### 冻结版本审查专用读取
 
 `SNAPSHOT_CODE_REVIEW_NO_TOOLS` 仅开放专用快照导航/读取/检索/已接受结果与 `submit_template_analysis`、合同查询，保持托管代次与角色凭据隔离。不开放目标项目构建测试、原生文件和命令工具，不设 agentic 步数上限；预算、时限及停止证明独立生效。具体候选和范围合同见[冻结版本代码审查](snapshot-code-review-contract.md)。
+
+### 项目知识问答
+
+`KNOWLEDGE_READ_ONLY` 使用独立会话及精确辅助 MCP 权限，免固定角色步数和任务/设计预算。运行代次、所有者、消息身份、正向停止证明及来源快照规则见 [项目知识库合同](knowledge-contract.md)。

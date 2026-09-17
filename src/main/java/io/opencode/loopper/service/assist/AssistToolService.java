@@ -17,6 +17,9 @@ public class AssistToolService {
                              AssistEvidenceService evidence,AssistMapper mapper,TaskEventService events,ObjectMapper json) {
         this.scopes=scopes;this.databases=databases;this.documents=documents;this.words=words;this.evidence=evidence;this.mapper=mapper;this.events=events;this.json=json;
     }
+    private io.opencode.loopper.service.knowledge.KnowledgeTools knowledge;
+    @org.springframework.beans.factory.annotation.Autowired
+    public void knowledgeTools(io.opencode.loopper.service.knowledge.KnowledgeTools knowledge) { this.knowledge = knowledge; }
     public record Result(Map<String,Object> content,boolean error) { }
     public Result call(String name,Map<String,Object> arguments) {
         AssistScopeService.Scope scope=null;String id=null;
@@ -40,6 +43,7 @@ public class AssistToolService {
         return new Result(result,true);
     }
     private Map<String,Object> execute(AssistScopeService.Scope scope,String name,Map<String,Object> args) {
+        if (scope.profile().equals("KNOWLEDGE_READ_ONLY")) return knowledge.call(scope, name, args);
         return switch(name) {
             case "list_database_connections" -> Map.of("connections",scope.connections().stream().map(c->Map.of("id",c.id(),"name",c.name(),"type",c.config().type(),"schemas",c.config().schemas(),"version",c.version(),"availability","FROZEN_CONFIGURATION")).toList());
             case "inspect_database_schema" -> databases.inspect(connection(scope,args),string(args,"schema"),string(args,"table"),string(args,"kind"),number(args,"offset"));

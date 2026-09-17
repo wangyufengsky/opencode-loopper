@@ -368,3 +368,10 @@ export function requirementKindLabel(value: string): string {
 export function templateDiagnosticPhaseLabel(phase: string): string {
   return ({ ANALYZING: '分析中', ACCEPTED_WAITING_STOP: '结果已接受，等待会话结束', STOP_REQUESTED: '已请求停止', STOP_UNCONFIRMED: '停止待确认', STOP_CONFIRMED: '停止已确认', STALLED: '疑似停滞', DISCONNECTED: '连接异常', COMPLETED: '已完成', FAILED: '批次失败', PREPARING: '准备中' } as Record<string, string>)[phase] ?? '等待核对'
 }
+
+export function knowledgeStateLabel(state: string): string {
+  return ({ READY: '可用', PREPARED: '准备中', CREATING: '连接中', CREATE_UNKNOWN: '核对会话', SENDING: '发送中', UNKNOWN: '核对发送', RUNNING: '生成中', STOPPING: '停止确认中', COMPLETED: '已完成', STOPPED: '已停止 · 未完成', FAILED: '未完成', REMOVED: '已移除', IDLE: '可以提问', DISCONNECTED: '连接待恢复', SUCCEEDED: '已读取' } as Record<string, string>)[state] ?? '状态待核对'
+}
+export function knowledgeToolLabel(tool: string): string {
+  return ({ list_knowledge_sources: '查看资料来源', browse_knowledge_source: '浏览资料目录', search_knowledge: '检索项目资料', read_knowledge_source: '读取原文片段', list_database_connections: '查看数据库连接', inspect_database_schema: '查看数据库结构', query_database_readonly: '只读查询数据库' } as Record<string, string>)[tool] ?? '读取资料'
+}

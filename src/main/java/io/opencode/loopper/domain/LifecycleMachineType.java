@@ -1,6 +1,7 @@
 package io.opencode.loopper.domain;
 
 public enum LifecycleMachineType implements DescribedEnum {
+    KNOWLEDGE_CONVERSATION("知识问答会话"), KNOWLEDGE_TURN("知识问答回合"),
     TASK("任务状态机"), STAGE("阶段状态机"), ATTEMPT("执行尝试状态机"),
     EXECUTION_SESSION("执行会话状态机"), JUDGE_RUN("评审运行状态机"),
     JUDGE_REVIEW_BATCH("双评审批次状态机"), TEMPLATE_BATCH("模板证据批次状态机"),
