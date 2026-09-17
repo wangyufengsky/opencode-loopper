@@ -109,4 +109,17 @@ describe('TemplateSessionDiagnosticsPanel', () => {
     expect(wrapper.text()).not.toContain('/old/private/path')
     expect(api.getTemplateSessionDiagnostics).toHaveBeenLastCalledWith('task-two', 'ATTENTION', undefined, 50)
   })
+  it('separates transport checks from automatic retries and sends the exact batch version', async () => {
+    const checking = vi.spyOn(api, 'checkTemplateSession').mockResolvedValue(row)
+    vi.mocked(api.getTemplateSessionDiagnostics).mockResolvedValue(page([{ ...row, canCheck: true, canFinalize: false,
+      automaticRetries: 2, retryLimit: 3, transportFailures: 4, nextCheckAt: '2026-09-17T01:00:00Z' }]))
+    const wrapper = render(); await flushPromises()
+    expect(wrapper.text()).toContain('本轮自动重试已用 2/3 次')
+    expect(wrapper.text()).toContain('连续 4 次未能完成检查')
+    await wrapper.findAll('button').find(b => b.text() === '重新检查会话')!.trigger('click'); await flushPromises()
+    expect(checking).toHaveBeenCalledExactlyOnceWith('task-one', 'batch-12', 7)
+    expect(api.recoverTemplateSession).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('已请求重新检查原会话')
+  })
+
 })

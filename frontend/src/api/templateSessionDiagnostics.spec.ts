@@ -9,7 +9,7 @@ describe('template diagnostics REST contract', () => {
     expect(createRecoveryCommandId()).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
   })
   it('fails closed on missing versions and non-boolean action capabilities', () => {
-    expect(normalizeTemplateDiagnostic({ batchId: 'batch', canFinalize: true, canStop: true })).toMatchObject({ canFinalize: false, canStop: false })
+    expect(normalizeTemplateDiagnostic({ batchId: 'batch', canFinalize: true, canStop: true, canCheck: true })).toMatchObject({ canFinalize: false, canStop: false, canCheck: false })
     expect(normalizeTemplateDiagnostic({ batchId: 'batch', batchVersion: 2, canFinalize: 'true', canStop: true })).toMatchObject({ canFinalize: false, canStop: true })
     expect(normalizeTemplateDiagnosticPage({ items: [], nextCursor: 'cursor', facets: {} })).toMatchObject({ hasMore: true, nextCursor: 'cursor' })
     expect(normalizeTemplateDiagnosticPage({ items: null, hasMore: true })).toMatchObject({ items: [], hasMore: false })
@@ -24,5 +24,10 @@ describe('template diagnostics REST contract', () => {
     const body = { action: 'FINALIZE' as const, expectedVersion: 9, commandId: 'one-command' }
     await api.recoverTemplateSession('task/a', 'batch/a', body)
     expect(fetchMock.mock.calls[2]).toEqual(['/api/tasks/task%2Fa/session-diagnostics/batch%2Fa/recover', expect.objectContaining({ method: 'POST', headers: expect.objectContaining({ 'X-Loopper-Local-UI': '1', 'Content-Type': 'application/json' }), body: JSON.stringify(body) })])
+    await api.checkTemplateSession('task/a', 'batch/a', 9)
+    expect(fetchMock.mock.calls[3]).toEqual(['/api/tasks/task%2Fa/session-diagnostics/batch%2Fa/check', expect.objectContaining({ method: 'POST', headers: expect.objectContaining({ 'X-Loopper-Local-UI': '1' }), body: JSON.stringify({ expectedVersion: 9 }) })])
+    await api.recheckTemplateTask('task/a', 19)
+    expect(fetchMock.mock.calls[4]).toEqual(['/api/template-tasks/task%2Fa/recheck', expect.objectContaining({ method: 'POST', headers: expect.objectContaining({ 'X-Loopper-Local-UI': '1' }), body: JSON.stringify({ expectedVersion: 19 }) })])
+
   })
 })

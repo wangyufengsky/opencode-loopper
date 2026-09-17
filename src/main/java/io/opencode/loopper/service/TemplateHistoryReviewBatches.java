@@ -19,11 +19,13 @@ public class TemplateHistoryReviewBatches {
     private final TemplateBatchExecution batches;
     private final ObjectProvider<TaskService> tasks;
     private final ObjectMapper json;
+    private final TemplateBatchAutomaticRetries retries;
     public TemplateHistoryReviewBatches(LoopperMapper mapper, TemplateTaskStateService states, TemplateRunEvidenceService evidence,
             TemplateReportArtifactService artifacts, TemplateBatchStore batchStore, TemplateBatchExecution batches,
-            ObjectProvider<TaskService> tasks, ObjectMapper json) {
+            ObjectProvider<TaskService> tasks, ObjectMapper json, TemplateBatchAutomaticRetries retries) {
         this.mapper=mapper; this.states=states; this.evidence=evidence; this.artifacts=artifacts;
         this.batchStore=batchStore; this.batches=batches; this.tasks=tasks; this.json=json;
+        this.retries=retries;
     }
     public void analyze(TaskRow task, AttemptRow attempt, TemplateTaskContractFactory.Frozen contract) {
         if (contract.spec().limits().timeoutsEnabled() && Duration.between(Instant.parse(attempt.createdAt()), Instant.now()).toSeconds() > contract.spec().limits().attemptTimeoutSeconds()) {
@@ -79,12 +81,13 @@ public class TemplateHistoryReviewBatches {
 
     private boolean advanceWindow(List<TemplateTaskBatchRow> rows, TemplateTaskContractFactory.Frozen contract) {
         if (rows.stream().allMatch(row -> row.state().equals("VALIDATED"))) return true;
-        var selected = TemplateBatchWindow.select(rows, TemplateTaskBatchRow::state, contract.analysisConcurrency());
+        var window = retries.prepare(rows);
+        var selected = TemplateBatchWindow.select(window.rows(), TemplateTaskBatchRow::state, contract.analysisConcurrency());
         for (var row : selected) {
             if (!states.task(row.taskId()).state().equals("RUNNING")) return false;
             validated(row, contract);
         }
-        if (selected.isEmpty() && !rows.isEmpty()) {
+        if (selected.isEmpty() && !window.retryPending() && !rows.isEmpty()) {
             states.waiting(rows.getFirst().taskId(), "TEMPLATE_BATCHES_FAILED",
                     "本轮独立批次已执行完毕，请选择失败批次重新触发；全部必需结果完成后继续汇总");
         }

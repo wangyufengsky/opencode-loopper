@@ -123,7 +123,24 @@ function summary(row: TemplateSessionDiagnostic) {
     acceptedAt: row.acceptedAt, submissionRevision: row.submissionRevision, candidateAccepted: row.candidateAccepted,
     observedAt: row.observedAt, lastActivityAt: row.lastActivityAt, lastProgressAt: row.lastProgressAt,
     stopProof: row.stopProof, stopConfirmedAt: row.stopConfirmedAt, recoveryAction: row.recoveryAction,
-    recoveryRequestedAt: row.recoveryRequestedAt }, null, 2)
+    recoveryRequestedAt: row.recoveryRequestedAt, automaticRetries: row.automaticRetries, retryLimit: row.retryLimit,
+    nextRetryAt: row.nextRetryAt, failedOperation: row.failedOperation, transportError: row.transportError,
+    transportMessage: row.transportMessage, transportFailures: row.transportFailures,
+    firstFailedAt: row.firstFailedAt, lastFailedAt: row.lastFailedAt, nextCheckAt: row.nextCheckAt }, null, 2)
+}
+async function check(row: TemplateSessionDiagnostic) {
+  if (!row.canCheck || recovering.value || loading.value || error.value) return
+  const taskId = props.taskId
+  const scope = scopeEpoch
+  recovering.value = row.batchId
+  try {
+    await api.checkTemplateSession(taskId, row.batchId, row.batchVersion)
+    if (scope !== scopeEpoch || taskId !== props.taskId) return
+    notice.value = '已请求重新检查原会话，不会因此重新提交分析请求。'
+    await load()
+  } catch (cause) {
+    if (scope === scopeEpoch) error.value = userFacingError(cause, '检查请求尚未确认，请刷新状态后再操作')
+  } finally { if (scope === scopeEpoch) recovering.value = '' }
 }
 async function copySummary() {
   if (!detail.value) return
@@ -184,6 +201,8 @@ onBeforeUnmount(() => { scopeEpoch++; epoch++; detailEpoch++; stopTimer() })
       <article v-for="row in items" :key="row.batchId" class="diagnostic-row">
         <div class="diagnostic-title"><strong>{{ title(row) }}</strong><span>{{ templateDiagnosticPhaseLabel(row.phase) }}</span></div>
         <p>{{ row.reason }}</p>
+        <p v-if="row.retryLimit">本轮自动重试已用 {{ row.automaticRetries ?? 0 }}/{{ row.retryLimit }} 次<span v-if="row.nextRetryAt">；下次重新分析：{{ time(row.nextRetryAt) }}</span></p>
+        <p v-if="row.transportFailures">连续 {{ row.transportFailures }} 次未能完成检查；下次检查：{{ time(row.nextCheckAt) }}。查询重试不计入自动重新分析次数。</p>
         <dl class="diagnostic-times">
           <div><dt>最后检查 · {{ row.connected ? '连接正常' : '未确认连接' }}</dt><dd>{{ time(row.observedAt) }}</dd></div>
           <div><dt>最后活动</dt><dd>{{ time(row.lastActivityAt) }}</dd><dd v-if="elapsed(row.lastActivityAt, row.observedAt)" class="diagnostic-hint">截至最后检查，{{ elapsed(row.lastActivityAt, row.observedAt) }}无新活动</dd></div>
@@ -194,6 +213,7 @@ onBeforeUnmount(() => { scopeEpoch++; epoch++; detailEpoch++; stopTimer() })
         <div class="diagnostic-actions">
           <button v-if="row.sessionKey" type="button" @click="emit('select', row.sessionKey)">查看对应会话</button>
           <button type="button" :aria-expanded="expanded === row.batchId" @click="toggleDetails(row)">{{ expanded === row.batchId ? '收起诊断' : '查看诊断详情' }}</button>
+          <button v-if="row.canCheck" type="button" :disabled="loading || Boolean(recovering) || Boolean(error)" @click="check(row)">重新检查会话</button>
           <button v-if="row.canFinalize" type="button" :disabled="loading || Boolean(recovering) || Boolean(error)" @click="recover(row, 'FINALIZE')">{{ recovering === row.batchId ? '请求处理中…' : '结束会话并收尾' }}</button>
           <button v-if="row.canStop" type="button" :disabled="loading || Boolean(recovering) || Boolean(error)" @click="recover(row, 'STOP')">{{ recovering === row.batchId ? '请求处理中…' : '停止此批次' }}</button>
         </div>

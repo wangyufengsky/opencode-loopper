@@ -53,7 +53,7 @@ async function copyPath() { try { await navigator.clipboard.writeText(progress.v
       <details v-if="progress.snapshot.targetSha"><summary>审查版本</summary><p v-if="progress.snapshot.baselineSha">基线：{{ progress.snapshot.baselineSha }}</p><p>目标：{{ progress.snapshot.targetSha }}</p></details>
       <SnapshotReviewBatchesPanel :task="task" />
     </div>
-    <TemplateBatchRecoveryPanel v-if="task.status === 'RUNNING' || task.status === 'WAITING_INPUT'" :task="task" />
+    <TemplateBatchRecoveryPanel v-if="['RUNNING', 'WAITING_INPUT', 'STOPPING'].includes(task.status)" :task="task" />
     <footer v-if="progress?.documentPath" class="output-directory"><Icon icon="lucide:folder" width="16" /><details><summary>{{ folderName }}</summary><code>{{ progress.documentPath }}</code></details><el-button text size="small" @click="copyPath">{{ copied ? '已复制' : '复制路径' }}</el-button></footer>
     <details v-if="task.stages?.length" class="stage-details"><summary>阶段详情</summary><StageRail :stages="task.stages" /></details>
   </section>

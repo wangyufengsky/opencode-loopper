@@ -28,17 +28,19 @@ public final class TemplateTaskCoordinator {
     private final ObjectProvider<SnapshotReviewCoordinator> snapshotCoordinator;
     private final ObjectProvider<SnapshotReviewStore> snapshotStore;
     private final TemplateBatchRecoveryMapper recovery;
+    private final TemplateBatchResilience resilience;
     private final ConcurrentHashMap<String, Thread> workers = new ConcurrentHashMap<>();
     private volatile boolean closing;
 
     TemplateTaskCoordinator(LoopperMapper mapper, TemplateTaskMapper templates, TemplateTaskStateService states,
             TemplateRunEvidenceService evidence, TemplateHistoryReviewBatches history,
             TemplateBatchExecution batches, ObjectProvider<TaskService> tasks, TemplateGitCaptureGuard gitGuard, ObjectProvider<SnapshotReviewCoordinator> snapshotCoordinator, ObjectProvider<SnapshotReviewStore> snapshotStore,
-            TemplateBatchRecoveryMapper recovery) {
+            TemplateBatchRecoveryMapper recovery, TemplateBatchResilience resilience) {
         this.snapshotCoordinator = snapshotCoordinator; this.snapshotStore = snapshotStore;
         this.mapper = mapper; this.templates = templates; this.states = states; this.evidence = evidence;
         this.gitGuard = gitGuard; this.history = history; this.batches = batches; this.tasks = tasks;
         this.recovery = recovery;
+        this.resilience = resilience;
     }
 
     public TaskRow start(String taskId) {
@@ -108,6 +110,13 @@ public final class TemplateTaskCoordinator {
         String code = TaskWaitingInputPolicy.reasonCode(task, mapper);
         // This wait was entered only after all batches stopped. A late polling pass must not stop an explicit retry.
         if ("TEMPLATE_BATCHES_FAILED".equals(code) || !states.task(task.id()).state().equals("WAITING_INPUT")) return;
+        if (TemplateBatchFailurePolicy.resumable(code)) {
+            // A historic transport wait preserves live identities; only explicit per-batch stop intents proceed.
+            for (var attempt : mapper.listAttempts(task.id())) for (var batch : templates.batches(task.id(), attempt.id()))
+                if (batch.state().equals("STOPPING") || recovery.find(batch.id()).filter(intent -> intent.action().equals("STOP")).isPresent())
+                    batches.stop(batch);
+            return;
+        }
         if (Set.of("TEMPLATE_CONTENT_INVALID", "JUDGE_CONFLICT", "JUDGE_REVIEW_NOT_APPROVED").contains(code == null ? "" : code)) {
             if (!SnapshotReview.applies(templates.findRun(task.id()).orElseThrow().templateId()) && states.repair(task.id())) return;
         }
@@ -127,12 +136,13 @@ public final class TemplateTaskCoordinator {
     /** Called before generic cancellation: a cancelled Future alone is not proof its I/O has returned. */
     public boolean stopBeforeCancellation(String taskId) {
         states.requestStop(taskId);
-        Thread worker = workers.get(taskId);
+        Thread worker = workers.putIfAbsent(taskId, Thread.currentThread());
         if (worker != null && worker != Thread.currentThread()) {
             worker.interrupt();
             return false;
         }
-        return gitGuard.stopped(taskId) && stopBatches(taskId);
+        try { return gitGuard.stopped(taskId) && stopBatches(taskId); }
+        finally { if (worker == null) workers.remove(taskId, Thread.currentThread()); }
     }
 
     private boolean stopBatches(String taskId) {
@@ -147,6 +157,7 @@ public final class TemplateTaskCoordinator {
     }
 
     void deleteBeforeAttempts(String taskId) {
+        resilience.delete(taskId);
         recovery.deleteCommands(taskId);
         recovery.deleteObservations(taskId);
         recovery.deleteRecovery(taskId);

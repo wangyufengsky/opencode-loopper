@@ -53,6 +53,7 @@ class TemplateBatchExecutionIntegrationTest {
     @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
     @Autowired TemplateCandidateSubmissionService submissions;
     @Autowired TemplateTaskCoordinator coordinator;
+    @Autowired TaskService taskOperations;
     @Autowired io.opencode.loopper.persistence.TemplateContinuationMapper continuations;
     @Autowired org.springframework.transaction.PlatformTransactionManager transactionManager;
     @Autowired io.opencode.loopper.runtime.InternalMcpRuntimeAccess access;
@@ -60,6 +61,9 @@ class TemplateBatchExecutionIntegrationTest {
     @Autowired TemplateBatchRecoveryStore recovery;
     @Autowired io.opencode.loopper.persistence.TemplateBatchRecoveryMapper recoveryLedger;
     @Autowired TemplateSessionDiagnostics diagnostics;
+    @Autowired TemplateBatchResilience resilience;
+    @Autowired TemplateBatchAutomaticRetries automatic;
+    @Autowired io.opencode.loopper.persistence.TemplateBatchResilienceMapper resilienceLedger;
     @TempDir Path temporary;
     private TaskRow task;
     private TemplateTaskBatchRow batch;
@@ -137,9 +141,120 @@ class TemplateBatchExecutionIntegrationTest {
         assertThat(execution.stop(batch)).isFalse();
         assertThat(batches.require(batch.id()).state()).isEqualTo("STOPPING");
         assertThat(mapper.findSession(batch.sessionId()).orElseThrow().state()).isEqualTo("RUNNING");
+        assertThat(execution.stop(batches.require(batch.id()))).isFalse(); // Durable backoff, not another remote request.
+        resilience.checkNow(task.id(), batch.id(), batches.require(batch.id()).version());
         assertThat(execution.stop(batches.require(batch.id()))).isTrue();
         assertThat(batches.require(batch.id()).state()).isEqualTo("STOPPED");
         assertThat(mapper.findSession(batch.sessionId()).orElseThrow().state()).isEqualTo("ABORTED");
+    }
+
+    @Test void statusReadFailureDoesNotBlockConfirmedCancellation() {
+        startRecoverable(false);
+        org.mockito.Mockito.doThrow(new io.opencode.loopper.domain.SessionFailure("OPENCODE_STATUS_FAILED", "status unavailable"))
+                .when(client).sessionStatus(org.mockito.ArgumentMatchers.any());
+        assertThat(taskOperations.cancel(task.id()).state()).isEqualTo("CANCELLED");
+        assertThat(batches.require(batch.id()).state()).isEqualTo("STOPPED");
+        org.mockito.Mockito.verify(client).abortWithConfirmation(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test void missingAbortAcknowledgementCannotReleaseBatch() {
+        startRecoverable(false);
+        org.mockito.Mockito.doReturn(null).when(client).abortWithConfirmation(org.mockito.ArgumentMatchers.any());
+        assertThat(execution.stop(batch)).isFalse();
+        assertThat(batches.require(batch.id()).state()).isEqualTo("STOPPING");
+        assertThat(mapper.findSession(batch.sessionId()).orElseThrow().state()).isEqualTo("RUNNING");
+    }
+
+    @Test void knownSessionCanBeCancelledWhenSessionListingIsUnavailable() {
+        startRecoverable(false);
+        org.mockito.Mockito.doThrow(new io.opencode.loopper.domain.SessionFailure("OPENCODE_STATUS_FAILED", "listing unavailable"))
+                .when(client).findSessionsByExactTitle(org.mockito.ArgumentMatchers.any(OpenCodeClient.SessionCreationPlan.class));
+        assertThat(execution.stop(batch)).isTrue();
+        org.mockito.Mockito.verify(client).abortWithConfirmation(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test void transientStatusFailurePreservesBatchAndNeverResendsItsPrompt() {
+        startRecoverable(false);
+        int prompts = fake.promptCalls();
+        org.mockito.Mockito.doThrow(new io.opencode.loopper.domain.SessionFailure("OPENCODE_STATUS_FAILED", "status unavailable"))
+                .when(client).sessionStatus(org.mockito.ArgumentMatchers.any());
+        batch = execution.advance(batch, contract);
+        assertThat(batch.state()).isEqualTo("RUNNING");
+        assertThat(current().state()).isEqualTo("RUNNING");
+        assertThat(fake.promptCalls()).isEqualTo(prompts);
+        org.mockito.Mockito.verify(client, org.mockito.Mockito.never()).abortWithConfirmation(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Autowired TemplateTaskStateService templateStates;
+    @Autowired TemplateTaskRecoveryStatus recoveryStatus;
+
+    @Test void transportBackoffSurvivesNewReaderAndEnvironmentRecoveryUnblocksDispatchWithoutResending() {
+        startRecoverable(false);
+        var sibling = batches.create(mapper.findAttempt(batch.attemptId()).orElseThrow(), 1, "REVIEW", batch.inputJson(), batch.inputSha256());
+        int prompts = fake.promptCalls();
+        org.mockito.Mockito.doThrow(new io.opencode.loopper.domain.SessionFailure("OPENCODE_STATUS_FAILED", "503 secret-token"))
+                .when(client).sessionStatus(org.mockito.ArgumentMatchers.any());
+        execution.advance(batch, contract);
+        var issue = resilienceLedger.issue(batch.id()).orElseThrow();
+        assertThat(issue.blocksDispatch()).isEqualTo(1);
+        assertThat(issue.errorMessage()).doesNotContain("secret-token");
+        assertThat(new TemplateBatchResilience(resilienceLedger, templates, mapper).due(batch, "RUNNING")).isFalse();
+        assertThat(execution.advance(sibling, contract).state()).isEqualTo("PREPARED");
+        assertThat(diagnostics.get(task.id(), batch.id()).canCheck()).isTrue();
+        assertThat(diagnostics.get(task.id(), batch.id()).transportFailures()).isEqualTo(1);
+        org.mockito.Mockito.doCallRealMethod().when(client).sessionStatus(org.mockito.ArgumentMatchers.any());
+        resilience.checkNow(task.id(), batch.id(), batch.version());
+        assertThat(execution.advance(batch, contract).state()).isEqualTo("RUNNING");
+        assertThat(resilienceLedger.issue(batch.id()).orElseThrow().resolvedAt()).isNotNull();
+        assertThat(execution.advance(sibling, contract).state()).isEqualTo("CREATING");
+        assertThat(fake.promptCalls()).isEqualTo(prompts);
+    }
+
+    @Test void oldTransportWaitRetainsSessionAndExplicitResumePreservesAttemptCycleAndBudget() {
+        startRecoverable(false);
+        var original = batch;
+        var cycle = mapper.activeTaskExecutionCycle(task.id()).orElseThrow();
+        templateStates.waiting(task.id(), "OPENCODE_STATUS_FAILED", "legacy transport failure");
+        coordinator.advance(task.id());
+        assertThat(batches.require(batch.id()).state()).isEqualTo("RUNNING");
+        assertThat(diagnostics.get(task.id(), batch.id()).canStop()).isTrue();
+        assertThat(recoveryStatus.facets(task.id()).get("resumeAvailable")).isEqualTo(1L);
+        long version = current().version();
+        assertThatThrownBy(() -> templateStates.resumeEnvironment(task.id(), version - 1)).isInstanceOf(ConflictException.class);
+        templateStates.resumeEnvironment(task.id(), version);
+        assertThat(current().state()).isEqualTo("RUNNING");
+        assertThat(batches.require(batch.id())).isEqualTo(original);
+        assertThat(mapper.activeTaskExecutionCycle(task.id()).orElseThrow()).isEqualTo(cycle);
+        assertThat(resilienceLedger.retryPolicy(batch.id()).orElseThrow().retryLimit()).isZero();
+        templateStates.requestStop(task.id());
+        assertThatThrownBy(() -> templateStates.resumeEnvironment(task.id(), current().version())).isInstanceOf(ConflictException.class);
+    }
+
+    @Test void pausedTaskCanStopOnlySelectedBatchAndBudgetWaitCannotResume() {
+        startRecoverable(false);
+        var sibling = batches.create(mapper.findAttempt(batch.attemptId()).orElseThrow(), 1, "REVIEW", batch.inputJson(), batch.inputSha256());
+        templateStates.waiting(task.id(), "OPENCODE_STATUS_FAILED", "legacy transport failure");
+        recovery.request(task.id(), batch.id(), "STOP", batch.version(), "stop-waiting-batch-command");
+        coordinator.advance(task.id());
+        assertThat(batches.require(batch.id()).state()).isEqualTo("STOPPED");
+        assertThat(batches.require(sibling.id()).state()).isEqualTo("PREPARED");
+        templateStates.resumeEnvironment(task.id(), current().version());
+        templateStates.waiting(task.id(), "TEMPLATE_DURATION_EXHAUSTED", "budget limit");
+        assertThat(recoveryStatus.facets(task.id()).get("resumeAvailable")).isEqualTo(0L);
+        assertThatThrownBy(() -> templateStates.resumeEnvironment(task.id(), current().version())).isInstanceOf(ConflictException.class);
+    }
+
+    @Test void historicalFrozenRoundNeverAutomaticallyRetriesButExplicitNewRoundGetsThreeRetries() {
+        fake.setJudgeOutput("{\"reviews\":[]}");
+        for (int i = 0; i < 5; i++) batch = execution.advance(batch, contract);
+        jdbc.update("UPDATE template_task_batch SET updated_at='2000-01-01T00:00:00Z' WHERE id=?", batch.id());
+        batch = batches.require(batch.id());
+        var window = automatic.prepare(List.of(batch));
+        assertThat(window.retryPending()).isFalse();
+        assertThat(window.rows().getFirst().id()).isEqualTo(batch.id());
+        var next = automatic.manual(batch, batch.version());
+        assertThat(resilienceLedger.retryPolicy(next.id()).orElseThrow().retryLimit()).isEqualTo(3);
+        assertThat(templates.findRun(task.id()).orElseThrow().contractJson()).doesNotContain("batchMaxRetries");
     }
 
     @Test void missingCoverageFailsCandidateEvenWhenProviderCompletesAndLateResultsCannotAdvanceCancelledTask() {
@@ -223,6 +338,7 @@ class TemplateBatchExecutionIntegrationTest {
         assertThat(batches.require(batch.id()).state()).isEqualTo("STOPPING");
         assertThat(batches.require(batch.id()).outputJson()).isNull();
         assertThat(receipts.accepted(batch.id())).isPresent();
+        resilience.checkNow(task.id(), batch.id(), batches.require(batch.id()).version());
         assertThat(execution.stop(batch)).isTrue();
     }
 
@@ -329,7 +445,9 @@ class TemplateBatchExecutionIntegrationTest {
         fake.setSessionState(remote().id(), "COMPLETED");
         org.mockito.Mockito.doReturn(new OpenCodeClient.MessageLookup(false, false, null)).when(client)
                 .findPromptMessage(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(OpenCodeClient.PromptRequest.class), org.mockito.ArgumentMatchers.anyString());
-        assertThatThrownBy(() -> execution.advance(batch, contract)).hasMessageContaining("无法核对");
+        assertThat(execution.advance(batch, contract).state()).isEqualTo("DISPATCHING");
+        assertThat(resilienceLedger.issue(batch.id()).orElseThrow().errorCode()).isEqualTo("TEMPLATE_PROMPT_LOOKUP_UNAVAILABLE");
+        resilience.checkNow(task.id(), batch.id(), batch.version());
         org.mockito.Mockito.doReturn(new OpenCodeClient.MessageLookup(true, true, "a".repeat(64))).when(client)
                 .findPromptMessage(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(OpenCodeClient.PromptRequest.class), org.mockito.ArgumentMatchers.anyString());
         assertThatThrownBy(() -> execution.advance(batch, contract)).hasMessageContaining("不一致");
@@ -382,36 +500,47 @@ class TemplateBatchExecutionIntegrationTest {
         assertThat(fake.promptCalls()).isEqualTo(calls);
     }
 
-    @Test void failedBatchRetriesWithFreshIdentityThenAllowsOneManualAttemptWithoutLosingSuccess() {
+    @Test void threeAutomaticRetriesThenManualRoundPreservesSuccessAndMonotonicGeneration() {
         enableMcp("9");
+        jdbc.update("UPDATE template_task_run SET contract_json=json_set(contract_json,'$.batchMaxRetries',3) WHERE task_id=?", task.id());
         var attempt = mapper.findAttempt(batch.attemptId()).orElseThrow();
-        var sibling = batches.create(attempt, 1, "REVIEW", batch.inputJson(), batch.inputSha256());
-        sibling = batches.validated(sibling, valid(), true);
-        batches.plan(task.id(), 2, 0);
-        String siblingId = sibling.id();
-        for (int generation = 0; generation <= 2; generation++) {
+        var sibling = batches.validated(batches.create(attempt, 1, "REVIEW", batch.inputJson(), batch.inputSha256()), valid(), true);
+        for (int generation = 0; generation <= 3; generation++) {
             for (int i = 0; i < 4; i++) batch = execution.advance(batch, contract);
             fake.setSessionState(mapper.findSession(batch.sessionId()).orElseThrow().externalSessionId(), "COMPLETED");
             batch = execution.advance(batch, contract);
             assertThat(batch.state()).isEqualTo("FAILED");
-            assertThat(current().state()).isEqualTo("RUNNING");
+            assertThat(automatic.prepare(List.of(batch)).rows().getFirst().id()).isEqualTo(batch.id());
+            jdbc.update("UPDATE template_task_batch SET updated_at='2000-01-01T00:00:00Z' WHERE id=?", batch.id());
+            batch = batches.require(batch.id());
             var old = batch;
-            batch = batches.retry(old, old.version(), false);
-            if (generation < 2) {
+            var window = automatic.prepare(List.of(batch));
+            batch = window.rows().getFirst();
+            assertThat(window.retryPending()).isEqualTo(generation < 3);
+            if (generation < 3) {
                 assertThat(batch.id()).isNotEqualTo(old.id());
                 assertThat(batch.generation()).isEqualTo(generation + 1);
-                assertThat(batches.require(old.id()).state()).isEqualTo("FAILED");
+                assertThat(resilienceLedger.retryPolicy(batch.id()).orElseThrow().automaticRetries()).isEqualTo(generation + 1);
                 assertThatThrownBy(() -> submissions.submit(old.id(), "late", 0, valid())).isInstanceOf(ConflictException.class);
             } else assertThat(batch.id()).isEqualTo(old.id());
         }
         var exhausted = batch;
-        var manual = batches.retry(exhausted, exhausted.version(), true);
-        assertThat(manual.generation()).isEqualTo(3);
-        assertThat(batches.retry(exhausted, exhausted.version(), true).id()).isEqualTo(manual.id());
-        assertThat(batches.require(siblingId).outputJson()).isEqualTo(valid());
-        assertThat(templates.batches(task.id(), attempt.id())).hasSize(5);
-        assertThat(templates.findBatchOrdinal(task.id(), attempt.id(), "REVIEW", 0).orElseThrow().id()).isEqualTo(manual.id());
+        var manual = automatic.manual(exhausted, exhausted.version());
+        assertThat(manual.generation()).isEqualTo(4);
+        assertThat(automatic.manual(exhausted, exhausted.version()).id()).isEqualTo(manual.id());
+        assertThat(resilienceLedger.retryPolicy(manual.id()).orElseThrow().automaticRetries()).isZero();
+        assertThat(resilienceLedger.retryPolicy(manual.id()).orElseThrow().retryLimit()).isEqualTo(3);
+        assertThat(batches.require(sibling.id()).outputJson()).isEqualTo(valid());
+        assertThat(templates.batches(task.id(), attempt.id())).hasSize(6);
         assertThat(jdbc.queryForList("PRAGMA foreign_key_check")).isEmpty();
+        batch = manual;
+        for (int i = 0; i < 4; i++) batch = execution.advance(batch, contract);
+        fake.setSessionState(mapper.findSession(batch.sessionId()).orElseThrow().externalSessionId(), "COMPLETED");
+        batch = execution.advance(batch, contract);
+        assertThat(batch.state()).isEqualTo("FAILED");
+        assertThatThrownBy(() -> automatic.manual(exhausted, exhausted.version())).isInstanceOf(ConflictException.class);
+        assertThat(resilienceLedger.retryPolicy(batch.id()).orElseThrow().automaticRetries()).isZero();
+        assertThat(templates.batches(task.id(), attempt.id())).hasSize(6);
     }
 
     @Test void remoteFailureIsAStoppedFailedSessionAndDoesNotStopItsTask() {

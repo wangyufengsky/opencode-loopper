@@ -35,6 +35,14 @@ public interface TemplateTaskReadMapper {
             )
             """)
     boolean retrySelectionReady(String taskId);
+    @Select("""
+            SELECT count(*) FROM template_task_batch b JOIN attempt a ON a.id=b.attempt_id
+            WHERE b.task_id=#{taskId} AND b.state NOT IN ('VALIDATED','FAILED','STOPPED')
+              AND a.ordinal=(SELECT max(n.ordinal) FROM attempt n WHERE n.stage_id=a.stage_id)
+              AND NOT EXISTS (SELECT 1 FROM template_task_batch n WHERE n.attempt_id=b.attempt_id
+                  AND n.purpose=b.purpose AND n.ordinal=b.ordinal AND n.generation>b.generation)
+            """)
+    long blockingBatchCount(String taskId);
     record FailedBatch(String id, int ordinal, String purpose, int generation, String state,
                        String errorMessage, long version, String createdAt) { }
 

@@ -31,10 +31,11 @@ class TemplateTaskExecutionIntegrationTest {
     @Autowired TemplateBatchStore batchStore;
     @Autowired TemplateBatchExecution batchExecution;
     @Autowired TemplateTaskReadMapper batchReads;
+    @Autowired TemplateBatchAutomaticRetries automaticRetries;
     @Autowired org.springframework.transaction.PlatformTransactionManager transactionManager;
 
     private TemplateBatchRetryService retryService() {
-        return new TemplateBatchRetryService(batchStore, states, org.mockito.Mockito.mock(TemplateTaskCoordinator.class), transactionManager, batchReads);
+        return new TemplateBatchRetryService(batchStore, states, org.mockito.Mockito.mock(TemplateTaskCoordinator.class), transactionManager, batchReads, automaticRetries);
     }
     @Autowired TaskReadService taskReads;
     @Autowired TemplateReportArtifactService reportArtifacts;

@@ -14,7 +14,8 @@ class TemplateSessionDiagnosticControllerTest {
     private final TemplateSessionDiagnostics diagnostics = mock(TemplateSessionDiagnostics.class);
     private final TemplateBatchRecoveryStore recovery = mock(TemplateBatchRecoveryStore.class);
     private final TemplateTaskCoordinator coordinator = mock(TemplateTaskCoordinator.class);
-    private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new TemplateSessionDiagnosticController(diagnostics, recovery, coordinator))
+    private final TemplateBatchResilience resilience = mock(TemplateBatchResilience.class);
+    private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new TemplateSessionDiagnosticController(diagnostics, recovery, coordinator, resilience))
             .setControllerAdvice(new ApiExceptionHandler()).build();
 
     @Test void recoveryRequiresLocalUiBeforeAnyReadOrMutation() throws Exception {
@@ -48,4 +49,20 @@ class TemplateSessionDiagnosticControllerTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.items").isArray());
         verify(diagnostics).list("t", "ACTIVE", "cursor", 10);
     }
+    @Test void checkRequiresLocalAuthorityAndUsesVersionWithoutCreatingStopOrRetryIntent() throws Exception {
+        mvc.perform(post("/api/tasks/t/session-diagnostics/b/check").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"expectedVersion\":7}")).andExpect(status().isBadRequest());
+        verifyNoInteractions(diagnostics, resilience, coordinator);
+        var row = mock(TemplateSessionDiagnostics.Diagnostic.class);
+        when(row.canCheck()).thenReturn(true); when(diagnostics.get("t", "b")).thenReturn(row);
+        mvc.perform(post("/api/tasks/t/session-diagnostics/b/check").header("X-Loopper-Local-UI", "1")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"expectedVersion\":7}")).andExpect(status().isOk());
+        verify(resilience).checkNow("t", "b", 7); verify(coordinator).dispatch("t"); verifyNoInteractions(recovery);
+        clearInvocations(coordinator, resilience);
+        when(row.canCheck()).thenReturn(false);
+        mvc.perform(post("/api/tasks/t/session-diagnostics/b/check").header("X-Loopper-Local-UI", "1")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"expectedVersion\":7}")).andExpect(status().isConflict());
+        verifyNoInteractions(coordinator, resilience);
+    }
+
 }

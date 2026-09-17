@@ -107,7 +107,7 @@ public class TemplateBatchStore {
             throw new ConflictException("TEMPLATE_BATCH_STOP_UNCONFIRMED", "旧批次会话尚未确认停止，暂不能重试");
         }
         requireRunning(row.taskId(), row.attemptId());
-        if (!manual && row.generation() >= 2) return row;
+        // Automatic budgets are checked by TemplateBatchAutomaticRetries; generation includes manual rounds.
         String now = Instant.now().toString();
         var next = new TemplateTaskBatchRow(UUID.randomUUID().toString(), row.taskId(), row.attemptId(), null,
                 row.ordinal(), row.purpose(), row.inputJson(), row.inputSha256(), "PREPARED", null, null, null,
@@ -221,6 +221,12 @@ public class TemplateBatchStore {
         if (!task.state().equals("RUNNING") || !attempt.state().equals("RUNNING") || !attempt.taskId().equals(taskId)) {
             throw new ConflictException("TEMPLATE_EXECUTION_CHANGED", "任务状态已变化，旧批次不得继续执行");
         }
+    }
+    public void requireStoppable(String taskId, String attemptId) {
+        var task = mapper.findTask(taskId).orElseThrow();
+        var attempt = mapper.findAttempt(attemptId).orElseThrow();
+        if (!java.util.Set.of("RUNNING", "WAITING_INPUT").contains(task.state()) || !attempt.state().equals("RUNNING")
+                || !attempt.taskId().equals(taskId)) throw conflict();
     }
     private static void requireState(TemplateTaskBatchRow row, TemplateBatchState expected) {
         if (!row.state().equals(expected.name())) throw conflict();

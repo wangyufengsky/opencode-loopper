@@ -160,6 +160,22 @@ public final class TemplateTaskStateService {
         });
     }
 
+    /** Rechecks the original task rather than creating new Attempts or resetting budget. */
+    public TaskRow resumeEnvironment(String taskId, long expectedVersion) {
+        transactions.executeWithoutResult(ignored -> {
+            var current = task(taskId);
+            if (current.version() != expectedVersion) throw new ConflictException("TEMPLATE_TASK_CHANGED", "任务已变化，请刷新后重试");
+            if (!current.state().equals("WAITING_INPUT")
+                    || !TemplateBatchFailurePolicy.resumable(TaskWaitingInputPolicy.reasonCode(current, mapper)))
+                throw new ConflictException("TEMPLATE_RETRY_UNAVAILABLE", "当前阻断须先按具体原因处理，不能直接继续");
+            if (current.worktreePath() == null || mapper.activeTaskExecutionCycle(taskId).isEmpty())
+                throw new ConflictException("TEMPLATE_RETRY_UNAVAILABLE", "任务执行环境尚未建立，请检查运行环境");
+            states.updateTask(states.taskState(current, TaskState.RUNNING), LifecycleEvent.RECOVER,
+                    Map.of("recovery", "RECHECK_ORIGINAL_BATCHES"));
+        });
+        return task(taskId);
+    }
+
     public void requestStop(String taskId) {
         transactions.executeWithoutResult(ignored -> {
             var task = task(taskId);

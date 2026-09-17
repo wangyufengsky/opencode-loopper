@@ -37,7 +37,7 @@ public final class TemplateTaskContractFactory {
                 List.of(stage("冻结分支并采集完整 Git 证据", "SNAPSHOT"), stage("分析证据并生成可追溯报告", "REPORT")),
                 limits, model(), new LoopSpec.SessionPolicy(false, true), "按原合同修复本轮报告的具体问题", LoopSpec.BudgetSpec.unlimited());
         return new Frozen(definition.view(), spec, ContributionScore.VERSION, ContributionScore.FORMULA,
-                ContributionScore.DIMENSIONS, TemplateDateRange.ZONE.getId(), "COMMITTER_TIME", 2, definition == TemplateTaskDefinition.CODE_REVIEW ? TemplateReportLayout.freezeHistory() : TemplateReportLayout.freeze(), documentPath, properties.getTemplateAnalysisConcurrency());
+                ContributionScore.DIMENSIONS, TemplateDateRange.ZONE.getId(), "COMMITTER_TIME", 2, definition == TemplateTaskDefinition.CODE_REVIEW ? TemplateReportLayout.freezeHistory() : TemplateReportLayout.freeze(), documentPath, properties.getTemplateAnalysisConcurrency(), null, TemplateBatchFailurePolicy.MAX_RETRIES);
     }
 
     public Frozen freezeSnapshot(String projectId, TemplateDateRange range, String documentPath, SnapshotReview.Mode mode) {
@@ -51,7 +51,7 @@ public final class TemplateTaskContractFactory {
                 spec.limits(), spec.model(), spec.sessionPolicy(), spec.nextAttemptPromptTemplate(), spec.budget());
         return new Frozen(base.definition(), next, null, null, List.of(),
                 base.timezone(), "FIRST_PARENT_COMMITTER_TIME", base.repairLimit(), base.reportTemplates(), documentPath,
-                properties.getTemplateAnalysisConcurrency(), mode.name());
+                properties.getTemplateAnalysisConcurrency(), mode.name(), base.batchMaxRetries());
     }
 
     private LoopSpec.ModelSpec model() {
@@ -80,8 +80,19 @@ public final class TemplateTaskContractFactory {
 
     public record Frozen(TemplateTaskDefinition.View definition, LoopSpec spec, String scoringVersion, String scoreFormula,
                           List<ContributionScore.Dimension> dimensions, String timezone, String timePolicy, int repairLimit,
-                          TemplateReportLayout.Frozen reportTemplates, String documentPath, Integer analysisConcurrency, String reviewMode) {
-        public Frozen { analysisConcurrency = (!SnapshotReview.applies(definition.id()) && !List.of("8", "9", "10").contains(definition.version())) || analysisConcurrency == null ? 1 : analysisConcurrency; }
+                          TemplateReportLayout.Frozen reportTemplates, String documentPath, Integer analysisConcurrency, String reviewMode,
+                          Integer batchMaxRetries) {
+        public Frozen {
+            analysisConcurrency = (!SnapshotReview.applies(definition.id()) && !List.of("8", "9", "10").contains(definition.version())) || analysisConcurrency == null ? 1 : analysisConcurrency;
+            batchMaxRetries = batchMaxRetries == null ? 0 : batchMaxRetries;
+            if (batchMaxRetries < 0 || batchMaxRetries > 3) throw new IllegalArgumentException("批次自动重试次数无效");
+        }
+        public Frozen(TemplateTaskDefinition.View definition, LoopSpec spec, String scoringVersion, String scoreFormula,
+                      List<ContributionScore.Dimension> dimensions, String timezone, String timePolicy, int repairLimit,
+                      TemplateReportLayout.Frozen reportTemplates, String documentPath, Integer analysisConcurrency, String reviewMode) {
+            this(definition, spec, scoringVersion, scoreFormula, dimensions, timezone, timePolicy, repairLimit,
+                    reportTemplates, documentPath, analysisConcurrency, reviewMode, null);
+        }
         public Frozen(TemplateTaskDefinition.View definition, LoopSpec spec, String scoringVersion, String scoreFormula,
                       List<ContributionScore.Dimension> scoringDimensions, String timezone, String timePolicy, int repairLimit,
                       TemplateReportLayout.Frozen reportTemplates, String documentPath, Integer analysisConcurrency) {

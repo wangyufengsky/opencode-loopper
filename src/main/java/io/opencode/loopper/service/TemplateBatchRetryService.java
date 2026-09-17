@@ -12,12 +12,14 @@ public class TemplateBatchRetryService {
     private final TemplateTaskCoordinator coordinator;
     private final TransactionTemplate transactions;
     private final io.opencode.loopper.persistence.TemplateTaskReadMapper reads;
+    private final TemplateBatchAutomaticRetries automatic;
 
     TemplateBatchRetryService(TemplateBatchStore batches,
             TemplateTaskStateService states, TemplateTaskCoordinator coordinator, org.springframework.transaction.PlatformTransactionManager manager,
-            io.opencode.loopper.persistence.TemplateTaskReadMapper reads) {
+            io.opencode.loopper.persistence.TemplateTaskReadMapper reads, TemplateBatchAutomaticRetries automatic) {
         this.batches = batches; this.states = states;
         this.reads = reads; this.coordinator = coordinator; this.transactions = new TransactionTemplate(manager);
+        this.automatic = automatic;
     }
 
     public TemplateTaskBatchRow retry(String taskId, String batchId, long expectedVersion) {
@@ -34,7 +36,7 @@ public class TemplateBatchRetryService {
             return selection.batches().stream().map(item -> {
                 var row = batches.require(item.id());
                 if (!row.taskId().equals(taskId)) throw new NotFoundException("批次不属于当前任务");
-                return batches.retry(row, item.expectedVersion(), true);
+                return automatic.manual(row, item.expectedVersion());
             }).toList();
         });
         coordinator.dispatch(taskId);

@@ -17,9 +17,11 @@ public class SnapshotReviewBatches {
     private final ObjectProvider<TaskService> tasks;
     private final ObjectMapper json;
     private final SnapshotReviewStore snapshots;
+    private final TemplateBatchAutomaticRetries retries;
     public SnapshotReviewBatches(TemplateBatchStore store, TemplateBatchExecution execution, TemplateTaskMapper batches,
-            TemplateTaskStateService states, ObjectProvider<TaskService> tasks, ObjectMapper json, SnapshotReviewStore snapshots) {
+            TemplateTaskStateService states, ObjectProvider<TaskService> tasks, ObjectMapper json, SnapshotReviewStore snapshots, TemplateBatchAutomaticRetries retries) {
         this.store = store; this.execution = execution; this.batches = batches; this.states = states; this.tasks = tasks; this.json = json; this.snapshots = snapshots;
+        this.retries = retries;
     }
     public TemplateTaskBatchRow create(AttemptRow attempt, int ordinal, String purpose, SnapshotReview.Input input) {
         String value = json.writeValueAsString(new TemplateBatchExecution.Input(List.of(), null, List.of(), "", input));
@@ -45,14 +47,15 @@ public class SnapshotReviewBatches {
     }
     public boolean advance(String taskId, List<TemplateTaskBatchRow> rows, TemplateTaskContractFactory.Frozen contract, boolean waitOnFailure) {
         if (rows.stream().allMatch(row -> row.state().equals("VALIDATED"))) return true;
-        var selected = TemplateBatchWindow.select(rows, TemplateTaskBatchRow::state, contract.analysisConcurrency());
+        var window = retries.prepare(rows);
+        var selected = TemplateBatchWindow.select(window.rows(), TemplateTaskBatchRow::state, contract.analysisConcurrency());
         for (var row : selected) {
             if (!states.task(taskId).state().equals("RUNNING")) return false;
             if (Set.of("PREPARED", "CREATING", "DISPATCHING").contains(row.state())
                     && tasks.getObject().guardNextModelCall(taskId, "SNAPSHOT_CODE_REVIEW").blocked()) return false;
             execution.advance(row, contract);
         }
-        if (waitOnFailure && selected.isEmpty() && !rows.isEmpty()) states.waiting(taskId, "TEMPLATE_BATCHES_FAILED",
+        if (waitOnFailure && selected.isEmpty() && !window.retryPending() && !rows.isEmpty()) states.waiting(taskId, "TEMPLATE_BATCHES_FAILED",
                 "本轮独立批次已结束，请选择失败批次重试；成功结果与冻结版本保持不变");
         return false;
     }

@@ -1,9 +1,10 @@
-import { flushPromises, mount } from '@vue/test-utils'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/api/client'
 import type { Task, TemplateFailedBatch } from '@/types/domain'
 import TemplateBatchRecoveryPanel from './TemplateBatchRecoveryPanel.vue'
-vi.mock('@/api/client', () => ({ api: { templateFailedBatches: vi.fn(), retrySelectedTemplateBatches: vi.fn(), documentFailedBatches: vi.fn(), retrySelectedDocumentBatches: vi.fn() } }))
+enableAutoUnmount(afterEach)
+vi.mock('@/api/client', () => ({ api: { templateFailedBatches: vi.fn(), recheckTemplateTask: vi.fn(), retrySelectedTemplateBatches: vi.fn(), documentFailedBatches: vi.fn(), retrySelectedDocumentBatches: vi.fn() } }))
 const batch: TemplateFailedBatch = { id: 'batch-39', ordinal: 38, purpose: 'REVIEW', generation: 0, state: 'FAILED', errorMessage: '未提交有效结果', version: 7, createdAt: 'now' }
 const task: Task = { id: 'task', projectId: 'project', projectName: '项目', title: '报告', goal: '', branch: 'main', worktreePath: '', status: 'RUNNING', attemptCount: 2, maxAttempts: 12, createdAt: '', updatedAt: '', executionMode: 'TEMPLATE_REPORT' }
 const button = { props: ['loading', 'disabled'], template: '<button :disabled="disabled"><slot /></button>' }
@@ -18,7 +19,7 @@ describe('batch recovery', () => {
     const view = mountPanel(); await flushPromises()
     expect(view.text()).toContain('后续批次继续执行')
     expect(view.find('input').exists()).toBe(false)
-    expect(view.text()).not.toContain('第 39 批')
+    expect(view.text()).toContain('第 39 批')
     vi.mocked(api.templateFailedBatches).mockResolvedValue({ items: [batch], facets: { retrySelectionReady: 1 } })
     await view.setProps({ task: { ...task, status: 'WAITING_INPUT' } }); await flushPromises()
     expect(view.text()).toContain('第 39 批')
@@ -57,4 +58,30 @@ describe('batch recovery', () => {
     resolve({ items: [batch], facets: { retrySelectionReady: 1 } }); await flushPromises()
     expect(view.find('[aria-label="批次恢复"]').exists()).toBe(false)
   })
+  it('shows paused blockers and resumes only with a server version and capability', async () => {
+    vi.mocked(api.templateFailedBatches).mockResolvedValue({ items: [batch], facets: { retrySelectionReady: 0, resumeAvailable: 1, taskVersion: 17, blockingBatches: 1 } })
+    const view = mountPanel()
+    await view.setProps({ task: { ...task, status: 'WAITING_INPUT' } }); await flushPromises()
+    expect(view.text()).toContain('任务已暂停')
+    expect(view.text()).toContain('还有 1 个批次未确认结束')
+    expect(view.text()).not.toContain('后续批次继续执行')
+    expect(view.text()).toContain('第 39 批')
+    expect(view.find('input').exists()).toBe(false)
+    vi.mocked(api.recheckTemplateTask).mockRejectedValueOnce(new Error('lost response'))
+    await view.findAll('button').find(b => b.text() === '重新检查并恢复原批次')!.trigger('click'); await flushPromises()
+    expect(api.recheckTemplateTask).toHaveBeenCalledWith('task', 17)
+    expect(api.recheckTemplateTask).toHaveBeenCalledTimes(1)
+    expect(view.text()).toContain('恢复请求尚未确认')
+  })
+
+  it('does not restart polling when a retry response arrives after leaving the page', async () => {
+    let resolve!: (value: { id: string; state: string }[]) => void
+    vi.mocked(api.retrySelectedTemplateBatches).mockReturnValue(new Promise(r => { resolve = r }))
+    const view = mountPanel(); await flushPromises()
+    await view.find('input').setValue(true); await view.find('button').trigger('click')
+    const reads = vi.mocked(api.templateFailedBatches).mock.calls.length
+    view.unmount(); resolve([{ id: 'next', state: 'PREPARED' }]); await flushPromises()
+    expect(api.templateFailedBatches).toHaveBeenCalledTimes(reads)
+  })
+
 })

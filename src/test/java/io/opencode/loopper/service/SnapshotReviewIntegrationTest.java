@@ -19,6 +19,7 @@ import tools.jackson.databind.ObjectMapper;
 
 @SpringBootTest(classes=LoopperApplication.class, properties={"loopper.opencode.mode=fake","loopper.monitor-delay=1h"})
 class SnapshotReviewIntegrationTest {
+    @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
     @Autowired Flyway flyway;
     @Autowired TemplateTaskService admission;
     @Autowired TemplateTaskStateService states;
@@ -298,6 +299,7 @@ class SnapshotReviewIntegrationTest {
     private void run(TaskRow task) {
         Set<String> completed=new HashSet<>();
         for(int turn=0;turn<800&&!states.task(task.id()).state().equals("COMPLETED");turn++) {
+            jdbc.update("UPDATE template_task_batch SET updated_at='2000-01-01T00:00:00Z' WHERE task_id=? AND state='FAILED'", task.id());
             driver.executeCheckpoint(task.id());
             if (stopAfterAnalysis && snapshotRecords.currentBatches(task.id()).stream().anyMatch(r -> r.purpose().equals("SNAPSHOT_ANALYSIS") && r.state().equals("VALIDATED"))) return;
             if (states.task(task.id()).state().equals("WAITING_INPUT") && mapper.listErrors(task.id()).stream().anyMatch(e -> e.code().equals("TEMPLATE_BATCHES_FAILED"))) {

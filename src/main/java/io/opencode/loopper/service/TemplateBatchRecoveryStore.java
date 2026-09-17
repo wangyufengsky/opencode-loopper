@@ -42,7 +42,7 @@ public class TemplateBatchRecoveryStore {
             return;
         }
         if (row.version() != version) throw conflict();
-        current(row);
+        current(row, action.equals("STOP"));
         boolean accepted = receipts.accepted(batchId).isPresent();
         if (accepted != action.equals("FINALIZE")) throw new ConflictException("TEMPLATE_RECOVERY_ACTION_CHANGED",
                 accepted ? "结果已接受，请选择结束会话并收尾" : "尚未接受有效结果，请选择停止此批次");
@@ -91,10 +91,15 @@ public class TemplateBatchRecoveryStore {
     }
 
     public void current(TemplateTaskBatchRow expected) {
-        batches.requireRunning(expected.taskId(), expected.attemptId());
+        current(expected, false);
+    }
+
+    private void current(TemplateTaskBatchRow expected, boolean stop) {
+        if (stop) batches.requireStoppable(expected.taskId(), expected.attemptId());
+        else batches.requireRunning(expected.taskId(), expected.attemptId());
         var row = batches.require(expected.id());
         var latest = templates.findBatchOrdinal(row.taskId(), row.attemptId(), row.purpose(), row.ordinal()).orElseThrow();
-        if (!row.state().equals("RUNNING") || row.sessionId() == null || row.promptSha256() == null
+        if (!(row.state().equals("RUNNING") || stop && row.state().equals("STOPPING")) || row.sessionId() == null || row.promptSha256() == null
                 || row.version() != expected.version() || !latest.id().equals(row.id())) throw conflict();
     }
 

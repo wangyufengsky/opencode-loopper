@@ -13,8 +13,12 @@ public class TemplateTaskController {
     private final TemplateTaskReadService reads;
     private final TaskService tasks;
     private final TemplateBatchRetryService retries;
-    public TemplateTaskController(TemplateTaskService templates, ProjectBranchService branches, TemplateTaskReadService reads, TaskService tasks, TemplateBatchRetryService retries) {
+    private final TemplateTaskStateService states;
+    private final TemplateTaskCoordinator coordinator;
+    public TemplateTaskController(TemplateTaskService templates, ProjectBranchService branches, TemplateTaskReadService reads, TaskService tasks, TemplateBatchRetryService retries,
+            TemplateTaskStateService states, TemplateTaskCoordinator coordinator) {
         this.templates = templates; this.branches = branches; this.reads = reads; this.tasks = tasks; this.retries = retries;
+        this.states = states; this.coordinator = coordinator;
     }
     @GetMapping("/catalog") public TemplateTaskService.Catalog catalog() { return templates.catalog(); }
     @GetMapping("/projects/{id}") public TemplateTaskReadMapper.ProjectChoice project(@PathVariable String id) { return reads.project(id); }
@@ -64,6 +68,15 @@ public class TemplateTaskController {
         return retries.retrySelected(taskId, request).stream().map(row -> new Created(row.id(), row.state())).toList();
     }
     public record Retry(long expectedVersion) { }
+
+    @PostMapping("/{taskId}/recheck") public Created recheck(@PathVariable String taskId,
+            @RequestHeader(value = "X-Loopper-Local-UI", required = false) String localUi, @RequestBody Retry request) {
+        requireLocalUi(localUi);
+        if (!TemplateWorkspaceService.applies(tasks.get(taskId))) throw new BadRequestException("TEMPLATE_TASK_REQUIRED", "请选择模板任务");
+        var task = states.resumeEnvironment(taskId, request.expectedVersion());
+        coordinator.dispatch(taskId);
+        return new Created(task.id(), task.state());
+    }
 
     private static void requireLocalUi(String value) {
         if (!"1".equals(value)) throw new BadRequestException("LOCAL_UI_HEADER_REQUIRED", "请从本地页面发起模板任务");

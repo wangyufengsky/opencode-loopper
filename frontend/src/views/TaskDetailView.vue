@@ -118,7 +118,7 @@ const nextAction = computed(() => {
     if (task.value.status === 'COMPLETED') return dualReviewRequired.value
       ? '报告已通过完整性校验和双评审，可在上方预览或下载。'
       : '报告已通过程序校验并保存，可在上方预览或下载。'
-    if (task.value.status === 'WAITING_INPUT') return '本轮分析结束后，可在执行进度中选择失败批次统一重新触发；已完成结果保留。总预算、时限或运行环境阻断须先处理。'
+    if (task.value.status === 'WAITING_INPUT') return '任务当前等待处理。请查看执行进度中的失败清单和恢复入口；未完成会话可在批次运行诊断中重新检查或请求停止。预算、时限阻断须先处理，已完成结果保留。'
     if (task.value.status === 'AWAITING_DECISION' && task.value.executionResult === 'SUCCEEDED') return '报告已校验，正在确认执行结束并释放任务资源。'
     if (task.value.status === 'CANCELLED') return '任务已取消，采集证据和各版报告仍保留。'
     if (task.value.status === 'QUEUED') return '正在准备独立的报告执行目录。'

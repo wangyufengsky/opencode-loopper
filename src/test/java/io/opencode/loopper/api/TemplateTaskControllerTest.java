@@ -18,7 +18,9 @@ class TemplateTaskControllerTest {
     private final TemplateTaskReadService reads = mock(TemplateTaskReadService.class);
     private final TaskService tasks = mock(TaskService.class);
     private final TemplateBatchRetryService retries = mock(TemplateBatchRetryService.class);
-    private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new TemplateTaskController(admission, branches, reads, tasks, retries))
+    private final TemplateTaskStateService states = mock(TemplateTaskStateService.class);
+    private final TemplateTaskCoordinator coordinator = mock(TemplateTaskCoordinator.class);
+    private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new TemplateTaskController(admission, branches, reads, tasks, retries, states, coordinator))
             .setControllerAdvice(new ApiExceptionHandler()).build();
 
     @Test void batchRetryRequiresLocalAuthorityBeforeStartingAnyWork() throws Exception {
@@ -51,6 +53,19 @@ class TemplateTaskControllerTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].title").value("代码审查"))
                 .andExpect(jsonPath("$.items[0].content").doesNotExist()).andExpect(jsonPath("$.items[0].snapshotJson").doesNotExist());
     }
+    @Test void recheckRequiresLocalAuthorityAndDispatchesOnlyAfterVersionedResume() throws Exception {
+        mvc.perform(post("/api/template-tasks/task/recheck").contentType(MediaType.APPLICATION_JSON).content("{\"expectedVersion\":7}"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(tasks, states, coordinator);
+        when(tasks.get("task")).thenReturn(task("WAITING_INPUT"));
+        when(states.resumeEnvironment("task", 7)).thenReturn(task("RUNNING"));
+        mvc.perform(post("/api/template-tasks/task/recheck").header("X-Loopper-Local-UI", "1")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"expectedVersion\":7}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.state").value("RUNNING"));
+        var order = inOrder(states, coordinator);
+        order.verify(states).resumeEnvironment("task", 7); order.verify(coordinator).dispatch("task");
+    }
+
     private TaskRow task(String state) {
         return new TaskRow("task", "project", "draft", "代码审查", state, null, null, null, null, "created", "updated", 0,
                 null, null, null, "TEMPLATE_REPORT", "ISOLATED_REPORT");

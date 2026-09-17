@@ -45,14 +45,19 @@ public class TemplateSessionDiagnostics {
         boolean terminal = Set.of("VALIDATED", "FAILED", "STOPPED").contains(r.state());
         boolean fresh = r.observedAt() != null && Instant.parse(r.observedAt()).plusSeconds(90).isAfter(now);
         boolean connected = fresh && r.connected() == 1;
+        if (r.transportError() != null) connected = false;
         boolean stalled = r.lastActivityAt() != null && !Instant.parse(r.lastActivityAt()).plusSeconds(300).isAfter(now);
-        String phase = r.state().equals("VALIDATED") ? "COMPLETED" : terminal ? "FAILED"
+        boolean autoRetry = r.taskState().equals("RUNNING") && TemplateBatchFailurePolicy.retryable(r.state(), r.errorCode())
+                && r.automaticRetries() < r.retryLimit();
+        String retryAt = autoRetry ? Instant.parse(r.updatedAt()).plusSeconds(TemplateBatchFailurePolicy.retryDelay(r.automaticRetries())).toString() : null;
+        String phase = r.state().equals("VALIDATED") ? "COMPLETED" : autoRetry ? "AUTO_RETRY_WAIT" : terminal ? "FAILED"
                 : r.stopProof() != null ? "STOP_CONFIRMED" : r.recoveryError() != null ? "STOP_UNCONFIRMED"
                 : "STOP".equals(r.recoveryAction()) ? "STOP_REQUESTED" : r.acceptedAt() != null ? "ACCEPTED_WAITING_STOP"
-                : r.observedAt() != null && !connected ? "DISCONNECTED" : stalled ? "STALLED"
+                : r.transportError() != null || r.observedAt() != null && !connected ? "DISCONNECTED" : stalled ? "STALLED"
                 : r.state().equals("RUNNING") ? "ANALYZING" : "PREPARING";
         String reason = switch (phase) {
             case "COMPLETED" -> "分析结果已验证，会话已结束";
+            case "AUTO_RETRY_WAIT" -> "本批次已确认失败，等待自动重试；其他独立批次继续执行";
             case "FAILED" -> "该批次已结束，可在其余批次结束后查看重试操作";
             case "STOP_CONFIRMED" -> "会话停止已确认，正在收束批次";
             case "STOP_UNCONFIRMED" -> "尚未确认会话停止，已保留结果并阻止重复执行";
@@ -63,16 +68,24 @@ public class TemplateSessionDiagnostics {
             case "ANALYZING" -> "等待分析结果，连接状态不代表业务进展";
             default -> "批次正在准备或投递，尚未进入结果收尾";
         };
+        if (r.transportMessage() != null) reason = r.transportMessage();
         boolean runnable = r.currentGeneration() == 1 && r.taskState().equals("RUNNING") && r.attemptState().equals("RUNNING")
                 && r.state().equals("RUNNING") && r.externalSessionId() != null && r.requestMessageId() != null;
-        boolean available = runnable && r.stopProof() == null && r.recoveryAction() == null;
+        boolean stoppable = r.currentGeneration() == 1 && Set.of("RUNNING", "WAITING_INPUT").contains(r.taskState())
+                && r.attemptState().equals("RUNNING") && Set.of("RUNNING", "STOPPING").contains(r.state())
+                && r.externalSessionId() != null && r.requestMessageId() != null && r.stopProof() == null
+                && r.recoveryAction() == null && r.acceptedAt() == null;
+        boolean checkable = r.currentGeneration() == 1 && !terminal
+                && Set.of("RUNNING", "WAITING_INPUT", "STOPPING").contains(r.taskState());
         return new Diagnostic(r.batchId(), r.batchVersion(), r.localSessionId() == null ? null : "execution:" + r.localSessionId(),
                 r.localSessionId(), r.externalSessionId(), r.purpose(), r.ordinal(), r.generation(), r.stageOrdinal(), r.state(), phase, reason,
                 r.acceptedAt(), r.observedAt(), r.lastActivityAt(), r.lastProgressAt(), r.remoteState(), connected,
                 r.stopProof(), r.stopConfirmedAt(), runnable && r.acceptedAt() != null && r.stopProof() == null
-                    && !"STOP".equals(r.recoveryAction()), available && r.acceptedAt() == null,
+                    && !"STOP".equals(r.recoveryAction()), stoppable,
                 detail ? r.worktreePath() : null, detail ? r.requestMessageId() : null, r.submissionRevision(), r.acceptedAt() != null,
-                r.recoveryRequestedAt(), r.recoveryAction());
+                r.recoveryRequestedAt(), r.recoveryAction(), r.automaticRetries(), r.retryLimit(), retryAt,
+                r.failedOperation(), r.transportError(), r.transportMessage(), r.firstFailedAt(), r.lastFailedAt(),
+                r.transportFailures(), r.nextCheckAt(), checkable);
     }
 
     private static String[] cursor(String value) {
@@ -89,5 +102,8 @@ public class TemplateSessionDiagnostics {
             String purpose, int ordinal, int generation, int stageOrdinal, String state, String phase, String reason,
             String acceptedAt, String observedAt, String lastActivityAt, String lastProgressAt, String remoteState, boolean connected,
             String stopProof, String stopConfirmedAt, boolean canFinalize, boolean canStop, String worktreePath,
-            String requestMessageId, long submissionRevision, boolean candidateAccepted, String recoveryRequestedAt, String recoveryAction) { }
+            String requestMessageId, long submissionRevision, boolean candidateAccepted, String recoveryRequestedAt, String recoveryAction,
+            int automaticRetries, int retryLimit, String nextRetryAt, String failedOperation, String transportError,
+            String transportMessage, String firstFailedAt, String lastFailedAt, Integer transportFailures, String nextCheckAt,
+            boolean canCheck) { }
 }

@@ -34,14 +34,16 @@ public class TemplateBatchExecution {
     private final ObjectMapper json;
     private final TemplateCandidateSubmissionMapper submissions;
     private final TemplateBatchFinalization finalization;
+    private final TemplateBatchResilience resilience;
 
     TemplateBatchExecution(TemplateBatchStore store, TemplateTaskMapper templates, LoopperMapper mapper,
                            OpenCodeClient openCode, TemplateAnalysisPromptFactory prompts,
                            TemplateCandidateCodec codec, ObjectMapper json, TemplateCandidateSubmissionMapper submissions,
-                           TemplateBatchFinalization finalization) {
+                           TemplateBatchFinalization finalization, TemplateBatchResilience resilience) {
         this.store = store; this.templates = templates; this.mapper = mapper; this.openCode = openCode;
         this.prompts = prompts; this.codec = codec; this.json = json; this.submissions = submissions;
         this.finalization = finalization;
+        this.resilience = resilience;
     }
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -49,14 +51,25 @@ public class TemplateBatchExecution {
         TemplateTaskBatchRow row = store.require(batch.id());
         if (TemplateBatchState.valueOf(row.state()).terminal()) return row;
         store.requireRunning(row.taskId(), row.attemptId());
-        return switch (TemplateBatchState.valueOf(row.state())) {
-            case PREPARED -> prepare(row, contract);
-            case CREATING -> createRemote(row);
-            case PROMPT_READY -> store.transition(row, TemplateBatchState.DISPATCHING, LifecycleEvent.DISPATCH);
-            case DISPATCHING -> dispatch(row);
-            case RUNNING -> poll(row, contract);
-            default -> row;
-        };
+        if (row.state().equals("STOPPING")) { stop(row); return store.require(row.id()); }
+        if (!resilience.due(row, row.state())) return row;
+        if (row.state().equals("PREPARED") && resilience.dispatchBlocked(row)) return row;
+        try {
+            var next = switch (TemplateBatchState.valueOf(row.state())) {
+                case PREPARED -> prepare(row, contract);
+                case CREATING -> createRemote(row);
+                case PROMPT_READY -> store.transition(row, TemplateBatchState.DISPATCHING, LifecycleEvent.DISPATCH);
+                case DISPATCHING -> dispatch(row);
+                case RUNNING -> poll(row, contract);
+                default -> row;
+            };
+            resilience.succeeded(row, row.state());
+            return next;
+        } catch (RuntimeException failure) {
+            resilience.failed(row, row.state(), failure);
+            if (TemplateBatchFailurePolicy.transport(failure)) return store.require(row.id());
+            throw failure;
+        }
     }
 
     private TemplateTaskBatchRow prepare(TemplateTaskBatchRow row, TemplateTaskContractFactory.Frozen contract) {
@@ -97,6 +110,8 @@ public class TemplateBatchExecution {
             store.attachForStop(row, lookup.matches());
             throw unavailable("TEMPLATE_SESSION_AMBIGUOUS", "发现多个同源分析会话，须先确认全部停止");
         }
+        resilience.succeeded(row, row.state());
+        if (lookup.matches().isEmpty() && resilience.dispatchBlocked(row.taskId())) return row;
         store.requireRunning(row.taskId(), row.attemptId());
         var attestation = lookup.matches().isEmpty() ? openCode.createSession(plan) : lookup.matches().getFirst();
         return store.attachRemote(row, attestation);
@@ -119,7 +134,9 @@ public class TemplateBatchExecution {
         if (lookup.exists() && !row.promptSha256().equals(lookup.verifiedRequestSha256())) {
             throw unavailable("TEMPLATE_PROMPT_IDENTITY_CHANGED", "远端分析请求与冻结内容不一致");
         }
+        resilience.succeeded(row, row.state());
         if (!lookup.exists()) {
+            if (resilience.dispatchBlocked(row.taskId())) return row;
             if (store.hasContinuation(row.id())) {
                 var previous = store.previousPrompt(row.id());
                 openCode.restoreDesignTurn(remote, plan(row).profile(), plan(row).model(), previous.messageId());
@@ -184,21 +201,34 @@ public class TemplateBatchExecution {
         TemplateTaskBatchRow row = store.require(batch.id());
         if (TemplateBatchState.valueOf(row.state()).terminal()) return true;
         if (!row.state().equals("STOPPING")) row = store.transition(row, TemplateBatchState.STOPPING, LifecycleEvent.CANCEL);
-        if (row.creationPlanJson() != null) {
+        if (!resilience.due(row, "STOP")) return false;
+        try {
+            if (row.creationPlanJson() != null && !stopRemoteSessions(row)) return false;
+            store.transition(store.require(row.id()), TemplateBatchState.STOPPED, LifecycleEvent.ABORT);
+            resilience.succeeded(row, "STOP");
+            return true;
+        } catch (RuntimeException unavailable) {
+            resilience.failed(store.require(row.id()), "STOP", unavailable);
+            return false;
+        }
+    }
+
+    private boolean stopRemoteSessions(TemplateTaskBatchRow row) {
+        var primary = mapper.findSession(row.sessionId()).orElseThrow();
+        // Exact listing is needed only while creation identity is unknown. An attached Session can be stopped directly.
+        if (primary.externalSessionId() == null && !SessionState.valueOf(primary.state()).terminal()) {
             var lookup = openCode.findSessionsByExactTitle(plan(row));
-            if (!lookup.supported()) return false;
+            if (!lookup.supported()) throw unavailable("TEMPLATE_SESSION_LOOKUP_UNAVAILABLE", "无法核对创建中的会话");
             store.attachForStop(row, lookup.matches());
-            for (var session : mapper.listSessions(row.taskId())) {
+            if (lookup.matches().isEmpty()) store.sessionStopped(primary);
+        }
+        boolean stopped = true;
+        for (var session : mapper.listSessions(row.taskId())) {
                 if (!session.id().equals(row.sessionId()) && !session.id().startsWith(row.id() + "-cleanup-")) continue;
                 if (!session.attemptId().equals(row.attemptId()) || SessionState.valueOf(session.state()).terminal()) continue;
-                if (session.externalSessionId() == null) {
-                    if (!lookup.matches().isEmpty()) return false;
-                    store.sessionStopped(session);
-                } else if (!stopSession(row, session)) return false;
-            }
+                if (session.externalSessionId() == null || !stopSession(row, session)) stopped = false;
         }
-        store.transition(store.require(row.id()), TemplateBatchState.STOPPED, LifecycleEvent.ABORT);
-        return true;
+        return stopped;
     }
 
     private boolean stopSession(TemplateTaskBatchRow row, ExecutionSessionRow session) {
@@ -206,11 +236,17 @@ public class TemplateBatchExecution {
         var remote = new OpenCodeClient.OpenCodeSession(session.externalSessionId(), plan.canonicalDirectory(),
                 plan.managed() ? plan.runtimeGenerationId() : null, plan.internalMcpServer());
         try {
-            var status = openCode.sessionStatus(remote);
-            if (!status.completed() && !status.failed()) openCode.abortWithConfirmation(remote);
+            OpenCodeClient.SessionStatus status = null;
+            try { status = openCode.sessionStatus(remote); }
+            catch (RuntimeException unreadable) { /* Status and confirmed abort are independent evidence paths. */ }
+            if (status == null || !status.completed() && !status.failed())
+                CandidateSessionTerminationProof.from(openCode.abortWithConfirmation(remote));
             store.sessionStopped(session);
             return true;
-        } catch (RuntimeException unknown) { return false; }
+        } catch (RuntimeException unknown) {
+            resilience.failed(store.require(row.id()), "STOP", unknown);
+            return false;
+        }
     }
 
     private Input input(TemplateTaskBatchRow row) { return json.readValue(row.inputJson(), Input.class); }

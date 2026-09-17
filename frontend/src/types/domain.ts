@@ -1657,6 +1657,10 @@ export interface TemplateSessionDiagnostic {
   worktreePath?: string | null; requestMessageId?: string | null
   submissionRevision?: number; candidateAccepted?: boolean
   recoveryRequestedAt?: string | null; recoveryAction?: string | null
+  automaticRetries?: number; retryLimit?: number; nextRetryAt?: string | null
+  failedOperation?: string | null; transportError?: string | null; transportMessage?: string | null
+  firstFailedAt?: string | null; lastFailedAt?: string | null; transportFailures?: number; nextCheckAt?: string | null
+  canCheck?: boolean
 }
 export interface TemplateSessionDiagnosticPage {
   items: TemplateSessionDiagnostic[]; nextCursor: string | null; hasMore: boolean

@@ -9,8 +9,9 @@ public class TemplateSessionDiagnosticController {
     private final TemplateSessionDiagnostics diagnostics;
     private final TemplateBatchRecoveryStore recovery;
     private final TemplateTaskCoordinator coordinator;
+    private final TemplateBatchResilience resilience;
     public TemplateSessionDiagnosticController(TemplateSessionDiagnostics diagnostics, TemplateBatchRecoveryStore recovery,
-            TemplateTaskCoordinator coordinator) { this.diagnostics = diagnostics; this.recovery = recovery; this.coordinator = coordinator; }
+            TemplateTaskCoordinator coordinator, TemplateBatchResilience resilience) { this.diagnostics = diagnostics; this.recovery = recovery; this.coordinator = coordinator; this.resilience = resilience; }
 
     @GetMapping public CursorPage<TemplateSessionDiagnostics.Diagnostic> list(@PathVariable String taskId,
             @RequestParam(defaultValue = "ATTENTION") String filter, @RequestParam(required = false) String cursor,
@@ -30,4 +31,15 @@ public class TemplateSessionDiagnosticController {
     }
 
     public record Request(String action, long expectedVersion, String commandId) { }
+
+    @PostMapping("/{batchId}/check") public TemplateSessionDiagnostics.Diagnostic check(@PathVariable String taskId,
+            @PathVariable String batchId, @RequestHeader(value = "X-Loopper-Local-UI", required = false) String localUi,
+            @RequestBody CheckRequest request) {
+        if (!"1".equals(localUi)) throw new BadRequestException("LOCAL_UI_HEADER_REQUIRED", "请从本地页面检查批次");
+        if (!diagnostics.get(taskId, batchId).canCheck()) throw new ConflictException("TEMPLATE_BATCH_CONFLICT", "批次已结束，请刷新列表");
+        resilience.checkNow(taskId, batchId, request.expectedVersion());
+        coordinator.dispatch(taskId);
+        return diagnostics.get(taskId, batchId);
+    }
+    public record CheckRequest(long expectedVersion) { }
 }

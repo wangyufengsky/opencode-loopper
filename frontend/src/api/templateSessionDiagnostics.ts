@@ -15,6 +15,10 @@ export function normalizeTemplateDiagnostic(value: unknown): TemplateSessionDiag
     canFinalize: validIdentity && raw.canFinalize === true, canStop: validIdentity && raw.canStop === true,
     worktreePath: str('worktreePath'), requestMessageId: str('requestMessageId'), submissionRevision: num('submissionRevision'),
     candidateAccepted: raw.candidateAccepted === true, recoveryRequestedAt: str('recoveryRequestedAt'), recoveryAction: str('recoveryAction'),
+    automaticRetries: num('automaticRetries'), retryLimit: num('retryLimit'), nextRetryAt: str('nextRetryAt'),
+    failedOperation: str('failedOperation'), transportError: str('transportError'), transportMessage: str('transportMessage'),
+    firstFailedAt: str('firstFailedAt'), lastFailedAt: str('lastFailedAt'), transportFailures: num('transportFailures'),
+    nextCheckAt: str('nextCheckAt'), canCheck: validIdentity && raw.canCheck === true,
   }
 }
 

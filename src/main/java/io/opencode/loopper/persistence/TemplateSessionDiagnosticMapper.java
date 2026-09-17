@@ -15,15 +15,22 @@ public interface TemplateSessionDiagnosticMapper {
                 c.created_at AS accepted_at,COALESCE((SELECT MAX(submission_revision) FROM template_candidate_submission WHERE batch_id=b.id),0) AS submission_revision,
                 o.observed_at,o.last_activity_at,o.last_progress_at,o.remote_state,COALESCE(o.connected,0) AS connected,
                 r.action AS recovery_action,r.requested_at AS recovery_requested_at,r.proof AS stop_proof,
-                r.proof_at AS stop_confirmed_at,r.error_code AS recovery_error,
+                r.proof_at AS stop_confirmed_at,r.error_code AS recovery_error,b.error_code,b.updated_at,
+                COALESCE(p.automatic_retries,0) AS automatic_retries,
+                COALESCE(p.retry_limit,json_extract(tr.contract_json,'$.batchMaxRetries'),0) AS retry_limit,
+                i.operation AS failed_operation,i.error_code AS transport_error,i.error_message AS transport_message,
+                i.first_failed_at,i.last_failed_at,i.failures AS transport_failures,i.next_check_at,
                 CASE WHEN NOT EXISTS(SELECT 1 FROM template_task_batch n WHERE n.attempt_id=b.attempt_id
                     AND n.purpose=b.purpose AND n.ordinal=b.ordinal AND n.generation>b.generation)
                     AND a.ordinal=(SELECT MAX(n.ordinal) FROM attempt n WHERE n.stage_id=a.stage_id) THEN 1 ELSE 0 END AS current_generation
             FROM template_task_batch b JOIN task t ON t.id=b.task_id JOIN attempt a ON a.id=b.attempt_id
+            JOIN template_task_run tr ON tr.task_id=b.task_id
             JOIN stage st ON st.id=a.stage_id LEFT JOIN execution_session s ON s.id=b.session_id
             LEFT JOIN template_candidate_submission c ON c.batch_id=b.id AND c.accepted=1
             LEFT JOIN template_batch_observation o ON o.batch_id=b.id AND o.prompt_sha256=b.prompt_sha256
             LEFT JOIN template_batch_recovery r ON r.batch_id=b.id
+            LEFT JOIN template_batch_retry_policy p ON p.batch_id=b.id
+            LEFT JOIN template_batch_transport_issue i ON i.batch_id=b.id AND i.resolved_at IS NULL
             WHERE b.task_id=#{taskId}
             """;
 
@@ -36,7 +43,7 @@ public interface TemplateSessionDiagnosticMapper {
             ) WHERE current_generation=1
             <if test="filter == 'ACTIVE'">AND state NOT IN ('VALIDATED','FAILED','STOPPED')</if>
             <if test="filter == 'ATTENTION'">AND (state IN ('FAILED','STOPPED') OR
-                (state NOT IN ('VALIDATED','FAILED','STOPPED') AND (accepted_at IS NOT NULL OR recovery_action IS NOT NULL
+                (state NOT IN ('VALIDATED','FAILED','STOPPED') AND (accepted_at IS NOT NULL OR recovery_action IS NOT NULL OR transport_error IS NOT NULL
                 OR (observed_at IS NOT NULL AND (connected=0 OR observed_at &lt; #{disconnectedBefore}
                     OR last_activity_at &lt; #{stalledBefore})))))</if>
             <if test="time != null">AND (created_at &gt; #{time} OR (created_at=#{time} AND batch_id &gt; #{id}))</if>
@@ -49,5 +56,7 @@ public interface TemplateSessionDiagnosticMapper {
                String worktreePath, String requestMessageId, String createdAt, String acceptedAt, long submissionRevision,
                String observedAt, String lastActivityAt, String lastProgressAt, String remoteState, int connected,
                String recoveryAction, String recoveryRequestedAt, String stopProof, String stopConfirmedAt,
-               String recoveryError, int currentGeneration) { }
+               String recoveryError, String errorCode, String updatedAt, int automaticRetries, int retryLimit,
+               String failedOperation, String transportError, String transportMessage, String firstFailedAt,
+               String lastFailedAt, Integer transportFailures, String nextCheckAt, int currentGeneration) { }
 }

@@ -11,7 +11,8 @@ import org.springframework.stereotype.Service;
 @Service
 public final class TemplateTaskReadService {
     private final TemplateTaskReadMapper mapper;
-    TemplateTaskReadService(TemplateTaskReadMapper mapper) { this.mapper = mapper; }
+    private final TemplateTaskRecoveryStatus recovery;
+    TemplateTaskReadService(TemplateTaskReadMapper mapper, TemplateTaskRecoveryStatus recovery) { this.mapper = mapper; this.recovery = recovery; }
     public TemplateTaskReadMapper.ProjectChoice project(String id) {
         return mapper.project(id).orElseThrow(() -> new NotFoundException("项目不存在，请重新选择项目"));
     }
@@ -36,7 +37,7 @@ public final class TemplateTaskReadService {
         var rows = mapper.failedBatches(taskId, after[0], after[1], limit + 1);
         var page = rows.stream().limit(limit).toList();
         return new CursorPage<>(page, rows.size() > limit ? encode(page.getLast().createdAt(), page.getLast().id()) : null,
-                java.util.Map.of("retrySelectionReady", mapper.retrySelectionReady(taskId) ? 1L : 0L));
+                recovery.facets(taskId));
     }
 
     public CursorPage<TemplateTaskReadMapper.SnapshotBatchSummary> snapshotBatches(String taskId, String after, int limit) {
