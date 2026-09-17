@@ -10,6 +10,21 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class DatabaseQueryServiceTest {
+    @Test void unifiedMetadataSearchUsesTheAllowedCatalogAndNeverIssuesBusinessSql() throws Exception {
+        var drivers = mock(DatabaseDriverRegistry.class); var secrets = mock(DatabaseSecretStore.class); when(secrets.read("ref")).thenReturn("private");
+        var connection = mock(Connection.class); var metadata = mock(DatabaseMetaData.class); when(connection.getMetaData()).thenReturn(metadata);
+        var rs = mock(ResultSet.class); var resultMetadata = mock(ResultSetMetaData.class);
+        when(rs.getMetaData()).thenReturn(resultMetadata); when(metadata.getColumns("app", null, null, null)).thenReturn(rs);
+        var config = new DatabaseConfig(DatabaseConfig.Type.MYSQL, "host", 3306, "app", "reader", "vendor.jar", "vendor.Driver", List.of("app"), Map.of(), 1, 100);
+        when(drivers.open(config, "private")).thenAnswer(call -> new DatabaseDriverRegistry.Opened(connection, new URLClassLoader(new java.net.URL[0]), new DatabaseDriverRegistry.DriverInfo("vendor.jar", "a".repeat(64), 1), "1"));
+        var bound = new DatabaseConnectionService.Bound("id", "name", config, "ref", 7);
+        try (var service = new DatabaseQueryService(drivers, secrets, new ObjectMapper())) {
+            assertThatThrownBy(() -> service.searchColumns(bound, "forbidden", 0)).isInstanceOf(AssistFailure.class); verifyNoInteractions(drivers);
+            assertThat(service.searchColumns(bound, "app", 0).get("rows")).isEqualTo(List.of());
+            verify(metadata).getColumns("app", null, null, null); verify(connection, never()).createStatement(); verify(connection).rollback(); verify(connection).close();
+            assertThatThrownBy(() -> service.inspect(bound, "app", null, "columns", 0)).isInstanceOf(AssistFailure.class);
+        }
+    }
     @Test void boundedResultsPreserveNullNumbersAndTruncationAndReleaseConnection() throws Exception {
         var drivers=mock(DatabaseDriverRegistry.class);var secrets=mock(DatabaseSecretStore.class);when(secrets.read("ref")).thenReturn("private");
         var connection=mock(Connection.class);var statement=mock(Statement.class);when(connection.createStatement()).thenReturn(statement);

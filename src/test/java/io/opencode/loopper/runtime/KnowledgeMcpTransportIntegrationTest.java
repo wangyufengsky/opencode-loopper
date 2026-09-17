@@ -148,6 +148,13 @@ class KnowledgeMcpTransportIntegrationTest {
         persistence.begin(chat.id(), UUID.randomUUID().toString(), "这个项目有几个模块？");
         coordinator.tick(chat.id()); coordinator.tick(chat.id());
         assertTransportRead(chat);
+        assertThat(sentPrompt.get().path("system").asText()).contains("自主选择", "不是必经步骤或查询终点");
+        try (var client = HttpClient.newHttpClient()) {
+            var response = client.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/api/projects/" + project
+                    + "/knowledge-sources/search?conversationId=" + chat.id() + "&query=README&mode=AUTO")).GET().build(), HttpResponse.BodyHandlers.ofString());
+            assertThat(response.statusCode()).isEqualTo(200); var body = json.readTree(response.body());
+            assertThat(body.path("matches").size()).isEqualTo(1); assertThat(body.path("coverage").size()).isEqualTo(2);
+        }
     }
     @Test void exactTitleRecoveryRegistersTheSameKnowledgeScopeBeforeDispatch() throws Exception {
         var chat = create();
@@ -181,6 +188,7 @@ class KnowledgeMcpTransportIntegrationTest {
         assertThat(call("get_execution_context", Map.of("scope", scope)).path("structuredContent").path("code").asText()).isEqualTo("ASSIST_SCOPE_DENIED");
         assertThat(call("list_knowledge_sources", Map.of("scope", scope + "tampered")).path("structuredContent").path("code").asText()).isEqualTo("ASSIST_SCOPE_DENIED");
         persistence.stop(chat.id());
+        assertThat(call("search_project_knowledge", Map.of("scope", scope, "query", "知识库")).path("structuredContent").path("code").asText()).isEqualTo("ASSIST_SCOPE_DENIED");
         assertThat(call("list_knowledge_sources", Map.of("scope", scope)).path("structuredContent").path("code").asText()).isEqualTo("ASSIST_SCOPE_DENIED");
         persistence.finish(knowledge.active(chat.id()).orElseThrow(), "STOPPED", "已停止");
         assertThat(call("list_knowledge_sources", Map.of("scope", scope)).path("structuredContent").path("code").asText()).isEqualTo("ASSIST_SCOPE_DENIED");
@@ -188,6 +196,13 @@ class KnowledgeMcpTransportIntegrationTest {
         assertThat(call("list_knowledge_sources", Map.of("scope", transmittedScope())).path("isError").asBoolean()).isFalse();
         credentials = new InternalMcpCredentialProvider(() -> port).issue(); runtime.activate(credentials); mcpSession = null;
         assertThat(call("list_knowledge_sources", Map.of("scope", scope)).path("structuredContent").path("code").asText()).isEqualTo("ASSIST_SCOPE_DENIED");
+    }
+    @Test void unifiedToolNeverExpandsAnExistingFrozenToolGrant() throws Exception {
+        var chat = create(); persistence.begin(chat.id(), UUID.randomUUID().toString(), "问题"); coordinator.tick(chat.id()); coordinator.tick(chat.id());
+        var old = AssistToolCatalog.allowed("KNOWLEDGE_READ_ONLY").stream().filter(t -> !t.equals("search_project_knowledge")).toList();
+        jdbc.update("UPDATE assist_session SET tools_json=? WHERE external_session_id=?", json.writeValueAsString(old), "ses_knowledge_transport");
+        assertThat(call("search_project_knowledge", Map.of("scope", transmittedScope(), "query", "知识库")).path("structuredContent").path("code").asText()).isEqualTo("ASSIST_SCOPE_DENIED");
+        assertThat(call("search_knowledge", Map.of("scope", transmittedScope(), "sourceId", "code", "query", "知识库")).path("isError").asBoolean()).isFalse();
     }
     @Test void disconnectedAuxiliaryMcpIsAnUnsentFailureInsteadOfAnUnknownModelRequest() {
         var chat = create();
@@ -237,7 +252,14 @@ class KnowledgeMcpTransportIntegrationTest {
         String scope = transmittedScope();
         var sources = call("list_knowledge_sources", Map.of("scope", scope));
         assertThat(sources.path("isError").asBoolean()).as("MCP rejection: " + sources.path("structuredContent").path("code").asText()).isFalse();
-        var read = call("read_knowledge_source", Map.of("scope", scope, "sourceId", "code", "path", "README.md", "section", 0));
+        var search = call("search_project_knowledge", Map.of("scope", scope, "query", "知识库", "mode", "AUTO"));
+        assertThat(search.path("isError").asBoolean()).as(search.toString()).isFalse();
+        var body = search.path("structuredContent"); assertThat(body.path("matches").size()).isEqualTo(1);
+        assertThat(body.path("coverage").size()).isEqualTo(2); assertThat(body.has("citationId")).isFalse();
+        assertThat(knowledge.citationCount(knowledge.active(chat.id()).orElseThrow().id())).isZero();
+        var arguments = json.convertValue(body.path("matches").get(0).path("read").path("arguments"), new tools.jackson.core.type.TypeReference<Map<String,Object>>() { });
+        arguments.put("scope", scope);
+        var read = call(body.path("matches").get(0).path("read").path("tool").asText(), arguments);
         assertThat(read.path("isError").asBoolean()).isFalse();
         String citation = read.path("structuredContent").path("citationId").asText();
         assertThat(citation).isNotBlank();

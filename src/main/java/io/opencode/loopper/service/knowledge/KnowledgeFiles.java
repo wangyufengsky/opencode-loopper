@@ -103,6 +103,7 @@ public final class KnowledgeFiles {
                     if (stop()) { incomplete[0] = true; return FileVisitResult.TERMINATE; }
                     Path rel = base.relativize(file); String name = rel.toString().replace('\\', '/');
                     if (!allowed(rel) || attrs.isSymbolicLink() || !attrs.isRegularFile() && !attrs.isDirectory()) return FileVisitResult.CONTINUE;
+                    if (recursive && attrs.isDirectory()) incomplete[0] = true;
                     if (documents && !attrs.isDirectory() && !DOCUMENTS.contains(extension(name))) return FileVisitResult.CONTINUE;
                     if (name.toLowerCase(Locale.ROOT).contains(needle)) entries.add(new Entry(name, file.getFileName().toString(), attrs.isDirectory(), attrs.size()));
                     return FileVisitResult.CONTINUE;

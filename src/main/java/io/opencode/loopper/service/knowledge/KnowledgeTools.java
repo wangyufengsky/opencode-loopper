@@ -20,9 +20,10 @@ public class KnowledgeTools {
     private final KnowledgeEventHub events;
     private final AssistScopeService scopes;
     private final KnowledgeGit git;
+    private final KnowledgeSearchService search;
     public KnowledgeTools(KnowledgeMapper mapper, KnowledgeSources sources, KnowledgeReader reader,
-            DatabaseQueryService databases, ObjectMapper json, KnowledgeEventHub events, AssistScopeService scopes, KnowledgeGit git) {
-        this.git = git; this.mapper = mapper; this.sources = sources; this.reader = reader; this.databases = databases; this.json = json; this.events = events; this.scopes = scopes;
+            DatabaseQueryService databases, ObjectMapper json, KnowledgeEventHub events, AssistScopeService scopes, KnowledgeGit git, KnowledgeSearchService search) {
+        this.search = search; this.git = git; this.mapper = mapper; this.sources = sources; this.reader = reader; this.databases = databases; this.json = json; this.events = events; this.scopes = scopes;
     }
     @org.springframework.context.event.EventListener(org.springframework.boot.context.event.ApplicationReadyEvent.class)
     public void recoverInterruptedCalls() { mapper.interruptedCalls(); }
@@ -30,7 +31,7 @@ public class KnowledgeTools {
         var conversation = owner(scope); var turn = active(conversation.id()); String id = UUID.randomUUID().toString(), now = Instant.now().toString();
         mapper.startCall(new Call(id, conversation.id(), turn.id(), name, "RUNNING", callDetail(args), now, now)); events.publish(conversation.id(), "tool");
         try {
-            Map<String,Object> result = execute(conversation, name, args);
+            Map<String,Object> result = execute(conversation, turn.id(), name, args);
             scopes.authorize(string(args, "scope"), name);
             if (!active(conversation.id()).id().equals(turn.id())) throw KnowledgeSources.bad("问答回合已变化，结果已丢弃");
             if (name.equals("read_knowledge_source") && !Objects.toString(result.get("text"), "").isEmpty()
@@ -45,8 +46,10 @@ public class KnowledgeTools {
                 .orElseThrow(() -> KnowledgeSources.bad("知识库会话授权已失效"));
     }
     private Turn active(String id) { return mapper.active(id).filter(t -> Set.of("SENDING", "UNKNOWN", "RUNNING").contains(t.state())).orElseThrow(() -> KnowledgeSources.bad("当前回合已结束或正在停止")); }
-    private Map<String,Object> execute(Conversation conversation, String name, Map<String,Object> args) {
+    private Map<String,Object> execute(Conversation conversation, String turnId, String name, Map<String,Object> args) {
         if (name.equals("list_knowledge_sources")) return Map.of("sources", sources.frozenViews(conversation));
+        if (name.equals("search_project_knowledge")) return search.search("mcp:" + conversation.id() + ":" + turnId,
+                new KnowledgeSources.Selection(sources.frozen(conversation), sources.connections(conversation)), KnowledgeSearchContracts.Request.from(args));
         if (name.equals("list_database_connections")) return Map.of("connections", sources.connections(conversation).stream()
                 .map(c -> Map.of("id", c.id(), "name", c.name(), "type", c.config().type(), "schemas", c.config().schemas(), "version", c.version())).toList());
         if (name.equals("query_database_readonly") || name.equals("inspect_database_schema")) return database(conversation, name, args);

@@ -33,6 +33,7 @@ class KnowledgeIntegrationTest {
     @Autowired Flyway flyway; @Autowired ProjectService projects; @Autowired KnowledgeSources sources;
     @Autowired KnowledgeConversations conversations; @Autowired KnowledgePersistence persistence; @Autowired KnowledgeMapper mapper;
     @Autowired KnowledgeReader reader; @Autowired ObjectMapper json; @Autowired LoopperProperties properties;
+    @Autowired KnowledgeSearchService search;
     @Autowired KnowledgeEventHub events; @Autowired AssistMapper assist; @Autowired AssistScopeService scopes;
     @Autowired AssistToolService tools; @Autowired InternalMcpRuntimeAccess runtime; @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
     @org.springframework.test.context.bean.override.mockito.MockitoBean OpenCodeModelCatalogService catalog;
@@ -70,6 +71,23 @@ class KnowledgeIntegrationTest {
             assertThat(conversations.create(input).model()).isEqualTo("other/selected");
             verify(catalog, times(2)).discover(any());
         } finally { properties.getOpenCode().setMode(oldMode); properties.getOpenCode().setModel(oldModel); }
+    }
+    @Test void unifiedSearchUsesFrozenSourcesDeduplicatesDocumentsAndReadsTheExactVersion() throws Exception {
+        Files.writeString(root.resolve("Customer.java"), "class Customer { String customer_id; }\n");
+        Files.writeString(root.resolve("字段.md"), "# 约定\ncustomerId 是客户编号\n");
+        var chat = create(List.of("code", "documents"));
+        var selection = sources.selection(project, chat.id(), null);
+        var result = search.search("integration", selection, new KnowledgeSearchContracts.Request("customerId", "AUTO", null, null, null, 20, null));
+        var node = json.valueToTree(result); assertThat(node.path("matches").size()).isEqualTo(2);
+        assertThat(node.path("incomplete").asBoolean()).isFalse();
+        var match = node.path("matches").get(0); var args = match.path("read").path("arguments");
+        var bound = sources.selected(project, chat.id(), args.path("sourceId").asText());
+        assertThat(reader.read(bound, args.path("path").asText(), args.path("section").asInt(-1), args.path("startLine").asInt(1), args.path("expectedSha").asText()).get("text")).isNotNull();
+        Files.writeString(root.resolve(args.path("path").asText()), "changed");
+        assertThatThrownBy(() -> reader.read(bound, args.path("path").asText(), args.path("section").asInt(-1), 1, args.path("expectedSha").asText())).isInstanceOf(AssistFailure.class);
+        var extra = sources.addDirectory(project, Files.createDirectory(root.resolve("external")).toString());
+        assertThatThrownBy(() -> sources.selection(project, chat.id(), List.of(extra.id()))).hasMessageContaining("授权");
+        assertThatThrownBy(() -> sources.selection("other-project", chat.id(), null)).hasMessageContaining("不属于");
     }
     @Test void thinkingStreamsPersistsAcrossReadAndStopAndRejectsLateSnapshots() {
         var chat = create(List.of("code")); var turn = run(chat.id());

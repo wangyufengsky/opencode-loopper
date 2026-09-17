@@ -1694,7 +1694,11 @@ export interface KnowledgeCall { id: string; tool: string; state: string; detail
 export interface KnowledgeMessage { questions?: KnowledgeQuestion[]; id: string; ordinal: number; state: string; userText: string; answer: string; thinking?: string; detail: string; inputTokens: number | null; outputTokens: number | null; createdAt: string; citations: KnowledgeCitation[]; calls: KnowledgeCall[] }
 export interface KnowledgeContent { kind: string; sourceId: string; path: string; name: string; sha256: string; text?: string; location?: string; versionLabel?: string; startLine?: number; endLine?: number; nextLine?: number; section?: number; nextSection?: number; sections?: { section: number; title: string }[]; sectionCount?: number; limitations?: string[]; sql?: string; truncated?: boolean; [key: string]: unknown }
 export interface KnowledgeListing { items: { path: string; name: string; directory: boolean; bytes: number }[]; nextCursor: string | null; incomplete: boolean; detail: string }
-export interface KnowledgeSearch { matches: { sourceId?: string; resourceKey?: string; path: string; name: string; section?: number; startLine?: number; sha256: string; snippet: string }[]; nextCursor: string | null; incomplete: boolean; limitations: string[]; detail: string }
+export interface KnowledgeSearch {
+  matches: { sourceId?: string; sourceName?: string; resourceKey?: string; kind?: string; path: string; name: string; location?: string; section?: number; startLine?: number; sha256: string; snippet: string; matchType?: string; matchedTerm?: string; score?: number; collectedAt?: string; schema?: string; table?: string; column?: string; read?: { tool: string; arguments: Record<string, string | number> } }[]
+  coverage?: { sourceId: string; name: string; kind: string; state: string; examined: number; matched: number; limited: boolean; limitations: string[] }[]
+  nextCursor: string | null; incomplete: boolean; limitations: string[]; detail: string
+}
 export interface KnowledgeCreate { id: string; projectId: string; title: string; model: string; sourceIds: string[]; timezone?: string }
 
 export interface KnowledgeQuestion { id: string; state: 'PENDING' | 'PREPARED' | 'SENDING' | 'ANSWERED' | 'UNKNOWN' | 'CLOSED'; questions: TaskSessionPendingQuestion['questions']; answers: string[][]; version: number }

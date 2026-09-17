@@ -26,5 +26,6 @@ export const knowledgeApi = {
   browse: (project: string, id: string, params: Record<string, string | undefined>) => request<KnowledgeListing>(`${source(project, id)}/directory?${query(params)}`),
   read: (project: string, id: string, params: Record<string, string | number | undefined>) => request<KnowledgeContent>(`${source(project, id)}/content?${query(params)}`),
   search: (project: string, id: string, params: Record<string, string | undefined>) => request<KnowledgeSearch>(`${source(project, id)}/search?${query(params)}`),
+  searchProject: (project: string, params: Record<string, string | number | undefined>) => request<KnowledgeSearch>(`${source(project)}/search?${query(params)}`),
   events: (id: string) => new EventSource(`${import.meta.env.VITE_API_BASE ?? '/api'}${conv(id)}/events`),
 }

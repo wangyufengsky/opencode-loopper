@@ -39,7 +39,7 @@ class AssistRuntimeSupportTest {
         for (var profile : List.of(OpenCodeClient.SessionProfile.KNOWLEDGE_READ_ONLY, OpenCodeClient.SessionProfile.KNOWLEDGE_INTERACTIVE_READ_ONLY)) {
         var rules=support.permissions(Path.of("/project"),profile,List.of("external","private"),"private",false);
         var expected = new ArrayList<>(List.of(
-            "private_assist_list_knowledge_sources", "private_assist_browse_knowledge_source", "private_assist_search_knowledge", "private_assist_read_knowledge_source",
+            "private_assist_list_knowledge_sources", "private_assist_browse_knowledge_source", "private_assist_search_project_knowledge", "private_assist_search_knowledge", "private_assist_read_knowledge_source",
             "private_assist_list_database_connections", "private_assist_inspect_database_schema", "private_assist_query_database_readonly",
             "private_assist_inspect_knowledge_git", "private_assist_list_knowledge_git_authors", "private_assist_search_knowledge_git_commits",
             "private_assist_read_knowledge_git_commit", "private_assist_read_knowledge_git_file", "private_assist_blame_knowledge_git_lines"));

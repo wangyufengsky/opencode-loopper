@@ -25,10 +25,24 @@ public final class AssistToolCatalog {
     public static boolean knowledgeTool(String name) { return name.contains("knowledge"); }
     private static List<Tool> knowledgeTools() {
         return List.of(
+            projectKnowledgeSearch(),
             tool("list_knowledge_sources", "列出当前知识会话冻结授权的代码、文档和数据库", false, Map.of()),
             tool("browse_knowledge_source", "分页浏览资料目录；path 为来源内相对路径", false, Map.of("sourceId","string","path","string","query","string","cursor","string")),
             tool("search_knowledge", "有界关键词检索；中文短词按字面匹配，分页及不完整范围见结果", false, Map.of("sourceId","string","path","string","query","string","cursor","string")),
             tool("read_knowledge_source", "读取代码行片段或文档 section；section=-1 查看目录，返回真实证据 citationId", false, Map.of("sourceId","string","path","string","section","integer","startLine","integer","expectedSha","string","offset","integer","endLine","integer")));
+    }
+    private static Tool projectKnowledgeSearch() {
+        Map<String,Object> properties = new LinkedHashMap<>();
+        properties.put("scope", Map.of("type", "string", "description", "当前会话作用域凭证"));
+        properties.put("query", Map.of("type", "string", "minLength", 1, "maxLength", 200));
+        properties.put("mode", Map.of("type", "string", "enum", List.of("AUTO", "EXACT", "PHRASE", "FIELD")));
+        properties.put("terms", Map.of("type", "array", "maxItems", 8, "items", Map.of("type", "string", "minLength", 1, "maxLength", 100), "description", "显式扩展词，只用于概念线索，不证明语义等价"));
+        properties.put("sourceIds", Map.of("type", "array", "minItems", 1, "maxItems", 100, "uniqueItems", true, "items", Map.of("type", "string"), "description", "省略时查询本会话全部冻结来源；不能访问会话外来源"));
+        properties.put("path", Map.of("type", "string", "description", "可选来源内相对目录；限定目录时跳过数据库"));
+        properties.put("limit", Map.of("type", "integer", "minimum", 1, "maximum", 30));
+        properties.put("cursor", Map.of("type", "string", "description", "下一页游标；保持原查询、来源和数量；5 分钟有效"));
+        return new Tool("search_project_knowledge", "统一检索授权代码、文档和数据库表字段注释；支持原句、字段命名与显式扩展词。检查 coverage 和 nextCursor，按 read 参数读取原文后引用。Git 历史需专用工具。", false,
+                Map.of("type", "object", "properties", properties, "required", List.of("scope", "query"), "additionalProperties", false));
     }
     private static List<Tool> gitTools() {
         var common = Map.of("sourceId","string","ref","string","path","string","author","string","query","string","since","string","until","string","timeField","string","cursor","string");

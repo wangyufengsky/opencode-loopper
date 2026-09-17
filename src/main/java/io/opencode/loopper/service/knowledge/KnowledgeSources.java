@@ -78,6 +78,11 @@ public class KnowledgeSources {
     }
     public List<Bound> frozen(KnowledgeRows.Conversation conversation) { return json.readValue(conversation.sourcesJson(), new TypeReference<>() { }); }
     public List<DatabaseConnectionService.Bound> connections(KnowledgeRows.Conversation conversation) { return json.readValue(conversation.connectionsJson(), new TypeReference<>() { }); }
+    public Selection selection(String project, String conversationId, List<String> ids) {
+        if (conversationId == null || conversationId.isBlank()) return freeze(project, ids);
+        var conversation = mapper.conversation(conversationId).filter(c -> c.projectId().equals(project)).orElseThrow(() -> bad("会话不属于当前项目"));
+        return KnowledgeSearchService.subset(new Selection(frozen(conversation), connections(conversation)), ids);
+    }
     public List<View> frozenViews(KnowledgeRows.Conversation conversation) {
         var result = new ArrayList<>(frozen(conversation).stream().map(KnowledgeSources::view).toList());
         connections(conversation).forEach(c -> result.add(new View("database:" + c.id(), "DATABASE", c.name(), "READY", String.join("、", c.config().schemas()), c.version())));

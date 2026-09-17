@@ -46,6 +46,13 @@ public class DatabaseQueryService implements AutoCloseable {
         });
     }
     public Map<String,Object> inspect(DatabaseConnectionService.Bound bound,String schema,String table,String kind,int offset) {
+        return inspect(bound,schema,table,kind,offset,false);
+    }
+    /** Search metadata across the allowed schema without issuing any business-data SQL. */
+    public Map<String,Object> searchColumns(DatabaseConnectionService.Bound bound,String schema,int offset) {
+        return inspect(bound,schema,null,"columns",offset,true);
+    }
+    private Map<String,Object> inspect(DatabaseConnectionService.Bound bound,String schema,String table,String kind,int offset,boolean allTables) {
         if(!bound.config().schemas().contains(schema)) throw new AssistFailure("DATABASE_SCHEMA_FORBIDDEN","请选择连接允许的 schema／数据库");
         if(table!=null && !table.isBlank() && !table.matches("[\\p{L}\\p{N}_$-]{1,128}")) throw new AssistFailure("DATABASE_TABLE_INVALID","请使用结构查询返回的精确表名");
         if(offset<0 || offset>10000) throw new AssistFailure("DATABASE_CURSOR_INVALID","结构游标越界，请缩小查询范围");
@@ -58,7 +65,7 @@ public class DatabaseQueryService implements AutoCloseable {
             String schemaPattern=selectedSchema==null?null:selectedSchema.replace("_",escape+"_");
             try(ResultSet rs=switch(kind==null?"tables":kind) {
                 case "tables" -> md.getTables(selectedCatalog,schemaPattern,escaped,new String[]{"TABLE","VIEW"});
-                case "columns" -> md.getColumns(selectedCatalog,schemaPattern,required(escaped),null);
+                case "columns" -> md.getColumns(selectedCatalog,schemaPattern,allTables?null:required(escaped),null);
                 case "indexes" -> md.getIndexInfo(selectedCatalog,selectedSchema,required(table),false,true);
                 case "keys" -> md.getImportedKeys(selectedCatalog,selectedSchema,required(table));
                 default -> throw new AssistFailure("DATABASE_INSPECTION_INVALID","结构类型只能是 tables、columns、indexes、keys");

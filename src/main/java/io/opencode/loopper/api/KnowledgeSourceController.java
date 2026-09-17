@@ -11,10 +11,21 @@ public class KnowledgeSourceController {
     private final KnowledgeSources sources;
     private final KnowledgeReader reader;
     private final KnowledgeGit git;
+    private final KnowledgeSearchService search;
     private final io.opencode.loopper.service.assist.DatabaseQueryService databases;
-    public KnowledgeSourceController(KnowledgeSources sources, KnowledgeReader reader, io.opencode.loopper.service.assist.DatabaseQueryService databases, KnowledgeGit git) { this.git = git; this.sources = sources; this.reader = reader; this.databases = databases; }
+    public KnowledgeSourceController(KnowledgeSources sources, KnowledgeReader reader, io.opencode.loopper.service.assist.DatabaseQueryService databases, KnowledgeGit git, KnowledgeSearchService search) { this.search = search; this.git = git; this.sources = sources; this.reader = reader; this.databases = databases; }
     @GetMapping public CursorPage<KnowledgeSources.View> list(@PathVariable String project,
             @RequestParam(required=false) String cursor, @RequestParam(required=false) Integer limit) { return sources.list(project, cursor, limit); }
+    @GetMapping("/search") public Map<String,Object> searchProject(@PathVariable String project,
+            @RequestParam(required=false) String conversationId, @RequestParam(required=false) List<String> sourceIds,
+            @RequestParam String query, @RequestParam(required=false) String mode, @RequestParam(required=false) List<String> terms,
+            @RequestParam(required=false) String path, @RequestParam(required=false) Integer limit, @RequestParam(required=false) String cursor) {
+        var selection = sources.selection(project, conversationId, sourceIds);
+        var result = search.search("http:" + project + ":" + Objects.toString(conversationId, ""), selection,
+                new KnowledgeSearchContracts.Request(query, mode, terms, sourceIds, path, limit, cursor));
+        if (!selection.equals(sources.selection(project, conversationId, sourceIds))) throw KnowledgeSources.bad("资料授权已变化，请重新检索");
+        return result;
+    }
     public record Directory(String path) { }
     public record Revision(long version) { }
     @PostMapping("/directories") public KnowledgeSources.View directory(@PathVariable String project, @RequestBody Directory input,

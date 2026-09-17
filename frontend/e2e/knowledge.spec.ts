@@ -3,6 +3,39 @@ const id = '11111111-1111-4111-8111-111111111111', citationId = '22222222-2222-4
 const sources = [{ id: 'code', kind: 'CODE', name: '项目代码', state: 'READY', detail: '', version: 0 }, { id: 'documents', kind: 'DOCUMENTS', name: '项目文档', state: 'READY', detail: '', version: 0 }]
 const citation = { id: citationId, kind: 'CODE', name: 'PaymentService.java', location: 'src/PaymentService.java · 第 12–15 行', sha256: 'a'.repeat(64), createdAt: '2026-09-17T01:00:00Z' }
 const summary = { id, projectId: 'p', title: '付款流程如何工作', model: 'local/model', state: 'IDLE', sources, createdAt: '2026-09-17T01:00:00Z', updatedAt: '', version: 0 }
+for (const width of [1440, 768]) {
+  test(`统一检索分页、来源覆盖与数据库原文 ${width}px`, async ({ page }) => {
+    await fixture(page); await page.setViewportSize({ width, height: 900 })
+    const allSources = [...sources, { id: 'database:db', kind: 'DATABASE', name: '客户数据库', state: 'READY', detail: 'app', version: 1 }]
+    const requests: URL[] = []
+    await page.route(`**/api/knowledge/conversations/${id}`, route => route.fulfill({ json: { ...summary, sources: allSources } }))
+    await page.route('**/api/projects/p/knowledge-sources/search?**', route => {
+      const url = new URL(route.request().url()); requests.push(url); const next = !url.searchParams.get('cursor')
+      return route.fulfill({ json: { matches: [next
+        ? { sourceId: 'code', sourceName: '项目代码', kind: 'CODE', name: 'Customer.java', path: 'Customer.java', startLine: 10, sha256: 'a'.repeat(64), snippet: 'private String customer_id;', matchType: 'FIELD' }
+        : { sourceId: 'database:db', sourceName: '客户数据库', kind: 'DATABASE', name: 'customer_id', path: 'app.customer.customer_id', location: 'app.customer.customer_id', schema: 'app', table: 'customer', column: 'customer_id', sha256: 'b'.repeat(64), snippet: '客户编号 · VARCHAR', matchType: 'FIELD' }],
+        nextCursor: next ? 'next' : null, incomplete: next, limitations: [], coverage: allSources.map(s => ({ sourceId: s.id, name: s.name, kind: s.kind, state: next ? 'PARTIAL' : 'COMPLETE', limited: false, examined: 50, matched: 1 })) } })
+    })
+    await page.route('**/api/projects/p/knowledge-sources/database%3Adb/database?**', route => {
+      const params = new URL(route.request().url()).searchParams
+      expect(params.get('schema')).toBe('app'); expect(params.get('table')).toBe('customer'); expect(params.get('kind')).toBe('columns')
+      return route.fulfill({ json: { kind: 'DATABASE', name: '客户数据库', columns: [{ name: 'COLUMN_NAME', type: 'VARCHAR' }, { name: 'REMARKS', type: 'VARCHAR' }], rows: [['customer_id', '客户编号']], nextOffset: -1, collectedAt: '2026-09-18T00:00:00Z' } })
+    })
+    await page.goto(`/knowledge/${id}`); await page.getByRole('button', { name: /^来源 / }).click()
+    const panel = page.locator('.knowledge-left')
+    await panel.getByLabel('来源搜索').fill('customerId'); await panel.getByLabel('检索方式').selectOption('FIELD')
+    await panel.getByRole('button', { name: '搜索', exact: true }).click(); await expect(panel.getByText('待继续检索', { exact: false }).first()).toBeVisible()
+    await panel.getByRole('button', { name: '继续检索', exact: true }).click(); await expect(panel.locator('.knowledge-match')).toHaveCount(2)
+    expect(requests).toHaveLength(2); expect(requests[1]!.searchParams.get('sourceIds')).toContain('database:db')
+    expect(requests[1]!.searchParams.get('mode')).toBe('FIELD'); expect(requests[1]!.searchParams.get('cursor')).toBe('next')
+    await panel.locator('.knowledge-match').last().click(); await expect(panel.locator('.knowledge-browser').getByText('客户编号', { exact: true }).first()).toBeVisible()
+    await panel.locator('.knowledge-browser').scrollIntoViewIfNeeded()
+    await expect(panel.getByRole('button', { name: '下一页结构', exact: true })).toHaveCount(0)
+    expect(await panel.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true)
+    await page.screenshot({ path: `test-results/knowledge-search-${width}.png`, fullPage: true })
+    await panel.getByLabel('来源搜索').fill('另一字段'); await expect(panel.locator('.knowledge-search-results')).toHaveCount(0)
+  })
+}
 async function fixture(page: Page) {
   let state = 'IDLE'; let sent = false; let archivedAt: string | null = null; let archiveVersion = 0
   await page.route('http://127.0.0.1:41773/api/**', async route => {

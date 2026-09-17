@@ -62,7 +62,7 @@ class BatchAssistSafetyTest {
         }
     }
     @Test void newToolsAreExplicitAndReviewersCannotUseLiveGitlab() {
-        assertThat(AssistToolCatalog.tools()).hasSize(31);
+        assertThat(AssistToolCatalog.tools()).hasSize(32);
         assertThat(AssistToolCatalog.allowed("JUDGE")).contains("search_evidence","list_test_failures","read_test_failure").noneMatch(name->name.startsWith("gitlab_") || AssistToolCatalog.knowledgeTool(name));
     }
 }
