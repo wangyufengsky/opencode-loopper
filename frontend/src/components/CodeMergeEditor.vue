@@ -2,7 +2,8 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { java } from '@codemirror/lang-java'
 import { json } from '@codemirror/lang-json'
-import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language'
+import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
+import { tags } from '@lezer/highlight'
 import { EditorState, StateEffect, StateField } from '@codemirror/state'
 import { Decoration, type DecorationSet, EditorView, keymap, lineNumbers } from '@codemirror/view'
 
@@ -11,6 +12,8 @@ const props = withDefaults(defineProps<{
   readonly?: boolean
   ariaLabel?: string
   language?: 'java' | 'json' | 'plain'
+  lineWrapping?: boolean
+  firstLineNumber?: number
   changedLines?: number[]
   conflictLines?: number[]
   activeConflictLines?: number[]
@@ -18,6 +21,8 @@ const props = withDefaults(defineProps<{
   readonly: false,
   ariaLabel: '代码编辑器',
   language: 'plain',
+  lineWrapping: false,
+  firstLineNumber: 1,
   changedLines: () => [],
   conflictLines: () => [],
   activeConflictLines: () => [],
@@ -33,6 +38,15 @@ interface MergeDecorations {
 }
 
 const setMergeDecorations = StateEffect.define<MergeDecorations>()
+const darkHighlightStyle = HighlightStyle.define([
+  { tag: tags.keyword, color: '#c4b5fd' },
+  { tag: [tags.string, tags.regexp], color: '#86efac' },
+  { tag: [tags.number, tags.bool, tags.null], color: '#f9c98b' },
+  { tag: [tags.typeName, tags.className], color: '#7dd3fc' },
+  { tag: tags.comment, color: '#94a3b8', fontStyle: 'italic' },
+  { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], color: '#93c5fd' },
+  { tag: tags.invalid, color: '#fda4af' },
+])
 
 function buildDecorations(state: EditorState, value: MergeDecorations) {
   const changed = new Set(value.changed)
@@ -81,7 +95,8 @@ onMounted(() => {
     state: EditorState.create({
       doc: props.modelValue,
       extensions: [
-        lineNumbers(), keymap.of([]), languageExtension(), syntaxHighlighting(defaultHighlightStyle, { fallback: true }), mergeDecorationField,
+        lineNumbers({ formatNumber: line => String(line + props.firstLineNumber - 1) }), keymap.of([]), languageExtension(), syntaxHighlighting(darkHighlightStyle), mergeDecorationField,
+        ...(props.lineWrapping ? [EditorView.lineWrapping] : []),
         EditorView.editable.of(!props.readonly), EditorState.readOnly.of(props.readonly),
         EditorView.contentAttributes.of({ 'aria-label': props.ariaLabel }),
         EditorView.updateListener.of((update) => {

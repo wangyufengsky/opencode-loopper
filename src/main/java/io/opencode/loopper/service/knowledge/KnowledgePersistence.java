@@ -32,7 +32,7 @@ public class KnowledgePersistence {
         if (!conversation.state().equals("IDLE") || mapper.active(id).isPresent()) throw conflict("当前回答尚未结束，请等待完成或停止生成");
         String turnId = UUID.randomUUID().toString(), now = Instant.now().toString();
         var turn = new Turn(turnId, id, mapper.nextOrdinal(id), key, "msg_loopper_knowledge_" + turnId.replace("-", ""),
-                "PREPARED", text, "", "", null, null, null, null, now, now, 0);
+                "PREPARED", text, "", "", null, null, null, null, now, now, 0, "");
         conversationState(conversation, "RUNNING");
         lifecycle.create(turnSubject(turn), "PREPARED", Map.of(), () -> mapper.insertTurn(turn), () -> conflict("问题已登记，请重新读取")); return turn;
     }

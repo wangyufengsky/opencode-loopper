@@ -31,7 +31,7 @@ public class KnowledgeConversations {
             List<KnowledgeSources.View> sources, String createdAt, String updatedAt, long version, KnowledgeMapper.Usage usage) { }
     public record CitationView(String id, String kind, String name, String location, String sha256, String createdAt) { }
     public record Message(String id, int ordinal, String state, String userText, String answer, String detail,
-            Long inputTokens, Long outputTokens, String createdAt, List<CitationView> citations, List<Call> calls) { }
+            Long inputTokens, Long outputTokens, String createdAt, List<CitationView> citations, List<Call> calls, String thinking) { }
     public View create(Create input) {
         if (input == null || input.id() == null || !input.id().matches("[a-fA-F0-9-]{36}") || input.title() == null || input.title().isBlank() || input.title().length() > 100 || input.sourceIds() == null || input.sourceIds().isEmpty())
             throw new BadRequestException("KNOWLEDGE_INPUT_INVALID", "请填写有效的问题标题和请求标识");
@@ -46,7 +46,10 @@ public class KnowledgeConversations {
         var project = projects.get(input.projectId()); var selection = sources.freeze(project.id(), input.sourceIds());
         String configured = input.model() == null || input.model().isBlank() ? properties.getOpenCode().getModel() : input.model();
         if (configured == null || configured.isBlank()) throw new BadRequestException("KNOWLEDGE_MODEL_REQUIRED", "请先在设置中配置模型");
-        if (!"fake".equals(properties.getOpenCode().getMode()) && settings.models().stream().noneMatch(m -> m.id().equals(configured)))
+        // The saved global model is already configured by the operator. Starting a default chat
+        // must not depend on a fresh CLI catalog process; explicit alternatives still require discovery.
+        if (!configured.equals(properties.getOpenCode().getModel()) && !"fake".equals(properties.getOpenCode().getMode())
+                && settings.models().stream().noneMatch(m -> m.id().equals(configured)))
             throw new BadRequestException("KNOWLEDGE_MODEL_UNAVAILABLE", "所选模型不可用，请刷新模型列表");
         var model = OpenCodeModelSelection.configured(configured); String now = Instant.now().toString();
         var row = new Conversation(input.id(), project.id(), project.rootPath(), input.title(), json.writeValueAsString(model),
@@ -88,7 +91,7 @@ public class KnowledgeConversations {
         requested.removeAll(known); if (!requested.isEmpty()) known.addAll(mapper.knownCitations(conversation, new ArrayList<>(requested)));
         return rows.stream().map(turn -> new Message(turn.id(), turn.ordinal(), turn.state(), turn.userText(), safeAnswer(turn.answer(), known), turn.detail(),
                 turn.inputTokens(), turn.outputTokens(), turn.createdAt(), citations.getOrDefault(turn.id(), List.of()).stream().map(KnowledgeConversations::citationView).toList(),
-                calls.getOrDefault(turn.id(), List.of()))).toList();
+                calls.getOrDefault(turn.id(), List.of()), turn.thinking())).toList();
     }
     public Map<String,Object> citation(String id, String citationId) {
         persistence.require(id); var row = mapper.citation(id, citationId).orElseThrow(() -> new NotFoundException("引用不存在或不属于当前会话"));

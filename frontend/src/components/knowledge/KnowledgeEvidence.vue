@@ -16,11 +16,11 @@ const database = computed(() => JSON.stringify(Object.fromEntries(Object.entries
     <p v-for="limitation in body.limitations" :key="limitation" class="knowledge-notice">{{ limitation }}</p>
     <template v-if="body.kind === 'CODE'">
       <p class="knowledge-muted">原文件第 {{ body.startLine }}–{{ body.endLine }} 行</p>
-      <CodeMergeEditor :model-value="body.text || ''" readonly :language="language" aria-label="引用代码片段" />
+      <CodeMergeEditor :key="`${language}:${body.startLine}`" :model-value="body.text || ''" readonly line-wrapping :first-line-number="body.startLine || 1" :language="language" aria-label="引用代码片段" />
     </template>
     <template v-else-if="body.kind === 'DATABASE'">
       <p class="knowledge-notice">{{ body.truncated ? '结果已截断，仅展示采集范围' : '结果代表采集时刻' }}</p>
-      <pre v-if="body.sql" class="knowledge-code">{{ body.sql }}</pre><CodeMergeEditor :model-value="database" readonly language="json" aria-label="数据库读取结果" />
+      <pre v-if="body.sql" class="knowledge-code">{{ body.sql }}</pre><CodeMergeEditor :model-value="database" readonly line-wrapping language="json" aria-label="数据库读取结果" />
     </template>
     <MarkdownDocument v-else :content="body.text || ''" />
   </section>

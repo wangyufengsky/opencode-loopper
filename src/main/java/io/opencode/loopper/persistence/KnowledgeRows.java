@@ -8,7 +8,7 @@ public final class KnowledgeRows {
             String createdAt, String updatedAt, long version) { }
     public record Turn(String id, String conversationId, int ordinal, String idempotencyKey, String messageId,
             String state, String userText, String answer, String detail, String requestJson, String requestSha,
-            Long inputTokens, Long outputTokens, String createdAt, String updatedAt, long version) { }
+            Long inputTokens, Long outputTokens, String createdAt, String updatedAt, long version, String thinking) { }
     public record Source(String id, String projectId, String kind, String name, String path, String sha256,
             String state, String detail, String createdAt, String updatedAt, long version) { }
     public record Citation(String id, String conversationId, String turnId, String kind, String sourceId,

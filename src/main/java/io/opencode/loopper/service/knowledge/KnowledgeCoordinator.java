@@ -138,7 +138,11 @@ public class KnowledgeCoordinator {
         var status = openCode.sessionStatus(remote);
         String output = AssistRedaction.text(openCode.sessionLiveOutput(remote));
         if (output.length() > 500000) { persistence.stop(original.conversationId()); return; }
-        if (!output.equals(original.answer())) mapper.answer(original.id(), original.version(), output, Instant.now().toString());
+        String thinking = original.thinking();
+        try { thinking = KnowledgeThinking.text(openCode.sessionTranscript(remote)); }
+        catch (RuntimeException unavailable) { /* Monitoring failure must not fail or erase the answer. */ }
+        if (!output.equals(original.answer()) || !thinking.equals(original.thinking()))
+            mapper.output(original.id(), original.version(), output, thinking, Instant.now().toString());
         Turn turn = mapper.turn(original.id()).orElseThrow(); if (!turn.state().equals("RUNNING")) return;
         if (status.completed()) {
             var result = openCode.sessionResult(remote); // Exact message filtering rejects stale previous answers.

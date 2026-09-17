@@ -1,0 +1,1 @@
+ALTER TABLE knowledge_turn ADD COLUMN thinking TEXT NOT NULL DEFAULT '';

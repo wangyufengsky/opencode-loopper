@@ -1,7 +1,7 @@
 {
   "name": "opencode-loopper-frontend",
   "private": true,
-  "version": "0.4.44",
+  "version": "0.4.47",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -21,6 +21,7 @@
     "@codemirror/view": "^6.36.5",
     "@iconify-json/lucide": "^1.2.121",
     "@iconify/vue": "^5.0.0",
+    "@lezer/highlight": "^1.2.3",
     "@vueuse/core": "^13.0.0",
     "dompurify": "^3.4.13",
     "echarts": "^5.6.0",

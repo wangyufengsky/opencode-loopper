@@ -53,6 +53,8 @@ public interface KnowledgeMapper {
     int dispatch(String id, long version, String request, String sha, String now);
     @Update("UPDATE knowledge_turn SET answer=#{answer},version=version+1,updated_at=#{now} WHERE id=#{id} AND version=#{version} AND state='RUNNING'")
     int answer(String id, long version, String answer, String now);
+    @Update("UPDATE knowledge_turn SET answer=#{answer},thinking=#{thinking},version=version+1,updated_at=#{now} WHERE id=#{id} AND version=#{version} AND state='RUNNING'")
+    int output(String id, long version, String answer, String thinking, String now);
     @Update("UPDATE knowledge_turn SET input_tokens=#{input},output_tokens=#{output} WHERE id=#{id}")
     int usage(String id, Long input, Long output);
     @Select("SELECT * FROM knowledge_source WHERE project_id=#{project} AND state!='REMOVED' AND (created_at,id)>(#{time},#{id}) ORDER BY created_at,id LIMIT #{limit}")

@@ -34,6 +34,7 @@ class KnowledgeIntegrationTest {
     @Autowired KnowledgeReader reader; @Autowired ObjectMapper json; @Autowired LoopperProperties properties;
     @Autowired KnowledgeEventHub events; @Autowired AssistMapper assist; @Autowired AssistScopeService scopes;
     @Autowired AssistToolService tools; @Autowired InternalMcpRuntimeAccess runtime; @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
+    @org.springframework.test.context.bean.override.mockito.MockitoBean OpenCodeModelCatalogService catalog;
     @TempDir Path root;
     FakeOpenCodeClient remote; KnowledgeCoordinator coordinator; String project;
     @BeforeEach void prepare() throws Exception {
@@ -49,6 +50,45 @@ class KnowledgeIntegrationTest {
     KnowledgeRows.Turn run(String id) {
         var turn = persistence.begin(id, UUID.randomUUID().toString(), "付款逻辑？"); coordinator.tick(id); coordinator.tick(id);
         return mapper.turn(turn.id()).orElseThrow();
+    }
+    @Test void defaultModelDoesNotDiscoverCatalogButExplicitAlternativesAreValidated() {
+        String oldModel = properties.getOpenCode().getModel(), oldMode = properties.getOpenCode().getMode();
+        try {
+            properties.getOpenCode().setMode("managed"); properties.getOpenCode().setModel("global/default");
+            for (String selection : new String[]{null, "global/default"}) {
+                var view = conversations.create(new KnowledgeConversations.Create(UUID.randomUUID().toString(), project, "默认模型", selection, List.of("code")));
+                assertThat(view.model()).isEqualTo("global/default");
+            }
+            verifyNoInteractions(catalog);
+            when(catalog.discover(any())).thenReturn(List.of(new OpenCodeModelCatalogService.AvailableModel("other/selected", "other", "selected", "other")));
+            var input = new KnowledgeConversations.Create(UUID.randomUUID().toString(), project, "切换模型", "other/selected", List.of("code"));
+            assertThat(conversations.create(input).model()).isEqualTo("other/selected");
+            assertThatThrownBy(() -> conversations.create(new KnowledgeConversations.Create(UUID.randomUUID().toString(), project, "非法选择", "unknown/model", List.of("code"))))
+                    .isInstanceOf(BadRequestException.class);
+            assertThat(conversations.create(input).model()).isEqualTo("other/selected");
+            verify(catalog, times(2)).discover(any());
+        } finally { properties.getOpenCode().setMode(oldMode); properties.getOpenCode().setModel(oldModel); }
+    }
+    @Test void thinkingStreamsPersistsAcrossReadAndStopAndRejectsLateSnapshots() {
+        var chat = create(List.of("code")); var turn = run(chat.id());
+        doReturn(new OpenCodeClient.SessionTranscript(List.of(
+                new OpenCodeClient.SessionPart("r1", "THINKING", "Thinking", "检查当前项目", null),
+                new OpenCodeClient.SessionPart("t1", "TOOL", "read", "不应混入思考的工具参数", null),
+                new OpenCodeClient.SessionPart("r2", "THINKING", "Thinking", "核对实际代码", null)))).when(remote).sessionTranscript(any());
+        doReturn("部分回答").when(remote).sessionLiveOutput(any()); coordinator.tick(chat.id());
+        var saved = mapper.turn(turn.id()).orElseThrow();
+        assertThat(saved.thinking()).isEqualTo("检查当前项目\n\n核对实际代码");
+        assertThat(conversations.messages(chat.id(), null, 50).items().getFirst().thinking()).isEqualTo(saved.thinking());
+        doThrow(new IllegalStateException("temporary transcript failure")).when(remote).sessionTranscript(any());
+        doReturn("更新回答").when(remote).sessionLiveOutput(any()); coordinator.tick(chat.id());
+        assertThat(mapper.turn(turn.id()).orElseThrow().answer()).isEqualTo("更新回答");
+        assertThat(mapper.turn(turn.id()).orElseThrow().thinking()).isEqualTo(saved.thinking());
+        persistence.stop(chat.id()); coordinator.tick(chat.id());
+        var stopped = mapper.turn(turn.id()).orElseThrow(); assertThat(stopped.state()).isEqualTo("STOPPED");
+        assertThat(mapper.output(turn.id(), saved.version(), "迟到回答", "迟到思考", Instant.now().toString())).isZero();
+        assertThat(mapper.output(turn.id(), stopped.version(), "终态改写", "终态思考", Instant.now().toString())).isZero();
+        assertThat(conversations.messages(chat.id(), null, 50).items().getFirst().thinking()).isEqualTo(saved.thinking());
+        var next = run(chat.id()); assertThat(next.thinking()).isEmpty();
     }
     @Test void isolatedMultiTurnAndRestartRecoveryNeverCreatesTaskOrResendsPrompt() {
         var chat = create(List.of("code", "documents")); var first = run(chat.id());

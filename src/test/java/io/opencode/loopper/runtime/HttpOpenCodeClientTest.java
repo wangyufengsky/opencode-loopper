@@ -742,6 +742,22 @@ class HttpOpenCodeClientTest {
         assertThat(client.sessionResult(session).errorType()).isNull();
     }
 
+    @Test void knowledgeTranscriptKeepsOnlyCurrentTurnProviderThinking() {
+        var client = managedRoleClient();
+        var session = new OpenCodeClient.OpenCodeSession("s1", worktree, "generation-role", "loopper_internal_role");
+        client.restoreDesignTurn(session, OpenCodeClient.SessionProfile.KNOWLEDGE_READ_ONLY, null, "knowledge-current");
+        messageBody.set("""
+                [{"info":{"id":"knowledge-current","role":"user"}},
+                 {"info":{"role":"assistant","parentID":"old"},"parts":[{"type":"reasoning","text":"之前的思考"}]},
+                 {"info":{"role":"assistant","parentID":"knowledge-current"},"parts":[
+                  {"id":"r1","type":"reasoning","text":"当前问题的思考"},
+                  {"id":"a1","type":"text","text":"当前回答"}]},
+                 {"info":{"role":"assistant","parentID":"old"},"parts":[{"type":"reasoning","text":"迟到的旧思考"}]}]
+                """);
+        assertThat(client.sessionTranscript(session).parts()).extracting(OpenCodeClient.SessionPart::content)
+                .containsExactly("当前问题的思考", "当前回答");
+    }
+
     private HttpOpenCodeClient managedRoleClient() {
         mcpBody.set("{\"loopper_internal_role\":{\"status\":\"connected\"}}");
         return new HttpOpenCodeClient(RestClient.builder(),

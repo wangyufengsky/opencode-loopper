@@ -16,7 +16,7 @@ class BatchAssistMigrationTest {
             sql.execute("INSERT INTO project(id,name,root_path,created_at,updated_at) VALUES('p','p','/project','now','now')");
             sql.execute("INSERT INTO task(id,project_id,title,state,created_at,updated_at) VALUES('old','p','old','WAITING_INPUT','now','now')");
         }
-        var migration=Flyway.configure().dataSource(url,null,null).load();assertThat(migration.migrate().migrationsExecuted).isEqualTo(32);migration.validate();
+        var migration=Flyway.configure().dataSource(url,null,null).load();assertThat(migration.migrate().migrationsExecuted).isEqualTo(33);migration.validate();
         try(var db=DriverManager.getConnection(url);var sql=db.createStatement()) {
             sql.execute("INSERT INTO assist_project_config VALUES('p','{\"repository\":\"group/project\",\"sources\":[]}',0,'now')");
             sql.execute("INSERT INTO task(id,project_id,title,state,created_at,updated_at) VALUES('new','p','new','PENDING_START','now','now')");
