@@ -114,8 +114,8 @@ class GitSubdirectoryIntegrationTest {
         Files.writeString(module.resolve("file.txt"), "original\n");
         Files.writeString(repo.resolve("other/file.txt"), "sibling\n");
         run(repo, "add", "."); run(repo, "commit", "-m", "initial");
-        assertThat(new GitEvidenceProcess(runner).read(module, "rev-parse", "--show-toplevel").strip())
-                .isEqualTo(repo.toRealPath().toString());
+        Path gitRoot = Path.of(new GitEvidenceProcess(runner).read(module, "rev-parse", "--show-toplevel").strip());
+        assertThat(Files.isSameFile(gitRoot, repo)).as("Git reports the fixture repository root").isTrue();
         return module;
     }
 
