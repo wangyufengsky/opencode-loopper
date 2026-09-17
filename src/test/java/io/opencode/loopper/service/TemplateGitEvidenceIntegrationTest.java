@@ -136,11 +136,26 @@ class TemplateGitEvidenceIntegrationTest {
     }
 
     @Test void literalGitPathCannotExpandIntoProtectedFiles() throws Exception {
+        assertLiteralGitPathCannotExpandIntoProtectedFiles("[.]env");
+    }
+
+    @Test
+    @EnabledOnOs({OS.LINUX, OS.MAC})
+    void literalGitMagicPathCannotExpandIntoProtectedFilesOnSupportedFilesystems() throws Exception {
+        assertLiteralGitPathCannotExpandIntoProtectedFiles(":(glob)**");
+    }
+
+    private void assertLiteralGitPathCannotExpandIntoProtectedFiles(String fileName) throws Exception {
         commit(".env", "PRIVATE_MARKER=not-source\n", "2026-09-11T01:00:00Z", "secret fixture");
-        commit(":(glob)**", "safe source\n", "2026-09-11T02:00:00Z", "literal name");
+        Files.writeString(root.resolve(".env"), "PRIVATE_MARKER=still-not-source\n");
+        git.read(root, "add", "--", ".env");
+        commit(fileName, "safe source\n", "2026-09-11T02:00:00Z", "literal name");
         var evidence=collect(snapshots.freeze("literal", "project", main()));
         assertThat(evidence.commits().stream().flatMap(c->c.changes().stream())).allMatch(c->!c.patch().contains("PRIVATE_MARKER"));
-        assertThat(evidence.commits().getLast().changes().getFirst().patch()).contains("+safe source");
+        assertThat(evidence.commits().getLast().changes()).anySatisfy(change -> {
+            assertThat(change.path()).isEqualTo(fileName);
+            assertThat(change.patch()).contains("+safe source");
+        });
     }
 
     @Test void branchDiscoveryDefaultsToMainNotCurrentBranchAndSeparatesRemoteSource() throws Exception {
@@ -286,7 +301,7 @@ class TemplateGitEvidenceIntegrationTest {
     private ProjectBranchService.Branch main() { return new ProjectBranchService.Branch("local:refs/heads/main", "main（本地）", "refs/heads/main", null); }
     private String commit(String file, String content, String date, String message) throws Exception {
         Files.writeString(root.resolve(file), content);
-        git.read(root, "add", "--", file);
+        git.read(root, "--literal-pathspecs", "add", "--", file);
         commandAt(date, List.of("git", "-c", "core.hooksPath=/dev/null", "commit", "-m", message));
         return git.read(root, "rev-parse", "HEAD").strip();
     }
