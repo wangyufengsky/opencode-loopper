@@ -30,6 +30,37 @@ async function fixture(page: Page) {
     return route.fulfill({ json: [] })
   })
 }
+for (const width of [1440, 768]) {
+  test(`无思考内容时的动态等待与回复切换 ${width}px`, async ({ page }) => {
+    await fixture(page); await page.setViewportSize({ width, height: 900 })
+    let answer = '', thinking = '', state = 'RUNNING'
+    await page.route(`**/api/knowledge/conversations/${id}`, route => route.fulfill({ json: { ...summary, state: state === 'RUNNING' ? 'RUNNING' : 'IDLE' } }))
+    await page.route(`**/conversations/${id}/messages?**`, route => route.fulfill({ json: { items: [{ id: 'empty', ordinal: 1, state, userText: '这个项目的核心流程是什么？', answer, thinking, detail: '', inputTokens: null, outputTokens: null, createdAt: '', citations: [], calls: [] }], nextCursor: null } }))
+    await page.route(`**/conversations/${id}/stop`, route => { state = 'STOPPED'; return route.fulfill({ json: summary }) })
+    await page.goto(`/knowledge/${id}`)
+    const waiting = page.locator('.knowledge-waiting')
+    await expect(waiting).toHaveText('正在思考')
+    await expect(page.locator('section[aria-label="思考"]')).toHaveCount(0)
+    const dots = waiting.locator('i')
+    await expect(dots).toHaveCount(3)
+    expect(await dots.first().evaluate(el => el.getAnimations().some(a => a.playState === 'running'))).toBe(true)
+    const before = await dots.first().evaluate(el => getComputedStyle(el).opacity)
+    await page.waitForTimeout(220)
+    expect(await dots.first().evaluate(el => getComputedStyle(el).opacity)).not.toBe(before)
+    expect(await page.locator('body').evaluate(el => el.scrollWidth <= window.innerWidth)).toBe(true)
+    await page.screenshot({ path: `test-results/knowledge-waiting-${width}.png`, fullPage: true })
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    expect(await dots.first().evaluate(el => el.getAnimations().length)).toBe(0)
+    await expect(waiting).toBeVisible()
+    thinking = '先检查实际项目入口。'; await page.reload()
+    await expect(waiting).toHaveCount(0); await expect(page.locator('section[aria-label="思考"]')).toBeVisible()
+    thinking = ''; answer = '项目从接口接收请求，再进入业务处理。'; await page.reload()
+    await expect(waiting).toHaveCount(0); await expect(page.getByText(answer, { exact: true })).toBeVisible()
+    answer = ''; await page.reload(); await expect(waiting).toBeVisible()
+    await page.getByRole('button', { name: '停止生成', exact: true }).click()
+    await expect(waiting).toHaveCount(0); await expect(page.locator('.knowledge-answer-label')).toContainText('已停止')
+  })
+}
 for (const width of [1920, 1440, 1280, 768]) {
   test(`知识问答来源与引用面板 ${width}px`, async ({ page }) => {
     const errors: string[] = []; page.on('pageerror', error => errors.push(error.message))

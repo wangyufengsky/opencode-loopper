@@ -4,14 +4,24 @@ import { Icon } from '@iconify/vue'
 import MarkdownDocument from '@/components/MarkdownDocument.vue'
 import { knowledgeStateLabel, knowledgeToolLabel } from '@/utils/displayLabels'
 import type { KnowledgeMessage } from '@/types/domain'
-const props = defineProps<{ message: KnowledgeMessage; thinking: string }>()
+const props = defineProps<{ message: KnowledgeMessage; thinking: string; answer: string }>()
 const contentId = useId(), thinkingOpen = ref(false), toolsOpen = ref(false)
 const active = computed(() => ['PREPARED', 'CREATING', 'SENDING', 'RUNNING'].includes(props.message.state) && !props.message.questions?.some(q => ['PENDING', 'PREPARED', 'SENDING', 'UNKNOWN'].includes(q.state)))
 const latestThinking = computed(() => props.thinking.trim().split(/\n\s*\n/).at(-1)?.replace(/\s+/g, ' ').slice(-160) || '')
 const latestCall = computed(() => props.message.calls.at(-1))
+const waitingLabel = computed(() => {
+  if (!active.value || props.thinking.trim() || props.answer.trim() || latestCall.value?.state === 'RUNNING') return ''
+  if (props.message.state === 'RUNNING') return '正在思考'
+  return props.message.state === 'SENDING' ? '正在发送问题' : '正在准备回答'
+})
 </script>
 <template>
-  <section v-if="thinking" class="knowledge-thinking" aria-label="思考">
+  <div v-if="waitingLabel" class="knowledge-waiting" role="status" aria-live="polite">
+    <Icon icon="lucide:sparkles" aria-hidden="true" />
+    <span>{{ waitingLabel }}</span>
+    <span class="knowledge-waiting-dots" aria-hidden="true"><i /><i /><i /></span>
+  </div>
+  <section v-if="thinking.trim()" class="knowledge-thinking" aria-label="思考">
     <button type="button" class="knowledge-thinking-toggle" :aria-expanded="thinkingOpen" :aria-controls="`${contentId}-thinking`" @click="thinkingOpen = !thinkingOpen">
       <Icon icon="lucide:brain" /><strong>思考</strong><span class="knowledge-thinking-hint">{{ latestThinking }}</span><Icon :icon="thinkingOpen ? 'lucide:chevron-up' : 'lucide:chevron-down'" />
     </button>

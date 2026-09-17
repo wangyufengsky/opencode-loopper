@@ -62,6 +62,23 @@ describe('知识库真实设置接口与模型选择', () => {
   })
   afterEach(() => { wrapper?.unmount(); wrapper = undefined; vi.unstubAllGlobals() })
 
+  it('switches empty-turn feedback to embedded thinking and answer content as server messages arrive', async () => {
+    await render('/knowledge/saved')
+    const store = useKnowledgeStore()
+    const message = { id: 'turn', ordinal: 1, state: 'RUNNING', userText: '核心流程是什么？', answer: '', detail: '', inputTokens: null, outputTokens: null, createdAt: '', citations: [], calls: [] }
+    store.messages = [message]; await flushPromises()
+    expect(wrapper!.get('.knowledge-waiting').text()).toBe('正在思考')
+    store.messages = [{ ...message, answer: '<think>检查项目入口</think>' }]; await flushPromises()
+    expect(wrapper!.find('.knowledge-waiting').exists()).toBe(false)
+    expect(wrapper!.get('[aria-label="思考"]').text()).toContain('检查项目入口')
+    store.messages = [{ ...message, answer: '首先接收请求。' }]; await flushPromises()
+    expect(wrapper!.find('.knowledge-waiting').exists()).toBe(false)
+    expect(wrapper!.find('[aria-label="思考"]').exists()).toBe(false)
+    store.messages = [{ ...message, state: 'FAILED', detail: '模型连接失败，请重试' }]; await flushPromises()
+    expect(wrapper!.find('.knowledge-waiting').exists()).toBe(false)
+    expect(wrapper!.text()).toContain('模型连接失败，请重试')
+  })
+
   it('combines the real separate provider/model fields and sends the exact catalog id', async () => {
     await render(); await openModels(); expect(modelSelect().element.value).toBe('deepseek/shared-model')
     await question().setValue('当前项目有几个模块？'); await wrapper!.get('form').trigger('submit'); await flushPromises()
