@@ -7,6 +7,7 @@ import { splitThinkingContent } from '@/utils/thinkingContent'
 const props = withDefaults(defineProps<{
   content: string
   allowImages?: boolean
+  highlightLines?: number[]
   collapsible?: boolean
   collapsedLines?: number
 }>(), {
@@ -42,7 +43,20 @@ markdown.renderer.rules.link_open = (tokens, index, options, _env, self) => {
   return self.renderToken(tokens, index, options)
 }
 
-const renderedSegments = computed(() => splitThinkingContent(props.content).map((segment, index) => ({
+// Evidence maps Markdown block source lines to the same saved text used by the line view.
+markdown.core.ruler.push('evidence_ranges', state => {
+  if (!props.highlightLines?.length) return
+  for (const token of state.tokens) {
+    if (token.map && ['paragraph_open', 'heading_open', 'tr_open', 'fence', 'code_block'].includes(token.type)
+      && props.highlightLines.some(line => line > token.map![0] && line <= token.map![1])) token.attrJoin('class', 'evidence-highlight')
+  }
+})
+const codeBlock = markdown.renderer.rules.code_block!
+markdown.renderer.rules.code_block = (tokens, index, options, env, self) => {
+  const rendered = codeBlock(tokens, index, options, env, self)
+  return String(tokens[index]?.attrGet('class') || '').includes('evidence-highlight') ? `<div class="evidence-highlight">${rendered}</div>` : rendered
+}
+const renderedSegments = computed(() => (props.highlightLines ? [{ type: 'content' as const, content: props.content, complete: true }] : splitThinkingContent(props.content)).map((segment, index) => ({
   ...segment,
   index,
   html: DOMPurify.sanitize(markdown.render(segment.content), {
@@ -343,4 +357,8 @@ onBeforeUnmount(() => {
 .markdown-document :deep(.markdown-mermaid-pending) { min-height: 120px; color: var(--color-text-tertiary); font: 11px/1.5 var(--font-ui); }
 .markdown-document :deep(.markdown-mermaid svg) { display: block; max-width: 100%; height: auto; }
 .markdown-document :deep(.markdown-mermaid-error) { display: block; padding: 9px 12px; border-color: rgb(245 158 11 / 34%); background: rgb(245 158 11 / 8%); color: var(--color-session-warning); font-size: 11px; }
+</style>
+
+<style scoped>
+.markdown-document :deep(.evidence-highlight) { background: color-mix(in srgb, var(--color-accent-cyan) 16%, transparent); box-shadow: inset 3px 0 var(--color-accent-cyan); }
 </style>

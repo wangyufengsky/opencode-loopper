@@ -373,5 +373,5 @@ export function knowledgeStateLabel(state: string): string {
   return ({ READY: '可用', PREPARED: '准备中', CREATING: '连接中', CREATE_UNKNOWN: '核对会话', SENDING: '发送中', UNKNOWN: '核对发送', RUNNING: '生成中', STOPPING: '停止确认中', COMPLETED: '已完成', STOPPED: '已停止 · 未完成', FAILED: '未完成', REMOVED: '已移除', IDLE: '可以提问', DISCONNECTED: '连接待恢复', SUCCEEDED: '已读取' } as Record<string, string>)[state] ?? '状态待核对'
 }
 export function knowledgeToolLabel(tool: string): string {
-  return ({ list_knowledge_sources: '查看资料来源', browse_knowledge_source: '浏览资料目录', search_knowledge: '检索项目资料', read_knowledge_source: '读取原文片段', list_database_connections: '查看数据库连接', inspect_database_schema: '查看数据库结构', query_database_readonly: '只读查询数据库' } as Record<string, string>)[tool] ?? '读取资料'
+  return ({ list_knowledge_sources: '查看资料来源', browse_knowledge_source: '浏览资料目录', search_knowledge: '检索项目资料', read_knowledge_source: '读取原文片段', inspect_knowledge_git: '查看仓库', list_knowledge_git_authors: '查找作者', search_knowledge_git_commits: '查询提交', read_knowledge_git_commit: '读取提交', read_knowledge_git_file: '读取历史文件', blame_knowledge_git_lines: '查询最后修改记录', list_database_connections: '查看数据库连接', inspect_database_schema: '查看数据库结构', query_database_readonly: '只读查询数据库' } as Record<string, string>)[tool] ?? '读取资料'
 }

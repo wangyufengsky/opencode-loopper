@@ -6,6 +6,17 @@ import java.util.Optional;
 import org.apache.ibatis.annotations.*;
 
 public interface KnowledgeMapper {
+    record CitationRange(String id, String unit, int first, int last) { }
+    @Select("""
+        <script>SELECT id,CASE WHEN kind='DATABASE' THEN 'R' ELSE 'L' END AS unit,
+          CASE WHEN kind='DATABASE' THEN 1 ELSE coalesce(json_extract(body_json,'$.startLine'),1) END AS first,
+          CASE WHEN kind='DATABASE' THEN coalesce(json_array_length(body_json,'$.rows'),0)
+            ELSE coalesce(json_extract(body_json,'$.endLine'),
+              length(coalesce(json_extract(body_json,'$.text'),''))-length(replace(coalesce(json_extract(body_json,'$.text'),''),char(10),''))+1) END AS last
+        FROM knowledge_citation WHERE conversation_id=#{conversation} AND id IN
+        <foreach collection='ids' item='id' open='(' separator=',' close=')'>#{id}</foreach></script>
+        """)
+    List<CitationRange> citationRanges(String conversation, List<String> ids);
     @Select("SELECT * FROM knowledge_conversation WHERE id=#{id}")
     Optional<Conversation> conversation(String id);
     @Select("SELECT * FROM knowledge_conversation WHERE remote_id=#{remote}")
@@ -36,7 +47,7 @@ public interface KnowledgeMapper {
     @Select("SELECT * FROM knowledge_turn WHERE conversation_id=#{conversation} AND (created_at,id)<(#{time},#{id}) ORDER BY created_at DESC,id DESC LIMIT #{limit}")
     List<Turn> turns(String conversation, String time, String id, int limit);
     record Usage(Long inputTokens, Long outputTokens) { }
-    @Select("SELECT input_tokens,output_tokens FROM knowledge_turn WHERE conversation_id=#{id} AND (input_tokens IS NOT NULL OR output_tokens IS NOT NULL) ORDER BY ordinal DESC LIMIT 1")
+    @Select("SELECT max(input_tokens) AS input_tokens,max(output_tokens) AS output_tokens FROM knowledge_turn WHERE conversation_id=#{id} HAVING count(input_tokens)+count(output_tokens)>0")
     Optional<Usage> latestUsage(String id);
     @Select("SELECT * FROM knowledge_turn WHERE state NOT IN ('COMPLETED','STOPPED','FAILED') ORDER BY updated_at,id LIMIT 100")
     List<Turn> activeTurns();
@@ -55,7 +66,7 @@ public interface KnowledgeMapper {
     int answer(String id, long version, String answer, String now);
     @Update("UPDATE knowledge_turn SET answer=#{answer},thinking=#{thinking},version=version+1,updated_at=#{now} WHERE id=#{id} AND version=#{version} AND state='RUNNING'")
     int output(String id, long version, String answer, String thinking, String now);
-    @Update("UPDATE knowledge_turn SET input_tokens=#{input},output_tokens=#{output} WHERE id=#{id}")
+    @Update("UPDATE knowledge_turn SET input_tokens=CASE WHEN #{input} IS NULL THEN input_tokens WHEN input_tokens IS NULL THEN max(0,#{input}) ELSE max(input_tokens,#{input}) END,output_tokens=CASE WHEN #{output} IS NULL THEN output_tokens WHEN output_tokens IS NULL THEN max(0,#{output}) ELSE max(output_tokens,#{output}) END WHERE id=#{id}")
     int usage(String id, Long input, Long output);
     @Select("SELECT * FROM knowledge_source WHERE project_id=#{project} AND state!='REMOVED' AND (created_at,id)>(#{time},#{id}) ORDER BY created_at,id LIMIT #{limit}")
     List<Source> sources(String project, String time, String id, int limit);
@@ -96,7 +107,7 @@ public interface KnowledgeMapper {
     Optional<Citation> citation(String conversation, String id);
     @Select("SELECT id,conversation_id,turn_id,kind,source_id,name,location,sha256,NULL AS body_json,created_at FROM knowledge_citation WHERE conversation_id=#{conversation} AND turn_id=#{turn} ORDER BY created_at,id LIMIT 100")
     List<Citation> citations(String conversation, String turn);
-    @Insert("INSERT INTO knowledge_call VALUES(#{id},#{conversationId},#{turnId},#{tool},'RUNNING','',#{createdAt},#{updatedAt})")
+    @Insert("INSERT INTO knowledge_call VALUES(#{id},#{conversationId},#{turnId},#{tool},'RUNNING',#{detail},#{createdAt},#{updatedAt})")
     int startCall(Call row);
     @Update("UPDATE knowledge_call SET state=#{state},detail=#{detail},updated_at=#{now} WHERE id=#{id} AND state='RUNNING'")
     int finishCall(String id, String state, String detail, String now);

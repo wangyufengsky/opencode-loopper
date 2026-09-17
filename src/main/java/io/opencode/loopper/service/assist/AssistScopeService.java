@@ -55,7 +55,7 @@ public class AssistScopeService {
     public Scope resolve(String session) {
         var snapshot=mapper.session(session);var current=runtime.current().orElseThrow(AssistScopeService::denied);
         if(snapshot==null || !snapshot.generation().equals(current.generation()))throw denied();
-        if (snapshot.profile().equals("KNOWLEDGE_READ_ONLY")) return knowledgeScope(session, snapshot);
+        if (snapshot.profile().startsWith("KNOWLEDGE_")) return knowledgeScope(session, snapshot);
         AssistMapper.Owner owner;
         if(snapshot.profile().equals("IMPLEMENTATION") || snapshot.profile().startsWith("TEMPLATE_ANALYSIS"))owner=mapper.executionOwner(session);
         else if(snapshot.profile().contains("CANDIDATE"))owner=mapper.candidateOwner(session);

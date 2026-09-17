@@ -13,6 +13,7 @@ public class KnowledgeReader {
     private final KnowledgeDocumentCache documents;
     public KnowledgeReader(KnowledgeSources sources, KnowledgeDocumentCache documents) { this.sources = sources; this.documents = documents; }
     public KnowledgeFiles.Listing browse(KnowledgeSources.Bound source, String path, String query, String cursor) {
+        requireFileSource(source);
         if (source.kind().equals("UPLOAD")) return new KnowledgeFiles.Listing(List.of(new KnowledgeFiles.Entry("", source.name(), false, 0)), null, false, "");
         return KnowledgeFiles.list(source.path(), path == null ? "" : path, !source.kind().equals("CODE"), query, cursor, query != null && !query.isBlank());
     }
@@ -20,6 +21,7 @@ public class KnowledgeReader {
         return read(source, relative, section, startLine, expected, 0);
     }
     public Map<String,Object> read(KnowledgeSources.Bound source, String relative, int section, int startLine, String expected, int offset) {
+        requireFileSource(source);
         if (offset < 0 || offset > 10000) throw KnowledgeSources.bad("文档目录游标无效");
         Path path = sources.path(source, relative); String name = source.kind().equals("UPLOAD") ? source.name() : path.getFileName().toString();
         boolean document = !source.kind().equals("CODE") || KnowledgeFiles.DOCUMENTS.contains(KnowledgeFiles.extension(name));
@@ -34,7 +36,11 @@ public class KnowledgeReader {
                 body.put("sectionCount", sections.size()); body.put("nextOffset", offset + 100 < sections.size() ? offset + 100 : -1); body.put("location", "文档目录"); body.put("text", "");
             } else {
                 if (section >= sections.size()) throw KnowledgeSources.bad("文档分段不存在，请重新读取目录");
-                body.put("text", sections.get(section).markdown()); body.put("location", sections.get(section).title() + " · 第 " + (section + 1) + " 段");
+                body.put("text", sections.get(section).markdown());
+                boolean markdown = Set.of("md", "markdown").contains(parsed.document().format());
+                int first = markdown ? 1 + (int) sections.stream().limit(section).map(s -> s.markdown()).reduce("", String::concat).chars().filter(c -> c == '\n').count() : 1;
+                body.put("startLine", first); body.put("endLine", first + sections.get(section).markdown().split("\\n", -1).length - 1);
+                body.put("lineBasis", markdown ? "原文件行号" : "本段解析文本行号"); body.put("format", parsed.document().format()); body.put("location", sections.get(section).title() + " · 第 " + (section + 1) + " 段");
                 body.put("section", section); body.put("nextSection", section + 1 < sections.size() ? section + 1 : -1);
             }
         } else {
@@ -57,7 +63,20 @@ public class KnowledgeReader {
         body.put("versionLabel", "当前本地文件 · " + sha.substring(0, 12));
         return body;
     }
+    public Map<String,Object> readRange(KnowledgeSources.Bound source, String relative, int section, int start, int end, String expected, int offset) {
+        if (source.kind().equals("GIT")) throw KnowledgeSources.bad("请使用 Git 查询工具读取此来源");
+        var body = new LinkedHashMap<>(read(source, relative, section, source.kind().equals("CODE") ? start : 1, expected, offset));
+        if (end > 0 && body.get("text") instanceof String text && !text.isEmpty()) {
+            int first = ((Number) body.getOrDefault("startLine", 1)).intValue();
+            int last = ((Number) body.getOrDefault("endLine", first)).intValue();
+            if (start < first || end < start || end > last) throw KnowledgeSources.bad("引用范围不在此片段中，请按返回行号读取");
+            String[] lines = text.split("\\n", -1); body.put("text", String.join("\n", Arrays.copyOfRange(lines, start-first, end-first+1)));
+            body.put("startLine", start); body.put("endLine", end);
+        }
+        return body;
+    }
     public Map<String,Object> search(KnowledgeSources.Bound source, String relative, String query, String cursor) {
+        requireFileSource(source);
         if (query == null || query.isBlank() || query.length() > 200) throw KnowledgeSources.bad("请输入 1–200 字符的检索词");
         String needle = query.toLowerCase(Locale.ROOT); var listing = source.kind().equals("UPLOAD") ? browse(source, "", "", null)
                 : KnowledgeFiles.list(source.path(), relative == null ? "" : relative, !source.kind().equals("CODE"), "", cursor, true);
@@ -75,12 +94,12 @@ public class KnowledgeReader {
                     for (var s : parsed.document().sections()) {
                         if (matches.size() >= 30) { limitations.add(name + "：仅返回前 30 处匹配，更多内容请按文档目录逐段读取"); break; }
                         int found = s.markdown().toLowerCase(Locale.ROOT).indexOf(needle);
-                        if (found >= 0 || name.toLowerCase(Locale.ROOT).contains(needle)) matches.add(Map.of("sourceId", source.id(), "path", entry.path(), "name", name,
+                        if (found >= 0 || name.toLowerCase(Locale.ROOT).contains(needle)) matches.add(Map.of("resourceKey", AssistFiles.sha(path.toString().getBytes(StandardCharsets.UTF_8)), "sourceId", source.id(), "path", entry.path(), "name", name,
                                 "section", Integer.parseInt(s.id()), "location", s.title(), "sha256", parsed.sha256(), "snippet", snippet(s.markdown(), Math.max(0, found))));
                     }
                 } else if (source.kind().equals("CODE")) {
                     String text = KnowledgeFiles.text(sources.read(source, entry.path(), 1024 * 1024)); int index = text.toLowerCase(Locale.ROOT).indexOf(needle);
-                    if (index >= 0 || entry.path().toLowerCase(Locale.ROOT).contains(needle)) matches.add(Map.of("sourceId", source.id(), "path", entry.path(), "name", name,
+                    if (index >= 0 || entry.path().toLowerCase(Locale.ROOT).contains(needle)) matches.add(Map.of("resourceKey", AssistFiles.sha(path.toString().getBytes(StandardCharsets.UTF_8)), "sourceId", source.id(), "path", entry.path(), "name", name,
                             "startLine", 1 + (int) text.substring(0, Math.max(0, index)).chars().filter(c -> c == '\n').count(),
                             "sha256", AssistFiles.sha(text.getBytes(StandardCharsets.UTF_8)), "snippet", snippet(text, Math.max(0, index))));
                 }
@@ -90,6 +109,9 @@ public class KnowledgeReader {
         var result = new LinkedHashMap<String,Object>(); result.put("matches", matches); result.put("nextCursor", next);
         result.put("incomplete", listing.incomplete() || next != null || !limitations.isEmpty()); result.put("limitations", limitations);
         result.put("examinedFiles", examined); result.put("detail", "检索片段只用于定位；引用前请读取原文。无命中不是功能不存在的证明。"); return result;
+    }
+    private static void requireFileSource(KnowledgeSources.Bound source) {
+        if (!Set.of("CODE", "DOCUMENTS", "DIRECTORY", "UPLOAD").contains(source.kind())) throw KnowledgeSources.bad("此来源不能通过文件工具读取，请使用对应的 Git 或数据库工具");
     }
     private static String snippet(String text, int index) { return text.substring(Math.max(0, index - 60), Math.min(text.length(), index + 240)); }
 }

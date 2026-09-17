@@ -14,6 +14,7 @@ const props = withDefaults(defineProps<{
   language?: 'java' | 'json' | 'plain'
   lineWrapping?: boolean
   firstLineNumber?: number
+  highlightedLines?: number[]
   changedLines?: number[]
   conflictLines?: number[]
   activeConflictLines?: number[]
@@ -23,6 +24,7 @@ const props = withDefaults(defineProps<{
   language: 'plain',
   lineWrapping: false,
   firstLineNumber: 1,
+  highlightedLines: () => [],
   changedLines: () => [],
   conflictLines: () => [],
   activeConflictLines: () => [],
@@ -32,6 +34,7 @@ const host = ref<HTMLElement>()
 let editor: EditorView | undefined
 
 interface MergeDecorations {
+  highlighted: number[]
   changed: number[]
   conflicts: number[]
   active: number[]
@@ -49,13 +52,15 @@ const darkHighlightStyle = HighlightStyle.define([
 ])
 
 function buildDecorations(state: EditorState, value: MergeDecorations) {
+  const highlighted = new Set(value.highlighted)
   const changed = new Set(value.changed)
   const conflicts = new Set(value.conflicts)
   const active = new Set(value.active)
   const decorations = []
   for (let line = 1; line <= state.doc.lines; line += 1) {
     let className = ''
-    if (active.has(line)) className = 'cm-merge-conflict-active'
+    if (highlighted.has(line)) className = 'cm-evidence-highlight'
+    else if (active.has(line)) className = 'cm-merge-conflict-active'
     else if (conflicts.has(line)) className = 'cm-merge-conflict'
     else if (changed.has(line)) className = 'cm-merge-changed'
     if (className) decorations.push(Decoration.line({ class: className }).range(state.doc.line(line).from))
@@ -83,6 +88,7 @@ function languageExtension() {
 
 function updateDecorations() {
   editor?.dispatch({ effects: setMergeDecorations.of({
+    highlighted: props.highlightedLines,
     changed: props.changedLines,
     conflicts: props.conflictLines,
     active: props.activeConflictLines,
@@ -107,6 +113,7 @@ onMounted(() => {
           '.cm-content': { fontFamily: 'var(--font-code)', padding: '10px 0' },
           '.cm-gutters': { background: '#091321', color: '#5d6d86', border: 'none' },
           '.cm-activeLine, .cm-activeLineGutter': { background: 'rgba(56, 189, 248, .06)' },
+          '.cm-line.cm-evidence-highlight': { background: 'rgba(34, 211, 238, .13)', boxShadow: 'inset 3px 0 0 #22d3ee' },
           '.cm-line.cm-merge-changed': { background: 'rgba(34, 197, 94, .11)', boxShadow: 'inset 3px 0 0 rgba(74, 222, 128, .7)' },
           '.cm-line.cm-merge-conflict': { background: 'rgba(248, 113, 113, .12)', boxShadow: 'inset 3px 0 0 rgba(248, 113, 113, .68)' },
           '.cm-line.cm-merge-conflict-active': { background: 'rgba(251, 146, 60, .22)', boxShadow: 'inset 3px 0 0 #fb923c' },
@@ -123,7 +130,7 @@ watch(() => props.modelValue, (value) => {
   editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: value } })
 })
 
-watch(() => [props.changedLines, props.conflictLines, props.activeConflictLines], updateDecorations, { deep: true })
+watch(() => [props.highlightedLines, props.changedLines, props.conflictLines, props.activeConflictLines], updateDecorations, { deep: true })
 
 function scrollToLine(line: number) {
   if (!editor || line < 1) return

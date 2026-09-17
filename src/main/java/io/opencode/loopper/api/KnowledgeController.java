@@ -13,11 +13,21 @@ public class KnowledgeController {
     private final KnowledgeConversations conversations;
     private final KnowledgeCoordinator coordinator;
     private final KnowledgeEventHub events;
-    public KnowledgeController(KnowledgeConversations conversations, KnowledgeCoordinator coordinator, KnowledgeEventHub events) {
-        this.conversations = conversations; this.coordinator = coordinator; this.events = events;
+    private final KnowledgeQuestions questions;
+    public KnowledgeController(KnowledgeConversations conversations, KnowledgeCoordinator coordinator, KnowledgeEventHub events, KnowledgeQuestions questions) {
+        this.questions = questions; this.conversations = conversations; this.coordinator = coordinator; this.events = events;
     }
-    @GetMapping public CursorPage<KnowledgeConversations.View> list(@RequestParam String projectId,
-            @RequestParam(required=false) String cursor, @RequestParam(required=false) Integer limit) { return conversations.list(projectId, cursor, limit); }
+    @GetMapping public CursorPage<KnowledgeConversations.View> list(@RequestParam(defaultValue="") String projectId,
+            @RequestParam(required=false) String cursor, @RequestParam(required=false) Integer limit, @RequestParam(defaultValue="active") String archive,
+            @RequestParam(defaultValue="") String state, @RequestParam(defaultValue="") String query,
+            @RequestParam(defaultValue="") String since, @RequestParam(defaultValue="") String until) { return conversations.list(projectId, cursor, limit, archive, state, query, since, until); }
+    public record Archive(boolean archived, long version) { }
+    @PostMapping("/{id}/archive") public KnowledgeConversations.View archive(@PathVariable String id, @RequestBody Archive input,
+            @RequestHeader(value="X-Loopper-Local-UI",required=false) String localUi) { requireUi(localUi); return conversations.archive(id, input.archived(), input.version()); }
+    @PostMapping("/{id}/questions/{question}/reply") public KnowledgeQuestions.View reply(@PathVariable String id, @PathVariable String question,
+            @RequestBody KnowledgeQuestions.Reply input, @RequestHeader(value="X-Loopper-Local-UI",required=false) String localUi) {
+        requireUi(localUi); return questions.reply(id, question, input);
+    }
     @PostMapping public KnowledgeConversations.View create(@RequestBody KnowledgeConversations.Create input,
             @RequestHeader(value="X-Loopper-Local-UI",required=false) String localUi) { requireUi(localUi); return conversations.create(input); }
     @GetMapping("/{id}") public KnowledgeConversations.View get(@PathVariable String id) { return conversations.get(id); }

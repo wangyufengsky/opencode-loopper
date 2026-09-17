@@ -29,6 +29,7 @@ class KnowledgeIntegrationTest {
         registry.add("loopper.data-dir", DATA::toString);
         registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + DATA.resolve("test.db") + "?foreign_keys=on&journal_mode=WAL&transaction_mode=IMMEDIATE");
     }
+    @Autowired io.opencode.loopper.persistence.KnowledgeV2Mapper v2;
     @Autowired Flyway flyway; @Autowired ProjectService projects; @Autowired KnowledgeSources sources;
     @Autowired KnowledgeConversations conversations; @Autowired KnowledgePersistence persistence; @Autowired KnowledgeMapper mapper;
     @Autowired KnowledgeReader reader; @Autowired ObjectMapper json; @Autowired LoopperProperties properties;
@@ -41,7 +42,8 @@ class KnowledgeIntegrationTest {
         flyway.clean(); flyway.migrate(); root = root.toRealPath(); Files.writeString(root.resolve("当前.md"), "# 业务\n付款必须审批\n");
         project = projects.create("知识项目", root.toString()).id(); remote = spy(new FakeOpenCodeClient());
         remote.holdProfileOpen(OpenCodeClient.SessionProfile.KNOWLEDGE_READ_ONLY, true);
-        coordinator = new KnowledgeCoordinator(mapper, persistence, remote, json, properties, events);
+        remote.holdProfileOpen(OpenCodeClient.SessionProfile.KNOWLEDGE_INTERACTIVE_READ_ONLY, true);
+        coordinator = new KnowledgeCoordinator(mapper, persistence, remote, json, properties, events, new KnowledgeQuestions(v2, mapper, remote, json, events), v2);
     }
     @AfterEach void close() { coordinator.close(); }
     KnowledgeConversations.View create(List<String> ids) {
@@ -96,13 +98,15 @@ class KnowledgeIntegrationTest {
         assertThat(conversations.receipt(chat.id(), first.idempotencyKey()).get("accepted")).isEqualTo(true);
         assertThat(conversations.receipt(chat.id(), UUID.randomUUID().toString()).get("accepted")).isEqualTo(false);
         mapper.usage(first.id(), 2400L, 600L); assertThat(conversations.get(chat.id()).usage().inputTokens()).isEqualTo(2400L);
+        mapper.usage(first.id(), 1200L, null); assertThat(conversations.get(chat.id()).usage().inputTokens()).isEqualTo(2400L);
+        assertThat(conversations.get(chat.id()).usage().outputTokens()).isEqualTo(600L);
         assertThat(persistence.begin(chat.id(), first.idempotencyKey(), first.userText()).id()).isEqualTo(first.id());
         assertThatThrownBy(() -> persistence.begin(chat.id(), first.idempotencyKey(), "changed")).isInstanceOf(ConflictException.class);
         assertThatThrownBy(() -> persistence.begin(chat.id(), UUID.randomUUID().toString(), "next")).isInstanceOf(ConflictException.class);
         doReturn(new OpenCodeClient.SessionStatus("COMPLETED")).when(remote).sessionStatus(any());
         doReturn("答案 [1](knowledge:fake-id)").when(remote).sessionLiveOutput(any());
         doReturn(new OpenCodeClient.SessionResult("答案 [1](knowledge:fake-id)", Map.of(), null, null, 0)).when(remote).sessionResult(any());
-        coordinator.close(); coordinator = new KnowledgeCoordinator(mapper, persistence, remote, json, properties, events); coordinator.tick(chat.id());
+        coordinator.close(); coordinator = new KnowledgeCoordinator(mapper, persistence, remote, json, properties, events, new KnowledgeQuestions(v2, mapper, remote, json, events), v2); coordinator.tick(chat.id());
         assertThat(conversations.get(chat.id()).state()).isEqualTo("IDLE");
         assertThat(conversations.messages(chat.id(), null, 50).items().getFirst().answer()).contains("引用未核实").doesNotContain("knowledge:");
         run(chat.id()); verify(remote, times(1)).createSession(any(OpenCodeClient.SessionCreationPlan.class));
@@ -192,4 +196,76 @@ class KnowledgeIntegrationTest {
         assertThat(first.items()).extracting(KnowledgeConversations.Message::ordinal).containsExactly(2,3); assertThat(second.items()).extracting(KnowledgeConversations.Message::ordinal).containsExactly(1); assertThat(second.nextCursor()).isNull();
         assertThat(first.items()).extracting(KnowledgeConversations.Message::id).doesNotContain(second.items().getFirst().id());
     }
+    @Test void projectDocumentPathIsIndependentFrozenAndUnavailableDirectoriesAreVisible() throws Exception {
+        Path documents = Files.createTempDirectory(root.getParent(), "project-docs").toRealPath();
+        Files.writeString(documents.resolve("report.md"), "# 报告\n项目审批结论\n");
+        projects.updateDocumentPath(project, documents.toString(), projects.get(project).version());
+        assertThat(sources.list(project, null, 50).items()).anyMatch(source -> source.id().equals("project-documents") && source.state().equals("READY"));
+        var chat = create(List.of("project-documents"));
+        var original = sources.selected(project, chat.id(), "project-documents");
+        assertThat(reader.read(original, "report.md", 0, 1, null).get("text")).asString().contains("项目审批结论");
+        projects.updateDocumentPath(project, root.resolve("not-yet-created").toString(), projects.get(project).version());
+        assertThat(sources.list(project, null, 50).items()).anyMatch(source -> source.id().equals("project-documents") && source.state().equals("FAILED"));
+        assertThat(sources.selected(project, chat.id(), "project-documents").path()).isEqualTo(documents.toString());
+        assertThat(Files.exists(root.resolve("not-yet-created"))).isFalse();
+    }
+    @Test void historyFiltersAndArchivePreserveExecutionAndEvidence() {
+        var one = create(List.of("code")); var two = conversations.create(new KnowledgeConversations.Create(UUID.randomUUID().toString(), project, "不同标题", "fake/model", List.of("code")));
+        var turn = run(one.id()); mapper.answer(turn.id(), turn.version(), "正文中的付款关键词", Instant.now().toString());
+        var found = conversations.list(project, null, 1, "active", "", "付款关键词", "", "");
+        assertThat(found.items()).extracting(KnowledgeConversations.View::id).containsExactly(one.id());
+        var archived = conversations.archive(one.id(), true, one.options().version());
+        assertThat(archived.state()).isEqualTo("RUNNING"); assertThat(archived.options().archivedAt()).isNotNull();
+        assertThat(conversations.list(project, null, 50).items()).extracting(KnowledgeConversations.View::id).containsExactly(two.id());
+        assertThat(conversations.list(project, null, 50, "archived", "", "", "", "").items()).extracting(KnowledgeConversations.View::id).containsExactly(one.id());
+        assertThatThrownBy(() -> conversations.archive(one.id(), false, 0)).isInstanceOf(ConflictException.class);
+        conversations.archive(one.id(), false, archived.options().version());
+        var page = conversations.list(project, null, 1); var next = conversations.list(project, page.nextCursor(), 1);
+        assertThat(next.items()).hasSize(1); assertThat(next.items().getFirst().id()).isNotEqualTo(page.items().getFirst().id());
+        assertThat(conversations.messages(one.id(), null, 50).items().getFirst().answer()).contains("付款关键词");
+    }
+    @Test void questionReplySurvivesReloadAndIsDeliveredOnceToOriginalTurn() {
+        var chat = create(List.of("code")); var turn = run(chat.id()); String session = mapper.conversation(chat.id()).orElseThrow().remoteId();
+        remote.setPendingQuestion(session, new OpenCodeClient.PendingQuestion("native-question", session, List.of(new OpenCodeClient.QuestionPrompt("选择作者", "作者", List.of(new OpenCodeClient.QuestionOption("张三", "身份 A")), false, true))));
+        coordinator.tick(chat.id()); var question = conversations.messages(chat.id(), null, 50).items().getFirst().questions().getFirst();
+        assertThat(question.state()).isEqualTo("PENDING"); assertThat(mapper.active(chat.id()).orElseThrow().id()).isEqualTo(turn.id());
+        assertThat(conversations.list(project, null, 50, "active", "WAITING_INPUT", "", "", "").items()).hasSize(1);
+        var service = new KnowledgeQuestions(v2, mapper, remote, json, events);
+        var reply = new KnowledgeQuestions.Reply(UUID.randomUUID().toString(), List.of(List.of("张三")), question.version());
+        assertThat(service.reply(chat.id(), question.id(), reply).state()).isEqualTo("PREPARED");
+        coordinator.close(); coordinator = new KnowledgeCoordinator(mapper, persistence, remote, json, properties, events, service, v2);
+        coordinator.tick(chat.id()); coordinator.tick(chat.id());
+        assertThat(service.reply(chat.id(), question.id(), reply).state()).isEqualTo("ANSWERED");
+        verify(remote, times(1)).replyQuestion(any(), eq("native-question"), eq(List.of(List.of("张三"))));
+        assertThatThrownBy(() -> service.reply(create(List.of("code")).id(), question.id(), reply)).isInstanceOf(AssistFailure.class);
+    }
+    @Test void lostQuestionReplyAndStopDoNotResendOrPretendItWasAcknowledged() {
+        var chat = create(List.of("code")); run(chat.id()); String session = mapper.conversation(chat.id()).orElseThrow().remoteId();
+        remote.setPendingQuestion(session, new OpenCodeClient.PendingQuestion("lost-question", session, List.of(new OpenCodeClient.QuestionPrompt("补充范围", "范围", List.of(), false, true))));
+        coordinator.tick(chat.id()); var question = conversations.messages(chat.id(), null, 50).items().getFirst().questions().getFirst();
+        var service = new KnowledgeQuestions(v2, mapper, remote, json, events);
+        service.reply(chat.id(), question.id(), new KnowledgeQuestions.Reply(UUID.randomUUID().toString(), List.of(List.of("当前模块")), question.version()));
+        doAnswer(call -> { call.callRealMethod(); throw new IllegalStateException("reply lost"); }).when(remote).replyQuestion(any(), anyString(), anyList());
+        coordinator.tick(chat.id()); coordinator.tick(chat.id());
+        assertThat(v2.question(chat.id(), question.id()).state()).isEqualTo("UNKNOWN");
+        verify(remote, times(1)).replyQuestion(any(), anyString(), anyList());
+        persistence.stop(chat.id()); coordinator.tick(chat.id()); assertThat(v2.question(chat.id(), question.id()).state()).isEqualTo("CLOSED");
+        assertThat(conversations.get(chat.id()).state()).isEqualTo("IDLE");
+    }
+    @Test void validatesCitationRangeAgainstSavedEvidenceAndRejectsWrongUnitOrOverflow() {
+        var chat = create(List.of("code")); var turn = run(chat.id()); String id = UUID.randomUUID().toString(), now = Instant.now().toString();
+        var body = Map.of("kind", "CODE", "text", "one\ntwo\nthree", "startLine", 12, "endLine", 14);
+        mapper.cite(new KnowledgeRows.Citation(id, chat.id(), turn.id(), "CODE", "code", "Example.java", "第12–14行", "a".repeat(64), json.writeValueAsString(body), now));
+        String answer = "正确 [1](knowledge:" + id + "#L12-L13) 越界 [2](knowledge:" + id + "#L12-L99) 错类型 [3](knowledge:" + id + "#R12-R13)";
+        mapper.answer(turn.id(), turn.version(), answer, now);
+        assertThat(conversations.messages(chat.id(), null, 50).items().getFirst().answer()).contains("#L12-L13").doesNotContain("#L12-L99", "#R12-R13").contains("引用未核实");
+    }
+
+    @Test void gitSourceCannotBeUsedToReadUncommittedFilesThroughGenericTools() {
+        var bound = new KnowledgeSources.Bound("git", "GIT", "仓库", root.toString(), "identity", "READY", "", 0);
+        assertThatThrownBy(() -> reader.browse(bound, "", "", null)).hasMessageContaining("此来源不能");
+        assertThatThrownBy(() -> reader.search(bound, "", "付款", null)).hasMessageContaining("此来源不能");
+        assertThatThrownBy(() -> reader.read(bound, "README.md", 0, 1, null)).hasMessageContaining("此来源不能");
+    }
+
 }

@@ -1,13 +1,16 @@
 import { request, type CursorPage } from './client'
-import type { KnowledgeSource, KnowledgeConversation, KnowledgeMessage, KnowledgeCitation, KnowledgeContent, KnowledgeListing, KnowledgeSearch, KnowledgeCreate } from '@/types/domain'
+import type { KnowledgeSource, KnowledgeConversation, KnowledgeMessage, KnowledgeCitation, KnowledgeContent, KnowledgeListing, KnowledgeSearch, KnowledgeCreate, KnowledgeQuestion } from '@/types/domain'
 const ui = { 'X-Loopper-Local-UI': '1' }
 const enc = encodeURIComponent
 const conv = (id: string) => `/knowledge/conversations/${enc(id)}`
 const source = (project: string, id = '') => `/projects/${enc(project)}/knowledge-sources${id ? `/${enc(id)}` : ''}`
 const query = (params: Record<string, string | number | undefined>) => new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)]))
 export const knowledgeApi = {
-  history: (projectId: string, cursor = '') => request<CursorPage<KnowledgeConversation>>(`/knowledge/conversations?${query({ projectId, cursor })}`),
-  create: (input: KnowledgeCreate) => request<KnowledgeConversation>('/knowledge/conversations', { method: 'POST', headers: ui, body: JSON.stringify(input) }),
+  history: (projectId: string, cursor = '', filters: Record<string, string> = {}) => request<CursorPage<KnowledgeConversation>>(`/knowledge/conversations?${query({ projectId, cursor, ...filters })}`),
+  archive: (id: string, archived: boolean, version: number) => request<KnowledgeConversation>(`${conv(id)}/archive`, { method: 'POST', headers: ui, body: JSON.stringify({ archived, version }) }),
+  reply: (id: string, question: string, input: { idempotencyKey: string; answers: string[][]; version: number }) => request<KnowledgeQuestion>(`${conv(id)}/questions/${enc(question)}/reply`, { method: 'POST', headers: ui, body: JSON.stringify(input) }),
+  git: (project: string, id: string, params: Record<string, string | number | undefined>) => request<KnowledgeContent>(`${source(project, id)}/git?${query(params)}`),
+  create: (input: KnowledgeCreate) => request<KnowledgeConversation>('/knowledge/conversations', { method: 'POST', headers: ui, body: JSON.stringify({ timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, ...input }) }),
   receipt: (id: string, key: string) => request<{ accepted: boolean; messageId?: string; state?: string }>(`${conv(id)}/requests/${enc(key)}`),
   get: (id: string) => request<KnowledgeConversation>(conv(id)),
   messages: (id: string, cursor = '') => request<CursorPage<KnowledgeMessage>>(`${conv(id)}/messages?${query({ cursor })}`),

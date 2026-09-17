@@ -36,11 +36,17 @@ class AssistRuntimeSupportTest {
         when(policy.catalog(anyString(), eq(AssistToolCatalog.SERVER), anyList(), eq(true)))
             .thenReturn(AssistToolCatalog.tools().stream().map(t -> setting(t.name(), true)).toList());
         var support=new AssistRuntimeSupport(mapper,policy,inventory,mock(AssistScopeService.class),new ObjectMapper(),mock(io.opencode.loopper.service.DocumentDevelopmentScope.class));
-        var rules=support.permissions(Path.of("/project"),OpenCodeClient.SessionProfile.KNOWLEDGE_READ_ONLY,List.of("external","private"),"private",false);
-        assertThat(rules.stream().filter(r -> r.get("action").equals("allow")).map(r -> r.get("permission"))).containsExactlyInAnyOrder(
+        for (var profile : List.of(OpenCodeClient.SessionProfile.KNOWLEDGE_READ_ONLY, OpenCodeClient.SessionProfile.KNOWLEDGE_INTERACTIVE_READ_ONLY)) {
+        var rules=support.permissions(Path.of("/project"),profile,List.of("external","private"),"private",false);
+        var expected = new ArrayList<>(List.of(
             "private_assist_list_knowledge_sources", "private_assist_browse_knowledge_source", "private_assist_search_knowledge", "private_assist_read_knowledge_source",
-            "private_assist_list_database_connections", "private_assist_inspect_database_schema", "private_assist_query_database_readonly");
-        assertThat(OpenCodeAgentPolicy.stepLimit(OpenCodeClient.SessionProfile.KNOWLEDGE_READ_ONLY)).isZero();
+            "private_assist_list_database_connections", "private_assist_inspect_database_schema", "private_assist_query_database_readonly",
+            "private_assist_inspect_knowledge_git", "private_assist_list_knowledge_git_authors", "private_assist_search_knowledge_git_commits",
+            "private_assist_read_knowledge_git_commit", "private_assist_read_knowledge_git_file", "private_assist_blame_knowledge_git_lines"));
+        if (profile == OpenCodeClient.SessionProfile.KNOWLEDGE_INTERACTIVE_READ_ONLY) expected.add("question");
+        assertThat(rules.stream().filter(r -> r.get("action").equals("allow")).map(r -> r.get("permission"))).containsExactlyInAnyOrderElementsOf(expected);
+        assertThat(OpenCodeAgentPolicy.stepLimit(profile)).isZero();
+        }
         assertThat(AssistToolCatalog.allowed("IMPLEMENTATION")).noneMatch(AssistToolCatalog::knowledgeTool);
         verifyNoInteractions(inventory);
     }

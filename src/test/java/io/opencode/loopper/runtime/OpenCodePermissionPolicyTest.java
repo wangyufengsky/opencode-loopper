@@ -246,7 +246,7 @@ class OpenCodePermissionPolicyTest {
     @Test
     void everyNonRouterRoleAllowsConfiguredMcpToolsWithoutRemovingItsBuiltInBoundary() {
         for (OpenCodeClient.SessionProfile profile : OpenCodeClient.SessionProfile.values()) {
-            if (profile == OpenCodeClient.SessionProfile.KNOWLEDGE_READ_ONLY || DocumentTemplateProfiles.contains(profile)
+            if (profile.name().startsWith("KNOWLEDGE_") || DocumentTemplateProfiles.contains(profile)
                     || profile == OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS
                     || profile == OpenCodeClient.SessionProfile.SNAPSHOT_CODE_REVIEW_NO_TOOLS
                     || profile == OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS
@@ -346,4 +346,11 @@ class OpenCodePermissionPolicyTest {
                 java.util.Map.of("permission", "bash", "pattern", "*git*commit*", "action", "deny"),
                 java.util.Map.of("permission", "bash", "pattern", "rm -rf*", "action", "deny"));
     }
+    @Test
+    void knowledgeInteractionOnlyAddsQuestionAndNeverGrantsProjectOrNativeTools() {
+        assertThat(OpenCodePermissionPolicy.rules(OpenCodeClient.SessionProfile.KNOWLEDGE_INTERACTIVE_READ_ONLY, java.util.List.of("project mcp")))
+                .containsExactly(java.util.Map.of("permission", "*", "pattern", "*", "action", "deny"),
+                        java.util.Map.of("permission", "question", "pattern", "*", "action", "allow"));
+    }
+
 }

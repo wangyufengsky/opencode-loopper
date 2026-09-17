@@ -19,22 +19,23 @@ public class KnowledgeTools {
     private final ObjectMapper json;
     private final KnowledgeEventHub events;
     private final AssistScopeService scopes;
+    private final KnowledgeGit git;
     public KnowledgeTools(KnowledgeMapper mapper, KnowledgeSources sources, KnowledgeReader reader,
-            DatabaseQueryService databases, ObjectMapper json, KnowledgeEventHub events, AssistScopeService scopes) {
-        this.mapper = mapper; this.sources = sources; this.reader = reader; this.databases = databases; this.json = json; this.events = events; this.scopes = scopes;
+            DatabaseQueryService databases, ObjectMapper json, KnowledgeEventHub events, AssistScopeService scopes, KnowledgeGit git) {
+        this.git = git; this.mapper = mapper; this.sources = sources; this.reader = reader; this.databases = databases; this.json = json; this.events = events; this.scopes = scopes;
     }
     @org.springframework.context.event.EventListener(org.springframework.boot.context.event.ApplicationReadyEvent.class)
     public void recoverInterruptedCalls() { mapper.interruptedCalls(); }
     public Map<String,Object> call(AssistScopeService.Scope scope, String name, Map<String,Object> args) {
         var conversation = owner(scope); var turn = active(conversation.id()); String id = UUID.randomUUID().toString(), now = Instant.now().toString();
-        mapper.startCall(new Call(id, conversation.id(), turn.id(), name, "RUNNING", "", now, now)); events.publish(conversation.id(), "tool");
+        mapper.startCall(new Call(id, conversation.id(), turn.id(), name, "RUNNING", callDetail(args), now, now)); events.publish(conversation.id(), "tool");
         try {
             Map<String,Object> result = execute(conversation, name, args);
             scopes.authorize(string(args, "scope"), name);
             if (!active(conversation.id()).id().equals(turn.id())) throw KnowledgeSources.bad("问答回合已变化，结果已丢弃");
             if (name.equals("read_knowledge_source") && !Objects.toString(result.get("text"), "").isEmpty()
-                    || name.equals("query_database_readonly") || name.equals("inspect_database_schema")) result = citation(conversation, turn, result);
-            mapper.finishCall(id, "SUCCEEDED", "", Instant.now().toString()); return result;
+                    || name.contains("knowledge_git") || name.equals("query_database_readonly") || name.equals("inspect_database_schema")) result = citation(conversation, turn, result);
+            mapper.finishCall(id, "SUCCEEDED", callDetail(args), Instant.now().toString()); return result;
         } catch (RuntimeException failure) {
             mapper.finishCall(id, "FAILED", failure instanceof AssistFailure ? failure.getMessage() : "资料读取失败，请检查来源", Instant.now().toString()); throw failure;
         } finally { events.publish(conversation.id(), "tool"); }
@@ -50,10 +51,11 @@ public class KnowledgeTools {
                 .map(c -> Map.of("id", c.id(), "name", c.name(), "type", c.config().type(), "schemas", c.config().schemas(), "version", c.version())).toList());
         if (name.equals("query_database_readonly") || name.equals("inspect_database_schema")) return database(conversation, name, args);
         var source = sources.frozen(conversation).stream().filter(s -> s.id().equals(string(args, "sourceId"))).findFirst().orElseThrow(() -> KnowledgeSources.bad("资料不属于当前会话"));
+        if (name.contains("knowledge_git")) return git.call(conversation.id(), source, name, args);
         return switch (name) {
             case "browse_knowledge_source" -> json.convertValue(reader.browse(source, string(args, "path"), string(args, "query"), string(args, "cursor")), new tools.jackson.core.type.TypeReference<>() { });
             case "search_knowledge" -> reader.search(source, string(args, "path"), string(args, "query"), string(args, "cursor"));
-            case "read_knowledge_source" -> reader.read(source, string(args, "path"), number(args, "section", -1), number(args, "startLine", 1), string(args, "expectedSha"), number(args, "offset", 0));
+            case "read_knowledge_source" -> reader.readRange(source, string(args, "path"), number(args, "section", -1), number(args, "startLine", 1), number(args, "endLine", 0), string(args, "expectedSha"), number(args, "offset", 0));
             default -> throw KnowledgeSources.bad("此工具不属于知识问答权限");
         };
     }
@@ -69,7 +71,7 @@ public class KnowledgeTools {
     private Map<String,Object> citation(Conversation conversation, Turn turn, Map<String,Object> body) {
         if (mapper.citationCount(turn.id()) >= 100) throw KnowledgeSources.bad("本轮已保存 100 条证据，请据此回答或在下一轮继续检索");
         String id = UUID.randomUUID().toString(), now = Instant.now().toString();
-        if (!"DATABASE".equals(body.get("kind"))) {
+        if (!Set.of("DATABASE", "GIT").contains(body.get("kind"))) {
             String previous = mapper.previousFileSha(turn.id(), Objects.toString(body.get("sourceId")), Objects.toString(body.get("path"), ""));
             if (previous != null && !previous.equals(body.get("sha256"))) {
                 body = new LinkedHashMap<>(body); body.put("changedSinceEarlierRead", true); body.put("previousSha256", previous);
@@ -82,6 +84,10 @@ public class KnowledgeTools {
                 Objects.toString(body.get("name")), Objects.toString(body.get("location")), Objects.toString(body.get("sha256")), encoded, now)) != 1)
             throw KnowledgeSources.bad("会话已停止，未保存迟到引用");
         var result = new LinkedHashMap<>(body); result.put("citationId", id); result.put("citationLink", "knowledge:" + id); result.put("collectedAt", now); return result;
+    }
+    private static String callDetail(Map<String,Object> args) {
+        String value = List.of("path", "query", "author", "table").stream().map(k -> Objects.toString(args.get(k), "")).filter(v -> !v.isBlank()).findFirst().orElse("");
+        return AssistRedaction.text(value.substring(0, Math.min(value.length(), 160)));
     }
     private static String string(Map<String,Object> args, String key) { return args.get(key) instanceof String text ? text : null; }
     private static int number(Map<String,Object> args, String key, int fallback) { return args.get(key) instanceof Number n ? n.intValue() : fallback; }

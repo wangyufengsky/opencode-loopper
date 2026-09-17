@@ -10,6 +10,7 @@ import io.opencode.loopper.service.ProjectService;
 import io.opencode.loopper.service.assist.AssistToolCatalog;
 import io.opencode.loopper.service.knowledge.KnowledgeConversations;
 import io.opencode.loopper.service.knowledge.KnowledgeCoordinator;
+import io.opencode.loopper.service.knowledge.KnowledgeQuestions;
 import io.opencode.loopper.service.knowledge.KnowledgePersistence;
 import java.net.InetSocketAddress;
 import java.net.URI;
@@ -60,6 +61,7 @@ class KnowledgeMcpTransportIntegrationTest {
         registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + DATA.resolve("test.db") + "?foreign_keys=on&journal_mode=WAL&transaction_mode=IMMEDIATE");
     }
     @LocalServerPort int port;
+    @Autowired io.opencode.loopper.persistence.KnowledgeV2Mapper v2;
     @Autowired Flyway flyway;
     @Autowired ProjectService projects;
     @Autowired KnowledgeConversations conversations;
@@ -81,6 +83,9 @@ class KnowledgeMcpTransportIntegrationTest {
     private InternalMcpCredentialProvider.Credentials credentials;
     private String project;
     private String mcpSession;
+    private final AtomicBoolean nativeQuestion = new AtomicBoolean();
+    private final AtomicInteger replyRequests = new AtomicInteger();
+    private final AtomicReference<JsonNode> replyBody = new AtomicReference<>();
     private final AtomicReference<JsonNode> sentPrompt = new AtomicReference<>();
     private final AtomicReference<JsonNode> sessionRequest = new AtomicReference<>();
     private final AtomicBoolean loseCreateResponse = new AtomicBoolean();
@@ -99,6 +104,16 @@ class KnowledgeMcpTransportIntegrationTest {
             String path = exchange.getRequestURI().getPath();
             if (path.equals("/mcp")) response = Map.of(credentials.serverName(), Map.of("status", "connected"),
                     AssistToolCatalog.serverName(credentials.serverName()), Map.of("status", "connected"));
+            else if (path.equals("/experimental/tool/ids")) response = nativeQuestion.get() ? List.of("question") : List.of();
+            else if (path.equals("/question")) response = nativeQuestion.get() ? List.of(
+                    Map.of("id", "question-current", "sessionID", "ses_knowledge_transport", "tool", Map.of("messageID", "assistant-current"),
+                        "questions", List.of(Map.of("question", "请选择作者", "options", List.of(Map.of("label", "张三", "description", "研发"))))),
+                    Map.of("id", "question-old", "sessionID", "ses_knowledge_transport", "tool", Map.of("messageID", "assistant-old"),
+                        "questions", List.of(Map.of("question", "旧轮次问题", "options", List.of())))) : List.of();
+            else if (path.endsWith("/message")) response = List.of(
+                    Map.of("info", Map.of("id", "assistant-current", "role", "assistant", "parentID", sentPrompt.get().path("messageID").asText()), "parts", List.of()),
+                    Map.of("info", Map.of("id", "assistant-old", "role", "assistant", "parentID", "old-prompt"), "parts", List.of()));
+            else if (path.equals("/question/question-current/reply")) { replyRequests.incrementAndGet(); replyBody.set(json.readTree(exchange.getRequestBody())); nativeQuestion.set(false); response = Map.of(); }
             else if (path.equals("/session") && exchange.getRequestMethod().equals("POST")) {
                 createRequests.incrementAndGet();
                 sessionRequest.set(json.readTree(exchange.getRequestBody()));
@@ -120,7 +135,7 @@ class KnowledgeMcpTransportIntegrationTest {
                 endpoint, null, null, true, credentials.generation(), credentials.serverName()), properties,
                 new OpenCodeCapabilityRegistry(), bindings);
         remote.installAssist(assist);
-        coordinator = new KnowledgeCoordinator(knowledge, persistence, remote, json, properties, events);
+        coordinator = new KnowledgeCoordinator(knowledge, persistence, remote, json, properties, events, new KnowledgeQuestions(v2, knowledge, remote, json, events), v2);
     }
     @AfterEach void close() {
         if (coordinator != null) coordinator.close();
@@ -185,6 +200,37 @@ class KnowledgeMcpTransportIntegrationTest {
         assertThat(conversations.messages(chat.id(), null, 50).items()).singleElement().satisfies(message -> {
             assertThat(message.state()).isEqualTo("FAILED"); assertThat(message.detail()).contains("MCP 尚未连接");
         });
+    }
+    @Test void nativeQuestionUsesExactCurrentMessageAndReplyTransportAfterDurableReceipt() throws Exception {
+        nativeQuestion.set(true);
+        var chat = create(); persistence.begin(chat.id(), UUID.randomUUID().toString(), "张三昨天做了什么？");
+        coordinator.tick(chat.id()); coordinator.tick(chat.id()); coordinator.tick(chat.id());
+        assertThat(assistMapper.session("ses_knowledge_transport").profile()).isEqualTo("KNOWLEDGE_INTERACTIVE_READ_ONLY");
+        var turn = knowledge.active(chat.id()).orElseThrow();
+        var pending = conversations.message(turn).questions();
+        assertThat(pending).singleElement().satisfies(q -> assertThat(q.questions().getFirst().question()).isEqualTo("请选择作者"));
+        assertThat(sessionRequest.get().path("permission").toString()).contains("question").doesNotContain("bash");
+        var reply = new KnowledgeQuestions.Reply(UUID.randomUUID().toString(), List.of(List.of("张三")), pending.getFirst().version());
+        var interactions = new KnowledgeQuestions(v2, knowledge, remote, json, events);
+        interactions.reply(chat.id(), pending.getFirst().id(), reply);
+        assertThat(replyRequests).hasValue(0);
+        coordinator.tick(chat.id()); interactions.reply(chat.id(), pending.getFirst().id(), reply);
+        assertThat(replyRequests).hasValue(1); assertThat(replyBody.get().path("answers").get(0).get(0).asText()).isEqualTo("张三");
+        assertThat(conversations.message(turn).questions().getFirst().state()).isEqualTo("ANSWERED");
+        assertThat(call("list_knowledge_sources", Map.of("scope", transmittedScope())).path("isError").asBoolean()).isFalse();
+    }
+    @Test void frozenGitSourceIsAvailableThroughTheRealScopedMcpTransport() throws Exception {
+        for (var args : List.of(List.of("git", "init", "-q"), List.of("git", "add", "README.md"),
+                List.of("git", "-c", "user.name=测试作者", "-c", "user.email=fixture@example.test", "commit", "-q", "-m", "新增知识模块"))) {
+            var process = new ProcessBuilder(args).directory(root.toFile()).redirectErrorStream(true).start();
+            assertThat(process.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue(); assertThat(process.exitValue()).isZero();
+        }
+        var chat = conversations.create(new KnowledgeConversations.Create(UUID.randomUUID().toString(), project, "Git 查询", "fake/model", List.of("git")));
+        persistence.begin(chat.id(), UUID.randomUUID().toString(), "谁提交了知识模块？"); coordinator.tick(chat.id()); coordinator.tick(chat.id());
+        var result = call("search_knowledge_git_commits", Map.of("scope", transmittedScope(), "sourceId", "git", "author", "测试作者"));
+        assertThat(result.path("isError").asBoolean()).isFalse();
+        String citation = result.path("structuredContent").path("citationId").asText();
+        assertThat(citation).isNotBlank(); assertThat(conversations.citation(chat.id(), citation).toString()).contains("新增知识模块");
     }
     private void assertTransportRead(KnowledgeConversations.View chat) throws Exception {
         assertThat(sentPrompt.get()).as("question reached the real HTTP adapter").isNotNull();

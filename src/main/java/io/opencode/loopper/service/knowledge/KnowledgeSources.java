@@ -21,9 +21,10 @@ public class KnowledgeSources {
     private final KnowledgeDocumentCache documents;
     private final ObjectMapper json;
     private final Path storage;
+    private final KnowledgeGit git;
     public KnowledgeSources(KnowledgeMapper mapper, ProjectService projects, DatabaseConnectionService databases,
-            KnowledgeDocumentCache documents, ObjectMapper json, LoopperProperties properties) {
-        this.mapper = mapper; this.projects = projects; this.databases = databases; this.documents = documents; this.json = json;
+            KnowledgeDocumentCache documents, ObjectMapper json, LoopperProperties properties, KnowledgeGit git) {
+        this.git = git; this.mapper = mapper; this.projects = projects; this.databases = databases; this.documents = documents; this.json = json;
         this.storage = canonicalDataRoot(properties.getDataDir()).resolve("knowledge/files");
     }
     private static Path canonicalDataRoot(Path configured) {
@@ -45,11 +46,17 @@ public class KnowledgeSources {
         if (page == null) {
             items.add(view(new Bound("code", "CODE", "项目代码", root.rootPath(), null, "READY", "包含当前本地改动", 0)));
             items.add(view(new Bound("documents", "DOCUMENTS", "项目文档", root.rootPath(), null, "READY", "项目目录内的文档", 0)));
+            if (root.documentPath() != null && !root.documentPath().isBlank()) items.add(view(projectDocuments(root.documentPath(), root.version())));
+            var repository = git.source(root.rootPath()); if (repository != null) items.add(view(repository));
             databases.forProject(project).forEach(c -> items.add(new View("database:" + c.id(), "DATABASE", c.name(), "READY", String.join("、", c.config().schemas()), c.version())));
         }
         var visible = rows.stream().limit(limit).toList(); visible.forEach(s -> items.add(view(bound(s))));
         String next = rows.size() > limit ? new PageCursor(visible.getLast().createdAt(), visible.getLast().id()).encode() : null;
         return new CursorPage<>(items, next);
+    }
+    private Bound projectDocuments(String path, long version) {
+        try { return new Bound("project-documents", "DOCUMENTS", "项目文档目录", KnowledgeFiles.directory(path).toString(), null, "READY", "来自项目 documentPath", version); }
+        catch (RuntimeException unavailable) { return new Bound("project-documents", "DOCUMENTS", "项目文档目录", Objects.toString(path, ""), null, "FAILED", "项目文档目录不存在或不可读，请检查项目管理中的文档路径", version); }
     }
     public Selection freeze(String project, List<String> ids) {
         var root = projects.get(project); if (root.managed() != 1) throw bad("项目已取消管理，请重新选择项目");
@@ -59,7 +66,12 @@ public class KnowledgeSources {
         for (String id : ids) {
             if ("code".equals(id) || "documents".equals(id)) sources.add(new Bound(id, "code".equals(id) ? "CODE" : "DOCUMENTS",
                     "code".equals(id) ? "项目代码" : "项目文档", KnowledgeFiles.directory(root.rootPath()).toString(), null, "READY", "", 0));
-            else if (id != null && id.startsWith("database:")) connections.add(available.stream().filter(c -> id.equals("database:" + c.id())).findFirst().orElseThrow(() -> bad("数据库连接未授权给当前项目")));
+            else if ("project-documents".equals(id)) {
+                var source = projectDocuments(root.documentPath(), root.version());
+                if (!source.state().equals("READY")) throw bad(source.detail()); sources.add(source);
+            } else if ("git".equals(id)) {
+                var source = git.source(root.rootPath()); if (source == null) throw bad("项目 Git 仓库不可用"); sources.add(source);
+            } else if (id != null && id.startsWith("database:")) connections.add(available.stream().filter(c -> id.equals("database:" + c.id())).findFirst().orElseThrow(() -> bad("数据库连接未授权给当前项目")));
             else { var row = require(project, id); if (!"READY".equals(row.state())) throw bad("所选资料尚不可用，请刷新资料来源"); sources.add(bound(row)); }
         }
         return new Selection(List.copyOf(sources), List.copyOf(connections));

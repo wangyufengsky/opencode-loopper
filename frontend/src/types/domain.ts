@@ -1687,12 +1687,15 @@ export interface GitCredentialInput {
 
 export interface SnapshotReviewPartialReport { content: string; sha256: string; capturedAt: string; analyzedUnits: number; pendingUnits: number; excludedUnits: number }
 
-export interface KnowledgeSource { id: string; kind: 'CODE' | 'DOCUMENTS' | 'DIRECTORY' | 'UPLOAD' | 'DATABASE'; name: string; state: string; detail: string; version: number }
-export interface KnowledgeConversation { usage?: { inputTokens: number | null; outputTokens: number | null } | null; id: string; projectId: string; title: string; model: string; state: 'IDLE' | 'RUNNING' | 'STOPPING' | 'DISCONNECTED'; sources: KnowledgeSource[]; createdAt: string; updatedAt: string; version: number }
+export interface KnowledgeSource { id: string; kind: 'CODE' | 'DOCUMENTS' | 'DIRECTORY' | 'UPLOAD' | 'DATABASE' | 'GIT'; name: string; state: string; detail: string; version: number }
+export interface KnowledgeConversation { options?: { contractVersion: number; timezone?: string; awaitingAnswer?: boolean; archivedAt: string | null; lastActivityAt: string; version: number }; usage?: { inputTokens: number | null; outputTokens: number | null } | null; id: string; projectId: string; title: string; model: string; state: 'IDLE' | 'RUNNING' | 'STOPPING' | 'DISCONNECTED'; sources: KnowledgeSource[]; createdAt: string; updatedAt: string; version: number }
 export interface KnowledgeCitation { id: string; kind: string; name: string; location: string; sha256: string; createdAt: string }
 export interface KnowledgeCall { id: string; tool: string; state: string; detail: string }
-export interface KnowledgeMessage { id: string; ordinal: number; state: string; userText: string; answer: string; thinking?: string; detail: string; inputTokens: number | null; outputTokens: number | null; createdAt: string; citations: KnowledgeCitation[]; calls: KnowledgeCall[] }
+export interface KnowledgeMessage { questions?: KnowledgeQuestion[]; id: string; ordinal: number; state: string; userText: string; answer: string; thinking?: string; detail: string; inputTokens: number | null; outputTokens: number | null; createdAt: string; citations: KnowledgeCitation[]; calls: KnowledgeCall[] }
 export interface KnowledgeContent { kind: string; sourceId: string; path: string; name: string; sha256: string; text?: string; location?: string; versionLabel?: string; startLine?: number; endLine?: number; nextLine?: number; section?: number; nextSection?: number; sections?: { section: number; title: string }[]; sectionCount?: number; limitations?: string[]; sql?: string; truncated?: boolean; [key: string]: unknown }
 export interface KnowledgeListing { items: { path: string; name: string; directory: boolean; bytes: number }[]; nextCursor: string | null; incomplete: boolean; detail: string }
-export interface KnowledgeSearch { matches: { path: string; name: string; section?: number; startLine?: number; sha256: string; snippet: string }[]; nextCursor: string | null; incomplete: boolean; limitations: string[]; detail: string }
-export interface KnowledgeCreate { id: string; projectId: string; title: string; model: string; sourceIds: string[] }
+export interface KnowledgeSearch { matches: { sourceId?: string; resourceKey?: string; path: string; name: string; section?: number; startLine?: number; sha256: string; snippet: string }[]; nextCursor: string | null; incomplete: boolean; limitations: string[]; detail: string }
+export interface KnowledgeCreate { id: string; projectId: string; title: string; model: string; sourceIds: string[]; timezone?: string }
+
+export interface KnowledgeQuestion { id: string; state: 'PENDING' | 'PREPARED' | 'SENDING' | 'ANSWERED' | 'UNKNOWN' | 'CLOSED'; questions: TaskSessionPendingQuestion['questions']; answers: string[][]; version: number }
+export interface KnowledgeRange { unit: 'L' | 'R'; first: number; last: number }

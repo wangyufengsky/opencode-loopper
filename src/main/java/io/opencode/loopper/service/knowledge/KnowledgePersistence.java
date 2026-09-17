@@ -15,10 +15,12 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class KnowledgePersistence {
     private final KnowledgeMapper mapper;
+    private final KnowledgeV2Mapper options;
     private final LifecycleTransitionService lifecycle;
-    public KnowledgePersistence(KnowledgeMapper mapper, LifecycleTransitionService lifecycle) { this.mapper = mapper; this.lifecycle = lifecycle; }
-    public void create(Conversation row) {
-        lifecycle.create(conversationSubject(row), "IDLE", Map.of(), () -> mapper.insertConversation(row), () -> conflict("会话创建标识已存在，请重新读取"));
+    public KnowledgePersistence(KnowledgeMapper mapper, LifecycleTransitionService lifecycle, KnowledgeV2Mapper options) { this.options = options; this.mapper = mapper; this.lifecycle = lifecycle; }
+    @Transactional
+    public void create(Conversation row, String timezone) {
+        lifecycle.create(conversationSubject(row), "IDLE", Map.of(), () -> { int inserted = mapper.insertConversation(row); options.create(row.id(), row.createdAt(), timezone); return inserted; }, () -> conflict("会话创建标识已存在，请重新读取"));
     }
     public Conversation require(String id) { return mapper.conversation(id).orElseThrow(() -> new NotFoundException("知识库会话不存在")); }
     @Transactional
@@ -33,7 +35,7 @@ public class KnowledgePersistence {
         String turnId = UUID.randomUUID().toString(), now = Instant.now().toString();
         var turn = new Turn(turnId, id, mapper.nextOrdinal(id), key, "msg_loopper_knowledge_" + turnId.replace("-", ""),
                 "PREPARED", text, "", "", null, null, null, null, now, now, 0, "");
-        conversationState(conversation, "RUNNING");
+        conversationState(conversation, "RUNNING"); options.activity(id, now);
         lifecycle.create(turnSubject(turn), "PREPARED", Map.of(), () -> mapper.insertTurn(turn), () -> conflict("问题已登记，请重新读取")); return turn;
     }
     @Transactional
@@ -44,7 +46,7 @@ public class KnowledgePersistence {
     }
     @Transactional
     public void finish(Turn turn, String state, String detail) {
-        state(turn, state, detail); var conversation = require(turn.conversationId());
+        state(turn, state, detail); options.closeQuestions(turn.id(), Instant.now().toString()); options.activity(turn.conversationId(), Instant.now().toString()); var conversation = require(turn.conversationId());
         conversationState(conversation, "IDLE");
     }
     @Transactional

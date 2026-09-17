@@ -43,7 +43,7 @@ public class AssistToolService {
         return new Result(result,true);
     }
     private Map<String,Object> execute(AssistScopeService.Scope scope,String name,Map<String,Object> args) {
-        if (scope.profile().equals("KNOWLEDGE_READ_ONLY")) return knowledge.call(scope, name, args);
+        if (scope.profile().startsWith("KNOWLEDGE_")) return knowledge.call(scope, name, args);
         return switch(name) {
             case "list_database_connections" -> Map.of("connections",scope.connections().stream().map(c->Map.of("id",c.id(),"name",c.name(),"type",c.config().type(),"schemas",c.config().schemas(),"version",c.version(),"availability","FROZEN_CONFIGURATION")).toList());
             case "inspect_database_schema" -> databases.inspect(connection(scope,args),string(args,"schema"),string(args,"table"),string(args,"kind"),number(args,"offset"));

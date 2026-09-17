@@ -10,8 +10,9 @@ import java.util.*;
 public class KnowledgeSourceController {
     private final KnowledgeSources sources;
     private final KnowledgeReader reader;
+    private final KnowledgeGit git;
     private final io.opencode.loopper.service.assist.DatabaseQueryService databases;
-    public KnowledgeSourceController(KnowledgeSources sources, KnowledgeReader reader, io.opencode.loopper.service.assist.DatabaseQueryService databases) { this.sources = sources; this.reader = reader; this.databases = databases; }
+    public KnowledgeSourceController(KnowledgeSources sources, KnowledgeReader reader, io.opencode.loopper.service.assist.DatabaseQueryService databases, KnowledgeGit git) { this.git = git; this.sources = sources; this.reader = reader; this.databases = databases; }
     @GetMapping public CursorPage<KnowledgeSources.View> list(@PathVariable String project,
             @RequestParam(required=false) String cursor, @RequestParam(required=false) Integer limit) { return sources.list(project, cursor, limit); }
     public record Directory(String path) { }
@@ -32,6 +33,16 @@ public class KnowledgeSourceController {
             @RequestHeader(value="X-Loopper-Local-UI",required=false) String localUi) { KnowledgeController.requireUi(localUi); return sources.refresh(project, source, input.version()); }
     @DeleteMapping("/{source}") public void remove(@PathVariable String project, @PathVariable String source, @RequestParam long version,
             @RequestHeader(value="X-Loopper-Local-UI",required=false) String localUi) { KnowledgeController.requireUi(localUi); sources.remove(project, source, version); }
+    @GetMapping("/{source}/git") public Map<String,Object> git(@PathVariable String project, @PathVariable String source,
+            @RequestParam(required=false) String conversationId, @RequestParam(defaultValue="inspect_knowledge_git") String tool,
+            @RequestParam Map<String,String> parameters) {
+        var bound = sources.selected(project, conversationId, source); Map<String,Object> args = new LinkedHashMap<>();
+        for (String key : List.of("ref", "path", "query", "author", "since", "until", "timeField", "cursor", "commit")) if (parameters.containsKey(key)) args.put(key, parameters.get(key));
+        for (String key : List.of("startLine", "endLine")) if (parameters.containsKey(key)) {
+            try { args.put(key, Integer.parseInt(parameters.get(key))); } catch (NumberFormatException invalid) { throw KnowledgeSources.bad("Git 行号无效"); }
+        }
+        return git.call(conversationId == null || conversationId.isBlank() ? "project:" + project : conversationId, bound, tool, args);
+    }
     @GetMapping("/{source}/database") public Map<String,Object> database(@PathVariable String project, @PathVariable String source,
             @RequestParam(required=false) String conversationId, @RequestParam(required=false) String schema,
             @RequestParam(required=false) String table, @RequestParam(defaultValue="tables") String kind, @RequestParam(defaultValue="0") int offset) {
@@ -47,8 +58,8 @@ public class KnowledgeSourceController {
     }
     @GetMapping("/{source}/content") public Map<String,Object> read(@PathVariable String project, @PathVariable String source,
             @RequestParam(required=false) String conversationId, @RequestParam(required=false) String path,
-            @RequestParam(defaultValue="0") int offset, @RequestParam(defaultValue="-1") int section, @RequestParam(defaultValue="1") int startLine, @RequestParam(required=false) String expectedSha) {
-        return reader.read(sources.selected(project, conversationId, source), path, section, startLine, expectedSha, offset);
+            @RequestParam(defaultValue="0") int offset, @RequestParam(defaultValue="-1") int section, @RequestParam(defaultValue="1") int startLine, @RequestParam(defaultValue="0") int endLine, @RequestParam(required=false) String expectedSha) {
+        return reader.readRange(sources.selected(project, conversationId, source), path, section, startLine, endLine, expectedSha, offset);
     }
     @GetMapping("/{source}/search") public Map<String,Object> search(@PathVariable String project, @PathVariable String source,
             @RequestParam(required=false) String conversationId, @RequestParam(required=false) String path,

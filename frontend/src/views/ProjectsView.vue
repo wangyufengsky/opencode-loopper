@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Icon } from '@iconify/vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
 import ProjectAssistDialog from '@/components/ProjectAssistDialog.vue'
 import ProjectDocumentPathDialog from '@/components/ProjectDocumentPathDialog.vue'
@@ -15,7 +15,7 @@ import type { Project, ProjectConventionActivity, ProjectConventionDraft, Projec
 import { userFacingError } from '@/utils/displayLabels'
 
 const store = useTaskStore()
-const router = useRouter()
+const router = useRouter(), route = useRoute()
 const dialogVisible = ref(false)
 const documentProject = ref<Project>()
 const assistProject = ref<Project>()
@@ -43,7 +43,11 @@ const cancellingProjectId = ref('')
 let conventionPollTimer: number | undefined
 const conventionInFlight = computed(() => conventionDraft.value?.state === 'RUNNING'
   || conventionDraft.value?.state === 'STOPPING')
-onMounted(() => { void store.loadProjects() })
+onMounted(async () => {
+  await store.loadProjects(); await nextTick()
+  const id = String(route.query.project || '')
+  if (id) document.getElementById(`project-${id}`)?.scrollIntoView({ block: 'center' })
+})
 
 function stackLabel(project: Project) {
   if (project.stackProfileState === 'FAILED') return '分析失败'
@@ -269,7 +273,7 @@ onBeforeUnmount(clearConventionPoll)
     <section class="toolbar"><div><p class="eyebrow">{{ store.usingDemo ? '演示数据' : '已登记项目' }}</p><span class="muted tiny">{{ store.projects.length }} 个项目</span></div><el-button text :icon="Icon" @click="store.loadProjects(true)"><Icon icon="lucide:refresh-cw" />刷新</el-button></section>
     <section v-if="store.loading" class="metric-grid"><div v-for="n in 4" :key="n" class="skeleton-block" style="height: 150px" /></section>
     <section v-else-if="store.projects.length" class="project-grid">
-      <article v-for="project in store.projects" :key="project.id" class="card card-pad project-card">
+      <article v-for="project in store.projects" :key="project.id" :id="`project-${project.id}`" class="card card-pad project-card" :class="{ 'knowledge-project-target': route.query.project === project.id }">
         <div class="card-header"><div><div class="project-icon"><Icon :icon="project.executionMode === 'WORKTREE' ? 'lucide:folder-git-2' : 'lucide:folder-cog'" /></div><h2 class="card-title" style="margin-top: 12px">{{ project.name }}</h2></div><StatusBadge :status="project.status === 'INVALID' ? 'FAILED' : project.status === 'READY' ? 'SUCCEEDED' : 'PENDING'" :label="project.status === 'INVALID' ? '路径不可用' : project.executionMode === 'WORKTREE' ? 'Git 分支模式' : '直接模式'" /></div>
         <p v-if="project.documentPath" class="mono tiny muted project-path">文档：{{ project.documentPath }}</p>
         <p v-if="project.description" class="card-description">{{ project.description }}</p>
@@ -380,4 +384,8 @@ onBeforeUnmount(clearConventionPoll)
 @media (max-width: 980px) { .project-grid { grid-template-columns: 1fr; } }
 @media (max-width: 720px) { .project-grid { grid-template-columns: 1fr; }.project-footer { align-items: stretch; flex-direction: column; }.project-actions { justify-content: flex-start; } }
 @media (max-width: 560px) { .path-picker-row { grid-template-columns: 1fr; }.folder-picker-button { width: 100%; } }
+</style>
+
+<style scoped>
+.knowledge-project-target { border-color: var(--color-accent-cyan); }
 </style>

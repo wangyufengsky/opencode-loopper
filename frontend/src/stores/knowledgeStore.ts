@@ -43,7 +43,7 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     subscription.onerror = () => { disconnected.value = true }
   }
   async function load(id: string) {
-    if (conversation.value?.id === id) return refresh()
+    if (conversation.value?.id === id) { subscribe(id); return refresh() }
     reset(); const ticket = epoch; loading.value = true
     try {
       const [summary, page] = await Promise.all([api.get(id), api.messages(id)])

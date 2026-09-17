@@ -8,7 +8,7 @@ import { useTaskStore } from '@/stores/taskStore'
 import ProjectsView from '@/views/ProjectsView.vue'
 
 const { routerPush } = vi.hoisted(() => ({ routerPush: vi.fn() }))
-vi.mock('vue-router', () => ({ useRouter: () => ({ push: routerPush }) }))
+vi.mock('vue-router', () => ({ useRouter: () => ({ push: routerPush }), useRoute: () => ({ query: {} }) }))
 
 beforeEach(() => {
   const pinia = createPinia()
