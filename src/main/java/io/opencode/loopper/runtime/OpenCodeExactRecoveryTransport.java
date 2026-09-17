@@ -167,7 +167,7 @@ final class OpenCodeExactRecoveryTransport {
                 throw new SessionFailure("OPENCODE_DIRECTORY_MISMATCH",
                         "OpenCode created the session outside the requested execution workspace");
             }
-            sessionConnections.created(id, plan.canonicalDirectory(), connection);
+            validateOrRegisterBinding(id, plan, connection);
             return attestation(id, plan);
         } catch (SessionFailure failure) {
             throw failure;

@@ -120,7 +120,12 @@ public class KnowledgeCoordinator {
             openCode.promptAsync(remote, prompt);
             mapper.turn(turn.id()).filter(t -> t.state().equals("SENDING")).ifPresent(t -> persistence.state(t, "RUNNING", ""));
         } catch (RuntimeException unknown) {
-            mapper.turn(turn.id()).filter(t -> t.state().equals("SENDING")).ifPresent(t -> persistence.state(t, "UNKNOWN", "发送结果待核对，未重复发送"));
+            mapper.turn(turn.id()).filter(t -> t.state().equals("SENDING")).ifPresent(t -> {
+                if (unknown instanceof io.opencode.loopper.domain.SessionFailure failure
+                        && Set.of("ASSIST_SCOPE_UNAVAILABLE", "ASSIST_MCP_UNAVAILABLE").contains(failure.code()))
+                    persistence.finish(t, "FAILED", failure.getMessage());
+                else persistence.state(t, "UNKNOWN", "发送结果待核对，未重复发送");
+            });
         }
     }
     private void recoverPrompt(OpenCodeSession remote, Turn turn) {

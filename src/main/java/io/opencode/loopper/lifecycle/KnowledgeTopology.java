@@ -9,7 +9,7 @@ final class KnowledgeTopology {
                 .transition(PREPARED, PREPARE, CREATING).transition(PREPARED, DISPATCH, SENDING)
                 .transition(CREATING, DISCONNECT, CREATE_UNKNOWN).transition(CREATE_UNKNOWN, RECOVER, CREATING)
                 .transition(CREATING, DISPATCH, SENDING).transition(SENDING, START, RUNNING)
-                .transition(SENDING, DISCONNECT, UNKNOWN).transition(UNKNOWN, RECOVER, RUNNING)
+                .transition(SENDING, DISCONNECT, UNKNOWN).transition(SENDING, FAIL, FAILED).transition(UNKNOWN, RECOVER, RUNNING)
                 .transition(RUNNING, COMPLETE, COMPLETED).transition(PREPARED, FAIL, FAILED).transition(RUNNING, FAIL, FAILED)
                 .transition(STOPPING, ABORT, STOPPED);
         for (KnowledgeTurnState state : KnowledgeTurnState.values()) if (!state.terminal() && state != STOPPING) builder.transition(state, CANCEL, STOPPING);

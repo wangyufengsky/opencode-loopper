@@ -63,10 +63,17 @@ public class AssistRuntimeSupport {
         if(old!=null) {if(!old.generation().equals(generation)||!old.permissionsJson().equals(encoded))throw new AssistFailure("ASSIST_SESSION_CHANGED","冻结的辅助权限与会话不一致","REAUTHORIZE");return;}
         mapper.insertSession(new AssistMapper.Session(session,generation,directory.toString(),profile.name(),encoded,json.writeValueAsString(tools),Instant.now().toString()));
     }
-    void enrich(String session,Map<String,Object> body) {
+    void enrich(String session,Map<String,Object> body,OpenCodeClient.SessionProfile profile) {
         documents.enrich(session, body);
         scopes.requireDeclaredCapabilities(session);
-        String grant=scopes.grant(session);if(grant.isEmpty())return;
+        String grant=scopes.grant(session);
+        if (profile == OpenCodeClient.SessionProfile.KNOWLEDGE_READ_ONLY) {
+            var snapshot = mapper.session(session);
+            if (grant.isEmpty() || snapshot == null || !profile.name().equals(snapshot.profile()))
+                throw new io.opencode.loopper.domain.SessionFailure("ASSIST_SCOPE_UNAVAILABLE",
+                        "知识库工具授权尚未就绪，问题未发送；请检查运行环境后新建对话");
+        }
+        if(grant.isEmpty())return;
         var scope=scopes.resolve(session);
         boolean available;
         try {available=inventory.inventory(scope.directory()).servers().stream().anyMatch(s->AssistToolCatalog.SERVER.equals(s.id())&&"connected".equalsIgnoreCase(s.status()));}
