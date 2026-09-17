@@ -4,8 +4,11 @@ import { api } from '@/api/client'
 import type { Project, ProjectAssistConfig, AssistEvidenceSource } from '@/types/domain'
 import { userFacingError } from '@/utils/displayLabels'
 import DirectoryPathInput from './DirectoryPathInput.vue'
+import GitCredentialForm from './GitCredentialForm.vue'
 const props = defineProps<{ project?: Project; demo?: boolean }>()
 const emit = defineEmits<{ close: [] }>()
+const activeTab = ref('account')
+const credentialBusy = ref(false)
 const view = ref<ProjectAssistConfig>()
 const repository = ref('')
 const sources = ref<AssistEvidenceSource[]>([])
@@ -19,7 +22,7 @@ function accept(value: ProjectAssistConfig) {
   sources.value = value.config.sources.map(row => ({ ...row })); dirty.value = false
 }
 watch(() => props.project?.id, async id => {
-  const request = ++generation; error.value = ''; view.value = undefined
+  const request = ++generation; error.value = ''; view.value = undefined; activeTab.value = 'account'
   if (!id) return
   loading.value = true
   try {
@@ -48,7 +51,11 @@ async function action(kind: 'save' | 'check' | 'discover') {
 function addSource() { sources.value.push({ kind: 'LOG', root: '', pattern: 'logs/*.log' }); dirty.value = true }
 </script>
 <template>
-  <el-dialog :model-value="!!project" title="GitLab 与证据来源" width="min(760px, calc(100vw - 32px))" :close-on-click-modal="false" :show-close="!loading" :close-on-press-escape="!loading" @close="emit('close')">
+  <el-dialog :model-value="!!project" :title="`${project?.name ?? ''} · Git 与 GitLab`" destroy-on-close width="min(760px, calc(100vw - 32px))" :close-on-click-modal="false" :show-close="!loading && !credentialBusy" :close-on-press-escape="!loading && !credentialBusy" @close="emit('close')">
+    <el-tabs v-model="activeTab" :before-leave="() => !loading && !credentialBusy"><el-tab-pane label="Git 账号" name="account" /><el-tab-pane label="GitLab 与证据" name="gitlab" /></el-tabs>
+    <GitCredentialForm v-if="project" v-show="activeTab === 'account'" :key="project.id" :project-id="project.id" :demo="demo" @busy="credentialBusy = $event" />
+    <section v-show="activeTab === 'gitlab'">
+    <p class="muted">支持 HTTP 与 HTTPS。<router-link to="/settings" @click="emit('close')">在设置中维护 GitLab 接口地址</router-link></p>
     <el-alert v-if="error" :title="error" type="error" :closable="false" />
     <el-form v-if="view" label-position="top" :disabled="loading || picking" @submit.prevent="action('save')">
       <el-form-item label="GitLab 仓库"><el-input v-model="repository" placeholder="group/subgroup/repository" @input="dirty = true" /></el-form-item>
@@ -65,7 +72,8 @@ function addSource() { sources.value.push({ kind: 'LOG', root: '', pattern: 'log
       <el-button :disabled="sources.length >= 16" @click="addSource">添加来源</el-button>
       <p class="muted tiny">配置仅供新任务使用。日志记录正式验证期间的新增内容；工具开关在辅助 MCP 工具设置中逐项启用。</p>
     </el-form>
-    <template #footer><el-button :disabled="loading" @click="emit('close')">关闭</el-button><el-button type="primary" :loading="loading" :disabled="!view || picking" @click="action('save')">保存配置</el-button></template>
+    </section>
+    <template #footer><el-button :disabled="loading || credentialBusy" @click="emit('close')">关闭</el-button><el-button v-if="activeTab === 'gitlab'" type="primary" :loading="loading" :disabled="!view || picking" @click="action('save')">保存配置</el-button></template>
   </el-dialog>
 </template>
 <style scoped>

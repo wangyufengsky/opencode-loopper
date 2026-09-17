@@ -35,6 +35,7 @@ public final class ReadOnlySqlPolicy {
             if(statements.size()!=1 || !(statements.get(0) instanceof Select select)) throw invalid("只允许单条 SELECT／只读 WITH");
             for(String table:new TablesNamesFinder<Void>().getTables((net.sf.jsqlparser.statement.Statement) select)) {
                 String[] parts=table.replace("\"","").replace("`","").split("\\.");
+                if(config.type()==DatabaseConfig.Type.SQLSERVER && parts.length!=2) throw invalid("SQL Server 查询须明确使用 schema.table，不允许跨数据库或省略 schema");
                 if(parts.length>2) throw invalid("不能跨服务器或跨数据库限定查询");
                 if(parts.length==2 && config.schemas().stream().noneMatch(s->s.equals(parts[0])))
                     throw invalid("SQL 引用了未授权的 schema／数据库，请先浏览允许的结构");

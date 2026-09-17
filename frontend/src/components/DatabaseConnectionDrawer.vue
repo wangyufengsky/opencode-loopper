@@ -15,6 +15,7 @@ const urlExamples: Record<DatabaseConnectionInput['config']['type'], string> = {
   OPENGAUSS: 'jdbc:postgresql://host1:8000,host2:8000/database?targetServerType=master',
   ORACLE: 'jdbc:oracle:thin:@//host:1521/service',
   DB2: 'jdbc:db2://host:50000/database',
+  SQLSERVER: 'jdbc:sqlserver://host:1433;databaseName=app;encrypt=true;trustServerCertificate=false',
   DAMENG: 'jdbc:dm://host:5236',
   GOLDENDB: 'jdbc:goldendb://host:3306/database',
 }
@@ -34,10 +35,11 @@ watch(() => props.modelValue, open => {
 })
 watch([form, password, schemas], () => { revision++; probe.value = null }, { deep: true, flush: 'sync' })
 function legacyUrl(c: DatabaseConnectionInput['config']) {
-  const prefixes = { MYSQL: 'mysql', GAUSSDB: 'postgresql', OPENGAUSS: 'postgresql', ORACLE: 'oracle:thin:@', DB2: 'db2', DAMENG: 'dm', GOLDENDB: 'goldendb' }
+  const prefixes = { MYSQL: 'mysql', GAUSSDB: 'postgresql', OPENGAUSS: 'postgresql', ORACLE: 'oracle:thin:@', DB2: 'db2', SQLSERVER: 'sqlserver', DAMENG: 'dm', GOLDENDB: 'goldendb' }
   const prefix = prefixes[c.type]
   const host = c.host.includes(':') ? `[${c.host}]` : c.host
   const query = c.type === 'DB2' ? Object.entries(c.parameters).map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)};`).join('') : new URLSearchParams(c.parameters).toString()
+  if (c.type === 'SQLSERVER') return `jdbc:sqlserver://${host}:${c.port};databaseName=${c.database}${Object.entries(c.parameters).map(([key, value]) => `;${key}=${value}`).join('')}`
   if (c.type === 'ORACLE') return `jdbc:oracle:thin:@//${host}:${c.port}/${c.database}${query ? `?${query}` : ''}`
   return `jdbc:${prefix}://${host}:${c.port}${c.type === 'DAMENG' ? '' : `/${c.database}`}${query ? `${c.type === 'DB2' ? ':' : '?'}${query}` : ''}`
 }
@@ -74,6 +76,7 @@ async function test() {
       </div><p class="driver-note">{{ profile ? `已内置 ${profile.label} 驱动 · ${profile.binaries[0]?.filename}` : '此历史类型暂不支持新增或修改连接配置' }}</p><p v-if="upgradingDriver" class="hint">测试和保存将使用上述驱动；保存后供新会话使用，历史任务保留原驱动。</p></section>
       <section><h3><span>02</span>连接信息</h3>
       <el-form-item label="JDBC URL"><el-input v-model="form.config.jdbcUrl" type="textarea" :rows="3" :placeholder="urlPlaceholder" aria-label="JDBC URL" /></el-form-item>
+      <p v-if="form.config.type === 'SQLSERVER'" class="hint">使用仅有 SELECT 权限的 SQL Server 账号；允许的 schema 通常为 dbo。TLS 默认验证服务器证书。</p>
       <el-form-item label="用户名"><el-input v-model="form.config.username" autocomplete="off" /></el-form-item>
       <el-form-item :label="row ? '新密码' : '密码'"><el-input v-model="password" type="password" autocomplete="new-password" :placeholder="row ? '留空保留原密码' : '使用数据库只读账号的密码'" /></el-form-item></section>
       <section><h3><span>03</span>访问范围</h3><el-form-item :label="mysql ? '允许访问的数据库' : '允许访问的 schema'"><el-input v-model="schemas" placeholder="多个名称用逗号分隔" /></el-form-item>
@@ -82,7 +85,7 @@ async function test() {
         <el-form-item label="查询超时（秒）"><el-input-number v-model="form.config.timeoutSeconds" :min="1" :max="30" controls-position="right" /></el-form-item><el-form-item label="最多返回行数"><el-input-number v-model="form.config.maxRows" :min="1" :max="1000" controls-position="right" /></el-form-item>
       </div></details>
       <div class="enable-row"><div><strong>启用连接</strong><p>供绑定项目的新会话使用</p></div><el-switch v-model="form.enabled" aria-label="启用连接" /></div>
-      <div v-if="probe" class="probe" role="status"><strong>连接成功 · {{ probe.sessionReadOnly ? '只读标记已确认' : '只读控制未通过' }}</strong><p>{{ probe.serverProduct }} {{ probe.serverVersion }}</p><p>{{ probe.detail }}</p><small>完整兼容性：待现场版本联调</small></div>
+      <div v-if="probe" class="probe" role="status"><strong>连接成功 · {{ probe.sessionReadOnly ? '只读标记已确认' : probe.readOnlyEnforced ? '只读权限已检查' : '只读控制未通过' }}</strong><p>{{ probe.serverProduct }} {{ probe.serverVersion }}</p><p>{{ probe.detail }}</p><small>完整兼容性：待现场版本联调</small></div>
       <p v-if="error" class="error" role="alert">{{ error }}</p>
     </el-form>
     <template #footer><div class="drawer-footer"><el-button :loading="testing" :disabled="saving || !profile" @click="test">测试连接</el-button><span /><el-button :disabled="saving || testing" @click="emit('update:modelValue', false)">取消</el-button><el-button type="primary" :loading="saving" :disabled="testing || !profile" @click="save">保存连接</el-button></div></template>

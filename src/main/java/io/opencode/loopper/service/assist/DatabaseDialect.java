@@ -8,7 +8,7 @@ import java.util.Set;
 
 /** Separates vendor URL, session and metadata semantics. Only explicitly supported properties pass. */
 public sealed interface DatabaseDialect permits DatabaseDialect.MySql, DatabaseDialect.Gauss,
-        DatabaseDialect.Golden, DatabaseDialect.Dameng, DatabaseDialect.Oracle, DatabaseDialect.Db2 {
+        DatabaseDialect.Golden, DatabaseDialect.Dameng, DatabaseDialect.Oracle, DatabaseDialect.Db2, DatabaseDialect.SqlServer {
     String prefix();
     default String url(DatabaseConfig config) {
         if (config.jdbcUrl() != null) return JdbcConnectionUrl.parse(config).driverUrl();
@@ -36,7 +36,7 @@ public sealed interface DatabaseDialect permits DatabaseDialect.MySql, DatabaseD
     default String probeSql() { return "SELECT 1"; }
     static DatabaseDialect forType(DatabaseConfig.Type type) {
         return switch (type) { case MYSQL -> new MySql(); case GAUSSDB, OPENGAUSS -> new Gauss();
-            case GOLDENDB -> new Golden(); case DAMENG -> new Dameng(); case ORACLE -> new Oracle(); case DB2 -> new Db2(); };
+            case GOLDENDB -> new Golden(); case DAMENG -> new Dameng(); case ORACLE -> new Oracle(); case DB2 -> new Db2(); case SQLSERVER -> new SqlServer(); };
     }
     final class MySql implements DatabaseDialect {
         public String prefix() { return "jdbc:mysql://"; }
@@ -107,6 +107,31 @@ public sealed interface DatabaseDialect permits DatabaseDialect.MySql, DatabaseD
                 statement.setQueryTimeout(config.timeoutSeconds());
                 statement.execute("SET TRANSACTION READ ONLY");
             }
+        }
+    }
+    final class SqlServer implements DatabaseDialect {
+        public String prefix() { return "jdbc:sqlserver://"; }
+        public String url(DatabaseConfig c) {
+            if(c.jdbcUrl()!=null)return DatabaseDialect.super.url(c);
+            String host=c.host().contains(":")?"["+c.host()+"]":c.host();
+            return prefix()+host+":"+c.port()+";databaseName="+c.database();
+        }
+        public void validateParameters(Map<String,String> parameters) {
+            if(parameters.size()>3 || parameters.entrySet().stream().anyMatch(e ->
+                    !Set.of("encrypt","trustServerCertificate","hostNameInCertificate").contains(e.getKey())
+                    || e.getValue()==null || (e.getKey().equals("hostNameInCertificate")
+                    ? !e.getValue().matches("[a-zA-Z0-9*_.-]{1,80}")
+                    : !Set.of("true","false").contains(e.getValue()))))
+                throw new AssistFailure("DATABASE_PARAMETER_FORBIDDEN","SQL Server 仅允许 encrypt、trustServerCertificate 和 hostNameInCertificate 参数");
+        }
+        public Properties properties(DatabaseConfig c,String password) {
+            Properties p=new Properties();p.setProperty("encrypt","true");p.setProperty("trustServerCertificate","false");
+            p.putAll(c.parameters());p.setProperty("user",c.username());p.setProperty("password",password);
+            p.setProperty("loginTimeout","5");p.setProperty("socketTimeout","30000");
+            p.setProperty("applicationIntent","ReadOnly");return p;
+        }
+        public void prepare(Connection connection,DatabaseConfig config) throws SQLException {
+            SqlServerReadOnlySession.prepare(connection,config);
         }
     }
     final class Db2 implements DatabaseDialect {

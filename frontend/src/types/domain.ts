@@ -1534,7 +1534,7 @@ export interface TemplateTaskSummary {
   branchLabel: string; startDate: string; endDate: string; repairRound: number; createdAt: string; updatedAt: string
 }
 export interface DatabaseConfig {
-  type: 'MYSQL' | 'OPENGAUSS' | 'GAUSSDB' | 'GOLDENDB' | 'DAMENG' | 'ORACLE' | 'DB2'
+  type: 'MYSQL' | 'OPENGAUSS' | 'GAUSSDB' | 'GOLDENDB' | 'DAMENG' | 'ORACLE' | 'DB2' | 'SQLSERVER'
   jdbcUrl?: string | null; host: string; port: number; database: string; username: string
   driverProfile?: string | null; driverFile: string; driverClass: string; schemas: string[]; parameters: Record<string, string>
   timeoutSeconds: number; maxRows: number
@@ -1549,6 +1549,7 @@ export interface DatabaseConnectionInput {
 }
 export interface DatabaseDriver { filename: string; sha256: string; sizeBytes: number }
 export interface DatabaseProbe {
+  readOnlyEnforced?: boolean
   connected: boolean; sessionReadOnly: boolean; serverProduct: string; serverVersion: string
   driverVersion: string; driverSha256: string; compatibilityVerified: boolean; detail: string
 }

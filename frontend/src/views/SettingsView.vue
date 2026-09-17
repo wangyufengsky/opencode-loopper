@@ -180,7 +180,8 @@ onMounted(load)
         <div class="card-header"><div><p class="eyebrow">发布</p><h2 id="publication-title" class="card-title">发布网络</h2></div><span class="activation restart">重启生效</span></div>
         <el-form label-position="top">
           <el-form-item label="强制 HTTP 的网站主机（逗号分隔）"><el-input v-model="publicationHosts" class="mono" /></el-form-item>
-          <div class="form-grid"><el-form-item label="GitLab 主机"><el-input v-model="settings.publication.gitlabHost" class="mono" /></el-form-item><el-form-item label="GitLab 接口地址"><el-input v-model="settings.publication.gitlabApiBaseUrl" class="mono" /></el-form-item></div>
+          <div class="form-grid"><el-form-item label="GitLab 主机"><el-input v-model="settings.publication.gitlabHost" class="mono" /></el-form-item><el-form-item label="GitLab 接口地址（HTTP / HTTPS）"><el-input v-model="settings.publication.gitlabApiBaseUrl" class="mono" placeholder="http://gitlab.internal/api/v4" /></el-form-item></div>
+          <el-alert v-if="settings.publication.gitlabApiBaseUrl.startsWith('http://')" title="已选择 HTTP 模式，支持内网 GitLab；此连接的网络传输不加密。" type="warning" :closable="false" />
           <div class="form-grid"><el-form-item label="连接超时（秒）"><el-input-number v-model="settings.publication.connectTimeoutSeconds" :min="1" :max="120" /></el-form-item><el-form-item label="请求超时（秒）"><el-input-number v-model="settings.publication.requestTimeoutSeconds" :min="1" :max="300" /></el-form-item></div>
         </el-form>
       </article>

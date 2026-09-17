@@ -27,12 +27,12 @@ public class DatabaseQueryService implements AutoCloseable {
     public Map<String,Object> test(DatabaseConnectionService.Bound bound,String draftPassword) {
         return execute(bound,(opened,active)->{
             DatabaseMetaData md=opened.connection().getMetaData();
-            boolean readOnly;
-            try {DatabaseDialect.forType(bound.config().type()).prepare(opened.connection(),bound.config());readOnly=opened.connection().isReadOnly();}
+            boolean readOnly, enforced=false;
+            try {DatabaseDialect.forType(bound.config().type()).prepare(opened.connection(),bound.config());readOnly=opened.connection().isReadOnly();enforced=true;}
             catch(SQLException unsupported){readOnly=false;}
             return Map.of("connected",true,"sessionReadOnly",readOnly,"serverProduct",md.getDatabaseProductName(),
                     "serverVersion",md.getDatabaseProductVersion(),"driverVersion",opened.driverVersion(),"driverSha256",opened.info().sha256(),
-                    "compatibilityVerified",false,"detail",readOnly?"连接与只读标记已检查；账号权限和完整兼容性须使用现场测试库验收":"连接成功但只读控制不可用，查询将被拒绝；请检查匹配驱动与配置");
+                    "readOnlyEnforced",enforced,"compatibilityVerified",false,"detail",enforced && !readOnly?"连接成功；SQL Server 不提供 JDBC 只读标记，已核对当前账号权限，查询仍受只读 SQL 与 schema 限制。权限变化及完整兼容性须现场验收":readOnly?"连接与只读标记已检查；账号权限和完整兼容性须使用现场测试库验收":"连接成功但只读控制不可用，查询将被拒绝；请检查匹配驱动与配置");
         },true,()->draftPassword==null?secrets.read(bound.credentialRef()):draftPassword);
     }
     public Map<String,Object> query(DatabaseConnectionService.Bound bound,String sql) {
@@ -51,7 +51,7 @@ public class DatabaseQueryService implements AutoCloseable {
         if(offset<0 || offset>10000) throw new AssistFailure("DATABASE_CURSOR_INVALID","结构游标越界，请缩小查询范围");
         return execute(bound,(opened,active)->{
             DatabaseMetaData md=opened.connection().getMetaData(); String catalog=DatabaseDialect.forType(bound.config().type()).catalog(bound.config());
-            boolean catalogSchema=catalog!=null; String selectedCatalog=catalogSchema?schema:null; String selectedSchema=catalogSchema?null:schema;
+            boolean catalogSchema=catalog!=null; String selectedCatalog=bound.config().type()==DatabaseConfig.Type.SQLSERVER?bound.config().database():catalogSchema?schema:null; String selectedSchema=catalogSchema?null:schema;
             String escape=md.getSearchStringEscape();
             if((schema.contains("_")||table!=null&&table.contains("_"))&&(escape==null||escape.isEmpty()))throw new AssistFailure("DATABASE_METADATA_UNSUPPORTED","驱动不能精确转义结构名称，请检查匹配版本","CONFIGURE");
             String escaped=table==null?null:table.replace("_",escape+"_");

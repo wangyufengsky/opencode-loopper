@@ -10,8 +10,9 @@ const saved: ProjectAssistConfig = { version: 3, credentialConfigured: false, co
 it('saves the version and explicit external log scope without accepting a token', async () => {
   vi.spyOn(api, 'projectAssistConfig').mockResolvedValue(saved)
   const save = vi.spyOn(api, 'saveProjectAssistConfig').mockResolvedValue({ ...saved, version: 4 })
-  const wrapper = mount(ProjectAssistDialog, { props: { project }, global: { plugins: [ElementPlus], stubs: { teleport: true } } })
+  const wrapper = mount(ProjectAssistDialog, { props: { project }, global: { plugins: [ElementPlus], stubs: { teleport: true, GitCredentialForm: true, RouterLink: true } } })
   await flushPromises()
+  await wrapper.get('#tab-gitlab').trigger('click'); await flushPromises()
   expect(wrapper.text()).toContain('未配置，请设置环境变量')
   await wrapper.findAll('button').find(b => b.text() === '保存配置')!.trigger('click'); await flushPromises()
   expect(save).toHaveBeenCalledWith('p', 3, 'group/repo', saved.config.sources)
@@ -20,7 +21,7 @@ it('saves the version and explicit external log scope without accepting a token'
 it('ignores a late configuration response after switching projects', async () => {
   let resolve!: (value: ProjectAssistConfig) => void
   vi.spyOn(api, 'projectAssistConfig').mockImplementation(id => id === 'p' ? new Promise(done => { resolve = done }) : Promise.resolve({ ...saved, config: { repository: 'new/project', sources: [] } }))
-  const wrapper = mount(ProjectAssistDialog, { props: { project }, global: { plugins: [ElementPlus], stubs: { teleport: true } } })
+  const wrapper = mount(ProjectAssistDialog, { props: { project }, global: { plugins: [ElementPlus], stubs: { teleport: true, GitCredentialForm: true, RouterLink: true } } })
   await wrapper.setProps({ project: { ...project, id: 'other' } }); await flushPromises()
   resolve(saved); await flushPromises()
   expect(wrapper.find('input').element.value).toBe('new/project')
@@ -29,8 +30,8 @@ it('ignores a late configuration response after switching projects', async () =>
 it('preserves edits and displays a version conflict', async () => {
   vi.spyOn(api, 'projectAssistConfig').mockResolvedValue(saved)
   vi.spyOn(api, 'saveProjectAssistConfig').mockRejectedValue(new Error('配置已变化，请刷新后重试'))
-  const wrapper = mount(ProjectAssistDialog, { props: { project }, global: { plugins: [ElementPlus], stubs: { teleport: true } } })
-  await flushPromises(); await wrapper.findAll('button').find(b => b.text() === '保存配置')!.trigger('click'); await flushPromises()
+  const wrapper = mount(ProjectAssistDialog, { props: { project }, global: { plugins: [ElementPlus], stubs: { teleport: true, GitCredentialForm: true, RouterLink: true } } })
+  await flushPromises(); await wrapper.get('#tab-gitlab').trigger('click'); await flushPromises(); await wrapper.findAll('button').find(b => b.text() === '保存配置')!.trigger('click'); await flushPromises()
   expect(wrapper.text()).toContain('配置已变化'); expect(wrapper.emitted('close')).toBeUndefined()
   wrapper.unmount()
 })

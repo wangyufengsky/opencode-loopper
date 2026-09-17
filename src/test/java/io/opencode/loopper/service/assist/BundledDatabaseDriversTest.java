@@ -46,7 +46,7 @@ class BundledDatabaseDriversTest {
                 p.binaries().getFirst().filename(),p.driverClass(),List.of("app"),Map.of(),10,200,p.id(),url));
     }
     @Test void defaultsAreUniqueAndHistoricalProfileCannotBeSubstitutedAcrossProducts() {
-        assertThat(BundledDatabaseDrivers.defaults()).extracting(BundledDatabaseDrivers.Profile::type).doesNotHaveDuplicates().hasSize(6);
+        assertThat(BundledDatabaseDrivers.defaults()).extracting(BundledDatabaseDrivers.Profile::type).doesNotHaveDuplicates().hasSize(7);
         assertThat(BundledDatabaseDrivers.resolve(input(DatabaseConfig.Type.OPENGAUSS)).driverProfile()).isEqualTo("opengauss-3.1.0");
         var old=configuration("opengauss-6.0.3",null);
         assertThat(BundledDatabaseDrivers.resolve(old)).isEqualTo(old);

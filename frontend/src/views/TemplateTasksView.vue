@@ -204,11 +204,12 @@ onBeforeUnmount(() => { ++projectGeneration; ++branchGeneration })
 
 <style scoped>
 .template-tasks { display: grid; gap: 20px; }
-.template-workspace { display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap: 24px; align-items: start; }
+.template-workspace { display: grid; grid-template-columns: minmax(340px, 420px) minmax(0, 1fr); gap: 24px; align-items: stretch; }
 .template-catalog, .template-configuration, .task-parameters { display: grid; gap: 20px; min-width: 0; }
 .catalog-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 h2 { margin: 0; font-size: 18px; }
-.template-choices { display: grid; gap: 10px; max-height: 560px; overflow: auto; }
+.template-catalog { align-content: start; min-height: 720px; }
+.template-choices { display: grid; gap: 10px; }
 .template-choice { display: grid; grid-template-columns: 24px minmax(0, 1fr) 18px; gap: 12px; align-items: start; padding: 16px 12px; text-align: left; color: var(--color-text-primary); background: transparent; border: 1px solid var(--color-border-default); border-radius: 10px; cursor: pointer; font: inherit; }
 .template-choice > span { display: grid; gap: 8px; }
 .template-choice strong, .template-choice span { overflow-wrap: anywhere; line-height: 1.6; }
@@ -222,6 +223,6 @@ h2 { margin: 0; font-size: 18px; }
 .run-action { display: flex; justify-content: flex-end; }
 .rubric { line-height: 1.8; }
 .rubric summary { cursor: pointer; }
-@media (max-width: 1000px) { .template-workspace { grid-template-columns: 1fr; }.template-choices { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); max-height: 380px; } }
+@media (max-width: 1000px) { .template-workspace { grid-template-columns: 1fr; }.template-catalog { min-height: 0; }.template-choices { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); } }
 @media (max-width: 700px) { .parameter-grid { grid-template-columns: 1fr; }.run-action > * { width: 100%; } }
 </style>

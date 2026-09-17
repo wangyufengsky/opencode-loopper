@@ -14,7 +14,7 @@ for (const width of [1440, 390]) {
       return route.fulfill({json:[]})
     })
     await page.setViewportSize({width,height:1000}); await page.goto('/databases')
-    await page.getByRole('button',{name:'编辑',exact:true}).click()
+    await page.getByRole('button',{name:'编辑连接',exact:true}).click()
     const drawer = page.getByRole('dialog')
     await expect(drawer.getByText(/opengauss-jdbc-7.0.0-RC3-og.jar/)).toBeVisible()
     await expect(drawer.getByText(/历史任务保留原驱动/)).toBeVisible()
@@ -34,6 +34,7 @@ for (const width of [1440, 390]) {
   for (const [type,label,url,driverClass,filename,defaultPort] of [
     ['GAUSSDB','GaussDB','jdbc:postgresql://db:8000/app','org.postgresql.Driver','opengauss-jdbc-3.1.0.jar',5432],
     ['ORACLE','Oracle','jdbc:oracle:thin:@//db:1521/service','oracle.jdbc.OracleDriver','ojdbc11-23.7.0.25.01.jar',1521],
+    ['SQLSERVER','SQL Server','jdbc:sqlserver://db:1433;databaseName=app','com.microsoft.sqlserver.jdbc.SQLServerDriver','mssql-jdbc-13.4.0.jre11.jar',1433],
     ['DB2','DB2','jdbc:db2://db:50000/app','com.ibm.db2.jcc.DB2Driver','jcc-12.1.0.0.jar',50000],
   ] as const) {
     test(`新增 ${label} 并独立传递密码 ${width}px`,async({page})=>{

@@ -13,3 +13,5 @@
 MySQL: GPLv2 + Universal FOSS Exception; protobuf: BSD 3-Clause; openGauss: BSD 2-Clause; SLF4J: MIT; 达梦: 厂商 Maven POM 标注 Apache-2.0。来源见相同坐标的厂商 POM。MySQL 源码：https://github.com/mysql/mysql-connector-j/tree/8.0.33；openGauss：https://gitee.com/opengauss/openGauss-connector-jdbc；达梦：https://gitee.com/dmedu/dm-jdbc-jars。
 
 Oracle、IBM DB2 的许可和版权以各原始 JAR 内的 LICENSE/NOTICE 及同坐标 POM 为准；保留原文件，未重新打包驱动。GaussDB 支持采用 MCP-database 的 openGauss 3.1.0 连接路径，具体服务端认证、方言和账号权限仍需现场验收。
+
+- `com.microsoft.sqlserver:mssql-jdbc:13.4.0.jre11` — Microsoft JDBC Driver for SQL Server，MIT，原始 JAR 保留 LICENSE。SHA-256 `e36f5237c1267983e5b88dc2169f6b9d7e50eceec6dc1ca31018e3877e14af66`。来源：https://github.com/microsoft/mssql-jdbc/releases/tag/v13.4.0

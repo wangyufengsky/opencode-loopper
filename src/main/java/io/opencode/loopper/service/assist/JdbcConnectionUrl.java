@@ -20,6 +20,7 @@ public final class JdbcConnectionUrl {
     public static Parsed parse(DatabaseConfig c) {
         String url = c.jdbcUrl();
         if (c.type() == null || url == null || url.length() > 4096 || url.chars().anyMatch(Character::isWhitespace) || url.contains("#")) throw invalid();
+        if (c.type() == DatabaseConfig.Type.SQLSERVER) return sqlServer(c,url);
         if (c.type() == DatabaseConfig.Type.ORACLE) return oracle(c,url);
         String prefix = switch (c.type()) {
             case MYSQL -> "jdbc:mysql://";
@@ -49,6 +50,22 @@ public final class JdbcConnectionUrl {
             driverPrefix=modern ? "jdbc:opengauss://" : "jdbc:postgresql://";
         }
         return new Parsed(driverPrefix+parts[0],first.host(),first.port(),database,parameters);
+    }
+    private static Parsed sqlServer(DatabaseConfig c,String url) {
+        String prefix="jdbc:sqlserver://";
+        if(!url.startsWith(prefix))throw invalid();
+        String[] parts=url.substring(prefix.length()).split(";",-1);
+        Address node=address(parts[0],1433);
+        Map<String,String> options=new LinkedHashMap<>();
+        for(int i=1;i<parts.length;i++) {
+            if(i==parts.length-1 && parts[i].isEmpty())continue;
+            String[] pair=parts[i].split("=",-1);
+            if(pair.length!=2 || options.putIfAbsent(pair[0],pair[1])!=null)throw invalid();
+        }
+        String database=options.remove("databaseName");
+        if(database==null || !database.matches("[\\p{L}\\p{N}_$-]{1,128}"))throw invalid();
+        DatabaseDialect.forType(c.type()).validateParameters(options);
+        return new Parsed(prefix+parts[0]+";databaseName="+database,node.host(),node.port(),database,Map.copyOf(options));
     }
     private static Address address(String text,int defaultPort) {
         var match=java.util.regex.Pattern.compile("(\\[[0-9a-fA-F:]+\\]|[a-zA-Z0-9_.-]{1,253})(?::([0-9]{1,5}))?").matcher(text);

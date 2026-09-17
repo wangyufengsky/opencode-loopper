@@ -120,4 +120,4 @@ node scripts/release-version.mjs set <version> --write
 本轮只验证机械门禁与项目回归，尚未运行旧/新工作流的 Astra A/B，因此不承诺 Token 或耗时改善幅度。
 ## 辅助能力离线验收
 
-新增辅助 MCP 的权限、凭据、文档和数据库验收入口见 [内网辅助 MCP 合同](assist-mcp-contract.md)。完整 JAR 在构建时收集固定 MySQL、openGauss、达梦驱动及依赖，运行时离线校验并隔离加载；GaussDB 与 GoldenDB 仅保留历史驱动恢复。模拟测试不证明现场产品兼容。离线脚本只运行读取与边界探针，不启动或替换现有服务。
+新增辅助 MCP 的权限、凭据、文档和数据库验收入口见 [内网辅助 MCP 合同](assist-mcp-contract.md)。完整 JAR 在构建时收集固定 MySQL、GaussDB/openGauss、Oracle、DB2、SQL Server、达梦驱动及依赖，运行时离线校验并隔离加载；旧 openGauss profile 与 GoldenDB 保留历史驱动恢复。模拟测试不证明现场产品兼容。离线脚本只运行读取与边界探针，不启动或替换现有服务。

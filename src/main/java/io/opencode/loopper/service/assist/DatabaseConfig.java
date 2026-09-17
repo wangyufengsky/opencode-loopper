@@ -7,7 +7,7 @@ import java.util.Map;
 public record DatabaseConfig(Type type, String host, int port, String database, String username,
                              String driverFile, String driverClass, List<String> schemas,
                              Map<String,String> parameters, int timeoutSeconds, int maxRows, String driverProfile, String jdbcUrl) {
-    public enum Type { MYSQL, OPENGAUSS, GAUSSDB, GOLDENDB, DAMENG, ORACLE, DB2 }
+    public enum Type { MYSQL, OPENGAUSS, GAUSSDB, GOLDENDB, DAMENG, ORACLE, DB2, SQLSERVER }
     public DatabaseConfig(Type type,String host,int port,String database,String username,String driverFile,String driverClass,
                           List<String> schemas,Map<String,String> parameters,int timeoutSeconds,int maxRows) {
         this(type,host,port,database,username,driverFile,driverClass,schemas,parameters,timeoutSeconds,maxRows,null);

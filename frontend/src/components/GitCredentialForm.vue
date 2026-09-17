@@ -7,6 +7,7 @@ import { userFacingError } from '@/utils/displayLabels'
 
 const vLoading = ElLoading.directive
 const props = defineProps<{ projectId?: string; demo?: boolean }>()
+const emit = defineEmits<{ busy: [boolean] }>()
 const saved = ref<GitCredentialView>()
 const mode = ref<'CUSTOM' | 'INHERIT'>(props.projectId ? 'INHERIT' : 'CUSTOM')
 const serverUrl = ref(''), username = ref(''), secret = ref(''), repositoryUrl = ref('')
@@ -16,6 +17,7 @@ const error = ref(''), message = ref('')
 const probe = ref<{ success: boolean; message: string }>()
 let generation = 0
 const busy = computed(() => loading.value || saving.value || testing.value || !!props.demo)
+watch([loading, saving, testing], () => emit('busy', loading.value || saving.value || testing.value), { immediate: true })
 const ownSecret = computed(() => saved.value?.mode === 'CUSTOM' && saved.value.configured)
 const inherited = computed(() => !!props.projectId && mode.value === 'INHERIT')
 watch([mode, serverUrl, username, secret, kind, repositoryUrl], () => { generation++; probe.value = undefined; message.value = '' })
@@ -66,7 +68,7 @@ onMounted(load)
     <p v-if="inherited" class="help">{{ saved?.source === 'GLOBAL' && saved.configured ? `全局账号：${saved.username} · ${saved.serverUrl}` : '保存继承设置后使用全局账号；可在设置页查看和维护。' }}</p>
     <el-form v-else label-position="top" :disabled="busy" @submit.prevent="save()">
       <div class="credential-grid">
-        <el-form-item label="Git 服务器地址"><el-input v-model="serverUrl" aria-label="Git 服务器地址" placeholder="https://gitlab.example.com" autocomplete="off" /></el-form-item>
+        <el-form-item label="Git 服务器地址"><el-input v-model="serverUrl" aria-label="Git 服务器地址" placeholder="http://gitlab.internal 或 https://gitlab.example.com" autocomplete="off" /></el-form-item>
         <el-form-item label="用户名"><el-input v-model="username" aria-label="Git 用户名" autocomplete="off" /></el-form-item>
         <el-form-item label="认证方式"><el-select v-model="kind" aria-label="Git 认证方式"><el-option value="TOKEN" label="访问令牌（推荐）" /><el-option value="PASSWORD" label="账号密码" /></el-select></el-form-item>
         <el-form-item :label="kind === 'TOKEN' ? '访问令牌' : '密码'"><el-input v-model="secret" aria-label="Git 密码或令牌" type="password" show-password autocomplete="new-password" :placeholder="ownSecret ? '已加密保存；留空保持不变' : '请输入密码或令牌'" /></el-form-item>

@@ -34,9 +34,9 @@
 
 ## 数据库管理、驱动与只读执行
 
-页面 `/databases`、REST `/api/database-connections` 支持创建、编辑、项目绑定、测试、启停和归档；不提供网页 SQL 编辑器。密码不回显，所有修改及连接测试要求本地 UI 标识。分页使用时间加 ID 游标；名称／主机搜索、类型和启用／停用／归档筛选在服务端执行。页面采用连接表格与分区侧栏，新增只列已具备内置驱动的类型，自动选择驱动；高级设置提供受控字段，不接收任意 JSON。`POST /api/database-connections/test` 测试草稿，不写入 SQLite 或密码密文，沿用有界执行器；编辑已保存连接时校验版本并可沿用原凭据。输入变更后前端丢弃旧测试结果，测试成功不自动保存。
+页面 `/databases`、REST `/api/database-connections` 支持创建、编辑、项目绑定、测试、启停和归档；不提供网页 SQL 编辑器。密码不回显，所有修改及连接测试要求本地 UI 标识。分页使用时间加 ID 游标；名称／主机搜索、类型和启用／停用／归档筛选在服务端执行。页面采用连接目录与详情工作区，集中显示连接信息、项目授权、范围、限额及逐连接测试结果；窄屏按上下顺序展示，新增只列已具备内置驱动的类型，自动选择驱动；高级设置提供受控字段，不接收任意 JSON。`POST /api/database-connections/test` 测试草稿，不写入 SQLite 或密码密文，沿用有界执行器；编辑已保存连接时校验版本并可沿用原凭据。输入变更后前端丢弃旧测试结果，测试成功不自动保存。
 
-新建支持 MySQL、GaussDB、openGauss、Oracle、DB2 和达梦，覆盖 MCP-database 的五类产品并保留独立 openGauss 类型。服务端 `/types` 持有默认端口与固定驱动：MySQL Connector/J 8.0.33、GaussDB/openGauss 的 openGauss JDBC 3.1.0、Oracle ojdbc11 23.7.0.25.01、DB2 jcc 12.1.0.0、DmJdbcDriver18 8.1.3.140。GaussDB、Oracle、DB2 驱动坐标与 MCP-database 对齐；GaussDB 在此指该项目采用的 openGauss JDBC 连接路径，不将包内驱动可加载等同于所有华为 GaussDB 版本已联调。驱动版本、SHA 与来源见随包 NOTICE。
+新建支持 MySQL、GaussDB、openGauss、Oracle、DB2、SQL Server 和达梦，覆盖 MCP-database 的五类产品并保留独立 openGauss 类型。服务端 `/types` 持有默认端口与固定驱动：MySQL Connector/J 8.0.33、GaussDB/openGauss 的 openGauss JDBC 3.1.0、Oracle ojdbc11 23.7.0.25.01、DB2 jcc 12.1.0.0、DmJdbcDriver18 8.1.3.140。GaussDB、Oracle、DB2 驱动坐标与 MCP-database 对齐；GaussDB 在此指该项目采用的 openGauss JDBC 连接路径，不将包内驱动可加载等同于所有华为 GaussDB 版本已联调。SQL Server 使用 Microsoft JDBC 13.4.0.jre11，默认端口 1433。驱动版本、SHA 与来源见随包 NOTICE。
 
 驱动及必要依赖在构建时复制进 JAR 的 `jdbc-bundled` 资源，不进入应用依赖 classpath，避免干扰 SQLite。运行时在 `LOOPPER_DATA_DIR/jdbc-bundled/<profile>` 原子提取并校验 SHA，拒绝符号链接、篡改和缺件，不在线下载或覆盖损坏文件；按不可变 profile 使用平台父加载器隔离驱动及依赖，最多 64 个加载版本，单文件 64 MiB。无需依赖 IDE 或在运行环境扫描 Maven 仓库。
 
@@ -44,9 +44,13 @@
 
 连接页面分别填写 JDBC URL、用户名和密码。GaussDB 使用 `jdbc:postgresql://host:port/database`；openGauss 接受 PostgreSQL/openGauss 两种前缀，并按具体冻结驱动选择协议。MySQL/GaussDB/openGauss 支持最多 16 个逗号分隔节点及 IPv6 方括号，保留节点顺序。Oracle 使用 Thin 服务名 `jdbc:oracle:thin:@//host:1521/service`（可含域名）或 SID `jdbc:oracle:thin:@host:1521:SID`；DB2 使用 `jdbc:db2://host:50000/database`，可附 `:sslConnection=true;`；达梦使用 `jdbc:dm://host:5236`。Oracle 描述符、TNS/OCI、本地钱包以及 DB2 外部配置文件不属于此受控 URL 输入范围。
 
+SQL Server 使用 `jdbc:sqlserver://host:1433;databaseName=app`，支持显式端口与 IPv6；仅放行 `encrypt`、`trustServerCertificate`、`hostNameInCertificate`，默认 TLS 验证证书。普通用户名密码认证，不接受命名实例、集成认证、任意驱动参数或内嵌凭据。
+
 URL 最多 4096 字符，拒绝内嵌凭据、重复参数和绕过保护的属性；经校验的 TLS、时区、字符集、节点选择参数单独传给驱动，`targetServerType`、`loadBalanceHosts`、`hostRecheckSeconds` 可用于 Gauss 节点选择，DB2 的 `sslConnection` 可配置。原始非秘密 URL 保存用于编辑和展示；密码不经过 URL 编解码，独立传递。保留只读、超时、本地文件和多语句保护，不复制 MCP-database 的任意 URL 属性透传。Gauss 强制 `allowReadOnly=true`、`readOnlyMode=always`，Oracle 设置当前 schema 后执行有界 `SET TRANSACTION READ ONLY`，DB2 设置当前 schema；各驱动使用对应单位的连接/读取超时。Oracle/DB2 使用 JDBC 元数据的 schema 语义和 `Statement.setMaxRows` 限额。
 
 已有连接在编辑抽屉明确提示驱动切换；未保存的测试不改写配置或凭据，密码留空沿用原加密引用。已冻结 Task 不随连接更新变化，新 Task 使用新的配置与凭据版本。SQLState 28 类认证失败返回安全中文提示，要求核对账号、目标节点和驱动，不断言密码错误，不回显底层异常或凭据。
+
+SQL Server 驱动不支持 JDBC `setReadOnly`，`applicationIntent=ReadOnly` 只用于路由。每次查询/结构读取前，使用有界权限查询核对服务器、数据库、允许 schema 及其对象的当前有效权限；拒绝非 SELECT、CONNECT、VIEW 类权限，检查失败关闭访问。保持非自动提交、结束回滚、AST 只读限制及 schema 范围校验，SQL Server 表引用必须显式为 `schema.table`。测试分别返回真实 `sessionReadOnly` 标记与 `readOnlyEnforced` 检查结果，不把路由属性当作权限证明。
 
 账号应由管理员授予限定对象的 SELECT 权限。执行同时要求连接只读、非自动提交、JSqlParser 5.3 AST 解析以及 schema 范围校验；关闭时回滚和释放连接。只接受保守 SQL 子集，拒绝写入、锁、会话修改、过程、多语句、非白名单函数、注释和无法解析的方言扩展；不以关键词解析替代 AST。WITH 中的每个子查询也经过同一完整语句校验。无法表达的查询应缩小为基础 SELECT，不能降低保护。
 
