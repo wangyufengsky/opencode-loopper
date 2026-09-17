@@ -1,11 +1,24 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 import { storeToRefs } from 'pinia'
+import { ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useTaskStore } from '@/stores/taskStore'
 import { statusLabel } from '@/utils/displayLabels'
 
 const taskStore = useTaskStore()
 const { runtime } = storeToRefs(taskStore)
+const route = useRoute(), knowledgePath = ref('/knowledge')
+const knowledgeLocation = /^\/knowledge(?:\/[^/?#\\]+)?\/?(?:[?#].*)?$/
+try {
+  const saved = sessionStorage.getItem('knowledge.lastPath')
+  if (saved && knowledgeLocation.test(saved)) knowledgePath.value = saved
+} catch { /* Navigation still remembers the current visit if storage is unavailable. */ }
+watch(() => route.fullPath, path => {
+  if (!knowledgeLocation.test(path)) return
+  knowledgePath.value = path
+  try { sessionStorage.setItem('knowledge.lastPath', path) } catch { /* Keep the in-memory location. */ }
+}, { immediate: true })
 
 const navigation = [
   { to: '/', icon: 'lucide:house', label: '主页' },
@@ -29,7 +42,7 @@ const navigation = [
 
     <p class="nav-label">工作区</p>
     <nav aria-label="主导航">
-      <RouterLink v-for="item in navigation" :key="item.to" class="nav-item" :to="item.to">
+      <RouterLink v-for="item in navigation" :key="item.to" class="nav-item" :to="item.to === '/knowledge' ? knowledgePath : item.to">
         <Icon :icon="item.icon" width="17" />
         <span>{{ item.label }}</span>
       </RouterLink>
