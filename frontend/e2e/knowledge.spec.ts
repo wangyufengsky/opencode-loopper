@@ -10,7 +10,7 @@ async function fixture(page: Page) {
     if (path.endsWith('/events')) return route.fulfill({ contentType: 'text/event-stream', body: 'data: {"type":"connected"}\n\n' })
     if (path === '/api/projects/summaries') return route.fulfill({ json: [{ id: 'p', name: '客户服务项目', rootPath: '/project', status: 'READY', taskCount: 0, openDesignerSessionCount: 0 }] })
     if (path === '/api/settings/models') return route.fulfill({ json: [{ id: 'local/model', provider: 'local', model: 'model', label: '项目问答模型' }] })
-    if (path === '/api/settings') return route.fulfill({ json: { runtime: {}, openCode: { mode: 'managed', model: 'local/model' }, limits: {}, retryWait: {}, publication: {} } })
+    if (path === '/api/settings') return route.fulfill({ json: { runtime: {}, openCode: { mode: 'managed', provider: 'local', model: 'model' }, limits: {}, retryWait: {}, publication: {} } })
     if (path.endsWith('/knowledge-sources')) return route.fulfill({ json: { items: sources, nextCursor: null } })
     if (path.endsWith('/directory')) return route.fulfill({ json: { items: [{ path: 'src/PaymentService.java', name: '很长的项目业务付款服务名称用于验证换行和布局PaymentService.java', directory: false, bytes: 100 }], nextCursor: null, incomplete: false, detail: '' } })
     if (path.endsWith('/content')) return route.fulfill({ status: 400, json: { detail: '文件内容已变化，请重新读取' } })
@@ -21,7 +21,11 @@ async function fixture(page: Page) {
       return route.fulfill({ json: { items: [{ id: 'turn1', ordinal: 1, state: sent && state === 'RUNNING' ? 'RUNNING' : sent ? 'STOPPED' : 'COMPLETED', userText: '付款流程如何工作？', answer: `付款前必须完成审批，然后保存付款记录。[1](knowledge:${citationId})\n\n### 实现依据\n\n${'这里是从项目代码读取的流程说明。'.repeat(80)}`, detail: sent && state === 'IDLE' ? '已停止生成，以上为未完成回答' : '', inputTokens: 1200, outputTokens: 450, createdAt: '', citations: [citation], calls: [{ id: 'call', tool: 'read_knowledge_source', state: 'SUCCEEDED', detail: '' }] }], nextCursor: null } })
     }
     if (path === `/api/knowledge/conversations/${id}`) return route.fulfill({ json: { ...summary, state } })
-    if (path === '/api/knowledge/conversations') return route.fulfill({ json: route.request().method() === 'POST' ? summary : { items: [summary], nextCursor: null } })
+    if (path === '/api/knowledge/conversations') {
+      if (route.request().method() === 'POST' && route.request().postDataJSON().model !== 'local/model')
+        return route.fulfill({ status: 400, json: { detail: '所选模型不可用，请刷新模型列表' } })
+      return route.fulfill({ json: route.request().method() === 'POST' ? summary : { items: [summary], nextCursor: null } })
+    }
     return route.fulfill({ json: [] })
   })
 }
@@ -61,4 +65,13 @@ test('新对话默认模型、来源与深层历史路由', async ({ page }) => 
   await page.getByRole('link', { name: /付款流程如何工作/ }).click()
   await expect(page).toHaveURL(`/knowledge/${id}`); await expect(page.getByRole('combobox', { name: '选择项目' })).toBeDisabled()
   await page.reload(); await expect(page.getByText('付款流程如何工作？', { exact: true })).toBeVisible()
+})
+test('继承提供方与模型名并发送完整模型标识', async ({ page }) => {
+  await fixture(page); await page.goto('/knowledge')
+  await expect(page.getByRole('combobox', { name: '问答模型' })).toHaveValue('local/model')
+  await page.getByRole('textbox', { name: '向项目提问' }).fill('当前项目有几个模块？')
+  const creation = page.waitForRequest(request => request.url().endsWith('/api/knowledge/conversations') && request.method() === 'POST')
+  await page.getByRole('button', { name: '发送', exact: false }).click()
+  expect((await creation).postDataJSON().model).toBe('local/model')
+  await expect(page.getByRole('button', { name: '停止生成', exact: true })).toBeVisible()
 })
