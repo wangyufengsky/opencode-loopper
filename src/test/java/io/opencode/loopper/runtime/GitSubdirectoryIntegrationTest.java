@@ -109,6 +109,8 @@ class GitSubdirectoryIntegrationTest {
         run(repo, "init", "-b", "main");
         run(repo, "config", "user.name", "Fixture");
         run(repo, "config", "user.email", "fixture@example.invalid");
+        run(repo, "config", "core.autocrlf", "false");
+        run(repo, "config", "core.safecrlf", "false");
         Path module = Files.createDirectories(repo.resolve("module space/中文"));
         Files.createDirectory(repo.resolve("other"));
         Files.writeString(module.resolve("file.txt"), "original\n");
