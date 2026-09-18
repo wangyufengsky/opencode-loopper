@@ -28,11 +28,13 @@ public class KnowledgeCoordinator {
     private final KnowledgeEventHub events;
     private final KnowledgeQuestions questions;
     private final io.opencode.loopper.persistence.KnowledgeV2Mapper options;
+    private final KnowledgeResearch research;
     private final Set<String> running = ConcurrentHashMap.newKeySet();
     private final ExecutorService workers = new ThreadPoolExecutor(4, 4, 0, TimeUnit.SECONDS, new ArrayBlockingQueue<>(32),
             Thread.ofPlatform().daemon().name("knowledge-chat-", 0).factory(), new ThreadPoolExecutor.AbortPolicy());
     public KnowledgeCoordinator(KnowledgeMapper mapper, KnowledgePersistence persistence, OpenCodeClient openCode,
-            ObjectMapper json, LoopperProperties properties, KnowledgeEventHub events, KnowledgeQuestions questions, io.opencode.loopper.persistence.KnowledgeV2Mapper options) {
+            ObjectMapper json, LoopperProperties properties, KnowledgeEventHub events, KnowledgeQuestions questions, io.opencode.loopper.persistence.KnowledgeV2Mapper options, KnowledgeResearch research) {
+        this.research = research;
         this.questions = questions; this.options = options; this.mapper = mapper; this.persistence = persistence; this.openCode = openCode; this.json = json; this.properties = properties; this.events = events;
     }
     public Turn send(String conversation, String key, String text) {
@@ -113,9 +115,10 @@ public class KnowledgeCoordinator {
         String clock = "\n本会话时区：" + zone + "；当前时间：" + date + "；昨天的默认区间：["
                 + date.toLocalDate().minusDays(1).atStartOfDay(zone).toOffsetDateTime() + ", "
                 + date.toLocalDate().atStartOfDay(zone).toOffsetDateTime() + ")。用户明确日期、时区时以用户要求为准。";
-        var prompt = new PromptRequest(turn.userText(), """
+        boolean autonomous = io.opencode.loopper.runtime.KnowledgeSessionPolicy.research(plan(persistence.require(turn.conversationId())).profile());
+        var prompt = new PromptRequest(turn.userText(), (autonomous ? KnowledgePrompts.RESEARCH : "") + """
                 你是项目知识助手，只与用户对话。用中文直接回答问题，必要时使用 question 向用户澄清身份或范围；若没有此工具则只提出清晰的文字问题，等待下一轮回答。
-                通过已授权的知识库工具检索代码、文档、Git 与数据库，先取目录或检索，再读取必要片段。
+                根据问题自主选择当前已授权的工具检索代码、文档、Git 与数据库，查清关键路径后回答。
                 search_project_knowledge 是可选的统一检索入口。根据问题自主选择当前已授权的工具：可用统一检索，也可直接查询某个来源，或组合多种查询继续核对。
                 统一检索不是必经步骤或查询终点。可补充使用目录、文件、文档、Git 和数据库专用工具，调整关键词或范围；旧会话没有统一工具时继续使用原有工具。
                 统一检索支持字段命名、原句和显式 terms 扩展词。扩展词命中只说明存在相关线索，不能据此宣称概念等价。
@@ -150,13 +153,22 @@ public class KnowledgeCoordinator {
     }
     private void poll(OpenCodeSession remote, Turn original) {
         var plan = plan(persistence.require(original.conversationId()));
-        if (plan.profile() == SessionProfile.KNOWLEDGE_INTERACTIVE_READ_ONLY && questions.poll(remote, original)) { usage(remote, original); return; }
+        boolean autonomous = io.opencode.loopper.runtime.KnowledgeSessionPolicy.research(plan.profile());
+        if (autonomous && research.advance(remote, original)) { usage(remote, original); return; }
+        if (io.opencode.loopper.runtime.KnowledgeSessionPolicy.interactive(plan.profile()) && questions.poll(remote, original)) { usage(remote, original); return; }
         var status = openCode.sessionStatus(remote);
         String output = AssistRedaction.text(openCode.sessionLiveOutput(remote));
+        if (autonomous && output.isBlank()) output = original.answer(); // Keep the draft visible while self-review starts.
         if (output.length() > 500000) { persistence.stop(original.conversationId()); return; }
         String thinking = original.thinking();
-        try { thinking = KnowledgeThinking.text(openCode.sessionTranscript(remote)); }
+        SessionTranscript observed = null;
+        try {
+            var transcript = openCode.sessionTranscript(remote);
+            thinking = autonomous ? research.thinking(original, transcript) : KnowledgeThinking.text(transcript);
+            observed = transcript;
+        }
         catch (RuntimeException unavailable) { /* Monitoring failure must not fail or erase the answer. */ }
+        if (autonomous && observed != null) research.nativeCalls(original, observed);
         if (!output.equals(original.answer()) || !thinking.equals(original.thinking()))
             mapper.output(original.id(), original.version(), output, thinking, Instant.now().toString());
         Turn turn = mapper.turn(original.id()).orElseThrow(); if (!turn.state().equals("RUNNING")) return;
@@ -166,7 +178,9 @@ public class KnowledgeCoordinator {
             else if (!result.text().isBlank()) {
                 String answer = AssistRedaction.text(result.text());
                 if (!answer.equals(turn.answer())) { mapper.answer(turn.id(), turn.version(), answer, Instant.now().toString()); turn = mapper.turn(turn.id()).orElseThrow(); }
-                persistence.finish(turn, "COMPLETED", "");
+                if (autonomous && research.continueAfterAnswer(remote, turn)) {
+                    mapper.detail(turn.id(), turn.version(), "正在核对结论并补齐调查", Instant.now().toString());
+                } else persistence.finish(turn, "COMPLETED", "");
             }
             usage(remote, turn);
         } else if (status.failed()) {
@@ -191,7 +205,8 @@ public class KnowledgeCoordinator {
     private OpenCodeSession restore(Conversation conversation, Turn turn) {
         var plan = plan(conversation);
         var remote = new OpenCodeSession(conversation.remoteId(), Path.of(conversation.rootPath()), plan.runtimeGenerationId(), plan.internalMcpServer());
-        openCode.restoreDesignTurn(remote, plan.profile(), model(conversation), turn.messageId()); return remote;
+        String message = io.opencode.loopper.runtime.KnowledgeSessionPolicy.research(plan.profile()) ? research.messageId(turn) : turn.messageId();
+        openCode.restoreDesignTurn(remote, plan.profile(), model(conversation), message); return remote;
     }
     private void usage(OpenCodeSession remote, Turn turn) {
         try {
@@ -205,10 +220,11 @@ public class KnowledgeCoordinator {
         var metadata = options.options(conversation.id());
         if (metadata != null && metadata.contractVersion() >= 2) {
             try { var capability = openCode.toolCapabilities(Path.of(conversation.rootPath()));
-                if (capability.state() == CapabilityState.AVAILABLE && capability.contains("question")) return SessionProfile.KNOWLEDGE_INTERACTIVE_READ_ONLY;
+                if (capability.state() == CapabilityState.AVAILABLE && capability.contains("question"))
+                    return metadata.contractVersion() >= 3 ? SessionProfile.KNOWLEDGE_RESEARCH_INTERACTIVE_READ_ONLY : SessionProfile.KNOWLEDGE_INTERACTIVE_READ_ONLY;
             } catch (RuntimeException unavailable) { /* Plain-text clarification remains available. */ }
         }
-        return SessionProfile.KNOWLEDGE_READ_ONLY;
+        return metadata != null && metadata.contractVersion() >= 3 ? SessionProfile.KNOWLEDGE_RESEARCH_READ_ONLY : SessionProfile.KNOWLEDGE_READ_ONLY;
     }
     private SessionCreationPlan plan(Conversation c) { return json.readValue(c.planJson(), SessionCreationPlan.class); }
     private OpenCodeModel model(Conversation c) { return json.readValue(c.modelJson(), OpenCodeModel.class); }

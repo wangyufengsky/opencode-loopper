@@ -69,7 +69,8 @@ public class KnowledgeReader {
         if (end > 0 && body.get("text") instanceof String text && !text.isEmpty()) {
             int first = ((Number) body.getOrDefault("startLine", 1)).intValue();
             int last = ((Number) body.getOrDefault("endLine", first)).intValue();
-            if (start < first || end < start || end > last) throw KnowledgeSources.bad("引用范围不在此片段中，请按返回行号读取");
+            if (start < first || end < start || start > last) throw KnowledgeSources.bad("引用范围不在此片段中，请按返回行号读取");
+            end = Math.min(end, last);
             String[] lines = text.split("\\n", -1); body.put("text", String.join("\n", Arrays.copyOfRange(lines, start-first, end-first+1)));
             body.put("startLine", start); body.put("endLine", end);
         }

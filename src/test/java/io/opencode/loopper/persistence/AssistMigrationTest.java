@@ -15,7 +15,7 @@ class AssistMigrationTest {
         try(var connection=DriverManager.getConnection(url);var statement=connection.createStatement()) {
             statement.execute("INSERT INTO project(id,name,root_path,created_at,updated_at) VALUES('project','project','/project','now','now')");
         }
-        var flyway=Flyway.configure().dataSource(url,null,null).locations("classpath:db/migration").load();assertThat(flyway.migrate().migrationsExecuted).isEqualTo(36);flyway.validate();
+        var flyway=Flyway.configure().dataSource(url,null,null).locations("classpath:db/migration").load();assertThat(flyway.migrate().migrationsExecuted).isEqualTo(37);flyway.validate();
         try(var connection=DriverManager.getConnection(url);var statement=connection.createStatement();var rows=statement.executeQuery("SELECT count(*) FROM project WHERE id='project'")){assertThat(rows.next()).isTrue();assertThat(rows.getInt(1)).isEqualTo(1);}
         assertThat(flyway.migrate().migrationsExecuted).isZero();
     }

@@ -353,4 +353,14 @@ class OpenCodePermissionPolicyTest {
                         java.util.Map.of("permission", "question", "pattern", "*", "action", "allow"));
     }
 
+    @Test
+    void knowledgeResearchCanInvestigateNativelyWithoutGrantingWritesOrExternalTools() {
+        var profile = OpenCodeClient.SessionProfile.valueOf("KNOWLEDGE_RESEARCH_READ_ONLY");
+        var rules = OpenCodePermissionPolicy.rules(profile, java.util.List.of("external"));
+        assertThat(rules.stream().filter(r -> r.get("action").equals("allow")).map(r -> r.get("permission")))
+                .contains("read", "glob", "grep", "todowrite", "todoread")
+                .doesNotContain("bash", "edit", "write", "external_*", "task");
+        assertThat(OpenCodeAgentPolicy.stepLimit(profile)).isZero();
+    }
+
 }

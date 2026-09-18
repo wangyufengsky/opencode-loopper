@@ -9,7 +9,7 @@ public interface KnowledgeV2Mapper {
     record Question(String id, String conversationId, String turnId, String remoteId, String promptJson,
                     String state, String answerKey, String answersJson, String createdAt, String updatedAt, long version) { }
     record Snapshot(String id, String owner, String querySha, String bodyJson, String createdAt) { }
-    @Insert("INSERT INTO knowledge_conversation_options(conversation_id,contract_version,timezone,last_activity_at) VALUES(#{id},2,#{timezone},#{now})")
+    @Insert("INSERT INTO knowledge_conversation_options(conversation_id,contract_version,timezone,last_activity_at) VALUES(#{id},3,#{timezone},#{now})")
     int create(String id, String now, String timezone);
     @Select("SELECT o.*,EXISTS(SELECT 1 FROM knowledge_question q JOIN knowledge_turn t ON t.id=q.turn_id WHERE q.conversation_id=o.conversation_id AND q.state='PENDING' AND t.state='RUNNING') AS awaiting_answer FROM knowledge_conversation_options o WHERE conversation_id=#{id}")
     Options options(String id);

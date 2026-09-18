@@ -72,7 +72,7 @@ public class KnowledgeTools {
         result.put("sha256", AssistFiles.sha(json.writeValueAsBytes(output))); return result;
     }
     private Map<String,Object> citation(Conversation conversation, Turn turn, Map<String,Object> body) {
-        if (mapper.citationCount(turn.id()) >= 100) throw KnowledgeSources.bad("本轮已保存 100 条证据，请据此回答或在下一轮继续检索");
+        if (mapper.citationCount(turn.id()) >= 100) return uncited(body);
         String id = UUID.randomUUID().toString(), now = Instant.now().toString();
         if (!Set.of("DATABASE", "GIT").contains(body.get("kind"))) {
             String previous = mapper.previousFileSha(turn.id(), Objects.toString(body.get("sourceId")), Objects.toString(body.get("path"), ""));
@@ -84,9 +84,17 @@ public class KnowledgeTools {
         String encoded = AssistRedaction.text(json.writeValueAsString(body));
         if (encoded.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 1_048_576) throw KnowledgeSources.bad("证据超过保存上限，请缩小查询范围");
         if (mapper.cite(new Citation(id, conversation.id(), turn.id(), Objects.toString(body.get("kind")), Objects.toString(body.get("sourceId")),
-                Objects.toString(body.get("name")), Objects.toString(body.get("location")), Objects.toString(body.get("sha256")), encoded, now)) != 1)
+                Objects.toString(body.get("name")), Objects.toString(body.get("location")), Objects.toString(body.get("sha256")), encoded, now)) != 1) {
+            if (active(conversation.id()).id().equals(turn.id()) && mapper.citationCount(turn.id()) >= 100) return uncited(body);
             throw KnowledgeSources.bad("会话已停止，未保存迟到引用");
+        }
         var result = new LinkedHashMap<>(body); result.put("citationId", id); result.put("citationLink", "knowledge:" + id); result.put("collectedAt", now); return result;
+    }
+    private static Map<String,Object> uncited(Map<String,Object> body) {
+        var result = new LinkedHashMap<>(body);
+        result.put("citationStatus", "LIMIT_REACHED");
+        result.put("citationNotice", "本轮已保存 100 条引用，本次仍返回实际读取内容，请继续查清问题；仅已保存的 ID 可用于 knowledge: 引用，其余内容可注明真实路径和行号。");
+        return result;
     }
     private static String callDetail(Map<String,Object> args) {
         String value = List.of("path", "query", "author", "table").stream().map(k -> Objects.toString(args.get(k), "")).filter(v -> !v.isBlank()).findFirst().orElse("");

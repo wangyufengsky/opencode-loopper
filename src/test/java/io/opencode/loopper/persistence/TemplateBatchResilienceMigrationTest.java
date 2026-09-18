@@ -22,7 +22,7 @@ class TemplateBatchResilienceMigrationTest {
             sql.executeUpdate("INSERT INTO template_task_batch(id,task_id,attempt_id,ordinal,purpose,input_json,input_sha256,state,prompt_json,prompt_sha256,created_at,updated_at) VALUES('b','t','a',0,'REVIEW','{}','hash','RUNNING','{\"messageId\":\"original\"}','prompt','now','now')");
         }
         var flyway = Flyway.configure().dataSource(url, null, null).load();
-        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(2); flyway.validate();
+        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(3); flyway.validate();
         try (var db = DriverManager.getConnection(url); var sql = db.createStatement()) {
             try (var row = sql.executeQuery("SELECT b.state,b.prompt_json,r.contract_json,COALESCE(json_extract(r.contract_json,'$.batchMaxRetries'),0) FROM template_task_batch b JOIN template_task_run r ON r.task_id=b.task_id")) {
                 assertThat(row.next()).isTrue(); assertThat(row.getString(1)).isEqualTo("RUNNING");

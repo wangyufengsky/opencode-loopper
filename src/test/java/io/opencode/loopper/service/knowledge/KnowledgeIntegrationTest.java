@@ -34,6 +34,7 @@ class KnowledgeIntegrationTest {
     @Autowired KnowledgeConversations conversations; @Autowired KnowledgePersistence persistence; @Autowired KnowledgeMapper mapper;
     @Autowired KnowledgeReader reader; @Autowired ObjectMapper json; @Autowired LoopperProperties properties;
     @Autowired KnowledgeSearchService search;
+    @Autowired KnowledgeResearchMapper researchMapper;
     @Autowired KnowledgeEventHub events; @Autowired AssistMapper assist; @Autowired AssistScopeService scopes;
     @Autowired AssistToolService tools; @Autowired InternalMcpRuntimeAccess runtime; @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
     @org.springframework.test.context.bean.override.mockito.MockitoBean OpenCodeModelCatalogService catalog;
@@ -44,11 +45,15 @@ class KnowledgeIntegrationTest {
         project = projects.create("知识项目", root.toString()).id(); remote = spy(new FakeOpenCodeClient());
         remote.holdProfileOpen(OpenCodeClient.SessionProfile.KNOWLEDGE_READ_ONLY, true);
         remote.holdProfileOpen(OpenCodeClient.SessionProfile.KNOWLEDGE_INTERACTIVE_READ_ONLY, true);
-        coordinator = new KnowledgeCoordinator(mapper, persistence, remote, json, properties, events, new KnowledgeQuestions(v2, mapper, remote, json, events), v2);
+        remote.holdProfileOpen(OpenCodeClient.SessionProfile.KNOWLEDGE_RESEARCH_READ_ONLY, true);
+        remote.holdProfileOpen(OpenCodeClient.SessionProfile.KNOWLEDGE_RESEARCH_INTERACTIVE_READ_ONLY, true);
+        coordinator = new KnowledgeCoordinator(mapper, persistence, remote, json, properties, events, new KnowledgeQuestions(v2, mapper, remote, json, events), v2, new KnowledgeResearch(researchMapper, mapper, remote, json));
     }
     @AfterEach void close() { coordinator.close(); }
     KnowledgeConversations.View create(List<String> ids) {
-        return conversations.create(new KnowledgeConversations.Create(UUID.randomUUID().toString(), project, "如何付款", "fake/model", ids));
+        var view = conversations.create(new KnowledgeConversations.Create(UUID.randomUUID().toString(), project, "如何付款", "fake/model", ids));
+        jdbc.update("UPDATE knowledge_conversation_options SET contract_version=2 WHERE conversation_id=?", view.id());
+        return conversations.get(view.id());
     }
     KnowledgeRows.Turn run(String id) {
         var turn = persistence.begin(id, UUID.randomUUID().toString(), "付款逻辑？"); coordinator.tick(id); coordinator.tick(id);
@@ -71,6 +76,72 @@ class KnowledgeIntegrationTest {
             assertThat(conversations.create(input).model()).isEqualTo("other/selected");
             verify(catalog, times(2)).discover(any());
         } finally { properties.getOpenCode().setMode(oldMode); properties.getOpenCode().setModel(oldModel); }
+    }
+
+    private KnowledgeConversations.View researchChat() {
+        return conversations.create(new KnowledgeConversations.Create(UUID.randomUUID().toString(), project, "调查实现", "fake/model", List.of("code")));
+    }
+    private void completedAnswer() {
+        doReturn(new OpenCodeClient.SessionStatus("COMPLETED")).when(remote).sessionStatus(any());
+        doReturn("已读取代码的回答").when(remote).sessionLiveOutput(any());
+        doReturn(new OpenCodeClient.SessionResult("已读取代码的回答", Map.of(), null, null, 0)).when(remote).sessionResult(any());
+    }
+    @Test void nativeResearchSelfReviewsAndKeepsInvestigatingOpenTodosWithoutRequiringMcp() {
+        var chat = researchChat(); var turn = run(chat.id());
+        assertThat(chat.options().contractVersion()).isEqualTo(3);
+        assertThat(json.readTree(mapper.conversation(chat.id()).orElseThrow().planJson()).path("profile").asText()).startsWith("KNOWLEDGE_RESEARCH_");
+        completedAnswer();
+        doReturn(new OpenCodeClient.SessionTranscript(List.of(new OpenCodeClient.SessionPart("native-read", "TOOL", "read", "实际源码", "completed"))))
+                .when(remote).sessionTranscript(any());
+        coordinator.tick(chat.id());
+        assertThat(mapper.turn(turn.id()).orElseThrow().state()).isEqualTo("RUNNING");
+        assertThat(researchMapper.latest(turn.id()).state()).isEqualTo("PREPARED");
+        assertThat(mapper.calls(chat.id(), turn.id())).anyMatch(c -> c.tool().equals("read") && c.state().equals("SUCCEEDED"));
+        assertThat(mapper.citationCount(turn.id())).isZero();
+        doReturn(new OpenCodeClient.SessionTodoSnapshot(List.of(new OpenCodeClient.SessionTodo("todo", "追踪数据库分支", "pending", "high", 0, Map.of())), false, null))
+                .when(remote).sessionTodoSnapshot(any());
+        coordinator.tick(chat.id()); coordinator.tick(chat.id());
+        assertThat(researchMapper.latest(turn.id()).ordinal()).isEqualTo(2);
+        assertThat(researchMapper.latest(turn.id()).requestJson()).contains("追踪数据库分支");
+        assertThat(mapper.turn(turn.id()).orElseThrow().state()).isEqualTo("RUNNING");
+        coordinator.tick(chat.id());
+        doReturn(new OpenCodeClient.SessionTodoSnapshot(List.of(), false, null)).when(remote).sessionTodoSnapshot(any());
+        coordinator.tick(chat.id());
+        assertThat(mapper.turn(turn.id()).orElseThrow().state()).isEqualTo("COMPLETED");
+        verify(remote, times(3)).promptAsync(any(), any(OpenCodeClient.PromptRequest.class));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM task", Integer.class)).isZero();
+    }
+    @Test void uncertainResearchContinuationRecoversTheExactMessageAfterRestartWithoutResend() {
+        var chat = researchChat(); var turn = run(chat.id()); completedAnswer(); coordinator.tick(chat.id());
+        String continuation = researchMapper.latest(turn.id()).messageId();
+        doAnswer(call -> { call.callRealMethod(); throw new IllegalStateException("lost follow-up acknowledgement"); })
+                .when(remote).promptAsync(any(), any(OpenCodeClient.PromptRequest.class));
+        coordinator.tick(chat.id()); assertThat(researchMapper.latest(turn.id()).state()).isEqualTo("UNKNOWN");
+        coordinator.close(); coordinator = new KnowledgeCoordinator(mapper, persistence, remote, json, properties, events,
+                new KnowledgeQuestions(v2, mapper, remote, json, events), v2, new KnowledgeResearch(researchMapper, mapper, remote, json));
+        coordinator.tick(chat.id());
+        assertThat(researchMapper.latest(turn.id()).messageId()).isEqualTo(continuation);
+        assertThat(researchMapper.latest(turn.id()).state()).isEqualTo("RUNNING");
+        verify(remote, times(2)).promptAsync(any(), any(OpenCodeClient.PromptRequest.class));
+        coordinator.tick(chat.id()); assertThat(mapper.turn(turn.id()).orElseThrow().state()).isEqualTo("COMPLETED");
+    }
+    @Test void stoppingPreparedResearchPreventsFollowupAndRequiresOriginalSessionStopProof() {
+        var chat = researchChat(); var turn = run(chat.id()); completedAnswer(); coordinator.tick(chat.id());
+        assertThat(researchMapper.latest(turn.id()).state()).isEqualTo("PREPARED");
+        persistence.stop(chat.id());
+        doThrow(new IllegalStateException("unconfirmed")).when(remote).abortWithConfirmation(any()); coordinator.tick(chat.id());
+        assertThat(mapper.turn(turn.id()).orElseThrow().state()).isEqualTo("STOPPING");
+        verify(remote, times(1)).promptAsync(any(), any(OpenCodeClient.PromptRequest.class));
+        doReturn(OpenCodeClient.AbortConfirmation.ACKNOWLEDGED).when(remote).abortWithConfirmation(any()); coordinator.tick(chat.id());
+        assertThat(mapper.turn(turn.id()).orElseThrow().state()).isEqualTo("STOPPED");
+    }
+
+    @Test void requestingPastEndOfFileReturnsAvailableLinesSoInvestigationCanContinue() throws Exception {
+        Files.writeString(root.resolve("Small.java"), "class Small {\n  void run() {}\n}\n");
+        var chat = researchChat(); var source = sources.selected(project, chat.id(), "code");
+        var read = reader.readRange(source, "Small.java", -1, 1, 200, null, 0);
+        assertThat(read.get("text")).asString().contains("void run()");
+        assertThat(((Number) read.get("endLine")).intValue()).isLessThan(200);
     }
     @Test void unifiedSearchUsesFrozenSourcesDeduplicatesDocumentsAndReadsTheExactVersion() throws Exception {
         Files.writeString(root.resolve("Customer.java"), "class Customer { String customer_id; }\n");
@@ -124,7 +195,7 @@ class KnowledgeIntegrationTest {
         doReturn(new OpenCodeClient.SessionStatus("COMPLETED")).when(remote).sessionStatus(any());
         doReturn("答案 [1](knowledge:fake-id)").when(remote).sessionLiveOutput(any());
         doReturn(new OpenCodeClient.SessionResult("答案 [1](knowledge:fake-id)", Map.of(), null, null, 0)).when(remote).sessionResult(any());
-        coordinator.close(); coordinator = new KnowledgeCoordinator(mapper, persistence, remote, json, properties, events, new KnowledgeQuestions(v2, mapper, remote, json, events), v2); coordinator.tick(chat.id());
+        coordinator.close(); coordinator = new KnowledgeCoordinator(mapper, persistence, remote, json, properties, events, new KnowledgeQuestions(v2, mapper, remote, json, events), v2, new KnowledgeResearch(researchMapper, mapper, remote, json)); coordinator.tick(chat.id());
         assertThat(conversations.get(chat.id()).state()).isEqualTo("IDLE");
         assertThat(conversations.messages(chat.id(), null, 50).items().getFirst().answer()).contains("引用未核实").doesNotContain("knowledge:");
         run(chat.id()); verify(remote, times(1)).createSession(any(OpenCodeClient.SessionCreationPlan.class));
@@ -186,6 +257,22 @@ class KnowledgeIntegrationTest {
         assertThat(tools.call("query_database_readonly", Map.of("scope", grant, "connectionId", "not-authorized", "sql", "SELECT 1")).error()).isTrue();
         persistence.stop(chat.id()); assertThat(tools.call("list_knowledge_sources", Map.of("scope", grant)).error()).isTrue();
         assertThat(mapper.citations(chat.id(), turn.id())).hasSize(1);
+    }
+    @Test void citationStorageLimitDoesNotStopReadingTheNextPieceOfEvidence() throws Exception {
+        Files.writeString(root.resolve("Next.java"), "class Next { // 继续追踪实际实现\n}\n");
+        var chat = create(List.of("code")); var turn = run(chat.id());
+        String session = mapper.conversation(chat.id()).orElseThrow().remoteId();
+        var credentials = runtime.current().orElseGet(() -> new InternalMcpCredentialProvider(() -> 19000).issue()); runtime.activate(credentials);
+        assist.insertSession(new AssistMapper.Session(session, credentials.generation(), root.toString(), "KNOWLEDGE_READ_ONLY", "[]",
+                json.writeValueAsString(AssistToolCatalog.allowed("KNOWLEDGE_READ_ONLY")), Instant.now().toString()));
+        for (int i = 0; i < 100; i++) assertThat(mapper.cite(new KnowledgeRows.Citation(UUID.randomUUID().toString(), chat.id(), turn.id(),
+                "CODE", "code", "Earlier.java", "第1行", "a".repeat(64), "{}", Instant.now().toString()))).isEqualTo(1);
+        var result = tools.call("read_knowledge_source", Map.of("scope", scopes.grant(session), "sourceId", "code", "path", "Next.java"));
+        assertThat(result.error()).isFalse();
+        assertThat(result.content().get("text")).asString().contains("继续追踪实际实现");
+        assertThat(result.content()).containsEntry("citationStatus", "LIMIT_REACHED").doesNotContainKey("citationId");
+        assertThat(mapper.citationCount(turn.id())).isEqualTo(100);
+        assertThat(mapper.calls(chat.id(), turn.id())).allMatch(c -> c.state().equals("SUCCEEDED"));
     }
     @Test void fiveFormatsUseTheSameScopedReaderAndInterruptedUploadRecovers() throws Exception {
         var incoming = new ArrayList<KnowledgeSources.Incoming>();
@@ -251,7 +338,7 @@ class KnowledgeIntegrationTest {
         var service = new KnowledgeQuestions(v2, mapper, remote, json, events);
         var reply = new KnowledgeQuestions.Reply(UUID.randomUUID().toString(), List.of(List.of("张三")), question.version());
         assertThat(service.reply(chat.id(), question.id(), reply).state()).isEqualTo("PREPARED");
-        coordinator.close(); coordinator = new KnowledgeCoordinator(mapper, persistence, remote, json, properties, events, service, v2);
+        coordinator.close(); coordinator = new KnowledgeCoordinator(mapper, persistence, remote, json, properties, events, service, v2, new KnowledgeResearch(researchMapper, mapper, remote, json));
         coordinator.tick(chat.id()); coordinator.tick(chat.id());
         assertThat(service.reply(chat.id(), question.id(), reply).state()).isEqualTo("ANSWERED");
         verify(remote, times(1)).replyQuestion(any(), eq("native-question"), eq(List.of(List.of("张三"))));

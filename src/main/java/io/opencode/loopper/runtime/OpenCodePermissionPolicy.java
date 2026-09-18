@@ -21,6 +21,13 @@ final class OpenCodePermissionPolicy {
         if (profile != OpenCodeClient.SessionProfile.IMPLEMENTATION) {
             List<Map<String, String>> rules = new ArrayList<>();
             rules.add(rule("*", "*", "deny"));
+            if (KnowledgeSessionPolicy.research(profile)) {
+                KnowledgeSessionPolicy.NATIVE_TOOLS.forEach(tool -> rules.add(rule(tool, "*", "allow")));
+                rules.add(rule(KnowledgeSessionPolicy.MARKER, "*", "allow"));
+                rules.add(rule("external_directory", "*", "deny"));
+                if (KnowledgeSessionPolicy.interactive(profile)) rules.add(rule("question", "*", "allow"));
+                return List.copyOf(rules);
+            }
             if (profile == OpenCodeClient.SessionProfile.KNOWLEDGE_READ_ONLY) return List.copyOf(rules);
             if (profile == OpenCodeClient.SessionProfile.KNOWLEDGE_INTERACTIVE_READ_ONLY) { rules.add(rule("question", "*", "allow")); return List.copyOf(rules); }
             if (profile == OpenCodeClient.SessionProfile.SNAPSHOT_CODE_REVIEW_NO_TOOLS) {

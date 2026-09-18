@@ -67,6 +67,8 @@ class KnowledgeMcpTransportIntegrationTest {
     @Autowired KnowledgeConversations conversations;
     @Autowired KnowledgePersistence persistence;
     @Autowired KnowledgeMapper knowledge;
+    @Autowired io.opencode.loopper.persistence.KnowledgeResearchMapper researchMapper;
+    @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
     @Autowired AssistMapper assistMapper;
     @Autowired AssistRuntimeSupport assist;
     @Autowired InternalMcpRuntimeAccess runtime;
@@ -74,7 +76,6 @@ class KnowledgeMcpTransportIntegrationTest {
     @Autowired LoopperProperties properties;
     @Autowired KnowledgeEventHub events;
     @Autowired ObjectMapper json;
-    @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
     @MockitoBean OpenCodeToolInventory inventory;
     @TempDir Path root;
     private HttpServer server;
@@ -135,7 +136,7 @@ class KnowledgeMcpTransportIntegrationTest {
                 endpoint, null, null, true, credentials.generation(), credentials.serverName()), properties,
                 new OpenCodeCapabilityRegistry(), bindings);
         remote.installAssist(assist);
-        coordinator = new KnowledgeCoordinator(knowledge, persistence, remote, json, properties, events, new KnowledgeQuestions(v2, knowledge, remote, json, events), v2);
+        coordinator = new KnowledgeCoordinator(knowledge, persistence, remote, json, properties, events, new KnowledgeQuestions(v2, knowledge, remote, json, events), v2, new io.opencode.loopper.service.knowledge.KnowledgeResearch(researchMapper, knowledge, remote, json));
     }
     @AfterEach void close() {
         if (coordinator != null) coordinator.close();
@@ -155,6 +156,21 @@ class KnowledgeMcpTransportIntegrationTest {
             assertThat(response.statusCode()).isEqualTo(200); var body = json.readTree(response.body());
             assertThat(body.path("matches").size()).isEqualTo(1); assertThat(body.path("coverage").size()).isEqualTo(2);
         }
+    }
+
+    @Test void researchSessionCanUseNativeToolsWhenKnowledgeMcpIsDisconnected() {
+        var chat = conversations.create(new KnowledgeConversations.Create(UUID.randomUUID().toString(), project,
+                "原生调查", "fake/model", List.of("code")));
+        when(inventory.inventory(any())).thenReturn(new OpenCodeToolInventory.Inventory(List.of(), "offline", true));
+        persistence.begin(chat.id(), UUID.randomUUID().toString(), "直接使用原生工具调查项目实现");
+        coordinator.tick(chat.id()); coordinator.tick(chat.id());
+        assertThat(sentPrompt.get()).isNotNull();
+        assertThat(sentPrompt.get().path("system").asText()).contains("原生 read", "不要因此停止整个调查");
+        assertThat(sentPrompt.get().path("system").asText()).doesNotContain("先使用 list_knowledge_sources");
+        assertThat(sessionRequest.get().path("permission").valueStream().filter(n -> n.path("action").asText().equals("allow"))
+                .map(n -> n.path("permission").asText()).toList()).contains("read", "glob", "grep", "todowrite");
+        assertThat(sentPrompt.get().path("tools").valueStream().allMatch(n -> n.isBoolean() && !n.asBoolean())).isTrue();
+        assertThat(knowledge.active(chat.id()).orElseThrow().state()).isEqualTo("RUNNING");
     }
     @Test void exactTitleRecoveryRegistersTheSameKnowledgeScopeBeforeDispatch() throws Exception {
         var chat = create();
@@ -268,8 +284,10 @@ class KnowledgeMcpTransportIntegrationTest {
         assertThat(knowledge.active(chat.id()).orElseThrow().requestJson()).doesNotContain(scope);
     }
     private KnowledgeConversations.View create() {
-        return conversations.create(new KnowledgeConversations.Create(UUID.randomUUID().toString(), project,
+        var view = conversations.create(new KnowledgeConversations.Create(UUID.randomUUID().toString(), project,
                 "模块问题", "fake/model", List.of("code", "documents")));
+        jdbc.update("UPDATE knowledge_conversation_options SET contract_version=2 WHERE conversation_id=?", view.id());
+        return conversations.get(view.id());
     }
     private String transmittedScope() {
         var matcher = Pattern.compile("scope=(lpa_[A-Za-z0-9_.-]+)").matcher(sentPrompt.get().path("system").asText());
