@@ -1145,4 +1145,4 @@ to pass validation. See [role changes, configuration and qualification boundarie
 
 ### 项目知识问答
 
-新知识会话使用 `KNOWLEDGE_RESEARCH_READ_ONLY` / `KNOWLEDGE_RESEARCH_INTERACTIVE_READ_ONLY`，自主选择原生只读工具与可选知识 MCP，同 Session 自查及未完成调查续查；旧 `KNOWLEDGE_READ_ONLY` / `KNOWLEDGE_INTERACTIVE_READ_ONLY` 保持冻结权限。知识会话免固定角色步数和任务/设计预算。运行代次、所有者、消息身份、正向停止证明及来源快照规则见 [项目知识库合同](knowledge-contract.md)。
+新知识会话使用 `KNOWLEDGE_RESEARCH_READ_ONLY` / `KNOWLEDGE_RESEARCH_INTERACTIVE_READ_ONLY`，自主选择原生只读工具与可选知识 MCP；模型回答完成后不自动追加自查或 Todo 续查 prompt，已持久化的历史请求保持精确恢复。旧 `KNOWLEDGE_READ_ONLY` / `KNOWLEDGE_INTERACTIVE_READ_ONLY` 保持冻结权限。知识会话免固定角色步数和任务/设计预算。运行代次、所有者、消息身份、正向停止证明及来源快照规则见 [项目知识库合同](knowledge-contract.md)。

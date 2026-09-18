@@ -7,14 +7,13 @@ import io.opencode.loopper.persistence.KnowledgeRows.*;
 import io.opencode.loopper.runtime.OpenCodeClient;
 import io.opencode.loopper.runtime.OpenCodeClient.*;
 import io.opencode.loopper.runtime.KnowledgeSessionPolicy;
-import io.opencode.loopper.service.assist.AssistRedaction;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.*;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.ObjectMapper;
 
-/** Same-session self-review and Todo continuation, with exact recovery and no blind resend. */
+/** Native investigation records and exact recovery of previously persisted continuations. */
 @Service
 public final class KnowledgeResearch {
     private final KnowledgeResearchMapper mapper;
@@ -44,29 +43,11 @@ public final class KnowledgeResearch {
         }
         return true;
     }
-    /** The initial answer always receives one self-review. Explicit unfinished Todos continue after that. */
-    public boolean continueAfterAnswer(OpenCodeSession session, Turn turn) {
-        var previous = mapper.latest(turn.id());
-        if (previous != null && !previous.state().equals("COMPLETED")) {
-            if (!previous.state().equals("RUNNING") || !change(previous, "COMPLETED")) return true;
-            previous = mapper.latest(turn.id());
-        }
-        var todos = remote.sessionTodoSnapshot(session);
-        if (todos == null) throw new IllegalStateException("Research Todo status unavailable");
-        var unfinished = todos.todos().stream().filter(t -> !Set.of("completed", "cancelled").contains(Objects.toString(t.status(), "").toLowerCase(Locale.ROOT))).toList();
-        if (previous != null && unfinished.isEmpty() && !todos.truncated()) return false;
-        String pending = unfinished.isEmpty() ? "" : "仍未完成的调查项：\n" + String.join("\n", unfinished.stream().limit(100)
-                .map(t -> "- " + AssistRedaction.text(t.content())).toList());
-        if (todos.truncated()) pending += "\n待办列表截断，请整理本轮待办并完成相关调查，不能将缺失部分视为已完成。";
-        var original = json.readTree(turn.requestJson());
-        int ordinal = previous == null ? 1 : previous.ordinal() + 1;
-        String messageId = "msg_loopper_knowledge_check_" + UUID.randomUUID().toString().replace("-", "");
-        var request = new PromptRequest(KnowledgePrompts.review(turn.userText(), pending), original.path("system").asText(),
-                "build", new ResponseFormat.Text(), messageId, List.of());
-        String now = Instant.now().toString();
-        mapper.prepare(new Round(turn.id(), ordinal, messageId, "PREPARED", json.writeValueAsString(request),
-                OpenCodeClient.promptRequestSha256(request), turn.thinking(), now, now, 0), turn.version(), ordinal - 1);
-        return true;
+    /** Finish a legacy continuation if present; never create another prompt after an answer. */
+    public boolean completeExistingRound(Turn turn) {
+        var round = mapper.latest(turn.id());
+        return round == null || round.state().equals("COMPLETED")
+                || (round.state().equals("RUNNING") && change(round, "COMPLETED"));
     }
     public String thinking(Turn turn, SessionTranscript transcript) {
         String current = KnowledgeThinking.text(transcript); var round = mapper.latest(turn.id());

@@ -158,7 +158,7 @@ public class KnowledgeCoordinator {
         if (io.opencode.loopper.runtime.KnowledgeSessionPolicy.interactive(plan.profile()) && questions.poll(remote, original)) { usage(remote, original); return; }
         var status = openCode.sessionStatus(remote);
         String output = AssistRedaction.text(openCode.sessionLiveOutput(remote));
-        if (autonomous && output.isBlank()) output = original.answer(); // Keep the draft visible while self-review starts.
+        if (autonomous && output.isBlank()) output = original.answer(); // Preserve drafts during legacy continuation recovery.
         if (output.length() > 500000) { persistence.stop(original.conversationId()); return; }
         String thinking = original.thinking();
         SessionTranscript observed = null;
@@ -178,9 +178,7 @@ public class KnowledgeCoordinator {
             else if (!result.text().isBlank()) {
                 String answer = AssistRedaction.text(result.text());
                 if (!answer.equals(turn.answer())) { mapper.answer(turn.id(), turn.version(), answer, Instant.now().toString()); turn = mapper.turn(turn.id()).orElseThrow(); }
-                if (autonomous && research.continueAfterAnswer(remote, turn)) {
-                    mapper.detail(turn.id(), turn.version(), "正在核对结论并补齐调查", Instant.now().toString());
-                } else persistence.finish(turn, "COMPLETED", "");
+                if (!autonomous || research.completeExistingRound(turn)) persistence.finish(turn, "COMPLETED", "");
             }
             usage(remote, turn);
         } else if (status.failed()) {

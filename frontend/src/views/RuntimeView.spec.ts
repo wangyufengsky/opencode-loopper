@@ -6,6 +6,30 @@ import RuntimeView from '@/views/RuntimeView.vue'
 import { useTaskStore } from '@/stores/taskStore'
 
 describe('RuntimeView managed startup diagnostics', () => {
+  it('shows how to recover when the OpenCode executable cannot be found', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const store = useTaskStore()
+    store.runtime = {
+      loopperVersion: '0.4.58', status: 'OFFLINE', managed: false, model: '', checkedAt: '2026-09-18T08:00:00Z',
+      startupFailure: 'OpenCode executable was not found in OPENCODE_EXECUTABLE or PATH',
+    }
+    const wrapper = mount(RuntimeView, {
+      global: {
+        plugins: [pinia, ElementPlus],
+        stubs: {
+          PageHeader: { template: '<header><slot name="actions" /></header>' },
+          Icon: true,
+          StatusBadge: { props: ['status'], template: '<span>{{ status }}</span>' },
+        },
+      },
+    })
+    const error = wrapper.get('.runtime-startup-error').text()
+    expect(error).toContain('未找到 OpenCode 启动文件')
+    expect(error).toContain('命令行路径')
+    expect(error).not.toMatch(/未知|OPENCODE_EXECUTABLE/)
+    expect(wrapper.get('.start-runtime-button').text()).toContain('启动并检查连接')
+  })
   it('keeps capability and authorization details out of the compact runtime overview', () => {
     const pinia = createPinia()
     setActivePinia(pinia)

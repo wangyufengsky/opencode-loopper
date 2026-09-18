@@ -86,33 +86,39 @@ class KnowledgeIntegrationTest {
         doReturn("已读取代码的回答").when(remote).sessionLiveOutput(any());
         doReturn(new OpenCodeClient.SessionResult("已读取代码的回答", Map.of(), null, null, 0)).when(remote).sessionResult(any());
     }
-    @Test void nativeResearchSelfReviewsAndKeepsInvestigatingOpenTodosWithoutRequiringMcp() {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"empty", "pending", "truncated", "unavailable"})
+    void nativeResearchCompletesWithoutAutomaticPromptsRegardlessOfTodoState(String todoState) {
         var chat = researchChat(); var turn = run(chat.id());
         assertThat(chat.options().contractVersion()).isEqualTo(3);
         assertThat(json.readTree(mapper.conversation(chat.id()).orElseThrow().planJson()).path("profile").asText()).startsWith("KNOWLEDGE_RESEARCH_");
         completedAnswer();
         doReturn(new OpenCodeClient.SessionTranscript(List.of(new OpenCodeClient.SessionPart("native-read", "TOOL", "read", "实际源码", "completed"))))
                 .when(remote).sessionTranscript(any());
-        coordinator.tick(chat.id());
-        assertThat(mapper.turn(turn.id()).orElseThrow().state()).isEqualTo("RUNNING");
-        assertThat(researchMapper.latest(turn.id()).state()).isEqualTo("PREPARED");
-        assertThat(mapper.calls(chat.id(), turn.id())).anyMatch(c -> c.tool().equals("read") && c.state().equals("SUCCEEDED"));
-        assertThat(mapper.citationCount(turn.id())).isZero();
-        doReturn(new OpenCodeClient.SessionTodoSnapshot(List.of(new OpenCodeClient.SessionTodo("todo", "追踪数据库分支", "pending", "high", 0, Map.of())), false, null))
+        var todos = todoState.equals("pending")
+                ? List.of(new OpenCodeClient.SessionTodo("todo", "追踪数据库分支", "pending", "high", 0, Map.of())) : List.<OpenCodeClient.SessionTodo>of();
+        doReturn(todoState.equals("unavailable") ? null : new OpenCodeClient.SessionTodoSnapshot(todos, todoState.equals("truncated"), null))
                 .when(remote).sessionTodoSnapshot(any());
-        coordinator.tick(chat.id()); coordinator.tick(chat.id());
-        assertThat(researchMapper.latest(turn.id()).ordinal()).isEqualTo(2);
-        assertThat(researchMapper.latest(turn.id()).requestJson()).contains("追踪数据库分支");
-        assertThat(mapper.turn(turn.id()).orElseThrow().state()).isEqualTo("RUNNING");
-        coordinator.tick(chat.id());
-        doReturn(new OpenCodeClient.SessionTodoSnapshot(List.of(), false, null)).when(remote).sessionTodoSnapshot(any());
         coordinator.tick(chat.id());
         assertThat(mapper.turn(turn.id()).orElseThrow().state()).isEqualTo("COMPLETED");
-        verify(remote, times(3)).promptAsync(any(), any(OpenCodeClient.PromptRequest.class));
+        assertThat(mapper.turn(turn.id()).orElseThrow().answer()).isEqualTo("已读取代码的回答");
+        assertThat(researchMapper.latest(turn.id())).isNull();
+        assertThat(mapper.calls(chat.id(), turn.id())).anyMatch(c -> c.tool().equals("read") && c.state().equals("SUCCEEDED"));
+        assertThat(mapper.citationCount(turn.id())).isZero();
+        coordinator.tick(chat.id()); coordinator.tick(chat.id());
+        verify(remote, times(1)).promptAsync(any(), any(OpenCodeClient.PromptRequest.class));
+        verify(remote, never()).sessionTodoSnapshot(any());
         assertThat(jdbc.queryForObject("SELECT count(*) FROM task", Integer.class)).isZero();
     }
-    @Test void uncertainResearchContinuationRecoversTheExactMessageAfterRestartWithoutResend() {
-        var chat = researchChat(); var turn = run(chat.id()); completedAnswer(); coordinator.tick(chat.id());
+    private void prepareLegacyContinuation(KnowledgeRows.Turn turn) {
+        var request = new OpenCodeClient.PromptRequest("升级前已登记的自查请求", json.readTree(turn.requestJson()).path("system").asText(),
+                "build", new OpenCodeClient.ResponseFormat.Text(), "msg_legacy_" + UUID.randomUUID(), List.of());
+        String now = Instant.now().toString();
+        assertThat(researchMapper.prepare(new KnowledgeResearchMapper.Round(turn.id(), 1, request.messageId(), "PREPARED",
+                json.writeValueAsString(request), OpenCodeClient.promptRequestSha256(request), "", now, now, 0), turn.version(), 0)).isEqualTo(1);
+    }
+    @Test void uncertainLegacyContinuationRecoversTheExactMessageAfterRestartWithoutResendOrFurtherPrompts() {
+        var chat = researchChat(); var turn = run(chat.id()); prepareLegacyContinuation(turn); completedAnswer();
         String continuation = researchMapper.latest(turn.id()).messageId();
         doAnswer(call -> { call.callRealMethod(); throw new IllegalStateException("lost follow-up acknowledgement"); })
                 .when(remote).promptAsync(any(), any(OpenCodeClient.PromptRequest.class));
@@ -124,9 +130,14 @@ class KnowledgeIntegrationTest {
         assertThat(researchMapper.latest(turn.id()).state()).isEqualTo("RUNNING");
         verify(remote, times(2)).promptAsync(any(), any(OpenCodeClient.PromptRequest.class));
         coordinator.tick(chat.id()); assertThat(mapper.turn(turn.id()).orElseThrow().state()).isEqualTo("COMPLETED");
+        assertThat(researchMapper.latest(turn.id()).state()).isEqualTo("COMPLETED");
+        assertThat(researchMapper.latest(turn.id()).ordinal()).isEqualTo(1);
+        coordinator.tick(chat.id());
+        verify(remote, times(2)).promptAsync(any(), any(OpenCodeClient.PromptRequest.class));
+        verify(remote, never()).sessionTodoSnapshot(any());
     }
-    @Test void stoppingPreparedResearchPreventsFollowupAndRequiresOriginalSessionStopProof() {
-        var chat = researchChat(); var turn = run(chat.id()); completedAnswer(); coordinator.tick(chat.id());
+    @Test void stoppingPreparedLegacyContinuationPreventsDispatchAndRequiresOriginalSessionStopProof() {
+        var chat = researchChat(); var turn = run(chat.id()); prepareLegacyContinuation(turn); completedAnswer();
         assertThat(researchMapper.latest(turn.id()).state()).isEqualTo("PREPARED");
         persistence.stop(chat.id());
         doThrow(new IllegalStateException("unconfirmed")).when(remote).abortWithConfirmation(any()); coordinator.tick(chat.id());

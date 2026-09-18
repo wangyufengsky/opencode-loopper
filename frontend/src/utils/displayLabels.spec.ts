@@ -2,6 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { displayLabel, errorCodeLabel, errorEventMessage, rolePackLabel, statusLabel, userFacingError } from './displayLabels'
 
 describe('displayLabels', () => {
+  it('explains a missing OpenCode executable without treating its environment variable as an error code', () => {
+    const message = userFacingError('OpenCode executable was not found in OPENCODE_EXECUTABLE or PATH')
+    expect(message).toContain('未找到 OpenCode 启动文件')
+    expect(message).toContain('命令行路径')
+    expect(message).toContain('启动并检查连接')
+    expect(message).not.toMatch(/未知|OPENCODE_EXECUTABLE/)
+  })
   it('explains stage baseline failures without exposing raw diagnostics', () => {
     const message = errorEventMessage('STAGE_WORKSPACE_BASELINE_CREATE_FAILED',
       'Unable to index the Stage workspace baseline: Permission denied /private/secret')

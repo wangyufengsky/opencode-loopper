@@ -249,6 +249,9 @@ export function userFacingError(value: unknown, fallback = '操作未完成，�
   if (!raw.trim()) return fallback
   const envelope = raw.match(/^\s*SYSTEM_ERROR\[(FIELD|VERIFICATION|SESSION|TASK)\]\s*:?\s*/)
   const detail = envelope ? raw.slice(envelope[0].length) : raw
+  if (detail.trim() === 'OpenCode executable was not found in OPENCODE_EXECUTABLE or PATH') {
+    return '未找到 OpenCode 启动文件。请在设置的“命令行路径”填写启动文件的完整路径，保存后点击“启动并检查连接”。'
+  }
   if (/'file part media type [a-z0-9.+\/-]+' functionality not supported\./i.test(detail)) {
     return '当前模型不支持直接读取此附件格式。请升级 Loopper 或换用支持该格式的模型后新建设计；无需清理项目文件。'
   }

@@ -2,19 +2,16 @@ package io.opencode.loopper.runtime;
 
 import io.opencode.loopper.config.LoopperProperties;
 import jakarta.annotation.PreDestroy;
-import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.URI;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -39,6 +36,7 @@ public final class OpenCodeRuntimeManager implements AutoCloseable {
     private final Object monitor = new Object();
     private final LoopperProperties properties;
     private final ProcessStarter processStarter;
+    private final OpenCodeExecutableResolver executableResolver;
     private final Clock clock;
     private final InternalMcpCredentialProvider internalMcpCredentials;
     private final InternalMcpRuntimeAccess internalMcpAccess;
@@ -58,6 +56,12 @@ public final class OpenCodeRuntimeManager implements AutoCloseable {
                 new InternalMcpCredentialProvider(() -> 8080), new InternalMcpRuntimeAccess(), false);
     }
 
+    OpenCodeRuntimeManager(LoopperProperties properties, ProcessStarter processStarter, Clock clock,
+                           OpenCodeExecutableResolver executableResolver) {
+        this(properties, processStarter, clock, new InternalMcpCredentialProvider(() -> 8080),
+                new InternalMcpRuntimeAccess(), false, executableResolver);
+    }
+
     public OpenCodeRuntimeManager(LoopperProperties properties,
                                   InternalMcpCredentialProvider internalMcpCredentials,
                                   InternalMcpRuntimeAccess internalMcpAccess) {
@@ -75,8 +79,17 @@ public final class OpenCodeRuntimeManager implements AutoCloseable {
                                    InternalMcpCredentialProvider internalMcpCredentials,
                                    InternalMcpRuntimeAccess internalMcpAccess,
                                    boolean requireInternalMcpReadiness) {
+        this(properties, processStarter, clock, internalMcpCredentials, internalMcpAccess,
+                requireInternalMcpReadiness, new OpenCodeExecutableResolver());
+    }
+
+    private OpenCodeRuntimeManager(LoopperProperties properties, ProcessStarter processStarter, Clock clock,
+                                   InternalMcpCredentialProvider internalMcpCredentials,
+                                   InternalMcpRuntimeAccess internalMcpAccess,
+                                   boolean requireInternalMcpReadiness, OpenCodeExecutableResolver executableResolver) {
         this.properties = Objects.requireNonNull(properties, "properties");
         this.processStarter = Objects.requireNonNull(processStarter, "processStarter");
+        this.executableResolver = Objects.requireNonNull(executableResolver, "executableResolver");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.internalMcpCredentials = Objects.requireNonNull(internalMcpCredentials, "internalMcpCredentials");
         this.internalMcpAccess = Objects.requireNonNull(internalMcpAccess, "internalMcpAccess");
@@ -262,7 +275,7 @@ public final class OpenCodeRuntimeManager implements AutoCloseable {
     }
 
     private void startOwned() {
-        Path executable = findExecutable();
+        Path executable = executableResolver.resolve(properties.getOpenCode().getExecutable());
         int port = reserveLoopbackPort();
         URI endpoint = URI.create("http://127.0.0.1:" + port);
         lastAttemptedEndpoint = endpoint;
@@ -393,47 +406,6 @@ public final class OpenCodeRuntimeManager implements AutoCloseable {
             }
         });
     }
-
-    private Path findExecutable() {
-        List<String> requested = new ArrayList<>();
-        if (!blank(properties.getOpenCode().getExecutable())) requested.add(properties.getOpenCode().getExecutable().trim());
-        String environmentOverride = System.getenv("OPENCODE_EXECUTABLE");
-        if (!blank(environmentOverride)) requested.add(environmentOverride.trim());
-        for (String item : requested) {
-            Path match = resolveExplicitExecutable(item);
-            if (match != null) return match;
-        }
-        for (String segment : System.getenv().getOrDefault("PATH", "").split(java.util.regex.Pattern.quote(File.pathSeparator))) {
-            if (segment.isBlank()) continue;
-            for (String name : executableNames()) {
-                Path candidate = Path.of(segment, name);
-                if (isExecutable(candidate)) return candidate.toAbsolutePath().normalize();
-            }
-        }
-        throw new IllegalStateException("OpenCode executable was not found in OPENCODE_EXECUTABLE or PATH");
-    }
-
-    private Path resolveExplicitExecutable(String value) {
-        Path candidate = Path.of(value);
-        if (candidate.getNameCount() > 1 || value.contains("/") || value.contains("\\")) {
-            return isExecutable(candidate) ? candidate.toAbsolutePath().normalize() : null;
-        }
-        for (String segment : System.getenv().getOrDefault("PATH", "").split(java.util.regex.Pattern.quote(File.pathSeparator))) {
-            Path inPath = Path.of(segment, value);
-            if (isExecutable(inPath)) return inPath.toAbsolutePath().normalize();
-        }
-        return isExecutable(candidate) ? candidate.toAbsolutePath().normalize() : null;
-    }
-
-    private static boolean isExecutable(Path candidate) {
-        return Files.isRegularFile(candidate) && (Files.isExecutable(candidate) || isWindows());
-    }
-
-    private static List<String> executableNames() {
-        return isWindows() ? List.of("opencode.exe", "opencode.cmd", "opencode.bat", "opencode") : List.of("opencode");
-    }
-
-    private static boolean isWindows() { return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win"); }
 
     private static int reserveLoopbackPort() {
         try (ServerSocket socket = new ServerSocket()) {

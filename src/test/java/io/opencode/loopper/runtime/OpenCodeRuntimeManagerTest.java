@@ -56,6 +56,34 @@ class OpenCodeRuntimeManagerTest {
     @AfterEach
     void stopServers() { servers.forEach(server -> server.stop(0)); }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"exe", "cmd"})
+    void managedWindowsLaunchUsesTheSameResolvedFileAsModelDiscovery(String suffix) throws Exception {
+        Path bin = Files.createDirectories(temporaryDirectory.resolve("Program Files/OpenCode"));
+        Files.writeString(bin.resolve("opencode"), "#!/bin/sh\n");
+        Path executable = Files.writeString(bin.resolve("opencode." + suffix), "fixture");
+        var env = Map.of("Path", "\"" + bin + "\"", "PathExt", ".EXE;.CMD");
+        var properties = properties("managed", URI.create("http://127.0.0.1:4096"));
+        properties.getOpenCode().setExecutable("opencode");
+        var commands = new ArrayList<List<String>>();
+        FakeProcess process = new FakeProcess(6190);
+        try (var manager = new OpenCodeRuntimeManager(properties, (command, environment) -> {
+            commands.add(command);
+            int port = Integer.parseInt(command.get(command.indexOf("--port") + 1));
+            healthServer(port, null);
+            return process;
+        }, Clock.systemUTC(), new OpenCodeExecutableResolver("Windows 11", env))) {
+            var snapshot = manager.status();
+            assertThat(snapshot.status()).isEqualTo("AVAILABLE");
+            assertThat(snapshot.startupFailure()).isNull();
+            assertThat(commands).hasSize(1);
+            String discovery = new ExecutableResolver("Windows 11", env).resolve(temporaryDirectory, List.of("opencode", "models")).argv().getFirst();
+            assertThat(commands.getFirst().getFirst()).isEqualTo(discovery).isEqualTo(executable.toAbsolutePath().normalize().toString());
+            assertThat(commands.getFirst()).containsSubsequence("serve", "--hostname", "127.0.0.1", "--port");
+        }
+        assertThat(process.destroyed).isTrue();
+    }
+
     @Test
     void managedAlwaysStartsAnOwnedProcessInsteadOfReusingAHealthyConfiguredEndpoint() throws Exception {
         HttpServer external = healthServer(0, null);

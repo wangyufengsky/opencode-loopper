@@ -124,6 +124,8 @@ PowerShell 默认不会从当前目录搜索命令，必须带 `./` 或 `.\`：
 
 脚本按显式 `LOOPPER_JAVA_HOME`、包内 `jdk21` 的顺序查找 Java；独立脚本部署且不存在 `jdk21` 目录时才回退到 `JAVA_HOME`、`PATH`，并拒绝低于 21 的版本。默认 `managed` 直接由 Loopper 在动态 loopback 端口启动独立 OpenCode，不扫描已有进程。显式选择 `auto/http` 时才通过 Windows 进程信息读取 `opencode serve --port ...` 候选并要求 `/global/health` 精确验真。
 
+Windows 托管启动与模型发现共用可执行文件解析规则，按 `PATHEXT` 查找 `.exe`、`.cmd`、`.bat` 等文件，环境变量名称 `Path` / `PATH` 不区分大小写；不把同名无扩展名 Unix 脚本作为 Windows 启动文件。也可在设置的“命令行路径”填写实际 `opencode.exe` 或 `opencode.cmd` 的完整路径（包含文件名，不加引号或参数）。启动失败后保存路径，再点击运行环境页的“启动并检查连接”；保存设置或刷新页面不会自动重启进程。
+
 需要固定路径或端口时，可先设置环境变量：
 
 ```bat
