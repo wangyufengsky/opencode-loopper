@@ -8,7 +8,7 @@ final class OpenCodeAgentPolicy {
 
     /** Zero means Loopper imposes no fixed agentic-step limit. */
     static int stepLimit(OpenCodeClient.SessionProfile profile) {
-        if (profile == null || DocumentTemplateProfiles.contains(profile)) return 0;
+        if (profile == null || profile == OpenCodeClient.SessionProfile.PPT_AGENT || DocumentTemplateProfiles.contains(profile)) return 0;
         return switch (profile) {
             case KNOWLEDGE_RESEARCH_READ_ONLY, KNOWLEDGE_RESEARCH_INTERACTIVE_READ_ONLY,
                     KNOWLEDGE_INTERACTIVE_READ_ONLY, KNOWLEDGE_READ_ONLY, GENERAL_READ_ONLY, DESIGNER_INTERACTIVE_READ_ONLY, IMPLEMENTATION, SNAPSHOT_CODE_REVIEW_NO_TOOLS, TEMPLATE_ANALYSIS_NO_TOOLS, TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS,
@@ -22,6 +22,7 @@ final class OpenCodeAgentPolicy {
     }
 
     static String promptAgent(String requested, OpenCodeClient.SessionProfile profile, boolean managed) {
+        if (profile == OpenCodeClient.SessionProfile.PPT_AGENT) return managed ? PptAgentProfile.AGENT : null;
         // Old callers may still explicitly request the bounded agent for an exempt role.
         if (requested != null && !requested.isBlank()
                 && !(OpenCodeClient.STRUCTURED_AGENT.equals(requested) && profile != null && stepLimit(profile) == 0)) return requested;
@@ -32,6 +33,8 @@ final class OpenCodeAgentPolicy {
 
     static Map<String, Object> managedDefinitions() {
         return Map.of(
+                PptAgentProfile.AGENT, Map.of("description", "Loopper PPT Agent", "mode", "primary",
+                        "temperature", 0.2d, "prompt", PptAgentProfile.PROMPT),
                 OpenCodeClient.STRUCTURED_AGENT, Map.of(
                         "description", "Bounded read-only Loopper role for machine-response workflows",
                         "mode", "primary", "steps", OpenCodeClient.STRUCTURED_AGENT_STEPS,

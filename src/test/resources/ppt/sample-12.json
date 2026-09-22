@@ -1,0 +1,833 @@
+{
+  "title": "PPT 工作室 12 页综合验收示例（演示数据）",
+  "width": 960,
+  "height": 540,
+  "theme": "business",
+  "slides": [
+    {
+      "id": "demo-01",
+      "title": "PPT 工作室\n离线制作能力验收",
+      "section": "封面",
+      "notes": "本页仅为功能验收示例，所有数字均为虚构演示数据。演讲说明：PPT 工作室\n离线制作能力验收。",
+      "elements": [
+        {
+          "id": "demo-01-accent",
+          "type": "shape",
+          "x": 60,
+          "y": 55,
+          "width": 130,
+          "height": 12,
+          "fill": "246BCE",
+          "allowOverlap": true
+        },
+        {
+          "id": "demo-01-heading",
+          "type": "text",
+          "x": 60,
+          "y": 100,
+          "width": 840,
+          "height": 170,
+          "text": "PPT 工作室\n离线制作能力验收",
+          "fontSize": 46,
+          "bold": true
+        },
+        {
+          "id": "demo-01-subtitle",
+          "type": "text",
+          "x": 60,
+          "y": 294,
+          "width": 840,
+          "height": 88,
+          "text": "纯文本 Agent · 结构化操作 · 原生可编辑 PPTX",
+          "fontSize": 24
+        },
+        {
+          "id": "demo-01-caption",
+          "type": "text",
+          "x": 60,
+          "y": 474,
+          "width": 840,
+          "height": 48,
+          "text": "示例作品：全部图表与业务数据均为虚构演示数据",
+          "fontSize": 16,
+          "color": "62748A"
+        }
+      ]
+    },
+    {
+      "id": "demo-02",
+      "title": "验收目录与章节",
+      "section": "目录",
+      "notes": "本页仅为功能验收示例，所有数字均为虚构演示数据。演讲说明：验收目录与章节。",
+      "elements": [
+        {
+          "id": "demo-02-title",
+          "type": "text",
+          "x": 60,
+          "y": 30,
+          "width": 840,
+          "height": 75,
+          "text": "验收目录与章节",
+          "fontSize": 32,
+          "bold": true
+        },
+        {
+          "id": "demo-02-card-0",
+          "type": "shape",
+          "x": 60,
+          "y": 130,
+          "width": 400,
+          "height": 135,
+          "text": "01 内容与结构\n中文、英文、讲稿",
+          "fontSize": 24,
+          "fill": "E8F1FF",
+          "shape": "roundRect"
+        },
+        {
+          "id": "demo-02-card-1",
+          "type": "shape",
+          "x": 500,
+          "y": 130,
+          "width": 400,
+          "height": 135,
+          "text": "02 图形与素材\n分组、连线、图片",
+          "fontSize": 24,
+          "fill": "E8F1FF",
+          "shape": "roundRect"
+        },
+        {
+          "id": "demo-02-card-2",
+          "type": "shape",
+          "x": 60,
+          "y": 292,
+          "width": 400,
+          "height": 135,
+          "text": "03 数据表达\n表格、三类原生图表",
+          "fontSize": 24,
+          "fill": "E8F1FF",
+          "shape": "roundRect"
+        },
+        {
+          "id": "demo-02-card-3",
+          "type": "shape",
+          "x": 500,
+          "y": 292,
+          "width": 400,
+          "height": 135,
+          "text": "04 方案与交付\n对比、路线图、结论",
+          "fontSize": 24,
+          "fill": "E8F1FF",
+          "shape": "roundRect"
+        },
+        {
+          "id": "demo-02-caption",
+          "type": "text",
+          "x": 60,
+          "y": 474,
+          "width": 840,
+          "height": 48,
+          "text": "示例数据 · 仅用于功能与版式验收",
+          "fontSize": 16,
+          "color": "62748A"
+        }
+      ]
+    },
+    {
+      "id": "demo-03",
+      "title": "中文与英文混排：完整保留内容",
+      "section": "内容",
+      "notes": "本页仅为功能验收示例，所有数字均为虚构演示数据。演讲说明：中文与英文混排：完整保留内容。",
+      "elements": [
+        {
+          "id": "demo-03-title",
+          "type": "text",
+          "x": 60,
+          "y": 30,
+          "width": 840,
+          "height": 75,
+          "text": "中文与英文混排：完整保留内容",
+          "fontSize": 32,
+          "bold": true
+        },
+        {
+          "id": "demo-03-body",
+          "type": "text",
+          "x": 60,
+          "y": 125,
+          "width": 840,
+          "height": 325,
+          "text": "本页用于检验中文换行、英文单词和段落间距。PPT Agent 通过结构化工具创建页面，程序负责文字测量、坐标检查以及文件生成。\n演示流程：明确目标、确认方案、分模块修改、制作预览和导出。用户可以在任何一页提出局部调整，并保留其他已经确认的内容。\nEnglish example: The document revision is frozen before rendering. Editable text boxes and chart data remain available in the exported PowerPoint file.\n所有内容均为示例说明，不代表真实业务成效。",
+          "fontSize": 20
+        },
+        {
+          "id": "demo-03-caption",
+          "type": "text",
+          "x": 60,
+          "y": 474,
+          "width": 840,
+          "height": 48,
+          "text": "示例数据 · 仅用于功能与版式验收",
+          "fontSize": 16,
+          "color": "62748A"
+        }
+      ]
+    },
+    {
+      "id": "demo-04",
+      "title": "图形分组与连线：从资料到成品",
+      "section": "图形",
+      "notes": "本页仅为功能验收示例，所有数字均为虚构演示数据。演讲说明：图形分组与连线：从资料到成品。",
+      "elements": [
+        {
+          "id": "demo-04-title",
+          "type": "text",
+          "x": 60,
+          "y": 30,
+          "width": 840,
+          "height": 75,
+          "text": "图形分组与连线：从资料到成品",
+          "fontSize": 32,
+          "bold": true
+        },
+        {
+          "id": "demo-04-node-0",
+          "type": "shape",
+          "x": 60,
+          "y": 165,
+          "width": 240,
+          "height": 140,
+          "text": "输入资料\n形成内容依据",
+          "fontSize": 24,
+          "fill": "E8F1FF",
+          "shape": "roundRect",
+          "groupId": "demo-flow-group"
+        },
+        {
+          "id": "demo-04-arrow-0",
+          "type": "line",
+          "x": 310,
+          "y": 230,
+          "width": 40,
+          "height": 1,
+          "stroke": "246BCE",
+          "lineWidth": 3,
+          "shape": "arrow"
+        },
+        {
+          "id": "demo-04-node-1",
+          "type": "shape",
+          "x": 360,
+          "y": 165,
+          "width": 240,
+          "height": 140,
+          "text": "设计页面\n确定表达结构",
+          "fontSize": 24,
+          "fill": "E8F1FF",
+          "shape": "roundRect",
+          "groupId": "demo-flow-group"
+        },
+        {
+          "id": "demo-04-arrow-1",
+          "type": "line",
+          "x": 610,
+          "y": 230,
+          "width": 40,
+          "height": 1,
+          "stroke": "246BCE",
+          "lineWidth": 3,
+          "shape": "arrow"
+        },
+        {
+          "id": "demo-04-node-2",
+          "type": "shape",
+          "x": 660,
+          "y": 165,
+          "width": 240,
+          "height": 140,
+          "text": "制作交付\n保留编辑能力",
+          "fontSize": 24,
+          "fill": "E8F1FF",
+          "shape": "roundRect",
+          "groupId": "demo-flow-group"
+        },
+        {
+          "id": "demo-04-description",
+          "type": "text",
+          "x": 60,
+          "y": 350,
+          "width": 840,
+          "height": 75,
+          "text": "三个步骤使用原生形状分组，连接箭头保持为可编辑线条。",
+          "fontSize": 22
+        },
+        {
+          "id": "demo-04-caption",
+          "type": "text",
+          "x": 60,
+          "y": 474,
+          "width": 840,
+          "height": 48,
+          "text": "示例数据 · 仅用于功能与版式验收",
+          "fontSize": 16,
+          "color": "62748A"
+        }
+      ]
+    },
+    {
+      "id": "demo-05",
+      "title": "用户图片：完整显示与裁切填满",
+      "section": "素材",
+      "notes": "本页仅为功能验收示例，所有数字均为虚构演示数据。演讲说明：用户图片：完整显示与裁切填满。",
+      "elements": [
+        {
+          "id": "demo-05-title",
+          "type": "text",
+          "x": 60,
+          "y": 30,
+          "width": 840,
+          "height": 75,
+          "text": "用户图片：完整显示与裁切填满",
+          "fontSize": 32,
+          "bold": true
+        },
+        {
+          "id": "demo-05-left-label",
+          "type": "text",
+          "x": 60,
+          "y": 104,
+          "width": 390,
+          "height": 52,
+          "text": "完整显示（contain）",
+          "fontSize": 20
+        },
+        {
+          "id": "demo-05-right-label",
+          "type": "text",
+          "x": 510,
+          "y": 104,
+          "width": 390,
+          "height": 52,
+          "text": "裁切填满（cover）",
+          "fontSize": 20
+        },
+        {
+          "id": "demo-05-image-contain",
+          "type": "image",
+          "x": 60,
+          "y": 165,
+          "width": 390,
+          "height": 275,
+          "assetId": "sample-illustration",
+          "fit": "contain"
+        },
+        {
+          "id": "demo-05-image-cover",
+          "type": "image",
+          "x": 510,
+          "y": 165,
+          "width": 390,
+          "height": 275,
+          "assetId": "sample-illustration",
+          "fit": "cover"
+        },
+        {
+          "id": "demo-05-caption",
+          "type": "text",
+          "x": 60,
+          "y": 474,
+          "width": 840,
+          "height": 48,
+          "text": "同一张程序生成的示例图片；左侧保留全图，右侧保持比例裁切",
+          "fontSize": 16,
+          "color": "62748A"
+        }
+      ]
+    },
+    {
+      "id": "demo-06",
+      "title": "原生表格：字段与验收依据",
+      "section": "数据",
+      "notes": "本页仅为功能验收示例，所有数字均为虚构演示数据。演讲说明：原生表格：字段与验收依据。",
+      "elements": [
+        {
+          "id": "demo-06-title",
+          "type": "text",
+          "x": 60,
+          "y": 30,
+          "width": 840,
+          "height": 75,
+          "text": "原生表格：字段与验收依据",
+          "fontSize": 32,
+          "bold": true
+        },
+        {
+          "id": "demo-06-table",
+          "type": "table",
+          "x": 60,
+          "y": 130,
+          "width": 840,
+          "height": 300,
+          "fontSize": 20,
+          "rows": [
+            [
+              "检查对象",
+              "预期行为",
+              "示例结果"
+            ],
+            [
+              "文本框",
+              "可以选中并修改",
+              "保留文字内容"
+            ],
+            [
+              "表格",
+              "可以修改单元格",
+              "原生表格对象"
+            ],
+            [
+              "图表",
+              "可以编辑数据",
+              "内嵌工作簿"
+            ],
+            [
+              "页面",
+              "可以重新排序",
+              "稳定页面身份"
+            ]
+          ]
+        },
+        {
+          "id": "demo-06-caption",
+          "type": "text",
+          "x": 60,
+          "y": 474,
+          "width": 840,
+          "height": 48,
+          "text": "示例数据 · 仅用于功能与版式验收",
+          "fontSize": 16,
+          "color": "62748A"
+        }
+      ]
+    },
+    {
+      "id": "demo-07",
+      "title": "柱状图：示例指标对比",
+      "section": "数据",
+      "notes": "本页仅为功能验收示例，所有数字均为虚构演示数据。演讲说明：柱状图：示例指标对比。",
+      "elements": [
+        {
+          "id": "demo-07-title",
+          "type": "text",
+          "x": 60,
+          "y": 30,
+          "width": 840,
+          "height": 75,
+          "text": "柱状图：示例指标对比",
+          "fontSize": 32,
+          "bold": true
+        },
+        {
+          "id": "demo-07-chart",
+          "type": "chart",
+          "x": 60,
+          "y": 125,
+          "width": 840,
+          "height": 325,
+          "chart": {
+            "type": "bar",
+            "categories": [
+              "阶段一",
+              "阶段二",
+              "阶段三",
+              "阶段四"
+            ],
+            "series": [
+              {
+                "name": "方案 A",
+                "values": [
+                  18,
+                  24,
+                  31,
+                  38
+                ]
+              },
+              {
+                "name": "方案 B",
+                "values": [
+                  16,
+                  28,
+                  34,
+                  42
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "demo-07-caption",
+          "type": "text",
+          "x": 60,
+          "y": 474,
+          "width": 840,
+          "height": 48,
+          "text": "示例数据 · 仅用于功能与版式验收",
+          "fontSize": 16,
+          "color": "62748A"
+        }
+      ]
+    },
+    {
+      "id": "demo-08",
+      "title": "折线图：负值、零值与增长",
+      "section": "数据",
+      "notes": "本页仅为功能验收示例，所有数字均为虚构演示数据。演讲说明：折线图：负值、零值与增长。",
+      "elements": [
+        {
+          "id": "demo-08-title",
+          "type": "text",
+          "x": 60,
+          "y": 30,
+          "width": 840,
+          "height": 75,
+          "text": "折线图：负值、零值与增长",
+          "fontSize": 32,
+          "bold": true
+        },
+        {
+          "id": "demo-08-chart",
+          "type": "chart",
+          "x": 60,
+          "y": 125,
+          "width": 840,
+          "height": 325,
+          "chart": {
+            "type": "line",
+            "categories": [
+              "第一期",
+              "第二期",
+              "第三期",
+              "第四期"
+            ],
+            "series": [
+              {
+                "name": "示例变化",
+                "values": [
+                  -5,
+                  0,
+                  12,
+                  20
+                ]
+              },
+              {
+                "name": "示例计划",
+                "values": [
+                  -2,
+                  6,
+                  14,
+                  25
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "demo-08-caption",
+          "type": "text",
+          "x": 60,
+          "y": 474,
+          "width": 840,
+          "height": 48,
+          "text": "示例数据 · 仅用于功能与版式验收",
+          "fontSize": 16,
+          "color": "62748A"
+        }
+      ]
+    },
+    {
+      "id": "demo-09",
+      "title": "饼图：示例工作分配",
+      "section": "数据",
+      "notes": "本页仅为功能验收示例，所有数字均为虚构演示数据。演讲说明：饼图：示例工作分配。",
+      "elements": [
+        {
+          "id": "demo-09-title",
+          "type": "text",
+          "x": 60,
+          "y": 30,
+          "width": 840,
+          "height": 75,
+          "text": "饼图：示例工作分配",
+          "fontSize": 32,
+          "bold": true
+        },
+        {
+          "id": "demo-09-chart",
+          "type": "chart",
+          "x": 60,
+          "y": 125,
+          "width": 840,
+          "height": 325,
+          "chart": {
+            "type": "pie",
+            "categories": [
+              "内容整理",
+              "页面设计",
+              "制作检查",
+              "最终复核"
+            ],
+            "series": [
+              {
+                "name": "示例占比",
+                "values": [
+                  35,
+                  25,
+                  20,
+                  20
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "demo-09-caption",
+          "type": "text",
+          "x": 60,
+          "y": 474,
+          "width": 840,
+          "height": 48,
+          "text": "示例数据 · 仅用于功能与版式验收",
+          "fontSize": 16,
+          "color": "62748A"
+        }
+      ]
+    },
+    {
+      "id": "demo-10",
+      "title": "两种方案对比：保持评价口径一致",
+      "section": "方案",
+      "notes": "本页仅为功能验收示例，所有数字均为虚构演示数据。演讲说明：两种方案对比：保持评价口径一致。",
+      "elements": [
+        {
+          "id": "demo-10-title",
+          "type": "text",
+          "x": 60,
+          "y": 30,
+          "width": 840,
+          "height": 75,
+          "text": "两种方案对比：保持评价口径一致",
+          "fontSize": 32,
+          "bold": true
+        },
+        {
+          "id": "demo-10-left",
+          "type": "shape",
+          "x": 60,
+          "y": 135,
+          "width": 400,
+          "height": 290,
+          "text": "方案 A：逐页推进\n\n内容清晰时便于快速制作\n单页修改范围容易确认\n需要维护全稿的一致性",
+          "fontSize": 23,
+          "shape": "roundRect",
+          "fill": "E8F1FF"
+        },
+        {
+          "id": "demo-10-right",
+          "type": "shape",
+          "x": 500,
+          "y": 135,
+          "width": 400,
+          "height": 290,
+          "text": "方案 B：先完成整体设计\n\n先确认主线与章节分配\n统一内容和视觉表达\n前期设计需要更多讨论",
+          "fontSize": 23,
+          "shape": "roundRect",
+          "fill": "E8F7F2"
+        },
+        {
+          "id": "demo-10-caption",
+          "type": "text",
+          "x": 60,
+          "y": 474,
+          "width": 840,
+          "height": 48,
+          "text": "示例比较，仅用于检验左右对比版式，不构成实际选型结论",
+          "fontSize": 16,
+          "color": "62748A"
+        }
+      ]
+    },
+    {
+      "id": "demo-11",
+      "title": "四阶段路线图：示例实施安排",
+      "section": "方案",
+      "notes": "本页仅为功能验收示例，所有数字均为虚构演示数据。演讲说明：四阶段路线图：示例实施安排。",
+      "elements": [
+        {
+          "id": "demo-11-title",
+          "type": "text",
+          "x": 60,
+          "y": 30,
+          "width": 840,
+          "height": 75,
+          "text": "四阶段路线图：示例实施安排",
+          "fontSize": 32,
+          "bold": true
+        },
+        {
+          "id": "demo-11-milestone-0",
+          "type": "shape",
+          "x": 60,
+          "y": 160,
+          "width": 180,
+          "height": 185,
+          "text": "第一阶段\n明确目标\n整理资料",
+          "fontSize": 23,
+          "fill": "E8F1FF",
+          "shape": "roundRect"
+        },
+        {
+          "id": "demo-11-arrow-0",
+          "type": "line",
+          "x": 248,
+          "y": 250,
+          "width": 25,
+          "height": 1,
+          "stroke": "246BCE",
+          "lineWidth": 2,
+          "shape": "arrow"
+        },
+        {
+          "id": "demo-11-milestone-1",
+          "type": "shape",
+          "x": 280,
+          "y": 160,
+          "width": 180,
+          "height": 185,
+          "text": "第二阶段\n设计方案\n确认样页",
+          "fontSize": 23,
+          "fill": "E8F1FF",
+          "shape": "roundRect"
+        },
+        {
+          "id": "demo-11-arrow-1",
+          "type": "line",
+          "x": 468,
+          "y": 250,
+          "width": 25,
+          "height": 1,
+          "stroke": "246BCE",
+          "lineWidth": 2,
+          "shape": "arrow"
+        },
+        {
+          "id": "demo-11-milestone-2",
+          "type": "shape",
+          "x": 500,
+          "y": 160,
+          "width": 180,
+          "height": 185,
+          "text": "第三阶段\n制作页面\n修复问题",
+          "fontSize": 23,
+          "fill": "E8F1FF",
+          "shape": "roundRect"
+        },
+        {
+          "id": "demo-11-arrow-2",
+          "type": "line",
+          "x": 688,
+          "y": 250,
+          "width": 25,
+          "height": 1,
+          "stroke": "246BCE",
+          "lineWidth": 2,
+          "shape": "arrow"
+        },
+        {
+          "id": "demo-11-milestone-3",
+          "type": "shape",
+          "x": 720,
+          "y": 160,
+          "width": 180,
+          "height": 185,
+          "text": "第四阶段\n用户复核\n导出交付",
+          "fontSize": 23,
+          "fill": "E8F1FF",
+          "shape": "roundRect"
+        },
+        {
+          "id": "demo-11-note",
+          "type": "text",
+          "x": 60,
+          "y": 380,
+          "width": 840,
+          "height": 65,
+          "text": "时间与里程碑均为示例；实际安排依据资料完整度和审阅反馈确定。",
+          "fontSize": 21
+        },
+        {
+          "id": "demo-11-caption",
+          "type": "text",
+          "x": 60,
+          "y": 474,
+          "width": 840,
+          "height": 48,
+          "text": "示例数据 · 仅用于功能与版式验收",
+          "fontSize": 16,
+          "color": "62748A"
+        }
+      ]
+    },
+    {
+      "id": "demo-12",
+      "title": "验收结论：内容、制作与运行分别验证",
+      "section": "总结",
+      "notes": "本页仅为功能验收示例，所有数字均为虚构演示数据。演讲说明：验收结论：内容、制作与运行分别验证。",
+      "elements": [
+        {
+          "id": "demo-12-title",
+          "type": "text",
+          "x": 60,
+          "y": 30,
+          "width": 840,
+          "height": 75,
+          "text": "验收结论：内容、制作与运行分别验证",
+          "fontSize": 32,
+          "bold": true
+        },
+        {
+          "id": "demo-12-summary",
+          "type": "text",
+          "x": 60,
+          "y": 130,
+          "width": 840,
+          "height": 250,
+          "text": "内容：中文与英文完整保存，逐页备注可读取。\n制作：文字、图形、表格和图表保持原生可编辑。\n运行：在离线服务生成预览，并在目标办公软件中复核。",
+          "fontSize": 27,
+          "bullets": true
+        },
+        {
+          "id": "demo-12-closing",
+          "type": "shape",
+          "x": 60,
+          "y": 395,
+          "width": 840,
+          "height": 63,
+          "text": "示例作品结束 · 请结合目标环境记录实际验收结果",
+          "fontSize": 23,
+          "shape": "roundRect",
+          "fill": "E8F1FF"
+        },
+        {
+          "id": "demo-12-caption",
+          "type": "text",
+          "x": 60,
+          "y": 474,
+          "width": 840,
+          "height": 48,
+          "text": "示例数据 · 仅用于功能与版式验收",
+          "fontSize": 16,
+          "color": "62748A"
+        }
+      ]
+    }
+  ]
+}

@@ -2,7 +2,7 @@
 
 本文件约束开发本仓库的 Agent。当前用户明确要求优先；目录专属规则只能细化适用范围，不能隐式放宽安全边界。首次进入任务时完整阅读本文件；后续仅在文件变化、任务范围变化或上下文丢失时重读。修改 `src/` 或 `frontend/` 前分别读取其 `AGENTS.md`，即使工具未自动加载。
 
-当前交付版本：`0.4.61`。实际版本由 `pom.xml` 持有，发布引用用脚本同步。
+当前交付版本：`0.4.63`。实际版本由 `pom.xml` 持有，发布引用用脚本同步。
 
 ## 1. 作用域与授权
 
@@ -71,6 +71,7 @@
 | Designer、人工/自动动作、冻结设计、UI | [设计合同](docs/design-contract.md) | `DesignerSessionService`、`DesignerAutoModeService`、`WorkPackageRoleService`、`DesignerView.vue` |
 | 角色语义、候选、默认合同与来源 | [AI 角色合同](docs/ai-role-contracts.md) | `MachineRoleContractCatalog`、`PackageDesignCompilation` |
 | OpenCode、MCP 通道、权限、Session、预算轴 | [OpenCode 合同](docs/opencode-contract.md) | `runtime/`、`MachineCandidateSubmission` |
+| 独立 PPT 工作室、页面模型、PPT Agent 与制作 MCP | [PPT 合同](docs/ppt-contract.md) | `ppt/`、`service/ppt/`、`PptStudioView.vue` |
 | 验证器、Recovery、Interaction、自动化、洞察 | [功能合同](docs/seven-feature-contract.md) | `verification/`、`RecoveryService`、`InteractionService` |
 | 职责划分、依赖方向、规模门禁 | [代码设计合同](docs/code-design-contract.md) | 目标协作者、相邻测试、`CodeStructureContractTest` |
 | 构建、版本、交付、流程评测 | [开发与交付](docs/development.md) | `pom.xml`、`scripts/`、CI/Release |

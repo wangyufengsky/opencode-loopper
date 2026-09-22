@@ -104,10 +104,13 @@ class OpenCodeRuntimeManagerTest {
             processes.add(process);
             return process;
         }, Clock.systemUTC());
+        var generations = org.mockito.Mockito.mock(OwnedRuntimeGenerationStore.class);
+        manager.installGenerations(generations);
 
         OpenCodeRuntimeManager.Connection connection = manager.connectionForClient();
 
         assertThat(starts).hasValue(1);
+        org.mockito.Mockito.verify(generations).remember(connection.generation(), processes.getFirst());
         assertThat(connection.managed()).isTrue();
         assertThat(connection.endpoint().getPort()).isNotEqualTo(external.getAddress().getPort());
         manager.close();

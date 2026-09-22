@@ -380,3 +380,9 @@ export function knowledgeToolLabel(tool: string): string {
 }
 export const knowledgeSearchStateLabel = (state: string) => ({ NOT_SEARCHED: '尚未检索', PARTIAL: '待继续检索', COMPLETE: '已查完', LIMITED: '范围未完整覆盖', FAILED: '检索失败', TIMED_OUT: '检索超时', SKIPPED: '本次未查询' } as Record<string, string>)[state] || '状态待确认'
 export const knowledgeMatchLabel = (type: string) => ({ EXACT: '原词匹配', PHRASE: '原句匹配', FIELD: '字段匹配', NAME: '名称匹配', EXPANDED: '扩展词线索' } as Record<string, string>)[type] || '相关片段'
+
+export const pptPhaseLabel = (phase: string) => ({ BRIEFING: '制作需求', DIRECTION: '整体方向', DESIGN: '页面设计', PRODUCING: '正在制作', REVIEW: '预览修改', EXPORTED: '已导出' } as Record<string, string>)[phase] || '阶段待确认'
+export const pptRunLabel = (state: string) => ({ IDLE: '可以开始', PREPARED: '准备中', CREATING: '连接助手', CREATE_UNKNOWN: '连接结果待核对', SENDING: '正在发送', UNKNOWN: '发送结果待核对', RUNNING: '正在制作', STOPPING: '正在安全暂停', WAITING_INPUT: '等待回答', COMPLETED: '本轮已完成', STOPPED: '已停止', FAILED: '本轮失败' } as Record<string, string>)[state] || '状态待核对'
+export const pptJobLabel = (state: string) => ({ PENDING: '等待制作', PREPARED: '准备中', QUEUED: '排队中', RUNNING: '正在生成', COMPLETED: '已生成', SUCCEEDED: '已生成', FAILED: '生成失败', CANCELLED: '已取消' } as Record<string, string>)[state] || '状态待核对'
+export const pptElementLabel = (type: string) => ({ text: '文本框', image: '图片', shape: '图形', table: '表格', chart: '图表', connector: '连接线', line: '直线', group: '分组' } as Record<string, string>)[type] || '对象'
+export const pptLayoutLabel = (layout: string) => ({ title_content: '标题与正文', two_columns: '两栏', three_columns: '三栏', grid: '网格', image_text: '图文' } as Record<string, string>)[layout] || '版式'

@@ -20,6 +20,8 @@ import tools.jackson.databind.ObjectMapper;
 /** Thin adapter for the local OpenCode server; all transport faults become SessionFailure. */
 public class HttpOpenCodeClient implements OpenCodeClient {
     private AssistRuntimeSupport assist;
+    private PptRuntimeSupport ppt;
+    void installPpt(PptRuntimeSupport support) { this.ppt = support; }
     void installAssist(AssistRuntimeSupport support) { this.assist=support; exactRecovery.assist=support; }
     private final Supplier<OpenCodeConnectionDetails> connectionSupplier;
     private final OpenCodeHttpTransport http;
@@ -176,7 +178,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
             OpenCodeMcpDiscovery.Access mcp = effectiveProfile == SessionProfile.ROUTER_NO_TOOLS
                     ? OpenCodeMcpDiscovery.Access.empty()
                     : mcpDiscovery.discover(sessionClient, canonical, connection.internalMcpServer());
-            if (OpenCodeHttpClientSemantics.candidateProfile(effectiveProfile)) {
+            if (OpenCodeHttpClientSemantics.candidateProfile(effectiveProfile) || effectiveProfile == SessionProfile.PPT_AGENT) {
                 mcp.requireCandidateReady(connection.managed(), connection.generation(), connection.internalMcpServer());
             }
             List<Map<String, String>> permissions = OpenCodePermissionPolicy.rules(effectiveProfile,
@@ -254,6 +256,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
             Map<String, Object> body = OpenCodePromptBody.encode(prompt, profile,
                     Boolean.TRUE.equals(managedSessions.get(session.id())), sessionModels.get(session.id()), files);
             if (assist != null) assist.enrich(session.id(),body,profile);
+            if (ppt != null) ppt.enrich(session.id(), body, profile);
             if (storyAccounting != null && !storyAccounting.accountingMessageIds(session.id()).isEmpty()) OpenCodePromptBody.restoreBusinessContext(body, sessionModels.get(session.id()));
             pending.dispatch(() -> client(session).post().uri(uri -> sessionUri(uri, "/session/{id}/prompt_async", session)).contentType(MediaType.APPLICATION_JSON)
                     .body(body).retrieve().toBodilessEntity());

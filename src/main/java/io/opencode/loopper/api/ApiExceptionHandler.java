@@ -16,6 +16,8 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+    @ExceptionHandler(io.opencode.loopper.ppt.PptFailure.class)
+    ResponseEntity<ProblemDetail> ppt(io.opencode.loopper.ppt.PptFailure ex) { return problem(HttpStatus.BAD_REQUEST, ex.code(), ex.getMessage()); }
     @ExceptionHandler(NotFoundException.class)
     ResponseEntity<ProblemDetail> notFound(NotFoundException ex) { return problem(HttpStatus.NOT_FOUND, "NOT_FOUND", ex.getMessage()); }
     @ExceptionHandler(BadRequestException.class)

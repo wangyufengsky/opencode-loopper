@@ -24,6 +24,7 @@ public class AssistRuntimeSupport {
     }
     List<Map<String,String>> permissions(Path directory,OpenCodeClient.SessionProfile profile,List<String> servers,String internal,boolean localOnly) {
         List<Map<String,String>> base=new ArrayList<>(OpenCodePermissionPolicy.rules(profile,servers,internal));
+        if (profile == OpenCodeClient.SessionProfile.PPT_AGENT) return List.copyOf(base);
         // Remove broad user-MCP grants; keep protected accounting and candidate tools.
         Set<String> broad=new HashSet<>();servers.forEach(s->broad.add(s.replaceAll("[^a-zA-Z0-9_-]","_")+"_*"));
         base.removeIf(r->broad.contains(r.get("permission"))&&!r.get("permission").equals("aicoding_*"));
@@ -64,6 +65,7 @@ public class AssistRuntimeSupport {
         mapper.insertSession(new AssistMapper.Session(session,generation,directory.toString(),profile.name(),encoded,json.writeValueAsString(tools),Instant.now().toString()));
     }
     void enrich(String session,Map<String,Object> body,OpenCodeClient.SessionProfile profile) {
+        if (profile == OpenCodeClient.SessionProfile.PPT_AGENT) return;
         documents.enrich(session, body);
         scopes.requireDeclaredCapabilities(session);
         String grant=scopes.grant(session);

@@ -46,6 +46,9 @@ public final class OpenCodeRuntimeManager implements AutoCloseable {
     private volatile ManagedProcess owned;
     private volatile String lastStartFailure;
     private volatile URI lastAttemptedEndpoint;
+    private OwnedRuntimeGenerationStore generations;
+
+    void installGenerations(OwnedRuntimeGenerationStore generations) { this.generations = generations; }
 
     public OpenCodeRuntimeManager(LoopperProperties properties) {
         this(properties, OpenCodeRuntimeManager::startProcess, Clock.systemUTC());
@@ -307,6 +310,7 @@ public final class OpenCodeRuntimeManager implements AutoCloseable {
         }
         ManagedProcess started = new ManagedProcess(process, candidate);
         try {
+            if (generations != null) generations.remember(internal.generation(), process);
             Instant deadline = now().plus(properties.getOpenCode().getStartupTimeout());
             while (now().isBefore(deadline)) {
                 if (!process.isAlive()) {

@@ -280,6 +280,7 @@ public interface OpenCodeClient {
     enum AbortConfirmation { ACKNOWLEDGED, ALREADY_ABSENT }
     record OpenCodeModel(String providerId, String modelId, Boolean thinking) { }
     enum SessionProfile {
+        PPT_AGENT,
         KNOWLEDGE_READ_ONLY,
         KNOWLEDGE_INTERACTIVE_READ_ONLY,
         KNOWLEDGE_RESEARCH_READ_ONLY,

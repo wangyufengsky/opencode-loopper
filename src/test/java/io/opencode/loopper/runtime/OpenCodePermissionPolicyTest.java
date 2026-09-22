@@ -244,9 +244,10 @@ class OpenCodePermissionPolicyTest {
     }
 
     @Test
-    void everyNonRouterRoleAllowsConfiguredMcpToolsWithoutRemovingItsBuiltInBoundary() {
+    void ordinaryRolesAllowConfiguredMcpToolsWithoutRemovingTheirBuiltInBoundary() {
         for (OpenCodeClient.SessionProfile profile : OpenCodeClient.SessionProfile.values()) {
             if (profile.name().startsWith("KNOWLEDGE_") || DocumentTemplateProfiles.contains(profile)
+                    || profile == OpenCodeClient.SessionProfile.PPT_AGENT
                     || profile == OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS
                     || profile == OpenCodeClient.SessionProfile.SNAPSHOT_CODE_REVIEW_NO_TOOLS
                     || profile == OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS
@@ -269,6 +270,24 @@ class OpenCodePermissionPolicyTest {
                     .as(profile.name())
                     .contains(java.util.Map.of("permission", "external_directory", "pattern", "*", "action", "deny"));
         }
+    }
+
+    @Test
+    void pptRoleKeepsAllNativeAndExternalToolsClosedAndRequiresExactPrivateGeneration() {
+        var profile = OpenCodeClient.SessionProfile.PPT_AGENT;
+        var servers = java.util.List.of("project mcp", "filesystem", "loopper_internal_old");
+        assertThat(OpenCodePermissionPolicy.rules(profile, servers)).noneMatch(rule -> "allow".equals(rule.get("action")));
+        var rules = OpenCodePermissionPolicy.rules(profile, servers, "loopper_internal_current");
+        assertThat(rules).contains(
+                java.util.Map.of("permission", "*", "pattern", "*", "action", "deny"),
+                java.util.Map.of("permission", "external_directory", "pattern", "*", "action", "deny"));
+        assertThat(rules.stream().filter(rule -> "allow".equals(rule.get("action"))).map(rule -> rule.get("permission")))
+                .containsExactly("loopper_internal_current_ppt_get_context", "loopper_internal_current_ppt_read_source",
+                        "loopper_internal_current_ppt_get_capabilities", "loopper_internal_current_ppt_request_input",
+                        "loopper_internal_current_ppt_submit_plan", "loopper_internal_current_ppt_apply_operations",
+                        "loopper_internal_current_ppt_measure_text", "loopper_internal_current_ppt_check_layout",
+                        "loopper_internal_current_ppt_render_preview", "loopper_internal_current_ppt_get_job",
+                        "loopper_internal_current_ppt_export");
     }
 
     @Test void snapshotReviewOnlyAllowsBoundedPrivateEvidenceAndSubmissionTools() {

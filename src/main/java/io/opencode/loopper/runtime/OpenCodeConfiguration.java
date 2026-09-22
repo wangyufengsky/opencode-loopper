@@ -35,8 +35,10 @@ class OpenCodeConfiguration {
     @Bean
     OpenCodeRuntimeManager openCodeRuntimeManager(LoopperProperties properties,
                                                   InternalMcpCredentialProvider credentials,
-                                                  InternalMcpRuntimeAccess access) {
-        return new OpenCodeRuntimeManager(properties, credentials, access);
+                                                  InternalMcpRuntimeAccess access, OwnedRuntimeGenerationStore generations) {
+        var manager = new OpenCodeRuntimeManager(properties, credentials, access);
+        manager.installGenerations(generations);
+        return manager;
     }
 
     @Bean
@@ -53,7 +55,7 @@ class OpenCodeConfiguration {
     OpenCodeClient openCodeClient(LoopperProperties properties, OpenCodeRuntimeManager runtimeManager,
                                   OpenCodeCapabilityRegistry capabilities,
                                   OpenCodeSessionRuntimeBindings runtimeBindings, OpenCodeAttachmentResources resources,
-                                  StoryAccountingCoordinator storyAccounting, AssistRuntimeSupport assist) {
+                                  StoryAccountingCoordinator storyAccounting, AssistRuntimeSupport assist, PptRuntimeSupport ppt) {
         if ("fake".equalsIgnoreCase(properties.getOpenCode().getMode())) {
             return new FakeOpenCodeClient(runtimeBindings);
         }
@@ -61,6 +63,7 @@ class OpenCodeConfiguration {
                 runtimeManager::currentIdentityNoIo, properties, capabilities, runtimeBindings, resources,
                 storyAccounting);
         client.installAssist(assist);
+        client.installPpt(ppt);
         return client;
     }
 }

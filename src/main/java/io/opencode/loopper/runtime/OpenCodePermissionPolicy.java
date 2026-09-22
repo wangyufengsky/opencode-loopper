@@ -21,6 +21,12 @@ final class OpenCodePermissionPolicy {
         if (profile != OpenCodeClient.SessionProfile.IMPLEMENTATION) {
             List<Map<String, String>> rules = new ArrayList<>();
             rules.add(rule("*", "*", "deny"));
+            if (profile == OpenCodeClient.SessionProfile.PPT_AGENT) {
+                rules.add(rule("external_directory", "*", "deny"));
+                if (internalMcpServer != null && !internalMcpServer.isBlank()) PptAgentProfile.TOOLS.forEach(
+                        tool -> rules.add(rule(sanitize(internalMcpServer) + "_" + tool, "*", "allow")));
+                return List.copyOf(rules);
+            }
             if (KnowledgeSessionPolicy.research(profile)) {
                 KnowledgeSessionPolicy.NATIVE_TOOLS.forEach(tool -> rules.add(rule(tool, "*", "allow")));
                 rules.add(rule(KnowledgeSessionPolicy.MARKER, "*", "allow"));

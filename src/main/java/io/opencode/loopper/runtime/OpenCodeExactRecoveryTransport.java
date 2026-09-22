@@ -126,7 +126,7 @@ final class OpenCodeExactRecoveryTransport {
                     ? OpenCodeMcpDiscovery.Access.empty()
                     : mcpDiscovery.discover(http.client(connection), canonical,
                     connection.internalMcpServer());
-            if (candidateProfile(effectiveProfile)) {
+            if (candidateProfile(effectiveProfile) || effectiveProfile == SessionProfile.PPT_AGENT) {
                 mcp.requireCandidateReady(connection.managed(), connection.generation(),
                         connection.internalMcpServer());
             }

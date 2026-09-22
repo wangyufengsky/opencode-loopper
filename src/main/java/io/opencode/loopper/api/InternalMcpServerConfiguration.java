@@ -42,6 +42,7 @@ public class InternalMcpServerConfiguration {
             io.opencode.loopper.service.SubmissionContractReadService contractReads,
             io.opencode.loopper.service.DocumentReviewGuideService reviewGuide,
             io.opencode.loopper.service.SnapshotReviewReads snapshotReads,
+            io.opencode.loopper.service.ppt.agent.PptAgentTools pptTools,
             @Value("${spring.ai.mcp.server.version:unknown}") String version) {
         WebMvcStreamableServerTransportProvider transport = WebMvcStreamableServerTransportProvider.builder()
                 .mcpEndpoint(InternalMcpContractCatalog.ENDPOINT_PATH)
@@ -54,6 +55,7 @@ public class InternalMcpServerConfiguration {
         tools.add(sourceResources.tool());
         tools.addAll(DocumentReviewGuideMcpTools.specifications(reviewGuide, json));
         tools.addAll(SnapshotReviewMcpTools.specifications(snapshotReads, json));
+        tools.addAll(PptMcpTools.specifications(pptTools, json));
         tools.add(SubmissionContractMcpTool.specification(contractReads, tools, json));
         McpSyncServer server = McpServer.sync(transport)
                 .serverInfo("opencode-loopper-internal", version)

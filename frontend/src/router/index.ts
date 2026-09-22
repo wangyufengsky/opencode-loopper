@@ -6,6 +6,8 @@ export const router = createRouter({
   routes: [
     { path: '/', component: () => import('@/views/HomeView.vue') },
     { path: '/projects', component: () => import('@/views/ProjectsView.vue') },
+    { path: '/ppt', component: () => import('@/views/PptListView.vue') },
+    { path: '/ppt/:id', component: () => import('@/views/PptStudioView.vue') },
     { path: '/knowledge/history', component: () => import('@/views/KnowledgeHistoryView.vue') },
     { path: '/knowledge/:conversationId?', component: () => import('@/views/KnowledgeView.vue') },
     { path: '/designer', component: () => import('@/views/DesignerView.vue') },

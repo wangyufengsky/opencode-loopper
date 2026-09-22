@@ -121,3 +121,7 @@ node scripts/release-version.mjs set <version> --write
 ## 辅助能力离线验收
 
 新增辅助 MCP 的权限、凭据、文档和数据库验收入口见 [内网辅助 MCP 合同](assist-mcp-contract.md)。完整 JAR 在构建时收集固定 MySQL、GaussDB/openGauss、Oracle、DB2、SQL Server、达梦驱动及依赖，运行时离线校验并隔离加载；旧 openGauss profile 与 GoldenDB 保留历史驱动恢复。模拟测试不证明现场产品兼容。离线脚本只运行读取与边界探针，不启动或替换现有服务。
+
+## PPT 工作室验收
+
+`./scripts/dev-check.sh backend "Ppt*Test,OwnedRuntimeGenerationStoreTest"` 提供引擎、持久化、私有 MCP 和恢复反馈；正式交付仍执行完整门禁。隔离本地服务启动后，运行 `PPT_BASE_URL=http://127.0.0.1:<port> node scripts/qualify-ppt-workspace.mjs`，通过 REST 生成 12 页虚构资料样本、三轮修改、PNG 和可编辑 PPTX；证据默认保存在 `data/ppt-qualification/`。脚本不调用 Provider，不能替代独立的真实文本模型、浏览器或办公软件验收。字体与运行范围见 [PPT 合同](ppt-contract.md)。

@@ -20,6 +20,7 @@
 | OpenCode 步数 | Designer（含工作包）、Implementation、Reviewer、Judge、模板分析免固定上限；Decomposer、Compiler、滚动规划、公约及普通非 Judge finalizer 为 24；Router 和统计为 2 个传输步 | Router 仍只有一次业务分类；步数不等于模型调用数或 MCP 提交次数 |
 | MCP 提交次数 | 模板 V5/V6 同会话纠正无限，其他七类角色默认无限；V70/V71 新 run 可冻结 2–16 次总提交。首投计入、幂等重放不计入；历史 NULL 保持无限 | 不覆盖角色时限、权限、停滞、取消和正向停止证明 |
 | 模板长度续接 | V6 在精确 length 终态且无接受候选时原会话续接；连续三次截断无不同内容 MCP 提交则停止。V1–V5 保留冻结行为 | 不提高单次 token 额度，不增加 Stage 尝试；投递未知不得盲重发，详见[模板合同](seven-feature-contract.md#内置模板任务) |
+| PPT Agent | 独立 PPT MCP 协议；无固定 agentic 步数、工具纠正次数和 Task/Designer 总预算，等待精确终态或用户停止 | 单次请求边界、身份校验、停止证明与导出门禁仍生效，详见 [PPT 合同](ppt-contract.md) |
 | Task/Attempt/费用 | 各自冻结的次数、时长、Token/成本和停滞策略独立计算 | 一个轴无限不能解除其他轴 |
 
 非豁免角色继续使用各自现有总时限。Provider `RETRY` 只在原 Session 内自恢复，不能证明停止，也不能暂停已有适用硬边界。
