@@ -386,3 +386,28 @@ export const pptRunLabel = (state: string) => ({ IDLE: '可以开始', PREPARED:
 export const pptJobLabel = (state: string) => ({ PENDING: '等待制作', PREPARED: '准备中', QUEUED: '排队中', RUNNING: '正在生成', COMPLETED: '已生成', SUCCEEDED: '已生成', FAILED: '生成失败', CANCELLED: '已取消' } as Record<string, string>)[state] || '状态待核对'
 export const pptElementLabel = (type: string) => ({ text: '文本框', image: '图片', shape: '图形', table: '表格', chart: '图表', connector: '连接线', line: '直线', group: '分组' } as Record<string, string>)[type] || '对象'
 export const pptLayoutLabel = (layout: string) => ({ title_content: '标题与正文', two_columns: '两栏', three_columns: '三栏', grid: '网格', image_text: '图文' } as Record<string, string>)[layout] || '版式'
+
+export function pptGenerationLabel(value?: string) {
+  const labels: Record<string, string> = {
+    PLANNING: '正在构思内容',
+    PRODUCING: '正在制作页面',
+    PREVIEW: '正在检查排版',
+    EXPORT: '正在准备演示文稿',
+    WAITING_INPUT: '需要你补充一点信息',
+    STOPPING: '正在安全暂停',
+    STOPPED: '已暂停',
+    FAILED: '制作遇到问题',
+    COMPLETED: '演示文稿已完成',
+  }
+  return labels[value || ''] || '等待开始'
+}
+
+export function pptGenerationStepLabel(value?: string) {
+  const labels: Record<string, string> = {
+    PLANNING: '构思内容',
+    PRODUCING: '制作页面',
+    PREVIEW: '检查排版',
+    EXPORT: '准备下载',
+  }
+  return labels[value || ''] || '开始制作'
+}

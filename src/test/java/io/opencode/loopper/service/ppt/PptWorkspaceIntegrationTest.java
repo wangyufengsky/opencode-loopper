@@ -48,6 +48,25 @@ class PptWorkspaceIntegrationTest {
             """)),false,()->{});
         phase(id,"finish-planning");phase(id,"confirm-direction");
     }
+    String startTwoPageProduction(){
+        String id=create();design(id);
+        var plan=(tools.jackson.databind.node.ObjectNode)json.readTree(documents.snapshot(id,null).planJson());
+        plan.withArray("slides").addObject().put("id","p2").put("title","第二页");
+        documents.savePlan(id,new PptDocuments.PlanEdit(key(),documents.get(id).revision(),plan),false,()->{});
+        phase(id,"start-production");return id;
+    }
+    String reviewedTwoPages(){
+        String id=startTwoPageProduction();documents.edit(id,edit(documents.get(id).revision(),page("p1","保留页"),page("p2","删除页")),false,()->{});
+        phase(id,"finish-production");return id;
+    }
+    PptJobs.View exportCurrent(String id){
+        var job=jobs.create(id,new PptJobs.Create("EXPORT",documents.get(id).revision(),null,key()),()->{});
+        jobs.execute(jobs.require(id,job.id()));var result=jobs.get(id,job.id());assertThat(result.state()).isEqualTo("COMPLETED");return result;
+    }
+    void assertExportBlocked(String id,String code){
+        assertThatThrownBy(()->jobs.create(id,new PptJobs.Create("EXPORT",documents.get(id).revision(),null,key()),()->{}))
+                .isInstanceOfSatisfying(io.opencode.loopper.service.BadRequestException.class,failure->assertThat(failure.code()).isEqualTo(code));
+    }
     @Test void revisionsAreAtomicIdempotentAndCasProtected(){
         String id=create();var request=edit(0,page("p1","初稿"));
         var saved=documents.edit(id,request,false,()->{});assertThat(saved.path("revision").asLong()).isEqualTo(1);
@@ -119,6 +138,67 @@ class PptWorkspaceIntegrationTest {
         assertThat(documents.get(id).revision()).isEqualTo(3);
         assertThatThrownBy(()->phase(id,"finish-production")).hasMessageContaining("阻断");
         assertThatThrownBy(()->jobs.create(id,new PptJobs.Create("EXPORT",3,null,key()),()->{})).hasMessageContaining("制作检查");
+    }
+    @Test void firstProductionRequiresEveryPlannedPageWithContent(){
+        String id=startTwoPageProduction();documents.edit(id,edit(documents.get(id).revision(),page("p1","第一页")),true,()->{});
+        assertThatThrownBy(()->phase(id,"finish-production")).hasMessageContaining("部分设计页面尚未制作");
+        documents.edit(id,edit(documents.get(id).revision(),node("{\"op\":\"create_slide\",\"slide\":{\"id\":\"p2\",\"title\":\"空的计划页\"}}")),true,()->{});
+        assertThatThrownBy(()->phase(id,"finish-production")).hasMessageContaining("部分设计页面尚未制作");
+        assertThat(documents.get(id).phase()).isEqualTo("PRODUCING");
+        documents.edit(id,edit(documents.get(id).revision(),node("{\"op\":\"delete_slide\",\"slideId\":\"p2\"}"),page("p2","第二页已完成")),true,()->{});
+        phase(id,"finish-production");assertThat(documents.get(id).phase()).isEqualTo("REVIEW");
+    }
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans={false,true})
+    void explicitDeletionAfterProductionExportsCurrentDeckAndPreservesPlanAndHistory(boolean alreadyExported)throws Exception{
+        String id=reviewedTwoPages();var originalSnapshot=documents.snapshot(id,null);
+        var prior=alreadyExported?exportCurrent(id):null;byte[] oldBytes=prior==null?null:jobs.download(id,prior.artifacts().getFirst().id());
+        documents.edit(id,edit(documents.get(id).revision(),node("{\"op\":\"delete_slide\",\"slideId\":\"p2\"}")),alreadyExported,()->{});
+        assertThat(documents.get(id).phase()).isEqualTo("REVIEW");
+        assertThat(documents.snapshot(id,null).planJson()).isEqualTo(originalSnapshot.planJson());
+        assertThat(documents.snapshot(id,originalSnapshot.revision())).isEqualTo(originalSnapshot);
+        assertThatThrownBy(()->documents.savePlan(id,new PptDocuments.PlanEdit(key(),documents.get(id).revision(),node(originalSnapshot.planJson())),true,()->{}))
+                .hasMessageContaining("制作方案已经确认");
+        var result=exportCurrent(id);
+        try(var ppt=new org.apache.poi.xslf.usermodel.XMLSlideShow(new java.io.ByteArrayInputStream(jobs.download(id,result.artifacts().getFirst().id())))){
+            assertThat(ppt.getSlides()).hasSize(1);
+            assertThat(((org.apache.poi.xslf.usermodel.XSLFTextShape)ppt.getSlides().getFirst().getShapes().getFirst()).getText()).isEqualTo("保留页");
+        }
+        if(prior!=null)assertThat(jobs.download(id,prior.artifacts().getFirst().id())).isEqualTo(oldBytes);
+    }
+    @Test void postProductionEditsStillRejectEmptyPagesEmptyDeckAndInvalidLayout(){
+        String id=reviewedTwoPages();
+        documents.edit(id,edit(documents.get(id).revision(),node("{\"op\":\"create_slide\",\"slide\":{\"id\":\"unplanned-empty\"}}")),false,()->{});
+        assertExportBlocked(id,"PPT_EMPTY_PAGE");
+        documents.edit(id,edit(documents.get(id).revision(),node("{\"op\":\"delete_slide\",\"slideId\":\"unplanned-empty\"}"),
+                node("{\"op\":\"update_element\",\"slideId\":\"p1\",\"elementId\":\"text-p1\",\"patch\":{\"x\":950}}")),false,()->{});
+        assertExportBlocked(id,"PPT_LAYOUT_INVALID");
+        documents.edit(id,edit(documents.get(id).revision(),node("{\"op\":\"remove_element\",\"slideId\":\"p1\",\"elementId\":\"text-p1\"}")),false,()->{});
+        assertExportBlocked(id,"PPT_EMPTY_PAGE");
+        documents.edit(id,edit(documents.get(id).revision(),node("{\"op\":\"delete_slide\",\"slideId\":\"p1\"}"),node("{\"op\":\"delete_slide\",\"slideId\":\"p2\"}")),false,()->{});
+        assertExportBlocked(id,"PPT_EMPTY");
+        assertThat(documents.get(id).phase()).isEqualTo("REVIEW");
+    }
+    @Test void editedFrozenExportDoesNotRecheckThePlanAgainstALaterProductionPhase(){
+        String id=reviewedTwoPages();documents.edit(id,edit(documents.get(id).revision(),node("{\"op\":\"delete_slide\",\"slideId\":\"p2\"}")),false,()->{});
+        var pending=jobs.create(id,new PptJobs.Create("EXPORT",documents.get(id).revision(),null,key()),()->{});
+        phase(id,"reopen");phase(id,"finish-planning");phase(id,"confirm-direction");phase(id,"start-production");
+        jobs.execute(jobs.require(id,pending.id()));
+        assertThat(jobs.get(id,pending.id()).state()).isEqualTo("COMPLETED");
+        assertThat(documents.get(id).phase()).isEqualTo("PRODUCING");
+        assertThatThrownBy(()->phase(id,"finish-production")).hasMessageContaining("部分设计页面尚未制作");
+    }
+    @Test void postProductionExportStillVerifiesImageBytes()throws Exception{
+        String id=reviewedTwoPages();var bytes=new java.io.ByteArrayOutputStream();
+        javax.imageio.ImageIO.write(new java.awt.image.BufferedImage(32,24,java.awt.image.BufferedImage.TYPE_INT_RGB),"png",bytes);
+        var image=resources.upload(id,"素材.png",bytes.toByteArray(),key(),true);
+        documents.edit(id,edit(documents.get(id).revision(),node("""
+            {"op":"add_element","slideId":"p1","element":{"id":"picture","type":"image","assetId":"%s","x":40,"y":180,"width":200,"height":150}}
+            """.formatted(image.id()))),false,()->{});
+        var asset=mapper.resource(id,image.id()).orElseThrow();Files.write(storage.path(id,asset.storageKey()),new byte[]{1});
+        var job=jobs.create(id,new PptJobs.Create("EXPORT",documents.get(id).revision(),null,key()),()->{});jobs.execute(jobs.require(id,job.id()));
+        assertThat(jobs.get(id,job.id()).state()).isEqualTo("FAILED");assertThat(jobs.get(id,job.id()).artifacts()).isEmpty();
+        assertThat(documents.get(id).phase()).isEqualTo("REVIEW");
     }
     @Test void restartResumesSavedPagesAndCancelledJobNeverPublishesNewArtifacts(){
         String id=create();documents.edit(id,edit(0,page("p1","一"),page("p2","二")),false,()->{});

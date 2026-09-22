@@ -34,7 +34,7 @@ final class OpenCodeAgentPolicy {
     static Map<String, Object> managedDefinitions() {
         return Map.of(
                 PptAgentProfile.AGENT, Map.of("description", "Loopper PPT Agent", "mode", "primary",
-                        "temperature", 0.2d, "prompt", PptAgentProfile.PROMPT),
+                        "temperature", 0.2d, "prompt", PptAgentProfile.BASE_PROMPT),
                 OpenCodeClient.STRUCTURED_AGENT, Map.of(
                         "description", "Bounded read-only Loopper role for machine-response workflows",
                         "mode", "primary", "steps", OpenCodeClient.STRUCTURED_AGENT_STEPS,

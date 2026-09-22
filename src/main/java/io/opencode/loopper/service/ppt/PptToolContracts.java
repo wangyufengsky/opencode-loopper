@@ -8,8 +8,8 @@ import tools.jackson.databind.ObjectMapper;
 final class PptToolContracts {
     private PptToolContracts() { }
     static Object capabilities(PptEngine engine,ObjectMapper json) {
-        return Map.of("capabilities",engine.capabilities(),"contractVersion",1,"coordinates","point; top-left origin; default 960 × 540; all bounds numeric",
-                "rules","IDs are stable and unique across the deck. Use explicit planned slide IDs; page order is not identity. Call measure/check before export. No silent text truncation. Writes require a new idempotencyKey and current expectedRevision. Same key may only replay identical input. Only the user confirms direction and production. Read source sections before citing. Do not change locked objects.",
+        return Map.of("capabilities",engine.capabilities(),"contractVersion",2,"coordinates","point; top-left origin; default 960 × 540; all bounds numeric",
+                "rules","IDs are stable and unique across the deck. Use explicit planned slide IDs; page order is not identity. Call measure/check before export. No silent text truncation. Writes require a new idempotencyKey and current expectedRevision. Same key may only replay identical input. In manual mode only the user confirms direction and production. With frozen generationAuthorization CREATE, the user has authorized automatic planning: submit a complete plan with your selectedDirectionId; the server validates and advances after this run ends. Read source sections before citing. Do not change locked objects.",
                 "parameters",json.readTree(PARAMETERS),"operations",json.readTree(OPERATIONS),"element",json.readTree(ELEMENT),"plan",json.readTree(PLAN));
     }
     private static final String PARAMETERS="""
@@ -56,7 +56,7 @@ final class PptToolContracts {
         {"brief":{"purpose":"制作目标","audience":"听众","duration":"10分钟","pageCount":12,"requirements":"约束与已有答案"},
          "directions":[{"id":"result","title":"结果与建议","description":"先给关键结果和建议，再解释原因","story":"结果→原因→行动","chapters":"结果、分析、建议","pageCount":12,"visual":"简洁商务"},
                        {"id":"problem","title":"问题与解决","description":"先展现需要解决的问题，再比较方案","story":"现状→问题→方案","chapters":"背景、问题、方案","pageCount":12,"visual":"深色数据"}],
-         "selectedDirectionId":"empty until user selects a real direction ID","theme":"business|minimal|dark",
+         "selectedDirectionId":"real direction ID chosen by AI when generationAuthorization is CREATE; otherwise empty until user selects","theme":"business|minimal|dark",
          "narrative":{"story":"全稿主张、章节衔接和行动建议","chapters":[{"id":"chapter-one","title":"章节名称","purpose":"本章目的","pageCount":3}]},
          "slides":[{"id":"stable-slide-id","title":"页面标题","section":"章节","message":"本页要观众记住的一句话","content":"要点和依据","layout":"title_content",
                     "sourceIds":[],"visual":"图片/图表需求","notes":"讲稿"}],

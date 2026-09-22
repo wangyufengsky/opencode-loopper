@@ -1,7 +1,7 @@
 package io.opencode.loopper.domain;
 
 public enum LifecycleMachineType implements DescribedEnum {
-    PPT_DOCUMENT("PPT 作品"), PPT_JOB("PPT 制作作业"), PPT_AGENT_RUN("PPT 助手运行"),
+    PPT_DOCUMENT("PPT 作品"), PPT_JOB("PPT 制作作业"), PPT_AGENT_RUN("PPT 助手运行"), PPT_GENERATION("PPT 自动生成"),
     KNOWLEDGE_CONVERSATION("知识问答会话"), KNOWLEDGE_TURN("知识问答回合"),
     TASK("任务状态机"), STAGE("阶段状态机"), ATTEMPT("执行尝试状态机"),
     EXECUTION_SESSION("执行会话状态机"), JUDGE_RUN("评审运行状态机"),

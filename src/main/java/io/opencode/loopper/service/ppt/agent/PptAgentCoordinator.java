@@ -108,7 +108,7 @@ public class PptAgentCoordinator {
         }
     }
     private void dispatch(OpenCodeSession remote, Run run) {
-        PromptRequest prompt = PptAgentPrompts.build(run, mapper.questions(run.id()));
+        PromptRequest prompt = PptAgentPrompts.build(run, mapper.questions(run.id()),json);
         persistence.dispatch(run, json.writeValueAsString(prompt), OpenCodeClient.promptRequestSha256(prompt));
         if (!persistence.require(run.id()).state().equals("SENDING")) return;
         try {
@@ -151,6 +151,7 @@ public class PptAgentCoordinator {
         }
     }
     private void completeProduction(Run run) {
+        if(json.readTree(run.contextJson()).has("generationAuthorization"))return;
         if (!Set.of("BRIEFING", "PRODUCING").contains(run.phase())) return;
         try {
             var work = workspace.workspace(run.documentId());

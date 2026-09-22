@@ -125,3 +125,5 @@ node scripts/release-version.mjs set <version> --write
 ## PPT 工作室验收
 
 `./scripts/dev-check.sh backend "Ppt*Test,OwnedRuntimeGenerationStoreTest"` 提供引擎、持久化、私有 MCP 和恢复反馈；正式交付仍执行完整门禁。隔离本地服务启动后，运行 `PPT_BASE_URL=http://127.0.0.1:<port> node scripts/qualify-ppt-workspace.mjs`，通过 REST 生成 12 页虚构资料样本、三轮修改、PNG 和可编辑 PPTX；证据默认保存在 `data/ppt-qualification/`。脚本不调用 Provider，不能替代独立的真实文本模型、浏览器或办公软件验收。字体与运行范围见 [PPT 合同](ppt-contract.md)。
+
+一键生成与对话修改的真实 Provider 验收使用 `PPT_ALLOW_PROVIDER=1 PPT_BASE_URL=http://127.0.0.1:<port> PPT_OUTPUT_DIR=data/ppt-generation-qualification node scripts/qualify-ppt-generation.mjs`，只对明确授权的隔离服务执行，不由构建自动运行。默认生成 6 页虚构案例，随后以页面范围发送一轮修改意见，检查新 PNG/PPTX、无关页面与旧文件保持。重复运行相同证据目录沿用保存的请求键；遇到提问、失败或观察超时保留作品并给出地址，不自动回答或取消。它不替代浏览器视觉验收或 WPS 实测。

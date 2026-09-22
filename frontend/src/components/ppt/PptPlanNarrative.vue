@@ -1,11 +1,114 @@
 <script setup lang="ts">
 import type { PptEditablePlan } from '@/types/domain'
-const plan = defineModel<PptEditablePlan>({ required: true })
-defineProps<{ directionFrozen?: boolean }>()
-function addDirection() { plan.value.directions.push({ id: crypto.randomUUID(), title: '新方向', description: '', story: '', chapters: '', pageCount: plan.value.brief.pageCount, visual: '' }) }
-function removeChapter(index: number) { if (window.confirm('移除这个章节安排？历史版本仍会保留。')) plan.value.narrative.chapters.splice(index, 1) }
-function addChapter() { plan.value.narrative.chapters.push({ id: crypto.randomUUID(), title: '新章节', purpose: '', pageCount: 3 }) }
+const plan = defineModel<PptEditablePlan>({
+  required: true,
+})
+defineProps<{
+  directionFrozen?: boolean
+}>()
+
+function addDirection() {
+  plan.value.directions.push({
+    id: crypto.randomUUID(),
+    title: '新方向',
+    description: '',
+    story: '',
+    chapters: '',
+    pageCount: plan.value.brief.pageCount,
+    visual: '',
+  })
+}
+
+function removeChapter(index: number) {
+  if (window.confirm('移除这个章节安排？历史版本仍会保留。'))
+    plan.value.narrative.chapters.splice(index, 1)
+}
+
+function addChapter() {
+  plan.value.narrative.chapters.push({
+    id: crypto.randomUUID(),
+    title: '新章节',
+    purpose: '',
+    pageCount: 3,
+  })
+}
 </script>
 <template>
-  <div class="ppt-plan-module"><h2>叙事结构</h2><details open><summary>整体方向</summary><p v-if="directionFrozen" class="ppt-muted">方向已经确认，重新打开需求后可以修改。</p><fieldset :disabled="directionFrozen"><article v-for="direction in plan.directions" :key="direction.id" class="ppt-direction"><label class="ppt-check"><input v-model="plan.selectedDirectionId" :value="direction.id" type="radio" name="ppt-direction" />选择这个方向</label><label>方案名称<input v-model="direction.title" /></label><label>方向说明<textarea v-model="direction.description" rows="3" /></label><label>讲述主线<textarea v-model="direction.story" rows="2" /></label><label>章节安排<input v-model="direction.chapters" /></label><div class="ppt-form-grid"><label>建议页数<input v-model.number="direction.pageCount" type="number" min="1" max="100" /></label><label>视觉方向<input v-model="direction.visual" /></label></div></article><p v-if="!plan.directions.length" class="ppt-muted">可以让助手提出建议，也可以自行填写方向。</p><button type="button" @click="addDirection">自行填写方向</button></fieldset></details><label>全稿主线与章节衔接<textarea v-model="plan.narrative.story" rows="4" /></label><article v-for="(chapter, index) in plan.narrative.chapters" :key="chapter.id" class="ppt-direction"><header class="ppt-section-heading"><strong>第 {{ index + 1 }} 章</strong><button type="button" @click="removeChapter(index)">移除章节</button></header><label>章节名称<input v-model="chapter.title" /></label><label>本章目的<textarea v-model="chapter.purpose" rows="2" /></label><label>页数安排<input v-model.number="chapter.pageCount" type="number" min="1" max="100" /></label></article><button type="button" @click="addChapter">增加章节</button></div>
+  <div class="ppt-plan-module">
+    <h2>叙事结构</h2>
+    <details open>
+      <summary>整体方向</summary>
+      <p v-if="directionFrozen" class="ppt-muted">方向已经确认，重新打开需求后可以修改。</p>
+      <fieldset :disabled="directionFrozen">
+        <article v-for="direction in plan.directions" :key="direction.id" class="ppt-direction">
+          <label class="ppt-check">
+            <input
+              v-model="plan.selectedDirectionId"
+              :value="direction.id"
+              type="radio"
+              name="ppt-direction"
+            />
+            选择这个方向
+          </label>
+          <label>
+            方案名称
+            <input v-model="direction.title" />
+          </label>
+          <label>
+            方向说明
+            <textarea v-model="direction.description" rows="3" />
+          </label>
+          <label>
+            讲述主线
+            <textarea v-model="direction.story" rows="2" />
+          </label>
+          <label>
+            章节安排
+            <input v-model="direction.chapters" />
+          </label>
+          <div class="ppt-form-grid">
+            <label>
+              建议页数
+              <input v-model.number="direction.pageCount" type="number" min="1" max="100" />
+            </label>
+            <label>
+              视觉方向
+              <input v-model="direction.visual" />
+            </label>
+          </div>
+        </article>
+        <p v-if="!plan.directions.length" class="ppt-muted">
+          可以让助手提出建议，也可以自行填写方向。
+        </p>
+        <button type="button" @click="addDirection">自行填写方向</button>
+      </fieldset>
+    </details>
+    <label>
+      全稿主线与章节衔接
+      <textarea v-model="plan.narrative.story" rows="4" />
+    </label>
+    <article
+      v-for="(chapter, index) in plan.narrative.chapters"
+      :key="chapter.id"
+      class="ppt-direction"
+    >
+      <header class="ppt-section-heading">
+        <strong>第 {{ index + 1 }} 章</strong>
+        <button type="button" @click="removeChapter(index)">移除章节</button>
+      </header>
+      <label>
+        章节名称
+        <input v-model="chapter.title" />
+      </label>
+      <label>
+        本章目的
+        <textarea v-model="chapter.purpose" rows="2" />
+      </label>
+      <label>
+        页数安排
+        <input v-model.number="chapter.pageCount" type="number" min="1" max="100" />
+      </label>
+    </article>
+    <button type="button" @click="addChapter">增加章节</button>
+  </div>
 </template>

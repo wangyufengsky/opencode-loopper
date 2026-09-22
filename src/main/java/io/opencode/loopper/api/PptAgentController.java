@@ -8,12 +8,13 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/ppt/documents/{id}")
 public class PptAgentController {
     private final PptAgentService service;
-    public PptAgentController(PptAgentService service) { this.service = service; }
+    private final io.opencode.loopper.service.ppt.generation.PptGenerationService generation;
+    public PptAgentController(PptAgentService service,io.opencode.loopper.service.ppt.generation.PptGenerationService generation) { this.service = service;this.generation=generation; }
     @GetMapping("/messages") public CursorPage<PptAgentService.Message> messages(@PathVariable String id,
             @RequestParam(required=false) String cursor, @RequestParam(required=false) Integer limit) { return service.messages(id, cursor, limit); }
     @GetMapping("/agent") public PptAgentService.AgentStatus status(@PathVariable String id) { return service.status(id); }
     @PostMapping("/messages") public PptAgentService.Message send(@PathVariable String id, @RequestBody PptAgentService.Send input,
-            @RequestHeader(value="X-Loopper-Local-UI",required=false) String ui) { requireUi(ui); return service.send(id, input); }
+            @RequestHeader(value="X-Loopper-Local-UI",required=false) String ui) { requireUi(ui); return generation.send(id, input); }
     @PostMapping("/questions/{questionId}/reply") public PptAgentService.Message reply(@PathVariable String id, @PathVariable String questionId,
             @RequestBody PptAgentService.Reply input, @RequestHeader(value="X-Loopper-Local-UI",required=false) String ui) {
         requireUi(ui); return service.reply(id, questionId, input);

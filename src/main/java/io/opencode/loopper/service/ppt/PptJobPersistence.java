@@ -20,10 +20,18 @@ public class PptJobPersistence {
     }
     @Transactional
     public Job create(Job row,long documentVersion,Runnable guard) {
+        return create(row,documentVersion,guard,job->{});
+    }
+    @Transactional
+    public Job create(Job row,long documentVersion,Runnable guard,java.util.function.Consumer<Job> attachment) {
         guard.run();var old=mapper.jobReceipt(row.documentId(),row.requestKey());
-        if(old.isPresent()) {if(!old.get().digest().equals(row.digest()))throw PptSupport.conflict("作业标识已用于不同请求");return old.get();}
+        if(old.isPresent()) {if(!old.get().digest().equals(row.digest()))throw PptSupport.conflict("作业标识已用于不同请求");attachment.accept(old.get());return old.get();}
         if(mapper.document(row.documentId()).orElseThrow().version()!=documentVersion)throw PptSupport.conflict("作品已改变，请刷新后重试");
-        lifecycle.create(subject(row),row.state(),Map.of("revision",row.revision()),()->mapper.insertJob(row),()->PptSupport.conflict("作业已经创建"));return row;
+        lifecycle.create(subject(row),row.state(),Map.of("revision",row.revision()),()->mapper.insertJob(row),()->PptSupport.conflict("作业已经创建"));
+        attachment.accept(row);return row;
+    }
+    @Transactional public Job attach(Job row,Runnable guard,java.util.function.Consumer<Job> attachment) {
+        guard.run();attachment.accept(row);return row;
     }
     @Transactional
     public Job state(Job row,String next,int completed,String detail) {

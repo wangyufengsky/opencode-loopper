@@ -16,6 +16,7 @@ import tools.jackson.databind.ObjectMapper;
 /** Durable snapshot jobs; only the committed artifact manifest is presented as output. */
 @Service
 public class PptJobs {
+    private static final org.slf4j.Logger log=org.slf4j.LoggerFactory.getLogger(PptJobs.class);
     private final PptMapper mapper;
     private final PptDocuments documents;
     private final PptResources resources;
@@ -36,10 +37,13 @@ public class PptJobs {
     public record View(String id,String documentId,String kind,long revision,String slideId,String state,int completed,
             int total,String detail,List<ArtifactView> artifacts,String createdAt) { }
     public View create(String document,Create input,Runnable guard) {
+        return create(document,input,guard,job->{});
+    }
+    public View create(String document,Create input,Runnable guard,java.util.function.Consumer<Job> attachment) {
         if(input==null||!Set.of("PREVIEW","EXPORT").contains(Objects.toString(input.kind(),"")))throw PptSupport.bad("PPT_JOB_INVALID","作业类型必须为预览或导出");
         PptSupport.key(input.idempotencyKey());String digest=PptSupport.digest(input,json);
         guard.run();var old=mapper.jobReceipt(document,input.idempotencyKey());
-        if(old.isPresent()) {if(!old.get().digest().equals(digest))throw PptSupport.conflict("作业标识已经用于不同请求");return view(old.get());}
+        if(old.isPresent()) {if(!old.get().digest().equals(digest))throw PptSupport.conflict("作业标识已经用于不同请求");return view(persistence.attach(old.get(),guard,attachment));}
         var doc=documents.require(document);if(doc.archived())throw PptSupport.bad("PPT_ARCHIVED","请先恢复归档作品");
         var snapshot=documents.snapshot(document,input.revision());var deck=json.readValue(snapshot.deckJson(),PptModel.Deck.class);
         if(deck.slides().isEmpty())throw PptSupport.bad("PPT_EMPTY","请先制作页面");
@@ -50,7 +54,7 @@ public class PptJobs {
         }
         String now=Instant.now().toString();int total="EXPORT".equals(input.kind())||input.slideId()!=null?1:deck.slides().size();
         var row=new Job(UUID.randomUUID().toString(),document,input.kind(),input.revision(),input.slideId(),"PREPARED",0,total,"",input.idempotencyKey(),digest,now,now,0);
-        row=persistence.create(row,doc.version(),guard);events.publish(document,"jobs");return view(row);
+        row=persistence.create(row,doc.version(),guard,attachment);events.publish(document,"jobs");return view(row);
     }
     public List<View> list(String document){documents.require(document);
         var grouped=mapper.recentArtifacts(document).stream().collect(java.util.stream.Collectors.groupingBy(Artifact::jobId));
@@ -95,6 +99,9 @@ public class PptJobs {
             if("RUNNING".equals(current.state()))persistence.state(current,"COMPLETED",current.total(),"");
         }catch(RuntimeException failure) {
             var current=require(job.documentId(),job.id());
+            String safe=io.opencode.loopper.service.assist.AssistRedaction.text(Objects.toString(failure.getMessage(),""));
+            safe=safe.replaceAll("[\\r\\n]"," ");if(safe.length()>300)safe=safe.substring(0,300);
+            log.warn("PPT job {} kind={} failure={} detail={}",job.id(),job.kind(),failure.getClass().getSimpleName(),safe);
             if("RUNNING".equals(current.state()))persistence.state(current,"FAILED",current.completed(),failure instanceof PptFailure?failure.getMessage():"制作失败，内容已保留；请检查字体、素材和页面问题后仅重试此作业");
         }finally {events.publish(job.documentId(),"jobs");}
     }
@@ -103,7 +110,8 @@ public class PptJobs {
         String id=UUID.nameUUIDFromBytes((job.id()+":"+name).getBytes(StandardCharsets.UTF_8)).toString();
         var existing=mapper.artifact(job.documentId(),id);
         if(existing.isPresent()){download(job.documentId(),id);return;}
-        byte[] bytes=create.get();String key="jobs/"+job.id()+"/"+PptSupport.hash(bytes)+("image/png".equals(type)?".png":".pptx");
+        // Visually identical slides share a hash but remain distinct immutable artifacts.
+        byte[] bytes=create.get();String key="jobs/"+job.id()+"/"+id+"-"+PptSupport.hash(bytes)+("image/png".equals(type)?".png":".pptx");
         storage.write(job.documentId(),key,bytes);
         var artifact=new Artifact(id,job.documentId(),job.id(),job.revision(),slide,name,type,key,PptSupport.hash(bytes),bytes.length,Instant.now().toString());
         persistence.artifact(job,artifact,count);events.publish(job.documentId(),"jobs");

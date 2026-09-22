@@ -16,10 +16,11 @@ public class PptAgentAuthority {
     private final PptAgentWorkspace workspace;
     private final LoopperProperties properties;
     private final io.opencode.loopper.runtime.OwnedRuntimeGenerationStore generations;
+    private final PptAgentWorkflowGate workflow;
     public PptAgentAuthority(PptAgentMapper mapper, PptRuntimeSupport runtime, PptAgentWorkspace workspace,
-                             LoopperProperties properties, io.opencode.loopper.runtime.OwnedRuntimeGenerationStore generations) {
+                             LoopperProperties properties, io.opencode.loopper.runtime.OwnedRuntimeGenerationStore generations,PptAgentWorkflowGate workflow) {
         this.mapper = mapper; this.runtime = runtime; this.workspace = workspace; this.properties = properties;
-        this.generations = generations;
+        this.generations = generations;this.workflow=workflow;
     }
     /** Process I/O belongs only in coordinator recovery, outside all persistence transactions. */
     public java.util.Optional<String> retiredRuntimeProof(Run run) {
@@ -28,6 +29,7 @@ public class PptAgentAuthority {
     }
     public Run validate(Run original, String tool) {
         Run current = mapper.run(original.id()).orElseThrow(() -> denied("PPT 助手请求不存在"));
+        workflow.validateRun(current);
         runtime.validateGeneration(current);
         if (!java.util.Objects.equals(current.externalSessionId(), original.externalSessionId())
                 || !java.util.Objects.equals(current.generation(), original.generation())

@@ -3,25 +3,184 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import { pptApi } from '@/api/ppt'
-import { api, ApiError } from '@/api/client'
 import { pptPhaseLabel } from '@/utils/displayLabels'
-import type { PptDocument, Project, AvailableModel } from '@/types/domain'
+import type { PptDocument } from '@/types/domain'
+import PptPromptInput from '@/components/ppt/PptPromptInput.vue'
+import { usePptCreation } from '@/components/ppt/usePptCreation'
 import '@/components/ppt/ppt.css'
-const router = useRouter(), rows = ref<PptDocument[]>([]), cursor = ref<string | null>(null), query = ref(''), archived = ref(false), phase = ref('')
-const loading = ref(false), creating = ref(false), error = ref(''), title = ref(''), projectId = ref(''), model = ref(''), models = ref<AvailableModel[]>([]), projects = ref<Project[]>([]), createOpen = ref(false)
-let sequence = 0, creation: { id: string; title: string; projectId?: string; model?: string } | undefined
-async function load(more = false) { const ticket = ++sequence; loading.value = true; error.value = ''; try { const page = await pptApi.list({ query: query.value || undefined, archived: archived.value, phase: phase.value || undefined, cursor: more ? cursor.value || '' : '' }); if (ticket === sequence) { rows.value = more ? [...rows.value, ...page.items] : page.items; cursor.value = page.nextCursor ?? null } } catch { if (ticket === sequence) error.value = '作品列表暂时无法读取，请重试' } finally { if (ticket === sequence) loading.value = false } }
-async function create() { if (!title.value.trim() || creating.value) return; creating.value = true; error.value = ''; const current = { title: title.value.trim(), projectId: projectId.value || undefined, model: model.value || undefined }; if (creation && JSON.stringify({ ...creation, id: undefined }) !== JSON.stringify(current)) { error.value = '上次创建结果尚未核对，请先使用原名称与配置重试'; creating.value = false; return } creation ??= { id: crypto.randomUUID(), ...current }; try { sessionStorage.setItem('loopper.ppt.creation', JSON.stringify(creation)) } catch { /* Keep the identity in memory. */ } try { const value = await pptApi.create(creation); creation = undefined; try { sessionStorage.removeItem('loopper.ppt.creation') } catch { /* Creation already succeeded. */ } await router.push(`/ppt/${value.id}`) } catch (failure) { if (failure instanceof ApiError && failure.status >= 400 && failure.status < 500) { creation = undefined; try { sessionStorage.removeItem('loopper.ppt.creation') } catch { /* Rejected before acceptance. */ } } error.value = failure instanceof Error && /[\u4e00-\u9fff]/.test(failure.message) ? failure.message : '创建结果待核对，请保留当前内容并重试' } finally { creating.value = false } }
-async function openCreate() { createOpen.value = true; void api.getProjects().then(value => { projects.value = value }).catch(() => {}); void api.getSettingsModels().then(value => { models.value = value }).catch(() => {}) }
-onMounted(() => { try { const saved = JSON.parse(sessionStorage.getItem('loopper.ppt.creation') || 'null') as typeof creation; if (saved) { creation = saved; title.value = saved.title; projectId.value = saved.projectId || ''; model.value = saved.model || ''; createOpen.value = true; error.value = '上次创建结果尚未核对，请使用原配置重试' } } catch { /* Ignore malformed local creation metadata. */ } void load() })
+
+const router = useRouter()
+const creation = usePptCreation()
+const rows = ref<PptDocument[]>([])
+const cursor = ref<string | null>(null)
+const query = ref('')
+const archived = ref(false)
+const loading = ref(false)
+const starting = ref(false)
+const error = ref('')
+let sequence = 0
+
+async function load(more = false) {
+  const ticket = ++sequence
+  loading.value = true
+  error.value = ''
+  try {
+    const page = await pptApi.list({
+      query: query.value || undefined,
+      archived: archived.value,
+      cursor: more ? cursor.value || '' : '',
+    })
+    if (ticket === sequence) {
+      rows.value = more ? [...rows.value, ...page.items] : page.items
+      cursor.value = page.nextCursor ?? null
+    }
+  } catch {
+    if (ticket === sequence) error.value = '作品暂时无法读取，请重试。'
+  } finally {
+    if (ticket === sequence) loading.value = false
+  }
+}
+
+async function generate() {
+  if (starting.value) return
+  const request = await creation.prepare()
+  if (!request) return
+  starting.value = true
+  try {
+    await pptApi.generate(request.id, request.revision, request.prompt, request.key)
+    creation.accepted()
+    await router.push(`/ppt/${request.id}`)
+  } catch (failure) {
+    creation.error.value =
+      failure instanceof Error && /[\u4e00-\u9fff]/.test(failure.message)
+        ? failure.message
+        : '暂时未收到生成结果。请重试原要求，我们会核对同一份作品。'
+  } finally {
+    starting.value = false
+  }
+}
+
+function updatedAt(value: string) {
+  return new Date(value).toLocaleDateString('zh-CN', {
+    month: 'numeric',
+    day: 'numeric',
+  })
+}
+
+onMounted(() => {
+  void load()
+})
+function toggleArchive() {
+  archived.value = !archived.value
+  void load()
+}
 </script>
+
 <template>
   <main id="main-content" class="ppt-page ppt-library" aria-label="PPT 制作">
-    <header class="ppt-topbar"><div><h1><Icon icon="lucide:presentation" />PPT 工作室</h1><p>从想法、资料到可编辑的演示文稿</p></div><button class="ppt-primary" @click="openCreate"><Icon icon="lucide:plus" />新建演示文稿</button></header>
-    <form class="ppt-library-filters" @submit.prevent="load()"><input v-model="query" aria-label="搜索作品名称" placeholder="搜索作品" /><select v-model="phase" aria-label="作品阶段" @change="load()"><option value="">所有阶段</option><option v-for="value in ['BRIEFING', 'DIRECTION', 'DESIGN', 'PRODUCING', 'REVIEW', 'EXPORTED']" :key="value" :value="value">{{ pptPhaseLabel(value) }}</option></select><label class="ppt-check"><input v-model="archived" type="checkbox" @change="load()" />已归档</label><button>搜索</button></form>
-    <p v-if="error" role="alert" class="ppt-notice">{{ error }}<button @click="load()">重新读取</button></p><p v-if="loading && !rows.length" role="status">正在读取作品…</p>
-    <section v-if="createOpen" class="ppt-create-panel" aria-label="新建演示文稿"><header class="ppt-section-heading"><h2>新建演示文稿</h2><button :disabled="creating" @click="createOpen = false">收起</button></header><form @submit.prevent="create"><label>作品名称<input v-model="title" required maxlength="120" placeholder="例如：季度项目汇报" /></label><div class="ppt-form-grid"><label>关联项目<select v-model="projectId"><option value="">不关联项目</option><option v-for="project in projects" :key="project.id" :value="project.id">{{ project.name }}</option></select></label><label>PPT 助手模型<select v-model="model"><option value="">继承系统默认模型</option><option v-for="item in models" :key="item.id" :value="item.id">{{ item.label || item.id }}</option></select></label></div><button class="ppt-primary" :disabled="creating || !title.trim()">{{ creating ? '正在创建' : '创建并打开' }}</button></form></section>
-    <div v-if="!loading && !rows.length" class="ppt-library-empty"><Icon icon="lucide:panels-top-left" width="48" /><h2>{{ query || archived || phase ? '没有符合条件的作品' : '开始你的第一份演示文稿' }}</h2><p>先确定内容与方向，再和 PPT 助手逐页制作。</p></div>
-    <section class="ppt-document-grid" aria-label="作品列表"><RouterLink v-for="document in rows" :key="document.id" :to="`/ppt/${document.id}`" class="ppt-document-card"><div class="ppt-document-cover"><Icon icon="lucide:presentation" width="40" /><span>{{ pptPhaseLabel(document.phase) }}</span></div><h2>{{ document.title }}</h2><p>版本 {{ document.revision }} · {{ new Date(document.updatedAt).toLocaleString('zh-CN') }}</p></RouterLink></section><button v-if="cursor" :disabled="loading" @click="load(true)">加载更多作品</button>
+    <header class="ppt-library-brand">
+      <Icon icon="lucide:presentation" />
+      <span>PPT 工作室</span>
+    </header>
+    <section class="ppt-hero" aria-labelledby="ppt-hero-title">
+      <div class="ppt-hero-mark" aria-hidden="true">
+        <Icon icon="lucide:sparkles" />
+      </div>
+      <h1 id="ppt-hero-title">
+        从一个想法，
+        <br class="ppt-mobile-break" />
+        到一份好演示。
+      </h1>
+      <p>说出你的要求，剩下的交给 PPT 助手。</p>
+      <PptPromptInput
+        v-model="creation.prompt.value"
+        :files="creation.files.value"
+        :busy="creation.busy.value || starting"
+        :locked="creation.locked.value"
+        :detail="creation.detail.value"
+        :error="creation.error.value"
+        @files="creation.addFiles"
+        @remove="creation.removeFile"
+        @submit="generate"
+      />
+      <div class="ppt-hero-footnote">
+        <span>
+          <Icon icon="lucide:message-circle" />
+          随时提意见，随时修改
+        </span>
+        <span>
+          <Icon icon="lucide:file-down" />
+          下载后继续编辑
+        </span>
+      </div>
+      <RouterLink
+        v-if="creation.documentId.value"
+        :to="`/ppt/${creation.documentId.value}`"
+        class="ppt-recovery-link"
+      >
+        打开已创建的作品
+        <Icon icon="lucide:arrow-right" />
+      </RouterLink>
+    </section>
+
+    <section class="ppt-recent" aria-labelledby="ppt-recent-title">
+      <header class="ppt-recent-header">
+        <div>
+          <h2 id="ppt-recent-title">
+            {{ archived ? '已归档作品' : '最近作品' }}
+          </h2>
+          <span v-if="rows.length">继续上次的想法</span>
+        </div>
+        <form class="ppt-library-filters" @submit.prevent="load()">
+          <label class="ppt-search">
+            <Icon icon="lucide:search" />
+            <input v-model="query" aria-label="搜索作品" placeholder="搜索作品" />
+          </label>
+          <button
+            type="button"
+            :class="{ active: archived }"
+            :aria-pressed="archived"
+            @click="toggleArchive"
+          >
+            {{ archived ? '返回最近' : '归档' }}
+          </button>
+        </form>
+      </header>
+      <p v-if="error" role="alert" class="ppt-notice">
+        {{ error }}
+        <button @click="load()">重试</button>
+      </p>
+      <p v-if="loading && !rows.length" role="status" class="ppt-empty">正在读取作品…</p>
+      <div v-else-if="!rows.length" class="ppt-library-empty">
+        <Icon icon="lucide:files" />
+        <p>
+          {{ query || archived ? '这里还没有符合条件的作品。' : '你的演示作品会出现在这里。' }}
+        </p>
+      </div>
+      <div class="ppt-document-grid" aria-label="作品列表">
+        <RouterLink
+          v-for="document in rows"
+          :key="document.id"
+          :to="`/ppt/${document.id}`"
+          class="ppt-document-card"
+        >
+          <div class="ppt-document-symbol" aria-hidden="true">
+            <Icon icon="lucide:presentation" />
+          </div>
+          <div class="ppt-document-info">
+            <h3>{{ document.title }}</h3>
+            <p>
+              <span>{{ pptPhaseLabel(document.phase) }}</span>
+              <span>{{ updatedAt(document.updatedAt) }}</span>
+            </p>
+          </div>
+          <Icon class="ppt-document-arrow" icon="lucide:arrow-up-right" aria-hidden="true" />
+        </RouterLink>
+      </div>
+      <button v-if="cursor" class="ppt-load-more" :disabled="loading" @click="load(true)">
+        更多作品
+        <Icon icon="lucide:chevron-down" />
+      </button>
+    </section>
   </main>
 </template>

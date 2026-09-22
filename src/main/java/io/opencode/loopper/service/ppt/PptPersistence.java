@@ -18,8 +18,12 @@ public class PptPersistence {
     private final PptMapper mapper;
     private final LifecycleTransitionService lifecycle;
     private final ObjectMapper json;
-    public PptPersistence(PptMapper mapper,LifecycleTransitionService lifecycle,ObjectMapper json) {
-        this.mapper=mapper;this.lifecycle=lifecycle;this.json=json;
+    private final io.opencode.loopper.persistence.PptGenerationMapper generations;
+    public PptPersistence(PptMapper mapper,LifecycleTransitionService lifecycle,ObjectMapper json,io.opencode.loopper.persistence.PptGenerationMapper generations) {
+        this.mapper=mapper;this.lifecycle=lifecycle;this.json=json;this.generations=generations;
+    }
+    public void assertManualAdmission(String id) {
+        if(generations.active(id).isPresent())throw PptSupport.conflict("自动生成期间请先停止生成，再手工修改方案或页面");
     }
     @Transactional
     public void create(Document row,Revision revision) {

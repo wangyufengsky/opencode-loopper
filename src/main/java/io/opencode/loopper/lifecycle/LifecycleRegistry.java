@@ -16,6 +16,9 @@ public final class LifecycleRegistry {
     private final Map<LifecycleMachineType, RegisteredMachine<?>> machines = new EnumMap<>(LifecycleMachineType.class);
 
     public LifecycleRegistry() {
+        register(LifecycleMachineType.PPT_GENERATION, io.opencode.loopper.service.ppt.generation.PptGenerationState.class,
+                PptGenerationTopology.machine(), set(io.opencode.loopper.service.ppt.generation.PptGenerationState.PLANNING,
+                        io.opencode.loopper.service.ppt.generation.PptGenerationState.PRODUCING), Set.of());
         register(LifecycleMachineType.PPT_AGENT_RUN, io.opencode.loopper.service.ppt.agent.PptAgentState.class,
                 PptAgentTopology.machine(), set(io.opencode.loopper.service.ppt.agent.PptAgentState.PREPARED), Set.of());
         register(LifecycleMachineType.PPT_DOCUMENT, PptPhase.class, PptTopology.document(), set(PptPhase.BRIEFING), Set.of());

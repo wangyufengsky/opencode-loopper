@@ -99,7 +99,7 @@ public class PptDocuments {
         validateAssets(id,output.deck());
         JsonNode result=json.valueToTree(Map.of("revision",base.revision()+1,"deck",output.deck(),"createdIds",output.createdIds()));
         var next=new Revision(id,base.revision()+1,json.writeValueAsString(output.deck()),old.planJson(),agent?"PPT 助手编辑":"编辑页面",Instant.now().toString());
-        var saved=persistence.edit(base,next,output.deck().title(),input.idempotencyKey(),digest,result,guard);events.publish(id,"deck");return saved;
+        var saved=persistence.edit(base,next,output.deck().title(),input.idempotencyKey(),digest,result,()->{if(!agent)persistence.assertManualAdmission(id);guard.run();});events.publish(id,"deck");return saved;
     }
     public JsonNode savePlan(String id,PlanEdit input,boolean agent,Runnable guard) {
         PptSupport.key(input.idempotencyKey());String digest=digest("plan",input);
@@ -114,7 +114,7 @@ public class PptDocuments {
         }
         JsonNode result=json.valueToTree(Map.of("revision",base.revision()+1,"plan",input.plan()));
         var next=new Revision(id,base.revision()+1,old.deckJson(),json.writeValueAsString(input.plan()),agent?"助手设计方案":"编辑设计方案",Instant.now().toString());
-        var saved=persistence.edit(base,next,base.title(),input.idempotencyKey(),digest,result,guard);
+        var saved=persistence.edit(base,next,base.title(),input.idempotencyKey(),digest,result,()->{if(!agent)persistence.assertManualAdmission(id);guard.run();});
         events.publish(id,"plan");return saved;
     }
     public View action(String id,String action,Action input,Runnable guard) {
@@ -138,7 +138,7 @@ public class PptDocuments {
             }
             case "finish-production" -> {
                 if(!"PRODUCING".equals(base.phase()))throw PptSupport.bad("PPT_PHASE_INVALID","当前不在制作阶段");
-                requireProductionComplete(id,snapshot);phase="REVIEW";
+                requireProductionComplete(id,snapshot,true);phase="REVIEW";
             }
             case "reopen" -> phase="BRIEFING";
             case "archive" -> archived=Boolean.TRUE.equals(input.archived());
@@ -157,10 +157,15 @@ public class PptDocuments {
         persistence.edit(base,next,restored.title(),input.idempotencyKey(),digest,json.valueToTree(Map.of("revision",next.revision())),guard);events.publish(base.id(),"deck");
     }
     public void requireProductionComplete(String id,Revision snapshot) {
+        requireProductionComplete(id,snapshot,false);
+    }
+    private void requireProductionComplete(String id,Revision snapshot,boolean requirePlannedPages) {
         var deck=json.readValue(snapshot.deckJson(),Deck.class);var plan=json.readTree(snapshot.planJson());
         if(deck.slides().isEmpty())throw PptSupport.bad("PPT_EMPTY","尚未生成页面");
-        for(var slide:plan.path("slides")) if(deck.slides().stream().noneMatch(s->Objects.equals(s.id(),slide.path("id").asText())&&!s.elements().isEmpty()))
+        // The production gate requires the plan; later exports validate their frozen edited deck.
+        if(requirePlannedPages)for(var slide:plan.path("slides")) if(deck.slides().stream().noneMatch(s->Objects.equals(s.id(),slide.path("id").asText())&&!s.elements().isEmpty()))
             throw PptSupport.bad("PPT_PAGE_MISSING","部分设计页面尚未制作，请继续生成缺少的页面");
+        if(deck.slides().stream().anyMatch(s->s.elements().isEmpty()))throw PptSupport.bad("PPT_EMPTY_PAGE","存在没有内容的页面，请补充内容或明确删除该页");
         validateAssets(id,deck);
         var check=engine.validate(deck);if(!check.valid())throw PptSupport.bad("PPT_LAYOUT_INVALID","页面存在阻断问题，请读取检查结果后修正");
     }

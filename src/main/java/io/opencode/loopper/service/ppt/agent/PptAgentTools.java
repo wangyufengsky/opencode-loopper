@@ -13,6 +13,7 @@ import tools.jackson.databind.node.ObjectNode;
 @Service
 public class PptAgentTools {
     private static final Set<String> WRITES = Set.of("ppt_request_input", "ppt_submit_plan", "ppt_apply_operations", "ppt_render_preview", "ppt_export");
+    private static final Set<String> MANAGED_OUTPUTS=Set.of("ppt_render_preview","ppt_export");
     private final PptRuntimeSupport runtime;
     private final PptAgentAuthority authority;
     private final PptAgentWorkspace workspace;
@@ -44,6 +45,10 @@ public class PptAgentTools {
             if (old.isPresent()) return writes.replay(old.get(), tool, sha); // Exact receipt replay remains available after stop.
         }
         authority.validate(run, tool);
+        var automatic=json.readTree(run.contextJson()).get("generationAuthorization");
+        if(automatic!=null&&MANAGED_OUTPUTS.contains(tool))throw io.opencode.loopper.service.ppt.PptSupport.bad("PPT_OUTPUT_MANAGED",
+                "本次自动生成的预览和导出由服务端统一处理。请完成保存和布局检查后结束本轮，程序将生成同版本预览与 PPTX，不要重复请求输出作业");
+        if(tool.equals("ppt_submit_plan")&&automatic!=null&&automatic.path("mode").asText().equals("CREATE"))PptAutomaticPlan.validate(node.get("plan"));
         if (mapper.pending(run.id()).isPresent() && WRITES.contains(tool)) throw PptAgentPersistence.conflict("正在等待用户输入，请结束本轮");
         if (tool.equals("ppt_request_input")) return writes.question(run, node, key, sha);
         ObjectNode args = ((ObjectNode) node).deepCopy();
@@ -52,7 +57,9 @@ public class PptAgentTools {
         // A rendering or parsing operation may finish after the user stops. Never publish a fresh receipt in that case.
         authority.validate(run, tool);
         if (tool.equals("ppt_get_capabilities")) result = Map.of("capabilities", result, "phase", run.phase(),
-                "allowedTools", PptAgentProfile.TOOLS.stream().filter(t -> PptAgentAuthority.allowed(t, run.phase())).toList());
+                "generationAuthorization",automatic==null?json.nullNode():automatic,
+                "allowedTools", PptAgentProfile.TOOLS.stream().filter(t -> PptAgentAuthority.allowed(t, run.phase())
+                        &&(automatic==null||!MANAGED_OUTPUTS.contains(t))).toList());
         String response = json.writeValueAsString(result);
         Object safe = json.readTree(AssistRedaction.text(response));
         return WRITES.contains(tool) ? writes.save(run, key, tool, sha, safe) : safe;
