@@ -32,6 +32,7 @@ class PptAgentIntegrationTest {
     }
     @Autowired Flyway flyway;
     @Autowired PptAgentMapper mapper;
+    @Autowired io.opencode.loopper.service.ppt.agent.PptAgentActivity activity;
     @Autowired PptAgentPersistence persistence;
     @Autowired PptAgentService service;
     @Autowired PptAgentTools tools;
@@ -62,7 +63,7 @@ class PptAgentIntegrationTest {
         credential = new InternalMcpCredentialProvider(() -> 8080).issue(); runtime.activate(credential);
         remote = spy(new FakeOpenCodeClient()); remote.setManagedRuntime(credential.generation(), credential.serverName());
         remote.holdProfileOpen(OpenCodeClient.SessionProfile.PPT_AGENT, true);
-        coordinator = new PptAgentCoordinator(mapper, persistence, remote, json, properties, workspace, authority, events);
+        coordinator = new PptAgentCoordinator(mapper, persistence, remote, json, properties, workspace, authority, events, activity);
     }
     @AfterEach void close() { coordinator.close(); }
     PptAgentService.Send input(String key) { return new PptAgentService.Send(key, "只做一页项目收益", 0, json.valueToTree(Map.of("kind", "DOCUMENT"))); }
@@ -72,6 +73,44 @@ class PptAgentIntegrationTest {
     }
     Map<String,Object> call(Run run, Map<String,Object> args) {
         return Map.of("scope", scopes.grant(run), "runId", run.id(), "documentId", document, "args", args);
+    }
+    @Test void capturesProviderActivityAndKeepsItAcrossProjectionFailureAndStop() {
+        var run = start();
+        var transcript = new OpenCodeClient.SessionTranscript(List.of(
+                new OpenCodeClient.SessionPart("thought", "THINKING", "思考", "检查页面结构", "completed"),
+                new OpenCodeClient.SessionPart("tool", "TOOL", "private_ppt_get_context", "scope=do-not-display", "running")));
+        doReturn(transcript).when(remote).sessionTranscript(any());
+        coordinator.tick(document);
+        var message = service.messages(document, null, 50).items().getFirst();
+        assertThat(message.thinking()).isEqualTo("检查页面结构");
+        assertThat(message.calls()).hasSize(1);
+        assertThat(message.calls().getFirst().tool()).isEqualTo("ppt_get_context");
+        assertThat(message.calls().getFirst().state()).isEqualTo("RUNNING");
+        assertThat(message.calls().getFirst().detail()).isEmpty();
+        doThrow(new IllegalStateException("temporarily unavailable")).when(remote).sessionTranscript(any());
+        coordinator.tick(document);
+        assertThat(service.message(persistence.require(run.id())).thinking()).isEqualTo("检查页面结构");
+        service.stop(document); coordinator.tick(document);
+        assertThat(service.message(persistence.require(run.id())).thinking()).isEqualTo("检查页面结构");
+        activity.save(run, new OpenCodeClient.SessionTranscript(List.of(new OpenCodeClient.SessionPart("late", "THINKING", "", "迟到数据", "completed"))));
+        assertThat(service.message(persistence.require(run.id())).thinking()).isEqualTo("检查页面结构");
+        assertThat(persistence.require(run.id()).state()).isEqualTo("STOPPED");
+    }
+    @Test void activityKeepsThirtyCallsBoundsThinkingAndPreservesQuestionRounds() {
+        var run = start(); var parts = new ArrayList<OpenCodeClient.SessionPart>();
+        parts.add(new OpenCodeClient.SessionPart("thought", "THINKING", "", "思".repeat(64000), "completed"));
+        parts.add(new OpenCodeClient.SessionPart("more-thought", "THINKING", "", "继续检查", "completed"));
+        for (int i = 0; i < 35; i++) parts.add(new OpenCodeClient.SessionPart("tool-" + i, "TOOL", "private_ppt_measure_text", "", "completed"));
+        activity.save(run, new OpenCodeClient.SessionTranscript(parts));
+        var first = service.message(run); assertThat(first.thinking().length()).isLessThanOrEqualTo(64000); assertThat(first.calls()).hasSize(30);
+        tools.call("ppt_request_input", call(run, Map.of("idempotencyKey", "activity-question", "prompt", "面向谁？", "options", List.of("管理层"))));
+        var question = mapper.pending(run.id()).orElseThrow(); coordinator.tick(document); coordinator.tick(document);
+        service.reply(document, question.id(), new PptAgentService.Reply("activity-reply", "管理层", 0, 0)); coordinator.tick(document);
+        var resumed = persistence.require(run.id());
+        activity.save(resumed, new OpenCodeClient.SessionTranscript(List.of(new OpenCodeClient.SessionPart("new", "TOOL", "private_ppt_apply_operations", "", "running"))));
+        assertThat(service.message(resumed).thinking()).isEqualTo(first.thinking());
+        activity.save(run, new OpenCodeClient.SessionTranscript(List.of(new OpenCodeClient.SessionPart("old", "THINKING", "", "旧轮次", "completed"))));
+        assertThat(service.message(resumed).calls().getLast().tool()).isEqualTo("ppt_apply_operations");
     }
     @Test void sameKeyReplaysOneWriterAndFreezesDedicatedRoleWithoutPersistingScopeSecrets() {
         String key = UUID.randomUUID().toString(); var first = service.send(document, input(key));
@@ -199,7 +238,7 @@ class PptAgentIntegrationTest {
         runtime.activate(new InternalMcpCredentialProvider(() -> 8080).issue());
         doReturn(null).when(remote).abortWithConfirmation(any());
         service.stop(document); coordinator.close();
-        coordinator = new PptAgentCoordinator(mapper, persistence, remote, json, properties, workspace, authority, events);
+        coordinator = new PptAgentCoordinator(mapper, persistence, remote, json, properties, workspace, authority, events, activity);
         coordinator.tick(document);
         assertThat(mapper.active(document)).isPresent();
         assertThatThrownBy(() -> service.send(document, input(UUID.randomUUID().toString()))).isInstanceOf(ConflictException.class);

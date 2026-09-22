@@ -81,7 +81,9 @@ describe('Settings model selection', () => {
       { id: 'opencode/model-a', provider: 'opencode', model: 'model-a', label: 'opencode / model-a' },
       { id: 'deepseek/deepseek-chat', provider: 'deepseek', model: 'deepseek-chat', label: 'deepseek / deepseek-chat' },
     ])
-    const update = vi.spyOn(api, 'updateSettings').mockResolvedValue(current)
+    const saved = { ...current, openCode: { ...current.openCode, model: 'big-pickle' } }
+    const update = vi.spyOn(api, 'updateSettings').mockResolvedValue(saved)
+    const runtime = vi.spyOn(api, 'getRuntime').mockResolvedValue({ ...demoRuntime, model: 'opencode/big-pickle' })
     const wrapper = mount(SettingsView, {
       global: {
         plugins: [createPinia(), ElementPlus],
@@ -96,12 +98,17 @@ describe('Settings model selection', () => {
 
     expect(wrapper.findAllComponents(ElSelect)).toHaveLength(3)
     expect(wrapper.text()).toContain('model-a')
+    useTaskStore().runtime = { ...demoRuntime, model: 'opencode/model-a' }
+    const model = wrapper.findAllComponents({ name: 'ElFormItem' }).find(item => item.props('label') === '模型')!.getComponent(ElSelect)
+    model.vm.$emit('update:modelValue', 'big-pickle')
     const concurrency = wrapper.findAllComponents({ name: 'ElFormItem' }).find(item => item.props('label') === '模板分析并发数')!.getComponent({ name: 'ElInputNumber' })
     concurrency.vm.$emit('update:modelValue', 7)
     await wrapper.get('.settings-save').trigger('click')
     await flushPromises()
+    expect(runtime).toHaveBeenCalledTimes(1)
+    expect(useTaskStore().runtime?.model).toBe('opencode/big-pickle')
     expect(update).toHaveBeenCalledWith(expect.objectContaining({
-      openCode: expect.objectContaining({ mode: 'managed', provider: 'opencode', model: 'model-a' }),
+      openCode: expect.objectContaining({ mode: 'managed', provider: 'opencode', model: 'big-pickle' }),
       limits: expect.objectContaining({ templateAnalysisConcurrency: 7 }),
     }))
   })

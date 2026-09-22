@@ -4,6 +4,9 @@ import { Icon } from '@iconify/vue'
 import { usePptStore } from '@/stores/pptStore'
 import type { PptScope, PptQuestion, PptMessage } from '@/types/domain'
 import MarkdownDocument from '@/components/MarkdownDocument.vue'
+import AssistantActivity from '@/components/AssistantActivity.vue'
+import { splitThinkingContent } from '@/utils/thinkingContent'
+import { pptToolLabel } from '@/utils/displayLabels'
 
 const props = withDefaults(
   defineProps<{
@@ -41,7 +44,12 @@ const canSend = computed(
     (props.ready || !store.generation),
 )
 const displayedMessages = computed(() =>
-  showHistory.value ? store.messages : store.messages.slice(-3),
+  (showHistory.value ? store.messages : store.messages.slice(-3)).map(message => {
+    const segments = splitThinkingContent(message.answer)
+    return { ...message, calls: message.calls || [],
+      thinking: message.thinking || segments.filter(part => part.type === 'thinking').map(part => part.content).join('\n\n'),
+      answer: segments.filter(part => part.type === 'content').map(part => part.content).join('\n\n') }
+  }),
 )
 function scrollLatest() {
   if (timeline.value && !props.spacious) timeline.value.scrollTop = timeline.value.scrollHeight
@@ -69,7 +77,7 @@ function replyPreview(answer: string) {
 watch(
   () =>
     JSON.stringify([
-      displayedMessages.value.map((message) => [message.id, message.answer, message.detail]),
+      displayedMessages.value.map((message) => [message.id, message.answer, message.detail, message.thinking, message.calls]),
       questions.value,
     ]),
   async () => {
@@ -206,6 +214,7 @@ async function reply(question: PptQuestion) {
         >
           <p>{{ message.text }}</p>
         </div>
+        <AssistantActivity :message="message" :thinking="message.thinking" :answer="message.answer" :tool-label="pptToolLabel" />
         <div v-if="message.answer" class="ppt-agent-message">
           <template v-if="foldReply(message)">
             <MarkdownDocument :content="replyPreview(message.answer)" />

@@ -43,6 +43,7 @@ class PptMcpTransportIntegrationTest {
     @Autowired PptAgentService agent;
     @Autowired PptAgentPersistence persistence;
     @Autowired PptAgentMapper mapper;
+    @Autowired io.opencode.loopper.service.ppt.agent.PptAgentActivity activity;
     @Autowired PptAgentWorkspace workspace;
     @Autowired PptAgentAuthority authority;
     @Autowired io.opencode.loopper.service.ppt.PptEvents events;
@@ -83,7 +84,7 @@ class PptMcpTransportIntegrationTest {
         var remote = new HttpOpenCodeClient(RestClient.builder(), () -> new OpenCodeRuntimeManager.Connection(endpoint, null, null, true,
                 credentials.generation(), credentials.serverName()), properties, new OpenCodeCapabilityRegistry(), bindings);
         remote.installAssist(assist); remote.installPpt(scopes);
-        coordinator = new PptAgentCoordinator(mapper, persistence, remote, json, properties, workspace, authority, events);
+        coordinator = new PptAgentCoordinator(mapper, persistence, remote, json, properties, workspace, authority, events, activity);
         runId = agent.send(document, new PptAgentService.Send(UUID.randomUUID().toString(), "制作项目收益页", 0,
                 json.valueToTree(Map.of("kind", "DOCUMENT")))).id();
         coordinator.tick(document); coordinator.tick(document);

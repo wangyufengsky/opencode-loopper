@@ -134,12 +134,12 @@ for %%I in ("%JAVA_BIN_DIR%..") do set "JAVA_HOME=%%~fI"
 set "PATH=%JAVA_HOME%\bin;%PATH%"
 
 if defined LOOPPER_JAR_PATH goto jar_from_environment
-if exist "%APP_HOME%\target\opencode-loopper-0.4.64.jar" (
-  set "JAR_PATH=%APP_HOME%\target\opencode-loopper-0.4.64.jar"
+if exist "%APP_HOME%\target\opencode-loopper-0.4.65.jar" (
+  set "JAR_PATH=%APP_HOME%\target\opencode-loopper-0.4.65.jar"
   goto jar_ready
 )
-if exist "%APP_HOME%\opencode-loopper-0.4.64.jar" (
-  set "JAR_PATH=%APP_HOME%\opencode-loopper-0.4.64.jar"
+if exist "%APP_HOME%\opencode-loopper-0.4.65.jar" (
+  set "JAR_PATH=%APP_HOME%\opencode-loopper-0.4.65.jar"
   goto jar_ready
 )
 goto jar_missing
@@ -251,7 +251,7 @@ echo [Loopper] ERROR: JDK 21 or newer is required. Current version: %JAVA_VERSIO
 exit /b 1
 
 :jar_missing
-echo [Loopper] ERROR: opencode-loopper-0.4.64.jar was not found under "%APP_HOME%". Put the release JAR beside this script or set LOOPPER_JAR_PATH. 1>&2
+echo [Loopper] ERROR: opencode-loopper-0.4.65.jar was not found under "%APP_HOME%". Put the release JAR beside this script or set LOOPPER_JAR_PATH. 1>&2
 exit /b 1
 
 :data_dir_failed

@@ -34,6 +34,7 @@ class KnowledgeIntegrationTest {
     @Autowired KnowledgeConversations conversations; @Autowired KnowledgePersistence persistence; @Autowired KnowledgeMapper mapper;
     @Autowired KnowledgeReader reader; @Autowired ObjectMapper json; @Autowired LoopperProperties properties;
     @Autowired KnowledgeSearchService search;
+    @Autowired KnowledgeFileLinks fileLinks;
     @Autowired KnowledgeResearchMapper researchMapper;
     @Autowired KnowledgeEventHub events; @Autowired AssistMapper assist; @Autowired AssistScopeService scopes;
     @Autowired AssistToolService tools; @Autowired InternalMcpRuntimeAccess runtime; @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
@@ -58,6 +59,29 @@ class KnowledgeIntegrationTest {
     KnowledgeRows.Turn run(String id) {
         var turn = persistence.begin(id, UUID.randomUUID().toString(), "付款逻辑？"); coordinator.tick(id); coordinator.tick(id);
         return mapper.turn(turn.id()).orElseThrow();
+    }
+    @Test void newDispatchRequiresMcpFirstAndPreservesCitationAndFallbackInstructions() {
+        var chat = researchChat(); var turn = run(chat.id());
+        String system = json.readTree(mapper.turn(turn.id()).orElseThrow().requestJson()).path("system").asText();
+        assertThat(system).contains("先调用已授权", "不得因为原生", "只有 MCP 查不到", "MCP 已返回 citationId 的事实必须", "knowledge:实际citationId")
+                .doesNotContain("无需为了优先级先调用 MCP", "可以直接使用原生工具并自主组合");
+    }
+    @Test void fileLinksReadFrozenSourcesAndRejectTraversalSecretsAndOtherProjects() throws Exception {
+        Files.writeString(root.resolve("Example.java"), "one\ntwo\nthree\n");
+        var chat = researchChat();
+        assertThat(fileLinks.read(chat.id(), "Example.java", 2, 2, 0)).containsEntry("startLine", 2).containsEntry("text", "two\nthree\n\n");
+        assertThat(fileLinks.read(chat.id(), root.resolve("Example.java").toString(), 1, 0, 0)).containsEntry("name", "Example.java");
+        assertThat(fileLinks.read(chat.id(), "当前.md", 1, 0, 0)).containsKey("changeNotice");
+        assertThatThrownBy(() -> fileLinks.read(chat.id(), "../outside.txt", 1, 0, 0)).isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> fileLinks.read(chat.id(), root.resolveSibling("outside.txt").toString(), 1, 0, 0)).isInstanceOf(RuntimeException.class);
+        Files.writeString(root.resolve(".env"), "private");
+        assertThatThrownBy(() -> fileLinks.read(chat.id(), ".env", 1, 0, 0)).isInstanceOf(RuntimeException.class);
+        Path outside = Files.createTempFile("knowledge-outside-", ".txt");
+        Files.createSymbolicLink(root.resolve("linked.txt"), outside);
+        assertThatThrownBy(() -> fileLinks.read(chat.id(), "linked.txt", 1, 0, 0)).isInstanceOf(RuntimeException.class);
+        var docsOnly = create(List.of("documents"));
+        assertThatThrownBy(() -> fileLinks.read(docsOnly.id(), "Example.java", 1, 0, 0)).isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> fileLinks.read("missing", "Example.java", 1, 0, 0)).isInstanceOf(NotFoundException.class);
     }
     @Test void defaultModelDoesNotDiscoverCatalogButExplicitAlternativesAreValidated() {
         String oldModel = properties.getOpenCode().getModel(), oldMode = properties.getOpenCode().getMode();

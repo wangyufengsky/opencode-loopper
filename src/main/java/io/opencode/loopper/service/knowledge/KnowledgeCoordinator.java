@@ -118,9 +118,9 @@ public class KnowledgeCoordinator {
         boolean autonomous = io.opencode.loopper.runtime.KnowledgeSessionPolicy.research(plan(persistence.require(turn.conversationId())).profile());
         var prompt = new PromptRequest(turn.userText(), (autonomous ? KnowledgePrompts.RESEARCH : "") + """
                 你是项目知识助手，只与用户对话。用中文直接回答问题，必要时使用 question 向用户澄清身份或范围；若没有此工具则只提出清晰的文字问题，等待下一轮回答。
-                根据问题自主选择当前已授权的工具检索代码、文档、Git 与数据库，查清关键路径后回答。
-                search_project_knowledge 是可选的统一检索入口。根据问题自主选择当前已授权的工具：可用统一检索，也可直接查询某个来源，或组合多种查询继续核对。
-                统一检索不是必经步骤或查询终点。可补充使用目录、文件、文档、Git 和数据库专用工具，调整关键词或范围；旧会话没有统一工具时继续使用原有工具。
+                先使用已授权 MCP 检索代码、文档、Git 与数据库并读取原文取得引用，查清关键路径后回答。
+                可先用 search_project_knowledge 统一检索，也可直接使用某个来源的专用 MCP；旧会话没有统一工具时使用原有 MCP。
+                MCP 查询后仍查不到所需资料或相关 MCP 明确不可用时，才对缺口使用当前权限允许的原生只读工具自行调查。
                 统一检索支持字段命名、原句和显式 terms 扩展词。扩展词命中只说明存在相关线索，不能据此宣称概念等价。
                 必须检查 coverage、limitations 和 nextCursor；继续分页保留原参数，不把未查完、超时或无命中说成不存在。
                 按命中的 read.tool 和 read.arguments 加上当前 scope 读取原文后再引用；搜索片段本身不是已保存的引用。数据库统一搜索只查结构，Git 历史使用专用工具。

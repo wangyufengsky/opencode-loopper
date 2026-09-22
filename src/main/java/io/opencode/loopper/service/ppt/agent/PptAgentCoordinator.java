@@ -26,14 +26,16 @@ public class PptAgentCoordinator {
     private final LoopperProperties properties;
     private final PptAgentWorkspace workspace;
     private final PptAgentAuthority authority;
+    private final PptAgentActivity activity;
     private final io.opencode.loopper.service.ppt.PptEvents events;
     private final Set<String> running = ConcurrentHashMap.newKeySet();
     private final ExecutorService workers = new ThreadPoolExecutor(2, 2, 0, TimeUnit.SECONDS, new ArrayBlockingQueue<>(32),
             Thread.ofPlatform().daemon().name("ppt-agent-", 0).factory(), new ThreadPoolExecutor.AbortPolicy());
     public PptAgentCoordinator(PptAgentMapper mapper, PptAgentPersistence persistence, OpenCodeClient openCode,
-            ObjectMapper json, LoopperProperties properties, PptAgentWorkspace workspace, PptAgentAuthority authority, io.opencode.loopper.service.ppt.PptEvents events) {
+            ObjectMapper json, LoopperProperties properties, PptAgentWorkspace workspace, PptAgentAuthority authority, io.opencode.loopper.service.ppt.PptEvents events, PptAgentActivity activity) {
         this.mapper = mapper; this.persistence = persistence; this.openCode = openCode; this.json = json;
         this.properties = properties; this.workspace = workspace; this.authority = authority; this.events = events;
+        this.activity = activity;
     }
     public void enqueue(String document) {
         if (!running.add(document)) return;
@@ -127,6 +129,7 @@ public class PptAgentCoordinator {
     }
     private void poll(OpenCodeSession remote, Run run) {
         var status = openCode.sessionStatus(remote);
+        activity.capture(openCode, remote, run);
         String answer = AssistRedaction.text(openCode.sessionLiveOutput(remote));
         if (answer != null && answer.length() > 500000) { persistence.stop(run.documentId(), "OUTPUT_LIMIT"); return; }
         if (answer != null && !answer.isBlank() && !answer.equals(run.answer())) {
@@ -167,7 +170,9 @@ public class PptAgentCoordinator {
             recoverCreate(run); run = persistence.require(run.id());
             if (run.externalSessionId() == null) return; // An in-flight create cannot be disproved by one empty list.
         }
-        var remote = restore(run); var proof = openCode.abortWithConfirmation(remote);
+        var remote = restore(run);
+        activity.capture(openCode, remote, run);
+        var proof = openCode.abortWithConfirmation(remote);
         if (proof == null) return;
         boolean input = "INPUT".equals(run.stopReason()) && mapper.pending(run.id()).isPresent();
         persistence.proven(run, input ? PptAgentState.WAITING_INPUT : PptAgentState.STOPPED, proof.name(),

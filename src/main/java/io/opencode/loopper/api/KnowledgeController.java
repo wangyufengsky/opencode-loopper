@@ -14,8 +14,10 @@ public class KnowledgeController {
     private final KnowledgeCoordinator coordinator;
     private final KnowledgeEventHub events;
     private final KnowledgeQuestions questions;
-    public KnowledgeController(KnowledgeConversations conversations, KnowledgeCoordinator coordinator, KnowledgeEventHub events, KnowledgeQuestions questions) {
+    private final KnowledgeFileLinks files;
+    public KnowledgeController(KnowledgeConversations conversations, KnowledgeCoordinator coordinator, KnowledgeEventHub events, KnowledgeQuestions questions, KnowledgeFileLinks files) {
         this.questions = questions; this.conversations = conversations; this.coordinator = coordinator; this.events = events;
+        this.files = files;
     }
     @GetMapping public CursorPage<KnowledgeConversations.View> list(@RequestParam(defaultValue="") String projectId,
             @RequestParam(required=false) String cursor, @RequestParam(required=false) Integer limit, @RequestParam(defaultValue="active") String archive,
@@ -42,6 +44,9 @@ public class KnowledgeController {
     @PostMapping("/{id}/stop") public KnowledgeConversations.View stop(@PathVariable String id,
             @RequestHeader(value="X-Loopper-Local-UI",required=false) String localUi) { requireUi(localUi); coordinator.stop(id); return conversations.get(id); }
     @GetMapping("/{id}/citations/{citationId}") public Map<String,Object> citation(@PathVariable String id, @PathVariable String citationId) { return conversations.citation(id, citationId); }
+    @GetMapping("/{id}/file") public Map<String,Object> file(@PathVariable String id, @RequestParam String path,
+            @RequestParam(defaultValue="1") int startLine, @RequestParam(defaultValue="0") int endLine,
+            @RequestParam(defaultValue="0") int section) { return files.read(id, path, startLine, endLine, section); }
     @GetMapping(value="/{id}/events",produces="text/event-stream") public SseEmitter stream(@PathVariable String id) {
         conversations.get(id); var emitter = new SseEmitter(0L); var lifecycle = new SseEmitterLifecycle();
         emitter.onCompletion(lifecycle::close); emitter.onTimeout(lifecycle::close); emitter.onError(failure -> lifecycle.close());

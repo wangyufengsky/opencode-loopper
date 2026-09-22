@@ -17,6 +17,8 @@ import KnowledgeThinking from '@/components/knowledge/KnowledgeThinking.vue'
 import { useKnowledgeModels } from '@/composables/useKnowledgeModels'
 import { useKnowledgeSplit } from '@/composables/useKnowledgeSplit'
 import { splitThinkingContent } from '@/utils/thinkingContent'
+import { knowledgeLink, knowledgeFileTarget } from '@/utils/knowledgeLinks'
+import userAvatar from '@/assets/knowledge-user-whale.png'
 import '@/styles/knowledge.css'
 const route = useRoute(), router = useRouter(), store = useKnowledgeStore()
 const projects = ref<Project[]>([]), project = ref('')
@@ -29,6 +31,8 @@ const left = ref(false), right = ref(false), width = ref(window.innerWidth), las
 const workspace = ref<HTMLElement>()
 const sourceRoot = ref<HTMLElement>(), citationRoot = ref<HTMLElement>(), timeline = ref<HTMLElement>(), composer = ref<HTMLTextAreaElement>()
 const citation = ref<{ citation: KnowledgeCitation; body: KnowledgeContent }>(), citationError = ref(''), citationLoading = ref(false)
+const filePreview = ref<KnowledgeContent>(), fileTarget = ref<ReturnType<typeof knowledgeFileTarget>>()
+const evidenceTitle = computed(() => fileTarget.value ? '文件预览' : '引用详情')
 const referenceList = ref<KnowledgeCitation[]>([])
 const returnFocus: Record<'left' | 'right', HTMLElement | null> = { left: null, right: null }
 let draftOwner = route.fullPath
@@ -69,7 +73,7 @@ async function loadRoute() {
   const ticket = ++routeSequence; ++dataSequence
   const id = typeof route.params.conversationId === 'string' ? route.params.conversationId : ''
   sessionStorage.setItem(`knowledge.draft.${draftOwner}`, text.value); draftOwner = route.fullPath
-  citationSequence++; citation.value = undefined; right.value = false; text.value = ''
+  citationSequence++; citation.value = undefined; filePreview.value = undefined; fileTarget.value = undefined; right.value = false; text.value = ''
   if (id) { await store.load(id); if (!alive || ticket !== routeSequence) return; if (store.conversation) project.value = store.conversation.projectId; if (!text.value) text.value = store.pendingText }
   else { store.reset(); newId.value = crypto.randomUUID() }
   await changedProject()
@@ -108,6 +112,7 @@ function keyboard(event: KeyboardEvent) {
 }
 async function openCitation(target: string, refs?: KnowledgeCitation[]) {
   if (!store.conversation) return
+  filePreview.value = undefined; fileTarget.value = undefined
   const [id, location] = target.split('#'); if (!id) return
   const range = location?.match(/^([LR])(\d+)-[LR](\d+)$/)
   citationRange.value = range ? { unit: range[1] as 'L' | 'R', first: Number(range[2]), last: Number(range[3]) } : undefined
@@ -118,12 +123,32 @@ async function openCitation(target: string, refs?: KnowledgeCitation[]) {
   catch (error) { if (ticket === citationSequence) citationError.value = notice(error) }
   finally { if (ticket === citationSequence) citationLoading.value = false }
 }
-function markdown(answer: string) { return answer.replace(/\]\(knowledge:([a-f0-9-]{36}(?:#[LR]\d+-[LR]\d+)?)\)/g, '](#knowledge-citation-$1)') }
+async function openFile(target: string, section = 0) {
+  if (!store.conversation) return
+  const ticket = ++citationSequence, owner = store.conversation.id
+  citation.value = undefined; filePreview.value = undefined; referenceList.value = []; citationRange.value = undefined; citationError.value = ''; citationLoading.value = true
+  await openPanel('right')
+  try {
+    if (ticket !== citationSequence || owner !== store.conversation?.id) return
+    const file = knowledgeFileTarget(target); fileTarget.value = file
+    const body = await knowledgeApi.file(owner, file.path, file.start, file.end, section)
+    if (ticket !== citationSequence || owner !== store.conversation?.id) return
+    filePreview.value = body
+    if (file.end) citationRange.value = { unit: 'L', first: file.start, last: file.end }
+  } catch (error) { if (ticket === citationSequence) citationError.value = notice(error) }
+  finally { if (ticket === citationSequence) citationLoading.value = false }
+}
+function nextFilePage() {
+  if (!filePreview.value || !fileTarget.value) return
+  const { path } = fileTarget.value
+  if (Number(filePreview.value.nextLine) > 0) void openFile(`${encodeURI(path)}#L${filePreview.value.nextLine}`)
+  else if (Number(filePreview.value.nextSection) >= 0) void openFile(encodeURI(path), Number(filePreview.value.nextSection))
+}
 function referenceClick(event: MouseEvent, refs: KnowledgeCitation[]) {
   const anchor = event.target instanceof Element ? event.target.closest('a') : null
   const href = anchor?.getAttribute('href') || ''
-  if (!href.startsWith('#knowledge-citation-')) return
-  event.preventDefault(); void openCitation(href.slice('#knowledge-citation-'.length), refs)
+  if (href.startsWith('#knowledge-citation-')) { event.preventDefault(); void openCitation(href.slice('#knowledge-citation-'.length), refs) }
+  else if (href.startsWith('#knowledge-file-')) { event.preventDefault(); void openFile(decodeURIComponent(href.slice('#knowledge-file-'.length))) }
 }
 watch(() => store.messages.at(-1)?.answer, async () => { const near = !right.value && timeline.value && timeline.value.scrollHeight - timeline.value.scrollTop - timeline.value.clientHeight < 160; await nextTick(); if (near && timeline.value) timeline.value.scrollTop = timeline.value.scrollHeight })
 onMounted(async () => {
@@ -159,13 +184,13 @@ onBeforeUnmount(() => { sessionStorage.setItem(`knowledge.draft.${draftOwner}`, 
           <p v-if="store.loading && !store.messages.length" role="status">正在加载会话…</p>
           <div v-else-if="!store.messages.length" class="knowledge-welcome"><span class="knowledge-orb"><Icon icon="lucide:sparkles" /></span><p class="knowledge-eyebrow">你的项目，随时问</p><h2>让项目知识，成为答案</h2><p>从代码、文档与数据库中寻找依据。<br>选择项目，开始一次有据可查的对话。</p><div class="knowledge-suggestions"><button @click="text = '这个项目的核心流程是什么？'; composer?.focus({ preventScroll: true })">梳理核心流程 <span>↗</span></button><button @click="text = '文档要求与当前代码实现有哪些差异？'; composer?.focus({ preventScroll: true })">对照文档与实现 <span>↗</span></button><button @click="text = '项目数据库有哪些主要业务表？'; composer?.focus({ preventScroll: true })">了解数据结构 <span>↗</span></button></div></div>
           <button v-if="store.nextCursor" :disabled="store.loading" @click="store.more()">加载更早消息</button>
-          <article v-for="message in displayedMessages" :key="message.id" class="knowledge-turn"><div class="knowledge-user"><span>你</span><p>{{ message.userText }}</p></div><div class="knowledge-answer"><div class="knowledge-answer-label"><Icon icon="lucide:sparkles" /><strong>项目助手</strong><small>{{ message.questions?.some(q => q.state === 'PENDING') ? '等待回答' : knowledgeStateLabel(message.state) }}</small></div><KnowledgeThinking :message="message" :thinking="message.thinkingBody" :answer="message.answerBody" /><div @click="referenceClick($event, message.citations)"><MarkdownDocument :allow-images="false" :content="markdown(message.answerBody)" /></div><KnowledgeQuestion v-for="question in message.questions" :key="question.id" :question="question" :conversation="store.conversation!.id" @answered="store.refresh" /><p v-if="message.detail" class="knowledge-muted">{{ message.detail }}</p><button v-if="message.citations.length" class="knowledge-citations-button" @click="openCitation(message.citations[0]!.id, message.citations)"><Icon icon="lucide:files" /> 查看 {{ message.citations.length }} 条来源 · 引用详情 <span>→</span></button></div></article>
+          <article v-for="message in displayedMessages" :key="message.id" class="knowledge-turn"><div class="knowledge-user" aria-label="你的消息"><p>{{ message.userText }}</p><img class="knowledge-user-avatar" :src="userAvatar" alt="你的头像" width="36" height="36" /></div><div class="knowledge-answer"><div class="knowledge-answer-label"><Icon icon="lucide:sparkles" /><strong>项目助手</strong><small>{{ message.questions?.some(q => q.state === 'PENDING') ? '等待回答' : knowledgeStateLabel(message.state) }}</small></div><KnowledgeThinking :message="message" :thinking="message.thinkingBody" :answer="message.answerBody" /><div @click="referenceClick($event, message.citations)"><MarkdownDocument :allow-images="false" :content="message.answerBody" :resolve-link="knowledgeLink" /></div><KnowledgeQuestion v-for="question in message.questions" :key="question.id" :question="question" :conversation="store.conversation!.id" @answered="store.refresh" /><p v-if="message.detail" class="knowledge-muted">{{ message.detail }}</p><button v-if="message.citations.length" class="knowledge-citations-button" @click="openCitation(message.citations[0]!.id, message.citations)"><Icon icon="lucide:files" /> 查看 {{ message.citations.length }} 条来源 · 引用详情 <span>→</span></button></div></article>
         </div>
         <form class="knowledge-composer" @submit.prevent="send"><textarea ref="composer" v-model="text" aria-label="向项目提问" placeholder="关于这个项目，你想了解什么？" maxlength="24000" rows="3" :disabled="store.sending" @keydown.enter.exact="!$event.isComposing && ($event.preventDefault(), send())" /><div class="knowledge-compose-footer"><button type="button" class="knowledge-source-summary" :disabled="!activeProject" @click="openPanel('left')"><Icon icon="lucide:layers" /> {{ store.conversation?.sources.length ?? selected.length }} 项来源</button><div class="knowledge-model"><KnowledgeModelPicker v-if="!store.conversation" :model="model" :default-model="defaultModel" :models="models" :loading="catalogLoading" :error="catalogError" :disabled="store.sending" @load="modelOptions.loadCatalog()" @retry="modelOptions.loadCatalog(true)" @select="modelOptions.select" /><span v-else :title="store.conversation.model">{{ store.conversation.model }}</span></div><KnowledgeUsage :usage="usage" /><button v-if="store.active" type="button" class="knowledge-send" :disabled="store.sending || store.conversation?.state === 'STOPPING'" @click="store.stop">{{ store.conversation?.state === 'STOPPING' ? '确认停止中' : '停止生成' }}</button><button v-else class="knowledge-send" :disabled="!canSend">发送 <Icon icon="lucide:arrow-up" /></button></div></form>
 
       </section>
       <div v-if="right && !overlay" class="knowledge-resizer" role="separator" tabindex="0" aria-label="调整引用面板宽度" aria-orientation="vertical" aria-controls="knowledge-evidence-panel" :aria-valuenow="split.panelWidth.value" :aria-valuemin="320" :aria-valuemax="split.maximum.value" title="拖动调整宽度，双击恢复默认" @pointerdown="split.start" @pointermove="split.move" @pointerup="split.stop" @pointercancel="split.stop" @lostpointercapture="split.stop" @keydown="split.keyboard" @dblclick="split.reset" />
-      <aside id="knowledge-evidence-panel" v-show="right" ref="citationRoot" class="knowledge-panel knowledge-right" :role="overlay ? 'dialog' : 'complementary'" :aria-modal="overlay || undefined" aria-label="引用详情"><header class="knowledge-panel-heading"><h2>引用详情</h2><button aria-label="关闭引用详情" @click="closePanel('right')">×</button></header><div class="knowledge-reference-tabs"><button v-for="(item, index) in referenceList" :key="item.id" :class="{ selected: citation?.citation.id === item.id }" :title="item.name" @click="openCitation(item.id)">{{ index + 1 }}</button></div><p v-if="citationLoading" role="status">读取已保存的证据…</p><p v-if="citationError" class="knowledge-notice" role="alert">{{ citationError }}</p><KnowledgeEvidence v-if="citation" :body="citation.body" :citation="citation.citation" :focus-range="citationRange" /></aside>
+      <aside id="knowledge-evidence-panel" v-show="right" ref="citationRoot" class="knowledge-panel knowledge-right" :role="overlay ? 'dialog' : 'complementary'" :aria-modal="overlay || undefined" aria-label="引用详情"><header class="knowledge-panel-heading"><h2>{{ evidenceTitle }}</h2><button aria-label="关闭引用详情" @click="closePanel('right')">×</button></header><div class="knowledge-reference-tabs"><button v-for="(item, index) in referenceList" :key="item.id" :class="{ selected: citation?.citation.id === item.id }" :title="item.name" @click="openCitation(item.id)">{{ index + 1 }}</button></div><p v-if="citationLoading" role="status">{{ fileTarget ? '读取当前文件…' : '读取已保存的证据…' }}</p><p v-if="citationError" class="knowledge-notice" role="alert">{{ citationError }}</p><KnowledgeEvidence v-if="filePreview" :body="filePreview" :focus-range="citationRange" /><button v-if="filePreview && (Number(filePreview.nextLine) > 0 || Number(filePreview.nextSection) >= 0)" @click="nextFilePage">继续读取</button><KnowledgeEvidence v-if="citation" :body="citation.body" :citation="citation.citation" :focus-range="citationRange" /></aside>
     </div>
   </main>
 </template>

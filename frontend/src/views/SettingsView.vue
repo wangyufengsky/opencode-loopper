@@ -95,6 +95,7 @@ async function save() {
   try {
     settings.value = await api.updateSettings(settings.value)
     publicationHosts.value = settings.value.publication.httpWebHosts.join(', ')
+    await store.refreshRuntime()
     ElMessage.success('设置已保存；运行项立即生效，启动项将在下次启动生效。')
   } catch (error) {
     ElMessage.error(message(error))

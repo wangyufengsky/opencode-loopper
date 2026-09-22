@@ -43,6 +43,34 @@ beforeEach(() => {
 })
 
 describe('PPT concise conversation', () => {
+  it('shares knowledge waiting, thinking and tool disclosure behavior across streaming updates and stop', async () => {
+    const store = usePptStore()
+    store.messages = [{ ...message('stream', ''), state: 'RUNNING' }]
+    const wrapper = render(); await flushPromises()
+    expect(wrapper.get('.knowledge-waiting').text()).toContain('正在思考')
+    store.messages = [{ ...message('stream', ''), state: 'RUNNING', thinking: '检查第一版\n\n正在检查页面', calls: [{ id: 'call', tool: 'ppt_check_layout', state: 'RUNNING', detail: '' }] }]
+    await flushPromises()
+    expect(wrapper.find('.knowledge-waiting').exists()).toBe(false)
+    expect(wrapper.get('[aria-label="思考"] button').attributes('aria-expanded')).toBe('false')
+    expect(wrapper.get('[aria-label="工具调用"] button').text()).toContain('检查页面布局')
+    await wrapper.get('[aria-label="思考"] button').trigger('click')
+    store.messages = [{ ...store.messages[0]!, thinking: '新的思考内容' }]; await flushPromises()
+    expect(wrapper.get('[aria-label="思考"] button').attributes('aria-expanded')).toBe('true')
+    store.messages = [{ ...store.messages[0]!, state: 'STOPPED' }]; await flushPromises()
+    expect(wrapper.find('.knowledge-spinner').exists()).toBe(false)
+    expect(wrapper.text()).toContain('新的思考内容')
+    wrapper.unmount()
+  })
+  it('separates embedded thinking from answer and suppresses waiting while a question is pending', async () => {
+    const store = usePptStore()
+    store.messages = [{ ...message('stream', '<think>检查资料</think>完成设计'), state: 'RUNNING' }]
+    const wrapper = render(); await flushPromises()
+    expect(wrapper.get('[aria-label="思考"]').text()).toContain('检查资料')
+    expect(wrapper.get('.ppt-agent-message').text()).toBe('完成设计')
+    store.messages = [{ ...message('stream', ''), state: 'WAITING_INPUT' }]; await flushPromises()
+    expect(wrapper.find('.knowledge-waiting').exists()).toBe(false)
+    wrapper.unmount()
+  })
   it('collapses long replies while keeping failures and pending questions visible', async () => {
     const store = usePptStore()
     const longReply =

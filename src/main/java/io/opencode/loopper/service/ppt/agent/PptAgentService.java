@@ -25,17 +25,19 @@ public class PptAgentService {
     private final ObjectMapper json;
     private final LoopperProperties properties;
     private final PptAgentWorkflowGate workflow;
+    private final PptAgentActivity activity;
     public PptAgentService(PptAgentMapper mapper, PptAgentPersistence persistence, PptAgentCoordinator coordinator,
-            PptAgentWorkspace workspace, ObjectMapper json, LoopperProperties properties,PptAgentWorkflowGate workflow) {
+            PptAgentWorkspace workspace, ObjectMapper json, LoopperProperties properties,PptAgentWorkflowGate workflow, PptAgentActivity activity) {
         this.mapper = mapper; this.persistence = persistence; this.coordinator = coordinator;
         this.workspace = workspace; this.json = json; this.properties = properties;this.workflow=workflow;
+        this.activity = activity;
     }
     public record Send(String idempotencyKey, String text, long expectedRevision, JsonNode scope) { }
     public record Reply(String idempotencyKey, String answer, long expectedRevision, long version) { }
     public record QuestionView(String id, String prompt, List<String> options, String state, String answer, long version) { }
     public record Message(String id, String documentId, String idempotencyKey, String text, String answer,
                           String state, String detail, JsonNode scope, long expectedRevision, long version,
-                          String createdAt, String updatedAt, List<QuestionView> questions) { }
+                          String createdAt, String updatedAt, List<QuestionView> questions, String thinking, List<PptAgentActivity.Call> calls) { }
     public record AgentStatus(String state, String runId, String detail, long version, List<QuestionView> questions) { }
     public Message send(String document, Send input) {
         return send(document,input,null);
@@ -121,13 +123,14 @@ public class PptAgentService {
         var last = selected.getLast(); var groups = mapper.questionsFor(selected.stream().map(Run::id).toList()).stream()
                 .collect(java.util.stream.Collectors.groupingBy(Question::runId));
         Collections.reverse(selected);
-        return new CursorPage<>(selected.stream().map(row -> view(row, groups.getOrDefault(row.id(), List.of()))).toList(),
+        var activities = activity.views(selected.stream().map(Run::id).toList());
+        return new CursorPage<>(selected.stream().map(row -> view(row, groups.getOrDefault(row.id(), List.of()), activities.getOrDefault(row.id(), PptAgentActivity.View.EMPTY))).toList(),
                 rows.size() > limit ? new PageCursor(last.createdAt(), last.id()).encode() : null);
     }
-    public Message message(Run row) { return view(row, mapper.questions(row.id())); }
-    private Message view(Run row, List<Question> questions) {
+    public Message message(Run row) { return view(row, mapper.questions(row.id()), activity.views(List.of(row.id())).getOrDefault(row.id(), PptAgentActivity.View.EMPTY)); }
+    private Message view(Run row, List<Question> questions, PptAgentActivity.View activity) {
         return new Message(row.id(), row.documentId(), row.idempotencyKey(), row.userText(), row.answer(), row.state(),
-                row.detail(), json.readTree(row.scopeJson()), row.sourceRevision(), row.version(), row.createdAt(), row.updatedAt(), views(questions));
+                row.detail(), json.readTree(row.scopeJson()), row.sourceRevision(), row.version(), row.createdAt(), row.updatedAt(), views(questions), activity.thinking(), activity.calls());
     }
     private List<QuestionView> views(List<Question> rows) {
         return rows.stream().map(q -> new QuestionView(q.id(), q.prompt(), json.readTree(q.optionsJson()).valueStream().map(JsonNode::asText).toList(),

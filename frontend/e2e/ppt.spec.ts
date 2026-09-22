@@ -287,6 +287,24 @@ async function openMore(page: Page, name: string) {
   await page.getByRole('button', { name, exact: true }).click()
 }
 
+test('PPT 助手显示真实思考和调用，展开状态随更新保留', async ({ page }) => {
+  const state = await fixture(page, 'draft')
+  state.messages.push({ id: 'activity', documentId, idempotencyKey: 'activity-key', text: '制作项目汇报', answer: '', state: 'RUNNING', detail: '', scope: { kind: 'DOCUMENT' }, expectedRevision: 0, version: 0, createdAt: '', updatedAt: '', questions: [], thinking: '先整理汇报结构。\n\n正在核对关键结论。', calls: [{ id: 'tool', tool: 'ppt_get_context', state: 'RUNNING', detail: '' }] })
+  await page.goto(`/ppt/${documentId}`)
+  const thinking = page.locator('section[aria-label="思考"]'), tools = page.locator('section[aria-label="工具调用"]')
+  await expect(thinking.getByRole('button')).toHaveAttribute('aria-expanded', 'false')
+  await expect(tools.getByRole('button')).toHaveAttribute('aria-expanded', 'false')
+  await expect(tools).toContainText('查看作品与设计')
+  await thinking.getByRole('button').click()
+  await expect(thinking.locator('.knowledge-thinking-content')).toBeVisible()
+  state.messages[0]!.thinking = '先整理汇报结构。\n\n开始检查版式。'
+  await expect(thinking).toContainText('开始检查版式', { timeout: 15000 })
+  await expect(thinking.getByRole('button')).toHaveAttribute('aria-expanded', 'true')
+  await page.screenshot({ path: 'test-results/ppt-shared-activity.png', fullPage: true })
+  state.messages[0]!.state = 'STOPPED'
+  await expect(tools.locator('.knowledge-spinner')).toHaveCount(0, { timeout: 15000 })
+})
+
 test('输入需求和可选附件后一键生成，只在关键缺口提问，回答后直接完成', async ({ page }) => {
   const state = await fixture(page, 'draft')
   await page.setViewportSize({ width: 1600, height: 1000 })

@@ -12,6 +12,7 @@ const props = withDefaults(defineProps<{
   highlightLines?: number[]
   collapsible?: boolean
   collapsedLines?: number
+  resolveLink?: (href: string) => string | null
 }>(), {
   collapsible: false,
   allowImages: true,
@@ -33,13 +34,22 @@ const markdown = new MarkdownIt({
 })
 
 const renderImage = markdown.renderer.rules.image!
+const validateLink = markdown.validateLink.bind(markdown)
+markdown.validateLink = href => validateLink(href) || (!!props.resolveLink && /^file:/i.test(href) && !!props.resolveLink(href)?.startsWith('#'))
 markdown.renderer.rules.image = (tokens, index, options, env, self) => props.allowImages
   ? renderImage(tokens, index, options, env, self)
   : markdown.utils.escapeHtml(tokens[index]?.content || '图片')
 
 markdown.renderer.rules.link_open = (tokens, index, options, _env, self) => {
-  tokens[index]!.attrSet('target', '_blank')
-  tokens[index]!.attrSet('rel', 'noopener noreferrer')
+  const token = tokens[index]!
+  const href = String(token.attrGet('href') || '')
+  const resolved = props.resolveLink ? props.resolveLink(href) : href
+  if (resolved === null) token.attrs = (token.attrs || []).filter(([key]) => key !== 'href')
+  else token.attrSet('href', resolved)
+  if (resolved && !resolved.startsWith('#')) {
+    token.attrSet('target', '_blank')
+    token.attrSet('rel', 'noopener noreferrer')
+  }
   return self.renderToken(tokens, index, options)
 }
 

@@ -284,6 +284,8 @@ export interface PptAgentStatus {
   questions: PptQuestion[]
 }
 export interface PptMessage {
+  thinking?: string
+  calls?: { id: string; tool: string; state: string; detail: string }[]
   id: string
   documentId: string
   idempotencyKey: string

@@ -411,3 +411,7 @@ export function pptGenerationStepLabel(value?: string) {
   }
   return labels[value || ''] || '开始制作'
 }
+
+export function pptToolLabel(tool: string): string {
+  return ({ ppt_get_context: '查看作品与设计', ppt_read_source: '读取参考资料', ppt_get_capabilities: '查看制作能力', ppt_request_input: '请求补充信息', ppt_submit_plan: '提交设计方案', ppt_apply_operations: '编辑演示文稿', ppt_measure_text: '测量文字排版', ppt_check_layout: '检查页面布局', ppt_render_preview: '生成页面预览', ppt_get_job: '查看制作进度', ppt_export: '导出演示文稿' } as Record<string, string>)[tool] || '处理制作工具'
+}

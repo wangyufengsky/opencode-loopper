@@ -149,7 +149,8 @@ class KnowledgeMcpTransportIntegrationTest {
         persistence.begin(chat.id(), UUID.randomUUID().toString(), "这个项目有几个模块？");
         coordinator.tick(chat.id()); coordinator.tick(chat.id());
         assertTransportRead(chat);
-        assertThat(sentPrompt.get().path("system").asText()).contains("自主选择", "不是必经步骤或查询终点");
+        assertThat(sentPrompt.get().path("system").asText()).contains("先使用已授权 MCP", "必须先用已授权 MCP 查询并读取原文", "只有 MCP 查不到")
+                .doesNotContain("偏好而非必经流程", "可自主选用更直接");
         try (var client = HttpClient.newHttpClient()) {
             var response = client.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/api/projects/" + project
                     + "/knowledge-sources/search?conversationId=" + chat.id() + "&query=README&mode=AUTO")).GET().build(), HttpResponse.BodyHandlers.ofString());

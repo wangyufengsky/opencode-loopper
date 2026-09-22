@@ -3,6 +3,32 @@ const id = '11111111-1111-4111-8111-111111111111', citationId = '22222222-2222-4
 const sources = [{ id: 'code', kind: 'CODE', name: '项目代码', state: 'READY', detail: '', version: 0 }, { id: 'documents', kind: 'DOCUMENTS', name: '项目文档', state: 'READY', detail: '', version: 0 }]
 const citation = { id: citationId, kind: 'CODE', name: 'PaymentService.java', location: 'src/PaymentService.java · 第 12–15 行', sha256: 'a'.repeat(64), createdAt: '2026-09-17T01:00:00Z' }
 const summary = { id, projectId: 'p', title: '付款流程如何工作', model: 'local/model', state: 'IDLE', sources, createdAt: '2026-09-17T01:00:00Z', updatedAt: '', version: 0 }
+test('文件链接在当前页预览并保留气泡头像，失败不跳到 404', async ({ page }) => {
+  await fixture(page)
+  await page.route('**/api/knowledge/conversations/*/messages?**', route => route.fulfill({ json: { items: [{ id: 'file-turn', ordinal: 1, state: 'COMPLETED', userText: '查看付款流程', thinking: '', answer: '[付款代码](src/PaymentService.java#L12-L15) [不可用文件](missing.java)', detail: '', inputTokens: null, outputTokens: null, createdAt: '', citations: [], calls: [] }], nextCursor: null } }))
+  await page.route('**/api/knowledge/conversations/*/file?**', route => {
+    const params = new URL(route.request().url()).searchParams
+    if (params.get('path') === 'missing.java') return route.fulfill({ status: 400, json: { detail: '文件不存在，请从资料来源中重新查找' } })
+    expect(params.get('path')).toBe('src/PaymentService.java'); expect(params.get('startLine')).toBe('12')
+    return route.fulfill({ json: { kind: 'CODE', name: 'PaymentService.java', sourceId: 'code', path: 'src/PaymentService.java', sha256: 'a'.repeat(64), text: 'void pay() {\n  check();\n  save();\n}', startLine: 12, endLine: 15, nextLine: -1, changeNotice: '当前文件预览，包含本地最新内容' } })
+  })
+  await page.goto(`/knowledge/${id}`)
+  const avatar = page.getByRole('img', { name: '你的头像' })
+  await expect(avatar).toBeVisible(); expect(await avatar.evaluate(el => (el as HTMLImageElement).naturalWidth)).toBeGreaterThan(0)
+  await page.getByRole('link', { name: '付款代码' }).click()
+  await expect(page.getByRole('heading', { name: '文件预览', exact: true })).toBeVisible()
+  await expect(page.locator('.knowledge-evidence')).toContainText('check();')
+  await expect(page).toHaveURL(`/knowledge/${id}`); expect(page.context().pages()).toHaveLength(1)
+  await page.screenshot({ path: 'test-results/knowledge-file-preview.png' })
+  await page.getByRole('button', { name: '关闭引用详情' }).click()
+  await page.getByRole('link', { name: '不可用文件' }).click()
+  await expect(page.locator('.knowledge-right [role="alert"]')).toContainText('文件不存在')
+  await expect(page).toHaveURL(`/knowledge/${id}`)
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.getByRole('button', { name: '关闭引用详情' }).click()
+  expect(await page.locator('.knowledge-user').evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true)
+  await page.screenshot({ path: 'test-results/knowledge-whale-mobile.png' })
+})
 for (const width of [1440, 768]) {
   test(`统一检索分页、来源覆盖与数据库原文 ${width}px`, async ({ page }) => {
     await fixture(page); await page.setViewportSize({ width, height: 900 })
