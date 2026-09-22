@@ -15,7 +15,7 @@ export const githubWhite: SkinDefinition = {
   },
   radii: { control: '6px', card: '6px', dialog: '12px' },
   shadows: { card: '0 1px 0 rgb(31 35 40 / 4%)', glow: 'none' },
-  artworkDisplay: 'none', decorationOpacity: '0',
+  homeArtwork: 'home-github-white.png', artworkDisplay: 'block', decorationOpacity: '0',
   appearance: {
     'app-app-main-background': 'var(--color-bg-canvas)',
     'app-card-background': 'var(--color-bg-canvas)',

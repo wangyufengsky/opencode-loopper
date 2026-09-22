@@ -32,6 +32,8 @@ export interface SkinDefinition {
   appearance?: Record<string, string>
   /** Exact historical color shades, only needed to preserve an existing skin. */
   shades?: Record<string, string>
+  /** Bundled image filename in src/assets; landscape 3:2 artwork. */
+  homeArtwork: string
   artworkDisplay: 'block' | 'none'
   decorationOpacity: string
   primaryButton: { text: string; background: string; border: string; hoverText: string; hoverBackground: string; hoverBorder: string; activeText: string; activeBackground: string; activeBorder: string }

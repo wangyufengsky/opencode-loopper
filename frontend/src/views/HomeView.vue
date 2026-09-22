@@ -1,8 +1,11 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import PageHeader from '@/components/PageHeader.vue'
 import SkinSelector from '@/components/SkinSelector.vue'
-import orbitArtwork from '@/assets/home-orbit.png'
+import { currentSkin } from '@/themes/state'
+
+const homeArtwork = computed(() => new URL(`../assets/${currentSkin.value.homeArtwork}`, import.meta.url).href)
 
 const workspaceLinks = [
   { to: '/projects', icon: 'lucide:folder-kanban', title: '项目', description: '登记代码仓库，管理项目上下文。', step: '01', hint: '准备工作区', tone: 'blue' },
@@ -26,7 +29,7 @@ const systemLinks = [
   <PageHeader eyebrow="工作区" title="主页"><template #actions><SkinSelector /></template></PageHeader>
   <main id="main-content" class="content home-content" tabindex="-1">
     <section class="home-hero" aria-labelledby="home-headline">
-      <img class="home-artwork" :src="orbitArtwork" alt="" width="1536" height="1024" fetchpriority="high" />
+      <img class="home-artwork" :src="homeArtwork" alt="" width="1536" height="1024" fetchpriority="high" />
       <div class="home-hero-copy">
         <p class="home-kicker"><span aria-hidden="true" /> 从需求到交付</p>
         <h2 id="home-headline">从一个想法，<br />到可验证的交付<span>。</span></h2>

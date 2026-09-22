@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-const evidence = '../data/deliveries/skins'
+const evidence = process.env.SKIN_EVIDENCE_DIR ?? '../data/deliveries/skins'
 
 test.beforeEach(async ({ page }) => {
   await page.route('http://127.0.0.1:41773/api/**', route => {
@@ -14,15 +14,18 @@ test.beforeEach(async ({ page }) => {
 test('主页选择、刷新、深层页面与同源标签同步，非法保存值安全恢复', async ({ page, context }) => {
   await page.goto('/')
   await expect(page.getByRole('combobox', { name: '选择皮肤' })).toHaveValue('tech-blue')
+  await expect(page.locator('.home-artwork')).toHaveAttribute('src', /home-orbit/)
   await page.getByRole('combobox', { name: '选择皮肤' }).selectOption('github-white')
   await expect(page.locator('html')).toHaveCSS('color-scheme', 'light')
   await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(255, 255, 255)')
+  await expect(page.locator('.home-artwork')).toHaveAttribute('src', /home-github-white/)
   await page.reload()
   await expect(page.getByRole('combobox', { name: '选择皮肤' })).toHaveValue('github-white')
   const other = await context.newPage()
   await other.goto('/e2e/fixtures/skins.html')
   await expect(other.locator('html')).toHaveAttribute('data-skin', 'github-white')
   await page.getByRole('combobox', { name: '选择皮肤' }).selectOption('tech-blue')
+  await expect(page.locator('.home-artwork')).toHaveAttribute('src', /home-orbit/)
   await expect(other.locator('html')).toHaveAttribute('data-skin', 'tech-blue')
   await page.getByRole('combobox', { name: '选择皮肤' }).selectOption('github-white')
   await page.goto('/tasks')
@@ -42,7 +45,9 @@ for (const skin of ['tech-blue', 'github-white']) {
       await page.addInitScript(value => localStorage.setItem('loopper.skin', value), skin)
       await page.goto('/')
       await expect(page.getByRole('combobox', { name: '选择皮肤' })).toHaveValue(skin)
-      await expect(page.locator('.home-artwork')).toHaveCSS('display', skin === 'tech-blue' ? 'block' : 'none')
+      await expect(page.locator('.home-artwork')).toBeVisible()
+      await expect(page.locator('.home-artwork')).toHaveAttribute('src', skin === 'tech-blue' ? /home-orbit/ : /home-github-white/)
+      await expect.poll(() => page.locator('.home-artwork').evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth === 1536 && image.naturalHeight === 1024)).toBe(true)
       expect(await page.locator('body').evaluate(el => el.scrollWidth <= innerWidth)).toBe(true)
       await page.screenshot({ path: `${evidence}/${skin}-home-${width}.png`, fullPage: true })
     })

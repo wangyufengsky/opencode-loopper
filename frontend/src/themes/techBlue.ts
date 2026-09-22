@@ -22,7 +22,7 @@ export const techBlue: SkinDefinition = {
     ...Object.fromEntries(Object.entries(rendererColors).map(([key, shade]) => [`renderer-${key}`, shade.original])),
   },
   appearance: techBlueAppearance,
-  artworkDisplay: 'block', decorationOpacity: '.16',
+  homeArtwork: 'home-orbit.png', artworkDisplay: 'block', decorationOpacity: '.16',
   primaryButton: {
     text: '#bfdbfe', background: 'rgb(59 130 246 / 15%)', border: 'rgb(59 130 246 / 48%)',
     hoverText: '#eff6ff', hoverBackground: 'rgb(59 130 246 / 27%)', hoverBorder: 'rgb(96 165 250 / 76%)',
