@@ -19,6 +19,15 @@ export interface PptDocument {
   createdAt: string
   updatedAt: string
 }
+export interface PptProjectChoice {
+  id: string
+  name: string
+}
+export interface PptKnowledge {
+  project: PptProjectChoice | null
+  sources: { id: string; kind: string; name: string; state: string; detail: string; version: number }[]
+  detail: string
+}
 export interface PptDeck {
   title: string
   width: number
@@ -270,6 +279,8 @@ export const PPT_RUN_STATES = [
 export type PptRunState = (typeof PPT_RUN_STATES)[number]
 export interface PptQuestion {
   id: string
+  kind?: 'CLARIFICATION' | 'REQUIREMENTS_CONFIRMATION'
+  confirmed?: boolean | null
   prompt: string
   options: string[]
   state: 'PENDING' | 'ANSWERED' | 'CLOSED'
@@ -277,6 +288,7 @@ export interface PptQuestion {
   version: number
 }
 export interface PptAgentStatus {
+  requirementsState?: 'NOT_REQUIRED' | 'CLARIFYING' | 'AWAITING_CONFIRMATION' | 'CONFIRMED'
   state: PptRunState
   runId?: string
   detail: string

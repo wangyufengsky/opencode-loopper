@@ -14,7 +14,7 @@ class KnowledgeMigrationTest {
             sql.execute("INSERT INTO project(id,name,root_path,created_at,updated_at) VALUES('p','existing','/project','now','now')");
             sql.execute("INSERT INTO assist_tool_policy VALUES('','@loopper-assist','query_database_readonly',0,7,'now')");
         }
-        var flyway = Flyway.configure().dataSource(url,null,null).load(); assertThat(flyway.migrate().migrationsExecuted).isEqualTo(9); flyway.validate();
+        var flyway = Flyway.configure().dataSource(url,null,null).load(); assertThat(flyway.migrate().migrationsExecuted).isEqualTo(11); flyway.validate();
         try (var connection=DriverManager.getConnection(url);var sql=connection.createStatement()) {
             try(var rows=sql.executeQuery("SELECT count(*) FROM knowledge_conversation")) { assertThat(rows.next()).isTrue();assertThat(rows.getInt(1)).isZero(); }
             try(var rows=sql.executeQuery("SELECT name FROM project WHERE id='p'")) { assertThat(rows.next()).isTrue();assertThat(rows.getString(1)).isEqualTo("existing"); }
@@ -30,7 +30,7 @@ class KnowledgeMigrationTest {
             sql.execute("INSERT INTO knowledge_conversation(id,project_id,root_path,title,model_json,sources_json,connections_json,created_at,updated_at) VALUES('c','p','/project','原问题','{}','[]','[]','now','now')");
             sql.execute("INSERT INTO knowledge_turn(id,conversation_id,ordinal,idempotency_key,message_id,state,user_text,answer,created_at,updated_at) VALUES('t','c',1,'key','msg','COMPLETED','原问题','保留原答案','now','now')");
         }
-        var flyway = Flyway.configure().dataSource(url,null,null).load(); assertThat(flyway.migrate().migrationsExecuted).isEqualTo(8); flyway.validate();
+        var flyway = Flyway.configure().dataSource(url,null,null).load(); assertThat(flyway.migrate().migrationsExecuted).isEqualTo(10); flyway.validate();
         try (var connection=DriverManager.getConnection(url);var sql=connection.createStatement();var rows=sql.executeQuery("SELECT answer,thinking,state FROM knowledge_turn WHERE id='t'")) {
             assertThat(rows.next()).isTrue(); assertThat(rows.getString(1)).isEqualTo("保留原答案");
             assertThat(rows.getString(2)).isEmpty(); assertThat(rows.getString(3)).isEqualTo("COMPLETED");
@@ -45,7 +45,7 @@ class KnowledgeMigrationTest {
             sql.execute("INSERT INTO knowledge_conversation_options(conversation_id,contract_version,timezone,last_activity_at) VALUES('c',2,'Asia/Shanghai','now')");
             sql.execute("INSERT INTO knowledge_turn(id,conversation_id,ordinal,idempotency_key,message_id,state,user_text,answer,thinking,created_at,updated_at) VALUES('t','c',1,'key','msg','RUNNING','原问题','进行中答案','已采集思考','now','now')");
         }
-        var flyway = Flyway.configure().dataSource(url,null,null).load(); assertThat(flyway.migrate().migrationsExecuted).isEqualTo(5); flyway.validate();
+        var flyway = Flyway.configure().dataSource(url,null,null).load(); assertThat(flyway.migrate().migrationsExecuted).isEqualTo(7); flyway.validate();
         try (var connection=DriverManager.getConnection(url);var sql=connection.createStatement()) {
             try(var row=sql.executeQuery("SELECT contract_version FROM knowledge_conversation_options WHERE conversation_id='c'")) {
                 assertThat(row.next()).isTrue(); assertThat(row.getInt(1)).isEqualTo(2);
@@ -69,7 +69,7 @@ class KnowledgeMigrationTest {
             sql.execute("INSERT INTO knowledge_turn(id,conversation_id,ordinal,idempotency_key,message_id,state,user_text,answer,thinking,created_at,updated_at) VALUES('t','c',1,'key','msg','RUNNING','原问题','进行中答案','已采集思考','now','now')");
             sql.execute("INSERT INTO assist_tool_policy VALUES('','@loopper-assist','inspect_knowledge_git',0,4,'now')");
         }
-        var flyway = Flyway.configure().dataSource(url,null,null).load(); assertThat(flyway.migrate().migrationsExecuted).isEqualTo(6); flyway.validate();
+        var flyway = Flyway.configure().dataSource(url,null,null).load(); assertThat(flyway.migrate().migrationsExecuted).isEqualTo(8); flyway.validate();
         try (var connection=DriverManager.getConnection(url);var sql=connection.createStatement()) {
             try(var row=sql.executeQuery("SELECT contract_version,timezone,archived_at,last_activity_at FROM knowledge_conversation_options WHERE conversation_id='c'")) {
                 assertThat(row.next()).isTrue();assertThat(row.getInt(1)).isEqualTo(1);assertThat(row.getString(2)).isEqualTo("UTC");

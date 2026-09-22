@@ -260,7 +260,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
             if (storyAccounting != null && !storyAccounting.accountingMessageIds(session.id()).isEmpty()) OpenCodePromptBody.restoreBusinessContext(body, sessionModels.get(session.id()));
             pending.dispatch(() -> client(session).post().uri(uri -> sessionUri(uri, "/session/{id}/prompt_async", session)).contentType(MediaType.APPLICATION_JSON)
                     .body(body).retrieve().toBodilessEntity());
-            if (attached) attachmentResources.verifyDelivery(session.id(), () -> exactRecovery.findPrompt(
+            if (attached) attachmentResources.verifyDelivery(session.id(), () -> findPromptMessage(
                     session, prompt, OpenCodeClient.promptRequestSha256(prompt)).exists());
             structuredPrompts.put(session.id(), structured);
         } catch (RestClientResponseException failure) {
@@ -274,7 +274,9 @@ public class HttpOpenCodeClient implements OpenCodeClient {
     }
     @Override public MessageLookup findPromptMessage(OpenCodeSession session, PromptRequest expectedRequest,
             String persistedRequestSha256) {
-        return exactRecovery.findPrompt(session, expectedRequest, persistedRequestSha256);
+        return exactRecovery.findPrompt(session, expectedRequest, persistedRequestSha256, body ->
+                ppt != null && Boolean.TRUE.equals(managedSessions.get(session.id())) && sessionProfiles.get(session.id()) == SessionProfile.PPT_AGENT
+                        ? ppt.verifyIdentityNotice(session.id(), expectedRequest, body) : body);
     }
     @Override public SessionStatus sessionStatus(OpenCodeSession session) {
         if (storyAccounting != null && storyAccounting.awaitingBusinessStart(session.id())) return new SessionStatus("RUNNING");

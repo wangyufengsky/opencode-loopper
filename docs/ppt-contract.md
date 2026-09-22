@@ -1,14 +1,14 @@
-# PPT 工作室合同 V2
+# PPT 工作室合同 V3
 
 本合同持有独立 PPT 工作室的页面、角色、编辑、制作和交付语义。它不创建代码 Task、Designer、Stage 或 Judge，不使用模板任务的完成策略。
 
 ## 产品流程
 
-入口为 `/ppt` 与 `/ppt/:id`。作品可不关联项目；项目关联仅提供用户明确选定资料的来源，不授予仓库写权限。已有 PPTX 只提取内容后重新制作，不承诺原样导入。
+入口为 `/ppt` 与 `/ppt/:id`。作品可不关联项目；新建入口提供可搜索、分页的可选项目选择，选择即开放该项目创建时全部可用知识库来源，不授予仓库写权限。已有 PPTX 只提取内容后重新制作，不承诺原样导入。
 
-默认面向只需生成与提修改意见的用户：输入一句需求，可选附上资料，点击“生成 PPT”。不先要求命名、选模型、填写方案、挑方向或操作画布。名称根据需求初始化，模型沿用系统设置；助手自行选择合适的叙事、页数和视觉方向。能合理推断的设计偏好采用默认值；只有会实质影响内容且无法推断的信息才简短提问，回答后自动继续，不把缺少事实变成虚构数据。
+默认面向通过对话制作和提修改意见的用户：输入一句需求，可选项目和附件，开始与助手沟通。不先要求命名、选模型、填写方案、挑方向或操作画布。名称根据需求初始化，模型沿用系统设置。助手先阅读获准资料，逐轮询问内容重点、受众、页数/时长和视觉偏好，每轮一个关键问题并提供易选建议；已经说明的答案不重复问，普通偏好可以给出默认建议，不把缺少事实变成虚构数据。至少一轮澄清问答后，助手汇总需求；用户明确点击“确认需求，开始设计”后，才开始第一轮设计，随后自动制作、预览和导出。需求尚有调整时继续问答并重新汇总，不让用户填写长表单。
 
-作品阶段仍为 `BRIEFING → DIRECTION → DESIGN → PRODUCING → REVIEW → EXPORTED`。“生成 PPT”是一次持久授权，包含需求设计、选择方向、确认完整方案、逐页制作、检查、PNG 预览与可编辑 PPTX 导出。后台收到完整且合法的方案候选、并取得对应模型运行的正向停止证明后，代用户执行既有阶段动作；模型不能通过自身回复绕过校验。用户无需再点击两次确认。制作结果通过检查与停止证明后进入 REVIEW，导出成功记录 EXPORTED；后续修改保留旧版本与文件。
+作品阶段仍为 `BRIEFING → DIRECTION → DESIGN → PRODUCING → REVIEW → EXPORTED`。首次提交创建一次持久流程授权，先沟通需求；明确确认需求后，此授权包含方案设计、选择方向、逐页制作、检查、PNG 预览与可编辑 PPTX 导出。后台收到完整且合法的方案候选、并取得对应模型运行的正向停止证明后，代用户执行既有阶段动作；模型不能通过自身回复绕过校验。需求确认后用户无需再点击方向、方案、制作或导出的重复确认。制作结果通过检查与停止证明后进入 REVIEW，导出成功记录 EXPORTED；后续修改保留旧版本与文件。
 
 阶段、自动生成授权、Agent 运行状态与制作作业状态分别保存。模型最终文字、MCP 成功、预览图片存在均不能替代相应业务完成事实。界面中文称谓为“PPT 助手”。
 
@@ -42,11 +42,21 @@ V1 支持文字、PNG/JPEG、矩形/圆角矩形/椭圆/线/箭头、表格、�
 
 新角色 `PPT_AGENT` 仅使用受管 OpenCode，默认继承系统模型，按阶段冻结身份/权限/输入。资料与对象按需读取。PPT 专属阶段候选与操作批次独立保存，不扩展现有代码角色候选表的 scope/owner 合同。
 
-工具为 `ppt_get_context`、`ppt_read_source`、`ppt_get_capabilities`、`ppt_request_input`、`ppt_submit_plan`、`ppt_apply_operations`、`ppt_measure_text`、`ppt_check_layout`、`ppt_render_preview`、`ppt_get_job`、`ppt_export`。查询返回当前角色的可执行能力，不以全服务器注册目录替代授权。
+制作工具为 `ppt_get_context`、`ppt_read_source`、`ppt_get_capabilities`、`ppt_request_input`、`ppt_submit_plan`、`ppt_apply_operations`、`ppt_measure_text`、`ppt_check_layout`、`ppt_render_preview`、`ppt_get_job`、`ppt_export`。查询返回当前角色的可执行能力，不以全服务器注册目录替代授权。
+
+项目读取工具另有 `ppt_list_knowledge_sources`、`ppt_search_project_knowledge`、`ppt_browse_knowledge_source`、`ppt_read_knowledge_source`、`ppt_query_knowledge_database`、`ppt_inspect_knowledge_database` 与 `ppt_read_knowledge_git`。它们复用知识库的检索/文件/Git/数据库能力，但采用 PPT 自己的作品/run/Session/generation/message 权限与证据，不能冒用知识问答会话；不开放其他项目、任意 shell 或第三方 MCP 通配权限。
+
+新建作品在事务外解析并冻结项目可用来源，短事务同时保存作品与来源快照（V124）。来源包括项目代码、项目文档及文档目录、额外登记目录、上传文件、Git 和该项目绑定的可用数据库；最多 100 项，超限明确提示整理，不静默截断。不可用来源显示原因但不授予读取权限。未选项目及升级前只有 projectId 而无来源快照的作品不自动得到权限；项目配置后续变化不扩展既有快照。模型上下文仅含项目名称和来源索引，不包含数据库凭据引用或完整连接配置。
+
+统一搜索保留覆盖状态和分页，并把后续读取指引适配成当前 PPT 工具；无命中不证明事实不存在。实际原文、Git 和数据库读取保存不可变证据，绑定作品、run、message、source、SHA、正文及采集时间；迟到结果经当前权限复核，不能写入证据。每 run 最多保存 100 条，超过后仍可读取，但明确没有新的证据 ID。方案页面 sourceIds 仅接受本作品已上传资料或已保存的 knowledge evidenceId；其他作品证据拒绝，讲稿标注名称、位置和采集时间。历史证据读取保存正文，不用当前文件替换。
+
+新自动 CREATE/PLANNING run 冻结 `requirementsProtocol=DIALOGUE_CONFIRMATION_V1`。`ppt_request_input.kind` 默认为 CLARIFICATION；REQUIREMENTS_CONFIRMATION 的 prompt 是需求摘要。V123 保存问题类型及独立 confirmed 决定，普通文字回答不等于确认。用户点击确认时 reply 携带 `confirmed=true`；补充或拒绝为 false。确认前服务端拒绝设计/页面写入，模型正常结束也不能跳过最终确认门禁。新问题或补充意见使旧确认失效，刷新、停止/恢复不得丢失回答；成稿 REVISE 不重复初次沟通。已冻结无该协议的历史 run 按原授权继续。
 
 自动授权的预览与导出由程序在模型安全结束后统一创建、绑定和恢复，自动 run 不可另外调用 `ppt_render_preview` 或 `ppt_export` 新建输出作业；历史人工 run 保留原权限。停止后已有回执的精确重放规则不变。
 
 每次调用校验作品、run、Session、generation、当前 messageId 与阶段。REVIEW 与 EXPORTED 属于同一后期编辑阶段域：导出完成后原 REVIEW run 可以继续查询作业，已导出内容编辑回到 REVIEW 后原 run 可以继续修改；两者工具权限相同，内容写入仍受 revision CAS 和原会话身份约束。其余阶段严格匹配。角色不获得任意 shell/文件写入/第三方 MCP 通配权限。可修正问题在同一会话反馈具体字段、对象、测量值及修正建议。幂等回执与新操作分开处理，停止后只允许已存在回执精确重放。
+
+多轮问答更新当前 message 的调用凭证。活动 run 若误用同 run、同 Session、当前 generation 的已登记旧轮次凭证，操作仍不执行，返回 `PPT_SCOPE_EXPIRED`，提示从本轮消息末尾的工具身份通知读取身份后重交；错误不返回新凭证。随机、跨作用域、未来轮次或已退役 generation 的凭证继续拒绝并等待恢复。身份通知仅在出站时作为合成文字追加，Loopper 保存的业务请求不含凭证；精确恢复只对受管 PPT 会话验证并移除与当前身份完全匹配的通知，其余正文和附件仍严格匹配，不能通用忽略合成消息。
 
 创建会话前持久化 creation plan；投递前保存精确 messageId 和请求哈希。创建未知、投递未知分别核对原身份，禁止盲重发。取消等待正向停止证明。模型提交设计只生成候选，服务端依据明确的一键生成授权或旧路径的人工确认推进；自动权限冻结在对应 run 的 context 中，不接受 HTTP 调用者伪造，也不扩大原有 MCP 权限。
 
@@ -76,6 +86,9 @@ POI 原生 PPTX 与 Java2D 预览使用统一页面模型和字体测量。三�
 
 | 接口 | 行为 |
 | --- | --- |
+| `GET /projects` | 搜索与分页选择受管项目，仅返回名称与摘要，不探测 Git |
+| `GET /documents/{id}/knowledge` | 查看本作品关联项目及冻结来源 |
+| `GET /documents/{id}/knowledge/evidence/{evidenceId}` | 按作品归属读取已保存证据 |
 | `GET/POST /documents` | 分页查询/创建作品；创建输入 id、title、可选 projectId/model |
 | `GET /documents/{id}` | 作品摘要、阶段、revision、模型；作业及助手状态分别按需读取 |
 | `GET /documents/{id}/deck?revision=` | 指定版本页面模型，缺省当前 |
@@ -98,7 +111,7 @@ POI 原生 PPTX 与 Java2D 预览使用统一页面模型和字体测量。三�
 | `GET /documents/{id}/generation` | 当前/最近一次自动生成状态；无授权返回 null |
 | `POST /documents/{id}/generate/resume` | 恢复停止或失败的授权：idempotencyKey、expectedRevision |
 | `GET/POST /documents/{id}/messages` | 助手历史/提交请求，绑定范围与 revision |
-| `POST /documents/{id}/questions/{questionId}/reply` | 回答精确问题 |
+| `POST /documents/{id}/questions/{questionId}/reply` | 回答精确问题；需求确认由 confirmed 布尔显式提交 |
 | `POST /documents/{id}/stop` | 先撤销自动续接，再请求停止当前 Agent/生成作业 |
 | `GET /documents/{id}/events` | SSE 失效事件；连接/重连后 REST 回读 |
 
@@ -108,4 +121,4 @@ POI 原生 PPTX 与 Java2D 预览使用统一页面模型和字体测量。三�
 
 真实 10–15 页中文样本覆盖所有元素、三轮局部/布局/主题修改及锁定保护。分开记录单元/集成测试、真实 MCP 模型纠错、PNG、PPTX 重读和本机 WPS 可编辑性。覆盖幂等、冲突、跨作品越权、旧 generation、停止未知、重启和失败页恢复。全新库与旧库升级必须通过；真实 Windows/内网 Provider/PowerPoint 未验证时明确记录，不由本机证据替代。
 
-V2 另验收：从新入口仅提交需求即可得到整套预览与 PPTX；关键提问回答后自动继续；连续修改意见生成新预览与版本；默认不暴露人工编辑工具，用户展开后仍可编辑；停止发生在阶段交接时不能触发下一次派发；预览/导出失败只恢复失败步骤；旧作品和人工 API 保持可用。真实模型从初次需求到输出的证据与模拟 Provider 分开记录，浏览器实际检查宽屏、窄屏和应用主题。
+V3 另验收：从新入口选择项目、提交需求，经多轮问答和明确需求确认后得到整套预览与 PPTX；普通回答不能越过确认；未确认的模型终态不能提前设计；项目检索、读取、证据与跨项目拒绝须通过真实 MCP 通道验证；连续修改意见生成新预览与版本；默认不暴露人工编辑工具，用户展开后仍可编辑；停止发生在阶段交接时不能触发下一次派发；预览/导出失败只恢复失败步骤；旧作品和人工 API 保持可用。真实模型从初次需求到输出的证据与模拟 Provider 分开记录，浏览器实际检查宽屏、窄屏和应用主题。

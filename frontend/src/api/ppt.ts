@@ -19,6 +19,8 @@ import {
   type PptMessage,
   type PptAgentStatus,
   type PptScope,
+  type PptKnowledge,
+  type PptProjectChoice,
 } from '@/types/domain'
 import { requirePublicState } from '@/types/states'
 const ui = {
@@ -61,6 +63,8 @@ function generation(value: PptGeneration | null) {
     : null
 }
 export const pptApi = {
+  projects: (search = '', cursor = '') =>
+    request<CursorPage<PptProjectChoice>>(`/ppt/projects?${query({ query: search, cursor })}`),
   generation: async (id: string) =>
     generation(await request<PptGeneration | null>(`${base(id)}/generation`)),
   generate: (id: string, expectedRevision: number, prompt: string, idempotencyKey: string) =>
@@ -99,6 +103,7 @@ export const pptApi = {
   create: async (input: { id: string; title: string; projectId?: string; model?: string }) =>
     document(await request<PptDocument>('/ppt/documents', write(input))),
   get: async (id: string) => document(await request<PptDocument>(base(id))),
+  knowledge: (id: string) => request<PptKnowledge>(`${base(id)}/knowledge`),
   deck: (id: string, revision?: number) =>
     request<PptDeck>(`${base(id)}/deck?${query({ revision })}`),
   plan: (id: string) =>
@@ -222,6 +227,7 @@ export const pptApi = {
       expectedRevision: number
       version: number
       answer: string
+      confirmed?: boolean
     },
   ) => request<PptMessage>(`${base(id)}/questions/${enc(questionId)}/reply`, write(input)),
   agent: async (id: string) => {

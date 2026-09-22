@@ -87,7 +87,7 @@ public class PptAgentPersistence {
     }
     @Transactional
     public Run reply(Question question, String answer, String key, String sha,
-                     long revision, String context, Runnable revalidate) {
+                     Boolean confirmed, long revision, String context, Runnable revalidate) {
         var current = mapper.question(question.documentId(), question.id()).orElseThrow();
         if (current.state().equals("ANSWERED") && key.equals(current.replyKey())) {
             if (!sha.equals(current.replySha())) throw conflict("回答请求标识已用于不同回答");
@@ -96,8 +96,8 @@ public class PptAgentPersistence {
         revalidate.run(); var run = require(current.runId());
         if (!current.state().equals("PENDING") || current.version() != question.version() || !run.state().equals("WAITING_INPUT"))
             throw conflict("问题尚未安全暂停或已被回答，请刷新状态");
-        if (mapper.reply(question.id(), question.version(), answer, key, sha) != 1) throw conflict("回答状态已变化");
-        state(run, PptAgentState.PREPARED, "已保存回答，准备继续制作");
+        if (mapper.reply(question.id(), question.version(), answer, key, sha, confirmed) != 1) throw conflict("回答状态已变化");
+        state(run, PptAgentState.PREPARED, Boolean.TRUE.equals(confirmed) ? "需求已确认，准备开始设计" : "已保存回答，助手将继续沟通");
         var fresh = require(run.id()); String message = "msg_ppt_" + run.id().replace("-", "") + "_" + (run.round() + 1);
         lifecycle.mutateWithoutTransition(() -> mapper.resume(fresh.id(), fresh.version(), message, revision, context), () -> conflict("继续请求已变化"));
         return require(run.id());

@@ -22,7 +22,7 @@ class PptGenerationMigrationTest {
                     + "VALUES('job-b','b','PREVIEW',0,'PREPARED',1,'preview','hash','now','now')");
         }
         var flyway = Flyway.configure().dataSource(url, null, null).load();
-        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(2);
+        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(4);
         flyway.validate();
         try (var db = DriverManager.getConnection(url); var sql = db.createStatement()) {
             try (var rows = sql.executeQuery("SELECT deck_json,plan_json FROM ppt_revision WHERE document_id='a'")) {
@@ -63,7 +63,7 @@ class PptGenerationMigrationTest {
         String url = "jdbc:sqlite:" + root.resolve("fresh.db") + "?foreign_keys=on";
         var flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate(); flyway.validate();
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("122");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("124");
         try (var db = DriverManager.getConnection(url); var sql = db.createStatement()) {
             for (String table : new String[]{"ppt_generation", "ppt_generation_request"}) {
                 try (var rows = sql.executeQuery("SELECT count(*) FROM " + table)) {

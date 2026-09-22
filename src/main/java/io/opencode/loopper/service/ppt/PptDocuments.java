@@ -21,13 +21,13 @@ public class PptDocuments {
     private final PptEngine engine;
     private final ObjectMapper json;
     private final LoopperProperties properties;
-    private final ProjectService projects;
+    private final PptKnowledge knowledge;
     private final SettingsService settings;
     private final PptEvents events;
     public PptDocuments(PptMapper mapper,PptPersistence persistence,PptEngine engine,ObjectMapper json,
-            LoopperProperties properties,ProjectService projects,SettingsService settings,PptEvents events) {
+            LoopperProperties properties,PptKnowledge knowledge,SettingsService settings,PptEvents events) {
         this.mapper=mapper;this.persistence=persistence;this.engine=engine;this.json=json;
-        this.properties=properties;this.projects=projects;this.settings=settings;this.events=events;
+        this.properties=properties;this.knowledge=knowledge;this.settings=settings;this.events=events;
     }
     public record Create(String id,String title,String projectId,String model) { }
     public record View(String id,String title,String projectId,String model,String phase,long revision,long version,
@@ -49,7 +49,7 @@ public class PptDocuments {
             return view(old.get());
         }
         String project=input.projectId()==null||input.projectId().isBlank()?null:input.projectId();
-        if(project!=null) projects.get(project);
+        var knowledgeScope=knowledge.prepare(input.id(),project);
         String model=input.model()==null||input.model().isBlank()?Objects.toString(properties.getOpenCode().getModel(),""):input.model();
         if(!model.isBlank()&&!model.equals(properties.getOpenCode().getModel())&&!"fake".equals(properties.getOpenCode().getMode())
                 &&settings.models().stream().noneMatch(m->m.id().equals(model))) throw PptSupport.bad("PPT_MODEL_UNAVAILABLE","所选模型不可用，请刷新模型列表");
@@ -57,7 +57,7 @@ public class PptDocuments {
         var row=new Document(input.id(),input.title().strip(),project,model,"BRIEFING",0,0,false,digest,now,now);
         var plan=json.createObjectNode();plan.putObject("brief").put("purpose",input.title()).put("audience","").put("duration","").put("pageCount",12).put("requirements","");
         plan.putArray("directions");plan.put("selectedDirectionId","");plan.putArray("slides");plan.put("theme","business");
-        persistence.create(row,new Revision(row.id(),0,json.writeValueAsString(Deck.empty(row.title())),json.writeValueAsString(plan),"创建作品",now));
+        persistence.create(row,new Revision(row.id(),0,json.writeValueAsString(Deck.empty(row.title())),json.writeValueAsString(plan),"创建作品",now),()->knowledge.save(knowledgeScope));
         return view(row);
     }
     public Document require(String id) { return mapper.document(id).orElseThrow(()->new NotFoundException("PPT 作品不存在")); }
@@ -182,6 +182,7 @@ public class PptDocuments {
         if(!plan.path("selectedDirectionId").asText().isBlank()&&!directionIds.contains(plan.path("selectedDirectionId").asText()))throw PptSupport.bad("PPT_PLAN_INVALID","所选方向不存在");
         var slides=plan.path("slides");if(!slides.isArray()||slides.size()>100)throw PptSupport.bad("PPT_PLAN_INVALID","页面设计须为列表且不超过 100 页");
         Set<String> ids=new HashSet<>(),sources=new HashSet<>();mapper.resources(id).stream().filter(r->"READY".equals(r.state())).forEach(r->sources.add(r.id()));
+        sources.addAll(knowledge.evidenceIds(id));
         for(var slide:slides) {
             String key=slide.path("id").asText();if(!key.matches("[A-Za-z0-9_-]{1,100}")||!ids.add(key)||slide.path("title").asText().isBlank())throw PptSupport.bad("PPT_PLAN_INVALID","每页须有唯一标识和标题");
             for(var source:slide.path("sourceIds"))if(!sources.contains(source.asText()))throw PptSupport.bad("PPT_SOURCE_INVALID","设计方案引用了不可用资料");

@@ -287,7 +287,10 @@ class OpenCodePermissionPolicyTest {
                         "loopper_internal_current_ppt_submit_plan", "loopper_internal_current_ppt_apply_operations",
                         "loopper_internal_current_ppt_measure_text", "loopper_internal_current_ppt_check_layout",
                         "loopper_internal_current_ppt_render_preview", "loopper_internal_current_ppt_get_job",
-                        "loopper_internal_current_ppt_export");
+                        "loopper_internal_current_ppt_export", "loopper_internal_current_ppt_list_knowledge_sources",
+                        "loopper_internal_current_ppt_search_project_knowledge", "loopper_internal_current_ppt_browse_knowledge_source",
+                        "loopper_internal_current_ppt_read_knowledge_source", "loopper_internal_current_ppt_query_knowledge_database",
+                        "loopper_internal_current_ppt_inspect_knowledge_database", "loopper_internal_current_ppt_read_knowledge_git");
     }
 
     @Test void snapshotReviewOnlyAllowsBoundedPrivateEvidenceAndSubmissionTools() {

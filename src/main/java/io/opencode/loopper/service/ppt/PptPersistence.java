@@ -27,8 +27,13 @@ public class PptPersistence {
     }
     @Transactional
     public void create(Document row,Revision revision) {
+        create(row,revision,()->{});
+    }
+    @Transactional
+    public void create(Document row,Revision revision,Runnable saveSources) {
         lifecycle.create(subject(row),row.phase(),Map.of(),()->mapper.insert(row),()->PptSupport.conflict("作品已创建，请重新读取"));
         if (mapper.insertRevision(revision)!=1) throw PptSupport.conflict("作品版本保存失败");
+        saveSources.run();
     }
     @Transactional
     public JsonNode edit(Document base,Revision next,String title,String key,String digest,JsonNode result,Runnable guard) {

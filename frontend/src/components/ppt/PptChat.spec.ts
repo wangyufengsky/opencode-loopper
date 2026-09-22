@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { usePptStore } from '@/stores/pptStore'
@@ -43,6 +43,44 @@ beforeEach(() => {
 })
 
 describe('PPT concise conversation', () => {
+  it('requires an explicit confirmation card before starting design and keeps clarification replies separate', async () => {
+    const store = usePptStore()
+    const reply = vi.spyOn(store, 'reply').mockResolvedValue(true)
+    const question = { id: 'brief', kind: 'CLARIFICATION' as const, prompt: '本次重点讲什么？', options: ['业务成果'], state: 'PENDING' as const, answer: null, version: 1 }
+    store.agent = { ...pptAgent(), state: 'WAITING_INPUT', requirementsState: 'CLARIFYING', questions: [question] }
+    const wrapper = render()
+    expect(wrapper.text()).not.toContain('确认需求，开始设计')
+    await wrapper.get('textarea').setValue('突出业务成果')
+    await wrapper.get('.ppt-question').trigger('submit')
+    expect(reply).toHaveBeenLastCalledWith(question, '突出业务成果', undefined)
+    store.agent = { ...pptAgent(), state: 'WAITING_INPUT', requirementsState: 'AWAITING_CONFIRMATION', questions: [{ ...question, id: 'confirm', kind: 'REQUIREMENTS_CONFIRMATION', prompt: '## 汇报需求\n面向管理层，10 页，商务风格。' }] }
+    await flushPromises()
+    expect(wrapper.get('.ppt-requirements-confirmation .markdown-document').text()).toContain('10 页')
+    const confirm = wrapper.findAll('button').find(button => button.text().includes('确认需求，开始设计'))!
+    await wrapper.get('textarea').setValue('改成 8 页')
+    expect(confirm.attributes('disabled')).toBeDefined()
+    await wrapper.get('.ppt-question').trigger('submit')
+    expect(reply).toHaveBeenLastCalledWith(store.agent.questions[0], '改成 8 页', false)
+    await flushPromises()
+    expect(confirm.attributes('disabled')).toBeUndefined()
+    await confirm.trigger('click')
+    expect(reply).toHaveBeenLastCalledWith(store.agent.questions[0], '确认以上需求，请开始设计', true)
+    wrapper.unmount()
+  })
+  it('restores a pending requirements confirmation after remount without automatically accepting it', async () => {
+    const store = usePptStore()
+    const reply = vi.spyOn(store, 'reply').mockResolvedValue(true)
+    store.agent = { ...pptAgent(), state: 'WAITING_INPUT', requirementsState: 'AWAITING_CONFIRMATION', questions: [{ id: 'confirm', kind: 'REQUIREMENTS_CONFIRMATION', prompt: '季度成果，面向管理层', options: [], state: 'PENDING', answer: null, version: 3 }] }
+    let wrapper = render()
+    await wrapper.get('textarea').setValue('增加风险说明')
+    wrapper.unmount()
+    wrapper = render()
+    await flushPromises()
+    expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe('增加风险说明')
+    expect(wrapper.text()).toContain('确认需求，开始设计')
+    expect(reply).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
   it('shares knowledge waiting, thinking and tool disclosure behavior across streaming updates and stop', async () => {
     const store = usePptStore()
     store.messages = [{ ...message('stream', ''), state: 'RUNNING' }]

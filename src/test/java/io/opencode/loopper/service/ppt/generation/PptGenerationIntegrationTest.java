@@ -77,9 +77,19 @@ class PptGenerationIntegrationTest {
                    {"id":"p2","title":"下一步","message":"继续执行","content":"明确后续行动","sourceIds":[],"notes":"介绍行动"}]}
         """);}
     Run savePlan(Generation row) {
-        var run=running(row);var plan=plan();PptAutomaticPlan.validate(plan);
+        var run=running(row);confirmedRequirements(run);var plan=plan();PptAutomaticPlan.validate(plan);
         var result=documents.savePlan(row.documentId(),new PptDocuments.PlanEdit(key(),run.sourceRevision(),plan),true,()->persistence.validateRun(run));
         receipt(run,"ppt_submit_plan",result);complete(run);return agents.run(run.id()).orElseThrow();
+    }
+    void confirmedRequirements(Run run) {
+        if(!json.readTree(run.contextJson()).has("requirementsProtocol"))return;
+        // Durable answered-question fixture: actual UI reply/CAS paths are covered by PptAgentIntegrationTest.
+        for(String kind:List.of("CLARIFICATION","REQUIREMENTS_CONFIRMATION")) {
+            String question=key();
+            agents.insertQuestion(new PptAgentRows.Question(question,run.id(),run.documentId(),"内容与设计要求","[]","PENDING",null,null,null,
+                    Instant.now().toString(),0,kind,null));
+            agents.reply(question,0,"部门领导、两页、商务风",key(),"fixture",kind.equals("REQUIREMENTS_CONFIRMATION")?true:null);
+        }
     }
     JsonNode page(String id){return node("""
         {"op":"create_slide","slide":{"id":"%s","title":"中文标题","notes":"讲稿内容","elements":[

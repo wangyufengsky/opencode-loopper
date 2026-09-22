@@ -4,6 +4,7 @@ import { pptApi } from '@/api/ppt'
 import { usePptStore } from '@/stores/pptStore'
 import type { PptSourceContent } from '@/types/domain'
 import MarkdownDocument from '@/components/MarkdownDocument.vue'
+import PptProjectSources from './PptProjectSources.vue'
 withDefaults(
   defineProps<{
     allowInsert?: boolean
@@ -112,6 +113,7 @@ async function drop(event: DragEvent) {
 </script>
 <template>
   <section class="ppt-sources" aria-label="资料与素材" @dragover.prevent @drop="drop">
+    <PptProjectSources v-if="store.document?.projectId" :document-id="store.document.id" />
     <p class="ppt-muted">添加文字资料与图片，也可以拖入文件。</p>
     <div class="ppt-upload-actions">
       <label class="ppt-upload">

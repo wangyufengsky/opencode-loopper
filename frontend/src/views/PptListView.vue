@@ -54,7 +54,7 @@ async function generate() {
     creation.error.value =
       failure instanceof Error && /[\u4e00-\u9fff]/.test(failure.message)
         ? failure.message
-        : '暂时未收到生成结果。请重试原要求，我们会核对同一份作品。'
+        : '暂时未收到回复。请重试原要求，我们会核对同一份作品。'
   } finally {
     starting.value = false
   }
@@ -91,9 +91,10 @@ function toggleArchive() {
         <br class="ppt-mobile-break" />
         到一份好演示。
       </h1>
-      <p>说出你的要求，剩下的交给 PPT 助手。</p>
+      <p>说出你的想法，和 PPT 助手一起把要求聊清楚。</p>
       <PptPromptInput
         v-model="creation.prompt.value"
+        v-model:project="creation.project.value"
         :files="creation.files.value"
         :busy="creation.busy.value || starting"
         :locked="creation.locked.value"

@@ -1,6 +1,7 @@
 import { computed, ref, watch } from 'vue'
 import { pptApi } from '@/api/ppt'
 import { ApiError } from '@/api/client'
+import type { PptProjectChoice } from '@/types/ppt'
 
 export interface PptInputFile {
   id: string
@@ -15,6 +16,7 @@ export interface PptInputFile {
 
 interface CreationDraft {
   prompt: string
+  project?: PptProjectChoice | null
   documentId?: string
   creationId?: string
   generationKey?: string
@@ -35,6 +37,7 @@ const storageKey = 'loopper.ppt.creation.v2'
 
 export function usePptCreation() {
   const prompt = ref('')
+  const project = ref<PptProjectChoice | null>(null)
   const files = ref<PptInputFile[]>([])
   const busy = ref(false)
   const detail = ref('')
@@ -50,6 +53,7 @@ export function usePptCreation() {
     const saved = JSON.parse(sessionStorage.getItem(storageKey) || 'null') as CreationDraft | null
     if (saved) {
       prompt.value = saved.prompt
+      project.value = saved.project || null
       documentId.value = saved.documentId || ''
       creationId.value = saved.creationId || ''
       generationKey.value = saved.generationKey || ''
@@ -63,6 +67,7 @@ export function usePptCreation() {
   function persist() {
     const value: CreationDraft = {
       prompt: prompt.value,
+      project: project.value,
       documentId: documentId.value,
       creationId: creationId.value,
       generationKey: generationKey.value,
@@ -75,7 +80,7 @@ export function usePptCreation() {
       /* Keep the visible draft. */
     }
   }
-  watch([prompt, files], persist, {
+  watch([prompt, files, project], persist, {
     deep: true,
   })
 
@@ -138,7 +143,7 @@ export function usePptCreation() {
   } | null> {
     if (busy.value || !prompt.value.trim()) return null
     if (missingFiles.value) {
-      error.value = '请重新选择标记的原附件，随后可继续生成。'
+      error.value = '请重新选择标记的原附件，随后可继续沟通需求。'
       return null
     }
     busy.value = true
@@ -153,6 +158,7 @@ export function usePptCreation() {
         const result = await pptApi.create({
           id: creationId.value,
           title,
+          ...(project.value ? { projectId: project.value.id } : {}),
         })
         documentId.value = result.id
         persist()
@@ -197,6 +203,7 @@ export function usePptCreation() {
 
   function accepted() {
     prompt.value = ''
+    project.value = null
     files.value = []
     documentId.value = ''
     creationId.value = ''
@@ -207,6 +214,7 @@ export function usePptCreation() {
 
   return {
     prompt,
+    project,
     files,
     busy,
     detail,

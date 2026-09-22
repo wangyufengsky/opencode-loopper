@@ -41,6 +41,8 @@ public interface PptAgentMapper {
     int request(String id, long version, String request, String sha);
     @Insert("INSERT INTO ppt_agent_prompt VALUES(#{id},#{round},#{message},#{request},#{sha},#{now})")
     int prompt(String id, int round, String message, String request, String sha, String now);
+    @Select("SELECT message_id FROM ppt_agent_prompt WHERE run_id=#{run} AND round<#{beforeRound} ORDER BY round DESC LIMIT 100")
+    List<String> previousPromptMessageIds(String run, int beforeRound);
     @Update("UPDATE ppt_agent_run SET answer=#{answer},version=version+1,updated_at=#{now} WHERE id=#{id} AND version=#{version} AND state='RUNNING'")
     int answer(String id, long version, String answer, String now);
     @Update("UPDATE ppt_agent_run SET stop_reason=#{reason},version=version+1 WHERE id=#{id} AND version=#{version}")
@@ -62,10 +64,10 @@ public interface PptAgentMapper {
         <foreach collection='ids' item='id' open='(' separator=',' close=')'>#{id}</foreach>
         ORDER BY created_at,id</script>
         """) List<Question> questionsFor(List<String> ids);
-    @Insert("INSERT INTO ppt_agent_question(id,run_id,document_id,prompt,options_json,state,created_at) VALUES(#{id},#{runId},#{documentId},#{prompt},#{optionsJson},'PENDING',#{createdAt})")
+    @Insert("INSERT INTO ppt_agent_question(id,run_id,document_id,prompt,options_json,state,created_at,kind) VALUES(#{id},#{runId},#{documentId},#{prompt},#{optionsJson},'PENDING',#{createdAt},#{kind})")
     int insertQuestion(Question row);
-    @Update("UPDATE ppt_agent_question SET state='ANSWERED',answer=#{answer},reply_key=#{key},reply_sha=#{sha},version=version+1 WHERE id=#{id} AND version=#{version} AND state='PENDING'")
-    int reply(String id, long version, String answer, String key, String sha);
+    @Update("UPDATE ppt_agent_question SET state='ANSWERED',answer=#{answer},reply_key=#{key},reply_sha=#{sha},confirmed=#{confirmed},version=version+1 WHERE id=#{id} AND version=#{version} AND state='PENDING'")
+    int reply(String id, long version, String answer, String key, String sha, Boolean confirmed);
     @Update("UPDATE ppt_agent_question SET state='CLOSED',version=version+1 WHERE run_id=#{run} AND state='PENDING'") int closeQuestions(String run);
     @Select("SELECT * FROM ppt_agent_receipt WHERE run_id=#{run} AND idempotency_key=#{key}") Optional<Receipt> receipt(String run, String key);
     @Insert("INSERT INTO ppt_agent_receipt VALUES(#{runId},#{idempotencyKey},#{tool},#{inputSha},#{responseJson},#{createdAt})") int insertReceipt(Receipt row);

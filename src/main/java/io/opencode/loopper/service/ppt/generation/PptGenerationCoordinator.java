@@ -85,6 +85,7 @@ public class PptGenerationCoordinator {
         if(row.step().equals("PLANNING"))planningComplete(row,run);else productionComplete(row,run);
     }
     private void planningComplete(Generation row,Run run) {
+        PptRequirements.requireConfirmed(run, agents.questions(run.id()), json);
         PptAutomaticPlan.validate(json.readTree(documents.snapshot(row.documentId(),row.outputRevision()).planJson()));
         for(String action:List.of("finish-planning","confirm-direction","start-production")) {
             String phase=documents.get(row.documentId()).phase();

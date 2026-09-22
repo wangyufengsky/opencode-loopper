@@ -22,17 +22,19 @@ public class PptAgentToolWrites {
     public Object question(Run run, JsonNode args, String key, String sha) {
         var old = mapper.receipt(run.id(), key); if (old.isPresent()) return replay(old.get(), "ppt_request_input", sha);
         authority.validate(run, "ppt_request_input");
+        var questions = mapper.questions(run.id());
+        String kind = PptRequirements.questionKind(args, run, questions, json);
         String prompt = args.path("prompt").asText(); PptAgentService.text(prompt, 3000);
         var options = args.path("options");
         if (!options.isMissingNode() && (!options.isArray() || options.size() > 6)) throw PptAgentService.bad("选项最多 6 项");
         List<String> values = new ArrayList<>();
         for (var option : options) { if (!option.isTextual()) throw PptAgentService.bad("选项必须是文字"); PptAgentService.text(option.asText(), 300); values.add(option.asText()); }
         if (mapper.pending(run.id()).isPresent()) throw PptAgentPersistence.conflict("已有待回答问题，请停止当前轮次等待用户回答");
-        if (mapper.questions(run.id()).size() >= 100) throw PptAgentService.bad("本请求问题数已到上限，请停止并新建请求");
+        if (questions.size() >= 100) throw PptAgentService.bad("本请求问题数已到上限，请停止并新建请求");
         var row = new Question(UUID.randomUUID().toString(), run.id(), run.documentId(), prompt, json.writeValueAsString(values),
-                "PENDING", null, null, null, Instant.now().toString(), 0);
+                "PENDING", null, null, null, Instant.now().toString(), 0, kind, null);
         if (mapper.insertQuestion(row) != 1) throw PptAgentPersistence.conflict("问题保存失败");
-        Object result = Map.of("questionId", row.id(), "state", "PENDING", "action", "STOP_AND_WAIT_FOR_INPUT",
+        Object result = Map.of("questionId", row.id(), "state", "PENDING", "kind", kind, "action", "STOP_AND_WAIT_FOR_INPUT",
                 "detail", "问题已保存，请结束本轮；系统确认停止后用户可以回答");
         save(run, key, "ppt_request_input", sha, result); return result;
     }

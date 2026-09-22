@@ -10,6 +10,13 @@ public final class PptAgentRows {
                       String requestJson, String requestSha, int createDispatched, int round, String stopReason, String stopProof,
                       Long inputTokens, Long outputTokens, String createdAt, String updatedAt, long version) { }
     public record Question(String id, String runId, String documentId, String prompt, String optionsJson,
-                           String state, String answer, String replyKey, String replySha, String createdAt, long version) { }
+                           String state, String answer, String replyKey, String replySha, String createdAt, long version,
+                           String kind, Boolean confirmed) {
+        @org.apache.ibatis.annotations.AutomapConstructor public Question { }
+        public Question(String id, String runId, String documentId, String prompt, String optionsJson,
+                        String state, String answer, String replyKey, String replySha, String createdAt, long version) {
+            this(id, runId, documentId, prompt, optionsJson, state, answer, replyKey, replySha, createdAt, version, "CLARIFICATION", null);
+        }
+    }
     public record Receipt(String runId, String idempotencyKey, String tool, String inputSha, String responseJson, String createdAt) { }
 }

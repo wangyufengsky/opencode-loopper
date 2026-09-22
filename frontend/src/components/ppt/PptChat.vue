@@ -156,9 +156,11 @@ async function send() {
   }
 }
 
-async function reply(question: PptQuestion) {
-  const value = answers.value[question.id]?.trim()
-  if (value && (await store.reply(question, value))) {
+async function reply(question: PptQuestion, confirmed = false) {
+  const id = owner
+  const value = confirmed ? '确认以上需求，请开始设计' : answers.value[question.id]?.trim()
+  const confirmation = question.kind === 'REQUIREMENTS_CONFIRMATION' ? confirmed : undefined
+  if (value && (await store.reply(question, value, confirmation)) && id === owner) {
     delete answers.value[question.id]
     saveDraft()
   }
@@ -173,7 +175,7 @@ async function reply(question: PptQuestion) {
       </span>
       <div>
         <h2>PPT 助手</h2>
-        <p>说出你的想法，我来调整。</p>
+        <p>{{ ready ? '说出你的想法，我来调整。' : '先聊清需求，再开始设计。' }}</p>
       </div>
     </header>
     <div ref="timeline" class="ppt-chat-timeline" @scroll="onTimelineScroll">
@@ -237,6 +239,7 @@ async function reply(question: PptQuestion) {
             v-for="question in message.questions.filter((question) => question.state !== 'PENDING')"
             :key="question.id"
           >
+            <strong v-if="question.kind === 'REQUIREMENTS_CONFIRMATION'">{{ question.confirmed ? '已确认需求' : '已补充意见' }}</strong>
             <p>{{ question.prompt }}</p>
             <p>{{ question.answer || '本轮已关闭' }}</p>
           </div>
@@ -256,13 +259,18 @@ async function reply(question: PptQuestion) {
         v-for="question in questions"
         :key="question.id"
         class="ppt-question"
+        :class="{ 'ppt-requirements-confirmation': question.kind === 'REQUIREMENTS_CONFIRMATION' }"
         @submit.prevent="reply(question)"
       >
         <span class="ppt-question-kicker">
           <Icon icon="lucide:message-circle-question" />
-          需要你补充
+          {{ question.kind === 'REQUIREMENTS_CONFIRMATION' ? '请确认这次的制作要求' : '需要你补充' }}
         </span>
-        <h3>{{ question.prompt }}</h3>
+        <template v-if="question.kind === 'REQUIREMENTS_CONFIRMATION'">
+          <h3>需求已整理好</h3>
+          <MarkdownDocument :content="question.prompt" />
+        </template>
+        <h3 v-else>{{ question.prompt }}</h3>
         <fieldset :disabled="store.busy || store.agent?.state !== 'WAITING_INPUT'">
           <label v-for="option in question.options" :key="option" class="ppt-question-option">
             <input
@@ -273,17 +281,24 @@ async function reply(question: PptQuestion) {
             />
             {{ option }}
           </label>
-          <label class="ppt-sr-only" :for="`answer-${question.id}`">你的回答</label>
+          <label class="ppt-sr-only" :for="`answer-${question.id}`">{{ question.kind === 'REQUIREMENTS_CONFIRMATION' ? '补充或修改需求' : '你的回答' }}</label>
           <textarea
             :id="`answer-${question.id}`"
             v-model="answers[question.id]"
             rows="2"
-            placeholder="也可以直接补充你的想法"
+            :placeholder="question.kind === 'REQUIREMENTS_CONFIRMATION' ? '还有要调整的内容或风格？在这里告诉我…' : '也可以直接补充你的想法'"
           />
-          <button :disabled="!answers[question.id]?.trim() || !!store.pending" class="ppt-primary">
-            回答并继续
-            <Icon icon="lucide:arrow-right" />
-          </button>
+          <div class="ppt-question-actions">
+            <button
+              v-if="question.kind === 'REQUIREMENTS_CONFIRMATION'" type="button" class="ppt-primary"
+              :disabled="!!store.pending || !!answers[question.id]?.trim()" @click="reply(question, true)"
+            >确认需求，开始设计<Icon icon="lucide:arrow-right" /></button>
+            <button :disabled="!answers[question.id]?.trim() || !!store.pending" :class="{ 'ppt-primary': question.kind !== 'REQUIREMENTS_CONFIRMATION' }">
+              {{ question.kind === 'REQUIREMENTS_CONFIRMATION' ? '补充意见，继续沟通' : '回答并继续' }}
+              <Icon v-if="question.kind !== 'REQUIREMENTS_CONFIRMATION'" icon="lucide:arrow-right" />
+            </button>
+          </div>
+          <p v-if="question.kind === 'REQUIREMENTS_CONFIRMATION' && answers[question.id]?.trim()" class="ppt-muted">请先发送补充意见，助手会更新需求供你确认。</p>
         </fieldset>
       </form>
     </div>
@@ -300,7 +315,7 @@ async function reply(question: PptQuestion) {
         @click="store.stop"
       >
         <Icon icon="lucide:square" />
-        暂停制作
+        暂停
       </button>
     </div>
     <form v-else class="ppt-composer" @submit.prevent="send">
@@ -338,7 +353,7 @@ async function reply(question: PptQuestion) {
           }}
         </span>
         <span v-else class="ppt-composer-hint">
-          {{ ready ? '想改哪里，直接告诉我' : '制作会自动继续' }}
+          {{ ready ? '想改哪里，直接告诉我' : '确认需求后，助手会开始设计' }}
         </span>
         <button
           v-if="store.active"
@@ -356,7 +371,7 @@ async function reply(question: PptQuestion) {
         </button>
         <button v-else class="ppt-primary" :disabled="!canSend">
           <Icon icon="lucide:arrow-up" />
-          {{ ready ? '修改' : '生成 PPT' }}
+          {{ ready ? '修改' : '开始沟通' }}
         </button>
       </footer>
     </form>

@@ -26,10 +26,12 @@ describe('PPT initial request recovery', () => {
     const first = effectScope()
     const draft = first.run(usePptCreation)!
     draft.prompt.value = '面向管理层的季度经营汇报'
+    draft.project.value = { id: 'project-1', name: '支付平台' }
     const initial = await draft.prepare()
     expect(api.create).toHaveBeenCalledWith(
       expect.objectContaining({
         title: draft.prompt.value,
+        projectId: 'project-1',
       }),
     )
     first.stop()
@@ -40,12 +42,22 @@ describe('PPT initial request recovery', () => {
     const second = effectScope()
     const recovered = second.run(usePptCreation)!
     expect(recovered.locked.value).toBe(true)
+    expect(recovered.project.value).toEqual({ id: 'project-1', name: '支付平台' })
     expect(await recovered.prepare()).toEqual(initial)
     expect(api.create).toHaveBeenCalledTimes(1)
     recovered.accepted()
     await nextTick()
     expect(recovered.locked.value).toBe(false)
+    expect(recovered.project.value).toBeNull()
     second.stop()
+  })
+  it('allows an independent presentation without any project lookup or association', async () => {
+    const scope = effectScope()
+    const draft = scope.run(usePptCreation)!
+    draft.prompt.value = '做一份读书分享'
+    expect(await draft.prepare()).not.toBeNull()
+    expect(api.create.mock.calls[0]?.[0]).not.toHaveProperty('projectId')
+    scope.stop()
   })
   it('requires original file reselection after reload and replays an uncertain upload with its original identity', async () => {
     const file = new File(['# 季度成果'], '材料.md', {

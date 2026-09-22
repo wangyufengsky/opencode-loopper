@@ -73,6 +73,19 @@ beforeEach(() => {
   } as unknown as EventSource)
 })
 describe('PPT authoritative workspace', () => {
+  it('retains the explicit confirmation and question version when retrying an uncertain reply', async () => {
+    const store = usePptStore()
+    await store.load('doc')
+    api.reply.mockRejectedValueOnce(new Error('network'))
+    const question = { id: 'requirements', kind: 'REQUIREMENTS_CONFIRMATION' as const, prompt: '给管理层汇报', options: [], state: 'PENDING' as const, answer: null, version: 7 }
+    expect(await store.reply(question, '确认以上需求，请开始设计', true)).toBe(false)
+    const original = api.reply.mock.calls[0]![2]
+    expect(original).toMatchObject({ confirmed: true, version: 7, expectedRevision: 3 })
+    question.version = 9
+    api.reply.mockResolvedValueOnce({} as never)
+    await store.retryPending()
+    expect(api.reply.mock.calls[1]![2]).toEqual(original)
+  })
   it('retries a lost request with its original scope, text, revision and identity', async () => {
     const store = usePptStore()
     await store.load('doc')

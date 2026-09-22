@@ -1,0 +1,36 @@
+.ppt-project-picker { position: relative; min-width: 0; }
+.ppt-page .ppt-project-trigger { padding: 9px 0; border-color: transparent; background: transparent; color: var(--color-text-secondary); max-width: 260px; }
+.ppt-project-trigger > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ppt-project-trigger > svg { flex: none; }
+.ppt-project-popover { position: absolute; z-index: 20; left: 0; top: calc(100% + 10px); width: min(360px, calc(100vw - 64px)); padding: 14px; background: var(--color-bg-elevated); border: 1px solid var(--color-border-default); border-radius: var(--radius-card); box-shadow: var(--shadow-card); }
+.ppt-project-search { display: flex; gap: 8px; margin-bottom: 10px; }
+.ppt-project-search input { min-width: 0; }
+.ppt-project-options { max-height: 240px; overflow-y: auto; }
+.ppt-page .ppt-project-choice { width: 100%; display: flex; justify-content: space-between; gap: 8px; padding: 12px 10px; text-align: left; border: 0; background: transparent; }
+.ppt-project-choice span { overflow-wrap: anywhere; }
+.ppt-project-choice small { color: var(--color-text-muted); font-weight: 400; }
+.ppt-page .ppt-project-choice[aria-pressed='true'] { color: var(--color-action-primary); background: color-mix(in srgb, var(--color-action-primary) 8%, var(--color-bg-elevated)); }
+.ppt-project-popover > p { font-size: 12px; line-height: 1.6; }
+.ppt-page .ppt-project-close { display: flex; margin-left: auto; border-color: transparent; color: var(--color-text-secondary); background: transparent; }
+.ppt-prompt-hint, .ppt-prompt-project-note { margin: 16px 0 0; font-size: 12px; color: var(--color-text-muted); line-height: 1.6; }
+.ppt-prompt-project-note { display: flex; gap: 6px; color: var(--color-text-secondary); }
+.ppt-prompt-project-note svg { flex: none; margin-top: 3px; }
+.ppt-project-sources { padding: 18px; margin-bottom: 22px; background: var(--color-bg-surface); border: 1px solid var(--color-border-default); border-radius: var(--radius-card); }
+.ppt-project-sources > h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; overflow-wrap: anywhere; }
+.ppt-project-source-list { list-style: none; padding: 0; margin: 14px 0 0; }
+.ppt-project-source-list li { padding: 12px 0; border-top: 1px solid var(--color-border-default); }
+.ppt-project-source-list li > div { display: flex; justify-content: space-between; gap: 12px; }
+.ppt-project-source-list li span { min-width: 0; overflow-wrap: anywhere; }
+.ppt-project-source-list li small { flex: none; color: var(--color-text-muted); }
+.ppt-project-source-list li small.available { color: var(--color-action-primary); }
+.ppt-project-source-list li p { margin: 7px 0 0; color: var(--color-text-secondary); font-size: 12px; overflow-wrap: anywhere; }
+.ppt-question-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.ppt-requirements-confirmation .markdown-document { margin: 12px 0 20px; font-size: 14px; }
+.ppt-requirements-confirmation .ppt-muted { font-size: 12px; margin-bottom: 0; }
+@media (max-width: 760px) {
+  .ppt-prompt-card footer { flex-wrap: wrap; gap: 12px; }
+  .ppt-project-picker { flex: 1; }
+  .ppt-page .ppt-project-trigger { max-width: 100%; }
+  .ppt-project-popover { left: auto; right: 0; }
+  .ppt-page .ppt-generate-button { margin-left: auto; }
+}

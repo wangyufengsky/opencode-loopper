@@ -285,6 +285,7 @@ export const usePptStore = defineStore('ppt', () => {
           idempotencyKey: key,
           version: Number(p.version),
           answer: String(p.answer),
+          ...(typeof p.confirmed === 'boolean' ? { confirmed: p.confirmed } : {}),
         })
       else if (request.kind === 'retry-job') await api.retryJob(id, String(p.jobId))
       else
@@ -364,11 +365,12 @@ export const usePptStore = defineStore('ppt', () => {
       text,
       scope,
     })
-  const reply = (question: PptQuestion, answer: string) =>
+  const reply = (question: PptQuestion, answer: string, confirmed?: boolean) =>
     mutate('reply', {
       questionId: question.id,
       version: question.version,
       answer,
+      ...(confirmed === undefined ? {} : { confirmed }),
     })
   const createJob = (kind: 'PREVIEW' | 'EXPORT', slideId?: string) =>
     mutate('job', {

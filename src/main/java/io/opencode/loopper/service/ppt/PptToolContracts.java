@@ -8,8 +8,8 @@ import tools.jackson.databind.ObjectMapper;
 final class PptToolContracts {
     private PptToolContracts() { }
     static Object capabilities(PptEngine engine,ObjectMapper json) {
-        return Map.of("capabilities",engine.capabilities(),"contractVersion",2,"coordinates","point; top-left origin; default 960 × 540; all bounds numeric",
-                "rules","IDs are stable and unique across the deck. Use explicit planned slide IDs; page order is not identity. Call measure/check before export. No silent text truncation. Writes require a new idempotencyKey and current expectedRevision. Same key may only replay identical input. In manual mode only the user confirms direction and production. With frozen generationAuthorization CREATE, the user has authorized automatic planning: submit a complete plan with your selectedDirectionId; the server validates and advances after this run ends. Read source sections before citing. Do not change locked objects.",
+        return Map.of("capabilities",engine.capabilities(),"contractVersion",3,"coordinates","point; top-left origin; default 960 × 540; all bounds numeric",
+                "rules","IDs are stable and unique across the deck. Use explicit planned slide IDs; page order is not identity. Call measure/check before export. No silent text truncation. Writes require a new idempotencyKey and current expectedRevision. Same key may only replay identical input. In manual mode only the user confirms direction and production. With frozen generationAuthorization CREATE and requirementsProtocol, complete dialogue and explicit requirements confirmation first; after confirmation submit a complete plan with your selectedDirectionId; the server validates and advances after this run ends. Read source sections before citing. Do not change locked objects.",
                 "parameters",json.readTree(PARAMETERS),"operations",json.readTree(OPERATIONS),"element",json.readTree(ELEMENT),"plan",json.readTree(PLAN));
     }
     private static final String PARAMETERS="""

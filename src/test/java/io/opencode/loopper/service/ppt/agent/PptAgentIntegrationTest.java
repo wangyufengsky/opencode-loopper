@@ -17,6 +17,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -181,12 +182,71 @@ class PptAgentIntegrationTest {
         var resumed = persistence.require(run.id());
         assertThat(resumed.state()).isEqualTo("RUNNING"); assertThat(resumed.round()).isEqualTo(1);
         assertThat(resumed.messageId()).isNotEqualTo(run.messageId()); assertThat(resumed.requestJson()).contains("领导");
-        assertThatThrownBy(() -> tools.call("ppt_get_context", oldEnvelope)).hasMessageContaining("授权");
+        assertThatThrownBy(() -> tools.call("ppt_get_context", oldEnvelope)).isInstanceOfSatisfying(io.opencode.loopper.domain.SessionFailure.class,
+                failure -> assertThat(failure.code()).isEqualTo("PPT_SCOPE_EXPIRED"));
         assertThatThrownBy(() -> toolWrites.save(run, "old-round-key", "ppt_apply_operations", PptAgentService.hash("old-round"), Map.of("revision", 2)))
                 .isInstanceOf(ConflictException.class);
         assertThat(mapper.receipt(run.id(), "old-round-key")).isEmpty();
         verify(remote, times(1)).createSession(any(OpenCodeClient.SessionCreationPlan.class));
         assertThat(jdbc.queryForObject("SELECT count(*) FROM ppt_agent_prompt", Integer.class)).isEqualTo(2);
+    }
+    @Test void requirementsDialogueNeedsExplicitHumanConfirmationAndPreservesSameSessionAcrossRejection() {
+        var context = json.createObjectNode().put("requirementsProtocol", PptRequirements.PROTOCOL);
+        when(workspace.workspace(document)).thenReturn(new PptAgentWorkspace.Workspace(document, "DESIGN", 0, "fake/model", root.resolve("agent"), context));
+        var run = start();
+        assertThat(service.status(document).requirementsState()).isEqualTo("CLARIFYING");
+        var before = json.valueToTree(tools.call("ppt_get_capabilities", call(run, Map.of())));
+        assertThat(before.path("allowedTools").valueStream().map(JsonNode::asText))
+                .contains("ppt_request_input", "ppt_get_context").doesNotContain("ppt_submit_plan", "ppt_apply_operations");
+        final var initial = run;
+        assertThatThrownBy(() -> tools.call("ppt_submit_plan", call(initial, Map.of("idempotencyKey", "premature-plan", "expectedRevision", 0))))
+                .hasMessageContaining("尚未完成需求确认");
+        assertThatThrownBy(() -> tools.call("ppt_request_input", call(initial, Map.of("idempotencyKey", "premature-confirm", "kind", PptRequirements.CONFIRMATION, "prompt", "请确认"))))
+                .hasMessageContaining("先围绕内容重点");
+        tools.call("ppt_request_input", call(run, Map.of("idempotencyKey", "requirements-first", "prompt", "重点展示成果还是风险？")));
+        var first = mapper.pending(run.id()).orElseThrow(); coordinator.tick(document); coordinator.tick(document);
+        service.reply(document, first.id(), new PptAgentService.Reply("requirements-answer", "重点成果，风格简洁", 0, 0)); coordinator.tick(document);
+        run = persistence.require(run.id());
+        // Replies rebuild workspace context; the server-owned protocol must survive even if this live projection omits it.
+        when(workspace.workspace(document)).thenReturn(new PptAgentWorkspace.Workspace(document, "DESIGN", 0, "fake/model", root.resolve("agent"), json.createObjectNode()));
+        tools.call("ppt_request_input", call(run, Map.of("idempotencyKey", "requirements-summary", "kind", PptRequirements.CONFIRMATION, "prompt", "面向领导，重点成果，10页简洁商务风格；无来源的数字不编造。")));
+        var summary = mapper.pending(run.id()).orElseThrow();
+        assertThat(service.status(document).requirementsState()).isEqualTo("AWAITING_CONFIRMATION");
+        assertThat(service.status(document).questions().getFirst().kind()).isEqualTo(PptRequirements.CONFIRMATION);
+        coordinator.tick(document); coordinator.tick(document);
+        service.reply(document, summary.id(), new PptAgentService.Reply("requirements-refine", "可以，但改为8页", 0, 0)); coordinator.tick(document);
+        run = persistence.require(run.id());
+        assertThat(run.contextJson()).contains(PptRequirements.PROTOCOL);
+        assertThat(mapper.question(document, summary.id()).orElseThrow().confirmed()).isFalse();
+        final var unconfirmed = run;
+        assertThatThrownBy(() -> tools.call("ppt_apply_operations", call(unconfirmed, Map.of("idempotencyKey", "premature-slides", "expectedRevision", 0))))
+                .hasMessageContaining("尚未完成需求确认");
+        tools.call("ppt_request_input", call(run, Map.of("idempotencyKey", "requirements-summary-v2", "kind", PptRequirements.CONFIRMATION, "prompt", "面向领导，重点成果，8页简洁商务风格。")));
+        var finalSummary = mapper.pending(run.id()).orElseThrow();
+        var acceptance = new PptAgentService.Reply("requirements-accepted", "确认以上需求，请开始设计", 0, 0, true);
+        assertThatThrownBy(() -> service.reply(document, finalSummary.id(), acceptance)).isInstanceOf(ConflictException.class);
+        coordinator.tick(document); coordinator.tick(document);
+        assertThatThrownBy(() -> service.reply(document, finalSummary.id(), new PptAgentService.Reply("requirements-stale", "确认以上需求", 1, 0, true)))
+                .isInstanceOf(ConflictException.class);
+        assertThat(mapper.question(document, finalSummary.id()).orElseThrow().confirmed()).isNull();
+        service.reply(document, finalSummary.id(), acceptance); service.reply(document, finalSummary.id(), acceptance);
+        assertThatThrownBy(() -> service.reply(document, finalSummary.id(), new PptAgentService.Reply(acceptance.idempotencyKey(), acceptance.answer(), 0, 0, false)))
+                .isInstanceOf(ConflictException.class);
+        coordinator.tick(document); run = persistence.require(run.id());
+        assertThat(service.status(document).requirementsState()).isEqualTo("CONFIRMED");
+        var after = json.valueToTree(tools.call("ppt_get_capabilities", call(run, Map.of())));
+        assertThat(after.path("allowedTools").valueStream().map(JsonNode::asText)).contains("ppt_submit_plan", "ppt_apply_operations");
+        assertThat(run.round()).isEqualTo(3);
+        tools.call("ppt_submit_plan", call(run, Map.of("idempotencyKey", "accepted-plan", "expectedRevision", 0)));
+        verify(workspace, times(1)).invoke(eq(document), eq("ppt_submit_plan"), any(), any());
+        verify(remote, times(1)).createSession(any(OpenCodeClient.SessionCreationPlan.class));
+        tools.call("ppt_request_input", call(run, Map.of("idempotencyKey", "new-requirements", "prompt", "新增风险章节放在最后吗？")));
+        var change = mapper.pending(run.id()).orElseThrow(); coordinator.tick(document); coordinator.tick(document);
+        service.reply(document, change.id(), new PptAgentService.Reply("changed-requirements", "改为风险优先", 0, 0)); coordinator.tick(document);
+        var changed = persistence.require(run.id());
+        assertThat(service.status(document).requirementsState()).isEqualTo("CLARIFYING");
+        assertThatThrownBy(() -> tools.call("ppt_submit_plan", call(changed, Map.of("idempotencyKey", "stale-acceptance", "expectedRevision", 0))))
+                .hasMessageContaining("尚未完成需求确认");
     }
     @Test void commitRevalidationRejectsConcurrentStopAndNoSuccessfulReceiptIsInvented() {
         var run = start();

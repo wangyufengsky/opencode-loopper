@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 import type { PptInputFile } from './usePptCreation'
+import PptProjectPicker from './PptProjectPicker.vue'
+import type { PptProjectChoice } from '@/types/ppt'
 
 const prompt = defineModel<string>({
   required: true,
 })
+const project = defineModel<PptProjectChoice | null>('project', { default: null })
 defineProps<{
   files: PptInputFile[]
   busy?: boolean
@@ -80,18 +83,21 @@ function drop(event: DragEvent) {
           @change="choose"
         />
       </label>
+      <PptProjectPicker v-model="project" :disabled="busy || locked" />
       <span v-if="busy" role="status" class="ppt-prompt-status">
-        {{ detail || '正在开始制作' }}
+        {{ detail || '正在联系 PPT 助手' }}
       </span>
       <button class="ppt-primary ppt-generate-button" :disabled="busy || !prompt.trim()">
         <Icon
           :icon="busy ? 'lucide:loader-circle' : 'lucide:sparkles'"
           :class="{ 'ppt-spin': busy }"
         />
-        {{ busy ? '正在开始' : locked ? '继续生成' : '生成 PPT' }}
+        {{ busy ? '正在开始' : locked ? '继续沟通' : '开始沟通' }}
         <Icon v-if="!busy" icon="lucide:arrow-up-right" />
       </button>
     </footer>
+    <p v-if="project" class="ppt-prompt-project-note"><Icon icon="lucide:book-open" /> 将使用「{{ project.name }}」当前可用的知识库来源</p>
+    <p class="ppt-prompt-hint">先聊清内容与风格，确认需求后开始设计。</p>
     <p v-if="error" role="alert" class="ppt-inline-error">{{ error }}</p>
   </form>
 </template>

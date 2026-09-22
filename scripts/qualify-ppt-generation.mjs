@@ -32,7 +32,9 @@ const route = `/api/ppt/documents/${evidence.documentId}`
 const prompt = process.env.PPT_PROMPT || '制作一份6页中文季度项目汇报，面向部门领导，5分钟讲完，简洁商务风。主题是“服务体验改进”。这是验收用的虚构案例，所有数据明确标注为示例：一月至三月满意度分别为72、80、88分，工单量分别为120、100、85件。页面包括封面、一页结论、满意度趋势折线图、工单量柱状图、改进行动表格、下一步安排。每页有简短讲稿。无需外部图片，使用可编辑文字图形及原生图表。其他内容和设计由你决定，直接生成完整PPT，不需要我再选方案。'
 if (!evidence.started) {
   await save()
-  await api('/api/ppt/documents', { id: evidence.documentId, title: 'AI 一键生成验收' })
+  evidence.createRequest ||= { id: evidence.documentId, title: 'AI 需求沟通与生成验收', ...(process.env.PPT_PROJECT_ID ? { projectId: process.env.PPT_PROJECT_ID } : {}) }
+  await save()
+  await api('/api/ppt/documents', evidence.createRequest)
   evidence.request = evidence.request || { idempotencyKey: evidence.generationKey, expectedRevision: 0, prompt }
   await save()
   evidence.initialGeneration = await api(`${route}/generate`, evidence.request)
@@ -50,6 +52,32 @@ async function waitForGeneration(generationId) {
     const progress = `${value.state} ${value.step} ${value.detail}`
     if (progress !== last) { console.log(progress); last = progress }
     if (value.state === 'COMPLETED') return value
+    if (value.state === 'WAITING_INPUT' && process.env.PPT_DIALOGUE_ACCEPTANCE === '1') {
+      // Explicit qualification fixture acts as the user; normal usage still waits for the real user's decision.
+      const agent = await api(`${route}/agent`)
+      const question = agent.questions.find(item => item.state === 'PENDING')
+      if (agent.state !== 'WAITING_INPUT' || !question) { await new Promise(resolve => setTimeout(resolve, 1000)); continue }
+      const document = await api(route)
+      evidence.questionReplies ||= []
+      let reply = evidence.questionReplies.find(item => item.questionId === question.id)
+      if (!reply) {
+        assert(evidence.questionReplies.length < 8, 'Dialogue fixture has reached its observation limit; inspect pending question manually')
+        const confirm = question.kind === 'REQUIREMENTS_CONFIRMATION'
+        if (!evidence.questionReplies.some(item => item.body.confirmed)) {
+          assert.equal(document.revision, 0, 'No plan may be saved before explicit requirements confirmation')
+          assert.equal((await api(`${route}/deck`)).slides.length, 0)
+        }
+        reply = { questionId: question.id, kind: question.kind, prompt: question.prompt, body: {
+          idempotencyKey: randomUUID(), expectedRevision: document.revision, version: question.version,
+          answer: confirm ? '确认以上需求，请开始设计。' : '给部门领导汇报，重点突出成果、风险与下一步；控制6页、5分钟，简洁商务风，图表和表格都可编辑。优先使用已选项目资料，缺少事实不要编造。验收案例中的数据按示例标注。',
+          ...(confirm ? { confirmed: true } : {}),
+        } }
+        evidence.questionReplies.push(reply); await save()
+      }
+      await api(`${route}/questions/${question.id}/reply`, reply.body)
+      console.log(`ANSWERED ${question.kind}`)
+      continue
+    }
     if (['FAILED', 'STOPPED', 'WAITING_INPUT'].includes(value.state)) {
       evidence.agent = await api(`${route}/agent`)
       await save()

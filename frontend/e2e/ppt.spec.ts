@@ -7,7 +7,7 @@ import {
   pptGeneration,
   pptPlan,
 } from '../src/components/ppt/pptTestFixtures'
-import type { PptGeneration, PptJob, PptMessage, PptOperation, PptPhase } from '../src/types/ppt'
+import type { PptAgentStatus, PptGeneration, PptJob, PptMessage, PptOperation, PptPhase } from '../src/types/ppt'
 
 const documentId = '11111111-1111-4111-8111-111111111111'
 const presentationType = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
@@ -20,8 +20,8 @@ async function fixture(page: Page, initial: 'ready' | 'draft' = 'ready') {
     phase: (initial === 'ready' ? 'EXPORTED' : 'BRIEFING') as PptPhase,
   }
   let deck = pptDeck(),
-    plan = pptPlan(),
-    agent = pptAgent()
+    plan = pptPlan()
+  let agent: PptAgentStatus = pptAgent()
   let generation: PptGeneration | null =
     initial === 'ready' ? { ...pptGeneration('COMPLETED'), step: 'EXPORT' } : null
   const operations: { expectedRevision: number; operations: PptOperation[] }[] = []
@@ -30,6 +30,7 @@ async function fixture(page: Page, initial: 'ready' | 'draft' = 'ready') {
     actions: string[] = [],
     savedPlans: (typeof plan)[] = []
   const generations: { prompt: string; expectedRevision: number; idempotencyKey: string }[] = []
+  const creations: { projectId?: string }[] = []
   const resumes: unknown[] = [],
     replies: unknown[] = [],
     uploads: string[] = []
@@ -82,9 +83,11 @@ async function fixture(page: Page, initial: 'ready' | 'draft' = 'ready') {
     agent = {
       ...pptAgent(),
       state: 'WAITING_INPUT',
+      requirementsState: 'CLARIFYING',
       questions: [
         {
           id: 'question-1',
+          kind: 'CLARIFICATION',
           prompt: '这份汇报主要给谁看？',
           options: ['管理层', '项目团队'],
           state: 'PENDING',
@@ -93,6 +96,12 @@ async function fixture(page: Page, initial: 'ready' | 'draft' = 'ready') {
         },
       ],
     }
+  }
+  function secondQuestion() {
+    agent = { ...agent, state: 'WAITING_INPUT', requirementsState: 'CLARIFYING', questions: [{ id: 'question-2', kind: 'CLARIFICATION', prompt: '希望采用什么视觉风格？', options: ['稳重商务', '简洁明快'], state: 'PENDING', answer: null, version: 1 }] }
+  }
+  function confirmation(updated = false) {
+    agent = { ...agent, state: 'WAITING_INPUT', requirementsState: 'AWAITING_CONFIRMATION', questions: [{ id: updated ? 'confirm-2' : 'confirm-1', kind: 'REQUIREMENTS_CONFIRMATION', prompt: `## 制作需求\n面向管理层，突出季度成果，${updated ? '8' : '10'} 页，稳重商务风格。`, options: [], state: 'PENDING', answer: null, version: 1 }] }
   }
   if (initial === 'ready') finish()
   await page.context().route('http://127.0.0.1:41773/api/**', async (route) => {
@@ -110,8 +119,10 @@ async function fixture(page: Page, initial: 'ready' | 'draft' = 'ready') {
         body: 'data: {"type":"connected"}\n\n',
       })
     if (path === '/api/ppt/capabilities') return route.fulfill({ json: pptCapabilities() })
+    if (path === '/api/ppt/projects') return route.fulfill({ json: { items: [{ id: 'project-1', name: '支付平台', description: '' }], nextCursor: null } })
     if (path === '/api/ppt/documents') {
       if (method === 'POST') {
+        creations.push(body)
         document = { ...document, ...body, phase: 'BRIEFING' }
         deck = { ...deck, slides: [] }
         jobs.length = 0
@@ -141,17 +152,22 @@ async function fixture(page: Page, initial: 'ready' | 'draft' = 'ready') {
       generations.push(body)
       generation = { ...pptGeneration(), documentId: document.id }
       document.phase = 'BRIEFING'
+      agent = { ...pptAgent(), state: 'RUNNING', requirementsState: 'CLARIFYING' }
       return route.fulfill({ json: generation })
     }
     if (path.endsWith('/generation')) return route.fulfill({ json: generation })
     if (path.includes('/questions/') && path.endsWith('/reply')) {
       replies.push(body)
-      deck = pptDeck()
-      finish()
+      if (body.confirmed === true) {
+        deck = pptDeck()
+        finish()
+      } else if (path.includes('/question-1/')) secondQuestion()
+      else confirmation(body.confirmed === false)
       return route.fulfill({
-        json: { ...messages[0], id: 'reply-1', state: 'COMPLETED', questions: [] },
+        json: { ...messages[0], id: 'reply-1', state: agent.state, questions: agent.questions },
       })
     }
+    if (path.endsWith('/knowledge')) return route.fulfill({ json: { project: document.projectId ? { id: document.projectId, name: '支付平台' } : null, sources: document.projectId ? [{ id: 'code', kind: 'CODE', name: '项目代码', state: 'READY', detail: '', version: 0 }] : [], detail: '' } })
     if (path.endsWith('/deck')) return route.fulfill({ json: deck })
     if (path.endsWith('/plan')) {
       if (method === 'POST') {
@@ -270,6 +286,7 @@ async function fixture(page: Page, initial: 'ready' | 'draft' = 'ready') {
     savedPlans,
     actions,
     generations,
+    creations,
     resumes,
     replies,
     uploads,
@@ -305,27 +322,35 @@ test('PPT 助手显示真实思考和调用，展开状态随更新保留', asyn
   await expect(tools.locator('.knowledge-spinner')).toHaveCount(0, { timeout: 15000 })
 })
 
-test('输入需求和可选附件后一键生成，只在关键缺口提问，回答后直接完成', async ({ page }) => {
+test('选择项目后多轮沟通需求，刷新保留待确认状态，明确确认后才开始设计', async ({ page }) => {
   const state = await fixture(page, 'draft')
   await page.setViewportSize({ width: 1600, height: 1000 })
   await page.goto('/ppt')
   await expect(page.getByRole('heading', { name: /从一个想法，.*到一份好演示。/ })).toBeVisible()
   await expect(page.getByLabel('作品名称')).toHaveCount(0)
   await page.getByLabel('你想制作什么 PPT').fill('做一份季度经营汇报，重点突出成果和下一步计划')
+  await page.getByRole('button', { name: '选择项目（可选）' }).click()
+  await page.getByRole('button', { name: '支付平台', exact: true }).click()
   await page.getByLabel('添加制作资料').setInputFiles({
     name: '材料.md',
     mimeType: 'text/markdown',
     buffer: Buffer.from('# 成果\n收入增长32%'),
   })
   await page.screenshot({ path: 'test-results/ppt-redesign-entry.png', fullPage: true })
-  await page.getByRole('button', { name: '生成 PPT', exact: true }).click()
-  await expect(page.getByRole('heading', { name: '正在构思内容' })).toBeVisible()
+  await page.getByRole('button', { name: '开始沟通', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '先聊清你的想法' })).toBeVisible()
+  expect(state.creations[0]?.projectId).toBe('project-1')
   expect(state.generations).toHaveLength(1)
   expect(state.uploads).toHaveLength(1)
   expect(state.actions).toHaveLength(0)
   await expect(page.getByRole('navigation', { name: '方案模块' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: '手动编辑', exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: '确认整体方向' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '确认需求，开始设计' })).toHaveCount(0)
+  await openMore(page, '资料与素材')
+  await expect(page.getByRole('region', { name: '关联项目来源' })).toContainText('支付平台')
+  await expect(page.getByRole('region', { name: '关联项目来源' })).toContainText('项目代码')
+  await page.getByRole('button', { name: '关闭详情' }).click()
   await page.screenshot({ path: 'test-results/ppt-redesign-generating.png', fullPage: true })
   state.question()
   await expect(page.getByRole('heading', { name: '这份汇报主要给谁看？' })).toBeVisible({
@@ -334,9 +359,25 @@ test('输入需求和可选附件后一键生成，只在关键缺口提问，�
   await page.getByRole('radio', { name: '管理层', exact: true }).check()
   await page.screenshot({ path: 'test-results/ppt-redesign-question.png', fullPage: true })
   await page.getByRole('button', { name: '回答并继续' }).click()
+  await expect(page.getByRole('heading', { name: '希望采用什么视觉风格？' })).toBeVisible()
+  await expect(page.getByRole('link', { name: '下载 PPT' })).toHaveCount(0)
+  await page.getByRole('radio', { name: '稳重商务', exact: true }).check()
+  await page.getByRole('button', { name: '回答并继续' }).click()
+  await expect(page.getByRole('button', { name: '确认需求，开始设计' })).toBeVisible()
+  await page.reload()
+  await expect(page.getByRole('button', { name: '确认需求，开始设计' })).toBeVisible()
+  await page.getByLabel('补充或修改需求').fill('改成 8 页')
+  await expect(page.getByRole('button', { name: '确认需求，开始设计' })).toBeDisabled()
+  await page.getByRole('button', { name: '补充意见，继续沟通' }).click()
+  await expect(page.locator('.ppt-requirements-confirmation')).toContainText('8 页')
+  expect(state.replies).toHaveLength(3)
+  expect(state.replies[2]).toMatchObject({ confirmed: false, answer: '改成 8 页' })
+  await expect(page.getByAltText('当前幻灯片实际预览')).toHaveCount(0)
+  await page.getByRole('button', { name: '确认需求，开始设计' }).click()
   await expect(page.getByRole('link', { name: '下载 PPT' })).toBeVisible()
   await expect(page.getByAltText('当前幻灯片实际预览')).toBeVisible()
-  expect(state.replies).toHaveLength(1)
+  expect(state.replies).toHaveLength(4)
+  expect(state.replies[3]).toMatchObject({ confirmed: true })
   expect(state.generations).toHaveLength(1)
   expect(state.actions).toHaveLength(0)
 })
@@ -408,7 +449,7 @@ test('安全暂停保持阻断，证明停止后显示继续制作且沿原工�
   const state = await fixture(page, 'draft')
   await page.goto(`/ppt/${documentId}`)
   await page.getByLabel('向 PPT 助手发送要求').fill('制作一份战略汇报')
-  await page.getByRole('button', { name: '生成 PPT', exact: true }).click()
+  await page.getByRole('button', { name: '开始沟通', exact: true }).click()
   await page.getByRole('button', { name: '暂停', exact: true }).click()
   await expect(page.getByRole('button', { name: '暂停', exact: true })).toBeDisabled()
   await expect(page.getByRole('button', { name: '继续制作', exact: true })).toHaveCount(0)

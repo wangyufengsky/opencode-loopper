@@ -26,4 +26,14 @@ class PptAgentPromptsTest {
         assertThat(prompt.system()).contains(PptAgentProfile.PROMPT,"不得替用户选定方向","用户点击开始制作后才","用户明确要求导出时才")
                 .doesNotContain("服务端冻结的本次自动生成授权");
     }
+    @Test void newInitialDesignRequiresDialogueAndExplicitConfirmationBeforeAnyPlan() {
+        var request = run("BRIEFING", "{\"generationAuthorization\":{\"generationId\":\"g\",\"attempt\":0,\"step\":\"PLANNING\",\"mode\":\"CREATE\"},\"requirementsProtocol\":\"DIALOGUE_CONFIRMATION_V1\"}");
+        var prompt = PptAgentPrompts.build(request, List.of(), json);
+        assertThat(prompt.system()).contains("当前需求状态=CLARIFYING", "至少完成一轮 CLARIFICATION", "已有答案不重复问", "kind=REQUIREMENTS_CONFIRMATION", "用户点击确认动作");
+        var question = new io.opencode.loopper.persistence.PptAgentRows.Question("q", "run", "document", "10页商务汇报", "[]",
+                "ANSWERED", "可以，但改成8页", "key", "sha", "now", 1, PptRequirements.CONFIRMATION, false);
+        var rejected = PptAgentPrompts.build(request, List.of(question), json);
+        assertThat(rejected.text()).contains("用户明确确认需求：false", "改成8页").doesNotContain("已确认的回答");
+        assertThat(rejected.system()).contains("当前需求状态=CLARIFYING");
+    }
 }

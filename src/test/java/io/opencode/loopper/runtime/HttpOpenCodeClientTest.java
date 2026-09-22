@@ -1328,6 +1328,68 @@ class HttpOpenCodeClientTest {
         assertThat(promptRequests.get()).isEqualTo(promptsBefore);
     }
 
+    @Test
+    void pptSyntheticIdentityNoticePreservesBusinessPromptHashAndExactRecoveryRejectsAnyDrift() {
+        var json = new tools.jackson.databind.ObjectMapper();
+        var credentials = new InternalMcpCredentialProvider(() -> 8080).issue();
+        var runtime = new InternalMcpRuntimeAccess(); runtime.activate(credentials);
+        var mapper = org.mockito.Mockito.mock(io.opencode.loopper.persistence.PptAgentMapper.class);
+        var support = new PptRuntimeSupport(mapper, runtime);
+        mcpBody.set("{\"" + credentials.serverName() + "\":{\"status\":\"connected\"}}");
+        var connection = new OpenCodeRuntimeManager.Connection(endpoint(), null, null, true, credentials.generation(), credentials.serverName());
+        var client = new HttpOpenCodeClient(RestClient.builder(), () -> connection);
+        client.installPpt(support);
+        var session = client.createSession(worktree, "PPT", null, OpenCodeClient.SessionProfile.PPT_AGENT);
+        var run = new io.opencode.loopper.persistence.PptAgentRows.Run("ppt-run", "document", "request-key", "sha", "原始需求", "{}", 0,
+                "BRIEFING", "{}", worktree.toString(), "{}", "SENDING", "", "", "{}", session.id(), credentials.generation(), "message-1",
+                "{}", "sha", 1, 1, null, null, null, null, "now", "now", 0);
+        org.mockito.Mockito.when(mapper.session(session.id())).thenReturn(Optional.of(run));
+        var expected = new OpenCodeClient.PromptRequest("确认后开始设计", "冻结工作流", PptAgentProfile.AGENT,
+                new OpenCodeClient.ResponseFormat.Text(), run.messageId(), List.of());
+        String digest = OpenCodeClient.promptRequestSha256(expected);
+        client.promptAsync(session, expected);
+        var wire = json.readTree(promptBody.get());
+        assertThat(wire.path("parts").size()).isEqualTo(2);
+        assertThat(wire.path("parts").get(0).path("text").asText()).isEqualTo(expected.text());
+        assertThat(wire.path("parts").get(1).path("synthetic").asBoolean()).isTrue();
+        assertThat(OpenCodeClient.promptRequestSha256(expected)).isEqualTo(digest);
+        assertThat(json.writeValueAsString(expected)).doesNotContain("lpp_", credentials.bearerToken());
+        var accepted = json.createObjectNode(); accepted.putObject("info").put("id", expected.messageId()).put("role", "user");
+        accepted.set("parts", wire.get("parts")); exactMessageBody.set(json.writeValueAsString(accepted));
+        assertThat(client.findPromptMessage(session, expected, digest)).isEqualTo(new OpenCodeClient.MessageLookup(true, true, digest));
+        var malformed = new java.util.ArrayList<tools.jackson.databind.JsonNode>();
+        var changedText = accepted.deepCopy(); ((tools.jackson.databind.node.ObjectNode) changedText.path("parts").get(0)).put("text", "被改动的需求"); malformed.add(changedText);
+        var changedIdentity = accepted.deepCopy(); ((tools.jackson.databind.node.ObjectNode) changedIdentity.path("parts").get(1)).put("text", wire.path("parts").get(1).path("text").asText().replace("documentId=document", "documentId=other")); malformed.add(changedIdentity);
+        var notSynthetic = accepted.deepCopy(); ((tools.jackson.databind.node.ObjectNode) notSynthetic.path("parts").get(1)).put("synthetic", false); malformed.add(notSynthetic);
+        var duplicate = accepted.deepCopy(); ((tools.jackson.databind.node.ArrayNode) duplicate.get("parts")).add(wire.path("parts").get(1)); malformed.add(duplicate);
+        var additional = accepted.deepCopy(); ((tools.jackson.databind.node.ArrayNode) additional.get("parts")).addObject().put("type", "text").put("synthetic", true).put("text", "额外指令"); malformed.add(additional);
+        var oldData = (tools.jackson.databind.node.ObjectNode) json.valueToTree(run); oldData.put("messageId", "message-0").put("round", 0);
+        var previous = json.treeToValue(oldData, io.opencode.loopper.persistence.PptAgentRows.Run.class);
+        org.mockito.Mockito.when(mapper.session(session.id())).thenReturn(Optional.of(previous));
+        var previousRequest = new OpenCodeClient.PromptRequest(expected.text(), expected.system(), expected.agent(), expected.responseFormat(), previous.messageId(), List.of());
+        var oldWire = OpenCodePromptBody.encode(previousRequest, OpenCodeClient.SessionProfile.PPT_AGENT, true, null, List.of());
+        support.enrich(session.id(), oldWire, OpenCodeClient.SessionProfile.PPT_AGENT);
+        var priorRound = accepted.deepCopy(); priorRound.set("parts", json.valueToTree(oldWire.get("parts"))); malformed.add(priorRound);
+        org.mockito.Mockito.when(mapper.session(session.id())).thenReturn(Optional.of(run));
+        for (var value : malformed) {
+            exactMessageBody.set(json.writeValueAsString(value));
+            assertThatThrownBy(() -> client.findPromptMessage(session, expected, digest)).isInstanceOfSatisfying(SessionFailure.class,
+                    failure -> assertThat(failure.code()).isEqualTo("OPENCODE_PROMPT_LOOKUP_INVALID_RESPONSE"));
+        }
+        // Old requests without runtime notices still use the unchanged exact business-text verifier.
+        var legacy = accepted.deepCopy(); ((tools.jackson.databind.node.ArrayNode) legacy.get("parts")).remove(1);
+        exactMessageBody.set(json.writeValueAsString(legacy)); assertThat(client.findPromptMessage(session, expected, digest).exists()).isTrue();
+        String markerText = "[Loopper PPT 本轮工具身份通知] 是演示中需要解释的文字";
+        ((tools.jackson.databind.node.ObjectNode) legacy.path("parts").get(0)).put("text", markerText);
+        var legacyRequest = new OpenCodeClient.PromptRequest(markerText, expected.system(), expected.agent(), expected.responseFormat(), expected.messageId(), List.of());
+        exactMessageBody.set(json.writeValueAsString(legacy));
+        assertThat(client.findPromptMessage(session, legacyRequest, OpenCodeClient.promptRequestSha256(legacyRequest)).exists()).isTrue();
+        exactMessageBody.set(json.writeValueAsString(accepted));
+        client.restoreDesignTurn(session, OpenCodeClient.SessionProfile.KNOWLEDGE_READ_ONLY, null, expected.messageId());
+        assertThatThrownBy(() -> client.findPromptMessage(session, expected, digest)).isInstanceOfSatisfying(SessionFailure.class,
+                failure -> assertThat(failure.code()).isEqualTo("OPENCODE_PROMPT_LOOKUP_INVALID_RESPONSE"));
+    }
+
     private void session(HttpExchange exchange) throws IOException {
         lastPathAndQuery.set(exchange.getRequestURI().getPath() + "?" + exchange.getRequestURI().getRawQuery());
         sleep(responseDelayMillis.get());

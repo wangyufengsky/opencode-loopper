@@ -18,8 +18,9 @@ public class PptAgentWorkspaceAdapter implements PptAgentWorkspace {
     private final PptEngine engine;
     private final ObjectMapper json;
     private final PptChecks checks;
-    public PptAgentWorkspaceAdapter(PptDocuments documents,PptResources resources,PptStorage storage,PptJobs jobs,PptEngine engine,ObjectMapper json,PptChecks checks) {
-        this.documents=documents;this.resources=resources;this.storage=storage;this.jobs=jobs;this.engine=engine;this.json=json;this.checks=checks;
+    private final PptKnowledgeTools knowledge;
+    public PptAgentWorkspaceAdapter(PptDocuments documents,PptResources resources,PptStorage storage,PptJobs jobs,PptEngine engine,ObjectMapper json,PptChecks checks,PptKnowledgeTools knowledge) {
+        this.documents=documents;this.resources=resources;this.storage=storage;this.jobs=jobs;this.engine=engine;this.json=json;this.checks=checks;this.knowledge=knowledge;
     }
     @Override public Workspace workspace(String id) {
         var doc=documents.get(id);if(doc.archived())throw PptSupport.bad("PPT_ARCHIVED","请先恢复归档作品");
@@ -28,6 +29,7 @@ public class PptAgentWorkspaceAdapter implements PptAgentWorkspace {
     }
     @Override public Object invoke(String id,String tool,JsonNode args,Runnable revalidate) {
         revalidate.run();
+        if(PptKnowledgeTools.TOOLS.contains(tool))return knowledge.invoke(id,tool,args,revalidate);
         return switch(tool) {
             case "ppt_get_context" -> context(id,args);
             case "ppt_get_capabilities" -> PptToolContracts.capabilities(engine,json);
@@ -51,7 +53,7 @@ public class PptAgentWorkspaceAdapter implements PptAgentWorkspace {
             return Map.of("document",doc,"slide",slide,"theme",deck.theme(),"width",deck.width(),"height",deck.height());
         }
         return Map.of("document",doc,"plan",documents.plan(id),"pages",deck.slides().stream().map(s->Map.of("id",s.id(),"title",s.title(),"section",s.section(),"locked",s.locked(),"elements",s.elements().size())).toList(),
-                "resources",resources.list(id),"theme",deck.theme(),"width",deck.width(),"height",deck.height());
+                "resources",resources.list(id),"knowledge",knowledge.context(id),"theme",deck.theme(),"width",deck.width(),"height",deck.height());
     }
     private Object submit(String id,JsonNode args,Runnable guard) {
         if(!"DOCUMENT".equals(args.path("agentScope").path("kind").asText("DOCUMENT")))throw PptSupport.bad("PPT_SCOPE_DENIED","整体方案修改需要选择整份作品范围");

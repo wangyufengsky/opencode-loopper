@@ -217,6 +217,10 @@ final class OpenCodeExactRecoveryTransport {
 
     MessageLookup findPrompt(OpenCodeSession session, PromptRequest expectedRequest,
                              String persistedRequestSha256) {
+        return findPrompt(session, expectedRequest, persistedRequestSha256, java.util.function.UnaryOperator.identity());
+    }
+    MessageLookup findPrompt(OpenCodeSession session, PromptRequest expectedRequest,
+                             String persistedRequestSha256, java.util.function.UnaryOperator<JsonNode> verifiedRuntimeParts) {
         if (expectedRequest == null || expectedRequest.messageId() == null) {
             throw new SessionFailure("OPENCODE_PROMPT_LOOKUP_INVALID_REQUEST",
                     "Exact prompt recovery requires a deterministic message id");
@@ -232,7 +236,7 @@ final class OpenCodeExactRecoveryTransport {
                             session.worktree(), Map.of("id", session.id(),
                                     "messageId", expectedRequest.messageId())))
                     .retrieve().body(JsonNode.class);
-            validatePromptMessage(body, expectedRequest);
+            validatePromptMessage(verifiedRuntimeParts.apply(body), expectedRequest);
             return new MessageLookup(true, true, calculated);
         } catch (RestClientResponseException failure) {
             if (failure.getStatusCode().value() == 404) return new MessageLookup(true, false, null);

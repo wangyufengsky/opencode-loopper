@@ -3,6 +3,21 @@ import { pptApi } from './ppt'
 import { pptDocument } from '@/components/ppt/pptTestFixtures'
 describe('PPT REST 边界', () => {
   afterEach(() => vi.unstubAllGlobals())
+  it('reads project choices and document-bound sources without a knowledge conversation', async () => {
+    const fetch = vi.fn(async (_url: string) => new Response(JSON.stringify({ items: [], nextCursor: null })))
+    vi.stubGlobal('fetch', fetch)
+    await pptApi.projects('支付平台', 'next-page')
+    expect(fetch.mock.calls[0]?.[0]).toBe('/api/ppt/projects?query=%E6%94%AF%E4%BB%98%E5%B9%B3%E5%8F%B0&cursor=next-page')
+    await pptApi.knowledge('presentation /1')
+    expect(fetch.mock.calls[1]?.[0]).toBe('/api/ppt/documents/presentation%20%2F1/knowledge')
+  })
+  it('sends explicit requirements confirmation as a separate versioned fact', async () => {
+    const fetch = vi.fn(async () => new Response('{}'))
+    vi.stubGlobal('fetch', fetch)
+    await pptApi.reply('doc', 'question', { expectedRevision: 3, idempotencyKey: 'confirm', version: 8, answer: '确认以上需求，请开始设计', confirmed: true })
+    const [, options] = fetch.mock.calls[0] as unknown as [string, RequestInit]
+    expect(JSON.parse(String(options.body))).toEqual({ expectedRevision: 3, idempotencyKey: 'confirm', version: 8, answer: '确认以上需求，请开始设计', confirmed: true })
+  })
   it('keeps revision, operation identity and local UI guard in one atomic request', async () => {
     const fetch = vi.fn(
       async () =>

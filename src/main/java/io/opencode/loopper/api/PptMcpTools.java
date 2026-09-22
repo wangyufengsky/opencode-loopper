@@ -24,10 +24,11 @@ final class PptMcpTools {
                     Map<String, Object> response = Map.of("result", result);
                     return McpSchema.CallToolResult.builder().addTextContent(json.writeValueAsString(response))
                             .structuredContent(response).isError(false).build();
-                } catch (BadRequestException e) { return error(json, e.code(), e.getMessage(), "FIX_AND_RESUBMIT"); }
+                } catch (io.opencode.loopper.service.assist.AssistFailure e) { return error(json,e.code(),e.getMessage(),e.action()); }
+                catch (BadRequestException e) { return error(json, e.code(), e.getMessage(), "FIX_AND_RESUBMIT"); }
                 catch (ConflictException e) { return error(json, e.code(), e.getMessage(), "READ_CONTEXT_AND_RETRY_OR_STOP"); }
                 catch (io.opencode.loopper.ppt.PptFailure e) { return error(json, e.code(), e.getMessage(), "FIX_AND_RESUBMIT"); }
-                catch (SessionFailure e) { return error(json, e.code(), e.getMessage(), "STOP_AND_WAIT_FOR_RECOVERY"); }
+                catch (SessionFailure e) { return error(json, e.code(), e.getMessage(), e.code().equals("PPT_SCOPE_EXPIRED")?"READ_CURRENT_IDENTITY_AND_RETRY":"STOP_AND_WAIT_FOR_RECOVERY"); }
                 catch (RuntimeException e) { return error(json, "PPT_TOOL_FAILED", "PPT 工具未完成，请读取作品与原请求回执，不要盲目重复操作", "READ_CONTEXT_AND_RETRY_OR_STOP"); }
             }).build();
         }).toList();
@@ -36,7 +37,10 @@ final class PptMcpTools {
         Map<String,Object> args = new LinkedHashMap<>();
         if (writes(name)) args.put("idempotencyKey", Map.of("type", "string", "minLength", 8, "maxLength", 128));
         if (Set.of("ppt_apply_operations", "ppt_submit_plan").contains(name)) args.put("expectedRevision", Map.of("type", "integer", "minimum", 0));
-        if (name.equals("ppt_request_input")) { args.put("prompt", Map.of("type", "string")); args.put("options", Map.of("type", "array", "items", Map.of("type", "string"), "maxItems", 6)); }
+        if (name.equals("ppt_request_input")) {
+            args.put("prompt", Map.of("type", "string")); args.put("options", Map.of("type", "array", "items", Map.of("type", "string"), "maxItems", 6));
+            args.put("kind",Map.of("type","string","enum",List.of("CLARIFICATION","REQUIREMENTS_CONFIRMATION")));
+        }
         switch (name) {
             case "ppt_apply_operations" -> args.put("operations", Map.of("type", "array", "minItems", 1, "maxItems", 100, "items", Map.of("type", "object")));
             case "ppt_submit_plan" -> args.put("plan", Map.of("type", "object"));
@@ -62,6 +66,7 @@ final class PptMcpTools {
         if (name.equals("ppt_get_job")) required.add("jobId");
         if (Set.of("ppt_render_preview", "ppt_export").contains(name)) required.add("revision");
         if (Set.of("ppt_apply_operations", "ppt_submit_plan").contains(name)) required.add("expectedRevision");
+        PptKnowledgeToolSchemas.parameters(name,args,required);
         return Map.of("type", "object", "additionalProperties", false, "required", List.of("scope", "runId", "documentId", "args"),
                 "properties", Map.of("scope", Map.of("type", "string", "description", "Outbound runtime grant; never copy into args or artifacts"),
                         "runId", Map.of("type", "string"), "documentId", Map.of("type", "string"),
@@ -74,7 +79,7 @@ final class PptMcpTools {
             case "ppt_get_context" -> "Read current PPT phase, revision, plans and bounded pages; pass slideId to inspect a selected page.";
             case "ppt_read_source" -> "Read an explicitly selected document source using sourceId, sectionId and bounded offset/limit.";
             case "ppt_get_capabilities" -> "Read allowed objects, exact operation schemas, themes, layouts, fonts and current phase permissions before editing.";
-            case "ppt_request_input" -> "Save one question with prompt and optional options, then STOP this model turn. A user reply resumes safely.";
+            case "ppt_request_input" -> "Save one question with prompt, optional options and kind CLARIFICATION (default) or REQUIREMENTS_CONFIRMATION (prompt summarizes requirements). STOP this turn. First design requires dialogue then explicit user confirmation; ordinary answers cannot confirm.";
             case "ppt_submit_plan" -> "Submit a complete plan candidate in args.plan, with expectedRevision/idempotencyKey. Does not confirm the design.";
             case "ppt_apply_operations" -> "Atomically edit pages/objects using args.operations, expectedRevision/idempotencyKey. Query capabilities first; preserve locked content.";
             case "ppt_measure_text" -> "Measure a supplied element object or existing slideId/elementId; returns wrapping and required height.";
@@ -82,12 +87,16 @@ final class PptMcpTools {
             case "ppt_render_preview" -> "Queue PNG previews for a frozen revision and optional slideId; returns job identity. Poll ppt_get_job.";
             case "ppt_get_job" -> "Read exact jobId and frozen revision results; completion is server-owned.";
             case "ppt_export" -> "Queue a checked editable PPTX export of revision with idempotencyKey in review/export phase; poll jobId.";
-            default -> throw new IllegalArgumentException("Unknown PPT tool");
+            default -> PptKnowledgeToolSchemas.description(name);
         };
     }
     private static McpSchema.CallToolResult error(ObjectMapper json, String code, String detail, String action) {
         var result = Map.<String,Object>of("errorCode", code, "detail", io.opencode.loopper.service.assist.AssistRedaction.text(detail),
-                "action", action, "repairHint", "Read the named field or object in ppt_get_context / ppt_get_capabilities, then correct the same tool call. Never invent object IDs.");
+                "action", action, "repairHint", action.equals("READ_CURRENT_IDENTITY_AND_RETRY")
+                        ?"The previous-round scope was rejected without executing this operation. Read the tool identity notice at the end of the current user message and retry with that scope; never copy a scope from historical calls or invent one."
+                        :action.startsWith("STOP")
+                        ?"Stop this operation and inspect the reported state; do not repeat the request automatically. Wait for recovery or user input."
+                        :"Read the named field or object in ppt_get_context / ppt_get_capabilities, then correct the same tool call. Never invent object IDs.");
         return McpSchema.CallToolResult.builder().addTextContent(json.writeValueAsString(result)).structuredContent(result).isError(true).build();
     }
 }

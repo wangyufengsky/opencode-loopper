@@ -9,7 +9,7 @@
 
 OpenCode Loopper 在本机运行，以你已有的项目目录、Git 仓库和 OpenCode 为基础。你用自然语言描述目标，在界面中确认设计和执行范围；Loopper 将它编译为分阶段规范，调度 OpenCode 实施，再用可运行的验证规则和独立评审检查结果。遇到问题，可以查看证据、回答问题、继续修正或从保留的基线恢复。
 
-> 当前版本：`0.4.65`。默认访问 **http://127.0.0.1:8080/**，打开即进入主页。面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.4.66`。默认访问 **http://127.0.0.1:8080/**，打开即进入主页。面向单机本地使用，不是多租户远程执行平台。
 
 ![OpenCode Loopper 实际主页：统一导航、快捷入口与需求到交付的流程](docs/deliveries/0.3.99-home.png)
 
@@ -69,7 +69,7 @@ flowchart LR
 | --- | --- | --- |
 | **主页** `/` | 统一入口与工作流程导航 | 启动后从这里进入对应工作区 |
 | **项目** `/projects` | 登记本地目录、查看技术栈、预览与应用项目公约 | 第一次接入项目，或项目结构变化后 |
-| **PPT 制作** `/ppt` | 一句话生成、对话修改、可选手动编辑与可编辑 PPTX 下载 | 将需求和资料制作成演示文稿 |
+| **PPT 制作** `/ppt` | 需求沟通、项目资料取材、对话修改与可编辑 PPTX 下载 | 将需求和资料制作成演示文稿 |
 | **知识库** `/knowledge` | 选择项目，与 AI 对话；按需查看代码、文档、数据库来源和历史引用 | 查询项目知识 |
 | **设计与执行规范** `/designer` | 描述需求、添加附件、确认任务设置与分阶段设计 | 开始一项新工作 |
 | **历史设计** `/designs` | 查阅已确认的设计上下文 | 回看设计依据 |
@@ -116,7 +116,7 @@ Skill 正文按需加载，来自 OpenCode 返回的文档内容；原文件的 
 
 | 文件 | 内容 |
 | --- | --- |
-| `opencode-loopper-0.4.65.jar` | 后端、前端页面与 SQLite JDBC |
+| `opencode-loopper-0.4.66.jar` | 后端、前端页面与 SQLite JDBC |
 | `start-linux.sh` | Linux 启动脚本 |
 | `start-windows.bat` | Windows 启动脚本 |
 | `SHA256SUMS` | JAR 与两个脚本的 SHA-256 |
@@ -124,7 +124,7 @@ Skill 正文按需加载，来自 OpenCode 返回的文档内容；原文件的 
 如果下载了清单中的全部三个文件，Linux 可运行 `sha256sum -c SHA256SUMS`，macOS 可运行 `shasum -a 256 -c SHA256SUMS`。只下载部分文件时，对应缺失项会报错；请逐一比对已下载文件的哈希。Windows PowerShell 可运行：
 
 ```powershell
-Get-FileHash .\opencode-loopper-0.4.65.jar -Algorithm SHA256
+Get-FileHash .\opencode-loopper-0.4.66.jar -Algorithm SHA256
 Get-Content .\SHA256SUMS
 ```
 
@@ -149,7 +149,7 @@ chmod +x start-linux.sh
 **macOS，或直接运行 JAR**：在 `java` 指向 JDK 21 的终端执行：
 
 ```bash
-java -jar opencode-loopper-0.4.65.jar
+java -jar opencode-loopper-0.4.66.jar
 ```
 
 启动后访问 **http://127.0.0.1:8080/**。默认使用 `managed` 模式，由 Loopper 启动一个独立 OpenCode 子进程，不需要你预先运行 `opencode serve`。已有外部 OpenCode 的连接方法见 [运行模式与启动配置](docs/operations.md#opencode-运行模式)。
@@ -253,7 +253,7 @@ PR/MR 入口可打开预填的托管平台页面，最终创建或合并仍由�
 
 ### PPT 制作
 
-从侧栏“PPT 制作”输入需求，可选上传资料，点击“生成 PPT”。助手自行设计内容和版式并制作完整演示文稿；只有缺少关键信息时才简短提问，回答后继续生成。生成后直接查看预览、下载 PPTX，或继续输入“第三页简洁一些”等修改意见。需要自行调整时再打开“手动编辑”，选择对象拖动、缩放或修改文字和样式。默认修改整份作品，也可指定页面或对象；锁定内容由服务端保护。
+从侧栏“PPT 制作”输入需求，可选上传资料或选择一个项目，点击“开始沟通”。选择项目后，助手可查询该项目当前可用的知识库来源。助手逐轮询问内容重点和设计偏好，已有信息不会重复问；汇总需求后，点击“确认需求，开始设计”，即可自动完成方案、制作、预览和导出。生成后直接查看预览、下载 PPTX，或继续输入“第三页简洁一些”等修改意见。需要自行调整时再打开“手动编辑”，选择对象拖动、缩放或修改文字和样式。默认修改整份作品，也可指定页面或对象；锁定内容由服务端保护。
 
 制作结果可按页预览和检查，失败作业保留成功页面并可重试。正式导出绑定当前版本，后续修改保留旧文件。第一版包含文字、图片、图形、表格和可编辑柱状/折线/饼图；已有 PPTX 提取内容后重制。JAR 内置 Java 渲染和中文字体，无需安装 Office、LibreOffice、Node 或 Python；纯文本模型可使用结构化工具制作，视觉效果仍需结合预览检查。详细范围、字体配置及恢复语义见 [PPT 合同](docs/ppt-contract.md)。
 
@@ -346,7 +346,7 @@ flowchart TB
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.4.65.jar
+java -jar target/opencode-loopper-0.4.66.jar
 ```
 
 Windows PowerShell 将 Maven 命令替换为 `.\mvnw.cmd clean verify`。完整构建将前端静态资源装入 JAR，开发 profile 的输出不能当成成品交付。

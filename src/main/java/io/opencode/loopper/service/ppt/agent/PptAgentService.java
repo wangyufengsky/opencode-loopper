@@ -33,12 +33,17 @@ public class PptAgentService {
         this.activity = activity;
     }
     public record Send(String idempotencyKey, String text, long expectedRevision, JsonNode scope) { }
-    public record Reply(String idempotencyKey, String answer, long expectedRevision, long version) { }
-    public record QuestionView(String id, String prompt, List<String> options, String state, String answer, long version) { }
+    public record Reply(String idempotencyKey, String answer, long expectedRevision, long version, Boolean confirmed) {
+        public Reply(String idempotencyKey, String answer, long expectedRevision, long version) {
+            this(idempotencyKey, answer, expectedRevision, version, null);
+        }
+    }
+    public record QuestionView(String id, String prompt, List<String> options, String state, String answer, long version,
+                               String kind, Boolean confirmed) { }
     public record Message(String id, String documentId, String idempotencyKey, String text, String answer,
                           String state, String detail, JsonNode scope, long expectedRevision, long version,
                           String createdAt, String updatedAt, List<QuestionView> questions, String thinking, List<PptAgentActivity.Call> calls) { }
-    public record AgentStatus(String state, String runId, String detail, long version, List<QuestionView> questions) { }
+    public record AgentStatus(String state, String runId, String detail, long version, List<QuestionView> questions, String requirementsState) { }
     public Message send(String document, Send input) {
         return send(document,input,null);
     }
@@ -63,6 +68,7 @@ public class PptAgentService {
         if(authorization!=null) {
             context.set("generationAuthorization",json.valueToTree(authorization));
             context.set("generationAnswers",json.valueToTree(workflow.answers(document,authorization)));
+            PptRequirements.freeze(context, authorization);
         }
         String configured = work.model() == null || work.model().isBlank() ? properties.getOpenCode().getModel() : work.model();
         var model = OpenCodeModelSelection.configured(configured);
@@ -82,7 +88,11 @@ public class PptAgentService {
     public Message reply(String document, String questionId, Reply input) {
         if (input == null) throw bad("请输入回答"); key(input.idempotencyKey()); text(input.answer(), 12000);
         var question = mapper.question(document, questionId).orElseThrow(() -> new NotFoundException("问题不属于此作品"));
-        String sha = hash(json.writeValueAsString(List.of(input.answer(), input.expectedRevision(), input.version())));
+        Boolean confirmed = PptRequirements.replyDecision(question, input.confirmed());
+        // Preserve historical hashes for ordinary replies; confirmation includes its explicit UI decision.
+        var identity = new ArrayList<Object>(List.of(input.answer(), input.expectedRevision(), input.version()));
+        if (confirmed != null) identity.add(confirmed);
+        String sha = hash(json.writeValueAsString(identity));
         if (question.state().equals("ANSWERED") && input.idempotencyKey().equals(question.replyKey())) {
             if (!sha.equals(question.replySha())) throw PptAgentPersistence.conflict("同一回答请求标识不能用于不同回答");
             return message(persistence.require(question.runId()));
@@ -95,7 +105,9 @@ public class PptAgentService {
         if(authorization!=null)context.set("generationAuthorization",authorization);
         var previousAnswers=json.readTree(run.contextJson()).get("generationAnswers");
         if(previousAnswers!=null)context.set("generationAnswers",previousAnswers);
-        var saved = persistence.reply(question, input.answer(), input.idempotencyKey(), sha, work.revision(),
+        var requirementsProtocol=json.readTree(run.contextJson()).get("requirementsProtocol");
+        if(requirementsProtocol!=null)context.set("requirementsProtocol",requirementsProtocol);
+        var saved = persistence.reply(question, input.answer(), input.idempotencyKey(), sha, confirmed, work.revision(),
                 json.writeValueAsString(context), () -> {
                     workflow.validateRun(run);
                     var current = workspace.workspace(document); requireRevision(current, input.expectedRevision());
@@ -112,8 +124,10 @@ public class PptAgentService {
     }
     public AgentStatus status(String document) {
         var row = mapper.status(document);
-        if (row.isEmpty()) return new AgentStatus("IDLE", null, "", 0, List.of());
-        var run = row.get(); return new AgentStatus(run.state(), run.id(), run.detail(), run.version(), views(mapper.pending(run.id()).stream().toList()));
+        if (row.isEmpty()) return new AgentStatus("IDLE", null, "", 0, List.of(), "NOT_REQUIRED");
+        var run = row.get(); var questions = mapper.questions(run.id());
+        return new AgentStatus(run.state(), run.id(), run.detail(), run.version(), views(questions.stream().filter(q -> q.state().equals("PENDING")).toList()),
+                PptRequirements.state(persistence.require(run.id()), questions, json));
     }
     public CursorPage<Message> messages(String document, String cursor, Integer requested) {
         workspace.workspace(document); var page = PageCursor.decode(cursor); int limit = PageCursor.limit(requested);
@@ -134,7 +148,7 @@ public class PptAgentService {
     }
     private List<QuestionView> views(List<Question> rows) {
         return rows.stream().map(q -> new QuestionView(q.id(), q.prompt(), json.readTree(q.optionsJson()).valueStream().map(JsonNode::asText).toList(),
-                q.state(), q.answer(), q.version())).toList();
+                q.state(), q.answer(), q.version(), q.kind(), q.confirmed())).toList();
     }
     public JsonNode validateScope(JsonNode input) {
         var scope = input == null || input.isNull() ? json.valueToTree(Map.of("kind", "DOCUMENT")) : input;

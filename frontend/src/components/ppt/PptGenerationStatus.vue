@@ -13,8 +13,12 @@ const waiting = computed(
   () => store.agent?.state === 'WAITING_INPUT' || store.generation?.state === 'WAITING_INPUT',
 )
 const interrupted = computed(() => ['STOPPED', 'FAILED'].includes(store.generation?.state || ''))
+const clarifying = computed(() => ['CLARIFYING', 'AWAITING_CONFIRMATION'].includes(store.agent?.requirementsState || ''))
+const confirming = computed(() => store.agent?.requirementsState === 'AWAITING_CONFIRMATION')
 const heading = computed(() =>
-  store.generation
+  clarifying.value && !interrupted.value && store.generation?.state !== 'STOPPING'
+    ? confirming.value ? '请确认制作需求' : '先聊清你的想法'
+    : store.generation
     ? pptGenerationLabel(store.generation.state)
     : store.active
       ? pptRunLabel(store.agent?.state || 'IDLE')
@@ -39,10 +43,12 @@ const heading = computed(() =>
     <p v-if="store.generation?.detail" class="ppt-generation-detail">
       {{ store.generation.detail }}
     </p>
-    <p v-else-if="waiting">补充下面的信息后，助手会接着完成制作。</p>
+    <p v-else-if="confirming">确认下面的需求后，助手才会开始第一轮设计。</p>
+    <p v-else-if="clarifying">助手会和你逐轮确认内容与风格，你也可以随时补充想法。</p>
+    <p v-else-if="waiting">补充下面的信息后，助手会继续。</p>
     <p v-else-if="store.generationActive">你可以离开这个页面，制作会继续。</p>
     <p v-else-if="!store.generation">告诉助手你希望这份 PPT 讲什么。</p>
-    <ol v-if="store.generation" class="ppt-generation-steps">
+    <ol v-if="store.generation && !clarifying" class="ppt-generation-steps">
       <li
         v-for="(step, index) in steps"
         :key="step"
