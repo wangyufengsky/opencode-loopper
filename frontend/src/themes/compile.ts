@@ -21,7 +21,8 @@ export function skinVariables(skin: SkinDefinition): Record<string, string> {
     '--font-ui': skin.fonts.ui, '--font-code': skin.fonts.code,
     '--radius-control': skin.radii.control, '--radius-card': skin.radii.card, '--radius-dialog': skin.radii.dialog,
     '--shadow-card': skin.shadows.card, '--shadow-glow': skin.shadows.glow,
-    '--skin-artwork-display': skin.artworkDisplay, '--skin-decoration-opacity': skin.decorationOpacity,
+    '--skin-artwork-display': skin.artworkDisplay, '--skin-artwork-right': skin.artworkRight ?? '-4%',
+    '--skin-decoration-opacity': skin.decorationOpacity,
   }
   for (const [key, value] of Object.entries(skin.primaryButton)) {
     vars[`--skin-primary-${key.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`)}`] = value
@@ -55,5 +56,5 @@ export function skinStyles(): string {
 
 export function skinBootstrap(): string {
   const options = skins.map(({ id, colorScheme, colors }) => ({ id, colorScheme, canvas: colors.canvas }))
-  return `(()=>{const skins=${JSON.stringify(options)};let id=${JSON.stringify(DEFAULT_SKIN_ID)};try{id=localStorage.getItem(${JSON.stringify(SKIN_STORAGE_KEY)})||id}catch{}const skin=skins.find(s=>s.id===id)||skins[0];document.documentElement.dataset.skin=skin.id;document.querySelector('meta[name="theme-color"]')?.setAttribute('content',skin.canvas)})();`
+  return `(()=>{const skins=${JSON.stringify(options)};let id=${JSON.stringify(DEFAULT_SKIN_ID)};try{id=localStorage.getItem(${JSON.stringify(SKIN_STORAGE_KEY)})||id}catch{}const skin=skins.find(s=>s.id===id)||skins.find(s=>s.id===${JSON.stringify(DEFAULT_SKIN_ID)});document.documentElement.dataset.skin=skin.id;document.querySelector('meta[name="theme-color"]')?.setAttribute('content',skin.canvas)})();`
 }

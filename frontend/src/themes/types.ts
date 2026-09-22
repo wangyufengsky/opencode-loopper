@@ -34,6 +34,8 @@ export interface SkinDefinition {
   shades?: Record<string, string>
   /** Bundled image filename in src/assets; landscape 3:2 artwork. */
   homeArtwork: string
+  /** Desktop inset for artwork whose subject needs additional edge clearance. */
+  artworkRight?: string
   artworkDisplay: 'block' | 'none'
   decorationOpacity: string
   primaryButton: { text: string; background: string; border: string; hoverText: string; hoverBackground: string; hoverBorder: string; activeText: string; activeBackground: string; activeBorder: string }

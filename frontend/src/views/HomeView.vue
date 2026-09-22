@@ -75,7 +75,7 @@ const systemLinks = [
 <style scoped>
 .home-content { display: grid; gap: 28px; }
 .home-hero { position: relative; isolation: isolate; overflow: hidden; min-height: 360px; border: 1px solid var(--color-border-default); border-radius: var(--radius-card); background: var(--color-bg-canvas); }
-.home-artwork { display: var(--skin-artwork-display); position: absolute; z-index: -2; top: 50%; right: -4%; width: 64%; height: auto; transform: translateY(-50%); pointer-events: none; }
+.home-artwork { display: var(--skin-artwork-display); position: absolute; z-index: -2; top: 50%; right: var(--skin-artwork-right); width: 64%; height: auto; transform: translateY(-50%); pointer-events: none; }
 .home-hero::after { position: absolute; z-index: -1; inset: 0; background: var(--appearance-home-view-home-hero-after-background); content: ''; pointer-events: none; }
 .home-hero-copy { position: relative; max-width: 640px; padding: 38px 40px 30px; }
 .home-kicker { display: flex; align-items: center; gap: 9px; margin: 0 0 22px; color: var(--color-text-secondary); font-size: 11px; letter-spacing: .18em; }

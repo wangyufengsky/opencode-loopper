@@ -19,15 +19,16 @@ test.beforeEach(async ({ page }) => {
   await page.route('http://127.0.0.1:41773/actuator/**', (route) => route.fulfill({ contentType: 'application/json', body: '{}' }))
 })
 
-test('本地暗色中文外壳可启动并在主要路由间导航', async ({ page }) => {
+test('默认 spdb 中文外壳可启动并在主要路由间导航', async ({ page }) => {
   await page.goto('/tasks')
 
   await expect(page).toHaveTitle('OpenCode Loopper')
   await expect(page.getByRole('link', { name: 'OpenCode Loopper 首页' })).toBeVisible()
   await expect(page.getByRole('navigation', { name: '主导航' })).toContainText('设计与执行规范')
   await expect(page.locator('.app-shell')).toBeVisible()
-  await expect(page.locator('html')).toHaveCSS('color-scheme', 'dark')
-  await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(7, 11, 20)')
+  await expect(page.locator('html')).toHaveCSS('color-scheme', 'light')
+  await expect(page.locator('html')).toHaveAttribute('data-skin', 'spdb')
+  await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(255, 255, 255)')
   await expect(page.getByRole('heading', { name: '任务控制台' })).toBeVisible()
 
   await page.getByRole('link', { name: '设计与执行规范' }).click()

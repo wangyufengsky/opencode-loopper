@@ -4,7 +4,7 @@
 
 ## 使用
 
-主页右上角“皮肤”选择科技蓝或 GitHub 白，立即全站生效。默认科技蓝；选择保存在当前浏览器的同源 `localStorage`，键为 `loopper.skin`。刷新、深层链接、新开同源标签恢复选择；已打开同源标签同步切换。清空存储或已删除的主题回到科技蓝。存储被禁止时当前页面仍可正常切换，下次访问使用默认值。
+主页右上角“皮肤”选择 spdb风、科技蓝或 GitHub 白，立即全站生效。默认 spdb风，历史有效的手动选择继续保留；选择保存在当前浏览器的同源 `localStorage`，键为 `loopper.skin`。刷新、深层链接、新开同源标签恢复选择；已打开同源标签同步切换。清空存储或已删除的主题回到 spdb风。存储被禁止时当前页面仍可正常切换，下次访问使用默认值。
 
 ## 配置结构
 
@@ -13,7 +13,7 @@
 | 文件 | 职责 |
 | --- | --- |
 | `types.ts` | `SkinDefinition`：稳定的皮肤配置接口 |
-| `techBlue.ts`、`githubWhite.ts` | 两套独立皮肤；标签、明暗模式、颜色、字体、圆角、阴影、按钮和图片呈现 |
+| `spdb.ts`、`techBlue.ts`、`githubWhite.ts` | 三套独立皮肤；标签、明暗模式、颜色、字体、圆角、阴影、按钮和图片呈现 |
 | `registry.ts` | 皮肤注册表、默认值、保存键和未知值兜底 |
 | `shades.ts` | 历史细微色阶的语义映射；只有科技蓝需要保留原色 |
 | `appearance.ts` | 可覆盖的渐变／阴影声明目录及科技蓝原始外观 |
@@ -24,11 +24,11 @@
 
 `colors` 提供画布、表面、浮层、悬停、边框、正文、次级文本、链接、主要操作和状态色。基础色要求六位十六进制字符串；编译器生成对应 CSS 变量和需要透明度的 RGB 通道。`primaryButton` 定义普通／悬停／按下三种状态的前景、背景和边框。状态成功、待处理、危险的含义固定，不随主题改变。
 
-`fonts`、`radii`、`shadows` 配置字体、常用圆角和阴影。`appearance` 按目录中的名称覆盖特定背景／渐变／阴影；未指定的声明采用共享语义配色。`homeArtwork` 指定 `frontend/src/assets/` 中的 3:2 主页图片文件名，由 Vite 打包为带哈希的本地资源，换肤时同步切换；科技蓝保留原轨道图，GitHub 白使用独立浅色协作插画。`artworkDisplay` 控制图片是否展示，`decorationOpacity` 控制指标光晕。布局尺寸、滚动、响应式断点、业务进度与结构性圆形／胶囊形状保持在组件内。
+`fonts`、`radii`、`shadows` 配置字体、常用圆角和阴影。`appearance` 按目录中的名称覆盖特定背景／渐变／阴影；未指定的声明采用共享语义配色。`homeArtwork` 指定 `frontend/src/assets/` 中的 3:2 主页图片文件名，由 Vite 打包为带哈希的本地资源，换肤时同步切换；科技蓝保留原轨道图，GitHub 白使用独立浅色协作插画，spdb风使用浦发银行外滩建筑与上海天际线插画。可选 `artworkRight` 调整桌面图片右侧留白，避免不同构图的主体裁切；`artworkDisplay` 控制图片是否展示，`decorationOpacity` 控制指标光晕。布局尺寸、滚动、响应式断点、业务进度与结构性圆形／胶囊形状保持在组件内。
 
 科技蓝使用 `shades` 保留历史色阶，组件仍通过统一变量访问。新皮肤一般不需要 `shades`；全部历史色阶默认映射到 `colors` 的语义色，可按需覆盖个别色阶或渲染器色阶。新增页面应优先使用 `--color-*`、`--radius-*`、`--shadow-*`、`--font-*`，不继续增加历史色阶。局部状态变量（如 `--metric-accent`）在组件内组合语义颜色，不能放入根级外观声明，否则 CSS 会在根节点提前解析局部变量。
 
-## 添加第三套皮肤
+## 添加更多皮肤
 
 1. 在 `frontend/src/themes/` 新建配置文件，导出符合 `SkinDefinition` 的对象。可复用一套基础配置，再提供自己的 `id`、中文 `label`、完整配色和视觉参数。
 2. 在 `registry.ts` 的 `skins` 数组注册。ID 使用稳定的小写字母／数字／连字符，不能与已有 ID 重复。选择器自动显示该配置，页面不增加主题 ID 判断。
@@ -48,6 +48,8 @@ CodeMirror 通过配置隔间更新明暗模式，样式引用配置变量，保
 - `src/components/CodeMergeEditor.spec.ts`：切换明暗模式时编辑器实例、内容和光标保持。
 - `src/components/MarkdownDocument.spec.ts`：图形重绘、多个实例串行、过期结果以及原有安全与折叠行为。
 - `e2e/skins.spec.ts`：主页切换、刷新、同源标签、页面导航、三种宽度、控件／弹层／代码／真实 Mermaid。
-- `e2e/home.spec.ts`、`e2e/app-shell.spec.ts`：保留科技蓝基线、导航和键盘行为。
+- `e2e/home.spec.ts`、`e2e/app-shell.spec.ts`：验证默认 spdb风外壳、导航和键盘行为。
 
 新增配色参考 GitHub 官方 [Primer Primitives](https://primer.style/product/primitives/)，继续使用项目已有 Vue／Element Plus，不引入第二套交互组件库。
+
+spdb风的官网配色依据、插画设计与完整生成提示词见[设计记录](spdb-skin.md)。
