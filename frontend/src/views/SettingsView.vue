@@ -231,7 +231,7 @@ onMounted(load)
 .field-note { padding: 14px 16px; margin-bottom: 0; border-left: 2px solid var(--color-border-default); background: var(--color-bg-elevated); }
 .retry-grid { display: grid; grid-template-columns: minmax(80px, .65fr) repeat(2, minmax(0, 1fr)); gap: 0 24px; align-items: center; }
 .retry-grid > strong { color: var(--color-text-primary); font-size: 13px; font-weight: 500; }
-.activation { flex-shrink: 0; border: 1px solid var(--color-border-default); border-radius: 6px; padding: 5px 9px; font-size: 11px; color: var(--color-text-secondary); }
+.activation { flex-shrink: 0; border: 1px solid var(--color-border-default); border-radius: var(--radius-control); padding: 5px 9px; font-size: 11px; color: var(--color-text-secondary); }
 .activation.live { color: var(--color-success); }.activation.restart { color: var(--color-session-warning); }
 .mono :deep(input) { font-family: var(--font-code); }
 .settings-save :deep(svg), .card-header :deep(button svg) { margin-right: 8px; }

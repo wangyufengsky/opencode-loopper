@@ -193,7 +193,7 @@ onBeforeUnmount(() => {
 .accounting-context, .accounting-hint { color: var(--color-text-secondary); font-size: 12px; line-height: 1.6; }
 .accounting-status { display: flex; align-items: center; gap: 10px; margin: 18px 0; color: var(--color-text-primary); }
 .accounting-spinner { width: 18px; height: 18px; border: 2px solid var(--color-border-soft); border-top-color: var(--color-accent-cyan); border-radius: 50%; animation: accounting-spin 1s linear infinite; }
-.accounting-output { max-height: 360px; overflow: auto; padding: 16px; border: 1px solid var(--color-border-soft); border-radius: 10px; background: rgb(7 11 20 / 52%); }
+.accounting-output { max-height: 360px; overflow: auto; padding: 16px; border: 1px solid var(--color-border-soft); border-radius: calc(var(--radius-control) + 4px); background: rgb(var(--shade-canvas-01-rgb) / 52%); }
 .accounting-output article + article { margin-top: 16px; }
 .accounting-output small { color: var(--color-accent-cyan); }.accounting-detail { white-space: pre-wrap; line-height: 1.65; }
 @keyframes accounting-spin { to { transform: rotate(360deg); } }

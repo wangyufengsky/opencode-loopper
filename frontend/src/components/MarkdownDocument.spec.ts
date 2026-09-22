@@ -1,6 +1,9 @@
-import { flushPromises, mount } from '@vue/test-utils'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import MarkdownDocument from '@/components/MarkdownDocument.vue'
+import { applySkin } from '@/themes/state'
+
+enableAutoUnmount(afterEach)
 
 const mermaidMocks = vi.hoisted(() => ({
   initialize: vi.fn(),
@@ -12,7 +15,7 @@ vi.mock('mermaid', () => ({
 }))
 
 describe('MarkdownDocument', () => {
-  afterEach(() => vi.unstubAllGlobals())
+  afterEach(() => { vi.unstubAllGlobals(); applySkin('tech-blue', false) })
   beforeEach(() => {
     vi.stubGlobal('IntersectionObserver', undefined)
     mermaidMocks.render.mockReset()
@@ -162,4 +165,35 @@ describe('MarkdownDocument', () => {
     scrollHeight.mockRestore()
     clientHeight.mockRestore()
   })
+  it('切换皮肤重新渲染已有流程图并保留用户折叠选择', async () => {
+    const wrapper = mount(MarkdownDocument, { props: { content: '<think>分析内容</think>\n\n```mermaid\nflowchart LR\nA --> B\n```' } })
+    await flushPromises()
+    await wrapper.get('.markdown-thinking-toggle').trigger('click')
+    const before = mermaidMocks.render.mock.calls.length
+    applySkin('github-white', false)
+    await flushPromises()
+    expect(mermaidMocks.render.mock.calls.length).toBe(before + 1)
+    expect(mermaidMocks.initialize).toHaveBeenLastCalledWith(expect.objectContaining({ theme: 'base', securityLevel: 'strict', themeVariables: expect.objectContaining({ primaryTextColor: '#1f2328' }) }))
+    expect(wrapper.get('.markdown-thinking-toggle').attributes('aria-expanded')).toBe('false')
+    expect(wrapper.find('figure svg').exists()).toBe(true)
+  })
+
+  it('多个实例的主题渲染串行执行，迟到的旧主题结果不覆盖新主题', async () => {
+    let release: ((value: { svg: string }) => void) | undefined
+    mermaidMocks.render.mockImplementationOnce(() => new Promise(resolve => { release = resolve }))
+    const wrapper = mount(MarkdownDocument, { props: { content: '```mermaid\nflowchart LR\nA --> B\n```' } })
+    await flushPromises()
+    applySkin('github-white', false)
+    const second = mount(MarkdownDocument, { props: { content: '```mermaid\nflowchart LR\nC --> D\n```' } })
+    await flushPromises()
+    expect(mermaidMocks.render).toHaveBeenCalledTimes(1)
+    release!({ svg: '<svg><text>obsolete dark diagram</text></svg>' })
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('obsolete dark diagram')
+    expect(wrapper.find('figure svg').exists()).toBe(true)
+    expect(second.find('figure svg').exists()).toBe(true)
+    const ids = mermaidMocks.render.mock.calls.map(call => call[0])
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
 })

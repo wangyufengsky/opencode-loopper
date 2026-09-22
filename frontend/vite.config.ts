@@ -1,9 +1,18 @@
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vitest/config'
 import vue from '@vitejs/plugin-vue'
+import { skinBootstrap, skinStyles } from './src/themes/compile'
 
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [vue(), {
+    name: 'loopper-skins',
+    transformIndexHtml() {
+      return [
+        { tag: 'style', attrs: { id: 'loopper-skins' }, children: skinStyles(), injectTo: 'head' },
+        { tag: 'script', children: skinBootstrap(), injectTo: 'head' },
+      ]
+    },
+  }],
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },

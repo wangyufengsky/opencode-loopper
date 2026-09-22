@@ -59,7 +59,7 @@ async function find(cursor = '') {
   </details>
 </template>
 <style scoped>
-.execution-evidence { margin-bottom: 16px; padding: 12px; border: 1px solid var(--color-border-default); border-radius: 8px; }
+.execution-evidence { margin-bottom: 16px; padding: 12px; border: 1px solid var(--color-border-default); border-radius: calc(var(--radius-control) + 2px); }
 summary { cursor: pointer; } .evidence-content { display: grid; gap: 12px; padding-top: 12px; }
 .search { display: flex; gap: 8px; } pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 440px; overflow: auto; }
 li { overflow-wrap: anywhere; margin: 8px 0; }.evidence-link { color: var(--color-text-primary); background: transparent; border: 0; text-decoration: underline; cursor: pointer; text-align: left; overflow-wrap: anywhere; }

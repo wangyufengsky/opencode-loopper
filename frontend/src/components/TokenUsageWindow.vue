@@ -59,24 +59,24 @@ onBeforeUnmount(() => {
   gap: 8px;
   padding: 0 12px;
   overflow: visible;
-  border: 1px solid rgb(34 211 238 / 28%);
-  border-radius: 10px;
-  color: #dffaff;
-  background: linear-gradient(135deg, rgb(34 211 238 / 11%), rgb(139 92 246 / 13%)), rgb(7 11 20 / 88%);
-  box-shadow: inset 0 1px rgb(255 255 255 / 4%), 0 0 22px rgb(34 211 238 / 8%);
+  border: 1px solid rgb(var(--shade-cyan-01-rgb) / 28%);
+  border-radius: calc(var(--radius-control) + 4px);
+  color: var(--shade-text-21);
+  background: var(--appearance-token-usage-window-token-usage-window-background);
+  box-shadow: var(--appearance-token-usage-window-token-usage-window-box-shadow);
 }
 .token-usage-window::after {
   position: absolute;
   inset: auto 12px 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgb(34 211 238 / 70%), transparent);
+  background: var(--appearance-token-usage-window-token-usage-window-after-background);
   content: "";
 }
 .token-icon {
   display: grid;
   place-items: center;
   color: var(--color-accent-ai);
-  filter: drop-shadow(0 0 7px rgb(139 92 246 / 55%));
+  filter: drop-shadow(0 0 7px rgb(var(--shade-ai-01-rgb) / 55%));
 }
 .token-usage-window strong {
   min-width: 0;
@@ -94,7 +94,7 @@ onBeforeUnmount(() => {
   font: 800 10px/1 var(--font-code);
   font-variant-numeric: tabular-nums;
   pointer-events: none;
-  text-shadow: 0 0 12px rgb(34 211 238 / 75%);
+  text-shadow: var(--appearance-token-usage-window-token-delta-text-shadow);
 }
 .token-burst-enter-active { animation: token-rise .8s cubic-bezier(.2, .8, .2, 1); }
 .token-burst-leave-active { transition: opacity .08s linear; }

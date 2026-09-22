@@ -210,7 +210,7 @@ onBeforeUnmount(() => { ++projectGeneration; ++branchGeneration })
 h2 { margin: 0; font-size: 18px; }
 .template-catalog { align-content: start; min-height: 720px; }
 .template-choices { display: grid; gap: 10px; }
-.template-choice { display: grid; grid-template-columns: 24px minmax(0, 1fr) 18px; gap: 12px; align-items: start; padding: 16px 12px; text-align: left; color: var(--color-text-primary); background: transparent; border: 1px solid var(--color-border-default); border-radius: 10px; cursor: pointer; font: inherit; }
+.template-choice { display: grid; grid-template-columns: 24px minmax(0, 1fr) 18px; gap: 12px; align-items: start; padding: 16px 12px; text-align: left; color: var(--color-text-primary); background: transparent; border: 1px solid var(--color-border-default); border-radius: calc(var(--radius-control) + 4px); cursor: pointer; font: inherit; }
 .template-choice > span { display: grid; gap: 8px; }
 .template-choice strong, .template-choice span { overflow-wrap: anywhere; line-height: 1.6; }
 .template-choice.selected { border-color: var(--color-action-primary); background: var(--color-bg-elevated); }

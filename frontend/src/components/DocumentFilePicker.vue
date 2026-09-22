@@ -45,14 +45,14 @@ function size(bytes: number) { return bytes >= 1024 * 1024 ? `${(bytes / 1024 / 
 <style scoped>
 .document-picker { width: 100%; min-width: 0; }
 .picker-entry { display: flex; align-items: center; gap: 16px; padding: 22px 20px; border: 1px dashed var(--color-border-default); border-radius: var(--radius-card); background: var(--color-bg-canvas); }
-.upload-icon, .file-icon { display: grid; place-items: center; flex-shrink: 0; width: 44px; height: 44px; border-radius: 10px; background: var(--color-bg-elevated); color: var(--color-accent-cyan); }
+.upload-icon, .file-icon { display: grid; place-items: center; flex-shrink: 0; width: 44px; height: 44px; border-radius: calc(var(--radius-control) + 4px); background: var(--color-bg-elevated); color: var(--color-accent-cyan); }
 .picker-copy { flex: 1; min-width: 0; }.picker-copy strong { font-size: 14px; font-weight: 500; }.picker-copy p { margin: 7px 0 0; font-size: 12px; color: var(--color-text-secondary); line-height: 1.6; }
 .choose-files { flex-shrink: 0; min-height: 36px; }.choose-files :deep(svg) { margin-right: 8px; }
 .picker-hint { margin: 10px 0 0; color: var(--color-text-secondary); font-size: 12px; line-height: 1.7; }
 .selected-files { margin-top: 20px; }.files-summary { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; font-size: 12px; }.files-summary strong { font-weight: 500; }.files-summary > span { color: var(--color-text-secondary); }
 .file-list { display: grid; gap: 8px; list-style: none; margin: 0; padding: 0; }
 .file-row { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 12px; border: 1px solid var(--color-border-default); border-radius: var(--radius-control); background: var(--color-bg-surface); }
-.file-icon { width: 36px; height: 40px; border-radius: 6px; color: var(--color-text-secondary); }
+.file-icon { width: 36px; height: 40px; border-radius: var(--radius-control); color: var(--color-text-secondary); }
 .file-copy { display: grid; gap: 5px; flex: 1; min-width: 0; }.file-name { font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }.file-meta { font-size: 11px; color: var(--color-text-secondary); }.remove-file { flex-shrink: 0; width: 32px; height: 32px; padding: 0; }
 .disabled { opacity: .65; }
 @media (max-width: 600px) { .picker-entry { flex-wrap: wrap; padding: 16px; gap: 12px; }.picker-copy { min-width: 140px; }.choose-files { width: 100%; } }

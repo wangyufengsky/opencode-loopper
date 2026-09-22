@@ -85,13 +85,13 @@ function adoptRecommendations() {
 </template>
 
 <style scoped>
-.designer-question-card { margin: 14px 0; overflow: hidden; border: 1px solid rgb(34 211 238 / 42%); border-radius: 12px; background: linear-gradient(135deg, rgb(34 211 238 / 9%), rgb(139 92 246 / 7%)); box-shadow: 0 14px 36px rgb(0 0 0 / 22%); }
-.designer-question-card > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border-bottom: 1px solid rgb(34 211 238 / 24%); color: var(--color-accent-cyan); }
+.designer-question-card { margin: 14px 0; overflow: hidden; border: 1px solid rgb(var(--shade-cyan-01-rgb) / 42%); border-radius: calc(var(--radius-control) + 6px); background: var(--appearance-pending-question-card-designer-question-card-background); box-shadow: var(--appearance-pending-question-card-designer-question-card-box-shadow); }
+.designer-question-card > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border-bottom: 1px solid rgb(var(--shade-cyan-01-rgb) / 24%); color: var(--color-accent-cyan); }
 .designer-question-card > header > div { display: flex; align-items: baseline; gap: 10px; }
 .designer-question-card > header span { font-size: 12px; font-weight: 800; }
 .designer-question-card > header strong { color: var(--color-text-muted); font-size: 8px; font-weight: 500; }
 .designer-question-prompt { padding: 14px; border-bottom: 1px solid var(--color-border-default); }
-.designer-question-prompt > p { margin: 0 0 5px; color: #a78bfa; font: 800 9px/1.2 var(--font-code); letter-spacing: .08em; text-transform: uppercase; }
+.designer-question-prompt > p { margin: 0 0 5px; color: var(--shade-ai-02); font: 800 9px/1.2 var(--font-code); letter-spacing: .08em; text-transform: uppercase; }
 .designer-question-prompt h3 { margin: 0 0 12px; color: var(--color-text-primary); font-size: 12px; line-height: 1.6; }
 .designer-question-options { display: grid; gap: 8px; }
 .designer-question-options :deep(.el-radio), .designer-question-options :deep(.el-checkbox) { width: 100%; height: auto; min-height: 44px; margin: 0; padding: 8px 10px; white-space: normal; }

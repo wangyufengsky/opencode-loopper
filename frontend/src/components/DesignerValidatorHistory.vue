@@ -33,21 +33,21 @@ const latestEntry = computed(() => props.entries.at(-1))
 </template>
 
 <style scoped>
-.designer-validator-history { margin: 14px 0; overflow: hidden; border: 1px solid rgb(34 197 94 / 30%); border-radius: 12px; background: rgb(34 197 94 / 7%); box-shadow: inset 2px 0 rgb(34 197 94 / 58%); }
-.designer-validator-history summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 12px 14px; color: #86efac; cursor: pointer; list-style: none; }
+.designer-validator-history { margin: 14px 0; overflow: hidden; border: 1px solid rgb(var(--shade-success-01-rgb) / 30%); border-radius: calc(var(--radius-control) + 6px); background: rgb(var(--shade-success-01-rgb) / 7%); box-shadow: var(--appearance-designer-validator-history-designer-validator-history-box-shadow); }
+.designer-validator-history summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 12px 14px; color: var(--shade-success-04); cursor: pointer; list-style: none; }
 .designer-validator-history summary::-webkit-details-marker { display: none; }
 .validator-summary-title, .validator-summary-meta { display: inline-flex; align-items: center; gap: 7px; }
 .validator-summary-title { font: 800 10px/1.4 var(--font-code); letter-spacing: .04em; text-transform: uppercase; }
 .validator-summary-meta { margin-left: auto; color: var(--color-text-muted); font: 700 9px/1.4 var(--font-code); }
 .validator-summary-meta svg { transition: transform .18s ease; }
-.designer-validator-history[open] summary { border-bottom: 1px solid rgb(34 197 94 / 24%); }
+.designer-validator-history[open] summary { border-bottom: 1px solid rgb(var(--shade-success-01-rgb) / 24%); }
 .designer-validator-history[open] .validator-summary-meta svg { transform: rotate(180deg); }
 .validator-history-body { display: grid; }
-.validator-entry { padding: 12px 14px; border-bottom: 1px solid rgb(34 197 94 / 18%); }
+.validator-entry { padding: 12px 14px; border-bottom: 1px solid rgb(var(--shade-success-01-rgb) / 18%); }
 .validator-entry:last-child { border-bottom: 0; }
-.validator-entry header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 7px; color: #86efac; font: 700 9px/1.4 var(--font-code); }
+.validator-entry header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 7px; color: var(--shade-success-04); font: 700 9px/1.4 var(--font-code); }
 .validator-entry p { margin: 0; color: var(--color-text-secondary); font-size: 11px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
-.validator-retryable_error header { color: #fbbf24; }
-.validator-normalized header { color: #67e8f9; }
-.validator-terminal_error header, .validator-session_error header { color: #fca5a5; }
+.validator-retryable_error header { color: var(--shade-warning-01); }
+.validator-normalized header { color: var(--shade-cyan-02); }
+.validator-terminal_error header, .validator-session_error header { color: var(--shade-danger-02); }
 </style>

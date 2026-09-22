@@ -275,7 +275,7 @@ onBeforeUnmount(() => { if (reloadTimer) window.clearTimeout(reloadTimer) })
 .history-intro h2 { margin: 4px 0 7px; font-size: 20px; }
 .history-intro p:last-child { margin: 0; color: var(--color-text-secondary); font-size: 11px; line-height: 1.65; }
 .history-counts { display: flex; flex: 0 0 auto; gap: 10px; }
-.history-counts span { display: grid; min-width: 76px; gap: 3px; padding: 10px 12px; border: 1px solid var(--color-border-default); border-radius: 10px; color: var(--color-text-muted); background: rgb(7 11 20 / 35%); font-size: 9px; text-align: right; }
+.history-counts span { display: grid; min-width: 76px; gap: 3px; padding: 10px 12px; border: 1px solid var(--color-border-default); border-radius: calc(var(--radius-control) + 4px); color: var(--color-text-muted); background: rgb(var(--shade-canvas-01-rgb) / 35%); font-size: 9px; text-align: right; }
 .history-counts b { color: var(--color-text-primary); font: 17px/1 var(--font-code); }
 .history-toolbar { display: grid; grid-template-columns: minmax(220px, 1.5fr) repeat(4, minmax(132px, .7fr)) auto; align-items: center; gap: 9px; }
 .history-toolbar :deep(.el-select) { width: 100%; }
@@ -288,7 +288,7 @@ onBeforeUnmount(() => { if (reloadTimer) window.clearTimeout(reloadTimer) })
 .history-card-heading { display: flex; align-items: center; gap: 7px; }
 .history-status, .package-tag { display: inline-flex; align-items: center; min-height: 22px; padding: 0 8px; border: 1px solid currentcolor; border-radius: 999px; font: 8px/1 var(--font-code); }
 .status-confirmed { color: var(--color-accent-ai); }.status-processing { color: var(--color-accent-cyan); }.status-reviewing { color: var(--color-success); }.status-waiting_input { color: var(--color-session-warning); }.status-session_error { color: var(--color-task-danger); }.status-archived { color: var(--color-text-muted); }
-.package-tag { color: #a5b4fc; }
+.package-tag { color: var(--shade-link-02); }
 .history-card h3 { display: -webkit-box; margin: 9px 0 8px; overflow: hidden; color: var(--color-text-primary); font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .history-meta { display: flex; min-width: 0; flex-wrap: wrap; gap: 7px 15px; color: var(--color-text-muted); font: 9px/1.4 var(--font-code); }
 .history-meta span { display: inline-flex; min-width: 0; align-items: center; gap: 5px; }

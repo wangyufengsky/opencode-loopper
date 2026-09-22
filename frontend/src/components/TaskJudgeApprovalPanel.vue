@@ -49,5 +49,5 @@ async function approve() {
 </template>
 
 <style scoped>
-.human-review{margin:0 0 16px;padding:12px 16px;border:1px solid var(--color-border-default);border-radius:8px;color:var(--color-text-secondary);font-size:12px;line-height:1.7}.human-review p{margin:0 0 8px}.human-review .approved{color:var(--color-success)}
+.human-review{margin:0 0 16px;padding:12px 16px;border:1px solid var(--color-border-default);border-radius:calc(var(--radius-control) + 2px);color:var(--color-text-secondary);font-size:12px;line-height:1.7}.human-review p{margin:0 0 8px}.human-review .approved{color:var(--color-success)}
 </style>

@@ -40,7 +40,7 @@ function messageContent(entry: DesignerMessage) {
 </template>
 
 <style scoped>
-.designer-system-message-history { margin: 14px 0; overflow: hidden; border: 1px solid var(--color-border-default); border-radius: 12px; background: rgb(15 23 42 / 54%); }
+.designer-system-message-history { margin: 14px 0; overflow: hidden; border: 1px solid var(--color-border-default); border-radius: calc(var(--radius-control) + 6px); background: rgb(var(--shade-surface-01-rgb) / 54%); }
 .designer-system-message-history summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 12px 14px; color: var(--color-text-secondary); cursor: pointer; list-style: none; }
 .designer-system-message-history summary::-webkit-details-marker { display: none; }
 .system-summary-title, .system-summary-meta { display: inline-flex; align-items: center; gap: 7px; }
@@ -54,7 +54,7 @@ function messageContent(entry: DesignerMessage) {
 .system-message-entry:last-child { border-bottom: 0; }
 .system-message-entry header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; margin-bottom: 7px; color: var(--color-text-muted); font: 700 9px/1.4 var(--font-code); }
 .system-message-entry p { margin: 0; color: var(--color-text-secondary); font-size: 11px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
-.designer-system-message-history.error { border-color: rgb(239 68 68 / 38%); background: rgb(239 68 68 / 7%); }
-.designer-system-message-history.error summary { color: #fca5a5; }
-.designer-system-message-history.error[open] summary, .designer-system-message-history.error .system-message-entry { border-color: rgb(239 68 68 / 24%); }
+.designer-system-message-history.error { border-color: rgb(var(--shade-border-01-rgb) / 38%); background: rgb(var(--shade-danger-01-rgb) / 7%); }
+.designer-system-message-history.error summary { color: var(--shade-danger-02); }
+.designer-system-message-history.error[open] summary, .designer-system-message-history.error .system-message-entry { border-color: rgb(var(--shade-border-01-rgb) / 24%); }
 </style>

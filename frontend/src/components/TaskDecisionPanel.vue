@@ -187,9 +187,9 @@ onBeforeUnmount(() => { disposed = true; scopeGeneration += 1; loadGeneration +=
 </template>
 
 <style scoped>
-.decision-panel { margin-top: 16px; border-color: rgb(245 158 11 / 38%); background: linear-gradient(125deg, rgb(245 158 11 / 8%), rgb(15 23 42 / 42%)); }
+.decision-panel { margin-top: 16px; border-color: rgb(var(--shade-warning-02-rgb) / 38%); background: var(--appearance-task-decision-panel-decision-panel-background); }
 .decision-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }.result-pill { padding: 7px 10px; border: 1px solid currentColor; border-radius: 999px; font: 650 10px/1 var(--font-code); }.result-pill.success { color: var(--color-success); }.result-pill.danger { color: var(--color-danger); }
-.decision-copy { margin: 10px 0 14px; color: var(--color-text-secondary); font-size: 12px; line-height: 1.65; }.checkpoint { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid; border-radius: 8px; font-size: 11px; }.checkpoint.ready { border-color: rgb(34 197 94 / 35%); color: #86efac; background: rgb(34 197 94 / 7%); }.checkpoint.blocked { border-color: rgb(239 68 68 / 35%); color: #fca5a5; background: rgb(239 68 68 / 7%); }
+.decision-copy { margin: 10px 0 14px; color: var(--color-text-secondary); font-size: 12px; line-height: 1.65; }.checkpoint { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid; border-radius: calc(var(--radius-control) + 2px); font-size: 11px; }.checkpoint.ready { border-color: rgb(var(--shade-success-01-rgb) / 35%); color: var(--shade-success-04); background: rgb(var(--shade-success-01-rgb) / 7%); }.checkpoint.blocked { border-color: rgb(var(--shade-border-01-rgb) / 35%); color: var(--shade-danger-02); background: rgb(var(--shade-danger-01-rgb) / 7%); }
 .continue-inputs { display: grid; grid-template-columns: minmax(230px, .7fr) minmax(300px, 1.3fr); gap: 10px; margin-top: 14px; }.decision-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 14px; }.decision-error { margin: 12px 0 0; color: var(--color-danger); font-size: 12px; }
 @media (max-width: 780px) { .decision-header { flex-direction: column; }.continue-inputs { grid-template-columns: 1fr; }.decision-actions :deep(.el-button) { margin-left: 0; } }
 </style>

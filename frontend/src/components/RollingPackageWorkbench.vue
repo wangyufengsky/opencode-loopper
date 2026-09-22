@@ -336,21 +336,21 @@ watch(() => props.task.updatedAt, () => void load(selectedId.value))
 </template>
 
 <style scoped>
-.rolling-shell { margin-top: 16px; border-color: rgb(34 211 238 / 24%); }
+.rolling-shell { margin-top: 16px; border-color: rgb(var(--shade-cyan-01-rgb) / 24%); }
 .rolling-header, .package-workspace > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .plan-chip { padding: 6px 9px; border: 1px solid var(--color-border-default); border-radius: 999px; color: var(--color-accent); font: 700 10px/1 var(--font-code); }
 .rolling-grid { display: grid; grid-template-columns: minmax(170px, .55fr) minmax(380px, 1.45fr) minmax(280px, 1fr); gap: 12px; margin-top: 14px; }
 .package-nav { display: grid; align-content: start; gap: 7px; }
-.package-nav button { display: grid; grid-template-columns: 1fr auto; gap: 5px; width: 100%; padding: 10px; border: 1px solid var(--color-border-default); border-radius: 9px; background: rgb(2 6 23 / 35%); color: var(--color-text-primary); text-align: left; cursor: pointer; }
-.package-nav button.active { border-color: rgb(34 211 238 / 55%); background: rgb(34 211 238 / 7%); }
+.package-nav button { display: grid; grid-template-columns: 1fr auto; gap: 5px; width: 100%; padding: 10px; border: 1px solid var(--color-border-default); border-radius: calc(var(--radius-control) + 3px); background: rgb(var(--shade-canvas-07-rgb) / 35%); color: var(--color-text-primary); text-align: left; cursor: pointer; }
+.package-nav button.active { border-color: rgb(var(--shade-cyan-01-rgb) / 55%); background: rgb(var(--shade-cyan-01-rgb) / 7%); }
 .package-nav span { color: var(--color-text-tertiary); font-size: 9px; }.package-nav strong { grid-column: 1 / -1; font-size: 11px; }
-.package-workspace, .fact-card { padding: 13px; border: 1px solid var(--color-border-default); border-radius: 10px; background: rgb(2 6 23 / 26%); }
+.package-workspace, .fact-card { padding: 13px; border: 1px solid var(--color-border-default); border-radius: calc(var(--radius-control) + 4px); background: rgb(var(--shade-canvas-07-rgb) / 26%); }
 .package-workspace h3 { margin: 3px 0 0; font-size: 15px; }.objective, .empty-copy { color: var(--color-text-secondary); font-size: 11px; line-height: 1.6; }
 .package-phases { display: flex; align-items: center; gap: 6px; margin: 10px 0; color: var(--color-text-tertiary); font: 9px/1 var(--font-code); }
 .package-actions, .failure-actions, .feedback-box { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }.feedback-box { align-items: flex-end; }.feedback-box .el-textarea { flex: 1 1 280px; }
-.fact-column { display: grid; align-content: start; gap: 9px; }.fact-card pre, .fact-card p:last-child { max-height: 220px; margin: 8px 0 0; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--color-text-secondary); font: 9px/1.55 var(--font-code); }.fact-card.proven { border-color: rgb(34 197 94 / 28%); }.fact-card.accepted { border-color: rgb(99 102 241 / 30%); }.fact-card.navigation { border-style: dashed; }
+.fact-column { display: grid; align-content: start; gap: 9px; }.fact-card pre, .fact-card p:last-child { max-height: 220px; margin: 8px 0 0; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--color-text-secondary); font: 9px/1.55 var(--font-code); }.fact-card.proven { border-color: rgb(var(--shade-success-01-rgb) / 28%); }.fact-card.accepted { border-color: rgb(var(--shade-primary-01-rgb) / 30%); }.fact-card.navigation { border-style: dashed; }
 .mobile-package-select { display: none; margin-top: 12px; }
-.plan-editor { display: grid; gap: 8px; margin: 12px 0; }.plan-editor article { display: grid; grid-template-columns: 120px minmax(160px, .7fr) minmax(220px, 1.3fr) auto; gap: 8px; align-items: start; padding: 9px; border: 1px solid var(--color-border-default); border-radius: 8px; }.plan-editor article > div:last-child { display: flex; gap: 4px; }
+.plan-editor { display: grid; gap: 8px; margin: 12px 0; }.plan-editor article { display: grid; grid-template-columns: 120px minmax(160px, .7fr) minmax(220px, 1.3fr) auto; gap: 8px; align-items: start; padding: 9px; border: 1px solid var(--color-border-default); border-radius: calc(var(--radius-control) + 2px); }.plan-editor article > div:last-child { display: flex; gap: 4px; }
 @media (max-width: 980px) { .rolling-grid { grid-template-columns: 1fr; }.package-nav { display: none; }.mobile-package-select { display: block; }.fact-column { grid-template-columns: 1fr; } }
 @media (max-width: 720px) { .plan-editor article { grid-template-columns: 1fr; } }
 </style>

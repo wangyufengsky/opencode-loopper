@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 import PageHeader from '@/components/PageHeader.vue'
+import SkinSelector from '@/components/SkinSelector.vue'
 import orbitArtwork from '@/assets/home-orbit.png'
 
 const workspaceLinks = [
@@ -22,7 +23,7 @@ const systemLinks = [
 </script>
 
 <template>
-  <PageHeader eyebrow="工作区" title="主页" />
+  <PageHeader eyebrow="工作区" title="主页"><template #actions><SkinSelector /></template></PageHeader>
   <main id="main-content" class="content home-content" tabindex="-1">
     <section class="home-hero" aria-labelledby="home-headline">
       <img class="home-artwork" :src="orbitArtwork" alt="" width="1536" height="1024" fetchpriority="high" />
@@ -71,8 +72,8 @@ const systemLinks = [
 <style scoped>
 .home-content { display: grid; gap: 28px; }
 .home-hero { position: relative; isolation: isolate; overflow: hidden; min-height: 360px; border: 1px solid var(--color-border-default); border-radius: var(--radius-card); background: var(--color-bg-canvas); }
-.home-artwork { position: absolute; z-index: -2; top: 50%; right: -4%; width: 64%; height: auto; transform: translateY(-50%); pointer-events: none; }
-.home-hero::after { position: absolute; z-index: -1; inset: 0; background: linear-gradient(90deg, var(--color-bg-canvas) 12%, rgb(7 11 20 / 96%) 30%, rgb(7 11 20 / 40%) 52%, transparent 72%); content: ''; pointer-events: none; }
+.home-artwork { display: var(--skin-artwork-display); position: absolute; z-index: -2; top: 50%; right: -4%; width: 64%; height: auto; transform: translateY(-50%); pointer-events: none; }
+.home-hero::after { position: absolute; z-index: -1; inset: 0; background: var(--appearance-home-view-home-hero-after-background); content: ''; pointer-events: none; }
 .home-hero-copy { position: relative; max-width: 640px; padding: 38px 40px 30px; }
 .home-kicker { display: flex; align-items: center; gap: 9px; margin: 0 0 22px; color: var(--color-text-secondary); font-size: 11px; letter-spacing: .18em; }
 .home-kicker span { width: 18px; height: 2px; background: var(--color-accent-cyan); }
@@ -83,20 +84,20 @@ const systemLinks = [
 .home-actions { display: flex; flex-wrap: wrap; gap: 12px; }
 .home-action { display: inline-flex; align-items: center; justify-content: center; gap: 12px; min-height: 42px; padding: 10px 19px; border: 1px solid var(--color-border-default); border-radius: var(--radius-control); background: var(--color-bg-surface); color: var(--color-text-primary); font-size: 13px; font-weight: 600; transition: background .16s, border-color .16s; }
 .home-action:hover { border-color: var(--color-text-secondary); background: var(--color-bg-elevated); }
-.home-action-primary { border-color: var(--color-action-primary); background: var(--color-action-primary); color: #fff; }
-.home-action-primary:hover { border-color: var(--color-accent-cyan); background: #2563eb; }
+.home-action-primary { border-color: var(--color-action-primary); background: var(--color-action-primary); color: var(--color-on-emphasis); }
+.home-action-primary:hover { border-color: var(--color-accent-cyan); background: var(--appearance-home-primary-hover); }
 .home-hero-caption { display: flex; flex-wrap: wrap; gap: 10px; margin: 28px 0 0; color: var(--color-text-secondary); font-size: 10px; letter-spacing: .04em; }
 .home-hero-caption span { color: var(--color-text-muted); }
 .home-section-heading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
 .home-section-heading h2 { margin: 0; font-size: 15px; font-weight: 650; }
 .home-section-heading p { margin: 0; color: var(--color-text-secondary); font-size: 11px; }
 .home-workspace-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
-.home-workspace-link { --home-accent: var(--color-action-primary); display: flex; flex-direction: column; min-width: 0; padding: 20px; border: 1px solid var(--color-border-default); border-radius: var(--radius-card); background: linear-gradient(145deg, var(--color-bg-elevated), var(--color-bg-surface)); transition: transform .16s, border-color .16s, background .16s; }
+.home-workspace-link { --home-accent: var(--color-action-primary); display: flex; flex-direction: column; min-width: 0; padding: 20px; border: 1px solid var(--color-border-default); border-radius: var(--radius-card); background: var(--appearance-home-view-home-workspace-link-background); transition: transform .16s, border-color .16s, background .16s; }
 .home-tone-violet { --home-accent: var(--color-accent-ai); }
 .home-tone-cyan { --home-accent: var(--color-accent-cyan); }
 .home-workspace-link:hover { border-color: var(--home-accent); transform: translateY(-3px); }
 .home-card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
-.home-card-icon { display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid color-mix(in srgb, var(--home-accent) 30%, transparent); border-radius: 9px; background: color-mix(in srgb, var(--home-accent) 8%, transparent); color: var(--home-accent); font-size: 21px; }
+.home-card-icon { display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid color-mix(in srgb, var(--home-accent) 30%, transparent); border-radius: calc(var(--radius-control) + 3px); background: color-mix(in srgb, var(--home-accent) 8%, transparent); color: var(--home-accent); font-size: 21px; }
 .home-step { color: var(--color-text-muted); font: 11px var(--font-code); letter-spacing: .1em; }
 .home-workspace-link h3, .home-more-link h3 { margin: 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
 .home-workspace-link p { margin: 9px 0 22px; color: var(--color-text-secondary); font-size: 12px; line-height: 1.8; }
@@ -121,7 +122,7 @@ const systemLinks = [
   .home-hero-copy { max-width: none; padding: 28px 22px; }
   .home-hero h2 { font-size: clamp(26px, 6.7vw, 36px); }
   .home-artwork { width: 100%; top: 10px; right: -28%; opacity: .3; transform: none; }
-  .home-hero::after { background: linear-gradient(90deg, var(--color-bg-canvas), rgb(7 11 20 / 45%)); }
+  .home-hero::after { background: var(--appearance-home-view-home-hero-after-background-2); }
   .home-workspace-grid, .home-more-grid { grid-template-columns: 1fr; }
   .home-card-top { margin-bottom: 14px; }
   .home-footer { align-items: flex-start; flex-direction: column; }

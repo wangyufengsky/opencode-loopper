@@ -1,4 +1,5 @@
 import { createApp } from 'vue'
+import { initializeSkin } from '@/themes/state'
 import { ElButton, ElButtonGroup, ElCheckbox, ElCheckboxGroup, ElConfigProvider, ElDialog, ElForm, ElFormItem, ElInput, ElInputNumber, ElOption, ElRadio, ElRadioGroup, ElSelect, ElSwitch, ElTabPane, ElTable, ElTableColumn, ElTabs } from 'element-plus'
 import App from '@/App.vue'
 import { router } from '@/router'
@@ -31,6 +32,9 @@ import 'element-plus/es/components/message/style/css'
 import 'element-plus/es/components/message-box/style/css'
 import '@/styles/tokens.css'
 import '@/styles/app.css'
+
+const stopSkinSync = initializeSkin()
+if (import.meta.hot) import.meta.hot.dispose(stopSkinSync)
 
 registerBundledIcons()
 

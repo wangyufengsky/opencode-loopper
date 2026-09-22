@@ -111,7 +111,7 @@ watch(() => [ownerId.value, props.task?.status, props.task?.templateProgress?.fa
 </template>
 
 <style scoped>
-.batch-recovery { margin: 16px 0; padding: 16px; border: 1px solid var(--color-border-default); border-radius: 12px; }
+.batch-recovery { margin: 16px 0; padding: 16px; border: 1px solid var(--color-border-default); border-radius: calc(var(--radius-control) + 6px); }
 ul { padding: 0; list-style: none; max-height: 360px; overflow: auto; }
 li { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; }
 .failure-message { display: block; margin-top: 6px; color: var(--color-text-secondary); }

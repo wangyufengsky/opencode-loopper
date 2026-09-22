@@ -78,6 +78,6 @@ function addSource() { sources.value.push({ kind: 'LOG', root: '', pattern: 'log
 </template>
 <style scoped>
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.source-row { display: grid; gap: 10px; margin-bottom: 18px; padding: 12px; border: 1px solid var(--color-border-default); border-radius: 8px; }
+.source-row { display: grid; gap: 10px; margin-bottom: 18px; padding: 12px; border: 1px solid var(--color-border-default); border-radius: calc(var(--radius-control) + 2px); }
 select { background: var(--color-bg-surface); color: var(--color-text-primary); border: 1px solid var(--color-border-default); border-radius: var(--radius-control); padding: 8px; font: inherit; }
 </style>

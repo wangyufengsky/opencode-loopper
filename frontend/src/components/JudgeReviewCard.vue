@@ -52,10 +52,10 @@ const formattedReason = computed(() => judgeReasonMarkdown(reason.value))
 </template>
 
 <style scoped>
-.judge-card { min-width: 0; overflow: hidden; border: 1px solid var(--color-border-default); border-radius: var(--radius-card); background: linear-gradient(145deg, rgb(14 22 38 / 88%), rgb(7 11 20 / 72%)); box-shadow: inset 0 1px rgb(255 255 255 / 2%); }
-.judge-card-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 15px 16px; border-bottom: 1px solid rgb(130 147 173 / 12%); background: rgb(11 18 32 / 62%); }
+.judge-card { min-width: 0; overflow: hidden; border: 1px solid var(--color-border-default); border-radius: var(--radius-card); background: var(--appearance-judge-review-card-judge-card-background); box-shadow: var(--appearance-judge-review-card-judge-card-box-shadow); }
+.judge-card-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 15px 16px; border-bottom: 1px solid rgb(var(--shade-secondary-05-rgb) / 12%); background: rgb(var(--shade-canvas-03-rgb) / 62%); }
 .judge-role { display: flex; min-width: 0; align-items: center; gap: 10px; }
-.judge-role-icon { display: grid; flex: 0 0 32px; width: 32px; height: 32px; place-items: center; border: 1px solid rgb(34 211 238 / 22%); border-radius: 9px; background: rgb(34 211 238 / 7%); color: var(--color-accent-cyan); }
+.judge-role-icon { display: grid; flex: 0 0 32px; width: 32px; height: 32px; place-items: center; border: 1px solid rgb(var(--shade-cyan-01-rgb) / 22%); border-radius: calc(var(--radius-control) + 3px); background: rgb(var(--shade-cyan-01-rgb) / 7%); color: var(--color-accent-cyan); }
 .judge-role div { display: grid; min-width: 0; gap: 2px; }
 .judge-role strong { color: var(--color-text-primary); font-size: 13px; }
 .judge-role span { color: var(--color-text-tertiary); font-family: var(--font-code); font-size: 10px; }
@@ -65,18 +65,18 @@ const formattedReason = computed(() => judgeReasonMarkdown(reason.value))
 .judge-card-body :deep(.markdown-document) { color: var(--color-text-secondary); font-size: 12px; line-height: 1.68; }
 .judge-card-body :deep(.markdown-document h1),
 .judge-card-body :deep(.markdown-document h2),
-.judge-card-body :deep(.markdown-document h3) { margin: 16px 0 7px; padding: 0; border: 0; color: #e8eef9; font-size: 12px; letter-spacing: 0; }
+.judge-card-body :deep(.markdown-document h3) { margin: 16px 0 7px; padding: 0; border: 0; color: var(--shade-text-06); font-size: 12px; letter-spacing: 0; }
 .judge-card-body :deep(.markdown-document p) { margin: 7px 0; }
 .judge-card-body :deep(.markdown-document ol),
 .judge-card-body :deep(.markdown-document ul) { margin: 9px 0; padding-left: 21px; }
 .judge-card-body :deep(.markdown-document li) { margin: 7px 0; padding-left: 3px; }
 .judge-card-body :deep(.markdown-document code) { font-size: .88em; }
-.judge-card-footer { display: flex; min-width: 0; align-items: center; gap: 6px; padding: 10px 16px; border-top: 1px solid rgb(130 147 173 / 10%); color: var(--color-text-tertiary); font-size: 10px; }
+.judge-card-footer { display: flex; min-width: 0; align-items: center; gap: 6px; padding: 10px 16px; border-top: 1px solid rgb(var(--shade-secondary-05-rgb) / 10%); color: var(--color-text-tertiary); font-size: 10px; }
 .judge-card-footer code { min-width: 0; overflow: hidden; color: var(--color-text-secondary); font-family: var(--font-code); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-.judge-pass { border-color: rgb(34 197 94 / 34%); }
-.judge-pass .judge-verdict { border-color: rgb(34 197 94 / 36%); background: rgb(34 197 94 / 8%); color: var(--color-success); }
-.judge-revise, .judge-blocked, .judge-unparseable, .judge-session_error, .judge-failed, .judge-timed_out { border-color: rgb(245 158 11 / 38%); }
-.judge-revise .judge-verdict, .judge-blocked .judge-verdict, .judge-unparseable .judge-verdict, .judge-session_error .judge-verdict, .judge-failed .judge-verdict, .judge-timed_out .judge-verdict { border-color: rgb(245 158 11 / 38%); background: rgb(245 158 11 / 8%); color: var(--color-session-warning); }
+.judge-pass { border-color: rgb(var(--shade-success-01-rgb) / 34%); }
+.judge-pass .judge-verdict { border-color: rgb(var(--shade-success-01-rgb) / 36%); background: rgb(var(--shade-success-01-rgb) / 8%); color: var(--color-success); }
+.judge-revise, .judge-blocked, .judge-unparseable, .judge-session_error, .judge-failed, .judge-timed_out { border-color: rgb(var(--shade-warning-02-rgb) / 38%); }
+.judge-revise .judge-verdict, .judge-blocked .judge-verdict, .judge-unparseable .judge-verdict, .judge-session_error .judge-verdict, .judge-failed .judge-verdict, .judge-timed_out .judge-verdict { border-color: rgb(var(--shade-warning-02-rgb) / 38%); background: rgb(var(--shade-warning-02-rgb) / 8%); color: var(--color-session-warning); }
 
 @media (max-width: 620px) {
   .judge-card-head { align-items: flex-start; }

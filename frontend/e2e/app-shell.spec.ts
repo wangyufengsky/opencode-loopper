@@ -41,5 +41,5 @@ test('本地暗色中文外壳可启动并在主要路由间导航', async ({ pa
   await page.getByRole('link', { name: '模板任务' }).click()
   await expect(page).toHaveURL(/\/template-tasks$/)
   await expect(page.getByRole('heading', { name: '模板任务', exact: true })).toBeVisible()
-  await expect(page.getByText('还没有模板任务', { exact: true })).toBeVisible()
+  await expect(page.getByText('没有匹配的模板', { exact: true })).toBeVisible()
 })

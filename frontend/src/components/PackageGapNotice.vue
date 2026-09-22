@@ -22,6 +22,6 @@ const label = computed(() => props.code ? labels[props.code] : undefined)
 </template>
 
 <style scoped>
-.package-gap-notice { margin: 12px 20px; padding: 12px; border: 1px solid var(--color-border-default); border-radius: 8px; }
+.package-gap-notice { margin: 12px 20px; padding: 12px; border: 1px solid var(--color-border-default); border-radius: calc(var(--radius-control) + 2px); }
 .package-gap-notice p { margin: 6px 0 0; font-size: 12px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
 </style>

@@ -96,25 +96,25 @@ function formatFileSize(bytes: number) {
 <style scoped>
 .file-context-entry { display: grid; gap: 10px; }
 .file-context-trigger { display: flex; align-items: center; min-height: 30px; }
-.file-context-trigger :deep(.el-button) { color: var(--color-text-secondary); border-color: rgb(57 78 113 / 82%); background: rgb(7 12 23 / 44%); }
-.file-context-trigger :deep(.el-button:hover), .file-context-trigger :deep(.el-button:focus-visible) { color: var(--color-text-primary); border-color: rgb(34 211 238 / 42%); background: rgb(34 211 238 / 7%); }
-.file-context-card { overflow: hidden; border: 1px solid rgb(57 78 113 / 88%); border-radius: var(--radius-card); background: linear-gradient(155deg, rgb(15 24 42 / 94%), rgb(9 15 28 / 96%)); box-shadow: 0 14px 34px rgb(0 0 0 / 18%); }
-.file-context-card > header { display: flex; align-items: center; gap: 11px; padding: 12px 14px; border-bottom: 1px solid rgb(57 78 113 / 64%); background: rgb(7 11 20 / 30%); }
-.file-context-mark { display: grid; flex: 0 0 auto; width: 34px; height: 34px; place-items: center; border: 1px solid rgb(34 211 238 / 24%); border-radius: 9px; color: var(--color-accent-cyan); background: rgb(34 211 238 / 7%); }
+.file-context-trigger :deep(.el-button) { color: var(--color-text-secondary); border-color: rgb(var(--shade-border-07-rgb) / 82%); background: rgb(var(--shade-canvas-06-rgb) / 44%); }
+.file-context-trigger :deep(.el-button:hover), .file-context-trigger :deep(.el-button:focus-visible) { color: var(--color-text-primary); border-color: rgb(var(--shade-cyan-01-rgb) / 42%); background: rgb(var(--shade-cyan-01-rgb) / 7%); }
+.file-context-card { overflow: hidden; border: 1px solid rgb(var(--shade-border-07-rgb) / 88%); border-radius: var(--radius-card); background: var(--appearance-staged-file-context-card-file-context-card-background); box-shadow: var(--appearance-staged-file-context-card-file-context-card-box-shadow); }
+.file-context-card > header { display: flex; align-items: center; gap: 11px; padding: 12px 14px; border-bottom: 1px solid rgb(var(--shade-border-07-rgb) / 64%); background: rgb(var(--shade-canvas-01-rgb) / 30%); }
+.file-context-mark { display: grid; flex: 0 0 auto; width: 34px; height: 34px; place-items: center; border: 1px solid rgb(var(--shade-cyan-01-rgb) / 24%); border-radius: calc(var(--radius-control) + 3px); color: var(--color-accent-cyan); background: rgb(var(--shade-cyan-01-rgb) / 7%); }
 .file-context-card > header > div { display: grid; min-width: 0; gap: 3px; }
 .file-context-card > header strong { color: var(--color-text-primary); font-size: 12px; font-weight: 700; }
 .file-context-card > header small { color: var(--color-text-muted); font: 9px/1.35 var(--font-code); }
 .file-context-list { display: grid; max-height: 260px; overflow-y: auto; }
-.file-context-row { display: grid; grid-template-columns: 38px minmax(0, 1fr) 32px; align-items: center; gap: 11px; min-height: 58px; padding: 9px 12px 9px 14px; border-bottom: 1px solid rgb(57 78 113 / 48%); }
+.file-context-row { display: grid; grid-template-columns: 38px minmax(0, 1fr) 32px; align-items: center; gap: 11px; min-height: 58px; padding: 9px 12px 9px 14px; border-bottom: 1px solid rgb(var(--shade-border-07-rgb) / 48%); }
 .file-context-row:last-child { border-bottom: 0; }
-.file-type-badge { display: grid; width: 38px; height: 38px; place-items: center; overflow: hidden; border: 1px solid rgb(99 102 241 / 30%); border-radius: 9px; color: #c4b5fd; background: rgb(99 102 241 / 10%); font: 700 8px/1 var(--font-code); letter-spacing: .03em; }
+.file-type-badge { display: grid; width: 38px; height: 38px; place-items: center; overflow: hidden; border: 1px solid rgb(var(--shade-primary-01-rgb) / 30%); border-radius: calc(var(--radius-control) + 3px); color: var(--shade-secondary-06); background: rgb(var(--shade-primary-01-rgb) / 10%); font: 700 8px/1 var(--font-code); letter-spacing: .03em; }
 .file-context-details { display: grid; min-width: 0; gap: 4px; }
 .file-context-details b { overflow: hidden; color: var(--color-text-primary); font-size: 11px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .file-context-details small { color: var(--color-text-muted); font: 9px/1.35 var(--font-code); }
-.remove-file-button { display: grid; width: 30px; height: 30px; place-items: center; border: 1px solid transparent; border-radius: 8px; color: var(--color-text-muted); background: transparent; cursor: pointer; }
-.remove-file-button:hover, .remove-file-button:focus-visible { border-color: rgb(239 68 68 / 32%); color: #fca5a5; background: rgb(239 68 68 / 8%); outline: none; }
+.remove-file-button { display: grid; width: 30px; height: 30px; place-items: center; border: 1px solid transparent; border-radius: calc(var(--radius-control) + 2px); color: var(--color-text-muted); background: transparent; cursor: pointer; }
+.remove-file-button:hover, .remove-file-button:focus-visible { border-color: rgb(var(--shade-border-01-rgb) / 32%); color: var(--shade-danger-02); background: rgb(var(--shade-danger-01-rgb) / 8%); outline: none; }
 .remove-file-button:disabled { opacity: .45; cursor: not-allowed; }
-.file-context-card > footer { display: flex; align-items: flex-start; gap: 7px; padding: 9px 14px; border-top: 1px solid rgb(57 78 113 / 54%); color: var(--color-text-muted); background: rgb(7 11 20 / 30%); font: 9px/1.5 var(--font-code); }
+.file-context-card > footer { display: flex; align-items: flex-start; gap: 7px; padding: 9px 14px; border-top: 1px solid rgb(var(--shade-border-07-rgb) / 54%); color: var(--color-text-muted); background: rgb(var(--shade-canvas-01-rgb) / 30%); font: 9px/1.5 var(--font-code); }
 .file-context-card > footer svg { flex: 0 0 auto; margin-top: 2px; color: var(--color-success); }
 
 @media (max-width: 720px) {
