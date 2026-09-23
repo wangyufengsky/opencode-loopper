@@ -14,7 +14,7 @@ final class PptAgentTopology {
                 .transition(CREATING, DISPATCH, SENDING).transition(SENDING, START, RUNNING)
                 .transition(SENDING, DISCONNECT, UNKNOWN).transition(UNKNOWN, RECOVER, RUNNING)
                 .transition(RUNNING, COMPLETE, COMPLETED).transition(PREPARED, FAIL, FAILED)
-                .transition(RUNNING, FAIL, FAILED).transition(STOPPING, ABORT, STOPPED)
+                .transition(RUNNING, FAIL, FAILED).transition(STOPPING, ABORT, STOPPED).transition(STOPPING, FAIL, FAILED)
                 .transition(STOPPING, REQUIRE_INPUT, WAITING_INPUT).transition(WAITING_INPUT, RESUME, PREPARED);
         for (var state : PptAgentState.values()) if (!state.terminal() && state != STOPPING) b.transition(state, CANCEL, STOPPING);
         return b.build();

@@ -72,6 +72,26 @@ V1 支持文字、PNG/JPEG、矩形/圆角矩形/椭圆/线/箭头、表格、�
 
 受管进程启动时保存 generation、PID 与操作系统 startInstant 的持久所有权证明，不保存凭据。重启恢复只有在原进程已退出、PID 已换身份，或精确终止原进程并确认退出后才解除旧 writer；缺失或无法验证的证明继续阻断。WAITING_INPUT 与创建/投递未知同样遵守此边界。PPT Agent 不继承代码 Task/Designer 的预算，等待精确消息终态或用户停止，无固定 agentic 步数和工具修正次数上限。
 
+### 失败分类与自动恢复（V126）
+
+新生成授权登记独立的恢复记录。模型终态同时保存脱敏的错误类别、原始错误码、详情和停止证明。已证明停止的输出截断、限流、超时和临时服务故障可以自动恢复；认证/权限错误、未知错误、创建或投递未知不盲目重试。历史授权不自动获得新的恢复策略，用户明确“继续”后启用。
+
+自动恢复在短事务中复核原授权、轮次、精确 run、停止证明、无活动 writer，以及源版本/已提交回执对应的当前 revision。重试时间、故障与页面检查点持久化；重启后继续等待同一恢复记录。退避为 2、8、30 秒；同一步骤、相同方案与页面内容连续三次恢复没有进展后，保留结果并等待用户调整或手动继续。此预算只限制已结束失败轮次的自动重派，不限制正常模型 agentic 步数或会话内工具纠错。用户停止会先清除待重试，并按既有证明协议停止 writer。
+
+模型正常结束但方案、缺页、空页或布局门禁未通过时，服务端生成明确的缺页/空页、通过页、问题对象与 revision 清单，交给新轮修复。检查点最多内联 100 条问题，同时保留总数，完整问题继续通过检查工具读取；不自动扩大页面/对象修改范围。界面只在检查点与当前作品版本一致时展示对应检查数量。残缺 `<tool_call>` 文字永远不能作为补执行依据。
+
+自动生成所属输出作业的“重试”须恢复其当前生成授权并继续后续预览/导出；已完成作业可幂等读取，不唤醒被替代或停止的授权。独立人工作业继续原语义。作品已有新版本时，旧输出按钮不能隐式切换到新版本制作。
+
+暂停/失败后，“按当前要求继续”复用原冻结要求；“调整要求并继续”在已停止且无 writer、revision 匹配的前提下，新建授权并保存原要求与用户新调整，继承原修改范围。旧授权和制品保持可追溯。首次需求仍须遵循其冻结的显式确认协议。
+
+### 有界上下文与制作工具
+
+新 run 冻结 `pptToolProtocol=BOUNDED_CONTEXT_V1`。单条用户消息保持 24000 字限制；服务端累计讨论/冻结要求上限统一为 100 万字，确认前检查实际拼接长度，超限要求拆分作品而不丢弃历史。超过 24000 字的冻结要求或此前讨论不直接拼入模型消息，改为通过 `ppt_get_context(source=requirements|discussion, offset, limit)` 每段最多 12000 字读取，返回正文 SHA、总长和 nextOffset，提示模型读完后再回复/制作。完整原文继续保存在服务端，旧 run/投递恢复保留原提示及回执。
+
+新 MCP 写回执只返回 revision、已保存标记、创建标识和页面摘要，完整页面通过按页 context 查询；HTTP 编辑接口仍返回原完整场景。已保存的历史回执保持精确重放。`ppt_check_layout.slideId` 实际限定到指定版本的单页，省略时检查整份；正式制作与导出仍过全稿门禁。
+
+`compose_slide` 根据稳定 slideId、标题和 1–3 个文字/原生表格/原生图表内容块计算基础栏布局，创建前执行字体、密度与几何检查；内容过密返回对象及测量问题，不能截断原文或无限缩字号。已有页面仍通过细粒度操作修订，锁定及修改范围校验保持。浏览器的纯 Agent 活动事件只读取摘要、对话和制作状态；revision 改变、其他事件或重连会加载完整快照。
+
 ## 渲染、资料与制品
 
 POI 原生 PPTX 与 Java2D 预览使用统一页面模型和字体测量。三种原生图表单独提供 Java2D 预览适配器，数据/颜色/轴与原生图表一致；预览不替代办公软件实测。字体随包提供 Noto Sans CJK SC Regular/Bold 及许可，管理员可用 `--loopper.ppt.font-dir=/absolute/font/directory` 配置附加 TTF/OTF 字体（最多 32 个，单个 32 MiB、总计 128 MiB，不跟随符号链接），重启后生效；不承诺 PPTX 字体嵌入或跨软件像素一致。
@@ -112,7 +132,7 @@ POI 原生 PPTX 与 Java2D 预览使用统一页面模型和字体测量。三�
 | `POST /documents/{id}/generate` | 一键生成：idempotencyKey、expectedRevision、prompt；返回持久授权状态 |
 | `POST /documents/{id}/generate/confirm` | 确认已保存的完整讨论并执行：idempotencyKey、expectedRevision；不接受浏览器传入的 transcript |
 | `GET /documents/{id}/generation` | 当前/最近一次自动生成状态；无授权返回 null |
-| `POST /documents/{id}/generate/resume` | 恢复停止或失败的授权：idempotencyKey、expectedRevision |
+| `POST /documents/{id}/generate/resume` | 恢复停止或失败的授权：idempotencyKey、expectedRevision；可选 adjustment 明确调整后新建授权 |
 | `GET/POST /documents/{id}/messages` | 助手历史/提交请求，绑定范围与 revision |
 | `POST /documents/{id}/questions/{questionId}/reply` | 回答精确问题；需求确认由 confirmed 布尔显式提交 |
 | `POST /documents/{id}/stop` | 先撤销自动续接，再请求停止当前 Agent/生成作业 |

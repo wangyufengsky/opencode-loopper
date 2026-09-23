@@ -255,6 +255,25 @@ class PptGenerationIntegrationTest {
         assertThatThrownBy(()->service.confirmRequirements(doc,new PptGenerationService.Confirm(key(),0)))
                 .hasMessageContaining("先和 PPT 助手完成一轮需求讨论");
     }
+    @Test void clarificationReplyPreservesExplicitRequirementsConfirmation() {
+        String doc=document();
+        completeDiscussion(service.send(doc,new PptAgentService.Send(key(),"制作两页项目介绍",0,node("{\"kind\":\"DOCUMENT\"}"))),"两页简洁商务风格，介绍架构与流程。");
+        var row=persistence.require(service.confirmRequirements(doc,new PptGenerationService.Confirm(key(),0)).id());
+        var run=running(row);
+        when(runtime.authorize("fixture",run.id(),doc)).thenReturn(run);
+        tools.call("ppt_request_input",Map.of("scope","fixture","runId",run.id(),"documentId",doc,
+                "args",Map.of("idempotencyKey",key(),"prompt","补充数据口径","kind","CLARIFICATION")));
+        var question=agents.questions(run.id()).getFirst();
+        agentPersistence.stop(doc,"INPUT");
+        agentPersistence.proven(agents.run(run.id()).orElseThrow(),PptAgentState.WAITING_INPUT,"REMOTE_TERMINAL","请补充数据口径");
+        coordinator.tick(row.id());assertThat(persistence.require(row.id()).state()).isEqualTo("WAITING_INPUT");
+        agent.reply(doc,question.id(),new PptAgentService.Reply(key(),"使用项目当前代码，不加入未经确认的业务数据",0,question.version()));
+        var resumed=agents.run(run.id()).orElseThrow();
+        assertThat(json.readTree(resumed.contextJson()).path("requirementsConfirmedByUser").asBoolean()).isTrue();
+        assertThatCode(()->PptRequirements.requireConfirmed(resumed,agents.questions(run.id()),json)).doesNotThrowAnyException();
+        assertThat(persistence.require(row.id()).requirementsConfirmed()).isTrue();
+        assertThat(agents.questions(run.id())).hasSize(1);
+    }
     @Test void questionReplyKeepsAutomaticAuthorityAndLongAnswersAreContextNotRepeatedUserText() {
         String doc=document(),original="需".repeat(20000);
         var row=persistence.require(service.generate(doc,new PptGenerationService.Generate(key(),0,original)).id());var run=running(row);
@@ -332,5 +351,144 @@ class PptGenerationIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM ppt_agent_run",Integer.class)).isEqualTo(1);
         assertThatThrownBy(()->service.send(doc,new PptAgentService.Send(input.idempotencyKey(),"不同请求",3,input.scope()))).isInstanceOf(ConflictException.class);
         assertThat(generations.latest(doc)).isEmpty();
+    }
+    @Autowired PptRecoveryMapper recoveries;
+    @Autowired PptOutputRecovery outputRecovery;
+    void recoveryDue(String id) {
+        var r=recoveries.recovery(id).orElseThrow();
+        recoveries.save(new PptRecoveryMapper.Recovery(r.generationId(),r.observedAttempt(),r.revision(),r.fingerprint(),r.failures(),
+                Instant.now().minusSeconds(1).toString(),r.checkpointJson(),r.errorCode()));
+    }
+    @Test void outputLimitRecoversDurablyWithoutOverlappingWriterAndStopsAfterThreeNoProgressRecoveries() {
+        var row=start(document());String original=row.prompt();
+        for(int attempt=0;attempt<4;attempt++) {
+            var run=running(persistence.require(row.id()));
+            assertThat(run.state()).isEqualTo("RUNNING");
+            agentPersistence.failed(run,"REMOTE_TERMINAL","OPENCODE_OUTPUT_LENGTH_EXHAUSTED","output token limit");
+            coordinator.tick(row.id());var saved=persistence.require(row.id());
+            assertThat(saved.attempt()).isEqualTo(attempt);
+            if(attempt==3) {assertThat(saved.state()).isEqualTo("FAILED");break;}
+            assertThat(saved.state()).isEqualTo("PLANNING");
+            assertThat(service.status(row.documentId()).recovery().retryAt()).isNotNull();
+            coordinator.tick(row.id());assertThat(persistence.require(row.id()).attempt()).isEqualTo(attempt);
+            recoveryDue(row.id());coordinator.tick(row.id());coordinator.tick(row.id());
+            var next=agents.run(persistence.require(row.id()).runId()).orElseThrow();
+            assertThat(next.id()).isNotEqualTo(run.id());assertThat(next.userText()).isEqualTo(original);
+            assertThat(next.contextJson()).contains("recoveryCheckpoint","completedPages","不要重建整份");
+        }
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM ppt_agent_run",Integer.class)).isEqualTo(4);
+        assertThat(recoveries.recovery(row.id()).orElseThrow().retryAt()).isNull();
+        assertThat(agent.messages(row.documentId(),null,100).items()).allSatisfy(m->assertThat(m.failure().errorCode()).contains("OUTPUT_LENGTH"));
+    }
+    @Test void userStopCancelsPendingRecoveryAndConfigurationErrorsDoNotAutomaticallyRetry() {
+        var row=start(document());agentPersistence.failed(running(row),"REMOTE_TERMINAL","HTTP_503","Service unavailable");
+        coordinator.tick(row.id());recoveryDue(row.id());agent.stop(row.documentId());
+        coordinator.tick(row.id());coordinator.tick(row.id());
+        assertThat(persistence.require(row.id()).state()).isEqualTo("STOPPED");
+        assertThat(persistence.require(row.id()).attempt()).isZero();
+        assertThat(recoveries.recovery(row.id()).orElseThrow().retryAt()).isNull();
+        var other=start(document());agentPersistence.failed(running(other),"REMOTE_TERMINAL","HTTP_401","Unauthorized");
+        coordinator.tick(other.id());assertThat(persistence.require(other.id()).state()).isEqualTo("FAILED");
+        assertThat(service.status(other.documentId()).detail()).contains("认证");
+    }
+    @Test void completedModelWithOverflowGetsTargetedRepairAndSinglePageChecksAreActuallyScoped() {
+        var row=start(document());savePlan(row);coordinator.tick(row.id());row=persistence.require(row.id());var run=running(row);
+        var shortPage=(tools.jackson.databind.node.ObjectNode)page("p1");
+        ((tools.jackson.databind.node.ObjectNode)shortPage.path("slide").path("elements").get(0)).put("height",1);
+        var result=documents.edit(row.documentId(),new PptDocuments.Edit(key(),run.sourceRevision(),List.of(shortPage,page("p2"))),true,()->persistence.validateRun(run));
+        receipt(run,"ppt_apply_operations",result);complete(run);
+        var check=(io.opencode.loopper.ppt.PptModel.Validation)workspace.invoke(row.documentId(),"ppt_check_layout",node("{\"slideId\":\"p2\",\"revision\":2}"),()->{});
+        assertThat(check.valid()).isTrue();
+        coordinator.tick(row.id());var recovery=recoveries.recovery(row.id()).orElseThrow();
+        assertThat(recovery.retryAt()).isNotNull();
+        assertThat(json.readTree(recovery.checkpointJson()).path("completedPages").get(0).asText()).isEqualTo("p2");
+        assertThat(json.readTree(recovery.checkpointJson()).path("issues").get(0).path("slideId").asText()).isEqualTo("p1");
+        recoveryDue(row.id());coordinator.tick(row.id());coordinator.tick(row.id());
+        var repair=running(persistence.require(row.id()));
+        var fixed=documents.edit(row.documentId(),new PptDocuments.Edit(key(),2,List.of(node("{\"op\":\"update_element\",\"slideId\":\"p1\",\"elementId\":\"t-p1\",\"patch\":{\"height\":100}}"))),true,()->persistence.validateRun(repair));
+        receipt(repair,"ppt_apply_operations",fixed);complete(repair);coordinator.tick(row.id());
+        assertThat(outputs(persistence.require(row.id())).state()).isEqualTo("COMPLETED");
+        assertThat(documents.deck(row.documentId(),null).slides()).hasSize(2);
+    }
+    @Test void longDiscussionConfirmsAndItsEntireFrozenRequirementsCanBeReadInBoundedChunks() {
+        String doc=document();
+        completeDiscussion(service.send(doc,new PptAgentService.Send(key(),"需求".repeat(6000),0,node("{\"kind\":\"DOCUMENT\"}"))),"答复".repeat(65000));
+        var view=service.confirmRequirements(doc,new PptGenerationService.Confirm(key(),0));
+        assertThat(view.state()).isEqualTo("PLANNING");var run=running(persistence.require(view.id()));
+        assertThat(run.userText()).hasSizeGreaterThan(120000);
+        when(runtime.authorize("fixture",run.id(),doc)).thenReturn(run);
+        var full=new StringBuilder();int offset=0;
+        while(true) {
+            var part=json.valueToTree(tools.call("ppt_get_context",Map.of("scope","fixture","runId",run.id(),"documentId",doc,
+                    "args",Map.of("source","requirements","offset",offset,"limit",12000))));
+            assertThat(part.path("text").asText().length()).isLessThanOrEqualTo(12000);full.append(part.path("text").asText());
+            if(part.path("nextOffset").isNull())break;offset=part.path("nextOffset").asInt();
+        }
+        assertThat(full.toString()).isEqualTo(run.userText());
+    }
+    @Test void retryingAutomaticPreviewContinuesThroughExportAndAdjustmentCreatesNewFrozenAuthorization() {
+        var row=produce(start(document()));coordinator.tick(row.id());row=persistence.require(row.id());
+        var job=jobPersistence.state(jobs.require(row.documentId(),row.jobId()),"RUNNING",0,"");
+        jobPersistence.state(job,"FAILED",0,"临时错误");coordinator.tick(row.id());
+        outputRecovery.retry(row.documentId(),job.id());outputRecovery.retry(row.documentId(),job.id());
+        assertThat(outputs(persistence.require(row.id())).state()).isEqualTo("COMPLETED");
+        var other=start(document());var run=running(other);agent.stop(other.documentId());
+        agentPersistence.proven(agents.run(run.id()).orElseThrow(),PptAgentState.STOPPED,"REMOTE_TERMINAL","停止");coordinator.tick(other.id());
+        var input=new PptGenerationService.Resume(key(),0,"改成一页，保留现有内容");
+        var changed=service.resume(other.documentId(),input);
+        assertThat(changed.id()).isNotEqualTo(other.id());assertThat(service.resume(other.documentId(),input).id()).isEqualTo(changed.id());
+        assertThat(persistence.require(other.id()).prompt()).isEqualTo(other.prompt());
+        assertThat(persistence.require(changed.id()).prompt()).contains(other.prompt(),input.adjustment());
+        assertThat(persistence.require(changed.id()).scopeJson()).isEqualTo(other.scopeJson());
+        assertThat(changed.requirementsConfirmed()).isFalse();
+    }
+    @Test void compactEditReceiptsReplayExactlyAfterStopAndNeverReturnTheWholeDeck() {
+        var row=start(document());savePlan(row);coordinator.tick(row.id());var run=running(persistence.require(row.id()));
+        when(runtime.authorize("fixture",run.id(),row.documentId())).thenReturn(run);
+        var call=Map.<String,Object>of("scope","fixture","runId",run.id(),"documentId",row.documentId(),
+                "args",Map.of("idempotencyKey",key(),"expectedRevision",1,"operations",List.of(page("p1"),page("p2"))));
+        var response=json.valueToTree(tools.call("ppt_apply_operations",call));
+        assertThat(response.has("deck")).isFalse();assertThat(response.path("pageCount").asInt()).isEqualTo(2);
+        assertThat(response.path("revision").asInt()).isEqualTo(2);
+        agent.stop(row.documentId());assertThat(json.<JsonNode>valueToTree(tools.call("ppt_apply_operations",call))).isEqualTo(response);
+    }
+    @Test void completedJobWithPreviouslyFailedOwnerStillResumesAndHistoricalRetryCannotResumeNewAuthorization() {
+        var row=produce(start(document()));coordinator.tick(row.id());row=persistence.require(row.id());
+        var job=jobPersistence.state(jobs.require(row.documentId(),row.jobId()),"RUNNING",0,"");jobPersistence.state(job,"FAILED",0,"临时错误");
+        coordinator.tick(row.id());jobs.retry(row.documentId(),job.id());jobs.execute(jobs.require(row.documentId(),job.id()));
+        assertThat(persistence.require(row.id()).state()).isEqualTo("FAILED");
+        outputRecovery.retry(row.documentId(),job.id());outputRecovery.retry(row.documentId(),job.id());
+        assertThat(outputs(persistence.require(row.id())).state()).isEqualTo("COMPLETED");
+    }
+    @Test void staleRecoveryCannotOverwriteAnUnrelatedRevisionAndLegacyRunsDoNotGainAutomaticRetry() {
+        var row=start(document());agentPersistence.failed(running(row),"REMOTE_TERMINAL","HTTP_503","Service unavailable");
+        coordinator.tick(row.id());recoveryDue(row.id());
+        jdbc.update("UPDATE ppt_document SET revision=revision+1 WHERE id=?",row.documentId());
+        coordinator.tick(row.id());assertThat(persistence.require(row.id()).state()).isEqualTo("FAILED");
+        assertThat(persistence.require(row.id()).attempt()).isZero();
+        var old=start(document());jdbc.update("DELETE FROM ppt_generation_recovery WHERE generation_id=?",old.id());
+        agentPersistence.failed(running(old),"REMOTE_TERMINAL","HTTP_503","Service unavailable");coordinator.tick(old.id());
+        assertThat(persistence.require(old.id()).state()).isEqualTo("FAILED");
+    }
+
+    @Test void outputRetryCannotResumeAReplacementGenerationAdmittedDuringTheRequest() {
+        var row=produce(start(document()));coordinator.tick(row.id());row=persistence.require(row.id());
+        var job=jobPersistence.state(jobs.require(row.documentId(),row.jobId()),"RUNNING",0,"");
+        jobPersistence.state(job,"FAILED",0,"临时错误");coordinator.tick(row.id());
+        String doc=row.documentId(),owner=row.id();
+        var intercepted=mock(PptGenerationCoordinator.class);
+        var replacement=new java.util.concurrent.atomic.AtomicReference<Generation>();
+        doAnswer(call->{
+            service.send(doc,new PptAgentService.Send(key(),"修改第一页标题",documents.get(doc).revision(),node("{\"kind\":\"SLIDE\",\"slideId\":\"p1\"}")));
+            var next=generations.latest(doc).orElseThrow();
+            agentPersistence.failed(running(next),"REMOTE_TERMINAL","HTTP_401","Unauthorized");
+            persistence.state(persistence.require(next.id()),PptGenerationState.FAILED,"模型配置错误");
+            replacement.set(persistence.require(next.id()));return null;
+        }).when(intercepted).tick(owner);
+        var tested=new PptOutputRecovery(generations,persistence,intercepted,jobs,documents);
+        assertThatThrownBy(()->tested.retry(doc,job.id())).isInstanceOf(ConflictException.class);
+        assertThat(persistence.require(replacement.get().id()).state()).isEqualTo("FAILED");
+        assertThat(persistence.require(replacement.get().id()).attempt()).isZero();
+        assertThat(jobs.get(doc,job.id()).state()).isEqualTo("FAILED");
     }
 }

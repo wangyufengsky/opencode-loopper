@@ -19,14 +19,15 @@ import tools.jackson.databind.ObjectMapper;
 @Service
 public class PptGenerationPersistence implements PptAgentWorkflowGate {
     private final PptGenerationMapper mapper;
+    private final PptRecoveryMapper recovery;
     private final PptAgentMapper agents;
     private final PptMapper documents;
     private final LifecycleTransitionService lifecycle;
     private final ObjectMapper json;
     private final io.opencode.loopper.service.ppt.PptJobPersistence jobs;
     public PptGenerationPersistence(PptGenerationMapper mapper,PptAgentMapper agents,PptMapper documents,
-            LifecycleTransitionService lifecycle,ObjectMapper json,io.opencode.loopper.service.ppt.PptJobPersistence jobs) {
-        this.mapper=mapper;this.agents=agents;this.documents=documents;this.lifecycle=lifecycle;this.json=json;this.jobs=jobs;
+            LifecycleTransitionService lifecycle,ObjectMapper json,io.opencode.loopper.service.ppt.PptJobPersistence jobs, PptRecoveryMapper recovery) {
+        this.recovery=recovery;this.mapper=mapper;this.agents=agents;this.documents=documents;this.lifecycle=lifecycle;this.json=json;this.jobs=jobs;
     }
     public Generation require(String id) { return mapper.get(id).orElseThrow(()->new NotFoundException("自动生成请求不存在")); }
     public Generation replay(String document,String key,String sha,String kind) {
@@ -43,7 +44,7 @@ public class PptGenerationPersistence implements PptAgentWorkflowGate {
             throw PptSupport.bad("PPT_GENERATION_PHASE","当前阶段不适用于此生成请求，请刷新状态");
         lifecycle.create(subject(desired),desired.state(),Map.of("authorizedBy","GENERATE","revision",desired.sourceRevision()),
                 ()->mapper.insert(desired),()->PptSupport.conflict("作品已有自动生成请求"));
-        receipt(desired,desired.idempotencyKey(),desired.inputSha(),kind);return require(desired.id());
+        recovery.enable(desired.id());receipt(desired,desired.idempotencyKey(),desired.inputSha(),kind);return require(desired.id());
     }
     @Transactional public Generation beginConfirmed(Generation desired,PptDiscussionTranscript.Snapshot snapshot) {
         if(!desired.requirementsConfirmed()||!desired.mode().equals("CREATE"))throw PptSupport.bad("PPT_GENERATION_AUTHORITY","确认授权格式无效");
@@ -58,7 +59,29 @@ public class PptGenerationPersistence implements PptAgentWorkflowGate {
         if(!doc.phase().equals("BRIEFING"))throw PptSupport.bad("PPT_GENERATION_PHASE","当前阶段不能确认首次需求");
         lifecycle.create(subject(desired),desired.state(),Map.of("authorizedBy","USER_CONFIRMATION","revision",desired.sourceRevision(),"requirementsConfirmed",true),
                 ()->mapper.insert(desired),()->PptSupport.conflict("作品已有自动生成请求"));
-        receipt(desired,desired.idempotencyKey(),desired.inputSha(),"GENERATE");return require(desired.id());
+        recovery.enable(desired.id());receipt(desired,desired.idempotencyKey(),desired.inputSha(),"GENERATE");return require(desired.id());
+    }
+    @Transactional public Generation adjusted(Generation previous, Generation desired, String requestSha) {
+        var replay=replay(desired.documentId(),desired.idempotencyKey(),requestSha,"RESUME");if(replay!=null)return replay;
+        var old=require(previous.id());
+        if(!Set.of("FAILED","STOPPED").contains(old.state())||mapper.latest(old.documentId()).filter(r->r.id().equals(old.id())).isEmpty())
+            throw PptSupport.conflict("只有最新且已停止的制作可以调整要求后继续");
+        if(!old.documentId().equals(desired.documentId())||!old.mode().equals(desired.mode())
+                ||!old.scopeJson().equals(desired.scopeJson())||old.requirementsConfirmed()!=desired.requirementsConfirmed())
+            throw PptSupport.conflict("新请求不能扩大原制作授权");
+        noWriter(old.documentId());assertManualAdmission(old.documentId());var doc=document(old.documentId(),desired.sourceRevision());
+        if(old.mode().equals("REVISE")&&!Set.of("REVIEW","EXPORTED").contains(doc.phase()))throw PptSupport.conflict("作品阶段已变化，请发送新请求");
+        lifecycle.create(subject(desired),desired.state(),Map.of("authorizedBy","USER_ADJUSTMENT","previousGeneration",old.id()),
+                ()->mapper.insert(desired),()->PptSupport.conflict("作品已有自动生成请求"));
+        recovery.enable(desired.id());receipt(desired,desired.idempotencyKey(),requestSha,"RESUME");return require(desired.id());
+    }
+    public record RecoveryView(String retryAt,int attempts,long revision,int completedPages,int missingPages,int issues) { }
+    public RecoveryView recoveryView(Generation row) {
+        return recovery.recovery(row.id()).filter(r->!r.fingerprint().isBlank()).map(r->{
+            var checkpoint=json.readTree(r.checkpointJson());
+            return new RecoveryView(r.retryAt(),r.failures(),r.revision(),checkpoint.path("completedPages").size(),
+                    (int)java.util.stream.Stream.concat(checkpoint.path("missingPages").valueStream(),checkpoint.path("emptyPages").valueStream()).distinct().count(),checkpoint.path("issueCount").asInt());
+        }).orElse(null);
     }
     @Transactional public Generation resume(Generation observed,String key,String sha,long revision) {
         var old=replay(observed.documentId(),key,sha,"RESUME");if(old!=null)return old;
@@ -66,6 +89,7 @@ public class PptGenerationPersistence implements PptAgentWorkflowGate {
         if(!Set.of("STOPPED","FAILED").contains(row.state()))throw PptSupport.conflict("当前生成尚未停止，或已经完成");
         if(mapper.latest(row.documentId()).filter(v->v.id().equals(row.id())).isEmpty())throw PptSupport.conflict("该生成已由新请求替代");
         noWriter(row.documentId());assertManualAdmission(row.documentId());var doc=document(row.documentId(),revision);
+        recovery.enable(row.id());recovery.save(new PptRecoveryMapper.Recovery(row.id(),-1,revision,"",0,null,"{}",""));
         if(row.mode().equals("REVISE")&&!Set.of("REVIEW","EXPORTED").contains(doc.phase()))throw PptSupport.conflict("作品阶段已变化，请发送新请求");
         if(Set.of("PREVIEW","EXPORT").contains(row.step())&&Objects.equals(row.outputRevision(),revision)&&row.jobId()!=null) {
             var job=documents.job(row.documentId(),row.jobId()).orElseThrow();
@@ -84,7 +108,38 @@ public class PptGenerationPersistence implements PptAgentWorkflowGate {
         var result=state(require(row.id()),PptGenerationState.valueOf(step),"已恢复，将继续已保存内容");
         receipt(result,key,sha,"RESUME");return result;
     }
+    @Transactional public void scheduleRecovery(Generation expected, PptRecoveryMapper.Recovery next, String detail) {
+        var row=current(expected); provenFailureOrCompletion(row); document(row.documentId(),next.revision());
+        if(row.attempt()!=next.observedAttempt()||recovery.recovery(row.id()).isEmpty())throw PptSupport.conflict("恢复授权已变化");
+        if(recovery.save(next)!=1)throw PptSupport.conflict("恢复记录已变化");
+        state(row,PptGenerationState.valueOf(row.step()),detail);
+    }
+    @Transactional public void continueAutomatically(Generation expected) {
+        var row=current(expected); var saved=recovery.recovery(row.id()).orElseThrow();
+        if(saved.retryAt()==null||Instant.parse(saved.retryAt()).isAfter(Instant.now()))return;
+        if(saved.observedAttempt()!=row.attempt())throw PptSupport.conflict("恢复轮次已变化");
+        provenFailureOrCompletion(row); document(row.documentId(),saved.revision());
+        int attempt=row.attempt()+1;
+        mutate(()->mapper.step(row.id(),row.version(),row.step(),attempt,saved.revision(),agentKey(row.id(),attempt,row.step()),null,null,now()));
+        recovery.clear(row.id());
+        state(require(row.id()),PptGenerationState.valueOf(row.step()),"正在从已保存页面继续制作");
+    }
+    private void provenFailureOrCompletion(Generation row) {
+        current(row); noWriter(row.documentId());
+        var run=agents.run(row.runId()).orElseThrow();
+        if(!run.idempotencyKey().equals(row.agentKey())||!Set.of("FAILED","COMPLETED").contains(run.state())
+                ||run.stopProof()==null||run.stopProof().isBlank())throw PptSupport.conflict("上一轮尚未确认停止");
+        Long saved=mapper.savedRevision(run.id());long revision=saved==null?run.sourceRevision():Math.max(saved,run.sourceRevision());
+        document(row.documentId(),revision);
+    }
+    @Override public Object recoveryContext(Authorization authorization) {
+        var row=require(authorization.generationId());
+        return recovery.recovery(row.id()).filter(r->r.observedAttempt()==row.attempt()-1&&r.revision()==row.dispatchRevision()
+                        &&json.readTree(r.checkpointJson()).path("step").asText().equals(row.step()))
+                .map(r->json.readTree(r.checkpointJson())).orElse(json.createObjectNode());
+    }
     @Transactional public Generation state(Generation row,PptGenerationState next,String detail) {
+        if(next.terminal()||next==PptGenerationState.STOPPING)recovery.clear(row.id());
         if(row.state().equals(next.name())) {
             if(!row.detail().equals(detail))mutate(()->mapper.detail(row.id(),row.version(),detail,now()));
         } else lifecycle.transition(subject(row),row.state(),next.name(),null,Map.of("step",row.step()),

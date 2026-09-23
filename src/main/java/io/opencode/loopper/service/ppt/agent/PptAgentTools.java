@@ -55,6 +55,7 @@ public class PptAgentTools {
         if(tool.equals("ppt_submit_plan")&&automatic!=null&&automatic.path("mode").asText().equals("CREATE"))PptAutomaticPlan.validate(node.get("plan"));
         if (mapper.pending(run.id()).isPresent() && WRITES.contains(tool)) throw PptAgentPersistence.conflict("正在等待用户输入，请结束本轮");
         if (tool.equals("ppt_request_input")) return writes.question(run, node, key, sha);
+        if(tool.equals("ppt_get_context")&&node.hasNonNull("source"))return PptAgentPayloads.read(run,node,mapper,json);
         ObjectNode args = ((ObjectNode) node).deepCopy();
         args.set("agentScope", json.readTree(run.scopeJson())); args.put("agentRunId", run.id());
         Object result = workspace.invoke(run.documentId(), tool, args, () -> {
@@ -73,6 +74,8 @@ public class PptAgentTools {
                             && PptRequirements.permits(t, requirementsState)
                             && (automatic==null||!MANAGED_OUTPUTS.contains(t))).toList());
         }
+        if(PptAgentPayloads.PROTOCOL.equals(json.readTree(run.contextJson()).path("pptToolProtocol").asText()))
+            result=PptAgentPayloads.compact(tool,node,json.valueToTree(result),json);
         String response = json.writeValueAsString(result);
         Object safe = json.readTree(AssistRedaction.text(response));
         return WRITES.contains(tool) ? writes.save(run, key, tool, sha, safe) : safe;

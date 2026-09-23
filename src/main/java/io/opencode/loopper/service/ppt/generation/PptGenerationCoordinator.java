@@ -23,11 +23,12 @@ public class PptGenerationCoordinator {
     private final PptJobs jobs;
     private final ObjectMapper json;
     private final PptEvents events;
+    private final PptGenerationRecovery recovery;
     private final Set<String> running=ConcurrentHashMap.newKeySet();
     public PptGenerationCoordinator(PptGenerationMapper mapper,PptGenerationPersistence persistence,PptAgentMapper agents,
-            PptAgentService agent,PptDocuments documents,PptJobs jobs,ObjectMapper json,PptEvents events) {
+            PptAgentService agent,PptDocuments documents,PptJobs jobs,ObjectMapper json,PptEvents events,PptGenerationRecovery recovery) {
         this.mapper=mapper;this.persistence=persistence;this.agents=agents;this.agent=agent;
-        this.documents=documents;this.jobs=jobs;this.json=json;this.events=events;
+        this.documents=documents;this.jobs=jobs;this.json=json;this.events=events;this.recovery=recovery;
     }
     @Scheduled(fixedDelayString="${loopper.ppt-generation-delay:1000}")
     public void monitor() { mapper.activeRows().forEach(row->tick(row.id())); }
@@ -39,6 +40,7 @@ public class PptGenerationCoordinator {
             observedVersion=row.version();
             if(PptGenerationState.valueOf(row.state()).terminal())return;
             if(row.state().equals("STOPPING")){stop(row);return;}
+            if(recovery.pending(row))return;
             if(Set.of("PLANNING","PRODUCING").contains(row.step()))model(row);else output(row);
         }catch(RuntimeException failure) {
             var row=persistence.require(id);
@@ -77,12 +79,16 @@ public class PptGenerationCoordinator {
         if(Set.of("STOPPED","FAILED").contains(run.state())) {
             if(run.stopProof()==null||run.stopProof().isBlank())return;
             if(run.state().equals("STOPPED")){persistence.cancel(row.documentId());stop(persistence.require(row.id()));}
-            else persistence.state(row,PptGenerationState.FAILED,"模型本轮失败，保存的方案与页面保留，可以继续");
+            else if(!recovery.modelFailed(row))persistence.state(row,PptGenerationState.FAILED,run.detail());
             return;
         }
         if(!run.state().equals("COMPLETED"))return;
         row=persistence.freeze(row,run);
-        if(row.step().equals("PLANNING"))planningComplete(row,run);else productionComplete(row,run);
+        try {
+            if(row.step().equals("PLANNING"))planningComplete(row,run);else productionComplete(row,run);
+        } catch(RuntimeException failure) {
+            if(!recovery.repair(persistence.require(row.id()),failure))throw failure;
+        }
     }
     private void planningComplete(Generation row,Run run) {
         PptRequirements.requireConfirmed(run, agents.questions(run.id()), json);

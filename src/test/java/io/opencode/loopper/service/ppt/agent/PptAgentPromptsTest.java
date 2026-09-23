@@ -47,4 +47,11 @@ class PptAgentPromptsTest {
         assertThat(generation.system()).contains("用户已明确确认完整讨论内容", "直接提交完整方案并开始制作", "用户在讨论界面点击", "不要再请求首次需求确认")
                 .doesNotContain("kind=REQUIREMENTS_CONFIRMATION");
     }
+
+    @Test void longDialogUsesBoundedReferenceAndNeverSilentlyDropsTheArchive() {
+        var request=run("BRIEFING","{\"pptDiscussionProtocol\":\"FREEFORM_DIALOGUE_V1\",\"pptToolProtocol\":\"BOUNDED_CONTEXT_V1\"}");
+        var prompt=PptAgentPrompts.build(request,List.of(),"保留历史要求".repeat(30000),json);
+        assertThat(prompt.text()).hasSizeLessThan(2000).contains("discussion","nextOffset",request.userText());
+        assertThat(PptAgentPayloads.prompt("要求".repeat(20000),"requirements")).contains("requirements","40000","读完所有分段");
+    }
 }

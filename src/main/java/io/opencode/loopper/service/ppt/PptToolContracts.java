@@ -8,22 +8,23 @@ import tools.jackson.databind.ObjectMapper;
 final class PptToolContracts {
     private PptToolContracts() { }
     static Object capabilities(PptEngine engine,ObjectMapper json) {
-        return Map.of("capabilities",engine.capabilities(),"contractVersion",3,"coordinates","point; top-left origin; default 960 × 540; all bounds numeric",
-                "rules","IDs are stable and unique across the deck. Use explicit planned slide IDs; page order is not identity. Call measure/check before export. No silent text truncation. Writes require a new idempotencyKey and current expectedRevision. Same key may only replay identical input. In the freeform discussion protocol, only read-only context, source, capability and authorized knowledge tools are available; all plan/page/output writes and question submissions are rejected until the user confirms requirements in the UI. Old manual and automatic flows retain their frozen approval contract. With a confirmed CREATE authorization, submit a complete plan with your selectedDirectionId; the server validates and advances after this run ends. Read source sections before citing. Do not change locked objects.",
+        return Map.of("capabilities",engine.capabilities(),"contractVersion",4,"coordinates","point; top-left origin; default 960 × 540; all bounds numeric",
+                "rules","IDs are stable and unique across the deck. Use explicit planned slide IDs; page order is not identity. Call measure/check before export. No silent text truncation. Writes require a new idempotencyKey and current expectedRevision. Same key may only replay identical input. In the freeform discussion protocol, only read-only context, source, capability and authorized knowledge tools are available; all plan/page/output writes and question submissions are rejected until the user confirms requirements in the UI. Old manual and automatic flows retain their frozen approval contract. With a confirmed CREATE authorization, submit a complete plan with your selectedDirectionId; the server validates and advances after this run ends. Read source sections before citing. Do not change locked objects. Prefer compose_slide for new pages: title plus 1-3 text/table/chart blocks; server calculates layout and rejects unreadable density without truncating. Existing pages use targeted low-level edits.",
                 "parameters",json.readTree(PARAMETERS),"operations",json.readTree(OPERATIONS),"element",json.readTree(ELEMENT),"plan",json.readTree(PLAN));
     }
     private static final String PARAMETERS="""
-        {"ppt_get_context":{"slideId":"optional; omit for page/source index","revision":"optional snapshot number"},
+        {"ppt_get_context":{"slideId":"optional; omit for page/source index","revision":"optional snapshot number","source":"requirements or discussion for full frozen text","offset":0,"limit":12000},
          "ppt_read_source":{"sourceId":"resource ID","sectionId":"section index as string, e.g. 0","offset":0,"limit":12000},
          "ppt_submit_plan":{"idempotencyKey":"UUID","expectedRevision":0,"plan":"complete plan object below"},
          "ppt_apply_operations":{"idempotencyKey":"UUID","expectedRevision":0,"operations":"array of operations below"},
          "ppt_measure_text":{"revision":0,"element":"full element object; or provide slideId plus elementId"},
-         "ppt_check_layout":{"revision":0},
+         "ppt_check_layout":{"revision":0,"slideId":"optional; omitted checks all pages"},
          "ppt_render_preview":{"idempotencyKey":"UUID","revision":0,"slideId":"optional"},
          "ppt_get_job":{"jobId":"job ID"},"ppt_export":{"idempotencyKey":"UUID","revision":0}}
         """;
     private static final String OPERATIONS="""
-        [{"op":"create_slide","slide":{"id":"slide-intro","title":"开场","section":"背景","notes":"演讲备注","elements":[]},"index":0,"clientRef":"intro"},
+        [{"op":"compose_slide","slideId":"slide-result","title":"关键结果","notes":"讲稿","blocks":[{"type":"text","title":"结论","text":"完整要点，程序排版并测量，过密时拒绝且不截断"},{"type":"table","title":"指标","rows":[["项目","值"],["收入","100万元"]]}]},
+         {"op":"create_slide","slide":{"id":"slide-intro","title":"开场","section":"背景","notes":"演讲备注","elements":[]},"index":0,"clientRef":"intro"},
          {"op":"duplicate_slide","slideId":"slide-intro","index":1,"clientRef":"copied"},
          {"op":"move_slide","slideId":"slide-intro","index":0},
          {"op":"delete_slide","slideId":"slide-intro"},

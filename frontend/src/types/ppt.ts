@@ -296,6 +296,7 @@ export interface PptAgentStatus {
   questions: PptQuestion[]
 }
 export interface PptMessage {
+  failure?: { errorCode: string; detail: string; category: string } | null
   thinking?: string
   calls?: { id: string; tool: string; state: string; detail: string }[]
   id: string
@@ -399,4 +400,5 @@ export interface PptGeneration {
   createdAt: string
   updatedAt: string
   requirementsConfirmed: boolean
+  recovery?: { retryAt: string | null; attempts: number; revision: number; completedPages: number; missingPages: number; issues: number } | null
 }

@@ -141,7 +141,7 @@ public class PptAgentCoordinator {
             if (mapper.pending(run.id()).isPresent()) { persistence.stop(run.documentId(), "INPUT"); return; }
             var result = openCode.sessionResult(remote);
             if (result.errorType() != null && !result.errorType().isBlank()) {
-                persistence.proven(run, PptAgentState.FAILED, "REMOTE_TERMINAL", "模型本轮失败；已保存的页面与候选保留");
+                persistence.failed(run, "REMOTE_TERMINAL", result.errorType(), result.errorDetail());
             } else {
                 String output = AssistRedaction.text(result.text());
                 if (output != null && !output.equals(run.answer())) { mapper.answer(run.id(), run.version(), output, Instant.now().toString()); run = persistence.require(run.id()); }
@@ -151,7 +151,12 @@ public class PptAgentCoordinator {
             usage(remote, run);
         } else if (status.failed()) {
             var proof = openCode.abortWithConfirmation(remote);
-            if (proof != null) persistence.proven(run, PptAgentState.FAILED, proof.name(), "模型本轮已停止，可重新发送请求");
+            if (proof != null) {
+                SessionResult result;
+                try { result = openCode.sessionResult(remote); }
+                catch (RuntimeException unavailable) { result = new SessionResult("",Map.of(),"REMOTE_"+status.state(),status.detail(),0); }
+                persistence.failed(run, proof.name(), result.errorType(), result.errorDetail());
+            }
         }
     }
     private void completeProduction(Run run) {
@@ -177,7 +182,8 @@ public class PptAgentCoordinator {
         var proof = openCode.abortWithConfirmation(remote);
         if (proof == null) return;
         boolean input = "INPUT".equals(run.stopReason()) && mapper.pending(run.id()).isPresent();
-        persistence.proven(run, input ? PptAgentState.WAITING_INPUT : PptAgentState.STOPPED, proof.name(),
+        if("OUTPUT_LIMIT".equals(run.stopReason()))persistence.failed(run,proof.name(),"OPENCODE_OUTPUT_LENGTH_EXHAUSTED","本轮累计输出超过安全接收长度");
+        else persistence.proven(run, input ? PptAgentState.WAITING_INPUT : PptAgentState.STOPPED, proof.name(),
                 input ? "请回答问题后继续" : "已停止，保存的页面与候选保留");
         usage(remote, run);
     }

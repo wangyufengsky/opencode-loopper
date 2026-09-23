@@ -36,6 +36,7 @@ final class PptOperations {
     private void applyOne(ObjectNode deck, JsonNode op, boolean agent, Map<String, String> created) {
         switch (requiredText(op, "op")) {
             case "create_slide" -> create(deck, op, agent, created);
+            case "compose_slide" -> create(deck, PptSemanticLayout.compile(deck,op,mapper,fonts), agent, created);
             case "duplicate_slide" -> duplicate(deck, op, created);
             case "move_slide" -> move(deck, op);
             case "delete_slide" -> delete(deck, op);

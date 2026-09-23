@@ -29,7 +29,7 @@ describe('PPT requirements progress', () => {
     store.agent = { ...pptAgent(), state: 'STOPPED', requirementsState: 'CLARIFYING' }
     const wrapper = mount(PptGenerationStatus)
     expect(wrapper.get('h2').text()).toBe('已暂停')
-    expect(wrapper.get('button').text()).toContain('继续制作')
+    expect(wrapper.get('button').text()).toContain('按当前要求继续')
   })
   it('describes the pre-generation freeform discussion and the explicit execution action', () => {
     const store = usePptStore()

@@ -37,7 +37,7 @@ public class PptAgentWorkspaceAdapter implements PptAgentWorkspace {
             case "ppt_submit_plan" -> submit(id,args,revalidate);
             case "ppt_apply_operations" -> operations(id,args,revalidate);
             case "ppt_measure_text" -> engine.measureText(documents.deck(id,revision(args)),element(id,args));
-            case "ppt_check_layout" -> checks.check(id,revision(args));
+            case "ppt_check_layout" -> checks.check(id,revision(args),text(args,"slideId"));
             case "ppt_render_preview" -> jobs.create(id,new PptJobs.Create("PREVIEW",requiredRevision(args),text(args,"slideId"),required(args,"idempotencyKey")),revalidate);
             case "ppt_export" -> jobs.create(id,new PptJobs.Create("EXPORT",requiredRevision(args),null,required(args,"idempotencyKey")),revalidate);
             case "ppt_get_job" -> jobs.get(id,required(args,"jobId"));

@@ -22,7 +22,7 @@ class PptGenerationMigrationTest {
                     + "VALUES('job-b','b','PREVIEW',0,'PREPARED',1,'preview','hash','now','now')");
         }
         var flyway = Flyway.configure().dataSource(url, null, null).load();
-        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(5);
+        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(6);
         flyway.validate();
         try (var db = DriverManager.getConnection(url); var sql = db.createStatement()) {
             try (var rows = sql.executeQuery("SELECT deck_json,plan_json FROM ppt_revision WHERE document_id='a'")) {
@@ -68,7 +68,7 @@ class PptGenerationMigrationTest {
         String url = "jdbc:sqlite:" + root.resolve("fresh.db") + "?foreign_keys=on";
         var flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate(); flyway.validate();
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("125");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("126");
         try (var db = DriverManager.getConnection(url); var sql = db.createStatement()) {
             for (String table : new String[]{"ppt_generation", "ppt_generation_request"}) {
                 try (var rows = sql.executeQuery("SELECT count(*) FROM " + table)) {
@@ -94,5 +94,25 @@ class PptGenerationMigrationTest {
     private String request(String document, String key, String generation) {
         return "INSERT INTO ppt_generation_request VALUES('" + document + "','" + key + "','"
                 + "a".repeat(64) + "','" + generation + "','GENERATE','now')";
+    }
+
+    @Test void recoveryUpgradeLeavesLegacyAuthorizationOptOutAndPreservesFrozenPrompt() throws Exception {
+        String url="jdbc:sqlite:"+root.resolve("recovery-upgrade.db")+"?foreign_keys=on";
+        Flyway.configure().dataSource(url,null,null).target("125").load().migrate();
+        try(var db=DriverManager.getConnection(url);var sql=db.createStatement()) {
+            document(sql,"legacy");sql.execute(generation("old-generation","legacy"));
+        }
+        var upgrade=Flyway.configure().dataSource(url,null,null).load();
+        assertThat(upgrade.migrate().migrationsExecuted).isEqualTo(1);upgrade.validate();
+        try(var db=DriverManager.getConnection(url);var sql=db.createStatement()) {
+            try(var rows=sql.executeQuery("SELECT prompt,state FROM ppt_generation WHERE id='old-generation'")) {
+                assertThat(rows.next()).isTrue();assertThat(rows.getString(1)).isEqualTo("生成演示");assertThat(rows.getString(2)).isEqualTo("PLANNING");
+            }
+            try(var rows=sql.executeQuery("SELECT count(*) FROM ppt_generation_recovery")) {assertThat(rows.next()).isTrue();assertThat(rows.getInt(1)).isZero();}
+            assertThatThrownBy(()->sql.execute("INSERT INTO ppt_generation_recovery(generation_id) VALUES('missing')")).hasMessageContaining("FOREIGN KEY");
+            sql.execute("INSERT INTO ppt_generation_recovery(generation_id) VALUES('old-generation')");
+            try(var rows=sql.executeQuery("PRAGMA foreign_key_check")) {assertThat(rows.next()).isFalse();}
+        }
+        assertThat(upgrade.migrate().migrationsExecuted).isZero();
     }
 }

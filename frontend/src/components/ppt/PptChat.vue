@@ -34,6 +34,7 @@ const unseen = ref(false)
 const questions = computed(
   () => store.agent?.questions.filter((question) => question.state === 'PENDING') || [],
 )
+const interrupted = computed(() => !!store.generation?.canResume)
 const canSend = computed(
   () =>
     text.value.trim() &&
@@ -41,8 +42,7 @@ const canSend = computed(
     !store.busy &&
     !props.disabled &&
     !store.pending &&
-    !['STOPPED', 'FAILED'].includes(store.generation?.state || '') &&
-    (props.ready || !store.generation),
+    (props.ready || !store.generation || interrupted.value),
 )
 const canConfirm = computed(() => {
   const latest = store.messages.at(-1)
@@ -98,6 +98,7 @@ onMounted(() => {
 })
 let owner = ''
 let pendingMessageKey = ''
+let pendingAdjustment = ''
 
 function saveDraft() {
   if (!owner) return
@@ -114,6 +115,8 @@ watch(
   (id) => {
     saveDraft()
     owner = id || ''
+    pendingAdjustment = ''
+    pendingMessageKey = ''
     try {
       text.value = sessionStorage.getItem(`loopper.ppt.chat.${owner}`) || ''
       answers.value = JSON.parse(
@@ -135,6 +138,12 @@ watch(
   [() => store.pending, () => store.messages],
   () => {
     if (store.pending?.kind === 'message') pendingMessageKey = store.pending.key
+    if (store.pending?.kind === 'resume') pendingAdjustment = String(store.pending.payload.adjustment || '')
+    if (!store.pending && pendingAdjustment && !store.error) {
+      if (text.value.trim() === pendingAdjustment) text.value = ''
+      pendingAdjustment = ''
+      saveDraft()
+    }
     const accepted = store.messages.find((message) => message.idempotencyKey === pendingMessageKey)
     if (accepted && accepted.text === text.value.trim()) {
       text.value = ''
@@ -151,7 +160,7 @@ async function send() {
   if (!canSend.value) return
   const id = owner
   const value = text.value.trim()
-  const accepted = await store.send(value, { ...props.scope })
+  const accepted = interrupted.value ? await store.adjustAndResume(value) : await store.send(value, { ...props.scope })
   if (accepted && id === owner) {
     text.value = ''
     saveDraft()
@@ -239,6 +248,11 @@ async function reply(question: PptQuestion, confirmed = false) {
         >
           {{ message.detail }}
         </p>
+        <details v-if="message.failure" class="ppt-long-reply">
+          <summary>查看本轮失败原因</summary>
+          <pre>{{ message.failure.errorCode }}
+{{ message.failure.detail || '模型未返回详细原因' }}</pre>
+        </details>
         <details v-if="message.questions.some((question) => question.state !== 'PENDING')">
           <summary>已补充的信息</summary>
           <div
@@ -387,7 +401,7 @@ async function reply(question: PptQuestion, confirmed = false) {
         </button>
         <button v-if="!store.active" :class="{ 'ppt-primary': ready || !canConfirm }" :disabled="!canSend">
           <Icon icon="lucide:arrow-up" />
-          {{ ready ? '修改' : store.messages.length ? '继续讨论' : '开始沟通' }}
+          {{ interrupted ? '调整要求并继续' : ready ? '修改' : store.messages.length ? '继续讨论' : '开始沟通' }}
         </button>
       </footer>
     </form>

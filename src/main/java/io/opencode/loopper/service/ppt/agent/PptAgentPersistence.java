@@ -15,8 +15,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class PptAgentPersistence {
     private final PptAgentMapper mapper;
     private final LifecycleTransitionService lifecycle;
-    public PptAgentPersistence(PptAgentMapper mapper, LifecycleTransitionService lifecycle) {
-        this.mapper = mapper; this.lifecycle = lifecycle;
+    private final io.opencode.loopper.persistence.PptRecoveryMapper recovery;
+    public PptAgentPersistence(PptAgentMapper mapper, LifecycleTransitionService lifecycle, io.opencode.loopper.persistence.PptRecoveryMapper recovery) {
+        this.mapper = mapper; this.lifecycle = lifecycle; this.recovery = recovery;
     }
     @Transactional
     public Run begin(Run desired, Runnable revalidate) {
@@ -78,6 +79,13 @@ public class PptAgentPersistence {
         lifecycle.mutateWithoutTransition(() -> mapper.proof(row.id(), row.version(), proof), () -> conflict("停止证明已变化"));
         state(require(row.id()), state, detail);
         if (state.terminal()) mapper.closeQuestions(row.id());
+    }
+    @Transactional
+    public void failed(Run row, String proof, String code, String detail) {
+        var failure = PptFailurePolicy.classify(code, detail);
+        if (recovery.insertFailure(new io.opencode.loopper.persistence.PptRecoveryMapper.Failure(row.id(), failure.category(),
+                failure.code(), failure.detail(), Instant.now().toString())) != 1) throw conflict("失败记录已变化");
+        proven(row, PptAgentState.FAILED, proof, failure.message());
     }
     @Transactional
     public void dispatch(Run row, String request, String sha) {

@@ -13,7 +13,7 @@ import tools.jackson.databind.ObjectMapper;
 public class PptDiscussionTranscript {
     public static final String PROTOCOL = "FREEFORM_DIALOGUE_V1";
     private static final int PAGE_SIZE = 100;
-    private static final int MAX_CHARACTERS = 120_000;
+    public static final int MAX_CHARACTERS = 1_000_000;
     private final PptAgentMapper mapper;
     private final ObjectMapper json;
 
@@ -32,7 +32,9 @@ public class PptDiscussionTranscript {
         if (mapper.pendingDiscussion(document).isPresent())
             throw PptSupport.conflict("请先回答讨论中的待补充问题，再确认需求");
         var latest = turns.getLast();
-        return new Snapshot(render(turns), latest.id(), latest.version(), turns.size());
+        String frozen=render(turns);
+        if(frozen.length()>MAX_CHARACTERS)throw PptSupport.bad("PPT_DISCUSSION_TOO_LONG","讨论超过 100 万字，请将后续内容拆分为新作品；原记录保留");
+        return new Snapshot(frozen, latest.id(), latest.version(), turns.size());
     }
 
     public static String before(PptAgentMapper mapper, Run current, ObjectMapper json) {
@@ -69,7 +71,7 @@ public class PptDiscussionTranscript {
         long size = 0;
         for (var run : runs) size += run.userText().length() + (run.answer() == null ? 0 : run.answer().length());
         if (size > MAX_CHARACTERS)
-            throw PptSupport.bad("PPT_DISCUSSION_TOO_LONG", "讨论记录已超出可安全提交的长度，请先让助手整理当前需求后再确认");
+            throw PptSupport.bad("PPT_DISCUSSION_TOO_LONG", "讨论超过 100 万字，请将后续内容拆分为新作品；原记录保留");
     }
 
     private String render(List<Run> runs) {

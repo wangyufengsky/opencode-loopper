@@ -3,7 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { usePptStore } from '@/stores/pptStore'
 import type { PptMessage } from '@/types/domain'
-import { pptAgent, pptDocument } from './pptTestFixtures'
+import { pptAgent, pptDocument, pptGeneration } from './pptTestFixtures'
 import PptChat from './PptChat.vue'
 
 const message = (id: string, answer = '已完成调整'): PptMessage => ({
@@ -206,5 +206,21 @@ describe('PPT concise conversation', () => {
     await wrapper.get('.ppt-return-latest').trigger('click')
     expect(timeline.scrollTop).toBe(1200)
     expect(wrapper.find('.ppt-return-latest').exists()).toBe(false)
+  })
+
+  it('explicitly adjusts a stopped authorization without sending a manual request', async () => {
+    const store = usePptStore()
+    store.generation = pptGeneration('FAILED')
+    store.agent = { ...pptAgent(), state: 'FAILED' }
+    const adjusted = vi.spyOn(store, 'adjustAndResume').mockResolvedValue(true)
+    const send = vi.spyOn(store, 'send')
+    const wrapper = render(false)
+    await wrapper.get('.ppt-composer textarea').setValue('先完成八页，去掉示例截图')
+    expect(wrapper.text()).toContain('调整要求并继续')
+    await wrapper.get('.ppt-composer').trigger('submit')
+    expect(adjusted).toHaveBeenCalledWith('先完成八页，去掉示例截图')
+    expect(send).not.toHaveBeenCalled()
+    expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe('')
+    wrapper.unmount()
   })
 })

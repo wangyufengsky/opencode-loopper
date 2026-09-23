@@ -58,6 +58,11 @@ final class PptMcpTools {
             }
             default -> { }
         }
+        if(name.equals("ppt_get_context")) {
+            args.put("source",Map.of("type","string","enum",List.of("requirements","discussion")));
+            args.put("offset",Map.of("type","integer","minimum",0));
+            args.put("limit",Map.of("type","integer","minimum",1,"maximum",12000));
+        }
         var required = new ArrayList<String>(); if (writes(name)) required.add("idempotencyKey");
         if (name.equals("ppt_request_input")) required.add("prompt");
         if (name.equals("ppt_apply_operations")) required.add("operations");
@@ -76,7 +81,7 @@ final class PptMcpTools {
     private static boolean writes(String name) { return Set.of("ppt_request_input", "ppt_submit_plan", "ppt_apply_operations", "ppt_render_preview", "ppt_export").contains(name); }
     private static String description(String name) {
         return switch (name) {
-            case "ppt_get_context" -> "Read current PPT phase, revision, plans and bounded pages; pass slideId to inspect a selected page.";
+            case "ppt_get_context" -> "Read current PPT phase, revision, plans and bounded pages; pass slideId to inspect a selected page. Read long frozen requirements/discussion with source, offset and limit; follow nextOffset until null before producing.";
             case "ppt_read_source" -> "Read an explicitly selected document source using sourceId, sectionId and bounded offset/limit.";
             case "ppt_get_capabilities" -> "Read allowed objects, exact operation schemas, themes, layouts, fonts and current phase permissions before editing.";
             case "ppt_request_input" -> "Save one question with prompt, optional options and kind CLARIFICATION (default) or REQUIREMENTS_CONFIRMATION (prompt summarizes requirements). STOP this turn. First design requires dialogue then explicit user confirmation; ordinary answers cannot confirm.";

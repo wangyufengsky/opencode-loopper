@@ -42,7 +42,7 @@ public class PptAgentService {
                                String kind, Boolean confirmed) { }
     public record Message(String id, String documentId, String idempotencyKey, String text, String answer,
                           String state, String detail, JsonNode scope, long expectedRevision, long version,
-                          String createdAt, String updatedAt, List<QuestionView> questions, String thinking, List<PptAgentActivity.Call> calls) { }
+                          String createdAt, String updatedAt, List<QuestionView> questions, String thinking, List<PptAgentActivity.Call> calls, io.opencode.loopper.persistence.PptRecoveryMapper.Failure failure) { }
     public record AgentStatus(String state, String runId, String detail, long version, List<QuestionView> questions, String requirementsState) { }
     public Message send(String document, Send input) {
         return send(document,input,null);
@@ -53,7 +53,7 @@ public class PptAgentService {
     }
     private Message send(String document,Send input,PptAgentWorkflowGate.Authorization authorization) {
         if (input == null) throw bad("请输入 PPT 请求");
-        key(input.idempotencyKey()); text(input.text(), 24000);
+        key(input.idempotencyKey()); text(input.text(), authorization==null?24000:PptDiscussionTranscript.MAX_CHARACTERS);
         JsonNode scope = validateScope(input.scope());
         if (!Set.of("managed", "fake").contains(properties.getOpenCode().getMode())) throw bad("PPT 助手需要受管 OpenCode");
         Object identity=authorization==null?List.of(input.text(),input.expectedRevision(),scope):List.of(input.text(),input.expectedRevision(),scope,authorization);
@@ -65,9 +65,11 @@ public class PptAgentService {
         }
         var work = workspace.workspace(document); requireRevision(work, input.expectedRevision());
         var context=((tools.jackson.databind.node.ObjectNode)work.context()).deepCopy();
+        context.put("pptToolProtocol", PptAgentPayloads.PROTOCOL);
         if(authorization!=null) {
             context.set("generationAuthorization",json.valueToTree(authorization));
             context.set("generationAnswers",json.valueToTree(workflow.answers(document,authorization)));
+            context.set("recoveryCheckpoint",json.valueToTree(workflow.recoveryContext(authorization)));
             PptRequirements.freeze(context, authorization);
         } else if (work.phase().equals("BRIEFING")) {
             context.put("pptDiscussionProtocol", PptDiscussionTranscript.PROTOCOL);
@@ -103,6 +105,10 @@ public class PptAgentService {
         var work = workspace.workspace(document); requireRevision(work, input.expectedRevision());
         var run = persistence.require(question.runId());
         var context=((tools.jackson.databind.node.ObjectNode)work.context()).deepCopy();
+        context.remove("pptToolProtocol");
+        for(String field:List.of("pptToolProtocol","recoveryCheckpoint","pptDiscussionProtocol","requirementsConfirmedByUser")) {
+            var value=json.readTree(run.contextJson()).get(field);if(value!=null)context.set(field,value);
+        }
         var authorization=json.readTree(run.contextJson()).get("generationAuthorization");
         if(authorization!=null)context.set("generationAuthorization",authorization);
         var previousAnswers=json.readTree(run.contextJson()).get("generationAnswers");
@@ -140,13 +146,14 @@ public class PptAgentService {
                 .collect(java.util.stream.Collectors.groupingBy(Question::runId));
         Collections.reverse(selected);
         var activities = activity.views(selected.stream().map(Run::id).toList());
-        return new CursorPage<>(selected.stream().map(row -> view(row, groups.getOrDefault(row.id(), List.of()), activities.getOrDefault(row.id(), PptAgentActivity.View.EMPTY))).toList(),
+        var failures = mapper.failures(selected.stream().map(Run::id).toList()).stream().collect(java.util.stream.Collectors.toMap(io.opencode.loopper.persistence.PptRecoveryMapper.Failure::runId, f->f));
+        return new CursorPage<>(selected.stream().map(row -> view(row, groups.getOrDefault(row.id(), List.of()), activities.getOrDefault(row.id(), PptAgentActivity.View.EMPTY),failures.get(row.id()))).toList(),
                 rows.size() > limit ? new PageCursor(last.createdAt(), last.id()).encode() : null);
     }
-    public Message message(Run row) { return view(row, mapper.questions(row.id()), activity.views(List.of(row.id())).getOrDefault(row.id(), PptAgentActivity.View.EMPTY)); }
-    private Message view(Run row, List<Question> questions, PptAgentActivity.View activity) {
+    public Message message(Run row) { return view(row, mapper.questions(row.id()), activity.views(List.of(row.id())).getOrDefault(row.id(), PptAgentActivity.View.EMPTY),mapper.failures(List.of(row.id())).stream().findFirst().orElse(null)); }
+    private Message view(Run row, List<Question> questions, PptAgentActivity.View activity,io.opencode.loopper.persistence.PptRecoveryMapper.Failure failure) {
         return new Message(row.id(), row.documentId(), row.idempotencyKey(), row.userText(), row.answer(), row.state(),
-                row.detail(), json.readTree(row.scopeJson()), row.sourceRevision(), row.version(), row.createdAt(), row.updatedAt(), views(questions), activity.thinking(), activity.calls());
+                row.detail(), json.readTree(row.scopeJson()), row.sourceRevision(), row.version(), row.createdAt(), row.updatedAt(), views(questions), activity.thinking(), activity.calls(),failure);
     }
     private List<QuestionView> views(List<Question> rows) {
         return rows.stream().map(q -> new QuestionView(q.id(), q.prompt(), json.readTree(q.optionsJson()).valueStream().map(JsonNode::asText).toList(),

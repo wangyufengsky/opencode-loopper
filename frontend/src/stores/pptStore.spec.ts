@@ -247,8 +247,8 @@ describe('PPT authoritative workspace', () => {
       plan: pptPlan(),
       revision: 8,
     })
-    api.generation.mockResolvedValue(pptGeneration())
-    api.generate.mockResolvedValue(pptGeneration())
+    api.generation.mockResolvedValue({ ...pptGeneration(), revision: 8 })
+    api.generate.mockResolvedValue({ ...pptGeneration(), revision: 8 })
     await store.retryPending()
     expect(api.generate.mock.calls[1]).toEqual(original)
     expect(original?.[1]).toBe(3)
@@ -282,5 +282,37 @@ describe('PPT authoritative workspace', () => {
     expect(api.resume).toHaveBeenCalledWith('doc', 3, expect.any(String))
     expect(api.generate).not.toHaveBeenCalled()
     expect(store.active).toBe(true)
+  })
+
+  it('refreshes activity without downloading an unchanged deck and reloads on revision changes', async () => {
+    const store = usePptStore()
+    await store.load('doc')
+    const event = api.events.mock.results.at(-1)!.value as EventSource
+    api.deck.mockClear(); api.plan.mockClear(); api.sources.mockClear(); api.revisions.mockClear()
+    event.onmessage!(new MessageEvent('message', { data: JSON.stringify({ type: 'agent' }) }))
+    await flushPromises()
+    expect(api.deck).not.toHaveBeenCalled()
+    expect(api.plan).not.toHaveBeenCalled()
+    expect(api.sources).not.toHaveBeenCalled()
+    expect(api.revisions).not.toHaveBeenCalled()
+    api.get.mockResolvedValue({ ...pptDocument('doc'), revision: 4 })
+    api.plan.mockResolvedValue({ plan: pptPlan(), revision: 4 })
+    event.onmessage!(new MessageEvent('message', { data: JSON.stringify({ type: 'agent' }) }))
+    await flushPromises()
+    expect(api.deck).toHaveBeenCalledWith('doc', 4)
+    expect(store.document?.revision).toBe(4)
+    store.close()
+  })
+  it('freezes adjusted requirements in the retry payload when the response is lost', async () => {
+    const store = usePptStore()
+    await store.load('doc')
+    api.resume.mockRejectedValueOnce(new Error('Network unavailable'))
+    await store.adjustAndResume('减少到六页，保留表格')
+    const pending = { ...store.pending! }
+    expect(pending.payload).toEqual({ adjustment: '减少到六页，保留表格' })
+    api.resume.mockResolvedValue(pptGeneration('PLANNING'))
+    await store.retryPending()
+    expect(api.resume).toHaveBeenLastCalledWith('doc', 3, pending.key, '减少到六页，保留表格')
+    expect(store.pending).toBeNull()
   })
 })

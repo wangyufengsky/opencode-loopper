@@ -6,6 +6,8 @@ import java.util.Optional;
 import org.apache.ibatis.annotations.*;
 
 public interface PptAgentMapper {
+    @Select("<script>SELECT * FROM ppt_agent_failure WHERE run_id IN <foreach collection='runs' item='id' open='(' separator=',' close=')'>#{id}</foreach></script>")
+    List<PptRecoveryMapper.Failure> failures(@Param("runs") List<String> runs);
     record Status(String id, String state, String detail, long version) { }
     @Select("SELECT id,state,detail,version FROM ppt_agent_run WHERE document_id=#{document} ORDER BY (state NOT IN ('COMPLETED','STOPPED','FAILED')) DESC,created_at DESC,id DESC LIMIT 1")
     Optional<Status> status(String document);

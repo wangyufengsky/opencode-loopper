@@ -321,4 +321,31 @@ class PptAgentIntegrationTest {
         assertThat(mapper.questions(run.id())).singleElement().satisfies(q -> assertThat(q.state()).isEqualTo("CLOSED"));
         assertThat(mapper.active(document)).isEmpty();
     }
+
+    @Test void terminalProviderFailureKeepsItsClassificationAndDetailAlongsideStopProof() {
+        var run=start();
+        doReturn(new OpenCodeClient.SessionStatus("COMPLETED")).when(remote).sessionStatus(any());
+        doReturn(new OpenCodeClient.SessionResult("<tool_call>unfinished",Map.of(),"OPENCODE_OUTPUT_LENGTH_EXHAUSTED","模型达到输出长度上限",0)).when(remote).sessionResult(any());
+        coordinator.tick(document);
+        var saved=persistence.require(run.id());assertThat(saved.state()).isEqualTo("FAILED");assertThat(saved.stopProof()).isEqualTo("REMOTE_TERMINAL");
+        var message=service.message(saved);assertThat(message.failure().category()).isEqualTo("OUTPUT_LIMIT");
+        assertThat(message.failure().detail()).isEqualTo("模型达到输出长度上限");
+        verify(workspace,never()).invoke(eq(document),eq("ppt_apply_operations"),any(),any());
+        assertThat(PptFailurePolicy.classify("HTTP_503","Service unavailable").recoverable()).isTrue();
+        assertThat(PptFailurePolicy.classify("HTTP_429","Too many requests").recoverable()).isTrue();
+        assertThat(PptFailurePolicy.classify("HTTP_401","Unauthorized; timed out").recoverable()).isFalse();
+        assertThat(PptFailurePolicy.classify("UNKNOWN","Unexpected failure").recoverable()).isFalse();
+    }
+
+    @Test void outputSafetyLimitWaitsForStopProofAndExplicitUserStopStillWins() {
+        var run=start();doReturn("x".repeat(500001)).when(remote).sessionLiveOutput(any());
+        coordinator.tick(document);assertThat(persistence.require(run.id()).state()).isEqualTo("STOPPING");
+        remote.failNextAborts(1);coordinator.tick(document);
+        assertThat(persistence.require(run.id()).stopProof()).isNull();
+        coordinator.tick(document);assertThat(persistence.require(run.id()).state()).isEqualTo("FAILED");
+        assertThat(service.message(persistence.require(run.id())).failure().category()).isEqualTo("OUTPUT_LIMIT");
+        var next=start();coordinator.tick(document);service.stop(document);coordinator.tick(document);
+        assertThat(persistence.require(next.id()).state()).isEqualTo("STOPPED");
+        assertThat(service.message(persistence.require(next.id())).failure()).isNull();
+    }
 }

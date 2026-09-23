@@ -14,5 +14,6 @@ public interface PptAgentWorkflowGate {
     void validateAutomatic(String document, String key, Authorization authorization);
     void validateRun(Run run);
     java.util.List<Answer> answers(String document,Authorization authorization);
+    default Object recoveryContext(Authorization authorization) { return java.util.Map.of(); }
     void cancel(String document);
 }

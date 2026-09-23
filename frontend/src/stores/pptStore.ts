@@ -71,6 +71,7 @@ export const usePptStore = defineStore('ppt', () => {
     subscription: EventSource | undefined,
     refreshing: Promise<void> | null = null,
     queued = false
+  let queuedMode: 'all' | 'activity' = 'activity'
   const active = computed(
     () =>
       generationActive.value ||
@@ -92,10 +93,10 @@ export const usePptStore = defineStore('ppt', () => {
   }
 
   function clearAcceptedDraft(id: string, request: Pending) {
-    if (request.kind !== 'message') return
+    if (request.kind !== 'message' && !(request.kind === 'resume' && request.payload.adjustment)) return
     try {
       const key = `loopper.ppt.chat.${id}`
-      if (sessionStorage.getItem(key)?.trim() === String(request.payload.text))
+      if (sessionStorage.getItem(key)?.trim() === String(request.payload.text ?? request.payload.adjustment))
         sessionStorage.removeItem(key)
     } catch {
       /* The server receipt remains authoritative. */
@@ -137,29 +138,54 @@ export const usePptStore = defineStore('ppt', () => {
     )
   }
 
-  function refresh(): Promise<void> {
+  function acceptObservedMessage(id: string) {
+    if (pending.value?.kind === 'message' && messages.value.some(message => message.idempotencyKey === pending.value?.key)) {
+      clearAcceptedDraft(id, pending.value)
+      pending.value = null
+      persist(id, null)
+    }
+  }
+
+  function refresh(mode: 'all' | 'activity' = 'all'): Promise<void> {
     if (!owner) return Promise.resolve()
     if (refreshing) {
+      if (mode === 'all') queuedMode = 'all'
       queued = true
       return refreshing
     }
     // All callers await the queued snapshot too: follow-up jobs must freeze the
     // revision just written, even if an SSE refresh was already in flight.
+    queuedMode = mode
     refreshing = (async () => {
       do {
         queued = false
-        await readSnapshot()
+        const currentMode = queuedMode
+        queuedMode = 'activity'
+        await readSnapshot(currentMode)
       } while (queued && owner)
     })().finally(() => {
       refreshing = null
     })
     return refreshing
   }
-  async function readSnapshot() {
+  async function readSnapshot(mode: 'all' | 'activity') {
     const id = owner,
       ticket = epoch
     try {
       const summary = await api.get(id)
+      if (ticket !== epoch || id !== owner) return
+      if (mode === 'activity' && document.value?.revision === summary.revision && deck.value) {
+        const [chat, status, flow] = await Promise.all([api.messages(id), api.agent(id), api.generation(id)])
+        if (ticket !== epoch || id !== owner) return
+        if (flow && flow.revision !== summary.revision) { queuedMode = 'all'; queued = true; return }
+        document.value = summary
+        messages.value = mergeMessages([...messages.value, ...chat.items])
+        if (messages.value.length <= chat.items.length) messageCursor.value = chat.nextCursor ?? null
+        agent.value = status
+        generation.value = flow
+        acceptObservedMessage(id)
+        return
+      }
       const [scene, design, resources, runs, history, chat, status, flow] = await Promise.all([
         api.deck(id, summary.revision),
         api.plan(id),
@@ -171,7 +197,8 @@ export const usePptStore = defineStore('ppt', () => {
         api.generation(id),
       ])
       if (ticket !== epoch || id !== owner) return
-      if (design.revision !== summary.revision) {
+      if (design.revision !== summary.revision || (flow && flow.revision !== summary.revision)) {
+        queuedMode = 'all'
         queued = true
         return
       }
@@ -196,14 +223,7 @@ export const usePptStore = defineStore('ppt', () => {
       if (messages.value.length <= chat.items.length) messageCursor.value = chat.nextCursor ?? null
       agent.value = status
       generation.value = flow
-      if (
-        pending.value?.kind === 'message' &&
-        messages.value.some((message) => message.idempotencyKey === pending.value?.key)
-      ) {
-        clearAcceptedDraft(id, pending.value)
-        pending.value = null
-        persist(id, null)
-      }
+      acceptObservedMessage(id)
     } catch (failure) {
       if (ticket === epoch) error.value = explain(failure)
     }
@@ -238,10 +258,12 @@ export const usePptStore = defineStore('ppt', () => {
     loading.value = false
     close()
     subscription = api.events(id)
-    subscription.onmessage = () => {
+    subscription.onmessage = (event) => {
       if (owner === id) {
         disconnected.value = false
-        void refresh()
+        let mode: 'all' | 'activity' = 'all'
+        try { if (JSON.parse(event.data).type === 'agent') mode = 'activity' } catch { /* Unknown events refresh fully. */ }
+        void refresh(mode)
       }
     }
     subscription.onopen = () => {
@@ -268,8 +290,10 @@ export const usePptStore = defineStore('ppt', () => {
         key = request.key
       if (request.kind === 'generate') await api.generate(id, revision, String(p.prompt), key)
       else if (request.kind === 'confirm-generation') await api.confirmGeneration(id, revision, key)
-      else if (request.kind === 'resume') await api.resume(id, revision, key)
-      else if (request.kind === 'operations')
+      else if (request.kind === 'resume') {
+        if (typeof p.adjustment === 'string') await api.resume(id, revision, key, p.adjustment)
+        else await api.resume(id, revision, key)
+      } else if (request.kind === 'operations')
         await api.operations(id, revision, p.operations as PptOperation[], key)
       else if (request.kind === 'plan') await api.savePlan(id, revision, p.plan as PptPlan, key)
       else if (request.kind === 'action')
@@ -342,6 +366,7 @@ export const usePptStore = defineStore('ppt', () => {
     })
   const confirmRequirements = () => mutate('confirm-generation', {})
   const resume = () => mutate('resume', {})
+  const adjustAndResume = (adjustment: string) => mutate('resume', { adjustment })
   const operations = (values: PptOperation[], expectedRevision?: number) =>
     mutate(
       'operations',
@@ -445,6 +470,7 @@ export const usePptStore = defineStore('ppt', () => {
     generate,
     confirmRequirements,
     resume,
+    adjustAndResume,
     document,
     deck,
     plan,

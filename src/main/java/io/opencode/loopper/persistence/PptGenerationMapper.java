@@ -10,6 +10,7 @@ public interface PptGenerationMapper {
     @Select("SELECT * FROM ppt_generation WHERE document_id=#{document} ORDER BY created_at DESC,id DESC LIMIT 1") Optional<Generation> latest(String document);
     @Select("SELECT * FROM ppt_generation WHERE document_id=#{document} AND state NOT IN ('COMPLETED','STOPPED','FAILED') LIMIT 1") Optional<Generation> active(String document);
     @Select("SELECT * FROM ppt_generation WHERE state NOT IN ('COMPLETED','STOPPED','FAILED') ORDER BY updated_at,id LIMIT 100") List<Generation> activeRows();
+    @Select("SELECT * FROM ppt_generation WHERE job_id=#{job} OR preview_job_id=#{job} ORDER BY created_at DESC,id DESC LIMIT 1") Optional<Generation> byJob(String job);
     @Select("SELECT * FROM ppt_generation_request WHERE document_id=#{document} AND idempotency_key=#{key}") Optional<Request> request(String document,String key);
     @Select("SELECT MAX(CAST(json_extract(response_json,'$.revision') AS INTEGER)) FROM ppt_agent_receipt WHERE run_id=#{run} AND tool IN ('ppt_submit_plan','ppt_apply_operations')") Long savedRevision(String run);
     @Select("SELECT q.* FROM ppt_agent_question q JOIN ppt_agent_run r ON r.id=q.run_id WHERE r.document_id=#{document} AND r.idempotency_key GLOB #{prefix} AND q.state='ANSWERED' ORDER BY q.created_at,q.id LIMIT 100")

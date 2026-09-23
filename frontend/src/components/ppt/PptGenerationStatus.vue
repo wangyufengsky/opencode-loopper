@@ -16,7 +16,9 @@ const interrupted = computed(() => ['STOPPED', 'FAILED'].includes(store.generati
 const clarifying = computed(() => ['CLARIFYING', 'AWAITING_CONFIRMATION'].includes(store.agent?.requirementsState || ''))
 const confirming = computed(() => store.agent?.requirementsState === 'AWAITING_CONFIRMATION')
 const heading = computed(() =>
-  clarifying.value && !interrupted.value && store.generation?.state !== 'STOPPING'
+  store.generation?.recovery?.retryAt
+    ? '等待自动恢复'
+    : clarifying.value && !interrupted.value && store.generation?.state !== 'STOPPING'
     ? confirming.value ? '请确认制作需求' : '先聊清你的想法'
     : store.generation
     ? pptGenerationLabel(store.generation.state)
@@ -67,6 +69,9 @@ const heading = computed(() =>
         {{ pptGenerationStepLabel(step) }}
       </li>
     </ol>
+    <p v-if="store.generation?.recovery && store.generation.recovery.revision === store.document?.revision" class="ppt-generation-count">
+      已通过 {{ store.generation.recovery.completedPages }} 页检查，待补充 {{ store.generation.recovery.missingPages }} 页，待检查问题 {{ store.generation.recovery.issues }} 项
+    </p>
     <p v-if="job?.kind === 'PREVIEW' && job.total" class="ppt-generation-count">
       {{ job.completed }} / {{ job.total }} 页已处理
     </p>
@@ -77,7 +82,7 @@ const heading = computed(() =>
       @click="store.resume"
     >
       <Icon icon="lucide:play" />
-      继续制作
+      按当前要求继续
     </button>
   </section>
 </template>

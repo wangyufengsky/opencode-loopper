@@ -342,4 +342,25 @@ class PptEngineTest {
         graphics.setColor(Color.ORANGE); graphics.fillRect(0, 0, 100, 60); graphics.dispose();
         ByteArrayOutputStream out = new ByteArrayOutputStream(); ImageIO.write(image, "PNG", out); return out.toByteArray();
     }
+
+    @Test void semanticColumnsProduceEditableContentAndRejectDensityWithoutChangingOriginal() throws Exception {
+        var original=Deck.empty("语义排版");
+        var made=apply(original,true,"""
+            {"op":"compose_slide","slideId":"summary","title":"项目概况","blocks":[
+             {"type":"text","title":"主要进展","text":"本期工作完成\\n下一步进行验证"},
+             {"type":"table","title":"指标","rows":[["名称","数值"],["完成项","12"]]}]}
+            """);
+        assertTrue(engine.validate(made.deck()).valid());
+        try(var show=new XMLSlideShow(new ByteArrayInputStream(engine.exportPptx(made.deck(),id->new byte[0])))) {
+            assertTrue(show.getSlides().getFirst().getShapes().stream().anyMatch(XSLFTable.class::isInstance));
+            assertTrue(show.getSlides().getFirst().getShapes().stream().anyMatch(XSLFTextShape.class::isInstance));
+        }
+        var dense=json.createObjectNode().put("op","compose_slide").put("slideId","dense").put("title","完整保留内容");
+        dense.putArray("blocks").addObject().put("type","text").put("text","大量说明文字".repeat(900));
+        var failure=assertThrows(PptFailure.class,()->engine.applyOperations(original,List.of(dense),true));
+        assertEquals("PPT_SEMANTIC_DENSITY",failure.code());assertTrue(original.slides().isEmpty());
+        assertThrows(PptFailure.class,()->engine.applyOperations(made.deck(),List.of(json.readTree("""
+            {"op":"compose_slide","slideId":"summary","title":"重复页","blocks":[{"type":"text","text":"不能覆盖已有页面"}]}
+            """)),true));
+    }
 }

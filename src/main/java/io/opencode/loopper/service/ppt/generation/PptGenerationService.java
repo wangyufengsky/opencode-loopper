@@ -29,9 +29,12 @@ public class PptGenerationService {
     }
     public record Generate(String idempotencyKey,long expectedRevision,String prompt) { }
     public record Confirm(String idempotencyKey,long expectedRevision) { }
-    public record Resume(String idempotencyKey,long expectedRevision) { }
+    public record Resume(String idempotencyKey,long expectedRevision,String adjustment) {
+        public Resume(String idempotencyKey,long expectedRevision) { this(idempotencyKey,expectedRevision,null); }
+    }
     public record View(String id,String documentId,String state,String step,String detail,long revision,long version,
-            String runId,String jobId,boolean canResume,String createdAt,String updatedAt,boolean requirementsConfirmed) { }
+            String runId,String jobId,boolean canResume,String createdAt,String updatedAt,boolean requirementsConfirmed,
+            PptGenerationPersistence.RecoveryView recovery) { }
     public View generate(String document,Generate input) {
         if(input==null)throw PptSupport.bad("PPT_GENERATION_INPUT","请输入制作要求");
         validate(input.idempotencyKey(),input.expectedRevision(),input.prompt());String sha=PptSupport.digest(input,json);
@@ -58,10 +61,17 @@ public class PptGenerationService {
     public View resume(String document,Resume input) {
         if(input==null)throw PptSupport.bad("PPT_GENERATION_INPUT","继续请求无效");PptSupport.key(input.idempotencyKey());
         if(input.expectedRevision()<0)throw PptSupport.bad("PPT_GENERATION_INPUT","作品版本无效");
-        String sha=PptSupport.digest(input,json);var replay=persistence.replay(document,input.idempotencyKey(),sha,"RESUME");
+        String sha=PptSupport.digest(input.adjustment()==null?Map.of("idempotencyKey",input.idempotencyKey(),"expectedRevision",input.expectedRevision()):input,json);var replay=persistence.replay(document,input.idempotencyKey(),sha,"RESUME");
         if(replay!=null)return view(replay);
         var row=mapper.latest(document).orElseThrow(()->PptSupport.bad("PPT_GENERATION_MISSING","没有可以继续的自动生成请求"));
-        row=persistence.resume(row,input.idempotencyKey(),sha,input.expectedRevision());coordinator.tick(row.id());return view(persistence.require(row.id()));
+        if(input.adjustment()!=null&&!input.adjustment().isBlank()) {
+            validate(input.idempotencyKey(),input.expectedRevision(),input.adjustment());
+            String prompt=row.prompt()+"\n\n用户最新调整（优先于原要求中相冲突部分）：\n"+input.adjustment();
+            if(prompt.length()>PptDiscussionTranscript.MAX_CHARACTERS)throw PptSupport.bad("PPT_DISCUSSION_TOO_LONG","要求超过 100 万字，请拆分为新作品；原记录保留");
+            var desired=row(document,input.idempotencyKey(),sha,prompt,input.expectedRevision(),row.mode(),row.scopeJson(),row.requirementsConfirmed());
+            row=persistence.adjusted(row,desired,sha);
+        }else row=persistence.resume(row,input.idempotencyKey(),sha,input.expectedRevision());
+        coordinator.tick(row.id());return view(persistence.require(row.id()));
     }
     /** HTTP messages use the same endpoint and response shape for manual history and automatic revisions. */
     public PptAgentService.Message send(String document,PptAgentService.Send input) {
@@ -94,7 +104,7 @@ public class PptGenerationService {
         var doc=documents.get(row.documentId());
         return new View(row.id(),row.documentId(),row.state(),row.step(),row.detail(),doc.revision(),row.version(),row.runId(),row.jobId(),
                 Set.of("STOPPED","FAILED").contains(row.state())&&!doc.archived()&&agents.activeCount(row.documentId())==0,
-                row.createdAt(),row.updatedAt(),row.requirementsConfirmed());
+                row.createdAt(),row.updatedAt(),row.requirementsConfirmed(),persistence.recoveryView(row));
     }
     private static void validate(String key,long revision,String text) {
         PptSupport.key(key);
