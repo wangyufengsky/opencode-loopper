@@ -29,6 +29,7 @@ public interface KnowledgeResearchMapper {
         WHERE EXISTS(SELECT 1 FROM knowledge_turn WHERE id=#{row.turnId} AND conversation_id=#{row.conversationId} AND state='RUNNING')
         ON CONFLICT(id) DO UPDATE SET state=excluded.state,detail=excluded.detail,updated_at=excluded.updated_at
         WHERE knowledge_call.turn_id=excluded.turn_id AND knowledge_call.state IN ('RUNNING','UNKNOWN')
+          AND (knowledge_call.state<>excluded.state OR knowledge_call.detail<>excluded.detail)
         """)
     int nativeCall(@Param("row") KnowledgeRows.Call row);
 }

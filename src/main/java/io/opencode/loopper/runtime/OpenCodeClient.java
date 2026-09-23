@@ -103,6 +103,7 @@ public interface OpenCodeClient {
     /** Restores a durable Designer profile and selects the exact business turn for output readers. */
     default void restoreDesignTurn(OpenCodeSession session, SessionProfile profile, OpenCodeModel model, String messageId) { }
     SessionStatus sessionStatus(OpenCodeSession session);
+    default KnowledgeObservation observeKnowledgeSession(OpenCodeSession session, boolean interactive) { return KnowledgeObservation.read(this, session, interactive); }
     /** Returns the latest assistant text after a completed session, preserving the original model response. */
     String sessionOutput(OpenCodeSession session);
     /** Returns text, structured output, or the provider's typed assistant error for the latest turn. */

@@ -54,16 +54,17 @@ public final class KnowledgeResearch {
         String value = round == null || round.thinkingPrefix().isBlank() ? current : round.thinkingPrefix() + (current.isBlank() ? "" : "\n\n" + current);
         return value.length() <= 64000 ? value : value.substring(0, 63970) + "\n思考内容已达到保存上限";
     }
-    public void nativeCalls(Turn turn, SessionTranscript transcript) {
-        String now = Instant.now().toString();
+    public boolean nativeCalls(Turn turn, SessionTranscript transcript) {
+        String now = Instant.now().toString(); boolean changed = false;
         for (var part : transcript.parts()) {
             if (!part.type().equals("TOOL") || !KnowledgeSessionPolicy.NATIVE_TOOLS.contains(part.label())) continue;
             String id = UUID.nameUUIDFromBytes((turn.id() + ":" + part.id()).getBytes(StandardCharsets.UTF_8)).toString();
             String state = switch (Objects.toString(part.status(), "").toLowerCase(Locale.ROOT)) {
                 case "completed", "success" -> "SUCCEEDED"; case "error", "failed" -> "FAILED"; default -> "RUNNING";
             };
-            mapper.nativeCall(new Call(id, turn.conversationId(), turn.id(), part.label(), state, "项目只读调查", now, now));
+            changed |= mapper.nativeCall(new Call(id, turn.conversationId(), turn.id(), part.label(), state, "项目只读调查", now, now)) == 1;
         }
+        return changed;
     }
     private boolean active(String turn) { return turns.turn(turn).map(t -> t.state().equals("RUNNING")).orElse(false); }
     private boolean change(Round row, String next) { return mapper.state(row, next, Instant.now().toString()) == 1; }

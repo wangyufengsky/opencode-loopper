@@ -32,7 +32,7 @@ const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit
       if (request.model !== `${configured.provider}/${configured.model}` && !catalog.some(item => item.id === request.model)) return new Response(JSON.stringify({ detail: '所选模型不可用，请刷新模型列表' }), { status: 400 })
       body = { ...summary, model: request.model }
     } else body = { items: [], nextCursor: null }
-  } else if (path.endsWith('/messages')) body = { items: [], nextCursor: null }
+  } else if ((path.endsWith('/messages') || path.endsWith('/messages/updates'))) body = { items: [], nextCursor: null }
   else if (path.includes('/requests/')) body = { accepted: true }
   else if (path === '/api/knowledge/conversations/saved') body = summary
   else throw new Error(`Unexpected test request: ${path}`)
@@ -77,6 +77,10 @@ describe('知识库真实设置接口与模型选择', () => {
     store.messages = [{ ...message, state: 'FAILED', detail: '模型连接失败，请重试' }]; await flushPromises()
     expect(wrapper!.find('.knowledge-waiting').exists()).toBe(false)
     expect(wrapper!.text()).toContain('模型连接失败，请重试')
+    store.conversation = { ...store.conversation!, state: 'IDLE' }; await flushPromises()
+    await wrapper!.findAll('button').find(button => button.text() === '重新提问')!.trigger('click')
+    expect(question().element.value).toBe(message.userText)
+    expect(created).toHaveLength(0)
   })
 
   it('combines the real separate provider/model fields and sends the exact catalog id', async () => {

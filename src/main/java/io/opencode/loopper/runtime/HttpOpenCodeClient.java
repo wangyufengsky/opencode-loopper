@@ -278,6 +278,11 @@ public class HttpOpenCodeClient implements OpenCodeClient {
                 ppt != null && Boolean.TRUE.equals(managedSessions.get(session.id())) && sessionProfiles.get(session.id()) == SessionProfile.PPT_AGENT
                         ? ppt.verifyIdentityNotice(session.id(), expectedRequest, body) : body);
     }
+    @Override public KnowledgeObservation observeKnowledgeSession(OpenCodeSession session, boolean interactive) {
+        return OpenCodeKnowledgeObservation.read(responses, allSessionMessages(session), designMessageIds.get(session.id()), session.id(), interactive,
+                () -> client(session).get().uri(uri -> directoryUri(uri, "/session/status", session.worktree())).retrieve().body(JsonNode.class),
+                () -> client(session).get().uri(uri -> directoryUri(uri, "/question", session.worktree())).retrieve().body(JsonNode.class));
+    }
     @Override public SessionStatus sessionStatus(OpenCodeSession session) {
         if (storyAccounting != null && storyAccounting.awaitingBusinessStart(session.id())) return new SessionStatus("RUNNING");
         try {

@@ -58,7 +58,7 @@ public class KnowledgeTools {
         return switch (name) {
             case "browse_knowledge_source" -> json.convertValue(reader.browse(source, string(args, "path"), string(args, "query"), string(args, "cursor")), new tools.jackson.core.type.TypeReference<>() { });
             case "search_knowledge" -> reader.search(source, string(args, "path"), string(args, "query"), string(args, "cursor"));
-            case "read_knowledge_source" -> reader.readRange(source, string(args, "path"), number(args, "section", -1), number(args, "startLine", 1), number(args, "endLine", 0), string(args, "expectedSha"), number(args, "offset", 0));
+            case "read_knowledge_source" -> reader.readRange(source, string(args, "path"), number(args, "section", -1), number(args, "startLine", 1), number(args, "endLine", 0), string(args, "expectedSha"), number(args, "offset", 0), number(args, "textOffset", -1));
             default -> throw KnowledgeSources.bad("此工具不属于知识问答权限");
         };
     }

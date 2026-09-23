@@ -21,6 +21,9 @@ public class KnowledgeReader {
         return read(source, relative, section, startLine, expected, 0);
     }
     public Map<String,Object> read(KnowledgeSources.Bound source, String relative, int section, int startLine, String expected, int offset) {
+        return read(source, relative, section, startLine, expected, offset, -1);
+    }
+    private Map<String,Object> read(KnowledgeSources.Bound source, String relative, int section, int startLine, String expected, int offset, int textOffset) {
         requireFileSource(source);
         if (offset < 0 || offset > 10000) throw KnowledgeSources.bad("文档目录游标无效");
         Path path = sources.path(source, relative); String name = source.kind().equals("UPLOAD") ? source.name() : path.getFileName().toString();
@@ -42,6 +45,7 @@ public class KnowledgeReader {
                 body.put("startLine", first); body.put("endLine", first + sections.get(section).markdown().split("\\n", -1).length - 1);
                 body.put("lineBasis", markdown ? "原文件行号" : "本段解析文本行号"); body.put("format", parsed.document().format()); body.put("location", sections.get(section).title() + " · 第 " + (section + 1) + " 段");
                 body.put("section", section); body.put("nextSection", section + 1 < sections.size() ? section + 1 : -1);
+                if (textOffset >= 0) new KnowledgeDocumentText(parsed.document()).read(body, section, textOffset);
             }
         } else {
             String content = KnowledgeFiles.text(sources.read(source, relative, 1024 * 1024)); sha = AssistFiles.sha(content.getBytes(StandardCharsets.UTF_8));
@@ -64,8 +68,12 @@ public class KnowledgeReader {
         return body;
     }
     public Map<String,Object> readRange(KnowledgeSources.Bound source, String relative, int section, int start, int end, String expected, int offset) {
+        return readRange(source, relative, section, start, end, expected, offset, -1);
+    }
+    public Map<String,Object> readRange(KnowledgeSources.Bound source, String relative, int section, int start, int end, String expected, int offset, int textOffset) {
         if (source.kind().equals("GIT")) throw KnowledgeSources.bad("请使用 Git 查询工具读取此来源");
-        var body = new LinkedHashMap<>(read(source, relative, section, source.kind().equals("CODE") ? start : 1, expected, offset));
+        if (textOffset < -1 || textOffset > 12000) throw KnowledgeSources.bad("文档文本位置无效，请重新检索");
+        var body = new LinkedHashMap<>(read(source, relative, section, source.kind().equals("CODE") ? start : 1, expected, offset, textOffset));
         if (end > 0 && body.get("text") instanceof String text && !text.isEmpty()) {
             int first = ((Number) body.getOrDefault("startLine", 1)).intValue();
             int last = ((Number) body.getOrDefault("endLine", first)).intValue();
@@ -86,20 +94,20 @@ public class KnowledgeReader {
         List<Map<String,Object>> matches = new ArrayList<>(); List<String> limitations = new ArrayList<>();
         if (listing.incomplete()) limitations.add(listing.detail());
         long deadline = System.nanoTime() + 3_000_000_000L, bytes = 0; String next = listing.nextCursor();
-        String last = cursor; int examined = 0;
+        int processed = 0, examined = 0;
         for (var entry : listing.items()) {
-            if (Thread.currentThread().isInterrupted() || System.nanoTime() > deadline || bytes > 16 * 1024 * 1024 || matches.size() >= 30) { next = last; limitations.add("检索达到单次边界，请继续下一页或缩小目录"); break; }
+            if (Thread.currentThread().isInterrupted() || System.nanoTime() > deadline || bytes > 16 * 1024 * 1024 || matches.size() >= 30) { next = KnowledgeDirectoryPages.resume(listing, processed); limitations.add("检索达到单次边界，请继续下一页或缩小目录"); break; }
+            processed++;
             if (entry.directory()) continue;
             try {
                 Path path = sources.path(source, entry.path()); String name = source.kind().equals("UPLOAD") ? source.name() : entry.name();
                 bytes += Files.size(path); examined++;
                 if (KnowledgeFiles.DOCUMENTS.contains(KnowledgeFiles.extension(name))) {
                     var parsed = documents.parse(name, sources.read(source, entry.path(), 20 * 1024 * 1024));
-                    for (var s : parsed.document().sections()) {
+                    for (var s : new KnowledgeDocumentText(parsed.document()).search(query, name, 31)) {
                         if (matches.size() >= 30) { limitations.add(name + "：仅返回前 30 处匹配，更多内容请按文档目录逐段读取"); break; }
-                        var hit = query.locate(s.markdown(), name);
-                        if (hit != null) matches.add(scored(Map.of("resourceKey", AssistFiles.sha(path.toString().getBytes(StandardCharsets.UTF_8)), "sourceId", source.id(), "path", entry.path(), "name", name,
-                                "section", Integer.parseInt(s.id()), "location", s.title(), "sha256", parsed.sha256(), "snippet", snippet(s.markdown(), hit.index())), hit, "DOCUMENT"));
+                        matches.add(scored(Map.of("resourceKey", AssistFiles.sha(path.toString().getBytes(StandardCharsets.UTF_8)), "sourceId", source.id(), "path", entry.path(), "name", name,
+                                "section", s.section(), "textOffset", s.textOffset(), "location", parsed.document().sections().get(s.section()).title(), "sha256", parsed.sha256(), "snippet", s.snippet()), s.hit(), "DOCUMENT"));
                     }
                 } else if (source.kind().equals("CODE")) {
                     String text = KnowledgeFiles.text(sources.read(source, entry.path(), 1024 * 1024)); var hit = query.locate(text, entry.path());
@@ -108,7 +116,6 @@ public class KnowledgeReader {
                             "sha256", AssistFiles.sha(text.getBytes(StandardCharsets.UTF_8)), "snippet", snippet(text, hit.index())), hit, "CODE"));
                 }
             } catch (Exception unavailable) { if (limitations.size() < 10) limitations.add(entry.name() + "：" + (unavailable instanceof AssistFailure ? unavailable.getMessage() : "无法读取")); }
-            last = entry.path();
         }
         var result = new LinkedHashMap<String,Object>(); result.put("matches", matches); result.put("nextCursor", next);
         result.put("incomplete", listing.incomplete() || next != null || !limitations.isEmpty()); result.put("limitations", limitations);

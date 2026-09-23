@@ -46,6 +46,8 @@ public interface KnowledgeMapper {
     int nextOrdinal(String id);
     @Select("SELECT * FROM knowledge_turn WHERE conversation_id=#{conversation} AND (created_at,id)<(#{time},#{id}) ORDER BY created_at DESC,id DESC LIMIT #{limit}")
     List<Turn> turns(String conversation, String time, String id, int limit);
+    @Select("SELECT * FROM knowledge_turn WHERE conversation_id=#{conversation} AND ordinal>#{afterOrdinal} AND (created_at,id)>(#{time},#{id}) ORDER BY created_at,id LIMIT #{limit}")
+    List<Turn> updates(String conversation, int afterOrdinal, String time, String id, int limit);
     record Usage(Long inputTokens, Long outputTokens) { }
     @Select("SELECT max(input_tokens) AS input_tokens,max(output_tokens) AS output_tokens FROM knowledge_turn WHERE conversation_id=#{id} HAVING count(input_tokens)+count(output_tokens)>0")
     Optional<Usage> latestUsage(String id);

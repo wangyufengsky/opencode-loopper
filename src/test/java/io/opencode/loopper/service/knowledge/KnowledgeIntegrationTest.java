@@ -110,6 +110,50 @@ class KnowledgeIntegrationTest {
         doReturn("已读取代码的回答").when(remote).sessionLiveOutput(any());
         doReturn(new OpenCodeClient.SessionResult("已读取代码的回答", Map.of(), null, null, 0)).when(remote).sessionResult(any());
     }
+    @Test void emptyTerminalAnswerIsRecheckedThenFailsRecoverablyWithoutResending() {
+        var chat = researchChat(); var turn = run(chat.id());
+        doReturn(new OpenCodeClient.SessionStatus("COMPLETED")).when(remote).sessionStatus(any());
+        doReturn("").when(remote).sessionLiveOutput(any());
+        doReturn(new OpenCodeClient.SessionResult("", Map.of(), null, null, 0)).when(remote).sessionResult(any());
+        coordinator.tick(chat.id());
+        assertThat(mapper.turn(turn.id()).orElseThrow().state()).isEqualTo("RUNNING");
+        coordinator.tick(chat.id());
+        assertThat(mapper.turn(turn.id()).orElseThrow().state()).isEqualTo("FAILED");
+        assertThat(conversations.get(chat.id()).state()).isEqualTo("IDLE");
+        assertThat(mapper.turn(turn.id()).orElseThrow().detail()).contains("没有返回有效回答");
+        verify(remote, times(1)).promptAsync(any(), any(OpenCodeClient.PromptRequest.class));
+        assertThat(persistence.begin(chat.id(), UUID.randomUUID().toString(), "再试一次").state()).isEqualTo("PREPARED");
+    }
+    @Test void lateAnswerAfterEmptyTerminalCheckCompletesAndUnchangedPollDoesNotInvalidateHistory() throws Exception {
+        var chat = researchChat(); var turn = run(chat.id());
+        coordinator.tick(chat.id()); // Initial monitoring data may change once.
+        var notifications = new ArrayList<KnowledgeEventHub.Event>();
+        try (var subscription = events.subscribe(chat.id(), notifications::add)) {
+            coordinator.tick(chat.id()); coordinator.tick(chat.id()); assertThat(notifications).isEmpty();
+            doReturn(new OpenCodeClient.SessionStatus("COMPLETED")).when(remote).sessionStatus(any());
+            doReturn("").when(remote).sessionLiveOutput(any());
+            doReturn(new OpenCodeClient.SessionResult("", Map.of(), null, null, 0)).when(remote).sessionResult(any());
+            coordinator.tick(chat.id()); assertThat(notifications).isNotEmpty();
+            completedAnswer(); coordinator.tick(chat.id());
+            assertThat(mapper.turn(turn.id()).orElseThrow().state()).isEqualTo("COMPLETED");
+            verify(remote, times(1)).promptAsync(any(), any(OpenCodeClient.PromptRequest.class));
+        }
+    }
+    @Test void incrementalMessagesCatchUpInBoundedPagesWithoutReturningOlderHistory() {
+        var chat = create(List.of("code"));
+        for (int i = 0; i < 55; i++) {
+            var turn = persistence.begin(chat.id(), UUID.randomUUID().toString(), "问题" + i);
+            persistence.finish(turn, "FAILED", "未发送");
+        }
+        var first = conversations.updates(chat.id(), 2, null);
+        assertThat(first.items()).hasSize(50); assertThat(first.items().getFirst().ordinal()).isEqualTo(3);
+        var second = conversations.updates(chat.id(), 2, first.nextCursor());
+        assertThat(second.items()).extracting(KnowledgeConversations.Message::ordinal).containsExactly(53, 54, 55);
+        assertThat(second.nextCursor()).isNull();
+        assertThat(conversations.updates(chat.id(), 54, null).items()).extracting(KnowledgeConversations.Message::ordinal).containsExactly(55);
+        assertThat(conversations.updates(create(List.of("code")).id(), 0, null).items()).isEmpty();
+        assertThatThrownBy(() -> conversations.updates(chat.id(), -1, null)).hasMessageContaining("消息位置");
+    }
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(strings = {"empty", "pending", "truncated", "unavailable"})
     void nativeResearchCompletesWithoutAutomaticPromptsRegardlessOfTodoState(String todoState) {

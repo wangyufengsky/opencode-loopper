@@ -69,8 +69,8 @@ public class KnowledgeSourceController {
     }
     @GetMapping("/{source}/content") public Map<String,Object> read(@PathVariable String project, @PathVariable String source,
             @RequestParam(required=false) String conversationId, @RequestParam(required=false) String path,
-            @RequestParam(defaultValue="0") int offset, @RequestParam(defaultValue="-1") int section, @RequestParam(defaultValue="1") int startLine, @RequestParam(defaultValue="0") int endLine, @RequestParam(required=false) String expectedSha) {
-        return reader.readRange(sources.selected(project, conversationId, source), path, section, startLine, endLine, expectedSha, offset);
+            @RequestParam(defaultValue="0") int offset, @RequestParam(defaultValue="-1") int section, @RequestParam(defaultValue="1") int startLine, @RequestParam(defaultValue="0") int endLine, @RequestParam(required=false) String expectedSha, @RequestParam(defaultValue="-1") int textOffset) {
+        return reader.readRange(sources.selected(project, conversationId, source), path, section, startLine, endLine, expectedSha, offset, textOffset);
     }
     @GetMapping("/{source}/search") public Map<String,Object> search(@PathVariable String project, @PathVariable String source,
             @RequestParam(required=false) String conversationId, @RequestParam(required=false) String path,

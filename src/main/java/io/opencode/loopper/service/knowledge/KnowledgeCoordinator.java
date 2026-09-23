@@ -20,6 +20,7 @@ import tools.jackson.databind.ObjectMapper;
 /** Durable single-turn dispatch and exact recovery. No remote call occurs inside a transaction. */
 @Service
 public class KnowledgeCoordinator {
+    private static final String EMPTY_ANSWER_CHECK = "模型已结束，正在核对回答内容";
     private final KnowledgeMapper mapper;
     private final KnowledgePersistence persistence;
     private final OpenCodeClient openCode;
@@ -76,7 +77,7 @@ public class KnowledgeCoordinator {
                     detail = "会话所属运行环境已变化，无法确认旧请求状态；请保留历史并检查运行环境。";
                 if (!detail.equals(turn.detail())) mapper.detail(turn.id(), turn.version(), detail, Instant.now().toString());
             });
-        } finally { events.publish(id, "state"); }
+        } finally { if (!mapper.turn(active.get().id()).equals(active)) events.publish(id, "state"); }
     }
     private void createRemote(Conversation conversation, Turn turn) {
         SessionCreationPlan plan;
@@ -155,36 +156,36 @@ public class KnowledgeCoordinator {
         var plan = plan(persistence.require(original.conversationId()));
         boolean autonomous = io.opencode.loopper.runtime.KnowledgeSessionPolicy.research(plan.profile());
         if (autonomous && research.advance(remote, original)) { usage(remote, original); return; }
-        if (io.opencode.loopper.runtime.KnowledgeSessionPolicy.interactive(plan.profile()) && questions.poll(remote, original)) { usage(remote, original); return; }
-        var status = openCode.sessionStatus(remote);
-        String output = AssistRedaction.text(openCode.sessionLiveOutput(remote));
+        boolean interactive = io.opencode.loopper.runtime.KnowledgeSessionPolicy.interactive(plan.profile());
+        var observation = openCode.observeKnowledgeSession(remote, interactive);
+        if (interactive && questions.poll(remote, original, observation.questions())) { usage(observation.usage(), original); return; }
+        var status = observation.status();
+        String output = AssistRedaction.text(observation.output());
         if (autonomous && output.isBlank()) output = original.answer(); // Preserve drafts during legacy continuation recovery.
         if (output.length() > 500000) { persistence.stop(original.conversationId()); return; }
         String thinking = original.thinking();
-        SessionTranscript observed = null;
-        try {
-            var transcript = openCode.sessionTranscript(remote);
-            thinking = autonomous ? research.thinking(original, transcript) : KnowledgeThinking.text(transcript);
-            observed = transcript;
-        }
-        catch (RuntimeException unavailable) { /* Monitoring failure must not fail or erase the answer. */ }
-        if (autonomous && observed != null) research.nativeCalls(original, observed);
+        SessionTranscript observed = observation.transcript();
+        if (observed != null) thinking = autonomous ? research.thinking(original, observed) : KnowledgeThinking.text(observed);
+        if (autonomous && observed != null && research.nativeCalls(original, observed)) events.publish(original.conversationId(), "tools");
         if (!output.equals(original.answer()) || !thinking.equals(original.thinking()))
             mapper.output(original.id(), original.version(), output, thinking, Instant.now().toString());
         Turn turn = mapper.turn(original.id()).orElseThrow(); if (!turn.state().equals("RUNNING")) return;
         if (status.completed()) {
-            var result = openCode.sessionResult(remote); // Exact message filtering rejects stale previous answers.
+            var result = observation.result(); // Exact message filtering rejects stale previous answers.
+            if (result == null) return;
             if (result.errorType() != null && !result.errorType().isBlank()) persistence.finish(turn, "FAILED", "模型未完成本次回答，请检查模型状态后重试");
             else if (!result.text().isBlank()) {
                 String answer = AssistRedaction.text(result.text());
                 if (!answer.equals(turn.answer())) { mapper.answer(turn.id(), turn.version(), answer, Instant.now().toString()); turn = mapper.turn(turn.id()).orElseThrow(); }
                 if (!autonomous || research.completeExistingRound(turn)) persistence.finish(turn, "COMPLETED", "");
-            }
-            usage(remote, turn);
+            } else if (EMPTY_ANSWER_CHECK.equals(turn.detail()))
+                persistence.finish(turn, "FAILED", "模型已结束但没有返回有效回答，已保留调查记录；可以重新提问");
+            else persistence.detail(turn, EMPTY_ANSWER_CHECK);
+            usage(observation.usage(), turn);
         } else if (status.failed()) {
             confirmedStop(remote);
-            persistence.finish(turn, "FAILED", "模型已停止，本次回答未完成；可以继续提问"); usage(remote, turn);
-        }
+            persistence.finish(turn, "FAILED", "模型已停止，本次回答未完成；可以继续提问"); usage(observation.usage(), turn);
+        } else if (EMPTY_ANSWER_CHECK.equals(turn.detail())) persistence.detail(turn, "");
     }
     private void stopRemote(Conversation conversation, Turn turn) {
         if (conversation.remoteId() == null) {
@@ -208,11 +209,14 @@ public class KnowledgeCoordinator {
     }
     private void usage(OpenCodeSession remote, Turn turn) {
         try {
-            var all = openCode.sessionUsage(remote); if (all.isEmpty()) return;
+            usage(openCode.sessionUsage(remote), turn);
+        } catch (RuntimeException unavailable) { /* Unavailable usage remains null. */ }
+    }
+    private void usage(List<UsageRecord> all, Turn turn) {
+            if (all.isEmpty()) return;
             Long input = all.stream().noneMatch(r -> r.inputTokens() != null) ? null : all.stream().filter(r -> r.inputTokens() != null).mapToLong(UsageRecord::inputTokens).sum();
             Long output = all.stream().noneMatch(r -> r.outputTokens() != null) ? null : all.stream().filter(r -> r.outputTokens() != null).mapToLong(UsageRecord::outputTokens).sum();
             mapper.usage(turn.id(), input, output); // Remote cumulative totals; UI uses latest, never sums repeated history.
-        } catch (RuntimeException unavailable) { /* Unavailable usage remains null. */ }
     }
     private SessionProfile newProfile(Conversation conversation) {
         var metadata = options.options(conversation.id());

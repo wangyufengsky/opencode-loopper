@@ -21,7 +21,7 @@ public class KnowledgeSearchScanner {
         var result = reader.search(source, path, query, cursor); String now = Instant.now().toString();
         var matches = ((List<Map<String,Object>>) result.get("matches")).stream().map(hit -> {
             var row = new LinkedHashMap<>(hit); var args = new LinkedHashMap<String,Object>();
-            for (String key : List.of("sourceId", "path", "section", "startLine")) if (hit.containsKey(key)) args.put(key, hit.get(key));
+            for (String key : List.of("sourceId", "path", "section", "startLine", "textOffset")) if (hit.containsKey(key)) args.put(key, hit.get(key));
             args.put("expectedSha", hit.get("sha256"));
             row.put("sourceName", source.name()); row.put("collectedAt", now);
             row.put("read", Map.of("tool", "read_knowledge_source", "arguments", args)); return (Map<String,Object>) row;

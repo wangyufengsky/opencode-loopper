@@ -63,4 +63,25 @@ public final class KnowledgeSearchQuery {
         if (content != null) return content;
         return named == null ? null : new Hit(0, named.matchType().equals("EXPANDED") ? 40 : 80, named.matchType().equals("EXPANDED") ? "EXPANDED" : "NAME", named.matchedTerm());
     }
+    /** Match the continuous representation once per pattern, retaining one best start per section. */
+    Hit[] sections(String text, int[] starts) {
+        Hit[] hits = new Hit[starts.length];
+        for (var term : terms) {
+            if (!mode.equals("FIELD")) scan(term.literal(), text, term, 100, "EXACT", starts, hits);
+            if (Set.of("AUTO", "PHRASE").contains(mode)) scan(term.phrase(), text, term, 95, "PHRASE", starts, hits);
+            if (Set.of("AUTO", "FIELD").contains(mode)) scan(term.field(), text, term, 110, "FIELD", starts, hits);
+        }
+        return hits;
+    }
+    private static void scan(Pattern pattern, String text, Term term, int score, String type, int[] starts, Hit[] hits) {
+        var matcher = pattern.matcher(text); int from = 0;
+        while (from < text.length() && matcher.find(from)) {
+            if (Thread.currentThread().isInterrupted()) throw KnowledgeSources.bad("检索已中断，请重试");
+            int section = Arrays.binarySearch(starts, matcher.start()); if (section < 0) section = -section - 2;
+            var hit = new Hit(matcher.start(), term.expanded() ? 50 : score, term.expanded() ? "EXPANDED" : type, term.text());
+            if (hits[section] == null || hit.score() > hits[section].score()) hits[section] = hit;
+            if (section + 1 == starts.length) break;
+            from = starts[section + 1];
+        }
+    }
 }

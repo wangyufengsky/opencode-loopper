@@ -5,7 +5,7 @@ const citation = { id: citationId, kind: 'CODE', name: 'PaymentService.java', lo
 const summary = { id, projectId: 'p', title: '付款流程如何工作', model: 'local/model', state: 'IDLE', sources, createdAt: '2026-09-17T01:00:00Z', updatedAt: '', version: 0 }
 test('文件链接在当前页预览并保留气泡头像，失败不跳到 404', async ({ page }) => {
   await fixture(page)
-  await page.route('**/api/knowledge/conversations/*/messages?**', route => route.fulfill({ json: { items: [{ id: 'file-turn', ordinal: 1, state: 'COMPLETED', userText: '查看付款流程', thinking: '', answer: '[付款代码](src/PaymentService.java#L12-L15) [不可用文件](missing.java)', detail: '', inputTokens: null, outputTokens: null, createdAt: '', citations: [], calls: [] }], nextCursor: null } }))
+  await page.route('**/api/knowledge/conversations/*/messages{,/updates}?**', route => route.fulfill({ json: { items: [{ id: 'file-turn', ordinal: 1, state: 'COMPLETED', userText: '查看付款流程', thinking: '', answer: '[付款代码](src/PaymentService.java#L12-L15) [不可用文件](missing.java)', detail: '', inputTokens: null, outputTokens: null, createdAt: '', citations: [], calls: [] }], nextCursor: null } }))
   await page.route('**/api/knowledge/conversations/*/file?**', route => {
     const params = new URL(route.request().url()).searchParams
     if (params.get('path') === 'missing.java') return route.fulfill({ status: 400, json: { detail: '文件不存在，请从资料来源中重新查找' } })
@@ -76,7 +76,7 @@ async function fixture(page: Page) {
     if (path.endsWith(`/citations/${citationId}`)) return route.fulfill({ json: { citation, body: { kind: 'CODE', name: citation.name, location: citation.location, sha256: citation.sha256, startLine: 12, endLine: 15, text: 'public void pay() {\n  approval.requireApproved();\n  repository.save(payment.withDescription("' + '超长代码字符串'.repeat(50) + '"));\n}' } } })
     if (path.endsWith('/archive')) { archivedAt = route.request().postDataJSON().archived ? new Date().toISOString() : null; archiveVersion++; return route.fulfill({ json: { ...summary, options: { archivedAt, version: archiveVersion } } }) }
     if (path.endsWith('/stop')) { state = 'IDLE'; return route.fulfill({ json: { ...summary, state } }) }
-    if (path.endsWith('/messages')) {
+    if ((path.endsWith('/messages') || path.endsWith('/messages/updates'))) {
       if (route.request().method() === 'POST') { sent = true; state = 'RUNNING'; return route.fulfill({ json: {} }) }
       return route.fulfill({ json: { items: [{ id: 'turn1', ordinal: 1, state: sent && state === 'RUNNING' ? 'RUNNING' : sent ? 'STOPPED' : 'COMPLETED', userText: '付款流程如何工作？', thinking: '先定位付款入口，再核对审批条件。\n\n根据实际读取的代码与文档确认结论。', answer: `付款前必须完成审批，然后保存付款记录。[1](knowledge:${citationId}#L13-L14)\n\n### 实现依据\n\n${'这里是从项目代码读取的流程说明。'.repeat(80)}`, detail: sent && state === 'IDLE' ? '已停止生成，以上为未完成回答' : '', inputTokens: 1200, outputTokens: 450, createdAt: '', citations: [citation], calls: [{ id: 'call', tool: 'read_knowledge_source', state: 'SUCCEEDED', detail: '' }] }], nextCursor: null } })
     }
@@ -94,7 +94,7 @@ for (const width of [1440, 768]) {
     await fixture(page); await page.setViewportSize({ width, height: 900 })
     let answer = '', thinking = '', state = 'RUNNING'
     await page.route(`**/api/knowledge/conversations/${id}`, route => route.fulfill({ json: { ...summary, state: state === 'RUNNING' ? 'RUNNING' : 'IDLE' } }))
-    await page.route(`**/conversations/${id}/messages?**`, route => route.fulfill({ json: { items: [{ id: 'empty', ordinal: 1, state, userText: '这个项目的核心流程是什么？', answer, thinking, detail: '', inputTokens: null, outputTokens: null, createdAt: '', citations: [], calls: [] }], nextCursor: null } }))
+    await page.route(`**/conversations/${id}/messages{,/updates}?**`, route => route.fulfill({ json: { items: [{ id: 'empty', ordinal: 1, state, userText: '这个项目的核心流程是什么？', answer, thinking, detail: '', inputTokens: null, outputTokens: null, createdAt: '', citations: [], calls: [] }], nextCursor: null } }))
     await page.route(`**/conversations/${id}/stop`, route => { state = 'STOPPED'; return route.fulfill({ json: summary }) })
     await page.goto(`/knowledge/${id}`)
     const waiting = page.locator('.knowledge-waiting')
@@ -232,7 +232,7 @@ test('侧栏返回正在回答的知识对话、恢复草稿并读取离开期�
   page.on('request', request => { if (request.url().includes('/api/') && request.method() === 'POST') writes.push(request.url()) })
   page.on('pageerror', error => errors.push(error.message))
   await page.route(`**/api/knowledge/conversations/${id}`, route => route.fulfill({ json: { ...summary, state: completed ? 'IDLE' : 'RUNNING' } }))
-  await page.route(`**/conversations/${id}/messages?**`, route => route.fulfill({ json: { items: [{ id: 'returning', ordinal: 1, state: completed ? 'COMPLETED' : 'RUNNING', userText: '检查项目流程', answer: completed ? '离开期间已完成的回答' : '', thinking: '', detail: '', inputTokens: null, outputTokens: null, createdAt: '', citations: [], calls: [] }], nextCursor: null } }))
+  await page.route(`**/conversations/${id}/messages{,/updates}?**`, route => route.fulfill({ json: { items: [{ id: 'returning', ordinal: 1, state: completed ? 'COMPLETED' : 'RUNNING', userText: '检查项目流程', answer: completed ? '离开期间已完成的回答' : '', thinking: '', detail: '', inputTokens: null, outputTokens: null, createdAt: '', citations: [], calls: [] }], nextCursor: null } }))
   await page.route(`**/conversations/${id}/events`, route => { subscriptions++; return route.fulfill({ contentType: 'text/event-stream', body: 'data: {"type":"connected"}\n\n' }) })
   await page.goto(`/knowledge/${id}`)
   await expect(page.locator('.knowledge-waiting')).toHaveText('正在思考')
@@ -320,7 +320,7 @@ test('文档阅读视图和数据库结果的引用范围高亮', async ({ page 
 test('助手澄清问题的草稿可刷新恢复且只提交一次', async ({ page }) => {
   await fixture(page)
   let answers: string[][] = []; let submits = 0
-  await page.route(`**/conversations/${id}/messages?**`, route => route.fulfill({ json: { items: [{ id: 'turn-q', ordinal: 1, state: 'RUNNING', userText: '张三昨天做了什么？', thinking: '', answer: '', detail: '', inputTokens: null, outputTokens: null, citations: [], calls: [], questions: [{ id: 'q', state: answers.length ? 'ANSWERED' : 'PENDING', version: answers.length ? 1 : 0, answers, questions: [{ question: '你指哪位作者？', header: '作者', multiple: false, custom: true, options: [{ label: '张三 A', description: '研发组' }, { label: '张三 B', description: '测试组' }] }] }] }], nextCursor: null } }))
+  await page.route(`**/conversations/${id}/messages{,/updates}?**`, route => route.fulfill({ json: { items: [{ id: 'turn-q', ordinal: 1, state: 'RUNNING', userText: '张三昨天做了什么？', thinking: '', answer: '', detail: '', inputTokens: null, outputTokens: null, citations: [], calls: [], questions: [{ id: 'q', state: answers.length ? 'ANSWERED' : 'PENDING', version: answers.length ? 1 : 0, answers, questions: [{ question: '你指哪位作者？', header: '作者', multiple: false, custom: true, options: [{ label: '张三 A', description: '研发组' }, { label: '张三 B', description: '测试组' }] }] }] }], nextCursor: null } }))
   await page.route(`**/conversations/${id}/questions/q/reply`, route => { submits++; answers = route.request().postDataJSON().answers; return route.fulfill({ json: { state: 'PREPARED' } }) })
   await page.goto(`/knowledge/${id}`)
   await page.getByRole('radio', { name: /张三 A/ }).check()
@@ -343,4 +343,18 @@ test('从正文底部打开引用保留非零滚动位置，关闭后继续阅�
   expect(await timeline.evaluate(el => el.scrollTop)).toBe(scroll); expect(await answer.boundingBox()).toEqual(bounds)
   await page.getByRole('button', { name: '关闭引用详情' }).click()
   expect(await timeline.evaluate(el => el.scrollTop)).toBe(scroll); expect(await answer.boundingBox()).toEqual(bounds)
+})
+
+
+test('空回答失败可以恢复原问题且不会自动重发', async ({ page }) => {
+  await fixture(page)
+  let writes = 0
+  page.on('request', request => { if (request.method() === 'POST') writes++ })
+  await page.route(`**/conversations/${id}/messages{,/updates}?**`, route => route.fulfill({ json: { items: [{ id: 'empty-failed', ordinal: 1, state: 'FAILED', userText: '请梳理付款流程', answer: '', thinking: '已检查项目入口', detail: '模型已结束但没有返回有效回答，已保留调查记录；可以重新提问', inputTokens: null, outputTokens: null, createdAt: '', citations: [], calls: [] }], nextCursor: null } }))
+  await page.goto(`/knowledge/${id}`)
+  await expect(page.getByText('模型已结束但没有返回有效回答，已保留调查记录；可以重新提问')).toBeVisible()
+  await page.getByRole('button', { name: '重新提问', exact: true }).click()
+  await expect(page.getByRole('textbox', { name: '向项目提问' })).toHaveValue('请梳理付款流程')
+  await expect(page.getByRole('button', { name: '发送', exact: false })).toBeEnabled()
+  expect(writes).toBe(0)
 })

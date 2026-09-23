@@ -44,9 +44,9 @@ async function browse(source: KnowledgeSource, relative = '', cursor = '') {
   if (ticket !== generation) return
   active.value = source; path.value = relative; listing.value = cursor && listing.value ? { ...page, items: [...listing.value.items, ...page.items] } : page; results.value = undefined; content.value = undefined
 }
-async function read(relative: string, section = -1, startLine = 1, expectedSha?: string, offset = 0) {
+async function read(relative: string, section = -1, startLine = 1, expectedSha?: string, offset = 0, textOffset?: number) {
   if (!active.value) return
-  const ticket = generation; const body = await api.read(props.project, active.value.id, { conversationId: props.conversationId, path: relative, section, startLine, expectedSha, offset })
+  const ticket = generation; const body = await api.read(props.project, active.value.id, { conversationId: props.conversationId, path: relative, section, startLine, expectedSha, offset, textOffset })
   if (ticket === generation) content.value = body
 }
 async function search(cursor = '') {
@@ -71,7 +71,7 @@ async function readMatch(match: KnowledgeSearch['matches'][number]) {
     if (ticket === generation) content.value = body
     return
   }
-  await read(match.path, match.section ?? -1, match.startLine ?? 1, match.sha256)
+  await read(match.path, match.section ?? -1, match.startLine ?? 1, match.sha256, 0, typeof match.read?.arguments.textOffset === 'number' ? match.read.arguments.textOffset : undefined)
 }
 async function upload(event: Event) {
   const input = event.target as HTMLInputElement; const files = [...(input.files || [])]; input.value = ''
@@ -113,6 +113,6 @@ async function remove(source: KnowledgeSource) {
       <p v-if="!listing.items.length" class="knowledge-muted">此目录没有可读取资料</p><p v-if="listing.incomplete" class="knowledge-notice">{{ listing.detail || '目录未完整读取，请缩小范围或继续翻页' }}</p><button v-if="listing.nextCursor" :disabled="busy" @click="run(() => browse(active!, path, listing!.nextCursor!))">下一页目录</button>
     </template>
 
-    <template v-if="content"><button v-for="section in content.sections" :key="section.section" class="knowledge-file" :disabled="busy" @click="run(() => read(content!.path, section.section, 1, content!.sha256))">{{ section.title }}</button><button v-if="content.kind === 'DOCUMENT' && typeof content.nextOffset === 'number' && content.nextOffset >= 0" :disabled="busy" @click="run(() => read(content!.path, -1, 1, content!.sha256, content!.nextOffset as number))">下一页章节</button><KnowledgeEvidence :body="content" /><button v-if="(content.nextSection ?? -1) >= 0 || (content.nextLine ?? -1) > 0" :disabled="busy" @click="run(() => read(content!.path, content!.nextSection ?? -1, content!.nextLine ?? 1, content!.sha256))">下一段原文</button></template>
+    <template v-if="content"><button v-for="section in content.sections" :key="section.section" class="knowledge-file" :disabled="busy" @click="run(() => read(content!.path, section.section, 1, content!.sha256))">{{ section.title }}</button><button v-if="content.kind === 'DOCUMENT' && typeof content.nextOffset === 'number' && content.nextOffset >= 0" :disabled="busy" @click="run(() => read(content!.path, -1, 1, content!.sha256, content!.nextOffset as number))">下一页章节</button><KnowledgeEvidence :body="content" /><button v-if="(content.nextSection ?? -1) >= 0 || (content.nextLine ?? -1) > 0" :disabled="busy" @click="run(() => read(content!.path, content!.nextSection ?? -1, content!.nextLine ?? 1, content!.sha256, 0, typeof content!.nextTextOffset === 'number' ? content!.nextTextOffset : undefined))">下一段原文</button></template>
   </section>
 </template>

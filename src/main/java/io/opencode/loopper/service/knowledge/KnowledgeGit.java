@@ -87,25 +87,44 @@ public final class KnowledgeGit {
         String cursor = string(args, "cursor"), snapshotId; int offset = 0; Map<String,Object> snapshot;
         if (!cursor.isBlank()) {
             var page = PageCursor.decode(cursor); snapshotId = page.id();
-            try { offset = Integer.parseInt(page.value()); } catch (NumberFormatException invalid) { throw KnowledgeSources.bad("Git 分页位置无效，请重新查询"); }
             var saved = mapper.snapshot(snapshotId, owner, query);
-            if (saved == null || offset < 0 || offset > 1000) throw KnowledgeSources.bad("Git 分页不属于本次查询，请重新查询");
+            if (saved == null) throw KnowledgeSources.bad("Git 分页不属于本次查询，请重新查询");
             snapshot = json.readValue(saved.bodyJson(), new TypeReference<>() { });
+            if (page.value().equals("scan")) {
+                if (!(snapshot.get("nextScanOffset") instanceof Number n) || n.intValue() < 1) throw KnowledgeSources.bad("此查询没有待扫描的历史");
+                String nextId = UUID.nameUUIDFromBytes((snapshotId + ":scan").getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString();
+                var next = mapper.snapshot(nextId, owner, query);
+                if (next == null) {
+                    @SuppressWarnings("unchecked") var frozen = (List<Map<String,String>>)snapshot.get("refs");
+                    var collected = collect(repository, tool, args, frozen, n.intValue());
+                    saveSnapshot(nextId, owner, query, collected); next = mapper.snapshot(nextId, owner, query);
+                }
+                snapshotId = nextId; snapshot = json.readValue(next.bodyJson(), new TypeReference<>() { });
+            } else {
+                try { offset = Integer.parseInt(page.value()); } catch (NumberFormatException invalid) { throw KnowledgeSources.bad("Git 分页位置无效，请重新查询"); }
+                if (offset < 0 || offset > 1000) throw KnowledgeSources.bad("Git 分页位置无效，请重新查询");
+            }
         } else {
-            snapshot = collect(repository, tool, args); snapshotId = UUID.randomUUID().toString();
-            mapper.insertSnapshot(new KnowledgeV2Mapper.Snapshot(snapshotId, owner, query, AssistRedaction.text(json.writeValueAsString(snapshot)), Instant.now().toString()));
+            snapshot = collect(repository, tool, args, null, 0); snapshotId = UUID.randomUUID().toString();
+            saveSnapshot(snapshotId, owner, query, snapshot);
         }
         @SuppressWarnings("unchecked") var items = (List<Map<String,Object>>) snapshot.get("items");
         var result = new LinkedHashMap<>(snapshot);
         result.put("items", items.stream().skip(offset).limit(50).toList());
-        result.put("nextCursor", offset + 50 < items.size() ? new PageCursor(Integer.toString(offset + 50), snapshotId).encode() : "");
+        boolean more = snapshot.get("nextScanOffset") instanceof Number n && n.intValue() > 0;
+        result.put("nextCursor", offset + 50 < items.size() ? new PageCursor(Integer.toString(offset + 50), snapshotId).encode()
+                : more ? new PageCursor("scan", snapshotId).encode() : "");
         return result;
     }
-    private Map<String,Object> collect(Repository repository, String tool, Map<String,Object> args) {
+    private void saveSnapshot(String id, String owner, String query, Map<String,Object> body) {
+        mapper.insertSnapshot(new KnowledgeV2Mapper.Snapshot(id, owner, query, AssistRedaction.text(json.writeValueAsString(body)), Instant.now().toString()));
+    }
+    private Map<String,Object> collect(Repository repository, String tool, Map<String,Object> args, List<Map<String,String>> frozen, int skip) {
         String ref = string(args, "ref"), path = path(repository, string(args, "path"), true);
-        var selected = refs(repository).stream().filter(r -> ref.isBlank() || r.get("name").equals(ref) || r.get("name").equals("refs/heads/" + ref)).toList();
+        var selected = frozen != null ? frozen : refs(repository).stream().filter(r -> ref.isBlank() || r.get("name").equals(ref) || r.get("name").equals("refs/heads/" + ref)).toList();
         if (!ref.isBlank() && selected.isEmpty()) throw KnowledgeSources.bad("分支不属于当前仓库，请先查看 Git 来源");
         var command = new ArrayList<>(List.of("log", "-z", "--max-count=1001", "--format=%H%x00%an%x00%ae%x00%aI%x00%cn%x00%ce%x00%cI%x00%s"));
+        if (skip > 0) command.add("--skip=" + skip);
         command.addAll(selected.stream().map(r -> r.get("sha")).distinct().toList()); command.add("--"); command.add(literal(path));
         String raw = selected.isEmpty() ? "" : read(repository.root(), command.toArray(String[]::new));
         String[] fields = raw.split("\0", -1); var commits = new ArrayList<Map<String,Object>>();
@@ -126,9 +145,11 @@ public final class KnowledgeGit {
         }
         List<?> items = commits;
         if (tool.equals("list_knowledge_git_authors")) items = commits.stream().map(c -> Map.of("name", c.get("author"), "email", c.get("email"))).distinct().toList();
-        return Map.of("items", items, "refs", selected, "incomplete", scanned > 1000, "scannedCommits", Math.min(scanned, 1000),
+        if (skip > Integer.MAX_VALUE - 1000) throw KnowledgeSources.bad("历史扫描位置过大，请缩小分支或路径");
+        return Map.of("items", items, "refs", selected, "incomplete", scanned > 1000, "scannedCommits", skip + Math.min(scanned, 1000),
+                "nextScanOffset", scanned > 1000 ? skip + 1000 : -1,
                 "timeField", timeField.equals("committer") ? "committer" : "author", "collectedAt", Instant.now().toString(),
-                "notice", scanned > 1000 ? "仅扫描前 1000 条提交，请缩小分支或路径；无结果不表示没有工作。" : "结果只代表本地已知 Git 记录。", "location", repository.prefix().isBlank() ? "项目仓库" : repository.prefix());
+                "notice", scanned > 1000 ? "本次已扫描 1000 条提交，请按 nextCursor 继续查询更早历史；无结果不表示没有工作。" : "结果只代表本地已知 Git 记录。", "location", repository.prefix().isBlank() ? "项目仓库" : repository.prefix());
     }
     private Map<String,Object> commit(Repository repository, Map<String,Object> args) {
         String sha = revision(repository, string(args, "commit"));

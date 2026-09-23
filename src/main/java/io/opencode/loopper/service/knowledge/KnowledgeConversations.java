@@ -102,6 +102,13 @@ public class KnowledgeConversations {
         return new CursorPage<>(messages(visible), rows.size() > limit ? new PageCursor(descending.getLast().createdAt(), descending.getLast().id()).encode() : null);
     }
     public Message message(Turn turn) { return messages(List.of(turn)).getFirst(); }
+    public CursorPage<Message> updates(String id, int afterOrdinal, String cursor) {
+        persistence.require(id); if (afterOrdinal < 0) throw KnowledgeSources.bad("消息位置无效，请重新打开对话");
+        var page = PageCursor.decode(cursor);
+        var rows = mapper.updates(id, afterOrdinal, page == null ? "" : page.value(), page == null ? "" : page.id(), 51);
+        var visible = rows.stream().limit(50).toList();
+        return new CursorPage<>(messages(visible), rows.size() > 50 ? new PageCursor(visible.getLast().createdAt(), visible.getLast().id()).encode() : null);
+    }
     private static final java.util.regex.Pattern REFERENCE = java.util.regex.Pattern.compile("\\[([^\\]\\n]{1,80})\\]\\(knowledge:([^)]{1,160})\\)");
     private List<Message> messages(List<Turn> rows) {
         if (rows.isEmpty()) return List.of();

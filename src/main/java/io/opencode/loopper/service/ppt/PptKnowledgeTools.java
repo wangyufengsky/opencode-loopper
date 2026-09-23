@@ -39,7 +39,7 @@ public class PptKnowledgeTools {
         if(tool.equals("ppt_browse_knowledge_source"))return reader.browse(source,text(args,"path"),text(args,"query"),text(args,"cursor"));
         Map<String,Object> result;
         if(tool.equals("ppt_read_knowledge_source"))result=reader.readRange(source,text(args,"path"),number(args,"section",-1),number(args,"startLine",1),
-                number(args,"endLine",0),text(args,"expectedSha"),number(args,"offset",0));
+                number(args,"endLine",0),text(args,"expectedSha"),number(args,"offset",0),number(args,"textOffset",-1));
         else if(tool.equals("ppt_read_knowledge_git"))result=git.call("ppt:"+document+":"+run,source,gitTool(text(args,"operation")),gitArguments(input));
         else throw PptSupport.bad("PPT_KNOWLEDGE_TOOL","不支持的项目资料操作");
         if(tool.equals("ppt_read_knowledge_source")&&Objects.toString(result.get("text"),"").isEmpty())return result;

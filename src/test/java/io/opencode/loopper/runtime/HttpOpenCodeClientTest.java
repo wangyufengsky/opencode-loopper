@@ -55,6 +55,7 @@ class HttpOpenCodeClientTest {
     private final AtomicReference<String> abortBody = new AtomicReference<>("true");
     private final AtomicInteger abortStatusCode = new AtomicInteger(200);
     private final AtomicLong responseDelayMillis = new AtomicLong();
+    private final AtomicInteger messageReads = new AtomicInteger();
     private final AtomicInteger httpRequests = new AtomicInteger();
     @TempDir Path worktree;
 
@@ -872,6 +873,33 @@ class HttpOpenCodeClientTest {
     }
 
     @Test
+    void knowledgeObservationReadsMessagesOnceAndKeepsCurrentTurnSeparateFromCumulativeUsage() throws Exception {
+        LoopperProperties properties = new LoopperProperties();
+        properties.getOpenCode().setBaseUrl(new java.net.URI("http://127.0.0.1:" + server.getAddress().getPort()));
+        HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(), properties);
+        var session = client.createSession(worktree, "knowledge", null);
+        client.restoreDesignTurn(session, OpenCodeClient.SessionProfile.KNOWLEDGE_RESEARCH_READ_ONLY, null, "user-current");
+        statusBody.set("{}");
+        messageBody.set("""
+            [{"info":{"id":"user-old","role":"user"}},
+             {"info":{"id":"answer-old","parentID":"user-old","role":"assistant","time":{"completed":123},"tokens":{"input":10,"output":5}},"parts":[{"type":"text","text":"old answer"}]},
+             {"info":{"id":"user-current","role":"user"}},
+             {"info":{"id":"answer-current","parentID":"user-current","role":"assistant","time":{"completed":456},"tokens":{"input":20,"output":7}},"parts":[{"type":"reasoning","text":"current reasoning"},{"type":"text","text":"current answer"}]}]
+            """);
+        int before = messageReads.get();
+        var observation = client.observeKnowledgeSession(session, true);
+        assertThat(messageReads.get() - before).isEqualTo(1);
+        assertThat(observation.status().completed()).isTrue();
+        assertThat(observation.output()).isEqualTo("current answer");
+        assertThat(observation.result().text()).isEqualTo("current answer");
+        assertThat(observation.transcript().parts()).extracting(OpenCodeClient.SessionPart::content).contains("current reasoning", "current answer").doesNotContain("old answer");
+        assertThat(observation.usage()).extracting(OpenCodeClient.UsageRecord::inputTokens).containsExactly(10L, 20L);
+        client.restoreDesignTurn(session, OpenCodeClient.SessionProfile.KNOWLEDGE_RESEARCH_READ_ONLY, null, "user-not-visible");
+        var missing = client.observeKnowledgeSession(session, false);
+        assertThat(missing.output()).isEmpty(); assertThat(missing.result()).isNull(); assertThat(missing.status().completed()).isFalse();
+    }
+
+    @Test
     void exposesIncrementalThinkingOutputAndToolPartsForLiveMonitoring() throws Exception {
         LoopperProperties properties = new LoopperProperties();
         properties.getOpenCode().setBaseUrl(new java.net.URI("http://127.0.0.1:" + server.getAddress().getPort()));
@@ -1408,7 +1436,7 @@ class HttpOpenCodeClientTest {
         else if (path.matches("/session/[^/]+/message/[^/]+")) {
             reply(exchange, exactMessageStatusCode.get(), exactMessageBody.get());
         }
-        else if (path.endsWith("/message")) reply(exchange, messageStatusCode.get(), messageBody.get());
+        else if (path.endsWith("/message")) { messageReads.incrementAndGet(); reply(exchange, messageStatusCode.get(), messageBody.get()); }
         else if (path.endsWith("/prompt_async")) { promptRequests.incrementAndGet(); promptBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)); reply(exchange, "true"); }
         else if (path.endsWith("/abort")) reply(exchange, abortStatusCode.get(), abortBody.get());
         else if (path.endsWith("/todo")) reply(exchange, todoBody.get());

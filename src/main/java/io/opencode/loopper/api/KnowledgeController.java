@@ -36,6 +36,8 @@ public class KnowledgeController {
     @GetMapping("/{id}/messages") public CursorPage<KnowledgeConversations.Message> messages(@PathVariable String id,
             @RequestParam(required=false) String cursor, @RequestParam(required=false) Integer limit) { return conversations.messages(id, cursor, limit); }
     @GetMapping("/{id}/requests/{key}") public Map<String,Object> receipt(@PathVariable String id, @PathVariable String key) { return conversations.receipt(id, key); }
+    @GetMapping("/{id}/messages/updates") public CursorPage<KnowledgeConversations.Message> updates(@PathVariable String id,
+            @RequestParam(defaultValue="0") int afterOrdinal, @RequestParam(required=false) String cursor) { return conversations.updates(id, afterOrdinal, cursor); }
     public record Send(String idempotencyKey, String text) { }
     @PostMapping("/{id}/messages") public KnowledgeConversations.Message send(@PathVariable String id, @RequestBody Send input,
             @RequestHeader(value="X-Loopper-Local-UI",required=false) String localUi) {

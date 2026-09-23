@@ -57,7 +57,7 @@ public interface KnowledgeV2Mapper {
     int questionState(String id, long version, String previous, String next, String now);
     @Update("UPDATE knowledge_question SET state='CLOSED',version=version+1,updated_at=#{now} WHERE turn_id=#{turn} AND state NOT IN ('ANSWERED','CLOSED')")
     int closeQuestions(String turn, String now);
-    @Insert("INSERT INTO knowledge_git_snapshot VALUES(#{id},#{owner},#{querySha},#{bodyJson},#{createdAt})")
+    @Insert("INSERT INTO knowledge_git_snapshot VALUES(#{id},#{owner},#{querySha},#{bodyJson},#{createdAt}) ON CONFLICT(id) DO NOTHING")
     int insertSnapshot(Snapshot snapshot);
     @Select("SELECT * FROM knowledge_git_snapshot WHERE id=#{id} AND owner=#{owner} AND query_sha=#{query}")
     Snapshot snapshot(String id, String owner, String query);

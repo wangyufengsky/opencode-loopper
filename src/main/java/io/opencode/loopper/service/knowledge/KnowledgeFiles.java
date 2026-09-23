@@ -14,6 +14,8 @@ public final class KnowledgeFiles {
     private static final Set<String> EXCLUDED = Set.of("node_modules", "target", "dist", "build", "vendor",
             "coverage", "__pycache__", "credentials", "secrets");
     private KnowledgeFiles() { }
+    private static final KnowledgeDirectoryPages PAGES = new KnowledgeDirectoryPages();
+    private record DirectoryScope(Path root, Path start, String rootIdentity, String startIdentity, boolean documents, String query, boolean recursive) { }
     public static String extension(String name) { return name.substring(name.lastIndexOf('.') + 1).toLowerCase(Locale.ROOT); }
     public static boolean allowed(Path relative) {
         for (Path part : relative) {
@@ -86,9 +88,24 @@ public final class KnowledgeFiles {
         } catch (java.nio.charset.CharacterCodingException e) { throw new AssistFailure("KNOWLEDGE_BINARY", "此文件不是可读取的 UTF-8 文本"); }
     }
     public record Entry(String path, String name, boolean directory, long bytes) { }
-    public record Listing(List<Entry> items, String nextCursor, boolean incomplete, String detail) { }
+    public record Listing(List<Entry> items, String nextCursor, boolean incomplete, String detail,
+            @com.fasterxml.jackson.annotation.JsonIgnore String resumeCursor) {
+        public Listing(List<Entry> items, String nextCursor, boolean incomplete, String detail) { this(items, nextCursor, incomplete, detail, null); }
+    }
     public static Listing list(String root, String relative, boolean documents, String query, String cursor, boolean recursive) {
         Path base = directory(root), start = resolve(root, relative);
+        DirectoryScope scope;
+        try { scope = new DirectoryScope(base, start, identity(base), identity(start), documents,
+                Objects.toString(query, "").toLowerCase(Locale.ROOT), recursive); }
+        catch (IOException unavailable) { throw denied(); }
+        return PAGES.page(scope, cursor, () -> scan(base, start, documents, query, recursive));
+    }
+    private static String identity(Path path) throws IOException {
+        var a = Files.readAttributes(path, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+        if (a.isSymbolicLink() || !a.isDirectory() && !a.isRegularFile()) throw denied();
+        return a.fileKey() + ":" + a.creationTime();
+    }
+    private static Listing scan(Path base, Path start, boolean documents, String query, boolean recursive) {
         List<Entry> entries = new ArrayList<>(); int[] visited = {0}; boolean[] incomplete = {false};
         long deadline = System.nanoTime() + 2_000_000_000L;
         String needle = query == null ? "" : query.toLowerCase(Locale.ROOT);
@@ -111,9 +128,7 @@ public final class KnowledgeFiles {
                 @Override public FileVisitResult visitFileFailed(Path file, IOException e) { incomplete[0] = true; return FileVisitResult.CONTINUE; }
             });
         } catch (IOException e) { throw new AssistFailure("KNOWLEDGE_DIRECTORY_UNAVAILABLE", "资料目录无法读取，请检查目录及权限"); }
-        var page = entries.stream().sorted(Comparator.comparing(Entry::path)).filter(e -> cursor == null || e.path().compareTo(cursor) > 0).limit(51).toList();
-        var visible = page.stream().limit(50).toList();
-        return new Listing(visible, page.size() > 50 ? visible.getLast().path() : null, incomplete[0],
+        return new Listing(entries, null, incomplete[0],
                 incomplete[0] ? "目录扫描不完整，请缩小到子目录继续浏览" : "");
     }
     public static AssistFailure denied() { return new AssistFailure("KNOWLEDGE_PATH_DENIED", "资料路径不可用、越界或包含受保护目录，请选择普通目录"); }

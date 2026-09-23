@@ -14,6 +14,7 @@ export const knowledgeApi = {
   receipt: (id: string, key: string) => request<{ accepted: boolean; messageId?: string; state?: string }>(`${conv(id)}/requests/${enc(key)}`),
   get: (id: string) => request<KnowledgeConversation>(conv(id)),
   messages: (id: string, cursor = '') => request<CursorPage<KnowledgeMessage>>(`${conv(id)}/messages?${query({ cursor })}`),
+  updates: (id: string, afterOrdinal: number, cursor = '') => request<CursorPage<KnowledgeMessage>>(`${conv(id)}/messages/updates?${query({ afterOrdinal, cursor })}`),
   send: (id: string, idempotencyKey: string, text: string) => request<KnowledgeMessage>(`${conv(id)}/messages`, { method: 'POST', headers: ui, body: JSON.stringify({ idempotencyKey, text }) }),
   stop: (id: string) => request<KnowledgeConversation>(`${conv(id)}/stop`, { method: 'POST', headers: ui }),
   citation: (id: string, citation: string) => request<{ citation: KnowledgeCitation; body: KnowledgeContent }>(`${conv(id)}/citations/${enc(citation)}`),

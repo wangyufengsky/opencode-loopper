@@ -9,12 +9,13 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
   const pendingText = ref('')
   const error = ref(''), disconnected = ref(false), loading = ref(false), sending = ref(false)
   const nextCursor = ref<string | null>(null)
-  let epoch = 0, subscription: EventSource | undefined, refreshing = false, refreshAgain = false
-  let pageCursors = ['']
+  let epoch = 0, subscription: EventSource | undefined, refreshing: number | undefined, refreshAgain = false
+  let refreshTimer: ReturnType<typeof setTimeout> | undefined
+  let updatePage: { after: number; cursor: string } | undefined
   const active = computed(() => !!conversation.value && conversation.value.state !== 'IDLE')
   const explain = (failure: unknown) => failure instanceof Error && /[\u4e00-\u9fff]/.test(failure.message) ? failure.message : '暂时无法读取会话，请重试核对状态'
-  function close() { subscription?.close(); subscription = undefined }
-  function reset() { ++epoch; close(); conversation.value = null; messages.value = []; error.value = ''; nextCursor.value = null; disconnected.value = false; pendingText.value = ''; loading.value = false; pageCursors = [''] }
+  function close() { subscription?.close(); subscription = undefined; clearTimeout(refreshTimer); refreshTimer = undefined }
+  function reset() { ++epoch; close(); conversation.value = null; messages.value = []; error.value = ''; nextCursor.value = null; disconnected.value = false; pendingText.value = ''; loading.value = false; updatePage = undefined; refreshAgain = false }
   function combine(rows: KnowledgeMessage[]) { return [...new Map(rows.map(row => [row.id, row])).values()].sort((a, b) => a.ordinal - b.ordinal) }
   async function reconcile(id: string, ticket: number) {
     const key = `loopper.knowledge.pending.${id}`, saved = sessionStorage.getItem(key)
@@ -26,19 +27,32 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
   }
   async function refresh() {
     if (!conversation.value) return
-    if (refreshing) { refreshAgain = true; return }
-    const id = conversation.value.id, ticket = epoch; refreshing = true
+    if (refreshing === epoch) { refreshAgain = true; return }
+    const id = conversation.value.id, ticket = epoch; refreshing = ticket
+    const after = updatePage?.after ?? Math.max(0, (messages.value.at(-1)?.ordinal ?? 1) - 1)
+    const cursor = updatePage?.cursor ?? ''
     try {
-      const [summary, pages] = await Promise.all([api.get(id), Promise.all(pageCursors.map(cursor => api.messages(id, cursor)))])
+      const [summary, page] = await Promise.all([api.get(id), api.updates(id, after, cursor)])
       if (ticket !== epoch || conversation.value?.id !== id) return
-      conversation.value = summary; messages.value = combine([...messages.value, ...pages.flatMap(page => page.items)]); nextCursor.value = pages.at(-1)?.nextCursor ?? null
+      const previousUsage = conversation.value.usage
+      if (summary.usage && previousUsage) summary.usage = { inputTokens: maximum(previousUsage.inputTokens, summary.usage.inputTokens), outputTokens: maximum(previousUsage.outputTokens, summary.usage.outputTokens) }
+      else if (previousUsage) summary.usage = previousUsage
+      conversation.value = summary; messages.value = combine([...messages.value, ...page.items])
+      updatePage = page.nextCursor ? { after, cursor: page.nextCursor } : undefined
+      if (updatePage) refreshAgain = true
       error.value = ''; await reconcile(id, ticket)
     } catch (failure) { if (ticket === epoch) error.value = explain(failure) }
-    finally { refreshing = false; if (refreshAgain) { refreshAgain = false; void refresh() } }
+    finally { if (refreshing === ticket) refreshing = undefined; if (ticket === epoch && refreshAgain) { refreshAgain = false; void refresh() } }
+  }
+  function maximum(before: number | null, current: number | null) { return before == null ? current : current == null ? before : Math.max(before, current) }
+  function scheduleRefresh() {
+    if (refreshTimer !== undefined) return
+    const ticket = epoch
+    refreshTimer = setTimeout(() => { refreshTimer = undefined; if (ticket === epoch) void refresh() }, 180)
   }
   function subscribe(id: string) {
     close(); subscription = api.events(id)
-    subscription.onmessage = () => { disconnected.value = false; void refresh() }
+    subscription.onmessage = () => { disconnected.value = false; scheduleRefresh() }
     subscription.onopen = () => { disconnected.value = false; void refresh() }
     subscription.onerror = () => { disconnected.value = true }
   }
@@ -55,7 +69,7 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
   async function more() {
     if (!conversation.value || !nextCursor.value || loading.value) return
     const id = conversation.value.id, cursor = nextCursor.value, ticket = epoch; loading.value = true
-    try { const page = await api.messages(id, cursor); if (ticket === epoch) { pageCursors.push(cursor); messages.value = combine([...page.items, ...messages.value]); nextCursor.value = page.nextCursor ?? null } }
+    try { const page = await api.messages(id, cursor); if (ticket === epoch) { messages.value = combine([...page.items, ...messages.value]); nextCursor.value = page.nextCursor ?? null } }
     catch (failure) { if (ticket === epoch) error.value = explain(failure) }
     finally { if (ticket === epoch) loading.value = false }
   }

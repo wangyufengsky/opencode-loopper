@@ -29,7 +29,7 @@ public final class AssistToolCatalog {
             tool("list_knowledge_sources", "列出当前知识会话冻结授权的代码、文档和数据库", false, Map.of()),
             tool("browse_knowledge_source", "分页浏览资料目录；path 为来源内相对路径", false, Map.of("sourceId","string","path","string","query","string","cursor","string")),
             tool("search_knowledge", "有界关键词检索；中文短词按字面匹配，分页及不完整范围见结果", false, Map.of("sourceId","string","path","string","query","string","cursor","string")),
-            tool("read_knowledge_source", "读取代码行片段或文档 section；section=-1 查看目录，返回真实证据 citationId", false, Map.of("sourceId","string","path","string","section","integer","startLine","integer","expectedSha","string","offset","integer","endLine","integer")));
+            tool("read_knowledge_source", "读取代码行片段或文档 section；section=-1 查看目录，可按检索返回的 textOffset 跨段读取，返回真实证据 citationId", false, Map.of("sourceId","string","path","string","section","integer","startLine","integer","expectedSha","string","offset","integer","endLine","integer","textOffset","integer")));
     }
     private static Tool projectKnowledgeSearch() {
         Map<String,Object> properties = new LinkedHashMap<>();

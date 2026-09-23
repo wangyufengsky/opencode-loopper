@@ -33,6 +33,12 @@ it('reads a file hit using its returned version and original line', async () => 
   await wrapper.get('.knowledge-match').trigger('click'); await flushPromises()
   expect(api.read).toHaveBeenCalledWith('p', 'code', expect.objectContaining({ path: 'Customer.java', startLine: 7, expectedSha: 'abc' }))
 })
+it('preserves the document text offset when opening a cross-section match', async () => {
+  const result = page(); result.matches = [{ sourceId: 'code', kind: 'DOCUMENT', name: 'guide.md', path: 'guide.md', section: 0, sha256: 'original', snippet: 'customerId', read: { tool: 'read_knowledge_source', arguments: { section: 0, textOffset: 11930 } } }]
+  vi.mocked(api.searchProject).mockResolvedValue(result)
+  await search(); await wrapper.get('.knowledge-match').trigger('click'); await flushPromises()
+  expect(api.read).toHaveBeenCalledWith('p', 'code', expect.objectContaining({ section: 0, textOffset: 11930, expectedSha: 'original' }))
+})
 it('opens database metadata hits without executing a business-data query', async () => {
   const result = page(); result.matches = [{ sourceId: 'database:db', kind: 'DATABASE', name: 'customer_id', path: 'app.customer.customer_id', schema: 'app', table: 'customer', column: 'customer_id', sha256: 'meta', snippet: '客户编号', read: { tool: 'inspect_database_schema', arguments: { offset: 100 } } }]
   vi.mocked(api.searchProject).mockResolvedValue(result)

@@ -75,4 +75,27 @@ class KnowledgeGitTest {
         assertThat(evidence.get("text")).asString().contains("feature implementation", "main work").doesNotContain("sibling-content", "sensitive-value", "sibling/private.txt", "app/.env");
     }
 
+    @Test void continuesScanningOlderCommitsAndReplaysFrozenPagesAfterNewCommits() throws Exception {
+        var input = new StringBuilder();
+        for (int i = 0; i < 1002; i++) {
+            String author = i == 0 ? "OldAuthor" : "RecentAuthor", message = i == 0 ? "old target" : "recent work", body = i + "\n";
+            input.append("commit refs/heads/main\nauthor ").append(author).append(" <fixture@example.test> ").append(1767225600 + i).append(" +0000\ncommitter ")
+                    .append(author).append(" <fixture@example.test> ").append(1767225600 + i).append(" +0000\ndata ").append(message.length()).append('\n').append(message)
+                    .append("\nM 100644 inline history.txt\ndata ").append(body.length()).append('\n').append(body).append('\n');
+        }
+        var process = new ProcessBuilder("git", "-C", root.toString(), "fast-import", "--quiet").redirectErrorStream(true).start();
+        try (var output = process.getOutputStream()) { output.write(input.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8)); }
+        assertThat(process.waitFor(30, java.util.concurrent.TimeUnit.SECONDS)).isTrue(); assertThat(process.exitValue()).isZero();
+        var source = git.source(root.toString());
+        var first = git.call("chat", source, "search_knowledge_git_commits", Map.of("query", "old"));
+        assertThat(items(first)).isEmpty(); assertThat(first.get("incomplete")).isEqualTo(true);
+        String cursor = (String)first.get("nextCursor"); assertThat(cursor).isNotBlank();
+        Files.writeString(root.resolve("history.txt"), "new"); commit("old after query");
+        var next = git.call("chat", source, "search_knowledge_git_commits", Map.of("query", "old", "cursor", cursor));
+        assertThat(items(next)).hasSize(1); assertThat(items(next).getFirst().get("author")).isEqualTo("OldAuthor");
+        assertThat(next.get("nextCursor")).isEqualTo(""); assertThat(next.get("incomplete")).isEqualTo(false);
+        assertThat(git.call("chat", source, "search_knowledge_git_commits", Map.of("query", "old", "cursor", cursor))).isEqualTo(next);
+        assertThatThrownBy(() -> git.call("other", source, "search_knowledge_git_commits", Map.of("query", "old", "cursor", cursor))).isInstanceOf(AssistFailure.class);
+    }
+
 }

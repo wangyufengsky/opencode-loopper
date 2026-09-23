@@ -47,14 +47,17 @@ public final class KnowledgeQuestions {
     }
     /** true means this turn is waiting for a user or the exact reply outcome. */
     public boolean poll(OpenCodeSession session, KnowledgeRows.Turn turn) {
-        List<PendingQuestion> pending = remote.pendingQuestions(session);
+        return poll(session, turn, remote.pendingQuestions(session));
+    }
+    public boolean poll(OpenCodeSession session, KnowledgeRows.Turn turn, List<PendingQuestion> pending) {
         if (pending.size() > 10) throw KnowledgeSources.bad("待回答问题过多，请停止本轮后缩小问题范围");
         for (var prompt : pending) {
             if (!session.id().equals(prompt.sessionId()) || prompt.questions().isEmpty() || prompt.questions().size() > 10) throw KnowledgeSources.bad("问题身份或内容无效，请停止本轮后重试");
             String encoded = AssistRedaction.text(json.writeValueAsString(prompt));
             if (encoded.length() > 24000) throw KnowledgeSources.bad("问题内容过长，请停止本轮后重试");
             String now = Instant.now().toString();
-            mapper.insertQuestion(new Question(UUID.randomUUID().toString(), turn.conversationId(), turn.id(), prompt.id(), encoded, "PENDING", null, null, now, now, 0));
+            if (mapper.insertQuestion(new Question(UUID.randomUUID().toString(), turn.conversationId(), turn.id(), prompt.id(), encoded, "PENDING", null, null, now, now, 0)) == 1)
+                events.publish(turn.conversationId(), "question");
         }
         boolean waiting = false;
         for (Question row : mapper.questions(turn.id())) {
@@ -75,7 +78,9 @@ public final class KnowledgeQuestions {
         } catch (RuntimeException unknown) { change(sending, "UNKNOWN"); }
     }
     private boolean change(Question row, String next) {
-        return mapper.questionState(row.id(), row.version(), row.state(), next, Instant.now().toString()) == 1;
+        boolean changed = mapper.questionState(row.id(), row.version(), row.state(), next, Instant.now().toString()) == 1;
+        if (changed) events.publish(row.conversationId(), "question");
+        return changed;
     }
     static List<List<String>> validate(PendingQuestion prompt, List<List<String>> answers) {
         if (answers == null || answers.size() != prompt.questions().size()) throw KnowledgeSources.bad("请回答每个问题");
