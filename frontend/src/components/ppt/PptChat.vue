@@ -24,6 +24,7 @@ const emit = defineEmits<{
   changeScope: [kind: PptScope['kind']]
 }>()
 const store = usePptStore()
+const genericCompletionDetail = '本轮模型已完成；制作结果以作品检查和作业状态为准'
 const text = ref('')
 const answers = ref<Record<string, string>>({})
 const showHistory = ref(false)
@@ -233,7 +234,7 @@ async function reply(question: PptQuestion, confirmed = false) {
           <MarkdownDocument v-else :content="message.answer" />
         </div>
         <p
-          v-if="message.detail && (!store.generation || message.state !== 'COMPLETED')"
+          v-if="message.detail && message.detail !== genericCompletionDetail"
           class="ppt-notice"
         >
           {{ message.detail }}
@@ -254,7 +255,8 @@ async function reply(question: PptQuestion, confirmed = false) {
         v-if="
           store.agent?.detail &&
           !store.generation?.detail &&
-          (!store.generation || store.agent.state !== 'COMPLETED')
+          !store.messages.some((message) => message.detail === store.agent?.detail) &&
+          store.agent.detail !== genericCompletionDetail
         "
         class="ppt-notice"
       >

@@ -43,6 +43,29 @@ beforeEach(() => {
 })
 
 describe('PPT concise conversation', () => {
+  it('does not show the generic completion detail beside a completed discussion reply', async () => {
+    const store = usePptStore()
+    const detail = '本轮模型已完成；制作结果以作品检查和作业状态为准'
+    store.messages = [{ ...message('discussion-complete', '面向开发者，重点介绍架构和 API。'), detail }]
+    store.agent = { ...pptAgent(), state: 'COMPLETED', detail }
+    const wrapper = render(false)
+    await flushPromises()
+    expect(wrapper.text()).toContain('面向开发者，重点介绍架构和 API。')
+    expect(wrapper.text()).not.toContain(detail)
+    expect(wrapper.findAll('.ppt-notice')).toHaveLength(0)
+    wrapper.unmount()
+  })
+  it('keeps a specific completion check failure visible', async () => {
+    const store = usePptStore()
+    const detail = '模型已停止；制作完成检查未通过，请检查页面问题后继续修改或重试完成制作'
+    store.messages = [{ ...message('discussion-check-failed', '已整理出初稿。'), state: 'COMPLETED', detail }]
+    store.agent = { ...pptAgent(), state: 'COMPLETED', detail }
+    const wrapper = render(false)
+    await flushPromises()
+    expect(wrapper.text()).toContain(detail)
+    expect(wrapper.findAll('.ppt-notice')).toHaveLength(1)
+    wrapper.unmount()
+  })
   it('keeps the composer open for freeform discussion and confirms the persisted transcript on demand', async () => {
     const store = usePptStore()
     const send = vi.spyOn(store, 'send').mockResolvedValue(true)
