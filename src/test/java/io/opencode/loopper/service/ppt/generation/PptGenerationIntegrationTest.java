@@ -38,6 +38,7 @@ class PptGenerationIntegrationTest {
     @Autowired PptGenerationPersistence persistence;
     @Autowired PptGenerationMapper generations;
     @Autowired PptAgentService agent;
+    @Autowired PptDiscussionTranscript discussion;
     @Autowired PptAgentPersistence agentPersistence;
     @Autowired PptAgentMapper agents;
     @Autowired PptAgentTools tools;
@@ -68,6 +69,13 @@ class PptGenerationIntegrationTest {
         agents.insertReceipt(new PptAgentRows.Receipt(run.id(),key(),tool,PptSupport.hash("fixture"),json.writeValueAsString(result),Instant.now().toString()));
     }
     void complete(Run run){agentPersistence.proven(agents.run(run.id()).orElseThrow(),PptAgentState.COMPLETED,"REMOTE_TERMINAL","本轮完成");}
+    Run completeDiscussion(PptAgentService.Message message,String answer) {
+        var run=agents.run(message.id()).orElseThrow();agentPersistence.dispatch(run,"{}",PptSupport.hash("discussion-"+run.id()));
+        run=agents.run(run.id()).orElseThrow();agentPersistence.state(run,PptAgentState.RUNNING,"");
+        run=agents.run(run.id()).orElseThrow();agents.answer(run.id(),run.version(),answer,Instant.now().toString());
+        run=agents.run(run.id()).orElseThrow();agentPersistence.proven(run,PptAgentState.COMPLETED,"REMOTE_TERMINAL","讨论回复已完成");
+        return agents.run(run.id()).orElseThrow();
+    }
     JsonNode plan(){return node("""
         {"brief":{"purpose":"项目汇报","audience":"团队","pageCount":2},
          "directions":[{"id":"result","title":"结果驱动"}],"selectedDirectionId":"result","theme":"business",
@@ -219,6 +227,33 @@ class PptGenerationIntegrationTest {
         String manual=document();var input=new PptAgentService.Send(key(),"先讨论方向",0,node("{\"kind\":\"DOCUMENT\"}"));
         var message=service.send(manual,input);assertThat(agents.run(message.id()).orElseThrow().contextJson()).doesNotContain("generationAuthorization");
         assertThat(service.send(manual,input).id()).isEqualTo(message.id());assertThat(generations.latest(manual)).isEmpty();
+    }
+    @Test void freeformDiscussionCarriesEarlierTurnsBlocksWritesAndOnlyExplicitConfirmationCreatesGeneration() {
+        String doc=document();var scope=node("{\"kind\":\"DOCUMENT\"}");
+        var first=agent.send(doc,new PptAgentService.Send(key(),"制作一个介绍项目框架的 PPT，约 10 页",0,scope));
+        var firstRun=agents.run(first.id()).orElseThrow();
+        assertThat(firstRun.contextJson()).contains(PptDiscussionTranscript.PROTOCOL).doesNotContain("generationAuthorization");
+        when(runtime.authorize(anyString(),eq(firstRun.id()),eq(doc))).thenReturn(firstRun);
+        assertThatThrownBy(()->tools.call("ppt_submit_plan",Map.of("scope","fixture","runId",firstRun.id(),"documentId",doc,
+                "args",Map.of("idempotencyKey",key(),"plan",Map.of())))).hasMessageContaining("讨论阶段不能写入");
+        completeDiscussion(first,"面向开发人员，突出架构和核心 API，使用清晰的技术风格。");
+        var second=agent.send(doc,new PptAgentService.Send(key(),"再加一页常见开发场景，不需要逐项讲每个接口",0,scope));
+        var secondRun=completeDiscussion(second,"好的，增加开发场景页，并把 API 介绍控制在核心用法。");
+        assertThat(PptDiscussionTranscript.before(agents,secondRun,json)).contains("突出架构和核心 API","使用清晰的技术风格");
+        var snapshot=discussion.freeze(doc);
+        assertThat(snapshot.text()).contains("介绍项目框架","突出架构和核心 API","常见开发场景","核心用法");
+        String confirmationKey=key();var confirmation=new PptGenerationService.Confirm(confirmationKey,0);
+        var generation=service.confirmRequirements(doc,confirmation);
+        assertThat(generation.requirementsConfirmed()).isTrue();
+        var row=persistence.require(generation.id());assertThat(row.prompt()).isEqualTo(snapshot.text());
+        var run=agents.run(row.runId()).orElseThrow();assertThat(run.contextJson()).contains("requirementsConfirmedByUser","generationAuthorization");
+        assertThat(run.userText()).contains("介绍项目框架","核心 API","常见开发场景");
+        assertThat(service.confirmRequirements(doc,confirmation).id()).isEqualTo(generation.id());
+    }
+    @Test void confirmedGenerationRequiresAtLeastOneCompletedDiscussionTurn() {
+        String doc=document();
+        assertThatThrownBy(()->service.confirmRequirements(doc,new PptGenerationService.Confirm(key(),0)))
+                .hasMessageContaining("先和 PPT 助手完成一轮需求讨论");
     }
     @Test void questionReplyKeepsAutomaticAuthorityAndLongAnswersAreContextNotRepeatedUserText() {
         String doc=document(),original="需".repeat(20000);

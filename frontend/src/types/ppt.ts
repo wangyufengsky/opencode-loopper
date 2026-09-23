@@ -398,4 +398,5 @@ export interface PptGeneration {
   canResume: boolean
   createdAt: string
   updatedAt: string
+  requirementsConfirmed: boolean
 }

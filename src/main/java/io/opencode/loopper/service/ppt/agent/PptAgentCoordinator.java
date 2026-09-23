@@ -32,7 +32,8 @@ public class PptAgentCoordinator {
     private final ExecutorService workers = new ThreadPoolExecutor(2, 2, 0, TimeUnit.SECONDS, new ArrayBlockingQueue<>(32),
             Thread.ofPlatform().daemon().name("ppt-agent-", 0).factory(), new ThreadPoolExecutor.AbortPolicy());
     public PptAgentCoordinator(PptAgentMapper mapper, PptAgentPersistence persistence, OpenCodeClient openCode,
-            ObjectMapper json, LoopperProperties properties, PptAgentWorkspace workspace, PptAgentAuthority authority, io.opencode.loopper.service.ppt.PptEvents events, PptAgentActivity activity) {
+            ObjectMapper json, LoopperProperties properties, PptAgentWorkspace workspace, PptAgentAuthority authority,
+            io.opencode.loopper.service.ppt.PptEvents events, PptAgentActivity activity) {
         this.mapper = mapper; this.persistence = persistence; this.openCode = openCode; this.json = json;
         this.properties = properties; this.workspace = workspace; this.authority = authority; this.events = events;
         this.activity = activity;
@@ -110,7 +111,7 @@ public class PptAgentCoordinator {
         }
     }
     private void dispatch(OpenCodeSession remote, Run run) {
-        PromptRequest prompt = PptAgentPrompts.build(run, mapper.questions(run.id()),json);
+        PromptRequest prompt = PptAgentPrompts.build(run, mapper.questions(run.id()), PptDiscussionTranscript.before(mapper,run,json), json);
         persistence.dispatch(run, json.writeValueAsString(prompt), OpenCodeClient.promptRequestSha256(prompt));
         if (!persistence.require(run.id()).state().equals("SENDING")) return;
         try {
@@ -154,7 +155,8 @@ public class PptAgentCoordinator {
         }
     }
     private void completeProduction(Run run) {
-        if(json.readTree(run.contextJson()).has("generationAuthorization"))return;
+        if(json.readTree(run.contextJson()).has("generationAuthorization")
+                || PptDiscussionTranscript.PROTOCOL.equals(json.readTree(run.contextJson()).path("pptDiscussionProtocol").asText()))return;
         if (!Set.of("BRIEFING", "PRODUCING").contains(run.phase())) return;
         try {
             var work = workspace.workspace(run.documentId());

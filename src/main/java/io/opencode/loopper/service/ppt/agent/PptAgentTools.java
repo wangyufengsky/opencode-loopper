@@ -38,6 +38,9 @@ public class PptAgentTools {
         String encoded = json.writeValueAsString(node);
         if (encoded.length() > 500000 || !encoded.equals(AssistRedaction.text(encoded))) throw PptAgentService.bad("工具参数过大或包含内部凭证");
         var run = runtime.authorize(envelope.path("scope").asText(), envelope.path("runId").asText(), envelope.path("documentId").asText());
+        boolean discussion = PptDiscussionTranscript.PROTOCOL.equals(json.readTree(run.contextJson()).path("pptDiscussionProtocol").asText());
+        if (discussion && WRITES.contains(tool)) throw io.opencode.loopper.service.ppt.PptSupport.bad(
+                "PPT_DISCUSSION_READ_ONLY", "需求讨论阶段不能写入方案或页面；点击“确认需求并执行”后才能制作");
         String key = node.path("idempotencyKey").asText(); String sha = PptAgentService.hash(PptAgentJson.canonical(node, json));
         if (WRITES.contains(tool)) {
             PptAgentService.key(key);
@@ -66,7 +69,7 @@ public class PptAgentTools {
             result = Map.of("capabilities", result, "phase", run.phase(),
                     "generationAuthorization",automatic==null?json.nullNode():automatic,
                     "requirementsState", requirementsState,
-                    "allowedTools", PptAgentProfile.TOOLS.stream().filter(t -> PptAgentAuthority.allowed(t, run.phase())
+                    "allowedTools", (discussion?PptAgentProfile.DISCUSSION_TOOLS:PptAgentProfile.TOOLS).stream().filter(t -> PptAgentAuthority.allowed(t, run.phase())
                             && PptRequirements.permits(t, requirementsState)
                             && (automatic==null||!MANAGED_OUTPUTS.contains(t))).toList());
         }

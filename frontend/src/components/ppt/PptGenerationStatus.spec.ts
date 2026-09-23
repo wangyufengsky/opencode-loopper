@@ -31,4 +31,13 @@ describe('PPT requirements progress', () => {
     expect(wrapper.get('h2').text()).toBe('已暂停')
     expect(wrapper.get('button').text()).toContain('继续制作')
   })
+  it('describes the pre-generation freeform discussion and the explicit execution action', () => {
+    const store = usePptStore()
+    store.document = { ...store.document!, phase: 'BRIEFING' }
+    store.generation = null
+    store.agent = { ...pptAgent(), state: 'COMPLETED' }
+    const wrapper = mount(PptGenerationStatus)
+    expect(wrapper.get('h2').text()).toBe('需求讨论中')
+    expect(wrapper.text()).toContain('确认需求并执行')
+  })
 })

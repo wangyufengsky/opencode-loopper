@@ -97,7 +97,7 @@ function drop(event: DragEvent) {
       </button>
     </footer>
     <p v-if="project" class="ppt-prompt-project-note"><Icon icon="lucide:book-open" /> 将使用「{{ project.name }}」当前可用的知识库来源</p>
-    <p class="ppt-prompt-hint">先聊清内容与风格，确认需求后开始设计。</p>
+    <p class="ppt-prompt-hint">随时补充你的想法；点击“确认需求并执行”后开始制作。</p>
     <p v-if="error" role="alert" class="ppt-inline-error">{{ error }}</p>
   </form>
 </template>

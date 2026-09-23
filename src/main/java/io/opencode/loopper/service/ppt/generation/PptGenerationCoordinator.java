@@ -63,7 +63,7 @@ public class PptGenerationCoordinator {
         if(row.step().equals("PLANNING")&&!documents.get(row.documentId()).phase().equals("BRIEFING")) {
             documents.action(row.documentId(),"reopen",new PptDocuments.Action(key(row,"reopen"),row.dispatchRevision(),null,null),()->persistence.guard(row));
         }
-        var auth=new PptAgentWorkflowGate.Authorization(row.id(),row.attempt(),row.step(),row.mode());
+        var auth=new PptAgentWorkflowGate.Authorization(row.id(),row.attempt(),row.step(),row.mode(),row.requirementsConfirmed());
         var input=new PptAgentService.Send(row.agentKey(),row.prompt(),row.dispatchRevision(),json.readTree(row.scopeJson()));
         var message=agent.sendAutomatic(row.documentId(),input,auth);
         return bind(persistence.require(row.id()),agents.run(message.id()).orElseThrow());

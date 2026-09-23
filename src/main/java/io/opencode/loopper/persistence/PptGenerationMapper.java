@@ -16,9 +16,9 @@ public interface PptGenerationMapper {
     List<PptAgentRows.Question> answers(String document,String prefix);
     @Insert("""
         INSERT INTO ppt_generation(id,document_id,idempotency_key,input_sha,prompt,mode,scope_json,source_revision,dispatch_revision,
-          state,step,attempt,agent_key,run_id,job_id,preview_job_id,output_revision,detail,version,created_at,updated_at)
+          state,step,attempt,agent_key,run_id,job_id,preview_job_id,output_revision,detail,version,created_at,updated_at,requirements_confirmed)
         VALUES(#{id},#{documentId},#{idempotencyKey},#{inputSha},#{prompt},#{mode},#{scopeJson},#{sourceRevision},#{dispatchRevision},
-          #{state},#{step},#{attempt},#{agentKey},#{runId},#{jobId},#{previewJobId},#{outputRevision},#{detail},#{version},#{createdAt},#{updatedAt})
+          #{state},#{step},#{attempt},#{agentKey},#{runId},#{jobId},#{previewJobId},#{outputRevision},#{detail},#{version},#{createdAt},#{updatedAt},#{requirementsConfirmed})
         """) int insert(Generation row);
     @Insert("INSERT INTO ppt_generation_request(document_id,idempotency_key,input_sha,generation_id,kind,created_at) VALUES(#{documentId},#{idempotencyKey},#{inputSha},#{generationId},#{kind},#{createdAt})") int insertRequest(Request row);
     @Update("UPDATE ppt_generation SET state=#{state},detail=#{detail},version=version+1,updated_at=#{now} WHERE id=#{id} AND version=#{version}")

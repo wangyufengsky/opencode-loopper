@@ -22,6 +22,8 @@ const heading = computed(() =>
     ? pptGenerationLabel(store.generation.state)
     : store.active
       ? pptRunLabel(store.agent?.state || 'IDLE')
+      : store.document?.phase === 'BRIEFING'
+        ? '需求讨论中'
       : '让我们继续完成这份演示',
 )
 </script>
@@ -47,6 +49,9 @@ const heading = computed(() =>
     <p v-else-if="clarifying">助手会和你逐轮确认内容与风格，你也可以随时补充想法。</p>
     <p v-else-if="waiting">补充下面的信息后，助手会继续。</p>
     <p v-else-if="store.generationActive">你可以离开这个页面，制作会继续。</p>
+    <p v-else-if="!store.generation && store.document?.phase === 'BRIEFING'">
+      可以继续补充或修改要求；准备好后点击“确认需求并执行”。
+    </p>
     <p v-else-if="!store.generation">告诉助手你希望这份 PPT 讲什么。</p>
     <ol v-if="store.generation && !clarifying" class="ppt-generation-steps">
       <li

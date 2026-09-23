@@ -41,13 +41,18 @@ async function load(more = false) {
   }
 }
 
-async function generate() {
+async function startDiscussion() {
   if (starting.value) return
   const request = await creation.prepare()
   if (!request) return
   starting.value = true
   try {
-    await pptApi.generate(request.id, request.revision, request.prompt, request.key)
+    await pptApi.send(request.id, {
+      idempotencyKey: request.key,
+      expectedRevision: request.revision,
+      text: request.prompt,
+      scope: { kind: 'DOCUMENT' },
+    })
     creation.accepted()
     await router.push(`/ppt/${request.id}`)
   } catch (failure) {
@@ -102,7 +107,7 @@ function toggleArchive() {
         :error="creation.error.value"
         @files="creation.addFiles"
         @remove="creation.removeFile"
-        @submit="generate"
+        @submit="startDiscussion"
       />
       <div class="ppt-hero-footnote">
         <span>

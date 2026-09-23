@@ -18,8 +18,10 @@ public final class PptRequirements {
     private PptRequirements() { }
 
     static void freeze(ObjectNode context, PptAgentWorkflowGate.Authorization authorization) {
-        if (authorization != null && authorization.mode().equals("CREATE") && authorization.step().equals("PLANNING"))
+        if (authorization != null && authorization.mode().equals("CREATE") && authorization.step().equals("PLANNING")) {
             context.put("requirementsProtocol", PROTOCOL);
+            if (authorization.requirementsConfirmed()) context.put("requirementsConfirmedByUser", true);
+        }
     }
     static boolean enabled(Run run, ObjectMapper json) {
         return PROTOCOL.equals(json.readTree(run.contextJson()).path("requirementsProtocol").asText());
@@ -31,6 +33,7 @@ public final class PptRequirements {
         if (!Set.of(CLARIFICATION, CONFIRMATION).contains(kind)) throw PptAgentService.bad("问题 kind 必须为 CLARIFICATION 或 REQUIREMENTS_CONFIRMATION");
         if (CONFIRMATION.equals(kind)) {
             if (!enabled(run, json)) throw PptAgentService.bad("当前请求没有首次需求确认协议；请使用普通问题");
+            if (confirmedByUser(run, json)) throw PptAgentService.bad("用户已经确认本次需求，无需再次请求初始确认");
             if (!hasDialogue(run, questions, json))
                 throw PptSupport.bad("PPT_REQUIREMENTS_DIALOGUE_REQUIRED", "请先围绕内容重点或设计偏好提出关键问题并等待用户回答，再汇总需求确认；已有信息不要重复询问");
         }
@@ -43,6 +46,7 @@ public final class PptRequirements {
     }
     static String state(Run run, List<Question> questions, ObjectMapper json) {
         if (!enabled(run, json)) return "NOT_REQUIRED";
+        if (confirmedByUser(run, json)) return "CONFIRMED";
         if (questions.isEmpty()) return "CLARIFYING";
         var latest = questions.getLast();
         if (!CONFIRMATION.equals(latest.kind())) return "CLARIFYING";
@@ -67,8 +71,13 @@ public final class PptRequirements {
         var inherited = json.readTree(run.contextJson()).path("generationAnswers");
         return inherited.isArray() && !inherited.isEmpty();
     }
+    private static boolean confirmedByUser(Run run, ObjectMapper json) {
+        return json.readTree(run.contextJson()).path("requirementsConfirmedByUser").asBoolean(false);
+    }
     static String guidance(Run run, List<Question> questions, ObjectMapper json) {
         if (!enabled(run, json)) return "";
+        if (confirmedByUser(run, json))
+            return "\n本次需求已由用户在讨论界面点击“确认需求并执行”，服务端已冻结完整讨论记录；requirementsState=CONFIRMED。直接提交完整方案并开始制作，不要再请求首次需求确认。若执行中发现确实缺少必要信息，可提出普通 CLARIFICATION 问题。";
         String state = state(run, questions, json);
         return "\n服务端需求确认协议=" + PROTOCOL + "，当前需求状态=" + state + "。"
                 + "首次设计前必须先与用户多轮沟通：先消化需求与获准资料，每轮只问一个影响内容重点或设计效果的关键问题，给出易选建议；已有答案不重复问。"

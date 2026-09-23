@@ -36,4 +36,15 @@ class PptAgentPromptsTest {
         assertThat(rejected.text()).contains("用户明确确认需求：false", "改成8页").doesNotContain("已确认的回答");
         assertThat(rejected.system()).contains("当前需求状态=CLARIFYING");
     }
+    @Test void freeformDiscussionPromptCarriesEarlierTurnsAndDoesNotPresentCreationToolsAsAllowed() {
+        var request = run("BRIEFING", "{\"pptDiscussionProtocol\":\"FREEFORM_DIALOGUE_V1\"}");
+        var prompt = PptAgentPrompts.build(request, List.of(), "用户：\n第一页突出数据\n助手：\n会突出关键数据", json);
+        assertThat(prompt.system()).contains(PptAgentProfile.DISCUSSION_PROMPT, "自由讨论阶段", "制作写入和问题提交工具均不可用")
+                .doesNotContain("首次设计前必须先");
+        assertThat(prompt.text()).contains("第一页突出数据", "会突出关键数据", "用户本轮消息：", request.userText());
+        var confirmed = run("BRIEFING", "{\"generationAuthorization\":{\"generationId\":\"g\",\"attempt\":0,\"step\":\"PLANNING\",\"mode\":\"CREATE\",\"requirementsConfirmed\":true},\"requirementsProtocol\":\"DIALOGUE_CONFIRMATION_V1\",\"requirementsConfirmedByUser\":true}");
+        var generation = PptAgentPrompts.build(confirmed, List.of(), json);
+        assertThat(generation.system()).contains("用户已明确确认完整讨论内容", "直接提交完整方案并开始制作", "用户在讨论界面点击", "不要再请求首次需求确认")
+                .doesNotContain("kind=REQUIREMENTS_CONFIRMATION");
+    }
 }

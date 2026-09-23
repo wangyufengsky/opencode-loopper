@@ -133,4 +133,5 @@ export const pptGeneration = (
   canResume: state === 'STOPPED' || state === 'FAILED',
   createdAt: '2026-09-22T00:00:00Z',
   updatedAt: '2026-09-22T00:00:00Z',
+  requirementsConfirmed: false,
 })

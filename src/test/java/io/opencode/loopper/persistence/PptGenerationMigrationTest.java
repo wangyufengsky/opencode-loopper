@@ -22,7 +22,7 @@ class PptGenerationMigrationTest {
                     + "VALUES('job-b','b','PREVIEW',0,'PREPARED',1,'preview','hash','now','now')");
         }
         var flyway = Flyway.configure().dataSource(url, null, null).load();
-        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(4);
+        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(5);
         flyway.validate();
         try (var db = DriverManager.getConnection(url); var sql = db.createStatement()) {
             try (var rows = sql.executeQuery("SELECT deck_json,plan_json FROM ppt_revision WHERE document_id='a'")) {
@@ -31,6 +31,11 @@ class PptGenerationMigrationTest {
                 assertThat(rows.getString(2)).isEqualTo("{\"brief\":\"原始方案\"}");
             }
             sql.execute(generation("g-a", "a"));
+            try (var rows = sql.executeQuery("SELECT requirements_confirmed FROM ppt_generation WHERE id='g-a'")) {
+                assertThat(rows.next()).isTrue(); assertThat(rows.getInt(1)).isZero();
+            }
+            sql.execute("UPDATE ppt_generation SET requirements_confirmed=1 WHERE id='g-a'");
+            assertThatThrownBy(() -> sql.execute("UPDATE ppt_generation SET requirements_confirmed=2 WHERE id='g-a'")).hasMessageContaining("CHECK");
             assertThatThrownBy(() -> sql.execute(generation("g-overlap", "a"))).hasMessageContaining("UNIQUE");
             sql.execute("UPDATE ppt_generation SET state='WAITING_INPUT' WHERE id='g-a'");
             assertThatThrownBy(() -> sql.execute(generation("g-wait", "a"))).hasMessageContaining("UNIQUE");
@@ -63,7 +68,7 @@ class PptGenerationMigrationTest {
         String url = "jdbc:sqlite:" + root.resolve("fresh.db") + "?foreign_keys=on";
         var flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate(); flyway.validate();
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("124");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("125");
         try (var db = DriverManager.getConnection(url); var sql = db.createStatement()) {
             for (String table : new String[]{"ppt_generation", "ppt_generation_request"}) {
                 try (var rows = sql.executeQuery("SELECT count(*) FROM " + table)) {

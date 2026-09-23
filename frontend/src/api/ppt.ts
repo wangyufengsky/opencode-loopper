@@ -76,6 +76,11 @@ export const pptApi = {
         idempotencyKey,
       }),
     ),
+  confirmGeneration: (id: string, expectedRevision: number, idempotencyKey: string) =>
+    request<PptGeneration>(
+      `${base(id)}/generate/confirm`,
+      write({ expectedRevision, idempotencyKey }),
+    ),
   resume: (id: string, expectedRevision: number, idempotencyKey: string) =>
     request<PptGeneration>(
       `${base(id)}/generate/resume`,

@@ -43,6 +43,11 @@ const canSend = computed(
     !['STOPPED', 'FAILED'].includes(store.generation?.state || '') &&
     (props.ready || !store.generation),
 )
+const canConfirm = computed(() => {
+  const latest = store.messages.at(-1)
+  return !props.ready && !store.generation && !!latest && latest.state === 'COMPLETED'
+    && !text.value.trim() && !store.active && !store.busy && !store.pending && !questions.value.length && !props.disabled
+})
 const displayedMessages = computed(() =>
   (showHistory.value ? store.messages : store.messages.slice(-3)).map(message => {
     const segments = splitThinkingContent(message.answer)
@@ -145,15 +150,15 @@ async function send() {
   if (!canSend.value) return
   const id = owner
   const value = text.value.trim()
-  const accepted = props.ready
-    ? await store.send(value, {
-        ...props.scope,
-      })
-    : await store.generate(value)
+  const accepted = await store.send(value, { ...props.scope })
   if (accepted && id === owner) {
     text.value = ''
     saveDraft()
   }
+}
+
+async function confirmRequirements() {
+  if (canConfirm.value) await store.confirmRequirements()
 }
 
 async function reply(question: PptQuestion, confirmed = false) {
@@ -292,7 +297,7 @@ async function reply(question: PptQuestion, confirmed = false) {
             <button
               v-if="question.kind === 'REQUIREMENTS_CONFIRMATION'" type="button" class="ppt-primary"
               :disabled="!!store.pending || !!answers[question.id]?.trim()" @click="reply(question, true)"
-            >确认需求，开始设计<Icon icon="lucide:arrow-right" /></button>
+            >确认需求并执行<Icon icon="lucide:arrow-right" /></button>
             <button :disabled="!answers[question.id]?.trim() || !!store.pending" :class="{ 'ppt-primary': question.kind !== 'REQUIREMENTS_CONFIRMATION' }">
               {{ question.kind === 'REQUIREMENTS_CONFIRMATION' ? '补充意见，继续沟通' : '回答并继续' }}
               <Icon v-if="question.kind !== 'REQUIREMENTS_CONFIRMATION'" icon="lucide:arrow-right" />
@@ -353,7 +358,7 @@ async function reply(question: PptQuestion, confirmed = false) {
           }}
         </span>
         <span v-else class="ppt-composer-hint">
-          {{ ready ? '想改哪里，直接告诉我' : '确认需求后，助手会开始设计' }}
+          {{ ready ? '想改哪里，直接告诉我' : '你可以随时补充；准备好后点击“确认需求并执行”' }}
         </span>
         <button
           v-if="store.active"
@@ -369,9 +374,18 @@ async function reply(question: PptQuestion, confirmed = false) {
           <Icon icon="lucide:square" />
           暂停
         </button>
-        <button v-else class="ppt-primary" :disabled="!canSend">
+        <button
+          v-else-if="canConfirm"
+          type="button"
+          class="ppt-primary ppt-confirm-requirements"
+          @click="confirmRequirements"
+        >
+          <Icon icon="lucide:check" />
+          确认需求并执行
+        </button>
+        <button v-if="!store.active" :class="{ 'ppt-primary': ready || !canConfirm }" :disabled="!canSend">
           <Icon icon="lucide:arrow-up" />
-          {{ ready ? '修改' : '开始沟通' }}
+          {{ ready ? '修改' : store.messages.length ? '继续讨论' : '开始沟通' }}
         </button>
       </footer>
     </form>

@@ -69,6 +69,8 @@ public class PptAgentService {
             context.set("generationAuthorization",json.valueToTree(authorization));
             context.set("generationAnswers",json.valueToTree(workflow.answers(document,authorization)));
             PptRequirements.freeze(context, authorization);
+        } else if (work.phase().equals("BRIEFING")) {
+            context.put("pptDiscussionProtocol", PptDiscussionTranscript.PROTOCOL);
         }
         String configured = work.model() == null || work.model().isBlank() ? properties.getOpenCode().getModel() : work.model();
         var model = OpenCodeModelSelection.configured(configured);

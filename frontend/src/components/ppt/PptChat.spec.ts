@@ -21,9 +21,9 @@ const message = (id: string, answer = '已完成调整'): PptMessage => ({
   createdAt: '2026-09-22T00:00:00Z',
   updatedAt: '2026-09-22T00:00:00Z',
 })
-function render() {
+function render(ready = true) {
   return mount(PptChat, {
-    props: { scope: { kind: 'DOCUMENT' }, scopeLabel: '整份演示文稿' },
+    props: { scope: { kind: 'DOCUMENT' }, scopeLabel: '整份演示文稿', ready },
     global: {
       stubs: {
         MarkdownDocument: {
@@ -43,20 +43,41 @@ beforeEach(() => {
 })
 
 describe('PPT concise conversation', () => {
+  it('keeps the composer open for freeform discussion and confirms the persisted transcript on demand', async () => {
+    const store = usePptStore()
+    const send = vi.spyOn(store, 'send').mockResolvedValue(true)
+    const generate = vi.spyOn(store, 'generate')
+    const confirm = vi.spyOn(store, 'confirmRequirements').mockResolvedValue(true)
+    const wrapper = render(false)
+    await wrapper.get('.ppt-composer textarea').setValue('补充：面向开发者，强调架构和 API')
+    await wrapper.get('.ppt-composer').trigger('submit')
+    expect(send).toHaveBeenCalledWith('补充：面向开发者，强调架构和 API', { kind: 'DOCUMENT' })
+    expect(generate).not.toHaveBeenCalled()
+    store.messages = [message('discussion-complete')]
+    await flushPromises()
+    expect(wrapper.text()).toContain('继续讨论')
+    expect(wrapper.text()).toContain('确认需求并执行')
+    await wrapper.get('.ppt-composer textarea').setValue('还有新的要求')
+    expect(wrapper.findAll('button').some(button => button.text().includes('确认需求并执行'))).toBe(false)
+    await wrapper.get('.ppt-composer textarea').setValue('')
+    await wrapper.findAll('button').find(button => button.text().includes('确认需求并执行'))!.trigger('click')
+    expect(confirm).toHaveBeenCalledOnce()
+    wrapper.unmount()
+  })
   it('requires an explicit confirmation card before starting design and keeps clarification replies separate', async () => {
     const store = usePptStore()
     const reply = vi.spyOn(store, 'reply').mockResolvedValue(true)
     const question = { id: 'brief', kind: 'CLARIFICATION' as const, prompt: '本次重点讲什么？', options: ['业务成果'], state: 'PENDING' as const, answer: null, version: 1 }
     store.agent = { ...pptAgent(), state: 'WAITING_INPUT', requirementsState: 'CLARIFYING', questions: [question] }
     const wrapper = render()
-    expect(wrapper.text()).not.toContain('确认需求，开始设计')
+    expect(wrapper.text()).not.toContain('确认需求并执行')
     await wrapper.get('textarea').setValue('突出业务成果')
     await wrapper.get('.ppt-question').trigger('submit')
     expect(reply).toHaveBeenLastCalledWith(question, '突出业务成果', undefined)
     store.agent = { ...pptAgent(), state: 'WAITING_INPUT', requirementsState: 'AWAITING_CONFIRMATION', questions: [{ ...question, id: 'confirm', kind: 'REQUIREMENTS_CONFIRMATION', prompt: '## 汇报需求\n面向管理层，10 页，商务风格。' }] }
     await flushPromises()
     expect(wrapper.get('.ppt-requirements-confirmation .markdown-document').text()).toContain('10 页')
-    const confirm = wrapper.findAll('button').find(button => button.text().includes('确认需求，开始设计'))!
+    const confirm = wrapper.findAll('button').find(button => button.text().includes('确认需求并执行'))!
     await wrapper.get('textarea').setValue('改成 8 页')
     expect(confirm.attributes('disabled')).toBeDefined()
     await wrapper.get('.ppt-question').trigger('submit')
@@ -77,7 +98,7 @@ describe('PPT concise conversation', () => {
     wrapper = render()
     await flushPromises()
     expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe('增加风险说明')
-    expect(wrapper.text()).toContain('确认需求，开始设计')
+    expect(wrapper.text()).toContain('确认需求并执行')
     expect(reply).not.toHaveBeenCalled()
     wrapper.unmount()
   })

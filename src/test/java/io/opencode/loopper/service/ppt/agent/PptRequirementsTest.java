@@ -30,6 +30,17 @@ class PptRequirementsTest {
         PptRequirements.requireConfirmed(run("{\"generationAuthorization\":{\"mode\":\"CREATE\",\"step\":\"PLANNING\"}}"), List.of(), json);
         assertThatThrownBy(() -> PptRequirements.requireConfirmed(dialogue(), List.of(), json)).hasMessageContaining("尚未完成需求确认");
     }
+    @Test void explicitDiscussionConfirmationSkipsTheLegacyQuestionWithoutWeakeningOldRuns() {
+        var context = json.createObjectNode();
+        PptRequirements.freeze(context, new PptAgentWorkflowGate.Authorization("generation", 0, "PLANNING", "CREATE", true));
+        var confirmed = run(json.writeValueAsString(context));
+        assertThat(PptRequirements.state(confirmed, List.of(), json)).isEqualTo("CONFIRMED");
+        PptRequirements.requireConfirmed(confirmed, List.of(), json);
+        assertThat(PptRequirements.guidance(confirmed, List.of(), json)).contains("用户在讨论界面点击", "不要再请求首次需求确认");
+        var args = json.createObjectNode().put("kind", PptRequirements.CONFIRMATION);
+        assertThatThrownBy(() -> PptRequirements.questionKind(args, confirmed, List.of(), json)).hasMessageContaining("无需再次请求");
+        assertThatThrownBy(() -> PptRequirements.requireConfirmed(dialogue(), List.of(), json)).hasMessageContaining("尚未完成需求确认");
+    }
     @Test void aSummaryCannotReplaceTheInitialDialogueAndPlainAffirmationIsNotConsent() {
         var args = json.createObjectNode().put("kind", PptRequirements.CONFIRMATION);
         assertThatThrownBy(() -> PptRequirements.questionKind(args, dialogue(), List.of(), json)).hasMessageContaining("先围绕内容重点");

@@ -17,6 +17,7 @@ vi.mock('@/api/ppt', () => ({
   pptApi: {
     generation: vi.fn(),
     generate: vi.fn(),
+    confirmGeneration: vi.fn(),
     resume: vi.fn(),
     get: vi.fn(),
     deck: vi.fn(),
@@ -252,6 +253,18 @@ describe('PPT authoritative workspace', () => {
     expect(api.generate.mock.calls[1]).toEqual(original)
     expect(original?.[1]).toBe(3)
     expect(store.generationActive).toBe(true)
+    expect(store.pending).toBeNull()
+  })
+  it('replays the explicit requirements confirmation with the same revision and idempotency key', async () => {
+    const store = usePptStore()
+    await store.load('doc')
+    api.confirmGeneration.mockRejectedValueOnce(new Error('network'))
+    expect(await store.confirmRequirements()).toBe(false)
+    const original = api.confirmGeneration.mock.calls[0]
+    expect(original?.[1]).toBe(3)
+    api.confirmGeneration.mockResolvedValueOnce(pptGeneration())
+    await store.retryPending()
+    expect(api.confirmGeneration.mock.calls[1]).toEqual(original)
     expect(store.pending).toBeNull()
   })
   it('keeps automatic production active between separate assistant runs and resumes explicitly', async () => {

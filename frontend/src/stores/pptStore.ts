@@ -30,6 +30,7 @@ type Pending = {
     | 'job'
     | 'retry-job'
     | 'generate'
+    | 'confirm-generation'
     | 'resume'
   key: string
   revision: number
@@ -266,6 +267,7 @@ export const usePptStore = defineStore('ppt', () => {
         revision = request.revision,
         key = request.key
       if (request.kind === 'generate') await api.generate(id, revision, String(p.prompt), key)
+      else if (request.kind === 'confirm-generation') await api.confirmGeneration(id, revision, key)
       else if (request.kind === 'resume') await api.resume(id, revision, key)
       else if (request.kind === 'operations')
         await api.operations(id, revision, p.operations as PptOperation[], key)
@@ -338,6 +340,7 @@ export const usePptStore = defineStore('ppt', () => {
     mutate('generate', {
       prompt,
     })
+  const confirmRequirements = () => mutate('confirm-generation', {})
   const resume = () => mutate('resume', {})
   const operations = (values: PptOperation[], expectedRevision?: number) =>
     mutate(
@@ -440,6 +443,7 @@ export const usePptStore = defineStore('ppt', () => {
     generation,
     generationActive,
     generate,
+    confirmRequirements,
     resume,
     document,
     deck,

@@ -8,6 +8,7 @@ import io.opencode.loopper.persistence.PptGenerationRows.*;
 import io.opencode.loopper.service.NotFoundException;
 import io.opencode.loopper.service.ppt.PptSupport;
 import io.opencode.loopper.service.ppt.agent.PptAgentWorkflowGate;
+import io.opencode.loopper.service.ppt.agent.PptDiscussionTranscript;
 import java.time.Instant;
 import java.util.*;
 import org.springframework.stereotype.Service;
@@ -43,6 +44,21 @@ public class PptGenerationPersistence implements PptAgentWorkflowGate {
         lifecycle.create(subject(desired),desired.state(),Map.of("authorizedBy","GENERATE","revision",desired.sourceRevision()),
                 ()->mapper.insert(desired),()->PptSupport.conflict("作品已有自动生成请求"));
         receipt(desired,desired.idempotencyKey(),desired.inputSha(),kind);return require(desired.id());
+    }
+    @Transactional public Generation beginConfirmed(Generation desired,PptDiscussionTranscript.Snapshot snapshot) {
+        if(!desired.requirementsConfirmed()||!desired.mode().equals("CREATE"))throw PptSupport.bad("PPT_GENERATION_AUTHORITY","确认授权格式无效");
+        var old=replay(desired.documentId(),desired.idempotencyKey(),desired.inputSha(),"GENERATE");if(old!=null)return old;
+        assertManualAdmission(desired.documentId());noWriter(desired.documentId());
+        var latest=agents.latest(desired.documentId()).orElseThrow(()->PptSupport.bad("PPT_DISCUSSION_REQUIRED","请先完成一轮需求讨论"));
+        if(!latest.id().equals(snapshot.latestRunId())||latest.version()!=snapshot.latestVersion()||!latest.state().equals("COMPLETED")
+                ||!latest.phase().equals("BRIEFING")||!PptDiscussionTranscript.PROTOCOL.equals(json.readTree(latest.contextJson()).path("pptDiscussionProtocol").asText())
+                ||agents.pendingDiscussion(desired.documentId()).isPresent())
+            throw PptSupport.conflict("讨论内容或助手状态已变化，请刷新后再次确认");
+        var doc=document(desired.documentId(),desired.sourceRevision());
+        if(!doc.phase().equals("BRIEFING"))throw PptSupport.bad("PPT_GENERATION_PHASE","当前阶段不能确认首次需求");
+        lifecycle.create(subject(desired),desired.state(),Map.of("authorizedBy","USER_CONFIRMATION","revision",desired.sourceRevision(),"requirementsConfirmed",true),
+                ()->mapper.insert(desired),()->PptSupport.conflict("作品已有自动生成请求"));
+        receipt(desired,desired.idempotencyKey(),desired.inputSha(),"GENERATE");return require(desired.id());
     }
     @Transactional public Generation resume(Generation observed,String key,String sha,long revision) {
         var old=replay(observed.documentId(),key,sha,"RESUME");if(old!=null)return old;
@@ -128,7 +144,8 @@ public class PptGenerationPersistence implements PptAgentWorkflowGate {
     }
     @Override public void validateAutomatic(String document,String key,Authorization auth) {
         var row=require(auth.generationId());
-        if(!row.documentId().equals(document)||row.attempt()!=auth.attempt()||!row.agentKey().equals(key)||!row.step().equals(auth.step())||!row.mode().equals(auth.mode()))throw PptSupport.conflict("自动生成授权已经变化");
+        if(!row.documentId().equals(document)||row.attempt()!=auth.attempt()||!row.agentKey().equals(key)||!row.step().equals(auth.step())
+                ||!row.mode().equals(auth.mode())||row.requirementsConfirmed()!=auth.requirementsConfirmed())throw PptSupport.conflict("自动生成授权已经变化");
         current(row);
     }
     @Override public void validateRun(Run run) {

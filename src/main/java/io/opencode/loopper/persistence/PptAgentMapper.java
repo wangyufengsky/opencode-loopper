@@ -58,6 +58,7 @@ public interface PptAgentMapper {
     int usage(String id, Long input, Long output);
     @Select("SELECT * FROM ppt_agent_question WHERE id=#{id} AND document_id=#{document}") Optional<Question> question(String document, String id);
     @Select("SELECT * FROM ppt_agent_question WHERE run_id=#{run} AND state='PENDING' LIMIT 1") Optional<Question> pending(String run);
+    @Select("SELECT q.* FROM ppt_agent_question q JOIN ppt_agent_run r ON r.id=q.run_id WHERE r.document_id=#{document} AND json_extract(r.context_json,'$.pptDiscussionProtocol')='FREEFORM_DIALOGUE_V1' AND q.state='PENDING' LIMIT 1") Optional<Question> pendingDiscussion(String document);
     @Select("SELECT * FROM ppt_agent_question WHERE run_id=#{run} ORDER BY created_at,id LIMIT 100") List<Question> questions(String run);
     @Select("""
         <script>SELECT * FROM ppt_agent_question WHERE run_id IN
