@@ -91,7 +91,8 @@ public interface MachineCandidateSubmission {
         ANALYSIS_REPORT("分析报告"),
         PROJECT_CONVENTION_DRAFT("项目公约草稿"),
         JUDGE_RUN("评审运行"),
-        DOCUMENT_TEMPLATE_MODEL_RUN("文档模板角色运行");
+        DOCUMENT_TEMPLATE_MODEL_RUN("文档模板角色运行"),
+        SOURCE_TEMPLATE_MODEL_RUN("源码模板角色运行");
 
         private final String description;
         CandidateOwnerType(String description) { this.description = description; }

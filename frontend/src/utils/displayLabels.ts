@@ -358,6 +358,27 @@ export function documentTemplateStateLabel(value: string): string {
     REPORTING: '生成报告', WAITING_INPUT: '等待处理', STOPPING: '等待停止确认', CANCELLED: '已取消', COMPLETED: '已完成' }
   return labels[value] ?? '状态待确认'
 }
+export function sourceTemplateStateLabel(value: string): string {
+  return ({ PENDING_START: '等待开始', PREPARING: '扫描与冻结源码', DESIGNING: '设计测试场景', EXECUTING: '编写与验证测试',
+    WRITING: '编写详细设计', REVIEWING: '独立复核', REPORTING: '整理交付结果', WAITING_INPUT: '等待处理',
+    STOPPING: '正在停止', CANCELLED: '已取消', COMPLETED: '已完成' } as Record<string, string>)[value] ?? '状态待刷新'
+}
+export function sourceCoverageLabel(value: string): string {
+  return ({ PENDING: '待处理', INCOMPLETE: '未完成', EXCLUDED: '已排除', TESTED: '测试已验证', REVIEWED: '文档已复核' } as Record<string, string>)[value] ?? '处理中'
+}
+export function sourceBatchStateLabel(value: string): string {
+  return ({ PREPARED: '等待调度', CREATING: '创建会话', PROMPT_READY: '准备投递', DISPATCHING: '核对投递', RUNNING: '处理中',
+    VALIDATED: '已完成', FAILED: '失败', STOPPED: '已停止' } as Record<string, string>)[value] ?? '等待同步'
+}
+export function sourceBatchFailureLabel(value: string): string {
+  return ({ SOURCE_MODEL_TIMEOUT: '本批次执行时间已耗尽，请查看冻结预算与已保留结果。',
+    SOURCE_MODEL_FAILED: '模型会话失败，请检查模型和运行环境后恢复。',
+    SOURCE_SUBMISSION_MISSING: '模型结束时没有提交有效候选，请保留原批次身份重试。',
+    SOURCE_SESSION_AMBIGUOUS: '无法唯一核对模型会话，停止证明完成前保持阻断。',
+    SOURCE_PROMPT_LOOKUP_UNAVAILABLE: '请求是否送达尚不明确，正在保留原身份核对。',
+    SOURCE_MCP_REQUIRED: '角色专属工具通道不可用，请检查托管模型连接。' } as Record<string, string>)[value]
+    ?? '本批次尚未完成；已保留执行身份与结果，请查看当前待处理原因后恢复。'
+}
 export function requirementConclusionLabel(value: string | null | undefined): string {
   const labels: Record<string, string> = { SATISFIED: '符合需求', PARTIAL: '部分实现', INCORRECT: '实现不符',
     NOT_IMPLEMENTED: '未实现', UNDETERMINED: '无法判断' }

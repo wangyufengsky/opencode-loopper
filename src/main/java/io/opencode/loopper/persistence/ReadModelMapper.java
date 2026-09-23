@@ -12,7 +12,7 @@ public interface ReadModelMapper {
             <script>
             SELECT id,project_id,project_name,title,goal_preview,branch_name,state,retry_cause,retry_due_at,
               has_design_history,archived,attempt_count,max_attempts,created_at,updated_at,execution_mode,
-              document_run_id,document_state,linked_task_id,source_template_id,version FROM task_list_item t
+              document_run_id,document_state,linked_task_id,source_template_id,version,source_run_id,source_state FROM task_list_item t
             WHERE 1=1
             <if test="projectId != null">AND t.project_id=#{projectId}</if>
             <if test="taskType == 'TEMPLATE'">AND t.source_template_id IS NOT NULL</if>

@@ -14,13 +14,10 @@ final class DocumentRequirementContext {
     private static final ObjectMapper JSON = new ObjectMapper();
     private DocumentRequirementContext() { }
     static String model(DocumentDesignContextMapper mapper, String designer, String fallback) {
-        return mapper.documentDesignerContract(designer).map(value -> JSON.readValue(value, DocumentTemplateService.Contract.class).model()).orElse(fallback);
+        return TemplateDevelopmentAuthorization.model(mapper, designer, fallback);
     }
     static java.time.Duration attemptTimeout(DocumentDesignContextMapper mapper, String designer, java.time.Duration fallback) {
-        var value = mapper.documentDesignerContract(designer);
-        if (value.isEmpty()) return fallback;
-        var contract = JSON.readValue(value.get(), DocumentTemplateService.Contract.class);
-        return contract.timeoutEnabled() ? java.time.Duration.ofSeconds(contract.attemptTimeoutSeconds()) : null;
+        return TemplateDevelopmentAuthorization.timeout(mapper, designer, fallback);
     }
     static String index(DocumentTemplateRunRow run, String manifest, int count) {
         return INDEX + JSON.writeValueAsString(Map.of("runId", run.id(), "revision", run.basisRevision(),
@@ -37,6 +34,7 @@ final class DocumentRequirementContext {
                 .orElse(fallback);
     }
     static String resolve(DocumentDesignContextMapper mapper, DesignRequirementRevisionRow revision, DesignWorkPackageRow owner) {
+        if (SourceRequirementContext.source(revision.requirementText())) return SourceRequirementContext.resolve(mapper, revision, owner);
         if (!document(revision.requirementText())) return revision.requirementText();
         var identity = mapper.documentPackageDesign(owner.id(), revision.designerSessionId()).orElseThrow(() ->
                 new ConflictException("DOCUMENT_DESIGN_SOURCE_MISSING", "设计缺少冻结文档来源，不得降级到普通需求正文"));
@@ -69,11 +67,13 @@ final class DocumentRequirementContext {
         return Collections.unmodifiableMap(result);
     }
     static String text(String source) {
+        if (SourceRequirementContext.source(source)) return SourceRequirementContext.text(source);
         if (source == null || !source.startsWith(SOURCES)) return source;
         return envelope(source).entries().stream().map(entry -> (entry.key().startsWith("DOC-") ? "" : entry.title() + "\n") + entry.statement()
                 + "\n" + String.join("\n", entry.acceptance())).collect(java.util.stream.Collectors.joining("\n\n"));
     }
     static String prompt(String text) {
+        if (SourceRequirementContext.source(text)) return SourceRequirementContext.prompt(text);
         if (!document(text)) return text;
         if (text.startsWith(INDEX)) return text;
         var source = envelope(text);

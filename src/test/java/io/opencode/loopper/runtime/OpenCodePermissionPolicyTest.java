@@ -246,7 +246,7 @@ class OpenCodePermissionPolicyTest {
     @Test
     void ordinaryRolesAllowConfiguredMcpToolsWithoutRemovingTheirBuiltInBoundary() {
         for (OpenCodeClient.SessionProfile profile : OpenCodeClient.SessionProfile.values()) {
-            if (profile.name().startsWith("KNOWLEDGE_") || DocumentTemplateProfiles.contains(profile)
+            if (profile.name().startsWith("KNOWLEDGE_") || DocumentTemplateProfiles.contains(profile) || SourceTemplateProfiles.contains(profile)
                     || profile == OpenCodeClient.SessionProfile.PPT_AGENT
                     || profile == OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS
                     || profile == OpenCodeClient.SessionProfile.SNAPSHOT_CODE_REVIEW_NO_TOOLS
@@ -269,6 +269,24 @@ class OpenCodePermissionPolicyTest {
             assertThat(rules)
                     .as(profile.name())
                     .contains(java.util.Map.of("permission", "external_directory", "pattern", "*", "action", "deny"));
+        }
+    }
+
+    @Test
+    void sourceDocumentationRolesRequireTheirOwnPrivateToolsAndDenyNativeOrConfiguredTools() {
+        for (var profile : java.util.List.of(OpenCodeClient.SessionProfile.SOURCE_DETAILED_DESIGN_NO_TOOLS,
+                OpenCodeClient.SessionProfile.SOURCE_DESIGN_REVIEW_NO_TOOLS)) {
+            var servers = java.util.List.of("project mcp", "loopper_internal_old");
+            assertThat(OpenCodePermissionPolicy.rules(profile, servers))
+                    .noneMatch(rule -> "allow".equals(rule.get("action")));
+            var allowed = OpenCodePermissionPolicy.rules(profile, servers, "loopper_internal_current").stream()
+                    .filter(rule -> "allow".equals(rule.get("action"))).map(rule -> rule.get("permission")).toList();
+            String submit = profile == OpenCodeClient.SessionProfile.SOURCE_DETAILED_DESIGN_NO_TOOLS
+                    ? "submit_source_detailed_design" : "submit_source_design_review";
+            assertThat(allowed).containsExactly("loopper_internal_current_" + submit,
+                    "loopper_internal_current_describe_submission_contract", "loopper_internal_current_get_source_design_work",
+                    "loopper_internal_current_list_source_template_files", "loopper_internal_current_read_source_template_file",
+                    "loopper_internal_current_list_source_design_results", "loopper_internal_current_read_source_design_result");
         }
     }
 

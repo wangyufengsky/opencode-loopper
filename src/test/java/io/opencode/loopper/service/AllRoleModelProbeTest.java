@@ -7,7 +7,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 import tools.jackson.databind.ObjectMapper;
 
 class AllRoleModelProbeTest {
-    @ParameterizedTest @EnumSource(value = MachineCandidateKind.class, names = {"DOCUMENT_REQUIREMENTS_V1", "DOCUMENT_REQUIREMENT_REVIEW_V1", "REQUIREMENT_CODE_ASSESSMENT_V1", "REQUIREMENT_ASSESSMENT_REVIEW_V1", "DOCUMENT_CODE_ASSESSMENT_V2", "DOCUMENT_CODE_REVIEW_V2"}, mode = EnumSource.Mode.EXCLUDE)
+    @ParameterizedTest @EnumSource(value = MachineCandidateKind.class, names = {"SOURCE_DETAILED_DESIGN_V1", "SOURCE_DESIGN_REVIEW_V1", "DOCUMENT_REQUIREMENTS_V1", "DOCUMENT_REQUIREMENT_REVIEW_V1", "REQUIREMENT_CODE_ASSESSMENT_V1", "REQUIREMENT_ASSESSMENT_REVIEW_V1", "DOCUMENT_CODE_ASSESSMENT_V2", "DOCUMENT_CODE_REVIEW_V2"}, mode = EnumSource.Mode.EXCLUDE)
     void realCompilerFixtureAcceptsAndRepairableShapeFaultCanBeCorrected(MachineCandidateKind kind) {
         var json = new ObjectMapper();
         var probe = new AllRoleModelProbe(kind);
@@ -29,6 +29,8 @@ class AllRoleModelProbeTest {
 
     private String valid(MachineCandidateKind kind) {
         return switch (kind) {
+            case SOURCE_DETAILED_DESIGN_V1, SOURCE_DESIGN_REVIEW_V1 ->
+                    throw new IllegalArgumentException("Source roles use scoped source integration fixtures");
             case DOCUMENT_REQUIREMENTS_V1, DOCUMENT_REQUIREMENT_REVIEW_V1,
                     REQUIREMENT_CODE_ASSESSMENT_V1, REQUIREMENT_ASSESSMENT_REVIEW_V1, DOCUMENT_CODE_ASSESSMENT_V2, DOCUMENT_CODE_REVIEW_V2 ->
                     throw new IllegalArgumentException("Document template roles use separate scoped gold fixtures");

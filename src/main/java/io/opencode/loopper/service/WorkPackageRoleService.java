@@ -59,7 +59,7 @@ public final class WorkPackageRoleService {
         boolean documentSignals = contains(text, "markdown", "docx", "文档", "章节", "readme") && !codeSignals;
         boolean maintenanceSignals = hasMaintenanceSignal(text) && !codeSignals;
         boolean packageSpecialization = parent.workflowTemplate() == WorkflowTemplate.FULL_PACKAGE_DESIGN
-                && !mapper.documentDesigner(row.designerSessionId());
+                && !TemplateDevelopmentAuthorization.designer(mapper, row.designerSessionId());
         if (parent.workflowTemplate() == WorkflowTemplate.PACKAGED_ARTIFACT
                 || packageSpecialization && documentSignals) {
             intent = TaskIntent.DOCUMENT_AUTHORING;

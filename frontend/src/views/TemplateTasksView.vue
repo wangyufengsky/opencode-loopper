@@ -7,6 +7,7 @@ import { api } from '@/api/client'
 import PageHeader from '@/components/PageHeader.vue'
 import DocumentFilePicker from '@/components/DocumentFilePicker.vue'
 import DirectoryPathInput from '@/components/DirectoryPathInput.vue'
+import SourceTemplateFields from '@/components/SourceTemplateFields.vue'
 import { documentUploadError, useDocumentTemplateStore } from '@/stores/documentTemplateStore'
 import { useTemplateTaskStore } from '@/stores/templateTaskStore'
 import { userFacingError } from '@/utils/displayLabels'
@@ -17,7 +18,8 @@ const route = useRoute()
 const documents = useDocumentTemplateStore()
 const files = ref<File[]>([])
 const fileError = computed(() => files.value.length ? documentUploadError(files.value) : '')
-const busy = computed(() => store.submitting || documents.submitting)
+const sourceFields = ref<InstanceType<typeof SourceTemplateFields>>()
+const busy = computed(() => store.submitting || documents.submitting || sourceFields.value?.submitting)
 const store = useTemplateTaskStore()
 const selected = ref<TemplateTaskDefinition['id']>('')
 const templateQuery = ref('')
@@ -49,6 +51,7 @@ let projectGeneration = 0
 let branchGeneration = 0
 const definition = computed(() => store.catalog?.templates.find(item => item.id === selected.value))
 const isDocument = computed(() => definition.value?.inputs?.documents === true)
+const isSource = computed(() => definition.value?.inputs?.sourcePath === true)
 const needsBranch = computed(() => definition.value?.inputs?.branch ?? true)
 const isSnapshot = computed(() => definition.value?.workflow === 'SNAPSHOT_CODE_REVIEW')
 const needsDates = computed(() => isSnapshot.value ? reviewMode.value === 'DATE_INCREMENTAL' : definition.value?.inputs?.dates ?? true)
@@ -56,7 +59,7 @@ const dateError = computed(() => startDate.value && endDate.value && endDate.val
 const valid = computed(() => definition.value && projectId.value && !busy.value
   && (!needsBranch.value || (branchId.value && !loadingBranches.value))
   && (!needsDates.value || (startDate.value && endDate.value && !dateError.value))
-  && (isDocument.value ? files.value.length > 0 && !fileError.value : !pickingDocumentPath.value))
+  && (isSource.value ? sourceFields.value?.valid : isDocument.value ? files.value.length > 0 && !fileError.value : !pickingDocumentPath.value))
 
 async function searchProjects(query = '', append = false) {
   const generation = ++projectGeneration
@@ -106,6 +109,11 @@ async function submit() {
   if (!valid.value || !definition.value) return
   error.value = ''
   try {
+    if (isSource.value) {
+      const id = await sourceFields.value?.submit()
+      if (id) await router.push(`/template-tasks/source-runs/${id}`)
+      return
+    }
     if (isDocument.value) {
       const id = await documents.start({ templateId: selected.value, templateVersion: definition.value.version,
         projectId: projectId.value, ...(needsBranch.value ? { branchId: branchId.value } : {}) }, files.value)
@@ -176,7 +184,8 @@ onBeforeUnmount(() => { ++projectGeneration; ++branchGeneration })
         <label v-if="needsDates">开始日期<el-date-picker v-model="startDate" aria-label="开始日期" type="date" value-format="YYYY-MM-DD" format="YYYY-MM-DD" :disabled="busy" :clearable="false" /></label>
         <label v-if="needsDates">结束日期<el-date-picker v-model="endDate" aria-label="结束日期" type="date" value-format="YYYY-MM-DD" format="YYYY-MM-DD" :disabled="busy" :disabled-date="disableEnd" :clearable="false" /></label>
       </div>
-      <div v-if="!isDocument" class="document-path">文档生成路径<DirectoryPathInput v-model="documentPath" v-model:picking="pickingDocumentPath" label="文档生成路径" :scope-key="projectId" :disabled="busy" placeholder="项目相对路径或绝对路径；留空使用默认目录" /></div>
+      <SourceTemplateFields v-if="isSource" ref="sourceFields" :definition="definition" :project-id="projectId" :document-path="documentPath" />
+      <div v-if="!isDocument && !isSource" class="document-path">文档生成路径<DirectoryPathInput v-model="documentPath" v-model:picking="pickingDocumentPath" label="文档生成路径" :scope-key="projectId" :disabled="busy" placeholder="项目相对路径或绝对路径；留空使用默认目录" /></div>
       <div v-if="isDocument" class="document-path">
         <span>需求文档</span>
         <DocumentFilePicker v-model="files" input-id="requirement-files" :disabled="busy" />
@@ -189,7 +198,7 @@ onBeforeUnmount(() => { ++projectGeneration; ++branchGeneration })
       <el-alert v-if="needsDates && dateError" :title="dateError" type="error" :closable="false" />
       <el-alert v-if="needsBranch && branchError" :title="branchError" type="error" :closable="false"><el-button text @click="searchBranches('', false, true)">重新读取分支</el-button></el-alert>
       <el-alert v-else-if="needsBranch && !remoteAvailable" :title="remoteProblems.length ? `${remoteProblems.join('；')}；也可明确选择可用的本地分支` : '部分远程分支暂不可访问，请检查连接后重新读取，或明确选择可用的本地分支'" type="warning" :closable="false" />
-      <div class="run-action"><el-button type="primary" native-type="submit" :loading="busy" :disabled="!valid">{{ isDocument ? (definition.id === 'REQUIREMENT_DEVELOPMENT' ? '开始开发' : '开始评审') : '开始执行' }}</el-button></div>
+      <div class="run-action"><el-button type="primary" native-type="submit" :loading="busy" :disabled="!valid">{{ isSource ? '创建任务' : isDocument ? (definition.id === 'REQUIREMENT_DEVELOPMENT' ? '开始开发' : '开始评审') : '开始执行' }}</el-button></div>
     </form>
     <details v-if="definition?.scoringVersion && store.catalog" class="card card-pad rubric">
       <summary>内置评分标准 · 满分 100</summary>

@@ -36,9 +36,12 @@ public class TemplateTaskService {
 
     public Catalog catalog() {
         var dates = TemplateDateRange.parse(null, null, Clock.systemUTC());
-        var entries = java.util.stream.Stream.concat(
+        var existing = java.util.stream.Stream.concat(
                 Arrays.stream(DocumentTemplateDefinition.values()).map(TemplateCatalogEntry::document),
-                Arrays.stream(TemplateTaskDefinition.values()).map(TemplateCatalogEntry::report)).toList();
+                Arrays.stream(TemplateTaskDefinition.values()).map(TemplateCatalogEntry::report));
+        var entries = java.util.stream.Stream.concat(existing,
+                Arrays.stream(io.opencode.loopper.template.SourceTemplateDefinition.values())
+                        .map(io.opencode.loopper.template.SourceTemplateDefinition::view)).toList();
         return new Catalog(entries,
                 TemplateDateRange.ZONE.getId(), dates.startDate().toString(), dates.endDate().toString(),
                 ContributionScore.VERSION, ContributionScore.FORMULA, ContributionScore.DIMENSIONS);

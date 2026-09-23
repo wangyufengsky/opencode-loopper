@@ -19,7 +19,7 @@ public final class DocumentDevelopmentDesign {
         var workPackage = transactions.execute(status -> {
             var session = designers.get(designerId);
             var revision = mapper.findCurrentDesignRequirementRevision(designerId).orElseThrow(DocumentDevelopmentDesign::changed);
-            if (mapper.documentDesign(revision.id(), designerId).isEmpty() || session.taskId() != null) throw changed();
+            if (!TemplateDevelopmentAuthorization.design(mapper, revision.id(), designerId) || session.taskId() != null) throw changed();
             var profile = mapper.findCurrentDesignerTaskProfile(designerId).orElseThrow(DocumentDevelopmentDesign::changed);
             if (!profile.workflowTemplate().equals("DIRECT_SOFTWARE_DESIGN")) throw changed();
             var existing = mapper.listDesignWorkPackages(revision.id());
@@ -36,7 +36,7 @@ public final class DocumentDevelopmentDesign {
     public void startLarge(String designerId) {
         var session = designers.get(designerId);
         var revision = mapper.findCurrentDesignRequirementRevision(designerId).orElseThrow(DocumentDevelopmentDesign::changed);
-        if (mapper.documentDesign(revision.id(), designerId).isEmpty() || session.taskId() != null) throw changed();
+        if (!TemplateDevelopmentAuthorization.design(mapper, revision.id(), designerId) || session.taskId() != null) throw changed();
         if (!mapper.findCurrentDesignerTaskProfile(designerId).orElseThrow(DocumentDevelopmentDesign::changed)
                 .workflowTemplate().equals("FULL_PACKAGE_DESIGN")) throw changed();
         if (mapper.findTaskDecompositionByRevision(revision.id()).isPresent()) return;

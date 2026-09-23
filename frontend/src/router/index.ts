@@ -18,6 +18,7 @@ export const router = createRouter({
     { path: '/automations', redirect: '/template-tasks' },
     { path: '/template-tasks', component: () => import('@/views/TemplateTasksView.vue') },
     { path: '/template-tasks/document-runs/:id', component: () => import('@/views/DocumentTemplateView.vue') },
+    { path: '/template-tasks/source-runs/:id', component: () => import('@/views/SourceTemplateView.vue') },
     { path: '/tasks/:id', component: () => import('@/views/TaskDetailView.vue') },
     { path: '/tasks/:id/recovery', component: () => import('@/views/RecoveryStudioView.vue') },
     { path: '/tasks/:id/design', component: () => import('@/views/TaskDesignHistoryView.vue') },

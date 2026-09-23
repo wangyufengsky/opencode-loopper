@@ -23,7 +23,13 @@ public enum DocumentTemplateDefinition {
                 review() ? "STATIC_REQUIREMENT_REVIEW" : "CURRENT_DIRECTORY_DEVELOPMENT");
     }
     public record Inputs(boolean documents, boolean branch, boolean dates, List<String> extensions,
-                         int maxFiles, int maxFileMiB, int maxTotalMiB) { }
+                         int maxFiles, int maxFileMiB, int maxTotalMiB,
+                         boolean sourcePath, boolean testOutputPath, boolean documentOutputPath) {
+        public Inputs(boolean documents, boolean branch, boolean dates, List<String> extensions,
+                      int maxFiles, int maxFileMiB, int maxTotalMiB) {
+            this(documents, branch, dates, extensions, maxFiles, maxFileMiB, maxTotalMiB, false, false, !documents);
+        }
+    }
     public record View(String id, String version, String title, String description, String category,
                        String icon, Inputs inputs, String workflow) { }
 }

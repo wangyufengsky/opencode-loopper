@@ -152,7 +152,7 @@ public class DesignerAutoModeService {
         if (mode == null || !DesignerAutoModeState.ACTIVE.name().equals(mode.state())) return;
         try {
             DesignerSessionRow session = designerSessions.get(sessionId);
-            if (mapper.documentDesigner(sessionId)) {
+            if (TemplateDevelopmentAuthorization.designer(mapper, sessionId)) {
                 block(mode, session, "DOCUMENT_TEMPLATE_AUTO_POLICY", "需求开发使用模板的范围授权推进，业务问题必须由用户回答");
                 return;
             }
@@ -310,7 +310,7 @@ public class DesignerAutoModeService {
     }
 
     private void requireOrdinaryAutoPolicy(String sessionId) {
-        if (mapper.documentDesigner(sessionId)) throw new ConflictException("DOCUMENT_TEMPLATE_AUTO_POLICY",
+        if (TemplateDevelopmentAuthorization.designer(mapper, sessionId)) throw new ConflictException("DOCUMENT_TEMPLATE_AUTO_POLICY",
                 "需求开发已使用模板自动推进策略，业务问题需要你回答，无需开启普通全自动模式");
     }
 

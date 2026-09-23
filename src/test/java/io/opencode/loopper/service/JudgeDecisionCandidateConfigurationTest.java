@@ -13,6 +13,7 @@ class JudgeDecisionCandidateConfigurationTest {
             .withUserConfiguration(JudgeDecisionCandidateConfiguration.class)
             .withBean(ObjectMapper.class, ObjectMapper::new)
             .withBean(LoopperMapper.class, () -> mock(LoopperMapper.class))
+            .withBean(SourceOriginalReadCoverage.class, () -> mock(SourceOriginalReadCoverage.class))
             .withBean(DocumentOriginalReadCoverage.class, () -> mock(DocumentOriginalReadCoverage.class))
             .withBean(JudgeDecisionCompilation.class, () -> mock(JudgeDecisionCompilation.class));
 

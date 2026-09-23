@@ -9,6 +9,9 @@ public final class DocumentOriginalReadCoverage {
     private final DocumentTemplateMapper documents;
     private final LoopperMapper candidates;
     private final DocumentDevelopmentMapper scopes;
+    private SourceOriginalReadCoverage sourceCoverage;
+    @org.springframework.beans.factory.annotation.Autowired
+    void sourceCoverage(SourceOriginalReadCoverage value) { sourceCoverage = value; }
     public DocumentOriginalReadCoverage(DocumentTemplateMapper documents, LoopperMapper candidates, DocumentDevelopmentMapper scopes) {
         this.documents = documents; this.candidates = candidates; this.scopes = scopes;
     }
@@ -17,6 +20,7 @@ public final class DocumentOriginalReadCoverage {
         return sessionComplete(taskId, candidate == null ? null : candidate.externalSessionId());
     }
     public boolean sessionComplete(String taskId, String sessionId) {
+        if (sourceCoverage != null && !sourceCoverage.complete(taskId, sessionId)) return false;
         var run = documents.findTask(taskId).orElse(null);
         if (run == null || !run.directDocuments() || !run.templateId().equals("REQUIREMENT_DEVELOPMENT")) return true;
         if (sessionId == null) return false;

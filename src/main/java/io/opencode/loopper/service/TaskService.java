@@ -370,9 +370,7 @@ public class TaskService {
     public boolean archived(String id) { get(id); return mapper.isTaskArchived(id); }
     public TaskRow archive(String id) {
         TaskRow task = get(id);
-        if (!TaskState.valueOf(task.state()).terminal()) {
-            throw new BadRequestException("TASK_NOT_ARCHIVABLE", "只有已经用户确认终结的任务可以归档");
-        }
+        terminalConsistency.requireArchivable(task);
         WorkspaceLeaseReconciliationService.Result result = reconcileTerminalLease(task,
                 WorkspaceLeaseReconciliationService.TRIGGER_ARCHIVE, "TASK_ARCHIVE");
         continueAfterLeaseReconciliation(result);
@@ -385,9 +383,7 @@ public class TaskService {
         }
         TaskRow archived = transactions.execute(status -> {
             TaskRow current = get(id);
-            if (!TaskState.valueOf(current.state()).terminal()) {
-                throw new BadRequestException("TASK_NOT_ARCHIVABLE", "只有已经用户确认终结的任务可以归档");
-            }
+            terminalConsistency.requireArchivable(current);
             if (leaseReconciliation.ownsActiveLease(id)) {
                 throw new ConflictException("TASK_ARCHIVE_WORKSPACE_LEASE_ACTIVE",
                         "任务在归档提交前重新获得了活动项目写租约，已停止归档");

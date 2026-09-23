@@ -8,6 +8,8 @@ import java.util.Map;
 final class PackageRequirementSources {
     record Source(String ref, String text, String sha256) { }
     static Map<String, Source> index(String original) {
+        var sourceTemplate = SourceRequirementContext.sources(original);
+        if (sourceTemplate != null) return sourceTemplate;
         var documents = DocumentRequirementContext.sources(original);
         if (documents != null) return documents;
         String text = original == null ? "" : original;
@@ -23,6 +25,7 @@ final class PackageRequirementSources {
     }
 
     static String prompt(String original) {
+        if (SourceRequirementContext.source(original)) return SourceRequirementContext.prompt(original);
         if (DocumentRequirementContext.document(original)) return DocumentRequirementContext.prompt(original);
         StringBuilder result = new StringBuilder("Frozen original requirement source index (references, not proof of a candidate's interpretation):\n");
         index(original).values().forEach(source -> result.append('[').append(source.ref()).append("] ").append(source.text()).append('\n'));

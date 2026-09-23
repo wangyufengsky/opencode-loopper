@@ -1,4 +1,6 @@
 import type { GitCredentialView, GitCredentialInput } from '@/types/domain'
+import type { SourceTemplateRequest, SourceTemplatePreview, SourceTemplateOverview, SourceTemplateCoverage, SourceTemplateBatch, SourceArtifact, SourceTemplateCommand } from '@/types/domain'
+import { SOURCE_TEMPLATE_STATES } from '@/types/states'
 import type { TemplateDiagnosticFilter, TemplateRecoveryAction } from '@/types/domain'
 import { normalizeTemplateDiagnostic, normalizeTemplateDiagnosticPage } from './templateSessionDiagnostics'
 import type { DocumentSectionPage, DocumentSupplementRequest, DocumentSupplementOptions, DocumentClarification, DocumentClarificationRequest, TaskListItem, DocumentTemplateRequest, DocumentTemplateOverview, DocumentRequirementPage, DocumentRequirementDetail, DocumentSection, DocumentReportSummary } from '@/types/domain'
@@ -493,11 +495,14 @@ function normalizeTaskSummary(value: unknown): TaskListItem {
     id: requiredString(raw, 'id', 'TaskSummary'), projectId: asString(raw.projectId),
     projectName: asString(raw.projectName, 'Unknown project'), title: asString(raw.title),
     goal: asString(raw.goal), branch: asString(raw.branch) || (raw.documentRunId ? '项目当前目录' : '等待选择执行模式'),
-    status: raw.documentRunId ? requirePublicState([...TASK_STATUSES, ...DOCUMENT_TEMPLATE_STATES], raw.status, 'Document list item')
+    status: raw.sourceRunId ? requirePublicState([...TASK_STATUSES, ...SOURCE_TEMPLATE_STATES], raw.status, 'Source list item')
+      : raw.documentRunId ? requirePublicState([...TASK_STATUSES, ...DOCUMENT_TEMPLATE_STATES], raw.status, 'Document list item')
       : requirePublicState(TASK_STATUSES, raw.status, 'TaskSummary'),
     documentRunId: asString(raw.documentRunId) || undefined,
+    sourceRunId: asString(raw.sourceRunId) || undefined,
+    sourceState: raw.sourceRunId ? requirePublicState(SOURCE_TEMPLATE_STATES, raw.sourceState, 'Source intake') : undefined,
     documentState: raw.documentRunId ? requirePublicState(DOCUMENT_TEMPLATE_STATES, raw.documentState, 'Document intake') : undefined,
-    linkedTaskId: asString(raw.linkedTaskId) || (raw.documentRunId ? undefined : asString(raw.id)), sourceTemplateId: asString(raw.sourceTemplateId) || undefined,
+    linkedTaskId: asString(raw.linkedTaskId) || (raw.documentRunId || raw.sourceRunId ? undefined : asString(raw.id)), sourceTemplateId: asString(raw.sourceTemplateId) || undefined,
     version: asNumber(raw.version),
     retryCause: ['RATE_LIMIT', 'SESSION', 'VERIFICATION'].includes(asString(raw.retryCause))
       ? asString(raw.retryCause) as Task['retryCause'] : undefined,
@@ -1609,6 +1614,23 @@ function normalizeStoryAccountingCall(value: unknown): StoryAccountingCall {
 }
 
 export const api = {
+  sourcePreview: (input: SourceTemplateRequest) => request<SourceTemplatePreview>('/template-tasks/source-runs/preview', { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(input) }),
+  createSourceTemplate: (input: SourceTemplateRequest) => request<SourceTemplateOverview>('/template-tasks/source-runs', { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(input) }),
+  sourceTemplate: (id: string) => request<SourceTemplateOverview>(`/template-tasks/source-runs/${encodeURIComponent(id)}`),
+  sourceCoverageItem: (id: string, path: string) => request<SourceTemplateCoverage>(`/template-tasks/source-runs/${encodeURIComponent(id)}/coverage/item?path=${encodeURIComponent(path)}`),
+  sourceArtifactByName: (id: string, name: string) => request<SourceArtifact & { content: string }>(`/template-tasks/source-runs/${encodeURIComponent(id)}/artifacts/content?name=${encodeURIComponent(name)}`),
+  sourceTemplateCommand: (id: string, action: 'start' | 'cancel' | 'resume' | 'retry' | 'archive' | 'unarchive', input: SourceTemplateCommand) =>
+    request<SourceTemplateOverview>(`/template-tasks/source-runs/${encodeURIComponent(id)}/${action === 'start' ? 'start' : `controls/${action}`}`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(input) }),
+  sourceCoverage: (id: string, cursor = '') => request<CursorPage<SourceTemplateCoverage>>(`/template-tasks/source-runs/${encodeURIComponent(id)}/coverage?cursor=${encodeURIComponent(cursor)}`),
+  sourceBatches: (id: string, cursor = '') => request<CursorPage<SourceTemplateBatch>>(`/template-tasks/source-runs/${encodeURIComponent(id)}/batches?cursor=${encodeURIComponent(cursor)}`),
+  sourceArtifacts: (id: string, cursor = '') => request<CursorPage<SourceArtifact>>(`/template-tasks/source-runs/${encodeURIComponent(id)}/artifacts?cursor=${encodeURIComponent(cursor)}`),
+  sourceArtifact: (id: string, artifact: string) => request<SourceArtifact & { content: string }>(`/template-tasks/source-runs/${encodeURIComponent(id)}/artifacts/${encodeURIComponent(artifact)}`),
+  downloadSourceArtifact: async (id: string, artifact?: string) => {
+    const response = await fetch(`${apiBase}/template-tasks/source-runs/${encodeURIComponent(id)}/artifacts/${artifact ? `${encodeURIComponent(artifact)}/` : ''}download`)
+    if (!response.ok) throw new ApiError('文档下载失败，请刷新后重试', response.status)
+    return response.blob()
+  },
+  sourceEvents: (id: string) => new EventSource(`${apiBase}/template-tasks/source-runs/${encodeURIComponent(id)}/events`),
   gitCredentials: (projectId?: string) => request<GitCredentialView>(`/git-credentials${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`),
   saveGitCredentials: (projectId: string | undefined, body: GitCredentialInput) => request<GitCredentialView>(`/git-credentials${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`, { method: 'PUT', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(body) }),
   testGitCredentials: (projectId: string | undefined, body: GitCredentialInput) => request<{ success: boolean; message: string }>(`/git-credentials/test${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(body) }),

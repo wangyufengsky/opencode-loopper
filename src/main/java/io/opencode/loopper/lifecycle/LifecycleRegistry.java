@@ -36,6 +36,10 @@ public final class LifecycleRegistry {
                 TemplateBatchTopology.machine(LifecycleMachineType.DOCUMENT_MODEL_RUN), set(TemplateBatchState.PREPARED), Set.of());
         register(LifecycleMachineType.DOCUMENT_TEMPLATE_RUN, DocumentTemplateState.class,
                 DocumentTemplateTopology.machine(), set(DocumentTemplateState.PREPARING), Set.of());
+        register(LifecycleMachineType.SOURCE_TEMPLATE_RUN, SourceTemplateState.class,
+                SourceTemplateTopology.machine(), set(SourceTemplateState.PENDING_START), Set.of());
+        register(LifecycleMachineType.SOURCE_MODEL_RUN, TemplateBatchState.class,
+                TemplateBatchTopology.machine(LifecycleMachineType.SOURCE_MODEL_RUN), set(TemplateBatchState.PREPARED), Set.of());
         register(LifecycleMachineType.EXECUTION_SESSION, SessionState.class, session(),
                 set(SessionState.CREATING, SessionState.COMPLETED), set(SessionState.TIMED_OUT));
         register(LifecycleMachineType.JUDGE_RUN, JudgeRunState.class, judge(), set(JudgeRunState.CREATING),

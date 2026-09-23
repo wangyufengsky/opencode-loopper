@@ -5,7 +5,7 @@ import java.util.Optional;
 import org.apache.ibatis.annotations.*;
 
 /** Frozen design provenance; queries never infer document identity from model-supplied text. */
-public interface DocumentDesignContextMapper extends DesignerTimeoutMapper, DocumentSourceMapper {
+public interface DocumentDesignContextMapper extends DesignerTimeoutMapper, DocumentSourceMapper, SourceDevelopmentContextMapper {
     @Options(flushCache = Options.FlushCachePolicy.TRUE, useCache = false)
     @Select("""
         SELECT ref FROM (

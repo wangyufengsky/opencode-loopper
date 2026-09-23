@@ -105,7 +105,7 @@ public class TaskReadService {
                         .mapToLong(state -> facets.getOrDefault(state, 0L)).sum());
             }
             facets.put("TOTAL", java.util.stream.Stream.concat(java.util.Arrays.stream(TaskState.values()).map(Enum::name),
-                    java.util.Arrays.stream(io.opencode.loopper.domain.DocumentTemplateState.values()).map(Enum::name))
+                    java.util.stream.Stream.concat(java.util.Arrays.stream(io.opencode.loopper.domain.DocumentTemplateState.values()).map(Enum::name), java.util.Arrays.stream(io.opencode.loopper.domain.SourceTemplateState.values()).map(Enum::name)))
                     .distinct().mapToLong(state -> facets.getOrDefault(state, 0L)).sum());
             String next = hasMore ? new PageCursor(pageRows.getLast().updatedAt(), pageRows.getLast().id()).encode() : null;
             recordRows("task-summaries", items.size());
@@ -225,7 +225,7 @@ public class TaskReadService {
                 blankToDefault(row.branchName(), "等待选择执行模式"), row.state(), row.retryCause(), row.retryDueAt(),
                 row.hasDesignHistory() == 1, row.archived() == 1, row.attemptCount(), row.maxAttempts(),
                 row.createdAt(), row.updatedAt(), row.executionMode(), row.documentRunId(), row.documentState(),
-                row.linkedTaskId(), row.sourceTemplateId(), row.version());
+                row.linkedTaskId(), row.sourceTemplateId(), row.version(), row.sourceRunId(), row.sourceState());
     }
 
     private StageSummary stage(TaskStageReadRow row) {
@@ -299,6 +299,7 @@ public class TaskReadService {
         var states = new java.util.LinkedHashSet<>(group.states().stream().map(Enum::name).toList());
         if (group == TaskStatusGroup.PROCESSING) java.util.Arrays.stream(io.opencode.loopper.domain.DocumentTemplateState.values())
                 .filter(state -> !state.terminal()).map(Enum::name).forEach(states::add);
+        if (group == TaskStatusGroup.PROCESSING) java.util.Arrays.stream(io.opencode.loopper.domain.SourceTemplateState.values()).filter(state -> !state.terminal()).map(Enum::name).forEach(states::add);
         return List.copyOf(states);
     }
 
@@ -309,7 +310,7 @@ public class TaskReadService {
             try { TaskState.valueOf(normalized); }
             catch (IllegalArgumentException invalid) {
                 try { io.opencode.loopper.domain.DocumentTemplateState.valueOf(normalized); }
-                catch (IllegalArgumentException unknown) { throw new BadRequestException("TASK_STATE_INVALID", "请选择有效的任务状态"); }
+                catch (IllegalArgumentException unknown) { try { io.opencode.loopper.domain.SourceTemplateState.valueOf(normalized); } catch (IllegalArgumentException absent) { throw new BadRequestException("TASK_STATE_INVALID", "请选择有效的任务状态"); } }
             }
             return normalized;
         }).distinct().toList();
@@ -374,7 +375,7 @@ public class TaskReadService {
                               String branch, String status, String retryCause, String retryDueAt,
                               boolean hasDesignHistory, boolean archived, int attemptCount, int maxAttempts,
                               String createdAt, String updatedAt, String executionMode, String documentRunId, String documentState,
-                              String linkedTaskId, String sourceTemplateId, long version) { }
+                              String linkedTaskId, String sourceTemplateId, long version, String sourceRunId, String sourceState) { }
     public record TaskOverview(String id, String projectId, String projectName, String title, String goal,
                                String branch, String worktreePath, String status, String retryCause,
                                Integer retryOrdinal, String retryScheduledAt, String retryDueAt,

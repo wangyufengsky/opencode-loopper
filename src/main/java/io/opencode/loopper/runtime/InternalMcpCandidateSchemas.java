@@ -11,6 +11,8 @@ final class InternalMcpCandidateSchemas {
 
     static Map<String, Object> input(MachineCandidateKind kind) {
         return request(switch (kind) {
+            case SOURCE_DETAILED_DESIGN_V1 -> SourceDesignSchemas.design();
+            case SOURCE_DESIGN_REVIEW_V1 -> SourceDesignSchemas.review();
             case DECOMPOSITION_PLAN_V2 -> decomposition();
             case ACCEPTANCE_CLOSED_CHOICE_V7 -> acceptanceChoice();
             case PACKAGE_DESIGN_V1 -> packageDesign();

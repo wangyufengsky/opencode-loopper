@@ -20,6 +20,9 @@ public class TaskStartPreflight {
     private final GitWorktreeManager worktrees;
     private final RollingPackageTaskHooks rollingPackages;
     private final StoryAccountingCoordinator accounting;
+    private SourceUnitScopeGuard sourceTests;
+    @org.springframework.beans.factory.annotation.Autowired
+    void sourceTests(SourceUnitScopeGuard guard) { this.sourceTests = guard; }
 
     public TaskStartPreflight(LoopperMapper mapper, ProjectService projects, GitWorktreeManager worktrees,
                               RollingPackageTaskHooks rollingPackages, StoryAccountingCoordinator accounting) {
@@ -42,6 +45,7 @@ public class TaskStartPreflight {
             return Optional.empty(); // Cancellation or another Start won while the external call was pending.
         }
         Path root = Path.of(projects.get(current.projectId()).rootPath());
+        if (sourceTests != null) sourceTests.beforeStart(current);
         if (current.baselineCommit() != null && !worktrees.inspect(root).isolatedWorktree()
                 && !(rollingPackages.applies(current.id()) && GitWorktreeManager.DIRECT_BRANCH.equals(current.branchName()))) {
             throw new TaskFailure("REWORK_REPOSITORY_REQUIRED", "Rework requires a Git source branch");

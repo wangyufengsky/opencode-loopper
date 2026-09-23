@@ -37,6 +37,8 @@ public class InternalMcpServerConfiguration {
             MachineCandidateSubmission submissions, ObjectMapper json, OpenCodeAttachmentResources resources,
             io.opencode.loopper.service.TemplateCandidateSubmissionService templateSubmissions,
             io.opencode.loopper.service.DocumentFrozenReadService documentReads,
+            io.opencode.loopper.service.SourceModelReads sourceReads,
+            io.opencode.loopper.service.SourceDevelopmentReads sourceDevelopmentReads,
             io.opencode.loopper.service.DocumentReviewContextService reviewContext,
             io.opencode.loopper.service.DocumentDevelopmentReads developmentReads, DocumentSourceResources sourceResources,
             io.opencode.loopper.service.SubmissionContractReadService contractReads,
@@ -51,6 +53,8 @@ public class InternalMcpServerConfiguration {
         List<McpServerFeatures.SyncToolSpecification> tools = new ArrayList<>(roleTools(submissions, json, resources));
         tools.add(TemplateAnalysisMcpTool.specification(templateSubmissions, json));
         tools.addAll(DocumentFrozenMcpTools.specifications(documentReads, reviewContext, json));
+        tools.addAll(SourceFrozenMcpTools.specifications(sourceReads, json));
+        tools.addAll(SourceDevelopmentMcpTools.specifications(sourceDevelopmentReads, json));
         tools.addAll(DocumentDevelopmentMcpTools.specifications(developmentReads, json));
         tools.add(sourceResources.tool());
         tools.addAll(DocumentReviewGuideMcpTools.specifications(reviewGuide, json));

@@ -12,6 +12,8 @@ public final class InternalMcpContractCatalog {
     public static final String TOOL_NAME = "submit_candidate";
 
     private static final Map<MachineCandidateKind, String> ROLE_TOOLS = Map.ofEntries(
+            Map.entry(MachineCandidateKind.SOURCE_DETAILED_DESIGN_V1, "submit_source_detailed_design"),
+            Map.entry(MachineCandidateKind.SOURCE_DESIGN_REVIEW_V1, "submit_source_design_review"),
             Map.entry(MachineCandidateKind.DECOMPOSITION_PLAN_V2, "submit_decomposition_plan"),
             Map.entry(MachineCandidateKind.ACCEPTANCE_CLOSED_CHOICE_V7, "submit_acceptance_choice"),
             Map.entry(MachineCandidateKind.PACKAGE_DESIGN_V1, "submit_package_design"),
@@ -37,6 +39,11 @@ public final class InternalMcpContractCatalog {
 
     public static List<String> toolNames() {
         return List.of(
+                toolName(MachineCandidateKind.SOURCE_DETAILED_DESIGN_V1),
+                toolName(MachineCandidateKind.SOURCE_DESIGN_REVIEW_V1),
+                "get_source_design_work", "list_source_template_files", "read_source_template_file",
+                "list_source_design_results", "read_source_design_result",
+                "get_source_development_work", "list_source_development_files", "read_source_development_file",
                 toolName(MachineCandidateKind.DECOMPOSITION_PLAN_V2),
                 toolName(MachineCandidateKind.ACCEPTANCE_CLOSED_CHOICE_V7),
                 toolName(MachineCandidateKind.PACKAGE_DESIGN_V1),
@@ -64,6 +71,8 @@ public final class InternalMcpContractCatalog {
     public static Optional<String> toolName(OpenCodeClient.SessionProfile profile) {
         if (profile == null) return Optional.empty();
         return switch (profile) {
+            case SOURCE_DETAILED_DESIGN_NO_TOOLS -> optional(MachineCandidateKind.SOURCE_DETAILED_DESIGN_V1);
+            case SOURCE_DESIGN_REVIEW_NO_TOOLS -> optional(MachineCandidateKind.SOURCE_DESIGN_REVIEW_V1);
             case DOCUMENT_REQUIREMENTS_NO_TOOLS -> optional(MachineCandidateKind.DOCUMENT_REQUIREMENTS_V1);
             case DOCUMENT_REQUIREMENT_REVIEW_NO_TOOLS -> optional(MachineCandidateKind.DOCUMENT_REQUIREMENT_REVIEW_V1);
             case DOCUMENT_CODE_ASSESSMENT_V2_NO_TOOLS -> optional(MachineCandidateKind.DOCUMENT_CODE_ASSESSMENT_V2);

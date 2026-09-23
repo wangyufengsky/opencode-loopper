@@ -89,8 +89,8 @@ public final class DocumentRollingPlanTransport {
     private TaskPackagePlanRevisionRow active(TaskPackagePlanRevisionRow proposed) {
         var current=domain.findTaskPackagePlanRevision(proposed.id()).orElseThrow();
         if(current.version()!=proposed.version() || !current.state().equals("GENERATING")
-                || domain.documentTaskState(current.taskId()).filter("DESIGNING"::equals).isEmpty()
-                || !domain.documentPlanSourceCurrent(current.id())) throw unavailable("需求规划拥有者或来源版本已变化");
+                || !TemplateDevelopmentAuthorization.planning(domain, current.taskId())
+                || !TemplateDevelopmentAuthorization.planCurrent(domain, current.designerSessionId(), current.id())) throw unavailable("需求规划拥有者或来源版本已变化");
         return current;
     }
     private static ConflictException unavailable(String message) { return new ConflictException("DOCUMENT_PLAN_TRANSPORT_UNCONFIRMED",message); }

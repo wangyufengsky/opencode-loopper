@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ElAlert } from 'element-plus'
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { api } from '@/api/client'

@@ -38,7 +38,7 @@ class PptAgentMigrationTest {
             sql.execute("UPDATE ppt_agent_run SET answer='已有回复' WHERE id='r'");
         }
         var flyway = Flyway.configure().dataSource(url, null, null).load();
-        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(5); flyway.validate();
+        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(17); flyway.validate();
         try (var connection = DriverManager.getConnection(url); var sql = connection.createStatement()) {
             try (var result = sql.executeQuery("SELECT answer,state FROM ppt_agent_run WHERE id='r'")) {
                 assertThat(result.next()).isTrue(); assertThat(result.getString(1)).isEqualTo("已有回复"); assertThat(result.getString(2)).isEqualTo("PREPARED");

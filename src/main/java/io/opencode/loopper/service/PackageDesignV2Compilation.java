@@ -14,7 +14,7 @@ final class PackageDesignV2Compilation {
 
     Result compile(Input input, String candidateJson, BiFunction<Input, String, Result> lower) {
         var frozenInput = input.confirmedDecisions().isEmpty() ? input : new Input(input.workPackage(),
-                DocumentRequirementContext.text(input.requirementText()) + "\n用户明确补充：\n" + String.join("\n", input.confirmedDecisions().values()), input.role(),
+                SourceRequirementContext.mutationText(input.requirementText()) + "\n用户明确补充：\n" + String.join("\n", input.confirmedDecisions().values()), input.role(),
                 input.scopeIn(), input.scopeOut(), input.deliverables(), input.stageLimit(), input.directSoftwareMode(), "PACKAGE_DESIGN_V2");
         var frozen = PackageDesignInputPreflight.problems(frozenInput);
         if (!frozen.isEmpty()) return rejected(Outcome.NEEDS_INPUT, null, frozen.stream().map(problem -> new Problem(
@@ -35,9 +35,11 @@ final class PackageDesignV2Compilation {
         Result compiled = lower.apply(frozenInput, json.writeValueAsString(lowered));
         if (!compiled.accepted()) return new Result(compiled.outcome(), canonical, compiled.canonicalMarkdown(),
                 null, null, noFallback(compiled.problems()));
-        var plan = compiled.compiledPlan();
+        var plan = SourcePackageAcceptance.withRegression(input, compiled.compiledPlan());
         var documentProblems = DocumentPackageAcceptance.validate(input, decoded.document(), plan);
         if (!documentProblems.isEmpty()) return rejected(Outcome.REJECTED, canonical, documentProblems);
+        var sourceProblems = SourcePackageAcceptance.validate(input, plan);
+        if (!sourceProblems.isEmpty()) return rejected(Outcome.REJECTED, canonical, sourceProblems);
         var scopeProblems = PackageDesignScopeGuard.validate(frozenInput, plan);
         if (!scopeProblems.isEmpty()) return rejected(Outcome.NEEDS_INPUT, canonical, scopeProblems);
         String context = semanticContext(input, decoded, false);

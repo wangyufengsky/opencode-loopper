@@ -137,7 +137,7 @@ public final class DesignerConversationCoordinator {
             int generation = mapper.latestDesignerConversation(designerId, scope).map(item -> item.generation() + 1).orElse(1);
             String id = UUID.randomUUID().toString();
             boolean documentTemplate = mapper instanceof io.opencode.loopper.persistence.DocumentDesignContextMapper documents
-                    && documents.documentDesigner(designerId);
+                    && TemplateDevelopmentAuthorization.designer(documents, designerId);
             if (documentTemplate && !candidate) throw new ConflictException("DOCUMENT_PACKAGE_MCP_REQUIRED",
                     "需求开发使用冻结的 V2 来源合同，当前候选 MCP 尚未可用；恢复运行环境后继续");
             var profile = candidate

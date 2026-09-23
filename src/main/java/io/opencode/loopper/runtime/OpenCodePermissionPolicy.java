@@ -44,6 +44,14 @@ final class OpenCodePermissionPolicy {
                         rules.add(rule(sanitize(internalMcpServer) + "_" + tool, "*", "allow"));
                 return List.copyOf(rules);
             }
+            if (SourceTemplateProfiles.contains(profile)) {
+                rules.add(rule("external_directory", "*", "deny"));
+                allowInternalSubmission(rules, internalMcpServer, profile);
+                if (internalMcpServer != null && !internalMcpServer.isBlank())
+                    for (String tool : SourceTemplateProfiles.readTools())
+                        rules.add(rule(sanitize(internalMcpServer) + "_" + tool, "*", "allow"));
+                return List.copyOf(rules);
+            }
             if (DocumentTemplateProfiles.contains(profile)) {
                 rules.add(rule("external_directory", "*", "deny"));
                 allowInternalSubmission(rules, internalMcpServer, profile);

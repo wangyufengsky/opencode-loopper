@@ -7,7 +7,7 @@ final class DocumentPackageAcceptance {
     private DocumentPackageAcceptance() { }
     static List<PackageDesignCompilation.Problem> validate(PackageDesignCompilation.Input input,
             PackageDesignV2Document candidate, DesignerSemanticContracts.PackageCompilationPlanEnvelope plan) {
-        if (!DocumentRequirementContext.document(input.requirementText())) return List.of();
+        if (!DocumentRequirementContext.document(input.requirementText()) && !SourceRequirementContext.source(input.requirementText())) return List.of();
         var sources = PackageRequirementSources.index(input.requirementText());
         var problems = new ArrayList<PackageDesignCompilation.Problem>();
         var coverage = coverage(candidate);

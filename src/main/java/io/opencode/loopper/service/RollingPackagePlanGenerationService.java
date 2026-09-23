@@ -71,9 +71,9 @@ public class RollingPackagePlanGenerationService {
 
     public void pollGenerating() {
         for (TaskPackagePlanRevisionRow row : mapper.listGeneratingTaskPackagePlanRevisions()) {
-            if (mapper.documentDesigner(row.designerSessionId())) {
+            if (TemplateDevelopmentAuthorization.designer(mapper, row.designerSessionId())) {
                 synchronized (documentIo) {
-                    if (mapper.documentTaskState(row.taskId()).filter("DESIGNING"::equals).isPresent()) pollOne(row);
+                    if (TemplateDevelopmentAuthorization.planning(mapper, row.taskId())) pollOne(row);
                 }
             } else pollOne(row);
         }
@@ -82,7 +82,7 @@ public class RollingPackagePlanGenerationService {
     public boolean stopDocumentTask(String taskId) {
         synchronized (documentIo) {
             for (var row : mapper.listGeneratingTaskPackagePlanRevisions()) {
-                if (!row.taskId().equals(taskId) || !mapper.documentDesigner(row.designerSessionId())) continue;
+                if (!row.taskId().equals(taskId) || !TemplateDevelopmentAuthorization.designer(mapper, row.designerSessionId())) continue;
                 if (!documentTransport.stop(row)) return false;
             }
             return true;
@@ -93,7 +93,7 @@ public class RollingPackagePlanGenerationService {
                 poll(mapper.findTaskPackagePlanRevision(row.id()).orElse(row));
             } catch (RuntimeException failure) {
                 TaskPackagePlanRevisionRow current = mapper.findTaskPackagePlanRevision(row.id()).orElse(row);
-                if (mapper.documentDesigner(current.designerSessionId())) {
+                if (TemplateDevelopmentAuthorization.designer(mapper, current.designerSessionId())) {
                     plans.disconnectSuggestion(current,code(failure),"规划会话或投递尚未确认，保留同一请求等待恢复");
                     return;
                 }
@@ -113,11 +113,11 @@ public class RollingPackagePlanGenerationService {
     }
 
     private void poll(TaskPackagePlanRevisionRow row) {
-        if (mapper.documentDesigner(row.designerSessionId()) && timedOut(row)) {
+        if (TemplateDevelopmentAuthorization.designer(mapper, row.designerSessionId()) && timedOut(row)) {
             if (!documentTransport.stop(row)) throw new ConflictException("DOCUMENT_PLAN_STOP_UNCONFIRMED","规划预算已耗尽，停止尚未确认");
             return;
         }
-        if (mapper.documentDesigner(row.designerSessionId()) && !"RUNNING".equals(row.externalSessionState())) {
+        if (TemplateDevelopmentAuthorization.designer(mapper, row.designerSessionId()) && !"RUNNING".equals(row.externalSessionState())) {
             documentTransport.advance(row,verifiedSnapshot(row),candidateFacts(row),configuredModel(row.designerSessionId()));
             return;
         }
@@ -169,13 +169,13 @@ public class RollingPackagePlanGenerationService {
     }
 
     private void dispatch(TaskPackagePlanRevisionRow input) {
-        if (mapper.documentDesigner(input.designerSessionId())) {
+        if (TemplateDevelopmentAuthorization.designer(mapper, input.designerSessionId())) {
             synchronized (documentIo) {
                 documentTransport.advance(input,verifiedSnapshot(input),candidateFacts(input),configuredModel(input.designerSessionId()));
             }
             return;
         }
-        if (mapper.documentDesigner(input.designerSessionId()) && !candidates.eligibility().candidate())
+        if (TemplateDevelopmentAuthorization.designer(mapper, input.designerSessionId()) && !candidates.eligibility().candidate())
             throw new ConflictException("DOCUMENT_MCP_REQUIRED", "需求开发重规划需要托管模型的冻结文档读取与候选 MCP");
         if (candidates.eligibility().candidate()) {
             dispatchCandidate(input);

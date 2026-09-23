@@ -111,7 +111,8 @@ class TaskTerminalConsistencyServiceTest {
             when(mapper.activeJudgeRuns(task.id())).thenReturn(List.of());
             when(mapper.findTaskQueue(task.id())).thenReturn(Optional.empty());
             when(mapper.findActiveWorkspaceLeaseByHolder(task.id())).thenReturn(Optional.empty());
-            service = new TaskTerminalConsistencyService(mapper, states, rolling, designers, transactionManager);
+            service = new TaskTerminalConsistencyService(mapper, states, rolling, designers,
+                    org.mockito.Mockito.mock(io.opencode.loopper.persistence.SourceTemplateMapper.class), transactionManager);
         }
 
         private TaskRow task(TaskState state) {

@@ -1470,7 +1470,7 @@ export interface StoryAccountingCall {
 }
 
 export interface TemplateTaskDefinition {
-  inputs?: { documents: boolean; branch: boolean; dates: boolean; extensions: string[]; maxFiles: number; maxFileMiB: number; maxTotalMiB: number }
+  inputs?: { documents: boolean; branch: boolean; dates: boolean; extensions: string[]; maxFiles: number; maxFileMiB: number; maxTotalMiB: number; sourcePath?: boolean; testOutputPath?: boolean; documentOutputPath?: boolean }
   reviewModes?: Array<'DATE_INCREMENTAL' | 'FULL'>
   workflow?: string
   id: string
@@ -1582,6 +1582,43 @@ export interface EvidenceFailureDetail { failure: { name: string; className: str
 
 export type DocumentTemplateState = 'PREPARING' | 'ANALYZING' | 'REVIEWING' | 'DESIGNING' | 'EXECUTING'
   | 'ASSESSING' | 'VERIFYING' | 'REPORTING' | 'WAITING_INPUT' | 'STOPPING' | 'CANCELLED' | 'COMPLETED'
+export type SourceTemplateState = 'PENDING_START' | 'PREPARING' | 'DESIGNING' | 'EXECUTING' | 'WRITING'
+  | 'REVIEWING' | 'REPORTING' | 'WAITING_INPUT' | 'STOPPING' | 'CANCELLED' | 'COMPLETED'
+export interface SourceTemplateRequest {
+  requestKey: string; templateId: string; templateVersion: string; projectId: string; sourcePath: string
+  testOutputPath?: string; documentPath?: string; requirements?: string
+}
+export interface SourceTestProfile {
+  manifestSha256: string
+  modules: Array<{ root: string; framework: string; sourcePaths: string[]; testRoots: string[]; fixtureRoots: string[]; command: string[] }>
+}
+export interface SourceTemplatePreview {
+  sourcePath: string; testOutputPath: string | null; documentPath: string | null; manifestSha256: string
+  targetCount: number; excludedCount: number; moduleCount: number; truncated: boolean
+  files: Array<{ path: string; target: boolean; sizeBytes: number; sha256: string | null; exclusion: string | null }>
+  testProfile: SourceTestProfile | null; configurationProblem: string | null
+}
+export interface SourceTemplateOverview {
+  id: string; projectId: string; templateId: string; templateVersion: string; title: string; state: SourceTemplateState
+  version: number; createdAt: string; updatedAt: string; archived: boolean; sourcePath: string
+  testOutputPath: string | null; documentPath: string | null; requirements: string
+  snapshot: { manifestSha256: string; fileCount: number; targetCount: number; ready: boolean } | null
+  designerId: string | null; taskId: string | null; taskState: TaskStatus | null
+  waitingReasonCode: string | null; waitingMessage: string | null
+  coverage: Array<{ status: string; count: number }>
+  progress: Array<{ candidateKind: string; state: string; count: number }>
+  canResume: boolean; canArchive: boolean; testProfile: SourceTestProfile | null
+}
+export interface SourceTemplateCoverage {
+  runId: string; ordinal: number; path: string; target: number; sizeBytes: number; sha256: string | null
+  exclusion: string | null; status: string; resultJson: string | null
+}
+export interface SourceTemplateBatch {
+  id: string; candidateKind: string; ordinal: number; generation: number; attempt: number; state: string
+  errorCode: string | null; version: number; createdAt: string; updatedAt: string; retryable: boolean
+}
+export interface SourceArtifact { id: string; name: string; kind: string; sha256: string; sizeBytes: number }
+export interface SourceTemplateCommand { requestKey: string; expectedVersion: number; modelIds?: string[] }
 export type RequirementConclusion = 'SATISFIED' | 'PARTIAL' | 'INCORRECT' | 'NOT_IMPLEMENTED' | 'UNDETERMINED'
 export interface DocumentSupplementRequest { requestKey: string; expectedVersion: number; expectedTaskVersion: number }
 export interface DocumentSupplementOptions { available: boolean; message: string; request: DocumentSupplementRequest | null }
@@ -1617,10 +1654,11 @@ export interface DocumentReportSummary { id: string; name: string; kind: string;
 /** List entries retain intake identity independently from executable Task details. */
 export interface TaskListItem {
   id: string; projectId: string; projectName: string; title: string; goal: string; branch: string
-  status: TaskStatus | DocumentTemplateState; retryCause?: Task['retryCause']; retryDueAt?: string
+  status: TaskStatus | DocumentTemplateState | SourceTemplateState; retryCause?: Task['retryCause']; retryDueAt?: string
   executionMode?: Task['executionMode']; hasDesignHistory?: boolean; archived?: boolean; attemptCount: number; maxAttempts: number
   createdAt: string; updatedAt: string; version?: number
   documentRunId?: string; documentState?: DocumentTemplateState; linkedTaskId?: string; sourceTemplateId?: string
+  sourceRunId?: string; sourceState?: SourceTemplateState
 }
 
 export interface DocumentClarification {

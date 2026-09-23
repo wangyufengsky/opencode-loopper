@@ -11,6 +11,10 @@ class InternalMcpContractCatalogTest {
     @Test
     void exposesOneStronglyTypedToolPerCandidateRoleAndKeepsTheLegacyNameForRecovery() {
         assertThat(InternalMcpContractCatalog.toolNames()).containsExactly(
+                "submit_source_detailed_design", "submit_source_design_review", "get_source_design_work",
+                "list_source_template_files", "read_source_template_file", "list_source_design_results",
+                "read_source_design_result", "get_source_development_work", "list_source_development_files",
+                "read_source_development_file",
                 "submit_decomposition_plan",
                 "submit_acceptance_choice",
                 "submit_package_design",

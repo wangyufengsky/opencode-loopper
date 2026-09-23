@@ -174,7 +174,7 @@ export const useTaskStore = defineStore('task', () => {
       if (generation !== summaryGeneration || usingDemo.value) return
       taskItems.value = append ? [...taskItems.value, ...page.items.filter(item => !taskItems.value.some(task => task.id === item.id))] : page.items
       // Only real Task entries enter the executable detail cache.
-      tasks.value = taskItems.value.filter(item => !item.documentRunId).map(item => ({ ...item,
+      tasks.value = taskItems.value.filter(item => !item.documentRunId && !item.sourceRunId).map(item => ({ ...item,
         status: requirePublicState(TASK_STATUSES, item.status, 'Task list cache'), worktreePath: '',
         stages: [], workPackages: [], attempts: [], errors: [], judges: [], artifacts: [] }))
       taskNextCursor.value = page.nextCursor

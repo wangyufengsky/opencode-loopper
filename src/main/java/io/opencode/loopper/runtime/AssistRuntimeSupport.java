@@ -17,6 +17,9 @@ public class AssistRuntimeSupport {
     private final AssistScopeService scopes;
     private final ObjectMapper json;
     private final io.opencode.loopper.service.DocumentDevelopmentScope documents;
+    private io.opencode.loopper.service.SourceDevelopmentScope sources;
+    @org.springframework.beans.factory.annotation.Autowired
+    void sources(io.opencode.loopper.service.SourceDevelopmentScope value) { sources = value; }
     public AssistRuntimeSupport(AssistMapper mapper,AssistToolPolicyService policy,OpenCodeToolInventory inventory,AssistScopeService scopes,ObjectMapper json,
             io.opencode.loopper.service.DocumentDevelopmentScope documents) {
         this.mapper=mapper;this.policy=policy;this.inventory=inventory;this.scopes=scopes;this.json=json;
@@ -49,6 +52,8 @@ public class AssistRuntimeSupport {
         if(internal!=null) {
             if (DocumentDevelopmentProfiles.supports(profile.name())) DocumentDevelopmentProfiles.TOOLS
                     .forEach(tool -> base.add(rule(internal + "_" + tool)));
+            if (DocumentDevelopmentProfiles.supports(profile.name())) SourceDevelopmentProfiles.TOOLS
+                    .forEach(tool -> base.add(rule(internal + "_" + tool)));
             var allowed=AssistToolCatalog.allowed(profile.name());
             for(var setting:policy.catalog(project,AssistToolCatalog.SERVER,AssistToolCatalog.tools().stream().map(AssistToolCatalog.Tool::name).toList(),true))
                 if(setting.enabled()&&allowed.contains(setting.name()))base.add(rule(AssistToolCatalog.serverName(internal)+"_"+setting.name()));
@@ -67,6 +72,7 @@ public class AssistRuntimeSupport {
     void enrich(String session,Map<String,Object> body,OpenCodeClient.SessionProfile profile) {
         if (profile == OpenCodeClient.SessionProfile.PPT_AGENT) return;
         documents.enrich(session, body);
+        if (sources != null) sources.enrich(session, body);
         scopes.requireDeclaredCapabilities(session);
         String grant=scopes.grant(session);
         if (profile.name().startsWith("KNOWLEDGE_")) {
@@ -123,6 +129,9 @@ public class AssistRuntimeSupport {
         filtered=filtered.stream().filter(r->!(r.permission().equals(AssistToolCatalog.serverName(plan.internalMcpServer())+"_*")&&r.action().equals("deny")&&r.pattern().equals("*"))).toList();
         if (DocumentDevelopmentProfiles.supports(plan.profile().name())) filtered = filtered.stream().filter(rule ->
                 !(DocumentDevelopmentProfiles.TOOLS.stream().anyMatch(tool -> rule.permission().equals(plan.internalMcpServer()+"_"+tool))
+                        && rule.action().equals("allow") && rule.pattern().equals("*"))).toList();
+        if (DocumentDevelopmentProfiles.supports(plan.profile().name())) filtered = filtered.stream().filter(rule ->
+                !(SourceDevelopmentProfiles.TOOLS.stream().anyMatch(tool -> rule.permission().equals(plan.internalMcpServer()+"_"+tool))
                         && rule.action().equals("allow") && rule.pattern().equals("*"))).toList();
         return filtered.equals(base);
     }

@@ -24,16 +24,25 @@ final class TaskTerminalConsistencyService {
     private final TaskStateStore states;
     private final RollingPackageTaskHooks rolling;
     private final DesignerTerminationService designers;
+    private final io.opencode.loopper.persistence.SourceTemplateMapper sources;
     private final TransactionTemplate transactions;
 
     TaskTerminalConsistencyService(LoopperMapper mapper, TaskStateStore states, RollingPackageTaskHooks rolling,
-                                   DesignerTerminationService designers,
+                                   DesignerTerminationService designers, io.opencode.loopper.persistence.SourceTemplateMapper sources,
                                    PlatformTransactionManager transactionManager) {
         this.mapper = mapper;
         this.states = states;
         this.rolling = rolling;
         this.designers = designers;
+        this.sources = sources;
         this.transactions = new TransactionTemplate(transactionManager);
+    }
+
+    void requireArchivable(TaskRow task) {
+        if (!TaskState.valueOf(task.state()).terminal())
+            throw new BadRequestException("TASK_NOT_ARCHIVABLE", "只有已经用户确认终结的任务可以归档");
+        if (sources.task(task.id()).filter(run -> !io.opencode.loopper.domain.SourceTemplateState.valueOf(run.state()).terminal()).isPresent())
+            throw new BadRequestException("SOURCE_ARCHIVE_UNAVAILABLE", "源码模板尚未收束，请先处理模板详情中的结果或恢复事项");
     }
 
     TaskRow complete(TaskRow from, LifecycleEvent event, Map<String, ?> metadata) {

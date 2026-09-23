@@ -5,9 +5,10 @@ import ElementPlus from 'element-plus'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { api } from '@/api/client'
 import { useDocumentTemplateStore } from '@/stores/documentTemplateStore'
+import { useSourceTemplateStore } from '@/stores/sourceTemplateStore'
 import type { TemplateTaskDefinition, TemplateTaskCatalog } from '@/types/domain'
 import TemplateTasksView from './TemplateTasksView.vue'
-vi.mock('@/api/client', () => ({ ApiError: class extends Error {}, api: { createTemplateTask: vi.fn(), startTemplateTask: vi.fn(), templateProjects: vi.fn(), templateProject: vi.fn(), templateCatalog: vi.fn(), templateBranches: vi.fn(), documentTemplateRequest: vi.fn() } }))
+vi.mock('@/api/client', () => ({ ApiError: class extends Error {}, api: { createTemplateTask: vi.fn(), startTemplateTask: vi.fn(), templateProjects: vi.fn(), templateProject: vi.fn(), templateCatalog: vi.fn(), templateBranches: vi.fn(), documentTemplateRequest: vi.fn(), sourcePreview: vi.fn() } }))
 const definitions: TemplateTaskDefinition[] = [
   { id: 'SNAPSHOT_CODE_REVIEW', version: '1', title: '代码审查', workflow: 'SNAPSHOT_CODE_REVIEW', description: '冻结版本审查', category: '审查', inputs: { documents: false, branch: true, dates: true, extensions: [], maxFiles: 0, maxFileMiB: 0, maxTotalMiB: 0 } },
   { id: 'REQUIREMENT_DEVELOPMENT', version: '1', title: '需求开发', description: '从文档开发', category: '需求', inputs: { documents: true, branch: false, dates: false, extensions: ['md', 'docx', 'pdf'], maxFiles: 10, maxFileMiB: 20, maxTotalMiB: 50 } },
@@ -22,7 +23,7 @@ beforeEach(() => {
   vi.mocked(api.templateBranches).mockResolvedValue({ page: { items: [branch], facets: {}, nextCursor: null }, defaultBranch: branch, defaultBranchId: branch.id, remoteAvailable: true } as Awaited<ReturnType<typeof api.templateBranches>>)
 })
 async function render() {
-  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/template-tasks', component: TemplateTasksView }, { path: '/template-tasks/document-runs/:id', component: { template: '<div />' } }] })
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/template-tasks', component: TemplateTasksView }, { path: '/template-tasks/document-runs/:id', component: { template: '<div />' } }, { path: '/template-tasks/source-runs/:id', component: { template: '<div />' } }] })
   await router.push('/template-tasks?projectId=inherited'); await router.isReady()
   const wrapper = mount(TemplateTasksView, { global: { plugins: [ElementPlus, router], stubs: { Icon: true, PageHeader: true, DirectoryPathInput: true } } })
   await flushPromises(); return { wrapper, router }
@@ -80,5 +81,29 @@ it('shows the authentication cause and lets an explicit local branch start revie
   select.vm.$emit('update:modelValue', branch.id); await flushPromises()
   await wrapper.get('form').trigger('submit'); await flushPromises()
   expect(api.createTemplateTask).toHaveBeenCalledWith(expect.objectContaining({ projectId: 'inherited', branchId: branch.id }))
+  wrapper.unmount()
+})
+
+it('uses server source capabilities and creates a pending source run after preview', async () => {
+  const definition: TemplateTaskDefinition = { ...definitions[1]!, id: 'UNIT_TEST_DEVELOPMENT', title: '单元测试开发',
+    inputs: { ...definitions[1]!.inputs!, documents: false, sourcePath: true, testOutputPath: true, documentOutputPath: false } }
+  vi.mocked(api.templateCatalog).mockResolvedValue({ templates: [definition], dimensions: [] } as unknown as TemplateTaskCatalog)
+  vi.mocked(api.sourcePreview).mockResolvedValue({ sourcePath: 'src/main/java', testOutputPath: null, documentPath: null,
+    manifestSha256: 'sha', targetCount: 1, excludedCount: 0, moduleCount: 1, truncated: false, files: [],
+    testProfile: { manifestSha256: 'sha', modules: [] }, configurationProblem: null })
+  const create = vi.spyOn(useSourceTemplateStore(), 'create').mockResolvedValue('source-created')
+  const { wrapper, router } = await render()
+  expect(wrapper.find('#requirement-files').exists()).toBe(false)
+  expect(wrapper.find('[aria-label="分支"]').exists()).toBe(false)
+  expect(api.templateBranches).not.toHaveBeenCalled()
+  wrapper.findAllComponents({ name: 'DirectoryPathInput' }).find(c => c.props('label') === '源码路径')!.vm.$emit('update:modelValue', 'src/main/java')
+  await flushPromises(); await wrapper.get('form').trigger('submit'); await flushPromises()
+  expect(create).not.toHaveBeenCalled()
+  await wrapper.findAll('button').find(b => b.text() === '检查处理范围')!.trigger('click'); await flushPromises()
+  await wrapper.get('form').trigger('submit'); await flushPromises()
+  expect(create).toHaveBeenCalledWith({ templateId: 'UNIT_TEST_DEVELOPMENT', templateVersion: '1', projectId: 'inherited',
+    sourcePath: 'src/main/java', requirements: '', testOutputPath: undefined })
+  expect(router.currentRoute.value.path).toBe('/template-tasks/source-runs/source-created')
+  expect(api.startTemplateTask).not.toHaveBeenCalled()
   wrapper.unmount()
 })

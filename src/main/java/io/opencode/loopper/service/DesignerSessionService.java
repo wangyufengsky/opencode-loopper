@@ -920,7 +920,7 @@ public class DesignerSessionService {
         int discussionRevision = nextDiscussionRevision(session.id(), packageId);
         boolean directSoftware = directSoftwareMode(session.id());
         if (recovery.required()) reactivateRequirement(currentRequirement(sessionId), true);
-        createDiscussion(session, packageId, packageId, discussionRevision, user.id(), 0, !recovery.required() && !directSoftware && !mapper.documentDesigner(session.id()));
+        createDiscussion(session, packageId, packageId, discussionRevision, user.id(), 0, !recovery.required() && !directSoftware && !TemplateDevelopmentAuthorization.designer(mapper, session.id()));
         DesignWorkPackageRow revised = updateWorkPackage(workPackage, recovery.nextState(),
                 workPackage.designerExternalSessionId(), workPackage.designerExternalSessionState(),
                 workPackage.designMessageId(), workPackage.designRevision(), workPackage.redesignCount(),
@@ -982,7 +982,7 @@ public class DesignerSessionService {
     public void approvePackageAutomatically(String sessionId, String packageId, int expectedDiscussionRevision,
                                             int expectedDesignRevision) {
         approvePackage(sessionId, packageId, expectedDiscussionRevision, expectedDesignRevision,
-                mapper.documentDesigner(sessionId) ? "TEMPLATE_AUTHORIZED" : "AUTO_RECOMMENDED");
+                TemplateDevelopmentAuthorization.designer(mapper, sessionId) ? "TEMPLATE_AUTHORIZED" : "AUTO_RECOMMENDED");
     }
     private void approvePackage(String sessionId, String packageId, int expectedDiscussionRevision,
                                 int expectedDesignRevision, String source) {
@@ -2016,7 +2016,7 @@ public class DesignerSessionService {
                         session.id(), input.packageId()).filter(row -> Set.of("QUESTIONING", "DESIGNING",
                                 CHAT_QUESTIONING, WAITING_CHAT_ANSWER, CHAT_DESIGNING).contains(row.state()))
                         .orElseGet(() -> createDiscussion(session, input.packageId(), input.packageId(),
-                                nextDiscussionRevision(session.id(), input.packageId()), null, 0, !directSoftware && !mapper.documentDesigner(session.id())));
+                                nextDiscussionRevision(session.id(), input.packageId()), null, 0, !directSoftware && !TemplateDevelopmentAuthorization.designer(mapper, session.id())));
                 boolean questionRequired = discussion.questionRequired() && !discussion.questionAnswered();
                 boolean nativeQuestion = questionRequired && questionSupport.nativeQuestionAvailable(
                         Path.of(project.rootPath()));

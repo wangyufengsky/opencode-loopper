@@ -69,6 +69,8 @@ public final class AllRoleModelProbe {
 
     String instructions() {
         return switch (kind) {
+            case SOURCE_DETAILED_DESIGN_V1, SOURCE_DESIGN_REVIEW_V1 ->
+                    throw new IllegalArgumentException("Source template roles require the scoped source fixture");
             case DOCUMENT_REQUIREMENTS_V1, DOCUMENT_REQUIREMENT_REVIEW_V1,
                     REQUIREMENT_CODE_ASSESSMENT_V1, REQUIREMENT_ASSESSMENT_REVIEW_V1,
                     DOCUMENT_CODE_ASSESSMENT_V2, DOCUMENT_CODE_REVIEW_V2 ->
@@ -85,6 +87,8 @@ public final class AllRoleModelProbe {
 
     CandidatePolicy.Decision compile(String candidate) {
         return switch (kind) {
+            case SOURCE_DETAILED_DESIGN_V1, SOURCE_DESIGN_REVIEW_V1 ->
+                    throw new IllegalArgumentException("Source template roles require the scoped source fixture");
             case DOCUMENT_REQUIREMENTS_V1, DOCUMENT_REQUIREMENT_REVIEW_V1,
                     REQUIREMENT_CODE_ASSESSMENT_V1, REQUIREMENT_ASSESSMENT_REVIEW_V1,
                     DOCUMENT_CODE_ASSESSMENT_V2, DOCUMENT_CODE_REVIEW_V2 ->

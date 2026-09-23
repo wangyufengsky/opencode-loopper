@@ -429,7 +429,7 @@ old ID even when a repair or finalizer later replaces the source projection.
 
 ### 内置模板任务
 
-本节定义历史 Git 报告模板。新版 `SNAPSHOT_CODE_REVIEW` 的日期增量、全面审查、轻量策略及历史恢复规范见[冻结版本代码审查合同](snapshot-code-review-contract.md)。第二期需求开发与需求代码评审使用独立版本、文档输入、发起记录和完成策略，规范见[文档模板任务合同](document-template-contract.md)。模板来源筛选涵盖两期，不能由 `TEMPLATE_REPORT` 执行模式推断所有模板。
+本节定义历史 Git 报告模板。新版 `SNAPSHOT_CODE_REVIEW` 的日期增量、全面审查、轻量策略及历史恢复规范见[冻结版本代码审查合同](snapshot-code-review-contract.md)。需求开发与需求代码评审使用独立版本、文档输入、发起记录和完成策略，规范见[文档模板任务合同](document-template-contract.md)。指定源码路径的单元测试开发与详细设计编写由[源码模板任务合同](source-template-contract.md)持有。模板来源筛选涵盖这些入口，不能由 `TEMPLATE_REPORT` 执行模式推断所有模板。
 
 V77 将新任务入口改为 `/template-tasks`，旧 `/automations` 页面重定向到新入口。内置目录由服务端代码持有，首批为 `CODE_REVIEW` 与 `CONTRIBUTION_REPORT`；历史报告模板的新任务版本为 `10`，历史版本 `1`、`2`、`3`、`4`、`5`、`6` 继续按冻结合同恢复。用户只能手动选择模板和参数，不编辑 LoopSpec JSON、创建自定义模板或定时/事件规则。旧模板、规则、检测健康与运行记录保留查询；旧 API 的创建、编辑、导入、手动触发、确认触发和 Webhook 均返回 `LEGACY_AUTOMATION_RETIRED`。升级将 ENABLED 规则停用，后台只对既有 run 做状态对账，不再探测 Git HEAD 或派发 CRON。
 

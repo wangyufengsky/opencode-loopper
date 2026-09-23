@@ -29,6 +29,8 @@ public class VerifierEngine {
     private final BinaryArtifactStore artifacts;
     private final NativeVerifierRegistry nativeVerifiers;
     private io.opencode.loopper.service.assist.ExecutionEvidenceCapture captures;
+    private List<VerificationScopeGuard> scopeGuards = List.of();
+    @Autowired void scopeGuards(List<VerificationScopeGuard> guards) { scopeGuards = List.copyOf(guards); }
     public VerifierEngine(SafeProcessRunner runner) {
         this(runner, null, null, new BinaryArtifactStore(Path.of("./data")));
     }
@@ -56,9 +58,12 @@ public class VerifierEngine {
 
     public VerifierOutcome verify(Path worktree,String baseline,VerifierSpec spec,Duration timeout,
                                   String task,String stage,String attempt,String execution) {
-        if(captures==null) return verify(worktree,baseline,spec,timeout);
-        return captures.capture(task,stage,attempt,execution,worktree,spec,
-                output->verifyObserved(worktree,baseline,spec,timeout,output));
+        scopeGuards.forEach(guard -> guard.verify(task, worktree));
+        var result = captures == null ? verify(worktree,baseline,spec,timeout)
+                : captures.capture(task,stage,attempt,execution,worktree,spec,
+                    output->verifyObserved(worktree,baseline,spec,timeout,output));
+        scopeGuards.forEach(guard -> guard.verify(task, worktree));
+        return result;
     }
 
     public VerifierOutcome verify(Path worktree, String baselineCommit, VerifierSpec spec, Duration timeout) {

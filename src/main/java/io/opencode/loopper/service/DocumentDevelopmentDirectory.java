@@ -9,6 +9,9 @@ import org.springframework.stereotype.Service;
 public final class DocumentDevelopmentDirectory {
     private final LoopperMapper domain;
     private final ObjectProvider<TaskWorkspaceCheckpointService> checkpoints;
+    private SourceDevelopmentScopeMapper sources;
+    @org.springframework.beans.factory.annotation.Autowired
+    void sources(SourceDevelopmentScopeMapper mapper) { sources = mapper; }
     public DocumentDevelopmentDirectory(LoopperMapper domain, ObjectProvider<TaskWorkspaceCheckpointService> checkpoints) {
         this.domain = domain; this.checkpoints = checkpoints;
     }
@@ -23,7 +26,8 @@ public final class DocumentDevelopmentDirectory {
         return checkpoints.getObject().designSnapshot(task, checkpoint).toString();
     }
     public String planRoot(String session, String taskId) {
-        var plan = domain.documentPlanSession(session).orElseThrow(() -> new ConflictException("DOCUMENT_PLAN_SCOPE_MISSING", "规划会话没有冻结需求来源"));
+        var plan = domain.documentPlanSession(session).or(() -> sources == null ? java.util.Optional.empty() : sources.plan(session))
+                .orElseThrow(() -> new ConflictException("TEMPLATE_PLAN_SCOPE_MISSING", "规划会话没有冻结来源"));
         var task = domain.findTask(taskId).orElseThrow();
         var checkpoint = domain.findTaskWorkspaceCheckpoint(plan.baseCheckpointId()).orElseThrow();
         var pack = domain.findTaskPackageRun(plan.basePackageRunId()).orElseThrow();

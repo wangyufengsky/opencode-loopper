@@ -86,7 +86,7 @@ public class RollingPackageService {
         this.transactions = new TransactionTemplate(transactionManager);
     }
     public boolean eligible(String designerSessionId) {
-        if (!properties.isRollingPackagesEnabled() && !mapper.documentDesigner(designerSessionId)) return false;
+        if (!properties.isRollingPackagesEnabled() && !TemplateDevelopmentAuthorization.designer(mapper, designerSessionId)) return false;
         var profile = mapper.findCurrentDesignerTaskProfile(designerSessionId).orElse(null);
         return profile != null
                 && "FROZEN".equals(profile.state())
@@ -272,7 +272,7 @@ public class RollingPackageService {
                                       long expectedPackageVersion, int discussionRevision, int designRevision) {
         CommandContext context = command(taskId, packageRunId, expectedTaskVersion, expectedPackageVersion,
                 RollingPackageCommandPolicy.Command.APPROVE_DESIGN);
-        if (!mapper.documentDesigner(context.session().id()))
+        if (!TemplateDevelopmentAuthorization.designer(mapper, context.session().id()))
             throw new ConflictException("DOCUMENT_TEMPLATE_REQUIRED", "此自动动作仅适用于需求开发模板");
         designers.getObject().approvePackageAutomatically(context.session().id(), context.run().packageKey(),
                 discussionRevision, designRevision);

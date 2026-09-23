@@ -334,6 +334,7 @@ public final class CandidateRuntimeBindingService implements CandidateRunGuard {
         }
         // The separately registered DocumentTemplateCandidateGuard owns this immutable scope.
         if (io.opencode.loopper.runtime.DocumentTemplateProfiles.supports(run.candidateKind())) return;
+        if (io.opencode.loopper.runtime.SourceTemplateProfiles.supports(run.candidateKind())) return;
         if (run.candidateKind() != MachineCandidateKind.ACCEPTANCE_CLOSED_CHOICE_V7) {
             throw new ConflictException("CANDIDATE_KIND_NOT_INTEGRATED",
                     "Candidate kind is not connected to an authoritative owner adapter");

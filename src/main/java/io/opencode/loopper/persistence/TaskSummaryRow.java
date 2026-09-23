@@ -5,4 +5,4 @@ public record TaskSummaryRow(
         String branchName, String state, String retryCause, String retryDueAt,
         int hasDesignHistory, int archived, int attemptCount, int maxAttempts,
         String createdAt, String updatedAt, String executionMode,
-        String documentRunId, String documentState, String linkedTaskId, String sourceTemplateId, long version) { }
+        String documentRunId, String documentState, String linkedTaskId, String sourceTemplateId, long version, String sourceRunId, String sourceState) { }
