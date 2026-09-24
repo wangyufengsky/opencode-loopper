@@ -8,6 +8,7 @@ import PageHeader from '@/components/PageHeader.vue'
 import DocumentFilePicker from '@/components/DocumentFilePicker.vue'
 import DirectoryPathInput from '@/components/DirectoryPathInput.vue'
 import SourceTemplateFields from '@/components/SourceTemplateFields.vue'
+import '@/styles/template-task-form.css'
 import { documentUploadError, useDocumentTemplateStore } from '@/stores/documentTemplateStore'
 import { useTemplateTaskStore } from '@/stores/templateTaskStore'
 import { userFacingError } from '@/utils/displayLabels'
@@ -166,13 +167,24 @@ onBeforeUnmount(() => { ++projectGeneration; ++branchGeneration })
       </section>
     </aside>
     <div class="template-configuration">
-    <form v-if="definition" class="card card-pad task-parameters" aria-label="模板任务参数" @submit.prevent="submit">
-      <header class="parameter-heading"><h2>{{ definition.title }}</h2><p class="muted">{{ definition.description }}</p></header>
+    <form v-if="definition" class="card task-parameters" aria-label="模板任务参数" @submit.prevent="submit">
+      <header class="parameter-heading">
+        <span class="parameter-icon" aria-hidden="true"><Icon :icon="definition.icon?.startsWith('lucide:') ? definition.icon : 'lucide:workflow'" width="26" /></span>
+        <div class="parameter-intro"><span class="parameter-kicker">{{ definition.category || '任务配置' }}</span><h2>{{ definition.title }}</h2><p class="muted">{{ definition.description }}</p>
+          <div v-if="isSource" class="output-tags" aria-label="任务产出">
+            <template v-if="definition.inputs?.testOutputPath"><span><Icon icon="lucide:flask-conical" />单元测试</span><span><Icon icon="lucide:check-check" />测试验证与评审</span></template>
+            <template v-else><span><Icon icon="lucide:file-text" />Markdown 文档</span><span><Icon icon="lucide:git-branch" />流程图</span><span><Icon icon="lucide:list-checks" />源码覆盖清单</span></template>
+          </div>
+        </div>
+      </header>
+      <div class="parameter-body">
+      <section class="parameter-section" aria-label="项目与范围">
+      <div class="section-heading"><span class="section-number">01</span><h3>{{ isSource ? '所属项目' : '项目与范围' }}</h3><span v-if="isSource" class="section-note">使用项目当前目录</span></div>
       <div v-if="isSnapshot" class="parameter-grid">
         <label>审查范围<el-select v-model="reviewMode" aria-label="审查范围" :disabled="busy"><el-option value="DATE_INCREMENTAL" label="日期增量审查" /><el-option value="FULL" label="全面审查" /></el-select></label>
         <p class="muted">{{ reviewMode === 'FULL' ? '审查所选分支的冻结目标版本。' : '对比开始日期 00:00 与结束日期 24:00 前的主线版本，审查最终差异。' }}</p>
       </div>
-      <div class="parameter-grid">
+      <div class="parameter-grid" :class="{ 'single-column': !needsBranch && !needsDates }">
         <label>项目<el-select v-model="projectId" aria-label="项目" filterable remote :remote-method="searchProjects" :loading="loadingProjects" :disabled="busy" placeholder="搜索并选择项目">
           <el-option v-for="project in projects" :key="project.id" :value="project.id" :label="project.name" />
           <template v-if="projectCursor" #footer><el-button text :loading="loadingProjects" @click="searchProjects(projectQuery, true)">加载更多项目</el-button></template>
@@ -184,10 +196,11 @@ onBeforeUnmount(() => { ++projectGeneration; ++branchGeneration })
         <label v-if="needsDates">开始日期<el-date-picker v-model="startDate" aria-label="开始日期" type="date" value-format="YYYY-MM-DD" format="YYYY-MM-DD" :disabled="busy" :clearable="false" /></label>
         <label v-if="needsDates">结束日期<el-date-picker v-model="endDate" aria-label="结束日期" type="date" value-format="YYYY-MM-DD" format="YYYY-MM-DD" :disabled="busy" :disabled-date="disableEnd" :clearable="false" /></label>
       </div>
+      </section>
       <SourceTemplateFields v-if="isSource" ref="sourceFields" :definition="definition" :project-id="projectId" :document-path="documentPath" />
-      <div v-if="!isDocument && !isSource" class="document-path">文档生成路径<DirectoryPathInput v-model="documentPath" v-model:picking="pickingDocumentPath" label="文档生成路径" :scope-key="projectId" :disabled="busy" placeholder="项目相对路径或绝对路径；留空使用默认目录" /></div>
-      <div v-if="isDocument" class="document-path">
-        <span>需求文档</span>
+      <div v-if="!isDocument && !isSource" class="parameter-section document-path"><div class="section-heading"><span class="section-number">02</span><h3>报告输出</h3><span class="section-note">可选</span></div><span>文档生成路径</span><DirectoryPathInput v-model="documentPath" v-model:picking="pickingDocumentPath" label="文档生成路径" :scope-key="projectId" :disabled="busy" placeholder="项目相对路径或绝对路径；留空使用默认目录" /></div>
+      <div v-if="isDocument" class="parameter-section document-path">
+        <div class="section-heading"><span class="section-number">02</span><h3>需求文档</h3></div>
         <DocumentFilePicker v-model="files" input-id="requirement-files" :disabled="busy" />
         <p class="muted tiny">图片和流程图的提取局限会在结果中列出。</p>
         <el-alert v-if="fileError" :title="fileError" type="error" :closable="false" />
@@ -198,7 +211,8 @@ onBeforeUnmount(() => { ++projectGeneration; ++branchGeneration })
       <el-alert v-if="needsDates && dateError" :title="dateError" type="error" :closable="false" />
       <el-alert v-if="needsBranch && branchError" :title="branchError" type="error" :closable="false"><el-button text @click="searchBranches('', false, true)">重新读取分支</el-button></el-alert>
       <el-alert v-else-if="needsBranch && !remoteAvailable" :title="remoteProblems.length ? `${remoteProblems.join('；')}；也可明确选择可用的本地分支` : '部分远程分支暂不可访问，请检查连接后重新读取，或明确选择可用的本地分支'" type="warning" :closable="false" />
-      <div class="run-action"><el-button type="primary" native-type="submit" :loading="busy" :disabled="!valid">{{ isSource ? '创建任务' : isDocument ? (definition.id === 'REQUIREMENT_DEVELOPMENT' ? '开始开发' : '开始评审') : '开始执行' }}</el-button></div>
+      </div>
+      <footer class="run-action"><p v-if="isSource" class="action-hint"><Icon :icon="valid ? 'lucide:circle-check' : 'lucide:info'" />{{ valid ? '范围已检查，创建后在详情页开始执行' : '先检查处理范围，再创建任务' }}</p><el-button type="primary" native-type="submit" :loading="busy" :disabled="!valid">{{ isSource ? '创建任务' : isDocument ? (definition.id === 'REQUIREMENT_DEVELOPMENT' ? '开始开发' : '开始评审') : '开始执行' }}<Icon icon="lucide:arrow-right" /></el-button></footer>
     </form>
     <details v-if="definition?.scoringVersion && store.catalog" class="card card-pad rubric">
       <summary>内置评分标准 · 满分 100</summary>
@@ -212,26 +226,41 @@ onBeforeUnmount(() => { ++projectGeneration; ++branchGeneration })
 </template>
 
 <style scoped>
-.template-tasks { display: grid; gap: 20px; }
-.template-workspace { display: grid; grid-template-columns: minmax(340px, 420px) minmax(0, 1fr); gap: 24px; align-items: stretch; }
-.template-catalog, .template-configuration, .task-parameters { display: grid; gap: 20px; min-width: 0; }
+.template-tasks { display: grid; gap: 20px; width: 100%; }
+.template-workspace { display: grid; grid-template-columns: minmax(260px, 320px) minmax(0, 1fr); gap: 24px; align-items: start; }
+.template-catalog, .template-configuration { display: grid; align-content: start; gap: 16px; min-width: 0; }
 .catalog-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 h2 { margin: 0; font-size: 18px; }
-.template-catalog { align-content: start; min-height: 720px; }
-.template-choices { display: grid; gap: 10px; }
-.template-choice { display: grid; grid-template-columns: 24px minmax(0, 1fr) 18px; gap: 12px; align-items: start; padding: 16px 12px; text-align: left; color: var(--color-text-primary); background: transparent; border: 1px solid var(--color-border-default); border-radius: calc(var(--radius-control) + 4px); cursor: pointer; font: inherit; }
-.template-choice > span { display: grid; gap: 8px; }
+.template-choices { display: grid; gap: 8px; }
+.template-choice { display: grid; grid-template-columns: 22px minmax(0, 1fr) 16px; gap: 10px; align-items: start; padding: 12px 10px; text-align: left; color: var(--color-text-primary); background: transparent; border: 1px solid var(--color-border-default); border-radius: var(--radius-control); cursor: pointer; font: inherit; }
+.template-choice > span { display: grid; gap: 4px; }
+.template-choice strong { font-size: 14px; }
 .template-choice strong, .template-choice span { overflow-wrap: anywhere; line-height: 1.6; }
-.template-choice.selected { border-color: var(--color-action-primary); background: var(--color-bg-elevated); }
+.template-choice.selected { border-color: var(--color-action-primary); background: var(--color-bg-elevated); box-shadow: inset 3px 0 var(--color-action-primary); }
+.template-choice:hover { background: var(--color-bg-elevated); }
 .template-choice:focus-visible { outline: 2px solid var(--color-action-primary); outline-offset: 2px; }
-.template-choice > svg { margin-top: 3px; color: var(--color-action-primary); }
-.parameter-heading p { margin: 10px 0 0; line-height: 1.7; }
-.parameter-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
-.parameter-grid label, .document-path { display: grid; gap: 10px; min-width: 0; }
+.template-choice > svg { margin-top: 2px; color: var(--color-action-primary); }
+.task-parameters { min-width: 0; overflow: hidden; }
+.parameter-heading { display: flex; align-items: flex-start; gap: 16px; padding: 24px; border-bottom: 1px solid var(--color-border-default); background: var(--shade-fill-lighter); }
+.parameter-icon { display: grid; place-items: center; flex: 0 0 48px; height: 48px; color: var(--color-action-primary); border: 1px solid var(--color-border-default); border-radius: var(--radius-card); background: var(--color-bg-surface); }
+.parameter-intro { min-width: 0; }
+.parameter-kicker { display: block; margin-bottom: 6px; color: var(--color-text-secondary); font-size: 11px; }
+.parameter-heading h2 { font-size: 22px; line-height: 1.4; }
+.parameter-heading p { margin: 8px 0 0; font-size: 13px; line-height: 1.7; }
+.output-tags { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 14px; }
+.output-tags span { display: inline-flex; align-items: center; gap: 6px; color: var(--color-text-secondary); font-size: 12px; }
+.output-tags svg { color: var(--color-action-primary); }
+.parameter-body { display: grid; align-content: start; gap: 24px; padding: 24px; }
+.document-path { display: grid; gap: 10px; min-width: 0; }
+.document-path > p { margin: 0; font-size: 12px; line-height: 1.7; }
 .parameter-grid :deep(.el-date-editor), .parameter-grid :deep(.el-select) { width: 100%; }
-.run-action { display: flex; justify-content: flex-end; }
-.rubric { line-height: 1.8; }
+.run-action { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 12px 20px; padding: 18px 24px; border-top: 1px solid var(--color-border-default); background: var(--shade-fill-lighter); }
+.run-action > .el-button { min-height: 40px; min-width: 140px; margin: 0; }
+.run-action :deep(.el-button > span) { gap: 10px; }
+.action-hint { display: flex; align-items: center; gap: 8px; flex: 1; margin: 0; color: var(--color-text-secondary); font-size: 12px; line-height: 1.6; }
+.action-hint svg { flex-shrink: 0; }
+.rubric { font-size: 13px; line-height: 1.8; }
 .rubric summary { cursor: pointer; }
-@media (max-width: 1000px) { .template-workspace { grid-template-columns: 1fr; }.template-catalog { min-height: 0; }.template-choices { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); } }
-@media (max-width: 700px) { .parameter-grid { grid-template-columns: 1fr; }.run-action > * { width: 100%; } }
+@media (max-width: 1100px) { .template-workspace { grid-template-columns: 1fr; }.template-choices { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); } }
+@media (max-width: 700px) { .parameter-heading, .parameter-body { padding: 20px 16px; }.parameter-heading { gap: 12px; }.parameter-heading h2 { font-size: 20px; }.parameter-icon { flex-basis: 40px; height: 40px; }.run-action { padding: 16px; }.run-action > * { flex-basis: 100%; }.run-action > .el-button { width: 100%; } }
 </style>

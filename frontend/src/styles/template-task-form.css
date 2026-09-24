@@ -1,0 +1,14 @@
+.task-parameters .parameter-section { display: grid; align-content: start; gap: 16px; min-width: 0; }
+.task-parameters .section-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.task-parameters .section-heading h3 { margin: 0; font-size: 14px; font-weight: 650; }
+.task-parameters .section-number { display: grid; place-items: center; width: 24px; height: 24px; border-radius: var(--radius-control); color: var(--color-action-primary); background: var(--shade-fill-light); font-family: var(--font-code); font-size: 11px; }
+.task-parameters .section-note { margin-left: auto; color: var(--color-text-secondary); font-size: 12px; }
+.task-parameters .parameter-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 16px; }
+.task-parameters .parameter-grid.single-column { grid-template-columns: 1fr; }
+.task-parameters .parameter-grid label, .task-parameters .parameter-field { display: grid; align-content: start; gap: 8px; min-width: 0; font-size: 13px; }
+.task-parameters .field-title { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.task-parameters .field-title small { color: var(--color-text-secondary); font-size: 11px; font-weight: 400; }
+.task-parameters .field-help { margin: 0; color: var(--color-text-secondary); font-size: 12px; line-height: 1.6; }
+.task-parameters .el-input__wrapper, .task-parameters .el-select__wrapper { min-height: 38px; }
+.task-parameters .directory-path-row > .el-button { min-height: 38px; }
+@media (max-width: 700px) { .task-parameters .parameter-grid { grid-template-columns: 1fr; }.task-parameters .section-note { margin-left: 0; } }

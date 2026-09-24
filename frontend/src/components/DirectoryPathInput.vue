@@ -5,7 +5,7 @@ import { Icon } from '@iconify/vue'
 import { api } from '@/api/client'
 import { userFacingError } from '@/utils/displayLabels'
 
-const props = defineProps<{ label: string; placeholder?: string; disabled?: boolean; scopeKey?: string; demo?: boolean }>()
+const props = defineProps<{ label: string; inputId?: string; placeholder?: string; disabled?: boolean; scopeKey?: string; demo?: boolean }>()
 const path = defineModel<string>({ required: true })
 const picking = defineModel<boolean>('picking', { default: false })
 const error = ref('')
@@ -34,7 +34,7 @@ async function choose() {
 <template>
   <div class="directory-path-input">
     <div class="directory-path-row">
-      <el-input v-model="path" :aria-label="label" :placeholder="placeholder" maxlength="2048" :disabled="disabled || picking" />
+      <el-input :id="inputId" v-model="path" :aria-label="label" :placeholder="placeholder" maxlength="2048" :disabled="disabled || picking" />
       <el-button native-type="button" :aria-label="`选择${label}文件夹`" :loading="picking" :disabled="disabled || demo" @click="choose">
         <Icon icon="lucide:folder-open" />选择文件夹
       </el-button>
