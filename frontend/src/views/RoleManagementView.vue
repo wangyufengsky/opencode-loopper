@@ -2,6 +2,8 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import PageHeader from '@/components/PageHeader.vue'
+import RolePromptView from '@/components/roles/RolePromptView.vue'
+import RoleWorkflowDiagram from '@/components/roles/RoleWorkflowDiagram.vue'
 import { api, ApiError } from '@/api/client'
 import type {
   Project, RoleCatalogItem, RoleComparison, RoleDetail,
@@ -97,7 +99,8 @@ const availableSlots = computed(() => {
   const ids = Array.isArray(declared) ? declared.filter((value): value is string => typeof value === 'string') : selected.value?.activeSlots ?? []
   return bindings.value.filter(binding => ids.includes(binding.slot) || binding.activeRoleId === selected.value?.roleId)
 })
-const promptFragments = computed(() => Object.entries(revision.value?.promptFragments ?? {}))
+const listScroll = ref<HTMLElement | null>(null)
+const detailScroll = ref<HTMLElement | null>(null)
 const importChanges = computed(() => {
   const result = [...(importPreview.value?.changes ?? [])]
   for (const role of importPreview.value?.roles ?? []) result.push(...(role.changes ?? []))
@@ -143,17 +146,6 @@ function importChangeLabel(value?: string): string {
 
 function originLabel(value: string): string {
   return ({ BUILTIN: '内置', IMPORTED: '导入' } as Record<string, string>)[value] ?? '来源待核对'
-}
-
-function bindingPurposeLabel(binding: RoleSlotBinding): string {
-  const rawPurpose = binding.purpose ?? ''
-  const purpose = ({
-    DEFAULT: binding.label || '用于此流程阶段',
-    REQUIREMENT: '处理需求相关工作', RISK: '处理风险相关工作',
-    COMMIT_MESSAGE: '生成提交说明', MERGE_ADVISOR: '提供合并建议',
-    DESIGNER: '参与设计讨论', ACCOUNTING: '提供统计辅助',
-  } as Record<string, string>)[rawPurpose]
-  return purpose ?? (/[^\x00-\x7f]/.test(rawPurpose) ? rawPurpose : binding.label || '用于此流程阶段')
 }
 
 function modelPolicyLabel(value: string): string {
@@ -478,11 +470,14 @@ async function publish() {
   } finally { publishing.value = false }
 }
 
+watch(roles, () => { if (listScroll.value) listScroll.value.scrollTop = 0 }, { flush: 'post' })
+watch([requestedRoleId, activeTab], () => { if (detailScroll.value) detailScroll.value.scrollTop = 0 }, { flush: 'post' })
 watch([projectId, selectedSlot], () => { if (activeTab.value === 'permissions' && selected.value) void loadPreview() })
 onMounted(() => { void loadRoles(); void loadBindings(); void loadProjects() })
 </script>
 
 <template>
+  <div class="role-workspace">
   <PageHeader eyebrow="系统" title="角色管理">
     <template #actions><button v-if="!importOpen && (importFile || importSuccess)" type="button" class="plain-button" @click="importOpen = true">查看导入结果</button><label class="import-button"><Icon icon="lucide:upload" width="16" />导入配置包<input type="file" accept=".zip,application/zip" aria-label="选择角色配置 ZIP" :disabled="validating || publishing" @change="chooseImport" /></label></template>
   </PageHeader>
@@ -516,7 +511,7 @@ onMounted(() => { void loadRoles(); void loadBindings(); void loadProjects() })
         <p v-if="listError" class="error-text" role="alert">{{ listError }} <button class="inline-button" @click="retryList">重试</button></p>
         <p v-if="listLoading" role="status">正在读取角色…</p>
         <p v-else-if="!roles.length && !listError" class="empty-note">没有匹配的角色。</p>
-        <div v-else class="role-items"><section v-for="group in groupedRoles" :key="group.label" class="role-group"><h3>{{ group.label }}</h3><button v-for="role in group.items" :key="role.roleId" type="button" :class="['role-item', { selected: selected?.roleId === role.roleId }]" :aria-pressed="selected?.roleId === role.roleId" @click="selectRole(role.roleId)"><span class="role-heading"><Icon icon="lucide:bot" width="18" /><strong>{{ role.displayName }}</strong></span><span class="role-description">{{ role.description }}</span><span class="role-meta">{{ role.activeSlots.length ? `${role.activeSlots.length} 个阶段在使用` : '暂无激活阶段' }} · 最新发布版本 {{ role.latestRevisionNumber }}</span></button></section></div>
+        <div v-else ref="listScroll" class="role-items" tabindex="0" aria-label="可滚动角色目录"><section v-for="group in groupedRoles" :key="group.label" class="role-group"><h3>{{ group.label }}</h3><button v-for="role in group.items" :key="role.roleId" type="button" :class="['role-item', { selected: selected?.roleId === role.roleId }]" :aria-pressed="selected?.roleId === role.roleId" @click="selectRole(role.roleId)"><span class="role-heading"><Icon icon="lucide:bot" width="18" /><strong>{{ role.displayName }}</strong></span><span class="role-description">{{ role.description }}</span><span class="role-meta">{{ role.activeSlots.length ? `${role.activeSlots.length} 个阶段在使用` : '暂无激活阶段' }} · 最新发布版本 {{ role.latestRevisionNumber }}</span></button></section></div>
         <div class="pagination"><el-button size="small" :disabled="!previousCursors.length || listLoading || !!listError" @click="previousPage">上一页</el-button><el-button size="small" :disabled="!nextCursor || listLoading || !!listError" @click="nextPage">下一页</el-button></div>
       </section>
 
@@ -525,20 +520,16 @@ onMounted(() => { void loadRoles(); void loadBindings(); void loadProjects() })
         <p v-else-if="detailError" class="error-text" role="alert">{{ detailError }} <button class="inline-button" @click="selectRole(requestedRoleId)">重试</button></p>
         <div v-else-if="!selected" class="empty-detail"><Icon icon="lucide:users-round" width="32" /><h2>选择一个角色查看配置</h2><p>从左侧目录选择角色，了解它在工作流中的职责与能力。</p></div>
         <template v-else>
-          <header class="detail-heading"><div><p class="eyebrow">{{ selected.groupLabel || '角色配置' }}</p><h2>{{ selected.displayName }}</h2><p>{{ selected.description }}</p></div><span class="revision-chip">最新发布版本 {{ selected.latestRevisionNumber }}</span></header>
+          <header class="detail-heading"><div><p class="eyebrow">{{ selected.groupLabel || '角色配置' }}</p><h2>{{ selected.displayName }}</h2></div><span class="revision-chip">最新发布版本 {{ selected.latestRevisionNumber }}</span></header>
           <nav class="detail-tabs" aria-label="角色详情分区"><button v-for="tab in tabs" :key="tab.key" type="button" :aria-pressed="activeTab === tab.key" :class="{ active: activeTab === tab.key }" @click="switchTab(tab.key)">{{ tab.label }}</button></nav>
+          <div ref="detailScroll" class="role-detail-body" tabindex="0" aria-label="可滚动角色详情">
           <div v-if="activeTab === 'overview'" class="detail-section">
             <h3>角色职责</h3>
             <p>{{ selected.description }}</p>
             <p>来源：{{ originLabel(selected.origin) }}</p>
-            <h3 class="workflow-title">所属工作流与位置</h3><ul class="slot-list"><li v-for="binding in activeBindings" :key="binding.slot">
-              <strong>{{ binding.label || '角色阶段' }}</strong>
-              <span class="workflow-name">{{ workflowForSlot(binding.slot).name }}</span><p class="workflow-position">{{ workflowForSlot(binding.slot).position }}</p><span>{{ bindingPurposeLabel(binding) }}</span>
-              <span>{{ binding.activeRevisionId === selected.latestRevisionId ? '使用最新发布版本' : '使用其他已发布版本' }}</span>
-              <button type="button" class="inline-button" @click="showBindingRevision(binding.activeRevisionId)">查看此阶段使用的版本</button>
-            </li></ul>
+            <h3 class="workflow-title">所属工作流与位置</h3>
+            <RoleWorkflowDiagram :bindings="activeBindings" :latest-revision-id="selected.latestRevisionId" @revision="showBindingRevision" />
             <p v-if="!activeBindings.length" class="empty-note">当前未绑定运行阶段。</p>
-            <details class="technical-details"><summary>查看技术标识</summary><p>角色标识：{{ selected.roleId }}</p><p>来源码：{{ selected.origin }}</p><p>最新发布修订：{{ selected.latestRevisionId }}</p></details>
           </div>
           <div v-if="activeTab === 'permissions'" class="detail-section">
             <div class="section-heading"><h3>工具与访问权限</h3><span v-if="revision">{{ permissionModeLabel(revision) }}</span></div>
@@ -555,23 +546,33 @@ onMounted(() => { void loadRoles(); void loadBindings(); void loadProjects() })
             <p v-if="previewLoading || revisionLoading" role="status">正在读取工具与权限…</p>
             <p v-if="preview" class="preview-status">配置预览 · {{ preview.complete ? '信息完整' : '仍需运行时核定' }}</p>
             <ul v-if="preview?.limitations.length" class="limitations"><li v-for="(item, index) in preview.limitations" :key="index">{{ item }}</li></ul>
-            <section class="capability-panel" aria-label="MCP 工具清单">
-              <div class="section-heading"><h3><Icon icon="lucide:plug" width="18" /> MCP</h3><span>{{ visibleTools.length }} 项工具</span></div>
+            <details class="capability-panel" aria-label="MCP 工具清单" open>
+              <summary class="section-heading"><h3><Icon icon="lucide:plug" width="18" /> MCP</h3><span>{{ visibleTools.length }} 项工具 <Icon class="collapse-arrow" icon="lucide:chevron-down" width="16" /></span></summary>
               <ul class="tool-list"><li v-for="tool in visibleTools" :key="tool.name"><div class="tool-copy"><strong>{{ tool.name }}</strong><span>{{ tool.description }}</span></div><small>{{ tool.source }}{{ tool.required && tool.source !== '服务端必需' ? ' · 必需' : '' }}</small></li></ul>
               <p v-if="!visibleTools.length && !previewLoading && !revisionLoading" class="empty-note">{{ previewError ? '工具清单读取失败，请重试。' : '当前阶段没有工具清单。' }}</p>
-            </section>
-            <section v-if="preview" class="capability-panel" aria-label="权限规则">
-              <div class="section-heading"><h3><Icon icon="lucide:shield-check" width="18" /> 权限</h3><span>{{ preview.rules.length }} 条规则</span></div>
+            </details>
+            <details v-if="preview" class="capability-panel" aria-label="权限规则" open>
+              <summary class="section-heading"><h3><Icon icon="lucide:shield-check" width="18" /> 权限</h3><span>{{ preview.rules.length }} 条规则 <Icon class="collapse-arrow" icon="lucide:chevron-down" width="16" /></span></summary>
               <ul class="permission-list"><li v-for="(rule, index) in preview.rules" :key="index"><span :class="rule.action === 'allow' ? 'allowed' : 'denied'">{{ rule.action === 'allow' ? '允许' : rule.action === 'ask' ? '询问' : '拒绝' }}</span><div class="tool-copy"><strong>{{ stableToolName(rule.permission) }}</strong><span>{{ roleToolDescription(rule.permission) }}</span><small>范围：{{ rule.pattern === '*' ? '全部' : rule.pattern }}</small></div></li></ul>
               <p v-if="!preview.rules.length" class="empty-note">当前阶段没有可展示的权限规则。</p>
-            </section>
+            </details>
           </div>
-          <div v-if="activeTab === 'prompt'" class="detail-section"><h3>提示模板与变量</h3><p class="page-note">此处展示修订中的静态模板，不是某次会话实际投递的完整提示。任务内容、冻结合同及临时工具凭证不会在此重建。</p><p v-if="revisionError" class="error-text" role="alert">{{ revisionError }} <button class="inline-button" @click="loadRevision">重试</button></p><p v-if="revisionLoading" role="status">正在读取模板…</p><template v-if="revision"><p class="revision-meta">配置摘要 {{ revision.contentSha256 }} · {{ dateLabel(revision.publishedAt) }}</p><button type="button" class="inline-button" :disabled="!!exportingRevisionId" @click="exportRevision(revision.revisionId)">下载最新发布版本配置包</button><p v-if="exportError" class="error-text" role="alert">{{ exportError }}</p><h4>变量</h4><p v-if="!revision.promptVariables?.length">无显式模板变量。</p><ul v-else class="variables"><li v-for="name in revision.promptVariables" :key="name">{{ name }}</li></ul><h4>模板片段</h4><p v-if="!promptFragments.length">此版本未提供静态模板片段。</p><details v-for="([name, content]) in promptFragments" :key="name" class="fragment"><summary>{{ name }}</summary><pre>{{ content }}</pre></details><details class="technical-details"><summary>查看配置清单</summary><pre>{{ formatValue(revision.manifest) }}</pre></details></template></div>
-          <div v-if="activeTab === 'history'" class="detail-section"><h3>版本历史</h3><p v-if="exportError" class="error-text" role="alert">{{ exportError }}</p><p v-if="historyError" class="error-text" role="alert">{{ historyError }} <button class="inline-button" @click="loadHistory(historyRetryCursor, historyRetryAppend)">重试</button></p><p v-if="historyLoading" role="status">正在读取历史…</p><ol class="history-list"><li v-for="item in revisions" :key="item.revisionId"><div><strong>版本 {{ item.revisionNumber }}</strong><small>{{ dateLabel(item.publishedAt) }}</small></div><button type="button" class="inline-button" @click="openHistoryRevision(item.revisionId)">查看此版本</button><button type="button" class="inline-button" :disabled="!!exportingRevisionId" @click="exportRevision(item.revisionId)">下载配置包</button><button v-if="item.revisionId !== selected.latestRevisionId" type="button" class="inline-button" @click="compare(item.revisionId)">与最新发布版本比较</button><span v-else>最新发布版本</span></li></ol><p v-if="historyRevisionLoading" role="status">正在读取所选版本…</p><p v-if="historyRevisionError" class="error-text" role="alert">{{ historyRevisionError }} <button class="inline-button" @click="openHistoryRevision(historyRevisionId)">重试</button></p><section v-if="historyRevision" class="history-revision" aria-label="所选历史配置"><h4>版本 {{ historyRevision.revisionNumber }} 的静态配置</h4><p class="page-note">这是已发布的配置版本，不是历史会话的完整 Prompt 快照。</p><p class="revision-meta">摘要 {{ historyRevision.contentSha256 }} · {{ dateLabel(historyRevision.publishedAt) }}</p><p>权限模式：{{ permissionModeLabel(historyRevision) }}</p><p v-if="historyRevision.modelPolicy">模型策略：{{ modelPolicyLabel(historyRevision.modelPolicy) }}</p><p>原生工具：{{ historyRevision.nativeTools?.map(tool => `${tool}（${roleToolDescription(tool)}）`).join('、') || '无显式清单' }}</p><p>精确 MCP：{{ historyRevision.mcpTools?.map(tool => `${tool}（${roleToolDescription(tool)}）`).join('、') || '无显式清单' }}</p><p>模板变量：{{ historyRevision.promptVariables?.join('、') || '无显式变量' }}</p><details v-for="([name, content]) in Object.entries(historyRevision.promptFragments)" :key="name" class="fragment"><summary>{{ name }}</summary><pre>{{ content }}</pre></details><details class="technical-details"><summary>查看此版本配置清单</summary><pre>{{ formatValue(historyRevision.manifest) }}</pre></details></section><el-button v-if="historyNextCursor" :loading="historyLoading" @click="loadHistory(historyNextCursor || '', true)">加载更多</el-button><p v-if="comparisonError" class="error-text" role="alert">{{ comparisonError }}</p><p v-if="comparisonLoading" role="status">正在读取差异…</p><section v-if="comparison" class="diff-panel"><h4>与最新发布版本的差异</h4><p v-if="!comparison.changes.length">没有字段差异。</p><div v-for="(change, index) in comparison.changes" :key="`${change.path}-${index}`" class="diff-entry"><strong>{{ change.path }}</strong><div class="diff-values"><div><span>历史版本</span><pre>{{ formatValue(change.before) }}</pre></div><div><span>最新发布版本</span><pre>{{ formatValue(change.after) }}</pre></div></div></div></section></div>
+          <div v-if="activeTab === 'prompt'" class="detail-section">
+            <p v-if="revisionError" class="error-text" role="alert">{{ revisionError }} <button class="inline-button" @click="loadRevision">重试</button></p>
+            <p v-if="revisionLoading" role="status">正在读取模板…</p>
+            <template v-if="revision">
+              <div class="prompt-toolbar"><span class="revision-meta">版本 {{ revision.revisionNumber }} · {{ dateLabel(revision.publishedAt) }}</span><button type="button" class="inline-button" :disabled="!!exportingRevisionId" @click="exportRevision(revision.revisionId)">下载最新发布版本配置包</button></div>
+              <p v-if="exportError" class="error-text" role="alert">{{ exportError }}</p>
+              <RolePromptView :revision="revision" />
+            </template>
+          </div>
+          <div v-if="activeTab === 'history'" class="detail-section"><h3>版本历史</h3><p v-if="exportError" class="error-text" role="alert">{{ exportError }}</p><p v-if="historyError" class="error-text" role="alert">{{ historyError }} <button class="inline-button" @click="loadHistory(historyRetryCursor, historyRetryAppend)">重试</button></p><p v-if="historyLoading" role="status">正在读取历史…</p><ol class="history-list"><li v-for="item in revisions" :key="item.revisionId"><div><strong>版本 {{ item.revisionNumber }}</strong><small>{{ dateLabel(item.publishedAt) }}</small></div><button type="button" class="inline-button" @click="openHistoryRevision(item.revisionId)">查看此版本</button><button type="button" class="inline-button" :disabled="!!exportingRevisionId" @click="exportRevision(item.revisionId)">下载配置包</button><button v-if="item.revisionId !== selected.latestRevisionId" type="button" class="inline-button" @click="compare(item.revisionId)">与最新发布版本比较</button><span v-else>最新发布版本</span></li></ol><p v-if="historyRevisionLoading" role="status">正在读取所选版本…</p><p v-if="historyRevisionError" class="error-text" role="alert">{{ historyRevisionError }} <button class="inline-button" @click="openHistoryRevision(historyRevisionId)">重试</button></p><section v-if="historyRevision" class="history-revision" aria-label="所选历史配置"><h4>版本 {{ historyRevision.revisionNumber }} 的静态配置</h4><p class="page-note">这是已发布的配置版本，不是历史会话的完整 Prompt 快照。</p><p class="revision-meta">摘要 {{ historyRevision.contentSha256 }} · {{ dateLabel(historyRevision.publishedAt) }}</p><p>权限模式：{{ permissionModeLabel(historyRevision) }}</p><p v-if="historyRevision.modelPolicy">模型策略：{{ modelPolicyLabel(historyRevision.modelPolicy) }}</p><p>原生工具：{{ historyRevision.nativeTools?.map(tool => `${tool}（${roleToolDescription(tool)}）`).join('、') || '无显式清单' }}</p><p>精确 MCP：{{ historyRevision.mcpTools?.map(tool => `${tool}（${roleToolDescription(tool)}）`).join('、') || '无显式清单' }}</p><RolePromptView :revision="historyRevision" /></section><el-button v-if="historyNextCursor" :loading="historyLoading" @click="loadHistory(historyNextCursor || '', true)">加载更多</el-button><p v-if="comparisonError" class="error-text" role="alert">{{ comparisonError }}</p><p v-if="comparisonLoading" role="status">正在读取差异…</p><section v-if="comparison" class="diff-panel"><h4>与最新发布版本的差异</h4><p v-if="!comparison.changes.length">没有字段差异。</p><div v-for="(change, index) in comparison.changes" :key="`${change.path}-${index}`" class="diff-entry"><strong>{{ change.path }}</strong><div class="diff-values"><div><span>历史版本</span><pre>{{ formatValue(change.before) }}</pre></div><div><span>最新发布版本</span><pre>{{ formatValue(change.after) }}</pre></div></div></div></section></div>
+          </div>
         </template>
       </section>
     </div>
   </main>
+  </div>
 </template>
 
 <style scoped>
@@ -590,4 +591,8 @@ button:focus-visible{outline:2px solid var(--color-accent-cyan);outline-offset:3
 @media(max-width:1100px){.intro-caption{display:none}.slot-list{grid-template-columns:1fr}}
 @media(max-width:600px){.role-intro{padding:18px;gap:12px}.role-intro h2{font-size:19px}.intro-mark{width:42px;height:42px}.capability-panel{padding:12px}.tool-list li{flex-direction:column;gap:6px}.detail-tabs{flex-wrap:wrap}.detail-tabs button{padding:8px 10px}.detail-heading h2{font-size:22px}}
 @media(prefers-reduced-motion:reduce){.role-item{transition:none}}
+
+.role-workspace{height:100dvh;display:flex;flex-direction:column;min-height:0}.role-workspace>.page-header{flex-shrink:0}.roles-content{width:100%;flex:1;min-height:0;display:flex;flex-direction:column;padding-top:16px;padding-bottom:20px;overflow:hidden}.role-intro{flex-shrink:0;padding:14px 20px;margin-bottom:16px}.role-intro h2{font-size:18px;margin:2px 0 5px}.intro-mark{width:42px;height:42px}.role-intro .eyebrow{display:none}.roles-layout{flex:1;min-height:0;align-items:stretch;grid-template-columns:minmax(250px,310px) minmax(0,1fr)}.role-list{display:flex;flex-direction:column;min-height:0;padding:20px}.role-list>.section-heading,.search-row,.pagination{flex-shrink:0}.role-items{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding-right:6px}.pagination{margin-top:14px;border-top:1px solid var(--color-border-default);padding-top:14px}.role-detail{display:flex;flex-direction:column;min-height:0;padding:22px;container-type:inline-size;container-name:role-detail}.detail-heading,.detail-tabs{flex-shrink:0}.detail-heading{padding-bottom:16px}.detail-heading h2{font-size:23px}.detail-tabs{margin:14px 0 0;padding-bottom:12px}.role-detail-body{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding:18px 8px 8px 0}.role-detail-body:focus-visible,.role-items:focus-visible{outline:2px solid var(--color-accent-cyan);outline-offset:-2px}.empty-detail{min-height:0;flex:1}.role-detail .eyebrow{margin:0 0 6px}.detail-section>h3:first-child{margin-top:0}.workflow-title{margin-top:26px}.prompt-toolbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px}.import-panel{flex-shrink:0;max-height:40vh;overflow:auto}.capability-panel{margin-top:16px}.capability-panel summary{cursor:pointer;list-style:none;margin:0!important}.capability-panel summary::-webkit-details-marker{display:none}.capability-panel summary>span{display:flex;align-items:center;gap:10px}.capability-panel[open] summary{margin-bottom:14px!important}.capability-panel:not([open]) .collapse-arrow{transform:rotate(-90deg)}.capability-panel summary:focus-visible{outline:2px solid var(--color-accent-cyan);outline-offset:5px}.history-revision{padding:16px}
+@media(max-width:900px){.role-workspace{height:auto;min-height:100dvh}.roles-content{overflow:visible;flex:none}.roles-layout{display:grid;grid-template-columns:1fr;flex:none}.role-items{max-height:300px;flex:auto}.role-detail-body{overflow:visible;flex:none}.role-detail{min-height:350px}.import-panel{max-height:none}.empty-detail{min-height:160px}}
+@media(max-width:600px){.role-intro{padding:12px}.role-intro h2{font-size:16px}.role-list,.role-detail{padding:16px}.detail-tabs button{font-size:12px}.role-detail-body{padding-right:0}.intro-caption{display:none}}
 </style>

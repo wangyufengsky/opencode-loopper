@@ -17,7 +17,7 @@ const revision = (revisionId: string) => ({
   nativeTools: ['read'], mcpTools: ['mcp__loopper__read_package'], requiredMcpTools: ['mcp__loopper__read_package'],
 })
 
-type Scenario = { empty?: boolean; listFailsOnce?: boolean; validationFailsOnce?: boolean; publishConflictsOnce?: boolean }
+type Scenario = { longContent?: boolean; empty?: boolean; listFailsOnce?: boolean; validationFailsOnce?: boolean; publishConflictsOnce?: boolean }
 
 async function mockRolesApi(page: Page, scenario: Scenario = {}) {
   const calls = { list: 0, validate: 0, publish: 0, publishedRequests: [] as string[] }
@@ -27,7 +27,7 @@ async function mockRolesApi(page: Page, scenario: Scenario = {}) {
     if (path === '/api/roles') {
       calls.list++
       if (scenario.listFailsOnce && calls.list === 1) return json({ message: 'unavailable' }, 503)
-      return json({ items: scenario.empty ? [] : [role], nextCursor: null })
+      return json({ items: scenario.empty ? [] : scenario.longContent ? Array.from({ length: 12 }, (_, i) => ({ ...role, roleId: i ? `role-${i}` : role.roleId, displayName: i ? `协作角色 ${i}` : role.displayName })) : [role], nextCursor: scenario.longContent ? 'next' : null })
     }
     if (path === `/api/roles/${role.roleId}`) return json(role)
     if (path === '/api/role-bindings') return json([{ slot, profile: slot, activeRoleId: role.roleId,
@@ -37,7 +37,7 @@ async function mockRolesApi(page: Page, scenario: Scenario = {}) {
       { revisionId: 'revision-2', revisionNumber: 2, contentSha256: 'a'.repeat(64), publishedAt: '2026-09-24T00:00:00Z' },
       { revisionId: 'revision-1', revisionNumber: 1, contentSha256: 'c'.repeat(64), publishedAt: '2026-09-23T00:00:00Z' },
     ], nextCursor: null })
-    if (path === `/api/roles/${role.roleId}/revisions/revision-2`) return json(revision('revision-2'))
+    if (path === `/api/roles/${role.roleId}/revisions/revision-2`) return json(scenario.longContent ? { ...revision('revision-2'), promptFragments: { first: '开头 {{LOOPPER_PORT}}\n' + '这是完整的角色职责与约束。\n'.repeat(150), last: '结束' } } : revision('revision-2'))
     if (path === `/api/roles/${role.roleId}/revisions/revision-1`) return json(revision('revision-1'))
     if (path === `/api/roles/${role.roleId}/compare`) return json({ fromRevisionId: 'revision-1', toRevisionId: 'revision-2',
       changes: [{ path: '/prompts/machine-role.package-designer', before: '请整理旧版工作包设计。', after: '请完成当前工作包设计。' }] })
@@ -88,12 +88,11 @@ test('深层路由、静态模板、历史版本与差异在重载后可重新�
   await expect(page.getByRole('heading', { name: '角色管理' })).toBeVisible()
   await selectRole(page)
   await page.getByRole('button', { name: 'Prompt 模板' }).click()
-  await page.locator('.detail-section .fragment summary').click()
   await expect(page.getByText('请完成当前工作包设计。')).toBeVisible()
-  await expect(page.getByText('无显式模板变量。')).toBeVisible()
+  await expect(page.getByLabel('模板变量说明')).toHaveCount(0)
+  await expect(page.getByText('查看技术标识')).toHaveCount(0)
   await page.getByRole('button', { name: '版本历史' }).click()
   await page.locator('.history-list li').nth(1).getByRole('button', { name: '查看此版本' }).click()
-  await page.locator('.history-revision .fragment summary').click()
   await expect(page.getByText('请整理旧版工作包设计。')).toBeVisible()
   await page.locator('.history-list li').nth(1).getByRole('button', { name: '与最新发布版本比较' }).click()
   await expect(page.getByRole('heading', { name: '与最新发布版本的差异' })).toBeVisible()
@@ -170,3 +169,47 @@ for (const skin of skins.map(item => item.id)) {
     })
   }
 }
+
+
+test('桌面双栏独立滚动且分页常驻，工具权限可各自折叠', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await mockRolesApi(page, { longContent: true })
+  await page.goto('/roles')
+  await page.locator('.role-item').first().click()
+  await expect(page.locator('.workflow-track .current')).toHaveText(/细化阶段与验收/)
+  await page.screenshot({ path: testInfo.outputPath('workflow-desktop.png'), fullPage: true })
+  const left = page.getByLabel('可滚动角色目录')
+  const right = page.getByLabel('可滚动角色详情')
+  const heading = await page.locator('.detail-heading').boundingBox()
+  await left.hover()
+  await page.mouse.wheel(0, 1000)
+  await expect.poll(() => left.evaluate(el => el.scrollTop)).toBeGreaterThan(0)
+  expect(await right.evaluate(el => el.scrollTop)).toBe(0)
+  expect(await page.locator('.detail-heading').boundingBox()).toEqual(heading)
+  const pagination = await page.getByRole('button', { name: '下一页' }).boundingBox()
+  expect(pagination!.y + pagination!.height).toBeLessThan(900)
+  await page.getByRole('button', { name: 'Prompt 模板' }).click()
+  const leftTop = await left.evaluate(el => el.scrollTop)
+  await expect(page.locator('.prompt-body')).toContainText('结束')
+  await expect(page.locator('.prompt-body')).toContainText('{LOOPPER_PORT}')
+  await expect(page.locator('.prompt-body')).not.toContainText('{{LOOPPER_PORT}}')
+  await expect(page.getByLabel('模板变量说明')).toContainText('验证服务端口')
+  await right.hover()
+  await page.mouse.wheel(0, 1300)
+  await expect.poll(() => right.evaluate(el => el.scrollTop)).toBeGreaterThan(0)
+  expect(await left.evaluate(el => el.scrollTop)).toBe(leftTop)
+  expect(await page.locator('.detail-heading').boundingBox()).toEqual(heading)
+  await page.getByRole('button', { name: '权限与 MCP' }).click()
+  const mcp = page.getByLabel('MCP 工具清单')
+  const permissions = page.getByLabel('权限规则', { exact: true })
+  await mcp.locator('summary').click()
+  await expect(mcp.locator('.tool-list')).not.toBeVisible()
+  await expect(permissions.locator('.permission-list')).toBeVisible()
+  await permissions.locator('summary').click()
+  await expect(permissions.locator('.permission-list')).not.toBeVisible()
+  await mcp.locator('summary').click()
+  await expect(mcp.locator('.tool-list')).toBeVisible()
+  await permissions.locator('summary').focus()
+  await page.keyboard.press('Enter')
+  await expect(permissions.locator('.permission-list')).toBeVisible()
+})
