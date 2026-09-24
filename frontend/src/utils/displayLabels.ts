@@ -436,3 +436,7 @@ export function pptGenerationStepLabel(value?: string) {
 export function pptToolLabel(tool: string): string {
   return ({ ppt_get_context: '查看作品与设计', ppt_read_source: '读取参考资料', ppt_get_capabilities: '查看制作能力', ppt_request_input: '沟通并确认需求', ppt_submit_plan: '提交设计方案', ppt_apply_operations: '编辑演示文稿', ppt_measure_text: '测量文字排版', ppt_check_layout: '检查页面布局', ppt_render_preview: '生成页面预览', ppt_get_job: '查看制作进度', ppt_export: '导出演示文稿', ppt_list_knowledge_sources: '查看项目来源', ppt_search_project_knowledge: '检索项目知识', ppt_browse_knowledge_source: '浏览项目资料', ppt_read_knowledge_source: '阅读项目资料', ppt_query_knowledge_database: '查询项目数据', ppt_inspect_knowledge_database: '查看数据结构', ppt_read_knowledge_git: '查询项目记录' } as Record<string, string>)[tool] || '处理制作工具'
 }
+
+export function nativeToolLabel(tool: string): string | undefined {
+  return toolLabels[tool]
+}

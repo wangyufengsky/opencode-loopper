@@ -133,11 +133,6 @@ onMounted(load)
           <span><strong>{{ section.title }}</strong><small>{{ section.subtitle }}</small></span>
           <Icon class="nav-chevron" icon="lucide:chevron-right" width="16" />
         </button>
-        <RouterLink class="settings-nav-item" to="/settings/roles">
-          <Icon icon="lucide:users-round" width="20" />
-          <span><strong>角色管理</strong><small>查看角色配置并导入配置包</small></span>
-          <Icon class="nav-chevron" icon="lucide:chevron-right" width="16" />
-        </RouterLink>
         <p class="nav-note"><Icon icon="lucide:info" width="16" />本页设置修改后请保存。各项生效时间见面板说明。</p>
       </nav>
       <div class="settings-panels">

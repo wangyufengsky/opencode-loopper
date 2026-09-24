@@ -26,7 +26,8 @@ export const router = createRouter({
     { path: '/tools', component: () => import('@/views/ToolsView.vue') },
     { path: '/databases', component: () => import('@/views/DatabaseView.vue') },
     { path: '/settings', component: () => import('@/views/SettingsView.vue') },
-    { path: '/settings/roles', component: () => import('@/views/RoleManagementView.vue') },
+    { path: '/settings/roles', redirect: '/roles' },
+    { path: '/roles', component: () => import('@/views/RoleManagementView.vue') },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
 })

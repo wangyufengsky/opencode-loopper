@@ -174,9 +174,7 @@ public class RoleReadService {
                         && !KnowledgeSessionPolicy.MARKER.equals(name))
                 .collect(java.util.stream.Collectors.toSet());
         var resolved = roles.resolveRevision(revision.revisionId(), slot);
-        List<String> limitations = new ArrayList<>(List.of(
-                "已按服务端适配器规则和已保存的项目辅助 MCP 策略计算；第三方 MCP 清单、连接状态和本次任务授权尚未确定。",
-                "不创建会话、不注册工具、不调用 Provider；必需工具仍会在新会话创建时重新核对。"));
+        List<String> limitations = new ArrayList<>();
         if (projectRow != null && projectRow.managed() != 1)
             limitations.add("项目当前未处于托管状态，不能据此判断新会话可创建。");
         List<OpenCodeClient.SessionPermissionRule> compiled;
@@ -188,8 +186,29 @@ public class RoleReadService {
         List<PreviewRule> rules = compiled.stream().map(rule -> new PreviewRule(rule.permission(),
                 rule.pattern(), rule.action(), "ADAPTER_PROJECT_ROLE_ESTIMATE")).toList();
         List<PreviewTool> tools = new ArrayList<>(systemRequiredTools(profile));
+        if (!compiled.isEmpty()) for (String name : RoleConfigurationService.NATIVE_TOOLS.stream().sorted().toList()) {
+            String action = profile == OpenCodeClient.SessionProfile.IMPLEMENTATION ? "allow" : "deny";
+            for (var rule : compiled) {
+                if ("*".equals(rule.pattern()) && ("*".equals(rule.permission()) || name.equals(rule.permission())))
+                    action = rule.action();
+            }
+            if ("allow".equals(action)) tools.add(new PreviewTool(name, "native", "NATIVE_POLICY", false, false));
+        }
         java.util.Set<String> systemNames = tools.stream().map(PreviewTool::name)
                 .collect(java.util.stream.Collectors.toSet());
+        // BASELINE manifests intentionally have empty tool declarations. Project the
+        // adapter's exact bundled tools as well, without claiming a live connection.
+        var actions = new LinkedHashMap<String, String>();
+        compiled.stream().filter(rule -> "*".equals(rule.pattern()))
+                .forEach(rule -> actions.put(rule.permission(), rule.action()));
+        actions.forEach((name, action) -> {
+            if (!"allow".equals(action) || name.endsWith("_*") || !name.startsWith(internal + "_")) return;
+            String server = name.startsWith(internal + "_assist_") ? "@loopper-assist" : "@loopper-internal";
+            String prefix = server.equals("@loopper-assist") ? internal + "_assist_" : internal + "_";
+            String stableName = server + "/" + name.substring(prefix.length());
+            if (systemNames.add(stableName)) tools.add(new PreviewTool(stableName, server,
+                    "BUNDLED_POLICY", role.requiredMcpTools().contains(stableName), false));
+        });
         role.mcpTools().stream().filter(tool -> !systemNames.contains(tool)).forEach(tool ->
                 tools.add(new PreviewTool(tool,
                         tool.startsWith("@loopper-internal/") ? "@loopper-internal"

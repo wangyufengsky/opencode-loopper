@@ -21,6 +21,14 @@ describe('侧栏知识库返回位置', () => {
   beforeEach(() => { sessionStorage.clear() })
   afterEach(() => { wrapper?.unmount(); wrapper = undefined; vi.restoreAllMocks() })
 
+  it('places role management directly in system navigation', async () => {
+    const router = await render()
+    const link = wrapper!.get('nav[aria-label="系统导航"] a[href="/roles"]')
+    expect(link.text()).toBe('角色管理')
+    await link.trigger('click'); await flushPromises()
+    expect(router.currentRoute.value.fullPath).toBe('/roles')
+  })
+
   it('opens the welcome page when this tab has not visited knowledge', async () => {
     const router = await render()
     await knowledgeLink().trigger('click'); await flushPromises()

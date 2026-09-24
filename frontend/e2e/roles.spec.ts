@@ -72,7 +72,7 @@ async function mockRolesApi(page: Page, scenario: Scenario = {}) {
 async function selectRole(page: Page) {
   await expect(page.locator('.role-item')).toBeVisible()
   await page.locator('.role-item').click()
-  await expect(page.getByRole('heading', { name: '用途与阶段' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '角色职责' })).toBeVisible()
 }
 
 async function chooseZip(page: Page) {
@@ -84,6 +84,7 @@ async function chooseZip(page: Page) {
 test('深层路由、静态模板、历史版本与差异在重载后可重新查看', async ({ page }) => {
   await mockRolesApi(page)
   await page.goto('/settings/roles')
+  await expect(page).toHaveURL(/\/roles$/)
   await expect(page.getByRole('heading', { name: '角色管理' })).toBeVisible()
   await selectRole(page)
   await page.getByRole('button', { name: 'Prompt 模板' }).click()
@@ -151,7 +152,7 @@ for (const skin of skins.map(item => item.id)) {
       await expect(page.locator('.preview-status')).toContainText('仍需运行时核定')
       await expect(page.locator('.limitations')).toContainText('工具目录及项目授权要在会话创建时核定。')
       await expect(page.locator('.detail-section .tool-list').last()).toContainText('mcp__loopper__read_package')
-      await expect(page.locator('.detail-section .tool-list').last()).toContainText('待会话发现')
+      await expect(page.locator('.detail-section .tool-list').last()).toContainText('配置声明')
       await expect(page.locator('.detail-section .tool-list').last()).toContainText('服务端必需')
 
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)

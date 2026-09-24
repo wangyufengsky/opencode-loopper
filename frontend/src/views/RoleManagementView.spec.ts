@@ -51,6 +51,35 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks())
 
 describe('RoleManagementView', () => {
+  it('combines inherited, native and declared tools with Chinese descriptions and preserves blockers', async () => {
+    vi.mocked(api.getRoleRevision).mockResolvedValue({ ...revision, nativeTools: ['read'],
+      mcpTools: ['@loopper-internal/submit_package_design_v2'] })
+    vi.mocked(api.previewRoleSlot).mockResolvedValue({ scope: 'CONFIG_ONLY', slot: binding.slot, complete: false,
+      limitations: ['项目当前未处于托管状态'],
+      rules: [{ permission: 'read', pattern: '.env', action: 'deny' }],
+      mcpTools: [
+        { name: 'read', source: 'NATIVE_POLICY' },
+        { name: '@loopper-internal/submit_package_design_v2', source: 'SYSTEM_REQUIRED', required: true },
+        { name: '@loopper-internal/ppt_export', source: 'BUNDLED_POLICY' },
+      ] })
+    const wrapper = view()
+    await flushPromises()
+    await wrapper.get('.role-item').trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('.detail-tabs button')[0]!.text()).toBe('描述')
+    expect(wrapper.get('.slot-list').text()).toContain('工作包拆分之后')
+    await wrapper.findAll('.detail-tabs button')[1]!.trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('.tool-list li')).toHaveLength(3)
+    expect(wrapper.get('.tool-list').text()).toContain('读取文件')
+    expect(wrapper.get('.tool-list').text()).toContain('导出演示文稿')
+    expect(wrapper.get('.tool-list').text()).toContain('程序内置')
+    expect(wrapper.get('.permission-list').text()).toContain('读取文件')
+    expect(wrapper.get('.permission-list').text()).toContain('.env')
+    expect(wrapper.text()).toContain('项目当前未处于托管状态')
+    expect(wrapper.text()).not.toContain('配置声明的原生工具')
+    wrapper.unmount()
+  })
   it('retries a failed next page without losing the cursor history', async () => {
     vi.mocked(api.getRoles).mockResolvedValueOnce({ items: [role], nextCursor: 'next-page' })
       .mockRejectedValueOnce(new Error('network unavailable'))

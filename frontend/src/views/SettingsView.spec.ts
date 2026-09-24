@@ -31,7 +31,7 @@ describe('Settings model selection', () => {
       RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' }, Icon: true,
     } } })
     await flushPromises()
-    expect(wrapper.get('a[href="/settings/roles"]').text()).toContain('角色管理')
+    expect(wrapper.find('a[href="/settings/roles"]').exists()).toBe(false)
     expect(save).not.toHaveBeenCalled()
     wrapper.unmount()
   })
