@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 /** Keeps the legacy structured/text Judge transport isolated from the MCP candidate workflow. */
 @Component
 final class LegacyJudgeTransport {
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private io.opencode.loopper.service.RoleSessions roleSessions;
     private final LoopperMapper mapper;
     private final OpenCodeClient openCode;
     private final AiOutputAuditService audit;
@@ -74,7 +75,7 @@ final class LegacyJudgeTransport {
         String priorEvidence = boundedToolEvidence(failedRemote);
         try {
             try { openCode.abort(failedRemote); } catch (RuntimeException ignored) { }
-            OpenCodeClient.OpenCodeSession finalizer = openCode.createSession(Path.of(task.worktreePath()),
+            OpenCodeClient.OpenCodeSession finalizer = RoleSessions.create(roleSessions, openCode, "TASK", task.id(), judge.role(), Path.of(task.worktreePath()),
                     roleTitle(judge.role()) + " Finalizer (MCP_ONLY)", model,
                     OpenCodeClient.SessionProfile.JUDGE_FINALIZER_NO_TOOLS);
             JudgeRunRow recovered = new JudgeRunRow(judge.id(), judge.taskId(), judge.attemptId(), judge.role(),

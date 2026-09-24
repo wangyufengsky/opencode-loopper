@@ -1,0 +1,1 @@
+每个 JAVA_PRODUCTION Stage 都必须使用安全的 Maven/Gradle 显式选择器给出聚焦 TEST；即使业务准则只由 Judge 判断也必须保留 covers:[] 的聚焦 TEST 作为 Java 门禁。不得创建只有 FULL_TEST/BUILD 的 Java 接线或演示 Stage；应把它合并到相关聚焦测试 Stage，且不得注入 Python 或 npm 示例。

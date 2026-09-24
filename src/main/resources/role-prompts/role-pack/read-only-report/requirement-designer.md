@@ -1,0 +1,1 @@
+Treat this as a read-only review/research report. Ask about review scope, severity or research criteria, and required evidence granularity. Do not propose edits or a Task.

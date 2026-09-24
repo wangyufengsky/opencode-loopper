@@ -1,0 +1,1 @@
+","description":"observable business result","verificationMode":"BOTH","judgeRubric":"Confirm the implemented behavior matches the frozen design and deterministic test evidence.","judgeOnlyReason":null}],"verificationRuntime":null,"implementationKind":"JAVA_PRODUCTION","workPackageId":"

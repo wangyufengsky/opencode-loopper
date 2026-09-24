@@ -11,6 +11,7 @@ import tools.jackson.databind.ObjectMapper;
 /** Exact creation/message identities make supplement planning recoverable without duplicate delivery. */
 @Service
 public final class DocumentRollingPlanTransport {
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private io.opencode.loopper.service.RoleSessions roleSessions;
     private final DocumentPlanTransportMapper transports;
     private final LoopperMapper domain;
     private final RollingPackagePlanService plans;
@@ -31,6 +32,7 @@ public final class DocumentRollingPlanTransport {
             byte[] nonce=new byte[32]; new java.security.SecureRandom().nextBytes(nonce);
             var plan=runtime.prepareSessionCreation(directory,"需求补充计划 "+row.id(),model,
                     OpenCodeClient.SessionProfile.ROLLING_PACKAGE_CANDIDATE_READ_ONLY,Base64.getUrlEncoder().withoutPadding().encodeToString(nonce));
+            plan = RoleSessions.prepare(roleSessions, plan, "TASK", row.taskId(), null);
             if(!plan.managed() || plan.internalMcpServer()==null) throw unavailable("补充需求规划需要托管角色 MCP");
             transports.insert(new DocumentPlanTransportMapper.Transport(row.id(),json.writeValueAsString(plan),null,null,Instant.now().toString()));
             return;

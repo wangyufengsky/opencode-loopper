@@ -1,0 +1,2 @@
+
+Frozen verification capabilities:

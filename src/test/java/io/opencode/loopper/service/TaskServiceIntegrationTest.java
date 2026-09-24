@@ -724,8 +724,9 @@ class TaskServiceIntegrationTest {
         fake.setSessionState(active.externalSessionId(), "RUNNING");
         fake.failNextAborts(1);
 
-        long waitMillis = Duration.between(Instant.now(), Instant.parse(task.createdAt()).plusSeconds(1).plusMillis(25)).toMillis();
-        if (waitMillis > 0) Thread.sleep(waitMillis);
+        // Task duration starts at the execution cycle, after draft confirmation and role freezing.
+        jdbc.update("UPDATE task_execution_cycle SET started_at=? WHERE task_id=?",
+                Instant.now().minusSeconds(2).toString(), task.id());
         tasks.enforceTimeouts(task.id());
 
         assertThat(tasks.get(task.id()).state()).isEqualTo("AWAITING_DECISION");

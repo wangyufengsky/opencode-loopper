@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 /** Only short, audited CAS transactions. No model calls or rendering belongs here. */
 @Service
 public class PptAgentPersistence {
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private io.opencode.loopper.service.RoleSessions roleSessions;
     private final PptAgentMapper mapper;
     private final LifecycleTransitionService lifecycle;
     private final io.opencode.loopper.persistence.PptRecoveryMapper recovery;
@@ -30,6 +31,7 @@ public class PptAgentPersistence {
         if (mapper.active(desired.documentId()).isPresent()) throw conflict("PPT 助手仍在运行或等待回答，请先完成或停止当前请求");
         lifecycle.create(subject(desired), PptAgentState.PREPARED.name(), Map.of(), () -> mapper.insert(desired),
                 () -> conflict("请求已登记，请重新读取"));
+        io.opencode.loopper.service.RoleSessions.freeze(roleSessions, "PPT_RUN", desired.id(), null, null);
         return require(desired.id());
     }
     @Transactional

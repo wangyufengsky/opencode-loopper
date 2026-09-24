@@ -25,6 +25,7 @@ import tools.jackson.databind.ObjectMapper;
 
 @Service
 public class AnalysisReportService {
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private io.opencode.loopper.service.RoleSessions roleSessions;
     private static final String REVIEWER_CONTRACT = "REVIEWER_REPORT_V1";
     private static final String REVIEWER_START = "<!-- REVIEWER_REPORT_JSON_START -->";
     private static final String REVIEWER_END = "<!-- REVIEWER_REPORT_JSON_END -->";
@@ -316,10 +317,10 @@ public class AnalysisReportService {
                              OpenCodeClient.OpenCodeModel model, AnalysisReportRow input) {
         AnalysisReportRow row = mapper.findAnalysisReport(session.id(), input.id()).orElseThrow();
         boolean schema = "JSON_SCHEMA".equals(row.responseMode());
-        OpenCodeClient.OpenCodeSession remote = openCode.createSession(root,
+        OpenCodeClient.OpenCodeSession remote = RoleSessions.create(roleSessions, openCode, "DESIGNER_SESSION", session.id(), null, root,
                 "OpenCode Loopper Independent Reviewer (READ_ONLY)", model,
                 OpenCodeClient.SessionProfile.REVIEWER_READ_ONLY);
-        String prompt = reviewerPrompt(profile, root, row.sourceRequirement(), schema);
+        String prompt = RoleSessions.renderSession(roleSessions, remote.id(), () -> reviewerPrompt(profile, root, row.sourceRequirement(), schema));
         OpenCodeClient.PromptRequest request = schema
                 ? new OpenCodeClient.PromptRequest(prompt, null, null,
                 OpenCodeStructuredSchemas.format(OpenCodeStructuredSchemas.REVIEWER_REPORT_V1))
@@ -350,7 +351,7 @@ public class AnalysisReportService {
             Path root, long sourceRevision, boolean ownerStopping) {
         AnalysisReportRow current = mapper.findAnalysisReport(session.id(), row.id()).orElse(row);
         return new ReviewerReportCandidateWorkflow.Context(
-                current, root, sourceRevision, configuredModel(), prompts.reviewerInstructions(profile),
+                current, root, sourceRevision, configuredModel(), RoleSessions.render(roleSessions, "DESIGNER_SESSION", session.id(), OpenCodeClient.SessionProfile.REVIEWER_CANDIDATE_READ_ONLY, null, () -> prompts.reviewerInstructions(profile)),
                 current.sourceRequirement(), ownerStopping);
     }
 

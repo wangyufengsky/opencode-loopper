@@ -9,6 +9,10 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.Properties;
+import java.io.StringReader;
+import java.io.IOException;
+import io.opencode.loopper.service.roles.RolePromptResources;
 import org.springframework.stereotype.Component;
 
 /** Versioned prompt capabilities; permissions and workflow remain server-owned. */
@@ -22,37 +26,47 @@ public final class RolePackRegistry {
     public RolePack resolve(TaskIntent intent, List<String> technologies, List<ArtifactKind> artifacts) {
         if (intent == TaskIntent.SOFTWARE_CHANGE || intent == TaskIntent.LEGACY_SOFTWARE) {
             Set<SoftwareFamily> families = softwareFamilies(technologies);
-            if (families.size() > 1) return new RolePack("software-mixed", VERSION,
-                    "混合技术栈软件设计师", ExecutionStrategy.OPEN_CODE_IMPLEMENTATION, TestPolicy.REQUIRED);
-            if (families.contains(SoftwareFamily.PYTHON)) return new RolePack("software-python", VERSION,
-                    "Python 软件设计师", ExecutionStrategy.OPEN_CODE_IMPLEMENTATION, TestPolicy.OPTIONAL);
-            if (families.contains(SoftwareFamily.NODE)) return new RolePack("software-node", VERSION,
-                    "Node/前端软件设计师", ExecutionStrategy.OPEN_CODE_IMPLEMENTATION, TestPolicy.OPTIONAL);
-            if (families.contains(SoftwareFamily.JAVA)) return new RolePack("software-java", VERSION,
-                    "Java 软件设计师", ExecutionStrategy.OPEN_CODE_IMPLEMENTATION, TestPolicy.REQUIRED);
+            if (families.size() > 1) return pack("software-mixed", VERSION);
+            if (families.contains(SoftwareFamily.PYTHON)) return pack("software-python", VERSION);
+            if (families.contains(SoftwareFamily.NODE)) return pack("software-node", VERSION);
+            if (families.contains(SoftwareFamily.JAVA)) return pack("software-java", VERSION);
             if (families.isEmpty() && intent == TaskIntent.LEGACY_SOFTWARE) {
-                return new RolePack("software-java", VERSION, "Java 软件设计师",
-                        ExecutionStrategy.OPEN_CODE_IMPLEMENTATION, TestPolicy.REQUIRED);
+                return pack("software-java", VERSION);
             }
-            if (families.isEmpty()) return new RolePack("software-generic", VERSION, "通用软件设计师",
-                    ExecutionStrategy.OPEN_CODE_IMPLEMENTATION, TestPolicy.OPTIONAL);
-            return new RolePack("software-generic", VERSION, "通用软件设计师",
-                    ExecutionStrategy.OPEN_CODE_IMPLEMENTATION, TestPolicy.OPTIONAL);
+            if (families.isEmpty()) return pack("software-generic", VERSION);
+            return pack("software-generic", VERSION);
         }
         if (intent == TaskIntent.DOCUMENT_AUTHORING) {
-            return new RolePack("document-markdown-docx", VERSION, "文档制品设计师",
-                    ExecutionStrategy.OPEN_CODE_IMPLEMENTATION, TestPolicy.NOT_APPLICABLE);
+            return pack("document-markdown-docx", VERSION);
         }
         if (intent == TaskIntent.DATA_CONVERSION) {
-            return new RolePack("tabular-conversion", VERSION, "表格转换设计师",
-                    ExecutionStrategy.SERVER_TABULAR_CONVERSION, TestPolicy.NOT_APPLICABLE);
+            return pack("tabular-conversion", VERSION);
         }
         if (EnumSet.of(TaskIntent.READ_ONLY_REVIEW, TaskIntent.RESEARCH).contains(intent)) {
-            return new RolePack("read-only-report", VERSION, "评审员",
-                    ExecutionStrategy.READ_ONLY_REPORT, TestPolicy.NOT_APPLICABLE);
+            return pack("read-only-report", VERSION);
         }
-        return new RolePack("local-maintenance", VERSION, "本地维护设计师",
-                ExecutionStrategy.OPEN_CODE_IMPLEMENTATION, TestPolicy.OPTIONAL);
+        return pack("local-maintenance", VERSION);
+    }
+
+    /** Looks up only an actually bundled definition; historical versions require their own snapshot. */
+    public RolePack byIdAndVersion(String id, String version) {
+        return pack(id, version);
+    }
+
+    private static RolePack pack(String id, String version) {
+        String content = RolePromptResources.read("role-pack." + version + "." + id + ".definition");
+        Properties values = new Properties();
+        try {
+            values.load(new StringReader(content));
+        } catch (IOException failure) {
+            throw new IllegalStateException("Invalid Role Pack definition: " + id + "@" + version, failure);
+        }
+        if (!id.equals(values.getProperty("id")) || !version.equals(values.getProperty("version"))) {
+            throw new IllegalStateException("Mismatched Role Pack definition: " + id + "@" + version);
+        }
+        return new RolePack(id, version, values.getProperty("displayName"),
+                ExecutionStrategy.valueOf(values.getProperty("executionStrategy")),
+                TestPolicy.valueOf(values.getProperty("defaultTestPolicy")));
     }
 
     static Set<SoftwareFamily> softwareFamilies(List<String> technologies) {

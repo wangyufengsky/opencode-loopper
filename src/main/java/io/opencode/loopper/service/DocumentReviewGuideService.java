@@ -19,6 +19,7 @@ public class DocumentReviewGuideService {
             DocumentTemplateMapper documents, MachineCandidateSubmission submissions, ObjectMapper json) {
         this.access = access; this.policy = policy; this.documents = documents; this.submissions = submissions; this.json = json;
     }
+    public String authorizedSession(String id) { return access.require(id, true).externalSessionId(); }
     public Map<String, Object> work(String id, int offset, int limit) {
         if (offset < 0 || limit < 1 || limit > 100) throw new BadRequestException("DOCUMENT_PAGE_INVALID", "分页范围无效，每页最多 100 条");
         var model = access.require(id, true);

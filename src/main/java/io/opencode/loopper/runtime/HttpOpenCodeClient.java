@@ -19,6 +19,10 @@ import org.springframework.web.client.RestClientResponseException;
 import tools.jackson.databind.ObjectMapper;
 /** Thin adapter for the local OpenCode server; all transport faults become SessionFailure. */
 public class HttpOpenCodeClient implements OpenCodeClient {
+    private ConfiguredRoleRuntime roles;
+    void installRoles(ConfiguredRoleRuntime support) { roles = support; exactRecovery.roles = support; }
+    void installAccountingRoles(ConfiguredAccountingRole support) { commandTransport.installAccountingRoles(support); }
+    @Override public boolean supportsRoleConfiguration() { return roles != null; }
     private AssistRuntimeSupport assist;
     private PptRuntimeSupport ppt;
     void installPpt(PptRuntimeSupport support) { this.ppt = support; }
@@ -165,53 +169,16 @@ public class HttpOpenCodeClient implements OpenCodeClient {
     }
     @Override public OpenCodeSession createSession(Path worktree, String title, OpenCodeModel model,
                                                     SessionProfile profile) {
-        try {
-            Path canonical = worktree.toRealPath();
-            SessionProfile effectiveProfile = profile == null ? SessionProfile.IMPLEMENTATION : profile;
-            OpenCodeConnectionDetails connection = connectionSupplier.get();
-            RestClient sessionClient = client(connection);
-            Map<String, Object> request = new LinkedHashMap<>();
-            if (title != null && !title.isBlank()) request.put("title", title);
-            if (model != null && model.providerId() != null && !model.providerId().isBlank() && model.modelId() != null && !model.modelId().isBlank()) {
-                request.put("model", Map.of("id", model.modelId(), "providerID", model.providerId()));
-            }
-            OpenCodeMcpDiscovery.Access mcp = effectiveProfile == SessionProfile.ROUTER_NO_TOOLS
-                    ? OpenCodeMcpDiscovery.Access.empty()
-                    : mcpDiscovery.discover(sessionClient, canonical, connection.internalMcpServer());
-            if (OpenCodeHttpClientSemantics.candidateProfile(effectiveProfile) || effectiveProfile == SessionProfile.PPT_AGENT) {
-                mcp.requireCandidateReady(connection.managed(), connection.generation(), connection.internalMcpServer());
-            }
-            List<Map<String, String>> permissions = OpenCodePermissionPolicy.rules(effectiveProfile,
-                    mcp.connectedServers(), connection.internalMcpServer());
-            if (assist != null) permissions=assist.permissions(canonical,effectiveProfile,mcp.connectedServers(),connection.internalMcpServer(),false);
-            request.put("permission", permissions);
-            JsonNode body = sessionClient.post().uri(uri -> directoryUri(uri, "/session", canonical))
-                    .contentType(MediaType.APPLICATION_JSON).body(request)
-                    .retrieve().body(JsonNode.class);
-            String id = body == null ? null : body.path("id").asText(null);
-            if (id == null && body != null) id = body.path("session").path("id").asText(null);
-            if (id == null || id.isBlank()) throw new SessionFailure("OPENCODE_INVALID_RESPONSE", "OpenCode did not return a session id");
-            String reportedDirectory = body.path("directory").asText(null);
-            if ((reportedDirectory == null || reportedDirectory.isBlank()) && body.has("session")) {
-                reportedDirectory = body.path("session").path("directory").asText(null);
-            }
-            if (reportedDirectory == null || reportedDirectory.isBlank()) {
-                throw new SessionFailure("OPENCODE_DIRECTORY_MISSING",
-                        "OpenCode did not confirm the execution directory for the new session");
-            }
-            Path reported = Path.of(reportedDirectory).toRealPath();
-            if (!reported.equals(canonical)) {
-                throw new SessionFailure("OPENCODE_DIRECTORY_MISMATCH",
-                        "OpenCode created the session outside the requested execution workspace");
-            }
-            OpenCodeSession session = sessionConnections.created(id, canonical, connection);
-            if (model != null) sessionModels.put(id, model);
-            sessionProfiles.put(id, effectiveProfile);
-            managedSessions.put(id, connection.managed());
-            if (assist != null) assist.remember(id,connection.generation(),canonical,effectiveProfile,permissions,connection.internalMcpServer());
-            return session;
-        } catch (SessionFailure e) { throw e; }
-        catch (Exception e) { throw new SessionFailure("OPENCODE_SESSION_CREATE_FAILED", e.getMessage()); }
+        return createRoleSession(worktree, title, model, profile, null);
+    }
+    @Override public OpenCodeSession createRoleSession(Path worktree, String title, OpenCodeModel model,
+                                                       SessionProfile profile, RoleContext context) {
+        var created = new OpenCodeSessionCreator(connectionSupplier, http, mcpDiscovery, sessionConnections, assist, roles)
+                .create(worktree, title, model, profile, context);
+        String id = created.session().id();
+        if (model != null) sessionModels.put(id, model);
+        sessionProfiles.put(id, created.profile()); managedSessions.put(id, created.managed());
+        return created.session();
     }
     @Override public SessionCreationPlan prepareSessionCreation(Path worktree, String baseTitle,
             OpenCodeModel model, SessionProfile profile, String creationCredential) {
@@ -229,11 +196,13 @@ public class HttpOpenCodeClient implements OpenCodeClient {
     @Override public SessionAttestation createSession(SessionCreationPlan plan) {
         SessionAttestation created = exactRecovery.create(plan);
         cachePlan(created.remoteId(), created.plan());
+        if (roles != null) roles.created(created.remoteId(), plan);
         return created;
     }
     @Override public SessionLookup findSessionsByExactTitle(SessionCreationPlan plan) {
         SessionLookup lookup = exactRecovery.findSessions(plan);
         lookup.matches().forEach(match -> cachePlan(match.remoteId(), match.plan()));
+        if (roles != null) lookup.matches().forEach(match -> roles.created(match.remoteId(), plan));
         return lookup;
     }
     @Override public void promptAsync(OpenCodeSession session, String prompt) {
@@ -253,7 +222,9 @@ public class HttpOpenCodeClient implements OpenCodeClient {
                 }
                 files = attachmentResources.prepare(session.id(), connection.generation(), connection.internalMcpServer(), prompt.files());
             }
-            Map<String, Object> body = OpenCodePromptBody.encode(prompt, profile,
+            PromptRequest effective = roles == null ? prompt : roles.prompt(session.id(), prompt);
+            if (roles != null) roles.recordPrompt(session.id(), prompt, effective);
+            Map<String, Object> body = OpenCodePromptBody.encode(effective, profile,
                     Boolean.TRUE.equals(managedSessions.get(session.id())), sessionModels.get(session.id()), files);
             if (assist != null) assist.enrich(session.id(),body,profile);
             if (ppt != null) ppt.enrich(session.id(), body, profile);
@@ -274,9 +245,13 @@ public class HttpOpenCodeClient implements OpenCodeClient {
     }
     @Override public MessageLookup findPromptMessage(OpenCodeSession session, PromptRequest expectedRequest,
             String persistedRequestSha256) {
-        return exactRecovery.findPrompt(session, expectedRequest, persistedRequestSha256, body ->
+        if (expectedRequest == null || !OpenCodeClient.promptRequestSha256(expectedRequest).equals(persistedRequestSha256))
+            throw new SessionFailure("OPENCODE_PROMPT_REQUEST_HASH_MISMATCH", "Persisted prompt request hash does not match the exact request");
+        PromptRequest effective = roles == null ? expectedRequest : roles.prompt(session.id(), expectedRequest);
+        MessageLookup found = exactRecovery.findPrompt(session, effective, OpenCodeClient.promptRequestSha256(effective), body ->
                 ppt != null && Boolean.TRUE.equals(managedSessions.get(session.id())) && sessionProfiles.get(session.id()) == SessionProfile.PPT_AGENT
-                        ? ppt.verifyIdentityNotice(session.id(), expectedRequest, body) : body);
+                        ? ppt.verifyIdentityNotice(session.id(), effective, body) : body);
+        return found.exists() ? new MessageLookup(found.supported(), true, persistedRequestSha256) : found;
     }
     @Override public KnowledgeObservation observeKnowledgeSession(OpenCodeSession session, boolean interactive) {
         return OpenCodeKnowledgeObservation.read(responses, allSessionMessages(session), designMessageIds.get(session.id()), session.id(), interactive,
@@ -453,6 +428,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
             SessionProfile profile = sessionProfiles.get(session.id());
             if (profile != null) sessionProfiles.put(id, profile);
             managedSessions.put(id, connection.managed());
+            if (roles != null) roles.forked(session.id(), id);
             return fork;
         } catch (SessionFailure e) { throw e; }
         catch (RuntimeException e) { throw new SessionFailure("OPENCODE_FORK_FAILED", e.getMessage()); }

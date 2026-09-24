@@ -52,6 +52,18 @@ public interface OpenCodeClient {
                 ? createSession(worktree, title, model)
                 : createReadOnlySession(worktree, title, model);
     }
+    /** Explicit workflow identity for configured roles; legacy callers keep their original policy. */
+    record RoleContext(String ownerType, String ownerId, String slot) {
+        public RoleContext {
+            if (blank(ownerType) || blank(ownerId) || blank(slot))
+                throw new IllegalArgumentException("Complete role owner and slot are required");
+        }
+    }
+    default OpenCodeSession createRoleSession(Path worktree, String title, OpenCodeModel model,
+                                              SessionProfile profile, RoleContext context) {
+        return createSession(worktree, title, model, profile);
+    }
+    default boolean supportsRoleConfiguration() { return false; }
     /** Freezes the complete create request before crossing the remote create boundary. */
     default SessionCreationPlan prepareSessionCreation(Path worktree, String baseTitle, OpenCodeModel model,
                                                        SessionProfile profile, String creationCredential) {

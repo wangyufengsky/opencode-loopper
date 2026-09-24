@@ -27,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class LoopDraftService {
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private RoleSessions roleSessions;
     private static final Set<String> SUPPORTED_VERIFIERS = Set.of(
             "PROCESS", "FILE_EXISTS", "FILE_NOT_EXISTS", "GIT_DIFF",
             "HTTP_STATUS", "JSON_PATH", "FILE_CONTENT", "FILE_HASH",
@@ -51,6 +52,14 @@ public class LoopDraftService {
     public LoopDraftRow create(LoopSpec spec) {
         reject(assessment(spec, false, true).errors());
         return insert(spec);
+    }
+
+    @Transactional
+    public LoopDraftRow createForRecovery(LoopSpec spec, String parentTaskId) {
+        reject(assessment(spec, false, true).errors());
+        LoopDraftRow draft = insert(spec);
+        RoleSessions.freeze(roleSessions, "LOOP_DRAFT", draft.id(), "TASK", parentTaskId);
+        return draft;
     }
 
     /** Public/new-draft boundary: new contracts cannot opt back into legacy v1 semantics. */

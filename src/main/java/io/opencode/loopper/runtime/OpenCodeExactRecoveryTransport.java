@@ -27,6 +27,7 @@ import tools.jackson.databind.JsonNode;
 
 /** Owns the fail-closed HTTP protocol for exact Session and prompt recovery. */
 final class OpenCodeExactRecoveryTransport {
+    ConfiguredRoleRuntime roles;
     AssistRuntimeSupport assist;
     private final Supplier<OpenCodeConnectionDetails> connectionSupplier;
     private final Supplier<OpenCodeRuntimeManager.RuntimeIdentity> localIdentitySupplier;
@@ -445,7 +446,8 @@ final class OpenCodeExactRecoveryTransport {
     private void requireCandidatePolicy(SessionCreationPlan plan) {
         List<SessionPermissionRule> expected = permissionRules(
                 plan.profile(), List.of(), plan.internalMcpServer());
-        if (!(expected.equals(plan.permissionPolicy()) || assist != null && assist.validCandidateExtras(plan,expected))
+        if (!(expected.equals(plan.permissionPolicy()) || assist != null && assist.validCandidateExtras(plan,expected)
+                || roles != null && roles.frozenPolicy(plan))
                 || !OpenCodeClient.permissionPolicyDigest(plan.permissionPolicy()).equals(plan.permissionPolicyDigest())) {
             throw stalePlan("The frozen candidate permission policy has changed");
         }

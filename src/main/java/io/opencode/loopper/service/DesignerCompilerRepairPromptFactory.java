@@ -1,65 +1,61 @@
 package io.opencode.loopper.service;
 
+import io.opencode.loopper.service.roles.RolePromptResources;
+
 /** Builds bounded Compiler repair prompts after all repository evidence has been frozen. */
 final class DesignerCompilerRepairPromptFactory {
     String planning(int repairCount, int maxRepairs, String code, String detail, String prerequisites,
                     String declaredTests, String machineContract, String design) {
-        return """
-                The deterministic server rejected the previous Stage/evidence planning envelope. Repair the entire
-                planning result without emitting final StageSpec/verifier JSON. Do not redesign, inspect another
-                package, or use DESIGN_INCOMPLETE to escape format, mapping, or field errors. Built-in repository
-                tools are disabled. Configured MCP tools remain available, but return the complete object immediately
-                from the frozen design, source index, Role Pack contract, and exact error below.
-                Repair %d/%d. Error code: %s. Error detail: %s.
-
-                Frozen prerequisite package contracts:
-                %s
-                An APPROVED prerequisite contract promises execution before
-                this package; its current file absence is not a design gap and must not be returned as MISSING_SCOPE.
-
-                Designer-declared focused test evidence (exact frozen design lines; all applicable named tests are
-                mandatory evidence and must be represented as FOCUSED_TEST command argv and covers indexes in the
-                compact evidence array; the server derives testTargets and final PROCESS TEST verifiers):
-                %s
-
-                %s
-
-                Return one replacement object between LOOPSPEC_COMPILATION_PLAN_JSON_START/END markers.
-
-                Frozen work-package design:
-                %s
-                """.formatted(repairCount, maxRepairs, code, safe(detail), prerequisites, declaredTests,
-                machineContract, design);
+        return (RolePromptResources.read("prompt.v1.DesignerCompilerRepairPromptFactory.block01.segment0")
+                + String.format("%d", (Object) (repairCount))
+                + "/"
+                + String.format("%d", (Object) (maxRepairs))
+                + ". Error code: "
+                + String.format("%s", (Object) (code))
+                + ". Error detail: "
+                + String.format("%s", (Object) (safe(detail)))
+                + RolePromptResources.read("prompt.v1.DesignerCompilerRepairPromptFactory.block01.segment4")
+                + String.format("%s", (Object) (prerequisites))
+                + RolePromptResources.read("prompt.v1.DesignerCompilerRepairPromptFactory.block01.segment5")
+                + String.format("%s", (Object) (declaredTests))
+                + "\n\n"
+                + String.format("%s", (Object) (machineContract))
+                + RolePromptResources.read("prompt.v1.DesignerCompilerRepairPromptFactory.block01.segment7")
+                + String.format("%s", (Object) (design))
+                + "\n");
     }
 
     String semanticPatch(String packageId, String code, String detail, String semanticPlan) {
-        return """
-                The server parsed the compact Compiler object but rejected a semantic or safety contract. Return
-                only a bounded patch object with add, replace, or remove operations. Allowed roots are outcome,
-                summary, stages, handoffSummary, and designGaps. Server-derived ids, excerpts, criterionIds,
-                testTargets, verification modes, and final verifier objects are outside patch space. Built-in
-                repository tools are disabled. Configured MCP tools remain available, but return the patch
-                immediately from the supplied snapshot without repository exploration.
-                Work package: %s. Error code: %s. Error detail: %s.
-                Error detail may contain several [CODE] /json/pointer entries. Repair every listed entry in this
-                single patch response; do not spend one response per error. Do not turn engineering metadata into
-                business criteria or use source-text search as a behavior SELF_CHECK.
-                Patch the compact object exactly as frozen below: its Stage evidence array is named `evidence`, not
-                the server-derived final field `verifiers`. Use paths such as /stages/3/evidence/0/path. Every
-                criterion must either be covered by one native behavior evidence item or contain both judgeRubric
-                and judgeOnlyReason. Every JAVA_PRODUCTION Stage must retain a focused Maven/Gradle TEST even when
-                its criteria are Judge-only; FULL_TEST and BUILD never satisfy that Java gate. A Java wiring/demo
-                Stage without its own focused TEST must either add the frozen repository test with covers:[] and
-                make its criterion explicitly Judge-only, or be merged into the related focused-test Stage by
-                replacing the bounded stages array. Do not invent FILE_CONTENT evidence for runtime Java behavior.
+        return (RolePromptResources.read("prompt.v1.DesignerCompilerRepairPromptFactory.block02.segment0")
+                + String.format("%s", (Object) (packageId))
+                + ". Error code: "
+                + String.format("%s", (Object) (code))
+                + ". Error detail: "
+                + String.format("%s", (Object) (safe(detail)))
+                + RolePromptResources.read("prompt.v1.DesignerCompilerRepairPromptFactory.block02.segment3")
+                + String.format("%s", (Object) (semanticPlan))
+                + RolePromptResources.read("prompt.v1.DesignerCompilerRepairPromptFactory.block02.segment4"));
+    }
 
-                Frozen semantic object:
-                %s
+    String legacyFinal(int repairCount, int maxRepairs, String code, String detail, String machineContract) {
+        return RolePromptResources.read("prompt.v1.DesignerCompilerRepairPromptFactory.legacy-final-intro")
+                + String.format("%d", (Object) repairCount) + "/" + String.format("%d", (Object) maxRepairs)
+                + ". Error code: " + String.format("%s", (Object) code)
+                + ". Error detail: " + String.format("%s", (Object) detail) + ".\n\n"
+                + String.format("%s", (Object) machineContract)
+                + RolePromptResources.read("prompt.v1.DesignerCompilerRepairPromptFactory.final-outro");
+    }
 
-                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
-                {"patches":[{"op":"replace","path":"/stages/0/objective","value":"observable result from the frozen design"}]}
-                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->
-                """.formatted(packageId, code, safe(detail), semanticPlan);
+    String completeFinal(int repairCount, int maxRepairs, String code, String detail,
+                         String frozenPlanning, String machineContract) {
+        return RolePromptResources.read("prompt.v1.DesignerCompilerRepairPromptFactory.complete-final-intro")
+                + String.format("%d", (Object) repairCount) + "/" + String.format("%d", (Object) maxRepairs)
+                + ". Error code: " + String.format("%s", (Object) code)
+                + ". Error detail: " + String.format("%s", (Object) detail)
+                + RolePromptResources.read("prompt.v1.DesignerCompilerRepairPromptFactory.complete-final-contract")
+                + String.format("%s", (Object) frozenPlanning) + "\n\n"
+                + String.format("%s", (Object) machineContract)
+                + RolePromptResources.read("prompt.v1.DesignerCompilerRepairPromptFactory.final-outro");
     }
 
     private String safe(String value) {

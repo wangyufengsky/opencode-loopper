@@ -1,5 +1,4 @@
 package io.opencode.loopper.service;
-
 import io.opencode.loopper.config.LoopperProperties;
 import io.opencode.loopper.domain.SessionFailure;
 import io.opencode.loopper.domain.ProjectConventionState;
@@ -18,10 +17,10 @@ import java.time.Instant;
 import java.util.HexFormat;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
-
 /** Generates a hash-guarded project context proposal through one deterministic authority. */
 @Service
 public class ProjectConventionService {
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private io.opencode.loopper.service.RoleSessions roleSessions;
     public static final String START_MARKER = ProjectConventionDocumentStore.START_MARKER;
     public static final String END_MARKER = ProjectConventionDocumentStore.END_MARKER;
     private static final int MAX_PROJECT_CONTEXT_REPAIR_ATTEMPTS = 2;
@@ -40,7 +39,6 @@ public class ProjectConventionService {
     private final ProjectConventionCandidateDraftCreator candidateDrafts;
     private final AiOutputAuditService aiOutputAudit;
     private final ProjectConventionDocumentStore documents;
-
     public ProjectConventionService(LoopperMapper mapper, LifecycleTransitionService lifecycle,
                                     ProjectService projects, ProjectStackProfileService stackProfiles,
                                     ProjectConventionStackPolicy stackPolicy,
@@ -63,7 +61,6 @@ public class ProjectConventionService {
         this.aiOutputAudit = aiOutputAudit;
         this.documents = documents;
     }
-
     public synchronized ProjectConventionDraftRow generate(String projectId) {
         ProjectRow project = projects.get(projectId);
         ProjectConventionDraftRow active = mapper.activeProjectConventionDraft(projectId).orElse(null);
@@ -85,16 +82,18 @@ public class ProjectConventionService {
         if (properties.getInternalCandidate().isProjectConventionV1Enabled()) {
             return startCandidate(project, source, stackProfile);
         }
+        String roleOwnerId = UUID.randomUUID().toString();
+        RoleSessions.freeze(roleSessions, "PROJECT_CONVENTION_DRAFT", roleOwnerId, null, null);
         OpenCodeClient.OpenCodeSession remote;
         try {
-            remote = openCode.createSession(Path.of(project.rootPath()),
+            remote = RoleSessions.create(roleSessions, openCode, "PROJECT_CONVENTION_DRAFT", roleOwnerId, null, Path.of(project.rootPath()),
                     "OpenCode Loopper AGENTS.md Designer (READ_ONLY)", configuredModel(),
                     OpenCodeClient.SessionProfile.PROJECT_CONVENTION_READ_ONLY);
         } catch (RuntimeException failure) {
             throw new ServiceUnavailableException("PROJECT_CONVENTION_SESSION_FAILED", safeMessage(failure));
         }
         String now = now();
-        ProjectConventionDraftRow created = new ProjectConventionDraftRow(UUID.randomUUID().toString(), project.id(),
+        ProjectConventionDraftRow created = new ProjectConventionDraftRow(roleOwnerId, project.id(),
                 ProjectConventionState.RUNNING.name(),
                 remote.id(), "CREATED", source.exists() ? 1 : 0, source.sha256(), source.content(), null,
                 stackProfile.state() == io.opencode.loopper.domain.ProjectStackProfileState.PARTIAL
@@ -113,7 +112,7 @@ public class ProjectConventionService {
         }
         ProjectConventionDraftRow row = transition(created, ProjectConventionState.RUNNING, "RUNNING", null, null);
         try {
-            openCode.promptAsync(remote, stackPolicy.prompt(project, source.exists(), source.content(), stackProfile));
+            openCode.promptAsync(remote, RoleSessions.renderSession(roleSessions, remote.id(), () -> stackPolicy.prompt(project, source.exists(), source.content(), stackProfile)));
             return row;
         } catch (SessionFailure failure) {
             return requestStop(row, STOP_POLL_FAILED, safeMessage(failure));
@@ -276,7 +275,7 @@ public class ProjectConventionService {
         ProjectStackSnapshot snapshot = stackPolicy.snapshot(row);
         OpenCodeClient.OpenCodeSession remote;
         try {
-            remote = openCode.createSession(Path.of(project.rootPath()),
+            remote = RoleSessions.create(roleSessions, openCode, "PROJECT_CONVENTION_DRAFT", row.id(), null, Path.of(project.rootPath()),
                     "OpenCode Loopper AGENTS.md Designer (READ_ONLY)", configuredModel(),
                     OpenCodeClient.SessionProfile.PROJECT_CONVENTION_READ_ONLY);
         } catch (RuntimeException failure) {
@@ -286,8 +285,8 @@ public class ProjectConventionService {
         row = replaceRemote(row, remote.id(), "CREATED",
                 "结构化候选能力在派发前不可用，已切换只读兼容会话");
         try {
-            openCode.promptAsync(remote, stackPolicy.prompt(project, row.sourceExists() == 1,
-                    row.sourceContent(), snapshot));
+            var frozen = row;
+            openCode.promptAsync(remote, RoleSessions.renderSession(roleSessions, remote.id(), () -> stackPolicy.prompt(project, frozen.sourceExists() == 1, frozen.sourceContent(), snapshot)));
             return row;
         } catch (RuntimeException failure) {
             return requestStop(row, STOP_POLL_FAILED, safeMessage(failure));
@@ -301,7 +300,6 @@ public class ProjectConventionService {
                 Path.of(project.rootPath()).toAbsolutePath().normalize(), stackPolicy.snapshot(current),
                 configuredModel(), ownerStopping);
     }
-
     private void poll(ProjectConventionDraftRow row) {
         if (!ProjectConventionState.RUNNING.name().equals(row.state())) return;
         OpenCodeClient.SessionStatus status;
@@ -367,15 +365,14 @@ public class ProjectConventionService {
         String evidence = boundedToolEvidence(failed);
         try {
             openCode.abortWithConfirmation(failed);
-            OpenCodeClient.OpenCodeSession finalizer = openCode.createSession(Path.of(project.rootPath()),
+            OpenCodeClient.OpenCodeSession finalizer = RoleSessions.create(roleSessions, openCode, "PROJECT_CONVENTION_DRAFT", row.id(), null, Path.of(project.rootPath()),
                     "OpenCode Loopper AGENTS.md Designer Finalizer (MCP_ONLY)", configuredModel(),
                     OpenCodeClient.SessionProfile.MACHINE_FINALIZER_NO_TOOLS);
             ProjectConventionDraftRow updated = replaceRemote(row, finalizer.id(), "FINALIZER_RUNNING",
                     "检测到重复工具调用，已启动一次 MCP-only 收口会话");
             ProjectConventionDocumentStore.SourceSnapshot source = new ProjectConventionDocumentStore.SourceSnapshot(updated.sourceExists() == 1, updated.sourceContent(),
                     updated.sourceSha256());
-            openCode.promptAsync(finalizer, stackPolicy.prompt(project, source.exists(), source.content(),
-                    stackPolicy.snapshot(updated))
+            openCode.promptAsync(finalizer, RoleSessions.renderSession(roleSessions, finalizer.id(), () -> stackPolicy.prompt(project, source.exists(), source.content(), stackPolicy.snapshot(updated)))
                     + "\n\nFINALIZER RECOVERY: Do not call built-in tools. Configured MCP tools remain allowed; return the requested Markdown now."
                     + evidence);
             return true;

@@ -1,0 +1,1 @@
+Machine role contract 2026-08-semantic-v6: Return business goal, constraints, 1-6 vertical work packages, index dependencies, and RQ coverage. Do not assign ids or status.

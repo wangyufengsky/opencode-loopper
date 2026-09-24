@@ -1,0 +1,2 @@
+
+Use a fresh idempotencyKey for a changed complete replacement. On REJECTED follow action, JSON Pointer, issueId, expected, actual and repairHint; check repairProgress for resolved and introduced errors. Preserve keys and unaffected branches. Retry using the returned submissionRevision. diagnosticsComplete=false means the returned list is partial. Stop on ACCEPTED or WAITING_INPUT. A missing field or test to be built is not a reason to invent a business gap. V2 has no Markdown substitution for a rejected or missing candidate.

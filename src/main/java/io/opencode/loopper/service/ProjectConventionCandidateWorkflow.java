@@ -24,6 +24,7 @@ import org.springframework.stereotype.Component;
 /** Drives one durable PROJECT_CONVENTION_V1 launch without reading model final text. */
 @Component
 final class ProjectConventionCandidateWorkflow {
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private RoleSessions roleSessions;
     static final String RESPONSE_MODE = "INTERNAL_MCP";
     static final long SOURCE_REVISION = 1;
     private static final String CAPABILITY_UNAVAILABLE =
@@ -342,7 +343,7 @@ final class ProjectConventionCandidateWorkflow {
                 run.sourceRevision(), run.ownerVersion(), run.contractVersion(), run.maxAttempts(),
                 run.attemptsUsed()));
         String tool = launches.actualToolName(launch);
-        String text = promptFactory.internal(run, input.evidenceCatalog(), tool);
+        String text = RoleSessions.renderSession(roleSessions, launch.externalSessionId(), () -> promptFactory.internal(run, input.evidenceCatalog(), tool));
         String messageId = CandidatePromptDispatchService.initialMessageId(run.runId());
         OpenCodeClient.PromptRequest request = new OpenCodeClient.PromptRequest(
                 text, null, null, new OpenCodeClient.ResponseFormat.Text(), messageId, List.of());

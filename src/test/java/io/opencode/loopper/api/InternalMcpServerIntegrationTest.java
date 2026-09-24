@@ -36,13 +36,23 @@ class InternalMcpServerIntegrationTest {
     private final io.opencode.loopper.service.TemplateCandidateSubmissionService templateSubmissions =
             org.mockito.Mockito.mock(io.opencode.loopper.service.TemplateCandidateSubmissionService.class);
     private final OpenCodeAttachmentResources resources = new OpenCodeAttachmentResources(access);
+    private final io.opencode.loopper.service.roles.InternalRoleToolAuthority roleAuthority =
+            org.mockito.Mockito.mock(io.opencode.loopper.service.roles.InternalRoleToolAuthority.class);
 
     private final io.opencode.loopper.service.DocumentFrozenReadService frozenDocuments =
             org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentFrozenReadService.class);
+    private final io.opencode.loopper.service.SourceModelReads frozenSources =
+            org.mockito.Mockito.mock(io.opencode.loopper.service.SourceModelReads.class);
+    private final io.opencode.loopper.service.SourceDevelopmentReads developmentSources =
+            org.mockito.Mockito.mock(io.opencode.loopper.service.SourceDevelopmentReads.class);
+    private final io.opencode.loopper.service.DocumentDevelopmentReads developmentDocuments =
+            org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentDevelopmentReads.class);
+    private final io.opencode.loopper.service.DocumentReviewGuideService documentGuide =
+            org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewGuideService.class);
 
     private DocumentSourceResources documentResources() {
         return new DocumentSourceResources(org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentDevelopmentReads.class),
-                frozenDocuments, new ObjectMapper());
+                frozenDocuments, roleAuthority, new ObjectMapper());
     }
 
     @BeforeEach
@@ -50,7 +60,7 @@ class InternalMcpServerIntegrationTest {
         credentials = new InternalMcpCredentialProvider(() -> 18083).issue();
         access.activate(credentials);
         InternalMcpServerConfiguration configuration = new InternalMcpServerConfiguration();
-        runtime = configuration.internalMcpServerRuntime(submissions(), new ObjectMapper(), resources, templateSubmissions, org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentFrozenReadService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SourceModelReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SourceDevelopmentReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewContextService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentDevelopmentReads.class), documentResources(), org.mockito.Mockito.mock(io.opencode.loopper.service.SubmissionContractReadService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewGuideService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SnapshotReviewReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.ppt.agent.PptAgentTools.class), "test");
+        runtime = configuration.internalMcpServerRuntime(submissions(), new ObjectMapper(), resources, templateSubmissions, frozenDocuments, frozenSources, developmentSources, org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewContextService.class), developmentDocuments, documentResources(), org.mockito.Mockito.mock(io.opencode.loopper.service.SubmissionContractReadService.class), documentGuide, org.mockito.Mockito.mock(io.opencode.loopper.service.SnapshotReviewReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.ppt.agent.PptAgentTools.class), roleAuthority, "test");
         mvc = MockMvcBuilders.routerFunctions(runtime.routerFunction())
                 .addFilters(new InternalMcpStreamableBearerFilter(access))
                 .build();
@@ -156,7 +166,7 @@ class InternalMcpServerIntegrationTest {
     void unexpectedSubmissionFailureReturnsOnlyTheStablePublicError() throws Exception {
         runtime.close();
         runtime = new InternalMcpServerConfiguration().internalMcpServerRuntime(
-                failingSubmissions(), new ObjectMapper(), resources, templateSubmissions, org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentFrozenReadService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SourceModelReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SourceDevelopmentReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewContextService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentDevelopmentReads.class), documentResources(), org.mockito.Mockito.mock(io.opencode.loopper.service.SubmissionContractReadService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewGuideService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SnapshotReviewReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.ppt.agent.PptAgentTools.class), "test");
+                failingSubmissions(), new ObjectMapper(), resources, templateSubmissions, org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentFrozenReadService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SourceModelReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SourceDevelopmentReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewContextService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentDevelopmentReads.class), documentResources(), org.mockito.Mockito.mock(io.opencode.loopper.service.SubmissionContractReadService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewGuideService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SnapshotReviewReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.ppt.agent.PptAgentTools.class), roleAuthority, "test");
         mvc = MockMvcBuilders.routerFunctions(runtime.routerFunction())
                 .addFilters(new InternalMcpStreamableBearerFilter(access))
                 .build();
@@ -222,7 +232,7 @@ class InternalMcpServerIntegrationTest {
     void missingRunReturnsAnExactTerminalReferenceDiagnostic() throws Exception {
         runtime.close();
         runtime = new InternalMcpServerConfiguration().internalMcpServerRuntime(
-                notFoundSubmissions(), new ObjectMapper(), resources, templateSubmissions, org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentFrozenReadService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SourceModelReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SourceDevelopmentReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewContextService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentDevelopmentReads.class), documentResources(), org.mockito.Mockito.mock(io.opencode.loopper.service.SubmissionContractReadService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewGuideService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SnapshotReviewReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.ppt.agent.PptAgentTools.class), "test");
+                notFoundSubmissions(), new ObjectMapper(), resources, templateSubmissions, org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentFrozenReadService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SourceModelReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SourceDevelopmentReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewContextService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentDevelopmentReads.class), documentResources(), org.mockito.Mockito.mock(io.opencode.loopper.service.SubmissionContractReadService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewGuideService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SnapshotReviewReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.ppt.agent.PptAgentTools.class), roleAuthority, "test");
         mvc = MockMvcBuilders.routerFunctions(runtime.routerFunction())
                 .addFilters(new InternalMcpStreamableBearerFilter(access))
                 .build();
@@ -285,6 +295,43 @@ class InternalMcpServerIntegrationTest {
         org.mockito.Mockito.verify(frozenDocuments, org.mockito.Mockito.times(4)).resource("direct-role", "document", "0");
     }
 
+    @Test
+    void directSourceAndDocumentMcpCallsRespectFrozenSessionToolPermission() throws Exception {
+        org.mockito.Mockito.when(frozenSources.authorizedSession(org.mockito.ArgumentMatchers.anyString())).thenReturn("role-session");
+        org.mockito.Mockito.when(developmentSources.authorizedSession(org.mockito.ArgumentMatchers.anyString())).thenReturn("role-session");
+        org.mockito.Mockito.when(frozenDocuments.authorizedSession(org.mockito.ArgumentMatchers.anyString())).thenReturn("role-session");
+        org.mockito.Mockito.when(developmentDocuments.authorizedSession(org.mockito.ArgumentMatchers.anyString())).thenReturn("role-session");
+        org.mockito.Mockito.when(documentGuide.authorizedSession(org.mockito.ArgumentMatchers.anyString())).thenReturn("role-session");
+        org.mockito.Mockito.doThrow(new io.opencode.loopper.service.ConflictException(
+                "ROLE_INTERNAL_MCP_DENIED", "当前会话没有此 MCP 工具的冻结许可"))
+                .when(roleAuthority).require(org.mockito.ArgumentMatchers.eq("role-session"), org.mockito.ArgumentMatchers.anyString());
+        String session = initialize();
+        List<String> calls = List.of(
+                "{\"name\":\"get_source_design_work\",\"arguments\":{\"runId\":\"source-run\"}}",
+                "{\"name\":\"get_source_development_work\",\"arguments\":{\"scope\":\"source-scope\"}}",
+                "{\"name\":\"list_requirement_documents\",\"arguments\":{\"runId\":\"document-run\"}}",
+                "{\"name\":\"get_development_task_guide\",\"arguments\":{\"scope\":\"document-scope\"}}",
+                "{\"name\":\"get_document_review_work\",\"arguments\":{\"runId\":\"review-run\",\"offset\":0,\"limit\":1}}"
+        );
+        for (int index = 0; index < calls.size(); index++) {
+            assertThat(result(rpc(index + 2, "tools/call", calls.get(index)), session))
+                    .contains("ROLE_INTERNAL_MCP_DENIED", "isError\":true");
+        }
+        String uri = "loopper-document://review/document-run/document/0";
+        assertThat(result(rpc(7, "resources/read", "{\"uri\":\"" + uri + "\"}"), session))
+                .contains("error").doesNotContain("original-content");
+        assertThat(result(rpc(8, "tools/call", "{\"name\":\"read_document_resource\",\"arguments\":{\"uri\":\"" + uri + "\"}}"), session))
+                .contains("isError\":true").doesNotContain("original-content");
+        org.mockito.Mockito.verify(frozenSources, org.mockito.Mockito.never()).work(org.mockito.ArgumentMatchers.anyString());
+        org.mockito.Mockito.verify(developmentSources, org.mockito.Mockito.never()).work(org.mockito.ArgumentMatchers.anyString());
+        org.mockito.Mockito.verify(frozenDocuments, org.mockito.Mockito.never()).documents(org.mockito.ArgumentMatchers.anyString());
+        org.mockito.Mockito.verify(developmentDocuments, org.mockito.Mockito.never()).guide(org.mockito.ArgumentMatchers.anyString());
+        org.mockito.Mockito.verify(documentGuide, org.mockito.Mockito.never()).work(
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyInt());
+        org.mockito.Mockito.verify(frozenDocuments, org.mockito.Mockito.never()).resource(
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+    }
+
     private String result(String body, String sessionId) throws Exception {
         MvcResult call = mvc.perform(internal(body, sessionId)).andExpect(request().asyncStarted()).andReturn();
         return mvc.perform(asyncDispatch(call)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
@@ -312,7 +359,7 @@ class InternalMcpServerIntegrationTest {
         org.mockito.Mockito.when(submission.find("run-1")).thenReturn(Optional.of(run));
         org.mockito.Mockito.doThrow(new io.opencode.loopper.domain.SessionFailure("ATTACHMENT_MCP_NOT_READ", "Attachment not verified"))
                 .when(gated).awaitDelivery("ses-unverified");
-        runtime = new InternalMcpServerConfiguration().internalMcpServerRuntime(submission, new ObjectMapper(), gated, templateSubmissions, org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentFrozenReadService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SourceModelReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SourceDevelopmentReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewContextService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentDevelopmentReads.class), documentResources(), org.mockito.Mockito.mock(io.opencode.loopper.service.SubmissionContractReadService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewGuideService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SnapshotReviewReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.ppt.agent.PptAgentTools.class), "test");
+        runtime = new InternalMcpServerConfiguration().internalMcpServerRuntime(submission, new ObjectMapper(), gated, templateSubmissions, org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentFrozenReadService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SourceModelReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SourceDevelopmentReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewContextService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentDevelopmentReads.class), documentResources(), org.mockito.Mockito.mock(io.opencode.loopper.service.SubmissionContractReadService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewGuideService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SnapshotReviewReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.ppt.agent.PptAgentTools.class), roleAuthority, "test");
         mvc = MockMvcBuilders.routerFunctions(runtime.routerFunction()).addFilters(new InternalMcpStreamableBearerFilter(access)).build();
         String sessionId = mvc.perform(internal(rpc(1, "initialize",
                 "{\"protocolVersion\":\"2025-03-26\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test\",\"version\":\"1\"}}"), null))
@@ -331,7 +378,7 @@ class InternalMcpServerIntegrationTest {
         org.mockito.Mockito.when(run.candidateKind()).thenReturn(MachineCandidateKind.PACKAGE_DESIGN_V1);
         org.mockito.Mockito.when(run.contractVersion()).thenReturn("PACKAGE_DESIGN_V2");
         org.mockito.Mockito.when(submission.find("run-1")).thenReturn(Optional.of(run));
-        runtime = new InternalMcpServerConfiguration().internalMcpServerRuntime(submission, new ObjectMapper(), resources, templateSubmissions, org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentFrozenReadService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SourceModelReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SourceDevelopmentReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewContextService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentDevelopmentReads.class), documentResources(), org.mockito.Mockito.mock(io.opencode.loopper.service.SubmissionContractReadService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewGuideService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SnapshotReviewReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.ppt.agent.PptAgentTools.class), "test");
+        runtime = new InternalMcpServerConfiguration().internalMcpServerRuntime(submission, new ObjectMapper(), resources, templateSubmissions, org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentFrozenReadService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SourceModelReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SourceDevelopmentReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewContextService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentDevelopmentReads.class), documentResources(), org.mockito.Mockito.mock(io.opencode.loopper.service.SubmissionContractReadService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewGuideService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SnapshotReviewReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.ppt.agent.PptAgentTools.class), roleAuthority, "test");
         mvc = MockMvcBuilders.routerFunctions(runtime.routerFunction()).addFilters(new InternalMcpStreamableBearerFilter(access)).build();
         String session = initialize();
         for (String tool : List.of("submit_candidate", "submit_package_design")) {

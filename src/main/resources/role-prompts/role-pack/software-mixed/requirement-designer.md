@@ -1,0 +1,1 @@
+Treat this as a mixed-stack vertical software change. Ask about the cross-stack behavior boundary and identify each repository-native focused test; do not force Java examples onto Python or Node packages.

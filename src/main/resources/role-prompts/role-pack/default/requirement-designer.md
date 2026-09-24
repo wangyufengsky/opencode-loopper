@@ -1,0 +1,1 @@
+Treat this as Java software work only when repository and requirement evidence support Java; require observable behavior and a focused repository-native test.

@@ -1,0 +1,1 @@
+Design vertical behavior across the frozen stacks; keep each affected stack's native tests with its production behavior.

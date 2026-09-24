@@ -40,6 +40,8 @@ class RecoveryServiceIntegrationTest {
     @Autowired private OpenCodeClient openCode;
     @Autowired private LoopperProperties properties;
     @Autowired private DataSource dataSource;
+    @Autowired private io.opencode.loopper.service.roles.RoleConfigurationService roles;
+    @Autowired private io.opencode.loopper.service.roles.RolePublishingService rolePublishing;
     @TempDir Path temp;
 
     @BeforeEach
@@ -49,6 +51,32 @@ class RecoveryServiceIntegrationTest {
         ((FakeOpenCodeClient) openCode).reset();
         // These recovery scenarios exercise the historical Legacy Judge transport.
         properties.getInternalCandidate().setJudgeDecisionV1Enabled(false);
+    }
+
+    @Test
+    void recoveryKeepsParentRoleRevisionAfterNewBindingIsPublished() throws Exception {
+        ProjectRow project = projects.create("recovery-role", gitProject());
+        TaskRow parent = drafts.confirm(drafts.create(twoStageSpec(project.id())).id(), "parent role");
+        var parentOwner = new io.opencode.loopper.service.roles.RoleConfigurationService.OwnerRef("TASK", parent.id());
+        String original = roles.resolveFrozen(parentOwner, "GENERAL_READ_ONLY").orElseThrow().revisionId();
+        var definition = new io.opencode.loopper.service.roles.RoleManifest.Role("custom.recovery-reader",
+                "新的只读助手", "", "general", "通用助手", List.of("GENERAL_READ_ONLY"), "INTERSECT",
+                List.of("read"), List.of(), List.of(), "INHERIT_WORKFLOW", "WORKFLOW_ADAPTER", java.util.Map.of());
+        var parsed = new io.opencode.loopper.service.roles.RoleArchive.Parsed("e".repeat(64),
+                new io.opencode.loopper.service.roles.RoleManifest.Document(1, List.of(), List.of(definition)),
+                java.util.Map.of(definition.roleId(), java.util.Map.of()));
+        var validation = rolePublishing.validate(parsed);
+        assertThat(validation.valid()).isTrue();
+        rolePublishing.publish(parsed, new io.opencode.loopper.service.roles.RolePublishingService.PublishRequest(
+                parsed.sourceSha256(), "recovery-role-rebind", validation.activations()));
+        tasks.cancel(parent.id());
+
+        var recovered = recoveries.create(parent.id(), RecoveryMode.FROM_FAILED_STAGE);
+        var childOwner = new io.opencode.loopper.service.roles.RoleConfigurationService.OwnerRef("TASK", recovered.taskId());
+        assertThat(roles.resolveFrozen(childOwner, "GENERAL_READ_ONLY").orElseThrow().revisionId()).isEqualTo(original);
+        TaskRow fresh = drafts.confirm(drafts.create(twoStageSpec(project.id())).id(), "new task role");
+        assertThat(roles.resolveFrozen(new io.opencode.loopper.service.roles.RoleConfigurationService.OwnerRef("TASK", fresh.id()),
+                "GENERAL_READ_ONLY").orElseThrow().roleId()).isEqualTo("custom.recovery-reader");
     }
 
     @Test

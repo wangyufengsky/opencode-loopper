@@ -6,6 +6,7 @@ import io.opencode.loopper.config.LoopperProperties;
 import io.opencode.loopper.domain.*;
 import io.opencode.loopper.persistence.*;
 import io.opencode.loopper.runtime.*;
+import io.opencode.loopper.service.roles.*;
 import io.opencode.loopper.template.*;
 import java.nio.file.*;
 import java.util.*;
@@ -38,6 +39,10 @@ class SourceDesignFlowIntegrationTest {
     @Autowired ObjectMapper json;
     @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
     @Autowired SourceTemplateReadService summaries;
+    @Autowired RoleConfigurationService roleConfiguration;
+    @Autowired RolePublishingService rolePublishing;
+    @Autowired RoleReadService roleReads;
+    @Autowired RoleArchive roleArchives;
     @TempDir Path temporary;
     private FakeOpenCodeClient fake;
     private String id;
@@ -104,6 +109,64 @@ class SourceDesignFlowIntegrationTest {
         assertThat(execution.advance(row.id(), contract).state()).isEqualTo("RUNNING");
         fake.setSessionState(row.externalSessionId(), "COMPLETED");
         assertThat(execution.advance(row.id(), contract).state()).isEqualTo("VALIDATED");
+    }
+    @Test void importedSourceRoleChangesOnlyNewFrozenModelPromptAndMcpPolicy() throws Exception {
+        var oldWriter = models.current(id, "SOURCE_DETAILED_DESIGN_V1", 1).getFirst();
+        var oldPrompt = json.readValue(oldWriter.promptJson(), DocumentModelStore.FrozenPrompt.class).text();
+        var oldPlan = json.readValue(oldWriter.creationPlanJson(), OpenCodeClient.SessionCreationPlan.class);
+        String oldRevision = roleConfiguration.resolveFrozen(
+                new RoleConfigurationService.OwnerRef("SOURCE_TEMPLATE_MODEL_RUN", oldWriter.id()),
+                "SOURCE_DETAILED_DESIGN_NO_TOOLS").orElseThrow().revisionId();
+        byte[] exported = roleReads.export("builtin.source-design-author", null);
+        String replacement = "请逐份读取冻结源码，并以可核验的引用编写详细设计。\n";
+        var imported = roleArchives.parse(rewriteRoleArchive(exported, (name, text) -> {
+            if (name.equals("manifest.yaml")) return text.replace("builtin.source-design-author", "custom.source-design-author")
+                    .replace("permissionMode: BASELINE", "permissionMode: INTERSECT")
+                    .replace("mcpTools: []", "mcpTools: ['@loopper-internal/get_source_design_work']");
+            return name.endsWith("source.design.author.instructions.md") ? replacement : text;
+        }));
+        assertThat(imported.manifest().roles().getFirst().permissionMode()).isEqualTo("INTERSECT");
+        assertThat(imported.manifest().roles().getFirst().mcpTools())
+                .containsExactly("@loopper-internal/get_source_design_work");
+        var preview = rolePublishing.validate(imported);
+        assertThat(preview.diagnostics()).isEmpty();
+        rolePublishing.publish(imported, new RolePublishingService.PublishRequest(
+                imported.sourceSha256(), "source-role-import-12345", preview.activations()));
+
+        var created = service.create(new SourceTemplateRequests.Create(UUID.randomUUID().toString(),
+                "DETAILED_DESIGN_WRITING", "1", run().projectId(), ".", null, null, ""));
+        admission.start(created.id(), new SourceTemplateRequests.Command(UUID.randomUUID().toString(), created.version()));
+        coordinator.advance(created.id()); coordinator.advance(created.id());
+        var newWriter = models.current(created.id(), "SOURCE_DETAILED_DESIGN_V1", 1).getFirst();
+        var newPrompt = json.readValue(newWriter.promptJson(), DocumentModelStore.FrozenPrompt.class).text();
+        var newPlan = json.readValue(newWriter.creationPlanJson(), OpenCodeClient.SessionCreationPlan.class);
+        String newRevision = roleConfiguration.resolveFrozen(
+                new RoleConfigurationService.OwnerRef("SOURCE_TEMPLATE_MODEL_RUN", newWriter.id()),
+                "SOURCE_DETAILED_DESIGN_NO_TOOLS").orElseThrow().revisionId();
+        assertThat(newRevision).isNotEqualTo(oldRevision);
+        assertThat(roleConfiguration.resolveFrozen(
+                new RoleConfigurationService.OwnerRef("SOURCE_TEMPLATE_RUN", id),
+                "SOURCE_DETAILED_DESIGN_NO_TOOLS").orElseThrow().revisionId()).isEqualTo(oldRevision);
+        assertThat(oldPrompt).contains("根据当前实现编写详细设计").doesNotContain(replacement);
+        assertThat(newPrompt).contains(replacement).contains("候选运行 ID：" + newWriter.id());
+        assertThat(oldPlan.permissionPolicy()).contains(
+                new OpenCodeClient.SessionPermissionRule(oldPlan.internalMcpServer()
+                        + "_list_source_template_files", "*", "allow"));
+        assertThat(newPlan.permissionPolicy()).doesNotContain(
+                new OpenCodeClient.SessionPermissionRule(newPlan.internalMcpServer()
+                        + "_list_source_template_files", "*", "allow"));
+        assertThat(newPlan.permissionPolicy()).contains(
+                new OpenCodeClient.SessionPermissionRule(newPlan.internalMcpServer()
+                        + "_get_source_design_work", "*", "allow"),
+                new OpenCodeClient.SessionPermissionRule(newPlan.internalMcpServer()
+                        + "_submit_source_detailed_design", "*", "allow"));
+        var newContract = json.readValue(created.contractJson(), SourceTemplateContract.class);
+        var attached = execution.advance(newWriter.id(), newContract);
+        assertThat(roleConfiguration.sessionSnapshot(attached.externalSessionId()).orElseThrow().revisionId())
+                .isEqualTo(newRevision);
+        assertThat(roleConfiguration.resolveFrozen(
+                new RoleConfigurationService.OwnerRef("SOURCE_TEMPLATE_MODEL_RUN", oldWriter.id()),
+                "SOURCE_DETAILED_DESIGN_NO_TOOLS").orElseThrow().revisionId()).isEqualTo(oldRevision);
     }
     @Test void unknownStopBlocksRecoveryAndAcceptedOutputSurvivesProvedStopWithoutNewModelCall() {
         var writer = awaitRole("SOURCE_DETAILED_DESIGN_V1", 0);
@@ -221,6 +284,21 @@ class SourceDesignFlowIntegrationTest {
         assertThat(artifacts.list(id, null, 100).items()).isEmpty();
     }
     private SourceTemplateRunRow run() { return admission.require(id); }
+    private static byte[] rewriteRoleArchive(byte[] source,
+            java.util.function.BiFunction<String, String, String> rewrite) throws Exception {
+        var bytes = new java.io.ByteArrayOutputStream();
+        try (var zip = new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(source));
+                var output = new java.util.zip.ZipOutputStream(bytes)) {
+            java.util.zip.ZipEntry entry;
+            while ((entry = zip.getNextEntry()) != null) {
+                output.putNextEntry(new java.util.zip.ZipEntry(entry.getName()));
+                String text = new String(zip.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+                output.write(rewrite.apply(entry.getName(), text).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                output.closeEntry();
+            }
+        }
+        return bytes.toByteArray();
+    }
     private SourceTemplateControl.Command command() { return new SourceTemplateControl.Command(UUID.randomUUID().toString(), run().version(), null); }
     private SourceTemplateModelRow awaitRole(String kind, int attempt) {
         return awaitRole(kind, 0, attempt);

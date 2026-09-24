@@ -17,6 +17,7 @@ import org.springframework.stereotype.Component;
 /** Drives one durable REVIEWER_REPORT_V1 generic launch without reading model final text. */
 @Component
 final class ReviewerReportCandidateWorkflow {
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private RoleSessions roleSessions;
     static final String RESPONSE_MODE = "INTERNAL_MCP";
     private final LoopperMapper mapper;
     private final GenericCandidateInternalLaunchPreparer preparer;
@@ -309,8 +310,8 @@ final class ReviewerReportCandidateWorkflow {
             Context context, GenericCandidateInternalLaunchRow launch,
             MachineCandidateSubmission.RunSnapshot run) {
         String tool = launches.actualToolName(launch);
-        String prompt = promptFactory.internal(context.roleInstructions(),
-                context.projectRoot().toString(), context.requirement(), run, tool);
+        String prompt = RoleSessions.renderSession(roleSessions, launch.externalSessionId(), () -> promptFactory.internal(context.roleInstructions(),
+                context.projectRoot().toString(), context.requirement(), run, tool));
         String messageId = CandidatePromptDispatchService.initialMessageId(run.runId());
         DesignerModelPromptTransport.PreparedPrompt prepared = modelPrompts.prepare(
                 prompt, ModelResponseMode.TEXT_MARKER.name(), null,

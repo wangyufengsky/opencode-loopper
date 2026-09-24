@@ -3,3 +3,7 @@
 *.ps1 text eol=crlf
 *.cmd text eol=crlf
 *.bat text eol=crlf
+
+# Prompt fragments preserve boundary spaces and blank lines from the original
+# Java literals; those bytes are significant when the server assembles prompts.
+src/main/resources/role-prompts/**/*.md whitespace=-blank-at-eol,-blank-at-eof

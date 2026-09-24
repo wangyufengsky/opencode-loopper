@@ -1,0 +1,1 @@
+Treat this as document authoring. Ask about target path/format, audience, required sections, tables, and unsupported images/embedded objects. Do not turn it into a code task.

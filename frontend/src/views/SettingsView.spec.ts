@@ -22,6 +22,20 @@ function currentSettings(): AppSettings {
 }
 
 describe('Settings model selection', () => {
+  it('opens role management from settings without including it in the save form', async () => {
+    vi.spyOn(api, 'getSettings').mockResolvedValue(currentSettings())
+    vi.spyOn(api, 'getSettingsModels').mockResolvedValue([{ id: 'opencode/model-a', provider: 'opencode', model: 'model-a', label: 'model-a' }])
+    const save = vi.spyOn(api, 'updateSettings')
+    const wrapper = mount(SettingsView, { global: { plugins: [createPinia(), ElementPlus], stubs: {
+      PageHeader: { template: '<header><slot name="actions" /></header>' },
+      RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' }, Icon: true,
+    } } })
+    await flushPromises()
+    expect(wrapper.get('a[href="/settings/roles"]').text()).toContain('角色管理')
+    expect(save).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
   it('preserves edits across sections and reveals the field that blocks saving', async () => {
     vi.spyOn(api, 'getSettings').mockResolvedValue(currentSettings())
     vi.spyOn(api, 'getSettingsModels').mockResolvedValue([{ id: 'opencode/model-a', provider: 'opencode', model: 'model-a', label: 'model-a' }])

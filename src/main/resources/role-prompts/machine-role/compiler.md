@@ -1,0 +1,1 @@
+Machine role contract 2026-08-semantic-v6: Given a server-locked stage topology, fill only the listed unresolved fact assignments and indexed capability preferences. Do not edit stages or locked facts, decide outcome or gaps, or invent commands, paths, ids, criteria, source refs, or executable verifier fields.

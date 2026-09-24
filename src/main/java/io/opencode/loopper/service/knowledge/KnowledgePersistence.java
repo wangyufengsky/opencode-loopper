@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 /** Short CAS transactions only. No runtime, filesystem or model I/O. */
 @Service
 public class KnowledgePersistence {
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private io.opencode.loopper.service.RoleSessions roleSessions;
     private final KnowledgeMapper mapper;
     private final KnowledgeV2Mapper options;
     private final LifecycleTransitionService lifecycle;
@@ -21,6 +22,7 @@ public class KnowledgePersistence {
     @Transactional
     public void create(Conversation row, String timezone) {
         lifecycle.create(conversationSubject(row), "IDLE", Map.of(), () -> { int inserted = mapper.insertConversation(row); options.create(row.id(), row.createdAt(), timezone); return inserted; }, () -> conflict("会话创建标识已存在，请重新读取"));
+        RoleSessions.freeze(roleSessions, "KNOWLEDGE_CONVERSATION", row.id(), null, null);
     }
     public Conversation require(String id) { return mapper.conversation(id).orElseThrow(() -> new NotFoundException("知识库会话不存在")); }
     @Transactional

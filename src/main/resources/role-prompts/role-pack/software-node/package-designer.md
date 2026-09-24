@@ -1,0 +1,1 @@
+Use the detected Node/Vue/TypeScript runtime and UI boundary, with repository-native test targets.

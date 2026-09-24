@@ -14,6 +14,7 @@ import tools.jackson.databind.ObjectMapper;
 /** Short checkpoints retain remote identities and accepted output across stop and recovery. */
 @Service
 public class SourceModelStore {
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private RoleSessions roleSessions;
     private final SourceTemplateModelMapper models;
     private final SourceTemplateAdmission admission;
     private final LifecycleTransitionService lifecycle;
@@ -39,6 +40,7 @@ public class SourceModelStore {
         var row = new SourceTemplateModelRow(UUID.randomUUID().toString(), run, kind, ordinal, generation, attempt,
                 "PREPARED", input, DocumentModelStore.hash(input), null, null, null, null, null, null, null, null, now, now, 0, null);
         lifecycle.create(subject(row), row.state(), metadata, () -> models.insert(row), SourceModelStore::conflict);
+        RoleSessions.freeze(roleSessions, "SOURCE_TEMPLATE_MODEL_RUN", row.id(), "SOURCE_TEMPLATE_RUN", run);
         return require(row.id());
     }
     @Transactional

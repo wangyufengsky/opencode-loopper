@@ -28,6 +28,7 @@ public class DocumentFrozenReadService {
         this.access = access; this.inputs = inputs; this.documents = documents; this.code = code;
         this.snapshots = snapshots; this.git = git; this.json = json; this.contentCache = contentCache;
     }
+    public String authorizedSession(String id) { return access.require(id, false).externalSessionId(); }
     public DocumentTemplateMapper.Section section(String id, String fileId, int ordinal, String sha) {
         var model = access.require(id, false); var input = inputs.input(model);
         requireSource(model, input, fileId);

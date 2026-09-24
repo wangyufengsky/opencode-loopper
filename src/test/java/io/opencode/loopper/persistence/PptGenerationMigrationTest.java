@@ -22,7 +22,7 @@ class PptGenerationMigrationTest {
                     + "VALUES('job-b','b','PREVIEW',0,'PREPARED',1,'preview','hash','now','now')");
         }
         var flyway = Flyway.configure().dataSource(url, null, null).load();
-        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(18);
+        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(19);
         flyway.validate();
         try (var db = DriverManager.getConnection(url); var sql = db.createStatement()) {
             try (var rows = sql.executeQuery("SELECT deck_json,plan_json FROM ppt_revision WHERE document_id='a'")) {
@@ -68,7 +68,7 @@ class PptGenerationMigrationTest {
         String url = "jdbc:sqlite:" + root.resolve("fresh.db") + "?foreign_keys=on";
         var flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate(); flyway.validate();
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("138");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("139");
         try (var db = DriverManager.getConnection(url); var sql = db.createStatement()) {
             for (String table : new String[]{"ppt_generation", "ppt_generation_request"}) {
                 try (var rows = sql.executeQuery("SELECT count(*) FROM " + table)) {
@@ -103,7 +103,7 @@ class PptGenerationMigrationTest {
             document(sql,"legacy");sql.execute(generation("old-generation","legacy"));
         }
         var upgrade=Flyway.configure().dataSource(url,null,null).load();
-        assertThat(upgrade.migrate().migrationsExecuted).isEqualTo(13);upgrade.validate();
+        assertThat(upgrade.migrate().migrationsExecuted).isEqualTo(14);upgrade.validate();
         try(var db=DriverManager.getConnection(url);var sql=db.createStatement()) {
             try(var rows=sql.executeQuery("SELECT prompt,state FROM ppt_generation WHERE id='old-generation'")) {
                 assertThat(rows.next()).isTrue();assertThat(rows.getString(1)).isEqualTo("生成演示");assertThat(rows.getString(2)).isEqualTo("PLANNING");

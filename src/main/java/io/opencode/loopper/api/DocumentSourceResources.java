@@ -3,6 +3,7 @@ package io.opencode.loopper.api;
 import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.opencode.loopper.service.*;
+import io.opencode.loopper.service.roles.InternalRoleToolAuthority;
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
@@ -16,9 +17,11 @@ public final class DocumentSourceResources {
     public static final String TOOL = "read_document_resource";
     private final DocumentDevelopmentReads development;
     private final DocumentFrozenReadService review;
+    private final InternalRoleToolAuthority authority;
     private final ObjectMapper json;
-    public DocumentSourceResources(DocumentDevelopmentReads development, DocumentFrozenReadService review, ObjectMapper json) {
-        this.development = development; this.review = review; this.json = json;
+    public DocumentSourceResources(DocumentDevelopmentReads development, DocumentFrozenReadService review,
+            InternalRoleToolAuthority authority, ObjectMapper json) {
+        this.development = development; this.review = review; this.authority = authority; this.json = json;
     }
     public McpSchema.ReadResourceResult read(String value) {
         URI uri;
@@ -27,6 +30,12 @@ public final class DocumentSourceResources {
                 || uri.getFragment() != null || uri.getUserInfo() != null || uri.getPort() != -1) throw invalid();
         String[] parts = uri.getRawPath().split("/", -1);
         if (parts.length != 4 || java.util.Arrays.stream(parts).skip(1).anyMatch(part -> !part.matches("[A-Za-z0-9_.-]+"))) throw invalid();
+        String session = switch (uri.getHost()) {
+            case "development" -> development.authorizedSession(parts[1]);
+            case "review" -> review.authorizedSession(parts[1]);
+            default -> throw invalid();
+        };
+        authority.require(session, TOOL);
         Object result = switch (uri.getHost()) {
             case "development" -> development.resource(parts[1], parts[2], parts[3]);
             case "review" -> review.resource(parts[1], parts[2], parts[3]);

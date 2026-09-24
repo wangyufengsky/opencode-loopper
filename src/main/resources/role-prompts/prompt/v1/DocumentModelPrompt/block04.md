@@ -1,0 +1,5 @@
+先使用 list_requirement_assessments 翻页查看本轮全部批次，read_requirement_assessment 按需读取，检查其他批次与当前结论的冲突或相同根因。
+独立复核全部需求结论和问题，重点重读 SATISFIED、NOT_IMPLEMENTED 及高严重程度问题的完整代码链路。
+检查跨需求矛盾、遗漏的共享依赖、误报及未读取范围；必要时用冻结代码工具重新检索读取。
+不运行代码、测试或脚本。测试源码覆盖不能当作执行成功。读取不足必须提出修正为无法判断。
+reviewedRequirementKeys 和 reviewedFindingKeys 必须完整，存在修正项时 approved=false。

@@ -16,6 +16,7 @@ import tools.jackson.databind.ObjectMapper;
 /** Exact persisted Session and message recovery; candidate acceptance alone never proves remote termination. */
 @Service
 public class DocumentModelExecution {
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private io.opencode.loopper.service.RoleSessions roleSessions;
     private final DocumentModelStore store;
     private final OpenCodeClient runtime;
     private final org.springframework.beans.factory.ObjectProvider<CandidateRuntimeBindingService> bindings;
@@ -53,6 +54,7 @@ public class DocumentModelExecution {
                 "需求模板 " + row.candidateKind() + " " + row.ordinal(), model,
                 DocumentTemplateProfiles.profile(MachineCandidateKind.valueOf(row.candidateKind())),
                 Base64.getUrlEncoder().withoutPadding().encodeToString(nonce));
+        plan = RoleSessions.prepare(roleSessions, plan, "DOCUMENT_TEMPLATE_RUN", row.runId(), null);
         if (!plan.managed() || plan.internalMcpServer() == null) throw failure("DOCUMENT_MCP_REQUIRED", "需求模板需要托管模型环境的角色专属 MCP");
         return store.prepare(row, plan, new DocumentModelStore.FrozenPrompt(prompts.build(row, plan.internalMcpServer()),
                 "msg_" + row.id().replace("-", "")));

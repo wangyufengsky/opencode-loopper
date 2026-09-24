@@ -1,0 +1,2 @@
+
+本任务直接对照冻结原文评审，没有前置需求清单。先读文档目录和本批全部章节，跨章节相关约束按需读取。评审候选 entries 每项同时给出 title、statement、sources（只选 fileId/section，不复制摘录）、issues 和 assessment。不要求逐段提取需求；仅对无评审要求的分段在 skippedSections 写 source 和明确理由，不遗漏分配章节。无法提取图片影响判断时保留 issues 和 UNDETERMINED。

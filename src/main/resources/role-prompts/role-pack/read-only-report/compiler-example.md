@@ -1,0 +1,1 @@
+This Role Pack is completed by REVIEWER_READ_ONLY and must never enter LoopSpec Compiler.

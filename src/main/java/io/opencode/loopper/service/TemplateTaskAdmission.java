@@ -26,6 +26,7 @@ import tools.jackson.databind.ObjectMapper;
 /** Atomic creation and confirmation only. Queue admission, filesystem and model calls belong to Start. */
 @Service
 public class TemplateTaskAdmission {
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private io.opencode.loopper.service.RoleSessions roleSessions;
     private final LoopperMapper mapper;
     private final TemplateTaskMapper templates;
     private final LifecycleTransitionService lifecycle;
@@ -54,6 +55,7 @@ public class TemplateTaskAdmission {
                 TaskExecutionMode.TEMPLATE_REPORT.name(), TaskWorkspacePolicy.ISOLATED_REPORT.name());
         lifecycle.create(subject(LifecycleMachineType.TASK, taskId, taskId), task.state(), Map.of("source", "BUILTIN_TEMPLATE"),
                 () -> mapper.insertTask(task), TemplateTaskAdmission::conflict);
+        RoleSessions.freeze(roleSessions, "TASK", task.id(), null, null);
         for (int ordinal = 0; ordinal < spec.stages().size(); ordinal++) createStage(task, command.contract(), ordinal, now);
         var branch = command.branch();
         templates.insertRun(new TemplateTaskRunRow(taskId, command.requestKey(), command.requestSha256(),

@@ -225,7 +225,7 @@ public class LocalSyncConflictService {
         Path aiWorkspace = managedSessionDir(session.id()).resolve("ai");
         try { Files.createDirectories(aiWorkspace); }
         catch (IOException failure) { throw new ServiceUnavailableException("LOCAL_SYNC_AI_FAILED", safeMessage(failure)); }
-        String suggestion = aiAdvisor.suggest(aiWorkspace, tasks.goal(taskId), file);
+        String suggestion = aiAdvisor.suggest(taskId, aiWorkspace, tasks.goal(taskId), file);
         LocalSyncConflictFileRow updated = copyFile(file, file.resolution(), file.resolvedContent(), suggestion,
                 sha256(suggestion.getBytes(StandardCharsets.UTF_8)), Instant.now().toString());
         if (mapper.updateLocalSyncConflictFile(updated) != 1) {

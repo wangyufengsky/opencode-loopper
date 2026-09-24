@@ -1,0 +1,1 @@
+Treat this as safe local maintenance. Ask for exact files and observable outcome. Explicitly exclude deletion, service control, Git submission/push/release, external applications, and external writes.

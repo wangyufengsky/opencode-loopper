@@ -1,0 +1,1 @@
+Decompose software by vertical observable capability and keep production behavior with its focused test.

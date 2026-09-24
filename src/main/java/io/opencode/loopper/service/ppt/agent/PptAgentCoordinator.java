@@ -19,6 +19,7 @@ import tools.jackson.databind.ObjectMapper;
 /** Durable single-writer dispatch; uncertain remote actions are inspected, never blindly repeated. */
 @Service
 public class PptAgentCoordinator {
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private io.opencode.loopper.service.RoleSessions roleSessions;
     private final PptAgentMapper mapper;
     private final PptAgentPersistence persistence;
     private final OpenCodeClient openCode;
@@ -84,6 +85,7 @@ public class PptAgentCoordinator {
             byte[] bytes = new byte[32]; new SecureRandom().nextBytes(bytes);
             plan = openCode.prepareSessionCreation(Path.of(run.rootPath()), "Loopper PPT 助手", model(run),
                     SessionProfile.PPT_AGENT, Base64.getUrlEncoder().withoutPadding().encodeToString(bytes));
+            plan = io.opencode.loopper.service.RoleSessions.prepare(roleSessions, plan, "PPT_RUN", run.id(), null);
             if (!plan.managed() && !"fake".equals(properties.getOpenCode().getMode())) throw new IllegalStateException("PPT requires managed runtime");
         } catch (Exception unsent) {
             var current = persistence.require(run.id());
@@ -111,7 +113,8 @@ public class PptAgentCoordinator {
         }
     }
     private void dispatch(OpenCodeSession remote, Run run) {
-        PromptRequest prompt = PptAgentPrompts.build(run, mapper.questions(run.id()), PptDiscussionTranscript.before(mapper,run,json), json);
+        PromptRequest prompt = io.opencode.loopper.service.RoleSessions.renderSession(roleSessions, remote.id(),
+                () -> PptAgentPrompts.build(run, mapper.questions(run.id()), PptDiscussionTranscript.before(mapper,run,json), json));
         persistence.dispatch(run, json.writeValueAsString(prompt), OpenCodeClient.promptRequestSha256(prompt));
         if (!persistence.require(run.id()).state().equals("SENDING")) return;
         try {

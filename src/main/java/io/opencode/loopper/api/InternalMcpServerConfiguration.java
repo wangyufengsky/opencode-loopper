@@ -12,6 +12,7 @@ import io.opencode.loopper.service.BadRequestException;
 import io.opencode.loopper.service.ConflictException;
 import io.opencode.loopper.service.MachineCandidateSubmission;
 import io.opencode.loopper.service.NotFoundException;
+import io.opencode.loopper.service.roles.InternalRoleToolAuthority;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -45,6 +46,7 @@ public class InternalMcpServerConfiguration {
             io.opencode.loopper.service.DocumentReviewGuideService reviewGuide,
             io.opencode.loopper.service.SnapshotReviewReads snapshotReads,
             io.opencode.loopper.service.ppt.agent.PptAgentTools pptTools,
+            InternalRoleToolAuthority roleToolAuthority,
             @Value("${spring.ai.mcp.server.version:unknown}") String version) {
         WebMvcStreamableServerTransportProvider transport = WebMvcStreamableServerTransportProvider.builder()
                 .mcpEndpoint(InternalMcpContractCatalog.ENDPOINT_PATH)
@@ -52,12 +54,12 @@ public class InternalMcpServerConfiguration {
                 .build();
         List<McpServerFeatures.SyncToolSpecification> tools = new ArrayList<>(roleTools(submissions, json, resources));
         tools.add(TemplateAnalysisMcpTool.specification(templateSubmissions, json));
-        tools.addAll(DocumentFrozenMcpTools.specifications(documentReads, reviewContext, json));
-        tools.addAll(SourceFrozenMcpTools.specifications(sourceReads, json));
-        tools.addAll(SourceDevelopmentMcpTools.specifications(sourceDevelopmentReads, json));
-        tools.addAll(DocumentDevelopmentMcpTools.specifications(developmentReads, json));
+        tools.addAll(DocumentFrozenMcpTools.specifications(documentReads, reviewContext, roleToolAuthority, json));
+        tools.addAll(SourceFrozenMcpTools.specifications(sourceReads, roleToolAuthority, json));
+        tools.addAll(SourceDevelopmentMcpTools.specifications(sourceDevelopmentReads, roleToolAuthority, json));
+        tools.addAll(DocumentDevelopmentMcpTools.specifications(developmentReads, roleToolAuthority, json));
         tools.add(sourceResources.tool());
-        tools.addAll(DocumentReviewGuideMcpTools.specifications(reviewGuide, json));
+        tools.addAll(DocumentReviewGuideMcpTools.specifications(reviewGuide, roleToolAuthority, json));
         tools.addAll(SnapshotReviewMcpTools.specifications(snapshotReads, json));
         tools.addAll(PptMcpTools.specifications(pptTools, json));
         tools.add(SubmissionContractMcpTool.specification(contractReads, tools, json));

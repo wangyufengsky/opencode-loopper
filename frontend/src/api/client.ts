@@ -12,6 +12,7 @@ import { DOCUMENT_TEMPLATE_STATES, DESIGNER_SESSION_STATES, DESIGN_WORK_PACKAGE_
 import type { InsightQuery, JudgeApproval, McpServerInfo, McpToolCatalog, SkillInventory, SkillDocument } from '@/types/domain'
 import type { StoryAccountingCall, StoryBindingCapability, StoryBindingConfiguration } from '@/types/domain'
 import type { DatabaseConnection, DatabaseConnectionInput, DatabaseDriver, DatabaseProbe, DatabaseTypeProfile, McpPolicyCatalog } from '@/types/domain'
+import type { RoleCatalogPage, RoleDetail, RoleRevision, RoleRevisionPage, RoleComparison, RoleSlotBinding, RolePermissionPreview, RoleImportValidation, RoleImportActivation, RoleImportPublication, TaskSessionRoleSummary } from '@/types/domain'
 
 const apiBase = import.meta.env.VITE_API_BASE ?? '/api'
 
@@ -1793,6 +1794,7 @@ export const api = {
   recoverTemplateSession: async (taskId: string, batchId: string, input: { action: TemplateRecoveryAction; expectedVersion: number; commandId: string }) => normalizeTemplateDiagnostic(await request<unknown>(`/tasks/${encodeURIComponent(taskId)}/session-diagnostics/${encodeURIComponent(batchId)}/recover`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(input) })),
   getTaskSessions: async (id: string) => (await request<unknown[]>(`/tasks/${encodeURIComponent(id)}/sessions`)).map(normalizeTaskSession),
   getTaskSessionActivity: async (taskId: string, sessionKey: string) => normalizeTaskSessionActivity(await request<unknown>(`/tasks/${encodeURIComponent(taskId)}/sessions/${encodeURIComponent(sessionKey)}`)),
+  getTaskSessionRole: (taskId: string, sessionKey: string) => request<TaskSessionRoleSummary>(`/tasks/${encodeURIComponent(taskId)}/sessions/${encodeURIComponent(sessionKey)}/role`),
   getTaskSessionTodos: async (taskId: string, sessionId: string) => (await request<unknown[]>(`/tasks/${encodeURIComponent(taskId)}/sessions/${encodeURIComponent(sessionId)}/todos`)).map(normalizeSessionTodo),
   refreshTaskSessionTodos: async (taskId: string, sessionId: string) => (await request<unknown[]>(`/tasks/${encodeURIComponent(taskId)}/sessions/${encodeURIComponent(sessionId)}/todos/refresh`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } })).map(normalizeSessionTodo),
   getTaskSessionCheckpoints: async (taskId: string, sessionId: string) => (await request<unknown[]>(`/tasks/${encodeURIComponent(taskId)}/sessions/${encodeURIComponent(sessionId)}/checkpoints`)).map(normalizeSessionCheckpoint),
@@ -1873,6 +1875,27 @@ export const api = {
   getSettings: async () => normalizeSettings(await request<unknown>('/settings')),
   updateSettings: async (settings: AppSettings) => normalizeSettings(await request<unknown>('/settings', { method: 'PUT', body: JSON.stringify(settings) })),
   getSettingsModels: async (cliPath?: string) => (await request<unknown[]>(`/settings/models${cliPath ? `?cliPath=${encodeURIComponent(cliPath)}` : ''}`)).map(normalizeAvailableModel),
+  getRoles: (query = '', cursor = '', limit = 12) => request<RoleCatalogPage>(`/roles?query=${encodeURIComponent(query)}&cursor=${encodeURIComponent(cursor)}&limit=${limit}`),
+  getRole: (roleId: string) => request<RoleDetail>(`/roles/${encodeURIComponent(roleId)}`),
+  getRoleRevision: (roleId: string, revisionId: string) => request<RoleRevision>(`/roles/${encodeURIComponent(roleId)}/revisions/${encodeURIComponent(revisionId)}`),
+  exportRoleRevision: async (roleId: string, revisionId: string): Promise<Blob> => {
+    const response = await fetch(`${apiBase}/roles/${encodeURIComponent(roleId)}/export?revision=${encodeURIComponent(revisionId)}`, { headers: { Accept: 'application/zip' } })
+    if (!response.ok) throw new ApiError('角色配置包下载失败，请重试。', response.status)
+    return response.blob()
+  },
+  getRoleRevisions: (roleId: string, cursor = '', limit = 12) => request<RoleRevisionPage>(`/roles/${encodeURIComponent(roleId)}/revisions?cursor=${encodeURIComponent(cursor)}&limit=${limit}`),
+  compareRoleRevisions: (roleId: string, from: string, to: string) => request<RoleComparison>(`/roles/${encodeURIComponent(roleId)}/compare?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+  getRoleSlots: () => request<RoleSlotBinding[]>('/role-bindings'),
+  previewRoleSlot: (roleId: string, slot: string, projectId = '') => request<RolePermissionPreview>(`/roles/${encodeURIComponent(roleId)}/preview?slot=${encodeURIComponent(slot)}&projectId=${encodeURIComponent(projectId)}`),
+  validateRoleImport: (file: File) => {
+    const body = new FormData(); body.append('file', file)
+    return request<RoleImportValidation>('/role-imports/validate', { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body })
+  },
+  publishRoleImport: (file: File, input: { sourceSha256: string; idempotencyKey: string; activations: RoleImportActivation[] }) => {
+    const body = new FormData(); body.append('file', file)
+    body.append('request', new Blob([JSON.stringify(input)], { type: 'application/json' }))
+    return request<RoleImportPublication>('/role-imports/publish', { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body })
+  },
   createDraft: async (spec: LoopSpec) => normalizeDraft(await request<unknown>('/loop-drafts', { method: 'POST', body: JSON.stringify({ spec: backendLoopSpec(spec) }) })),
   validateDraft: async (spec: LoopSpec) => request<LoopSpecAssessment>('/loop-drafts/validate', { method: 'POST', body: JSON.stringify({ spec: backendLoopSpec(spec) }) }),
   copyDraftAsV2: async (id: string) => normalizeDraft(await request<unknown>(`/loop-drafts/${encodeURIComponent(id)}/copy-v2`, { method: 'POST' })),

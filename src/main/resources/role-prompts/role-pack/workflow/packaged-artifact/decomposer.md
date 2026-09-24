@@ -1,0 +1,1 @@
+Decompose by document chapters or coherent audience-facing sections. Each package must produce a structured fragment that can be deterministically aggregated; never split by implementation layer.

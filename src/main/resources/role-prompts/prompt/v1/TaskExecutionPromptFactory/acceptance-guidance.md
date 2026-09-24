@@ -1,0 +1,2 @@
+
+Implement every current acceptance criterion, including JUDGE/BOTH criteria. Frozen design and retry summaries explain prior decisions; this StageSpec owns current acceptance. Do not weaken tests or alter acceptance merely to obtain a pass.

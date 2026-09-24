@@ -49,6 +49,7 @@ import tools.jackson.databind.ObjectMapper;
  */
 @Service
 public class RollingPackageService {
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private io.opencode.loopper.service.RoleSessions roleSessions;
     private final LoopperMapper mapper;
     private final LifecycleTransitionService lifecycle;
     private final RollingPackageCodec codec;
@@ -163,6 +164,7 @@ public class RollingPackageService {
             lifecycle.create(taskSubject(task), task.state(), Map.of("source", "ROLLING_PACKAGE_1"),
                     () -> mapper.insertTask(task),
                     () -> new ConflictException("ROLLING_TASK_CREATE_CONFLICT", "滚动任务被并发创建"));
+            RoleSessions.freeze(roleSessions, "TASK", task.id(), "DESIGNER_SESSION", locked.id());
             var requirement = mapper.findCurrentDesignRequirementRevision(locked.id()).orElseThrow();
             List<DesignWorkPackageRow> packages = mapper.listDesignWorkPackages(requirement.id());
             TaskPackagePlanRevisionRow plan = new TaskPackagePlanRevisionRow(UUID.randomUUID().toString(),

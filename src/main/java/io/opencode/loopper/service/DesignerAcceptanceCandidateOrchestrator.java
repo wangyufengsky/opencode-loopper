@@ -17,6 +17,7 @@ import tools.jackson.databind.ObjectMapper;
 /** Owns v7 candidate Session transport and the bounded internal/legacy submission loop. */
 @Component
 final class DesignerAcceptanceCandidateOrchestrator {
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private RoleSessions roleSessions;
     private final AcceptanceClosedChoiceCandidateCoordinator candidates;
     private final DesignerAcceptanceCandidatePromptFactory prompts;
     private final OpenCodeClient openCode;
@@ -57,7 +58,8 @@ final class DesignerAcceptanceCandidateOrchestrator {
                 ? launch.internalMcpServer() + "_" + InternalMcpContractCatalog.toolName(
                         io.opencode.loopper.domain.MachineCandidateKind.ACCEPTANCE_CLOSED_CHOICE_V7)
                 : result.actualToolName();
-        return new Start(remote, run, prompts.internal(planning, routing, run, tool), launch.id());
+        return new Start(remote, run, RoleSessions.renderSession(roleSessions, remote.id(),
+                () -> prompts.internal(planning, routing, run, tool)), launch.id());
     }
 
     OpenCodeClient.OpenCodeSession createLegacy(Path projectRoot, OpenCodeClient.OpenCodeModel model) {
@@ -81,13 +83,16 @@ final class DesignerAcceptanceCandidateOrchestrator {
                      MachineCandidateSubmission.SubmissionResult rejected) {
         MachineCandidateSubmission.RunSnapshot run = candidates.openLegacy(
                 compilation, planning, routing, remote);
-        return new Start(remote, run, prompts.legacy(planning, routing, rejected), null);
+        return new Start(remote, run, RoleSessions.renderSession(roleSessions, remote.id(),
+                () -> prompts.legacy(planning, routing, rejected)), null);
     }
 
     String legacyPrompt(DesignAcceptancePlanningRow planning,
             DesignerAcceptanceWorkflow.RoutingResult routing,
             MachineCandidateSubmission.SubmissionResult rejected) {
-        return prompts.legacy(planning, routing, rejected);
+        return RoleSessions.render(roleSessions, "DESIGNER_SESSION", planning.designerSessionId(),
+                OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS, null,
+                () -> prompts.legacy(planning, routing, rejected));
     }
 
     Poll poll(LoopSpecCompilationRow compilation, DesignAcceptancePlanningRow planning,

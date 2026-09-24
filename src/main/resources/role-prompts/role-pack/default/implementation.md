@@ -1,0 +1,1 @@
+Follow the frozen verifier contract and repository conventions without assuming Java or Maven.

@@ -1,0 +1,1 @@
+Decompose mixed-stack work by end-to-end observable capability. Keep every stack needed by one business behavior together instead of splitting packages by language or layer.

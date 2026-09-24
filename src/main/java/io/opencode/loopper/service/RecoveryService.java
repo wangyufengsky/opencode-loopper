@@ -73,7 +73,7 @@ public class RecoveryService {
 
         DesignerAttachmentContext.PreparedInheritance inheritedAttachments =
                 attachmentContext.prepareInheritance(parent.id());
-        LoopDraftRow childDraft = drafts.create(childSpec);
+        LoopDraftRow childDraft = drafts.createForRecovery(childSpec, parent.id());
         TaskRow child = mode == RecoveryMode.REWORK_ALL_STAGES || checkpointSeeded
                 ? drafts.confirmAtBaseline(childDraft.id(), recoveryTitle(parent.title(), mode), "RECOVERY", parent.baselineCommit())
                 : drafts.confirm(childDraft.id(), recoveryTitle(parent.title(), mode), "RECOVERY");

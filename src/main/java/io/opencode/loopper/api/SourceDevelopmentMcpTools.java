@@ -3,6 +3,7 @@ package io.opencode.loopper.api;
 import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.opencode.loopper.service.*;
+import io.opencode.loopper.service.roles.InternalRoleToolAuthority;
 import java.util.*;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
@@ -10,16 +11,17 @@ import tools.jackson.databind.ObjectMapper;
 /** Static source tools expose only server-frozen records through an active role run. */
 final class SourceDevelopmentMcpTools {
     private SourceDevelopmentMcpTools() { }
-    static List<McpServerFeatures.SyncToolSpecification> specifications(SourceDevelopmentReads reads, ObjectMapper json) {
-        return List.of(spec("get_source_development_work", "Read this role's frozen source-test objective", reads, json,
+    static List<McpServerFeatures.SyncToolSpecification> specifications(SourceDevelopmentReads reads,
+            InternalRoleToolAuthority authority, ObjectMapper json) {
+        return List.of(spec("get_source_development_work", "Read this role's frozen source-test objective", reads, authority, json,
                         fields("scope", text())),
-                spec("list_source_development_files", "List frozen source and assigned test output mapping", reads, json,
+                spec("list_source_development_files", "List frozen source and assigned test output mapping", reads, authority, json,
                         fields("scope", text(), "after", integer(-1, 100000), "limit", integer(1, 100))),
-                spec("read_source_development_file", "Read frozen source and register independent role evidence", reads, json,
+                spec("read_source_development_file", "Read frozen source and register independent role evidence", reads, authority, json,
                         fields("scope", text(), "path", text(), "expectedSha256", text(), "startLine", integer(1, 10000000), "limit", integer(1, 200))));
     }
     private static McpServerFeatures.SyncToolSpecification spec(String name, String description,
-            SourceDevelopmentReads reads, ObjectMapper json, Map<String, Object> properties) {
+            SourceDevelopmentReads reads, InternalRoleToolAuthority authority, ObjectMapper json, Map<String, Object> properties) {
         var schema = Map.<String, Object>of("type", "object", "properties", properties,
                 "required", List.copyOf(properties.keySet()), "additionalProperties", false);
         var tool = McpSchema.Tool.builder(name, schema).description(description)
@@ -30,6 +32,7 @@ final class SourceDevelopmentMcpTools {
                 var args = request.arguments();
                 if (args == null || !args.keySet().equals(properties.keySet())) throw invalid();
                 String id = string(args, "scope");
+                authority.require(reads.authorizedSession(id), name);
                 Object value = switch (name) {
                     case "get_source_development_work" -> reads.work(id);
                     case "list_source_development_files" -> reads.files(id, number(args, "after"), number(args, "limit"));

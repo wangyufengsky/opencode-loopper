@@ -19,6 +19,7 @@ public final class SourceDevelopmentReads {
             SourceTemplateReadService reads, SourceTestProfileService profiles, TransactionTemplate transactions) {
         this.scopes = scopes; this.receipts = receipts; this.runs = runs; this.reads = reads; this.profiles = profiles; this.transactions = transactions;
     }
+    public String authorizedSession(String token) { return scopes.authorize(token).externalSessionId(); }
     public Object work(String token) {
         var scope = scopes.authorize(token); var result = new LinkedHashMap<>(scopes.guide(token));
         var profile = profiles.require(scope.runId());

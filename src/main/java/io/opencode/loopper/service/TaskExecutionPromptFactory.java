@@ -1,5 +1,6 @@
 package io.opencode.loopper.service;
 
+import io.opencode.loopper.service.roles.RolePromptResources;
 import io.opencode.loopper.domain.LoopSpec;
 import io.opencode.loopper.domain.TaskFailure;
 import io.opencode.loopper.domain.TestPolicy;
@@ -7,6 +8,7 @@ import io.opencode.loopper.persistence.LoopperTaskMapper;
 import io.opencode.loopper.persistence.StageRow;
 import io.opencode.loopper.persistence.TaskArtifactRow;
 import io.opencode.loopper.persistence.TaskRow;
+import io.opencode.loopper.runtime.OpenCodeClient.SessionProfile;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,14 +26,26 @@ final class TaskExecutionPromptFactory {
     private final LoopperTaskMapper mapper;
     private final ObjectMapper json;
     private final RolePromptComposer rolePrompts;
+    private final RoleSessions roleSessions;
 
     TaskExecutionPromptFactory(LoopperTaskMapper mapper, ObjectMapper json, RolePromptComposer rolePrompts) {
+        this(mapper, json, rolePrompts, null);
+    }
+
+    TaskExecutionPromptFactory(LoopperTaskMapper mapper, ObjectMapper json, RolePromptComposer rolePrompts,
+                               RoleSessions roleSessions) {
         this.mapper = mapper;
         this.json = json;
         this.rolePrompts = rolePrompts;
+        this.roleSessions = roleSessions;
     }
 
     String prompt(TaskRow task, LoopSpec spec, StageRow stage, Path workspace, String recovery) {
+        return RoleSessions.render(roleSessions, "TASK", task.id(), SessionProfile.IMPLEMENTATION, null,
+                () -> promptUnscoped(task, spec, stage, workspace, recovery));
+    }
+
+    private String promptUnscoped(TaskRow task, LoopSpec spec, StageRow stage, Path workspace, String recovery) {
         LoopSpec.StageSpec stageContract = stageContract(spec, stage);
         String designContext = designContext(task.id(), stage);
         TestPolicy testPolicy;
@@ -44,23 +58,16 @@ final class TaskExecutionPromptFactory {
                 readStringList(stage.technologiesJson()), testPolicy);
         return roleInstructions + "\nAuthoritative execution workspace: " + workspace
                 + "\nWorkspace branch: " + task.branchName()
-                + "\nAll reads, writes, AgentBridge tool calls, searches, and commands must target this checkout and its current Task branch."
-                + "\nDo not switch branches, create another worktree, or write outside this workspace."
+                + RolePromptResources.read("prompt.v1.TaskExecutionPromptFactory.workspace-guidance")
                 + "\nGoal: " + spec.goal() + "\nContext: " + spec.context() + "\nStage: " + stageContract.objective()
                 + "\nAuthoritative current StageSpec (including acceptance criteria, Judge rubrics and runtime):\n"
                 + json.writeValueAsString(stageContract)
-                + "\nImplement every current acceptance criterion, including JUDGE/BOTH criteria. "
-                + "Frozen design and retry summaries explain prior decisions; this StageSpec owns current acceptance. "
-                + "Do not weaken tests or alter acceptance merely to obtain a pass."
-                + "\nLoopper starts and stops verificationRuntime during verification and allocates {{LOOPPER_PORT}}. "
-                + "Make the declared startup and readiness contract work; do not leave a competing service running."
+                + RolePromptResources.read("prompt.v1.TaskExecutionPromptFactory.acceptance-guidance")
+                + RolePromptResources.read("prompt.v1.TaskExecutionPromptFactory.verification-runtime-guidance")
                 + (designContext.isBlank() ? "" : "\nConfirmed package design context (read-only and frozen at Task confirmation):"
-                + "\nUse this snapshot to preserve architecture, implementation decisions, risks, and acceptance rationale. "
-                + "If it conflicts with Goal, Context, Stage, path rules, Deliverables, or current StageSpec, the structured LoopSpec and current StageSpec are authoritative."
+                + RolePromptResources.read("prompt.v1.TaskExecutionPromptFactory.design-context-guidance")
                 + "\n----- BEGIN CONFIRMED DESIGN -----\n" + designContext + "\n----- END CONFIRMED DESIGN -----")
-                + "\nLanguage requirement: 使用简体中文撰写面向用户的进度说明、结论、评审和最终总结。"
-                + "代码、命令、路径、标识符、JSON 字段名、协议枚举值以及要求精确匹配的字面量保持原样；"
-                + "仅当用户目标明确要求其他语言时才切换语言。报告实际修改、验证命令和结果及未解决项；不得把计划或 Todo 状态当作验收证据。\n" + recovery;
+                + RolePromptResources.read("prompt.v1.TaskExecutionPromptFactory.language-guidance") + recovery;
     }
 
     LoopSpec.StageSpec stageContract(LoopSpec spec, StageRow stage) {
@@ -79,14 +86,7 @@ final class TaskExecutionPromptFactory {
     }
 
     String todoInstructions() {
-        return """
-
-                OpenCode Todo is available for this implementation Session. It is a non-authoritative progress
-                projection only: Task/Stage/Attempt/Verifier/Judge state remains controlled by Loopper. When the
-                work has three or more meaningful steps, use todowrite to keep a concise plan with exactly one
-                IN_PROGRESS item, include focused tests and verification, mark an item COMPLETED only after both
-                work and its verification finish, and leave blockers visible instead of claiming completion.
-                """;
+        return RolePromptResources.read("prompt.v1.TaskExecutionPromptFactory.block01");
     }
 
     private String designContext(String taskId, StageRow stage) {

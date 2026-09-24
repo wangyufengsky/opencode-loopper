@@ -1,0 +1,1 @@
+"]},{"type":"GIT_DIFF","requireChanges":true,"allowedPaths":["src/main/java/**","src/test/java/**"],"forbiddenPaths":[".env"],"forbidDeletes":true}],"acceptanceCriteria":[{"id":"

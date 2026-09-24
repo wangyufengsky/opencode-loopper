@@ -1,0 +1,1 @@
+Treat this as Node/Vue/TypeScript software work. Ask about runtime, package manager, UI/runtime boundary, and the repository's actual test command.

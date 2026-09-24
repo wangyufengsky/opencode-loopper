@@ -3,6 +3,7 @@ package io.opencode.loopper.api;
 import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.opencode.loopper.service.*;
+import io.opencode.loopper.service.roles.InternalRoleToolAuthority;
 import java.util.*;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
@@ -10,20 +11,21 @@ import tools.jackson.databind.ObjectMapper;
 /** Static source tools expose only server-frozen records through an active role run. */
 final class SourceFrozenMcpTools {
     private SourceFrozenMcpTools() { }
-    static List<McpServerFeatures.SyncToolSpecification> specifications(SourceModelReads reads, ObjectMapper json) {
-        return List.of(spec("get_source_design_work", "Read assigned immutable source work and progress", reads, json,
+    static List<McpServerFeatures.SyncToolSpecification> specifications(SourceModelReads reads,
+            InternalRoleToolAuthority authority, ObjectMapper json) {
+        return List.of(spec("get_source_design_work", "Read assigned immutable source work and progress", reads, authority, json,
                         fields("runId", text())),
-                spec("list_source_template_files", "List immutable project source metadata", reads, json,
+                spec("list_source_template_files", "List immutable project source metadata", reads, authority, json,
                         fields("runId", text(), "after", integer(-1, 100000), "limit", integer(1, 100))),
-                spec("read_source_template_file", "Read frozen source and register independent evidence", reads, json,
+                spec("read_source_template_file", "Read frozen source and register independent evidence", reads, authority, json,
                         fields("runId", text(), "path", text(), "expectedSha256", text(), "startLine", integer(1, 10000000), "limit", integer(1, 200))),
-                spec("list_source_design_results", "List completed modules to review cross-module consistency", reads, json,
+                spec("list_source_design_results", "List completed modules to review cross-module consistency", reads, authority, json,
                         fields("runId", text(), "after", integer(-1, 100000), "limit", integer(1, 100))),
-                spec("read_source_design_result", "Read one immutable design result part", reads, json,
+                spec("read_source_design_result", "Read one immutable design result part", reads, authority, json,
                         fields("runId", text(), "resultId", text(), "expectedSha256", text(), "part", integer(0, 1000))));
     }
     private static McpServerFeatures.SyncToolSpecification spec(String name, String description,
-            SourceModelReads reads, ObjectMapper json, Map<String, Object> properties) {
+            SourceModelReads reads, InternalRoleToolAuthority authority, ObjectMapper json, Map<String, Object> properties) {
         var schema = Map.<String, Object>of("type", "object", "properties", properties,
                 "required", List.copyOf(properties.keySet()), "additionalProperties", false);
         var tool = McpSchema.Tool.builder(name, schema).description(description)
@@ -34,6 +36,7 @@ final class SourceFrozenMcpTools {
                 var args = request.arguments();
                 if (args == null || !args.keySet().equals(properties.keySet())) throw invalid();
                 String id = string(args, "runId");
+                authority.require(reads.authorizedSession(id), name);
                 Object value = switch (name) {
                     case "get_source_design_work" -> reads.work(id);
                     case "list_source_template_files" -> reads.files(id, number(args, "after"), number(args, "limit"));

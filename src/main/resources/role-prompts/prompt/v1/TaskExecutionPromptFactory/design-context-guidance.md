@@ -1,0 +1,2 @@
+
+Use this snapshot to preserve architecture, implementation decisions, risks, and acceptance rationale. If it conflicts with Goal, Context, Stage, path rules, Deliverables, or current StageSpec, the structured LoopSpec and current StageSpec are authoritative.

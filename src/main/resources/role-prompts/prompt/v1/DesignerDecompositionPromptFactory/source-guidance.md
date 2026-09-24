@@ -1,0 +1,1 @@
+通过 get_source_development_work 和 read_source_development_file 阅读冻结源码与已有测试，SRC 编号是源码测试对象；保持完整覆盖和仅测试/夹具写入范围，最后一包须整体回归。

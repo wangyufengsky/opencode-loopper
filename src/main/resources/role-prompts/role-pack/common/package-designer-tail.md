@@ -1,0 +1,2 @@
+
+Describe test intent and exact evidenced target names, not argv, verifier JSON or compiler fields. REQUIRED retains focused tests; OPTIONAL uses available native evidence; NOT_APPLICABLE uses the artifact's structural/data evidence. State observable results separately from build/test success.

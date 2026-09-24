@@ -1,0 +1,1 @@
+Modify only the exact frozen files. Never delete files, control services, publish Git state, or write to external systems.

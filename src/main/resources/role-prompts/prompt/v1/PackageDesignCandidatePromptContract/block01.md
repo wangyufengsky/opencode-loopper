@@ -1,0 +1,10 @@
+{"contractVersion":"PACKAGE_DESIGN_V1","outcome":"READY",
+ "requirements":[{"key":"REQ-1","statement":"需求语义"}],
+ "scenarios":[{"key":"SC-1","title":"场景标题","precondition":"前置或触发",
+  "action":"操作","observableResult":"可观察结果","invariant":"保持不变","requirementRefs":["REQ-1"]}],
+ "deliverables":[{"key":"DEL-1","kind":"DELIVERABLE","target":"src/example.txt",
+  "description":"交付说明","requirementRefs":["REQ-1"]}],
+ "reviews":[{"key":"REV-1","title":"人工评审标题","criteria":"可判断的主观标准",
+  "humanOnlyReason":"需要人工判断的具体原因","requirementRefs":["REQ-1"]}],
+ "stages":[{"key":"STAGE-1","title":"阶段标题","objective":"阶段目标",
+  "includes":["SC-1","DEL-1","REV-1"],"dependencies":[]}],"gapCodes":[]}

@@ -27,6 +27,7 @@ public class SnapshotReviewReads {
         this.access = access; this.snapshots = snapshots; this.batches = batches; this.store = store;
         this.repositories = repositories; this.git = git; this.cache = cache; this.json = json;
     }
+    public void requireTool(String id, String toolName) { access.requireTool(id, toolName); }
     public Map<String, Object> guide(String id, int offset, int limit) {
         var row = access.require(id); page(offset, limit);
         var snapshot = store.snapshot(row.taskId()); var input = input(row);

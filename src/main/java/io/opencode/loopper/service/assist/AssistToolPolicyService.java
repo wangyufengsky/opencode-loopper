@@ -24,11 +24,25 @@ public class AssistToolPolicyService {
             for(String tool:tools) {validate(server,tool);mapper.insertPolicy(new AssistMapper.Policy("",server,tool,first && !(server.equals(AssistToolCatalog.SERVER)&&AssistToolCatalog.batchTool(tool))?1:0,0,now));}
             mapper.registerCatalog(server,now);
         }
+        return views(project,server,tools,complete,false);
+    }
+
+    /** Read-only policy projection for role previews. Never registers a catalog or inserts defaults. */
+    @Transactional(readOnly=true)
+    public List<View> readCatalog(String project,String server,List<String> tools,boolean complete) {
+        if(project==null || server==null || tools==null)throw new AssistFailure("MCP_POLICY_INVALID","权限预览条件不完整");
+        return views(project,server,tools,complete,true);
+    }
+
+    private List<View> views(String project,String server,List<String> tools,boolean complete,boolean simulateFirstDefaults) {
+        boolean protectedServer=server.equals("@loopper-internal");
+        boolean first=simulateFirstDefaults && complete && !protectedServer && mapper.catalogRegistered(server)==0;
         var policies=mapper.policies(project,server);
         return tools.stream().map(tool->{
             var global=policies.stream().filter(p->p.scope().isEmpty()&&p.toolName().equals(tool)).findFirst().orElse(null);
             var local=project.isEmpty()?null:policies.stream().filter(p->p.scope().equals(project)&&p.toolName().equals(tool)).findFirst().orElse(null);
-            boolean defaultOn=protectedServer || global!=null&&global.enabled()==1;
+            boolean defaultOn=protectedServer || global!=null&&global.enabled()==1
+                    || first && global==null && !(server.equals(AssistToolCatalog.SERVER)&&AssistToolCatalog.batchTool(tool));
             boolean overridden=local!=null&&local.enabled()!=-1;
             boolean writes=AssistToolCatalog.tools().stream().anyMatch(t->server.equals(AssistToolCatalog.SERVER)&&t.name().equals(tool)&&t.writes());
             return new View(tool,!protectedServer&&complete,writes,defaultOn,overridden?(local.enabled()==1?"ENABLED":"DISABLED"):"INHERIT",

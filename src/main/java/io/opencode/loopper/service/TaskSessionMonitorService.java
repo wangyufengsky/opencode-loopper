@@ -22,6 +22,7 @@ import org.springframework.stereotype.Service;
 /** Read-only projection of persisted Task sessions plus provider-exposed live output. */
 @Service
 public class TaskSessionMonitorService {
+    @org.springframework.beans.factory.annotation.Autowired private SessionRoleView roleViews;
     private final io.opencode.loopper.persistence.TemplateSessionReadMapper templateSessions;
     private final TaskService tasks;
     private final LoopperMapper mapper;
@@ -50,6 +51,11 @@ public class TaskSessionMonitorService {
         for (JudgeRunRow row : mapper.listJudgeRuns(taskId)) result.add(summary(row));
         result.sort(Comparator.comparing(SessionSummary::createdAt).reversed());
         return result;
+    }
+
+    public SessionRoleView.Summary role(String taskId, String key) {
+        tasks.get(taskId);
+        return roleViews.read("TASK", taskId, resolve(taskId, key).summary().externalSessionId());
     }
 
     public SessionActivity activity(String taskId, String key) {

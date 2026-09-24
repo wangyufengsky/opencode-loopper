@@ -13,6 +13,7 @@ import tools.jackson.databind.ObjectMapper;
 /** Document intake becomes a Designer only after source review; no Task or remote side effect is manufactured. */
 @Service
 public class DocumentDevelopmentBootstrap {
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private io.opencode.loopper.service.RoleSessions roleSessions;
     private final DocumentTemplateAdmission admission;
     private final DocumentDevelopmentMapper bindings;
     private final DocumentRequirementMapper requirements;
@@ -55,6 +56,7 @@ public class DocumentDevelopmentBootstrap {
                     0, 0, 1, null, "REQUIREMENT", 0, "NONE");
             lifecycle.create(subject(LifecycleMachineType.DESIGNER_SESSION, designerId, run.projectId()), designer.state(),
                     Map.of("templateRun", run.id()), () -> domain.insertDesignerSession(designer), DocumentDevelopmentBootstrap::conflict);
+            RoleSessions.freeze(roleSessions, "DESIGNER_SESSION", designerId, "DOCUMENT_TEMPLATE_RUN", run.id());
             conversations.enable(designerId);
             var message = new DesignerMessageRow(UUID.randomUUID().toString(), designerId, 1, "user", index,
                     "PERSISTED", now, "USER", 1, null);

@@ -26,6 +26,7 @@ final class SnapshotReviewMcpTools {
                 var a = request.arguments();
                 if (a == null || !a.keySet().equals(fields.keySet())) throw new BadRequestException("SNAPSHOT_PARAMETERS_INVALID", "读取参数不完整");
                 String id = text(a, "runId");
+                reads.requireTool(id, name);
                 Object value = switch (name) {
                     case "list_snapshot_review_results" -> reads.results(id, number(a, "offset"), number(a, "limit"));
                     case "get_snapshot_review_work" -> reads.guide(id, number(a, "offset"), number(a, "limit"));

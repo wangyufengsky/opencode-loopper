@@ -19,6 +19,7 @@ import org.springframework.stereotype.Component;
 /** Owns strict one-Session ROLLING_PACKAGE_PLAN_V1 transport without owning plan lifecycle transitions. */
 @Component
 final class RollingPackagePlanCandidateOrchestrator {
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private io.opencode.loopper.service.RoleSessions roleSessions;
     static final String CONTRACT_VERSION = RollingPackagePlanCandidatePolicy.CONTRACT_VERSION;
     static final String WORKFLOW_STEP = CONTRACT_VERSION;
     static final int MAX_ATTEMPTS = RollingPackagePlanCandidatePolicy.MAX_ATTEMPTS;
@@ -58,11 +59,14 @@ final class RollingPackagePlanCandidateOrchestrator {
 
     OpenCodeClient.OpenCodeSession create(Path projectRoot, String planRevisionId,
                                           OpenCodeClient.OpenCodeModel model) {
+        return create(projectRoot, planRevisionId, null, model);
+    }
+    OpenCodeClient.OpenCodeSession create(Path projectRoot, String planRevisionId, String taskId, OpenCodeClient.OpenCodeModel model) {
         Eligibility eligibility = eligibility();
         if (!eligibility.candidate()) {
             throw new ConflictException("ROLLING_PACKAGE_CANDIDATE_NOT_READY", eligibility.fallbackReason());
         }
-        return openCode.createSession(projectRoot,
+        return RoleSessions.create(roleSessions, openCode, "TASK", taskId, null, projectRoot,
                 "OpenCode Loopper Rolling Package Planner " + planRevisionId + " candidate (READ_ONLY)",
                 model, OpenCodeClient.SessionProfile.ROLLING_PACKAGE_CANDIDATE_READ_ONLY);
     }

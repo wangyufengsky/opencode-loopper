@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 /** Freezes stable launch/run ids and a complete local V57 create plan before any remote I/O. */
 @Service
 final class GenericCandidateInternalLaunchPreparer {
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private io.opencode.loopper.service.RoleSessions roleSessions;
     private final OpenCodeClient openCode;
     private final GenericCandidateInternalLaunchStore store;
     private final GenericCandidateInternalLaunchPlanCodec plans;
@@ -41,6 +42,7 @@ final class GenericCandidateInternalLaunchPreparer {
         String credential = credentials.create();
         OpenCodeClient.SessionCreationPlan plan = openCode.prepareCandidateSessionCreationLocally(
                 command.projectRoot(), baseTitle, command.model(), command.profile(), credential);
+        plan = RoleSessions.prepareCandidate(roleSessions, plan, command.scope().type().name(), command.scope().id(), command.owner().type().name(), command.owner().id());
         plans.validatePreparedPlan(baseTitle, command.candidateKind(), command.model(), command.profile(), plan);
         GenericCandidateInternalLaunchRow requested = row(command, launchId, runId, plan);
         if (!plans.decode(requested).equals(plan)) throw invalidPlan();

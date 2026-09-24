@@ -13,6 +13,16 @@ import tools.jackson.databind.ObjectMapper;
 
 /** Deterministic local implementation used in tests and development without a provider. */
 public class FakeOpenCodeClient implements OpenCodeClient {
+    private ConfiguredRoleRuntime roles;
+    void installRoles(ConfiguredRoleRuntime value) { roles = value; }
+    @Override public boolean supportsRoleConfiguration() { return roles != null; }
+    @Override public OpenCodeSession createRoleSession(Path directory, String title, OpenCodeModel model, SessionProfile profile, RoleContext context) {
+        var policy = roles == null ? permissionRules(profile, managedInternalMcpServer)
+                : roles.permissions(context, profile, permissionRules(profile, managedInternalMcpServer), managedInternalMcpServer);
+        var session = createSession(directory, title, model, profile);
+        if (roles != null) roles.remember(session.id(), context, profile, policy);
+        return session;
+    }
     private static final String FAKE_ENDPOINT_FINGERPRINT = OpenCodeSessionConnectionGuard
             .endpointFingerprint(URI.create("http://127.0.0.1/fake-opencode"));
     private final OpenCodeSessionRuntimeBindings runtimeBindings;
@@ -163,6 +173,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
                 plan.model(), plan.profile());
         SessionAttestation attestation = attestation(session.id(), plan);
         attestationBySession.put(session.id(), attestation);
+        if (roles != null) roles.created(session.id(), plan);
         return attestation;
     }
     @Override public SessionLookup findSessionsByExactTitle(SessionCreationPlan plan) {
@@ -174,6 +185,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
                 .map(entry -> recoveredAttestation(entry.getKey(), plan))
                 .filter(attestation -> attestation.plan().equals(plan))
                 .toList();
+        if (roles != null) matches.forEach(match -> roles.created(match.remoteId(), plan));
         return new SessionLookup(true, matches);
     }
     @Override public SessionLookup findSessionsByExactTitle(Path worktree, String exactTitle,
@@ -192,6 +204,10 @@ public class FakeOpenCodeClient implements OpenCodeClient {
         submitPrompt(session, prompt == null ? PromptRequest.text("") : prompt);
     }
     private void submitPrompt(OpenCodeSession session, PromptRequest prompt) {
+        if (roles != null) {
+            var effective = roles.prompt(session.id(), prompt);
+            roles.recordPrompt(session.id(), prompt, effective); prompt = effective;
+        }
         if (prompt.messageId() != null && prompt.messageId().startsWith("msg_loopper_design_")) {
             var pkg = java.util.regex.Pattern.compile("Current package (WP-\\d+)").matcher(prompt.text());
             judgeRoleBySession.put(session.id(), pkg.find() ? "DESIGNER:" + pkg.group(1) : "DESIGNER");
@@ -224,7 +240,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
         if (found == null || !java.util.Objects.equals(expectedRequest.messageId(), found.messageId())) {
             return new MessageLookup(true, false, null);
         }
-        if (!found.equals(expectedRequest)) {
+        if (!found.equals(roles == null ? expectedRequest : roles.prompt(session.id(), expectedRequest))) {
             throw new SessionFailure("OPENCODE_PROMPT_LOOKUP_INVALID_RESPONSE",
                     "The remote prompt content does not match the persisted request hash");
         }
@@ -382,6 +398,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
         states.put(childId, "IDLE");
         todosBySession.put(childId, List.copyOf(todosBySession.getOrDefault(session.id(), List.of())));
         forkCalls.add(new ForkCall(session.id(), childId, messageId));
+        if (roles != null) roles.forked(session.id(), childId);
         return session(childId, session.worktree());
     }
     @Override public void revertSession(OpenCodeSession session, String messageId, String partId) {
@@ -506,8 +523,8 @@ public class FakeOpenCodeClient implements OpenCodeClient {
         }
         List<SessionPermissionRule> current = permissionRules(plan.profile(),
                 managed ? managedInternalMcpServer : null);
-        if (!current.equals(plan.permissionPolicy())
-                || !OpenCodeClient.permissionPolicyDigest(current).equals(plan.permissionPolicyDigest())
+        if (!(current.equals(plan.permissionPolicy()) || roles != null && roles.frozenPolicy(plan))
+                || !OpenCodeClient.permissionPolicyDigest(plan.permissionPolicy()).equals(plan.permissionPolicyDigest())
                 || !OpenCodeClient.sessionCreationRequestSha256(plan).equals(plan.createRequestSha256())) {
             throw new SessionFailure("OPENCODE_SESSION_CREATION_PLAN_STALE",
                     "The frozen session creation model, profile, or permission request has changed");

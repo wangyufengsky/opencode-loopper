@@ -72,6 +72,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 @Service
 public class TaskService {
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private io.opencode.loopper.service.RoleSessions roleSessions;
     private final TaskStartPreflight startPreflight;
     private final TaskDraftConfirmation draftConfirmation;
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(TaskService.class);
@@ -1373,7 +1374,7 @@ public class TaskService {
             ProjectRow project = projects.get(freshTask.projectId());
             worktrees.requireExecutionWorkspace(worktree, Path.of(project.rootPath()),
                     freshTask.branchName(), freshTask.baselineCommit());
-            boundedPrompt = executionPrompts.prompt(freshTask, spec, stage, worktree, prompt);
+            boundedPrompt = RoleSessions.render(roleSessions, "TASK", freshTask.id(), OpenCodeClient.SessionProfile.IMPLEMENTATION, null, () -> executionPrompts.prompt(freshTask, spec, stage, worktree, prompt));
             OpenCodeClient.ToolCapabilityProbe todoProbe;
             try { todoProbe = openCode.toolCapabilities(worktree); }
             catch (RuntimeException ignoredProbeFailure) {
@@ -1383,7 +1384,7 @@ public class TaskService {
             todoCapability = todoProbe.state() == OpenCodeClient.CapabilityState.AVAILABLE
                     ? todoProbe.contains("todowrite") ? TodoCapability.AVAILABLE : TodoCapability.UNAVAILABLE
                     : TodoCapability.UNKNOWN;
-            if (todoCapability == TodoCapability.AVAILABLE) boundedPrompt += executionPrompts.todoInstructions();
+            if (todoCapability == TodoCapability.AVAILABLE) boundedPrompt += RoleSessions.render(roleSessions, "TASK", freshTask.id(), OpenCodeClient.SessionProfile.IMPLEMENTATION, null, executionPrompts::todoInstructions);
         } catch (TaskFailure failure) {
             failTask(freshTask, failure.code(), failure.getMessage(), stage, null, null);
             return;
@@ -1401,13 +1402,12 @@ public class TaskService {
         taskStates.createSession(session);
         OpenCodeClient.OpenCodeSession remote;
         try {
-            remote = openCode.createSession(worktree, freshTask.title(), model(spec));
+            remote = RoleSessions.implementation(roleSessions, openCode, freshTask.id(), worktree, freshTask.title(), model(spec));
             ExecutionSessionRow running = new ExecutionSessionRow(session.id(), session.taskId(), session.stageId(), session.attemptId(), remote.id(),
                     SessionState.RUNNING.name(), session.createdAt(), null, session.version(), session.todoCapability());
             taskStates.updateSession(running);
             if (isAdmittedInPlace(freshTask)) {
-                // V12 deliberately references the durable local execution_session
-                // row. Provider ids remain on that row and may change across retry.
+                // V12 leases use the durable execution_session id, not the retryable Provider id.
                 directLeases.heartbeat(inPlaceRoot(freshTask), freshTask.id(), running.id());
             }
             openCode.promptAsync(remote, attachmentContext.withContext(
@@ -2031,7 +2031,7 @@ public class TaskService {
                 return;
             }
             try {
-                sources.put(role, taskEvidence.judgeCandidateSource(task, finalAttempt, role, spec(task)));
+                sources.put(role, RoleSessions.render(roleSessions, "TASK", task.id(), OpenCodeClient.SessionProfile.JUDGE_READ_ONLY, role, () -> taskEvidence.judgeCandidateSource(task, finalAttempt, role, spec(task))));
             } catch (TaskFailure failure) {
                 if (!"JUDGE_PROMPT_BUDGET_EXCEEDED".equals(failure.code())) throw failure;
                 waitForJudgeInput(task, finalAttempt, null, failure.code(), failure.getMessage());
@@ -2082,7 +2082,7 @@ public class TaskService {
         try {
             TaskEvidenceService.FrozenJudgeSource frozen = taskEvidence.freezeLegacyJudgeSource(task, finalAttempt, judge, source);
             Path worktree = Path.of(requireWorktree(task));
-            remote = openCode.createSession(worktree, roleTitle(role), judgeModel(spec, responseMode),
+            remote = RoleSessions.create(roleSessions, openCode, "TASK", task.id(), role, worktree, roleTitle(role), judgeModel(spec, responseMode),
                     OpenCodeClient.SessionProfile.JUDGE_READ_ONLY);
             JudgeRunRow running = judgeState(judge, remote.id(), JudgeRunState.RUNNING, null, null, null, null);
             updateJudge(running);
@@ -2107,7 +2107,7 @@ public class TaskService {
     private JudgeDecisionCandidateWorkflow.Context candidateContext(TaskRow task, AttemptRow attempt, JudgeReviewBatchRow batch, JudgeRunRow judge) {
         LoopSpec frozen = spec(task);
         return new JudgeDecisionCandidateWorkflow.Context(judge, batch, Path.of(requireWorktree(task)),
-                judgeModel(frozen, ModelResponseMode.TEXT_MARKER), taskEvidence.judgeCandidateSource(task, attempt, judge.role(), frozen),
+                judgeModel(frozen, ModelResponseMode.TEXT_MARKER), RoleSessions.render(roleSessions, "TASK", task.id(), OpenCodeClient.SessionProfile.JUDGE_CANDIDATE_READ_ONLY, judge.role(), () -> taskEvidence.judgeCandidateSource(task, attempt, judge.role(), frozen)),
                 frozen.limits().timeoutsEnabled() ? Instant.parse(judge.createdAt()).plusSeconds(frozen.limits().attemptTimeoutSeconds()) : null);
     }
     private void handleCandidateJudgeResult(TaskRow inputTask, JudgeDecisionCandidateWorkflow.Result result) {
@@ -2163,7 +2163,7 @@ public class TaskService {
                     get(inputTask.id()), attempt, batch, judge));
             if (result.action() == JudgeDecisionCandidateWorkflow.Action.LEGACY_FALLBACK) {
                 launchJudge(get(inputTask.id()), attempt, batch, judge.role(), false, true,
-                        taskEvidence.judgeCandidateSource(get(inputTask.id()), attempt, judge.role(), spec(inputTask)));
+                        RoleSessions.render(roleSessions, "TASK", inputTask.id(), OpenCodeClient.SessionProfile.JUDGE_READ_ONLY, judge.role(), () -> taskEvidence.judgeCandidateSource(get(inputTask.id()), attempt, judge.role(), spec(inputTask))));
             } else {
                 handleCandidateJudgeResult(inputTask, result);
             }

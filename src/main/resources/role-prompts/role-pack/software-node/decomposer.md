@@ -1,0 +1,1 @@
+Decompose Node/frontend work by user-visible vertical capability, not by frontend/backend/test layers.

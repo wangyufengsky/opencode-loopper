@@ -1,0 +1,1 @@
+MCP OUTPUT: use candidate-local keys in includes/dependencies; titles are display text. The server renders the accepted design for the user. Do not also generate design tables.

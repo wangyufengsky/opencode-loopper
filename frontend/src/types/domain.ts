@@ -148,6 +148,116 @@ export interface AvailableModel {
   label: string
 }
 
+export interface RoleCatalogItem {
+  roleId: string
+  displayName: string
+  description: string
+  origin: string
+  latestRevisionId: string
+  latestRevisionNumber: number
+  activeSlots: string[]
+  groupKey?: string
+  groupLabel?: string
+}
+
+export interface RoleCatalogPage {
+  items: RoleCatalogItem[]
+  nextCursor?: string | null
+}
+
+export interface RoleSlotBinding {
+  slot: string
+  profile: string
+  activeRoleId: string
+  activeRevisionId: string
+  bindingVersion: number
+  label?: string
+  purpose?: string
+}
+
+export interface RoleRevisionSummary {
+  revisionId: string
+  revisionNumber: number
+  contentSha256: string
+  publishedAt?: string
+}
+
+export interface RoleDetail extends RoleCatalogItem {
+  revisions?: RoleRevisionSummary[]
+  slots?: RoleSlotBinding[]
+}
+
+export interface RoleRevisionPage {
+  items: RoleRevisionSummary[]
+  nextCursor?: string | null
+}
+
+export interface RoleRevision extends RoleRevisionSummary {
+  roleId: string
+  manifest: Record<string, unknown>
+  promptFragments: Record<string, string>
+  permissionMode?: string
+  nativeTools?: string[]
+  mcpTools?: string[]
+  requiredMcpTools?: string[]
+  modelPolicy?: string
+  promptVariables?: string[]
+}
+
+export interface RoleFieldChange {
+  path: string
+  before: unknown
+  after: unknown
+}
+
+export interface RoleComparison {
+  fromRevisionId: string
+  toRevisionId: string
+  changes: RoleFieldChange[]
+}
+
+export interface RolePermissionPreview {
+  scope: 'CONFIG_ONLY'
+  slot: string
+  projectId?: string
+  rules: Array<{ permission: string; pattern: string; action: string; source?: string }>
+  mcpTools: Array<{ name: string; server?: string; source?: string; required?: boolean; available?: boolean }>
+  complete: boolean
+  limitations: string[]
+  checkedAt?: string
+}
+
+export interface RoleImportDiagnostic { code: string; path: string; message: string }
+export interface RoleImportRole {
+  roleId: string
+  displayName: string
+  revisionNumber?: number
+  change?: string
+  contentSha256?: string
+  changes?: RoleFieldChange[]
+}
+export interface RoleImportActivation {
+  slot: string
+  roleId: string
+  expectedVersion: number
+  currentRoleId?: string
+  currentRevisionId?: string
+}
+export interface RoleImportValidation {
+  sourceSha256: string
+  valid: boolean
+  roles: RoleImportRole[]
+  activations: RoleImportActivation[]
+  diagnostics: RoleImportDiagnostic[]
+  changes?: RoleFieldChange[]
+}
+export interface RoleImportPublication {
+  sourceSha256: string
+  roles: Array<{ roleId: string; revisionId: string; revisionNumber: number; contentSha256: string }>
+  bindings: RoleSlotBinding[]
+  replayed: boolean
+}
+
 export interface ErrorEvent {
   id: string
   layer: ErrorLayer
@@ -611,6 +721,18 @@ export interface TaskSessionActivity {
   todoTruncated: boolean
   todoDetail?: string
   usage: ModelTokenUsage
+}
+
+export interface TaskSessionRoleSummary {
+  configured: boolean
+  roleId: string | null
+  revisionId: string | null
+  revisionSha256: string | null
+  slot: string | null
+  adapterProfile: string | null
+  adapterVersion: string | null
+  permissions: Array<{ permission: string; pattern: string; action: string }>
+  permissionSha256: string | null
 }
 
 export type InteractionAction = 'REPLY' | 'ONCE' | 'SESSION' | 'REJECT'

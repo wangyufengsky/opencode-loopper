@@ -72,7 +72,7 @@ class RollingPackagePlanGenerationServiceTest {
         when(openCode.healthy()).thenReturn(true);
         OpenCodeClient.OpenCodeSession remote = new OpenCodeClient.OpenCodeSession(
                 "remote-1", Path.of("/tmp/snapshot"), "generation-1", "loopper_internal_test");
-        when(candidates.create(eq(Path.of("/tmp/snapshot")), eq("plan-1"), any())).thenReturn(remote);
+        when(candidates.create(eq(Path.of("/tmp/snapshot")), eq("plan-1"), eq("task-1"), any())).thenReturn(remote);
         when(plans.attachSuggestionSession(pending, "remote-1", "PROMPTING")).thenReturn(prompting);
         MachineCandidateSubmission.RunSnapshot run = run();
         when(candidates.open(eq(prompting), eq(remote), any())).thenReturn(
@@ -84,7 +84,7 @@ class RollingPackagePlanGenerationServiceTest {
 
         service.suggest("task-1", 7, "package-run-2", 3);
 
-        verify(candidates).create(eq(Path.of("/tmp/snapshot")), eq("plan-1"), any());
+        verify(candidates).create(eq(Path.of("/tmp/snapshot")), eq("plan-1"), eq("task-1"), any());
         verify(candidates).open(eq(prompting), eq(remote), any());
         verify(openCode).promptAsync(eq(remote), any(OpenCodeClient.PromptRequest.class));
         verify(plans).updateSuggestionState(prompting, "RUNNING");

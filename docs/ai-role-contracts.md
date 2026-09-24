@@ -7,6 +7,8 @@
 `MachineRoleContractCatalog`、`OpenCodeStructuredSchemas`、服务端语义编译器和
 LoopSpec v2 权威校验为准；文档和提示示例都不能替代这些运行时来源。
 
+业务角色的配置发布、版本绑定与会话冻结由 [角色配置合同](role-configuration.md) 定义；下文继续定义各角色的业务语义与候选验收。
+
 ## 设计原则
 
 当前新工作包默认 V2（`LOOPPER_PACKAGE_DESIGN_V2_ENABLED=true`），自动冻结证据；显式 false 只影响新会话，历史按冻结合同恢复。V2 不依赖下面的 V1 evidence 开关；有限域/SAT/独立来源复核实验已撤回，见 [V2 启用](package-design-v2-enablement.md) 与 [回退边界](package-behavior-rollback.md)。

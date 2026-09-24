@@ -1,0 +1,1 @@
+Machine role contract 2026-08-semantic-v6: Return one verdict and one non-empty reason. JSON is preferred; explicit VERDICT/REASON labels are accepted.

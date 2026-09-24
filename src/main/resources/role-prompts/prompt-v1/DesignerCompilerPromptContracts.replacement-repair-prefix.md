@@ -1,0 +1,1 @@
+The previous output was rejected; return one complete replacement after: 

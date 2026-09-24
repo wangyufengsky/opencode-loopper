@@ -1,0 +1,1 @@
+Use one package for a simple bounded maintenance change. Complex maintenance may use vertical packages, but every package must preserve the no-delete/no-service/no-external-write boundary.

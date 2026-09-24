@@ -133,7 +133,12 @@ onMounted(load)
           <span><strong>{{ section.title }}</strong><small>{{ section.subtitle }}</small></span>
           <Icon class="nav-chevron" icon="lucide:chevron-right" width="16" />
         </button>
-        <p class="nav-note"><Icon icon="lucide:info" width="16" />修改后请保存设置。各项生效时间见面板说明。</p>
+        <RouterLink class="settings-nav-item" to="/settings/roles">
+          <Icon icon="lucide:users-round" width="20" />
+          <span><strong>角色管理</strong><small>查看角色配置并导入配置包</small></span>
+          <Icon class="nav-chevron" icon="lucide:chevron-right" width="16" />
+        </RouterLink>
+        <p class="nav-note"><Icon icon="lucide:info" width="16" />本页设置修改后请保存。各项生效时间见面板说明。</p>
       </nav>
       <div class="settings-panels">
       <article v-if="activeSection === 'git-credentials'" id="settings-git-credentials" class="card settings-panel"><div class="card-header"><h2 class="card-title">全局 Git 账号</h2></div><GitCredentialForm :demo="store.usingDemo" /></article>
@@ -200,7 +205,7 @@ onMounted(load)
 .settings-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 32px; align-items: start; }
 .settings-nav { display: grid; gap: 6px; min-width: 0; }
 .nav-caption { margin: 0 12px 12px; color: var(--color-text-secondary); font-size: 12px; }
-.settings-nav-item { display: flex; align-items: center; gap: 12px; padding: 15px 12px; border: 1px solid transparent; border-radius: var(--radius-card); background: transparent; color: var(--color-text-secondary); text-align: left; cursor: pointer; font: inherit; }
+.settings-nav-item { display: flex; align-items: center; gap: 12px; padding: 15px 12px; border: 1px solid transparent; border-radius: var(--radius-card); background: transparent; color: var(--color-text-secondary); text-align: left; text-decoration: none; cursor: pointer; font: inherit; }
 .settings-nav-item > svg { flex-shrink: 0; }
 .settings-nav-item > span { flex: 1; min-width: 0; display: grid; gap: 6px; }
 .settings-nav-item strong { font-size: 14px; font-weight: 500; }

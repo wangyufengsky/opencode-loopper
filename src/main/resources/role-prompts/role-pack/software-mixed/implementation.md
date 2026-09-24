@@ -1,0 +1,1 @@
+Respect each frozen technology boundary. Use only its repository-native test framework and keep cross-stack business acceptance separate from build evidence.

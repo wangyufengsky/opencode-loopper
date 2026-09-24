@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
 /** Runs the read-only, restart-safe AI suggestion transport for the unexecuted package suffix. */
 @Service
 public class RollingPackagePlanGenerationService {
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private io.opencode.loopper.service.RoleSessions roleSessions;
     private static final Pattern MARKER = Pattern.compile(
             "(?s)<!--\\s*ROLLING_PACKAGE_PLAN_JSON_START\\s*-->(.*?)"
                     + "<!--\\s*ROLLING_PACKAGE_PLAN_JSON_END\\s*-->");
@@ -190,7 +191,7 @@ public class RollingPackagePlanGenerationService {
             if (!openCode.healthy()) throw new ConflictException(
                     "PACKAGE_PLAN_OPENCODE_UNAVAILABLE", "OpenCode 只读运行时不可用");
             Path snapshot = verifiedSnapshot(row);
-            OpenCodeClient.OpenCodeSession remote = openCode.createSession(snapshot,
+            OpenCodeClient.OpenCodeSession remote = RoleSessions.create(roleSessions, openCode, "TASK", row.taskId(), null, snapshot,
                     "OpenCode Loopper Rolling Task Decomposer (READ_ONLY)", configuredModel(row.designerSessionId()),
                     OpenCodeClient.SessionProfile.DECOMPOSER_READ_ONLY);
             row = plans.attachSuggestionSession(row, remote.id(), "PROMPTING");
@@ -213,7 +214,7 @@ public class RollingPackagePlanGenerationService {
             if (!openCode.healthy()) throw new ConflictException(
                     "PACKAGE_PLAN_OPENCODE_UNAVAILABLE", "OpenCode 只读运行时不可用");
             snapshot = verifiedSnapshot(row);
-            OpenCodeClient.OpenCodeSession remote = candidates.create(snapshot, row.id(), configuredModel(row.designerSessionId()));
+            OpenCodeClient.OpenCodeSession remote = candidates.create(snapshot, row.id(), row.taskId(), configuredModel(row.designerSessionId()));
             row = plans.attachSuggestionSession(row, remote.id(), "PROMPTING");
             RollingPackagePlanCandidateOrchestrator.Start start = candidates.open(
                     row, remote, candidateFacts(row));
@@ -272,7 +273,7 @@ public class RollingPackagePlanGenerationService {
     }
 
     private String prompt(TaskPackagePlanRevisionRow row) {
-        return candidateFacts(row) + """
+        return candidateFacts(row, OpenCodeClient.SessionProfile.DECOMPOSER_READ_ONLY) + """
 
                 仅返回以下 marker 包裹的 JSON，不要解释：
                 <!-- ROLLING_PACKAGE_PLAN_JSON_START -->
@@ -281,7 +282,9 @@ public class RollingPackagePlanGenerationService {
                 """;
     }
 
-    private String candidateFacts(TaskPackagePlanRevisionRow row) {
+    private String candidateFacts(TaskPackagePlanRevisionRow row) { return candidateFacts(row, OpenCodeClient.SessionProfile.ROLLING_PACKAGE_CANDIDATE_READ_ONLY); }
+
+    private String candidateFacts(TaskPackagePlanRevisionRow row, OpenCodeClient.SessionProfile profile) {
         var requirement = mapper.findDesignRequirementRevision(row.requirementRevisionId()).orElseThrow();
         List<Map<String, Object>> unfinished = new ArrayList<>();
         for (TaskPackageRunRow run : mapper.listTaskPackageRuns(row.taskId())) {
@@ -296,15 +299,7 @@ public class RollingPackagePlanGenerationService {
             unfinished.add(item);
         }
         String facts = codec.factContext(mapper.listPackageFactSnapshots(row.taskId()));
-        return """
-                你是大型软件任务的只读剩余计划规划师。当前目录是上一成功事实点构造的精确只读快照。
-                只能使用 read/glob/grep 核对真实代码，不得写文件、执行命令、提问或修改已冻结工作包。
-                基于原始冻结需求、真实快照和已冻结事实，只重新规划尚未执行的后缀。输出 1–6 个包。
-                replaces 必须引用下方当前未执行包的 packageKey；拆分时多个目标可引用同一来源，合并时一个目标可引用多个来源。
-                dependencies 使用工作包 packageKey。新增包可使用空 replaces。不要把 AI 摘要当成机器证据。
-                每个包必须保留可追溯的原始需求引用，依赖不得成环；不要重写已证明的事实或已完成包。
-                本次只提出建议，确认计划、批准设计和启动执行均由 Loopper 的独立入口决定。
-
+        return RoleSessions.render(roleSessions, "TASK", row.taskId(), profile, null, () -> io.opencode.loopper.service.roles.RolePromptResources.read("rolling.instructions")) + """
                 原始冻结需求：
                 %s
 

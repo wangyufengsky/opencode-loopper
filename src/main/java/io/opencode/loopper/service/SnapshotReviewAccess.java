@@ -10,6 +10,7 @@ import tools.jackson.databind.ObjectMapper;
 /** Exact task/attempt/batch and managed-generation fence shared by all snapshot review tools. */
 @Service
 public class SnapshotReviewAccess {
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private ConfiguredRoleRuntime roles;
     private final TemplateBatchStore batches;
     private final LoopperMapper tasks;
     private final InternalMcpRuntimeAccess runtime;
@@ -30,6 +31,12 @@ public class SnapshotReviewAccess {
                 || !row.taskId().equals(session.taskId()) || !row.attemptId().equals(session.attemptId()) || session.externalSessionId() == null)
             throw invalid();
         return row;
+    }
+    public void requireTool(String id, String toolName) {
+        var row = require(id);
+        var session = tasks.findSession(row.sessionId()).orElseThrow(SnapshotReviewAccess::invalid);
+        var plan = json.readValue(row.creationPlanJson(), OpenCodeClient.SessionCreationPlan.class);
+        if (roles != null) roles.requireInternalTool(session.externalSessionId(), plan.internalMcpServer(), toolName);
     }
     private static ConflictException invalid() { return new ConflictException("SNAPSHOT_READ_SCOPE_INVALID", "读取不属于当前代码审查会话、任务或运行代次"); }
 }

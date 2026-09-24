@@ -1,0 +1,1 @@
+Use the repository Maven/Gradle conventions. Production Java changes require the focused TEST frozen in the verifier contract.

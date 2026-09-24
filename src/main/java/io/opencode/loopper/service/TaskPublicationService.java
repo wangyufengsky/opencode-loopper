@@ -22,6 +22,7 @@ import org.springframework.stereotype.Service;
 /** Human-triggered publication for a successfully verified Git Task branch. */
 @Service
 public class TaskPublicationService {
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private io.opencode.loopper.service.RoleSessions roleSessions;
     private static final Duration GIT_WRITE_TIMEOUT = Duration.ofMinutes(2);
     private static final Duration AI_TIMEOUT = Duration.ofSeconds(75);
     private static final Pattern COMMIT_MESSAGE = CommitMessagePolicy.MESSAGE;
@@ -102,9 +103,9 @@ public class TaskPublicationService {
         Path workspace = repository(task);
         OpenCodeClient.OpenCodeSession session;
         try {
-            session = openCode.createReadOnlySession(workspace,
+            session = RoleSessions.readOnly(roleSessions, openCode, "TASK", task.id(), "COMMIT_MESSAGE", workspace,
                     "OpenCode Loopper Commit Message (READ_ONLY)", configuredModel());
-            openCode.promptAsync(session, commitMessages.prompt(task, workspace));
+            openCode.promptAsync(session, RoleSessions.renderSession(roleSessions, session.id(), () -> commitMessages.prompt(task, workspace)));
         } catch (RuntimeException failure) {
             throw new ServiceUnavailableException("COMMIT_MESSAGE_AI_FAILED", safeMessage(failure));
         }

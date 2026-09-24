@@ -1,0 +1,1 @@
+Design only the exact requested file changes. Forbid deletion, service control, Git publication and external writes in plain language.

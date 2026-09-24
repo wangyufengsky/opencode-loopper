@@ -5,8 +5,15 @@ import java.util.List;
 import java.util.Map;
 
 /** Builds the fail-closed OpenCode permission profile independently of HTTP transport. */
-final class OpenCodePermissionPolicy {
+public final class OpenCodePermissionPolicy {
     private OpenCodePermissionPolicy() { }
+
+    /** Pure adapter upper bound shared by runtime compilation and settings previews. */
+    public static List<OpenCodeClient.SessionPermissionRule> previewRules(OpenCodeClient.SessionProfile profile, List<String> servers, String internal) {
+        return rules(profile, servers, internal).stream().map(rule -> new OpenCodeClient.SessionPermissionRule(
+                rule.get("permission"), rule.get("pattern"), rule.get("action"))).toList();
+    }
+
 
     static List<Map<String, String>> rules(OpenCodeClient.SessionProfile profile) {
         return rules(profile, List.of());

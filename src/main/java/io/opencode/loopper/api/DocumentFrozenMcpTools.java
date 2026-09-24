@@ -3,6 +3,7 @@ package io.opencode.loopper.api;
 import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.opencode.loopper.service.*;
+import io.opencode.loopper.service.roles.InternalRoleToolAuthority;
 import java.util.*;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
@@ -10,26 +11,28 @@ import tools.jackson.databind.ObjectMapper;
 /** Static source tools expose only server-frozen records through an active role run. */
 final class DocumentFrozenMcpTools {
     private DocumentFrozenMcpTools() { }
-    static List<McpServerFeatures.SyncToolSpecification> specifications(DocumentFrozenReadService reads, DocumentReviewContextService context, ObjectMapper json) {
-        return List.of(spec("list_requirement_assessments", "List immutable assessment metadata from this generation for cross-batch consistency review", reads, context, json,
+    static List<McpServerFeatures.SyncToolSpecification> specifications(DocumentFrozenReadService reads,
+            DocumentReviewContextService context, InternalRoleToolAuthority authority, ObjectMapper json) {
+        return List.of(spec("list_requirement_assessments", "List immutable assessment metadata from this generation for cross-batch consistency review", reads, context, authority, json,
                         fields("runId", text(), "after", integer(-1, 100000), "limit", integer(1, 100))),
-                spec("read_requirement_assessment", "Read one completed bounded assessment by its expected result hash", reads, context, json,
+                spec("read_requirement_assessment", "Read one completed bounded assessment by its expected result hash", reads, context, authority, json,
                         fields("runId", text(), "ordinal", integer(0, 100000), "expectedSha256", text())),
-                spec("list_requirement_documents", "List all frozen uploaded documents and extraction limits", reads, context, json,
+                spec("list_requirement_documents", "List all frozen uploaded documents and extraction limits", reads, context, authority, json,
                         fields("runId", text())),
-                spec("list_document_sections", "List immutable section titles and hashes from a frozen document", reads, context, json,
+                spec("list_document_sections", "List immutable section titles and hashes from a frozen document", reads, context, authority, json,
                         fields("runId", text(), "fileId", text(), "after", integer(-1, 2048), "limit", integer(1, 100))),
-                spec("read_document_section", "Read one explicitly granted frozen document section", reads, context, json,
+                spec("read_document_section", "Read one explicitly granted frozen document section", reads, context, authority, json,
                         fields("runId", text(), "fileId", text(), "section", integer(0, 2048), "expectedSha256", text())),
-                spec("list_requirement_code", "List frozen source metadata, using the returned path cursor", reads, context, json,
+                spec("list_requirement_code", "List frozen source metadata, using the returned path cursor", reads, context, authority, json,
                         fields("runId", text(), "query", text(), "after", text(), "limit", integer(1, 100))),
-                spec("read_requirement_code", "Read up to 200 lines and register exact immutable source evidence", reads, context, json,
+                spec("read_requirement_code", "Read up to 200 lines and register exact immutable source evidence", reads, context, authority, json,
                         fields("runId", text(), "path", text(), "blobSha", text(), "startLine", integer(1, 10000000), "limit", integer(1, 200))),
-                spec("search_requirement_code", "Search a literal in one frozen file; absence is not proof of missing implementation", reads, context, json,
+                spec("search_requirement_code", "Search a literal in one frozen file; absence is not proof of missing implementation", reads, context, authority, json,
                         fields("runId", text(), "path", text(), "blobSha", text(), "query", text(), "afterLine", integer(0, 10000000))));
     }
     private static McpServerFeatures.SyncToolSpecification spec(String name, String description,
-            DocumentFrozenReadService reads, DocumentReviewContextService context, ObjectMapper json, Map<String, Object> properties) {
+            DocumentFrozenReadService reads, DocumentReviewContextService context,
+            InternalRoleToolAuthority authority, ObjectMapper json, Map<String, Object> properties) {
         var schema = Map.<String, Object>of("type", "object", "properties", properties,
                 "required", List.copyOf(properties.keySet()), "additionalProperties", false);
         var tool = McpSchema.Tool.builder(name, schema).description(description)
@@ -40,6 +43,7 @@ final class DocumentFrozenMcpTools {
                 var args = request.arguments();
                 if (args == null || !args.keySet().equals(properties.keySet())) throw invalid();
                 String id = string(args, "runId");
+                authority.require(reads.authorizedSession(id), name);
                 Object value = switch (name) {
                     case "list_requirement_assessments" -> context.list(id, number(args, "after"), number(args, "limit"));
                     case "read_requirement_assessment" -> context.read(id, number(args, "ordinal"), string(args, "expectedSha256"));

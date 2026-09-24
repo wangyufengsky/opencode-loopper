@@ -22,6 +22,7 @@ import tools.jackson.databind.ObjectMapper;
 /** Persists an ordinary confirmed draft inside its caller's short transaction; performs no external I/O. */
 @Component
 final class TaskDraftConfirmation {
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private io.opencode.loopper.service.RoleSessions roleSessions;
     private final LoopperMapper mapper;
     private final LifecycleTransitionService lifecycle;
     private final ObjectMapper json;
@@ -60,6 +61,8 @@ final class TaskDraftConfirmation {
         lifecycle.create(subject(LifecycleMachineType.TASK, task.id(), task.id()), task.state(),
                 Map.of("source", admissionSource), () -> mapper.insertTask(task),
                 () -> new ConflictException("TASK_CREATE_CONFLICT", "Task could not be created"));
+        RoleSessions.freezeTask(roleSessions, task.id(), draft.id(),
+                mapper.findLatestDesignerSessionByDraft(draft.id()).map(io.opencode.loopper.persistence.DesignerSessionRow::id).orElse(null));
         if (preparedAttachments != null) {
             attachmentContext.freezePrepared(new DesignerAttachmentContext.FreezeForTask(
                     task.id(), preparedAttachments.designerSessionId(), null), preparedAttachments);

@@ -1,0 +1,1 @@
+Decompose by repository-native vertical behavior without assuming Java, Maven, Node, or Python tooling.

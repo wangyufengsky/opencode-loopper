@@ -20,6 +20,7 @@ import org.springframework.stereotype.Component;
 /** Drives one durable JUDGE_DECISION_V1 launch without reading model final text. */
 @Component
 final class JudgeDecisionCandidateWorkflow {
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private RoleSessions roleSessions;
     static final String RESPONSE_MODE = "INTERNAL_MCP";
     private static final String CAPABILITY_UNAVAILABLE = "JUDGE_CANDIDATE_CAPABILITY_UNAVAILABLE";
 
@@ -311,7 +312,7 @@ final class JudgeDecisionCandidateWorkflow {
                 .orElseThrow(() -> stale("Frozen Judge source snapshot is missing"));
         var evidence = codec.requireEvidence(snapshot.canonicalEvidenceJson(), snapshot.evidenceSha256());
         String tool = launches.actualToolName(launch);
-        String text = promptFactory.internal(run, snapshot.role(), snapshot.sourcePrompt(), evidence, tool, codec);
+        String text = RoleSessions.renderSession(roleSessions, launch.externalSessionId(), () -> promptFactory.internal(run, snapshot.role(), snapshot.sourcePrompt(), evidence, tool, codec));
         OpenCodeClient.PromptRequest request = new OpenCodeClient.PromptRequest(
                 text, null, null, new OpenCodeClient.ResponseFormat.Text(),
                 CandidatePromptDispatchService.initialMessageId(run.runId()), List.of());

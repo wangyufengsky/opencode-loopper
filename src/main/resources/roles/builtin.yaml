@@ -1,0 +1,626 @@
+schemaVersion: 1
+slots:
+  - slot: SOURCE_DETAILED_DESIGN_NO_TOOLS
+    adapterProfile: SOURCE_DETAILED_DESIGN_NO_TOOLS
+    displayName: 源码详细设计编写
+    purpose: DEFAULT
+  - slot: SOURCE_DESIGN_REVIEW_NO_TOOLS
+    adapterProfile: SOURCE_DESIGN_REVIEW_NO_TOOLS
+    displayName: 源码详细设计复核
+    purpose: DEFAULT
+  - slot: PPT_AGENT
+    adapterProfile: PPT_AGENT
+    displayName: PPT 制作会话
+    purpose: DEFAULT
+  - slot: KNOWLEDGE_READ_ONLY
+    adapterProfile: KNOWLEDGE_READ_ONLY
+    displayName: 知识库只读问答
+    purpose: DEFAULT
+  - slot: KNOWLEDGE_INTERACTIVE_READ_ONLY
+    adapterProfile: KNOWLEDGE_INTERACTIVE_READ_ONLY
+    displayName: 知识库交互问答
+    purpose: DEFAULT
+  - slot: KNOWLEDGE_RESEARCH_READ_ONLY
+    adapterProfile: KNOWLEDGE_RESEARCH_READ_ONLY
+    displayName: 知识库研究只读
+    purpose: DEFAULT
+  - slot: KNOWLEDGE_RESEARCH_INTERACTIVE_READ_ONLY
+    adapterProfile: KNOWLEDGE_RESEARCH_INTERACTIVE_READ_ONLY
+    displayName: 知识库研究交互
+    purpose: DEFAULT
+  - slot: DOCUMENT_CODE_ASSESSMENT_V2_NO_TOOLS
+    adapterProfile: DOCUMENT_CODE_ASSESSMENT_V2_NO_TOOLS
+    displayName: 文档代码评估
+    purpose: DEFAULT
+  - slot: DOCUMENT_CODE_REVIEW_V2_NO_TOOLS
+    adapterProfile: DOCUMENT_CODE_REVIEW_V2_NO_TOOLS
+    displayName: 文档代码复核
+    purpose: DEFAULT
+  - slot: DOCUMENT_REQUIREMENTS_NO_TOOLS
+    adapterProfile: DOCUMENT_REQUIREMENTS_NO_TOOLS
+    displayName: 文档需求生成
+    purpose: DEFAULT
+  - slot: DOCUMENT_REQUIREMENT_REVIEW_NO_TOOLS
+    adapterProfile: DOCUMENT_REQUIREMENT_REVIEW_NO_TOOLS
+    displayName: 文档需求复核
+    purpose: DEFAULT
+  - slot: REQUIREMENT_CODE_ASSESSMENT_NO_TOOLS
+    adapterProfile: REQUIREMENT_CODE_ASSESSMENT_NO_TOOLS
+    displayName: 需求代码评估
+    purpose: DEFAULT
+  - slot: REQUIREMENT_ASSESSMENT_REVIEW_NO_TOOLS
+    adapterProfile: REQUIREMENT_ASSESSMENT_REVIEW_NO_TOOLS
+    displayName: 需求评估复核
+    purpose: DEFAULT
+  - slot: ROUTER_NO_TOOLS
+    adapterProfile: ROUTER_NO_TOOLS
+    displayName: 任务路由判断
+    purpose: DEFAULT
+  - slot: TEMPLATE_ANALYSIS_NO_TOOLS
+    adapterProfile: TEMPLATE_ANALYSIS_NO_TOOLS
+    displayName: 模板分析
+    purpose: DEFAULT
+  - slot: TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS
+    adapterProfile: TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS
+    displayName: 模板分析候选
+    purpose: DEFAULT
+  - slot: SNAPSHOT_CODE_REVIEW_NO_TOOLS
+    adapterProfile: SNAPSHOT_CODE_REVIEW_NO_TOOLS
+    displayName: 源码快照评审
+    purpose: DEFAULT
+  - slot: DECOMPOSER_CANDIDATE_READ_ONLY
+    adapterProfile: DECOMPOSER_CANDIDATE_READ_ONLY
+    displayName: 任务规划候选
+    purpose: DEFAULT
+  - slot: PACKAGE_DESIGN_CANDIDATE_READ_ONLY
+    adapterProfile: PACKAGE_DESIGN_CANDIDATE_READ_ONLY
+    displayName: 工作包设计候选
+    purpose: DEFAULT
+  - slot: PACKAGE_DESIGN_CANDIDATE_V2_READ_ONLY
+    adapterProfile: PACKAGE_DESIGN_CANDIDATE_V2_READ_ONLY
+    displayName: 工作包 V2 设计候选
+    purpose: DEFAULT
+  - slot: PACKAGE_DESIGN_CANDIDATE_V2_INTERACTIVE_READ_ONLY
+    adapterProfile: PACKAGE_DESIGN_CANDIDATE_V2_INTERACTIVE_READ_ONLY
+    displayName: 工作包 V2 交互设计
+    purpose: DEFAULT
+  - slot: PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY
+    adapterProfile: PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY
+    displayName: 工作包交互设计
+    purpose: DEFAULT
+  - slot: ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS
+    adapterProfile: ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS
+    displayName: 验收闭集选择
+    purpose: DEFAULT
+  - slot: ROLLING_PACKAGE_CANDIDATE_READ_ONLY
+    adapterProfile: ROLLING_PACKAGE_CANDIDATE_READ_ONLY
+    displayName: 滚动工作包规划
+    purpose: DEFAULT
+  - slot: REVIEWER_CANDIDATE_READ_ONLY
+    adapterProfile: REVIEWER_CANDIDATE_READ_ONLY
+    displayName: 评审候选
+    purpose: DEFAULT
+  - slot: PROJECT_CONVENTION_CANDIDATE_READ_ONLY
+    adapterProfile: PROJECT_CONVENTION_CANDIDATE_READ_ONLY
+    displayName: 项目规范候选
+    purpose: DEFAULT
+  - slot: JUDGE_CANDIDATE_READ_ONLY
+    adapterProfile: JUDGE_CANDIDATE_READ_ONLY
+    displayName: 验收判断候选
+    purpose: DEFAULT
+  - slot: DECOMPOSER_READ_ONLY
+    adapterProfile: DECOMPOSER_READ_ONLY
+    displayName: 任务规划只读
+    purpose: DEFAULT
+  - slot: DESIGNER_INTERACTIVE_READ_ONLY
+    adapterProfile: DESIGNER_INTERACTIVE_READ_ONLY
+    displayName: 设计师交互默认
+    purpose: DEFAULT
+  - slot: COMPILER_READ_ONLY
+    adapterProfile: COMPILER_READ_ONLY
+    displayName: 设计编译只读
+    purpose: DEFAULT
+  - slot: COMPILER_BINDING_NO_TOOLS
+    adapterProfile: COMPILER_BINDING_NO_TOOLS
+    displayName: 设计绑定编译
+    purpose: DEFAULT
+  - slot: COMPILER_REPAIR_NO_TOOLS
+    adapterProfile: COMPILER_REPAIR_NO_TOOLS
+    displayName: 设计修复编译
+    purpose: DEFAULT
+  - slot: REVIEWER_READ_ONLY
+    adapterProfile: REVIEWER_READ_ONLY
+    displayName: 评审只读
+    purpose: DEFAULT
+  - slot: JUDGE_READ_ONLY
+    adapterProfile: JUDGE_READ_ONLY
+    displayName: 验收判断历史通道
+    purpose: DEFAULT
+  - slot: JUDGE_FINALIZER_NO_TOOLS
+    adapterProfile: JUDGE_FINALIZER_NO_TOOLS
+    displayName: 验收判断收束
+    purpose: DEFAULT
+  - slot: PROJECT_CONVENTION_READ_ONLY
+    adapterProfile: PROJECT_CONVENTION_READ_ONLY
+    displayName: 项目规范只读
+    purpose: DEFAULT
+  - slot: MACHINE_FINALIZER_NO_TOOLS
+    adapterProfile: MACHINE_FINALIZER_NO_TOOLS
+    displayName: 机器结果收束
+    purpose: DEFAULT
+  - slot: GENERAL_READ_ONLY
+    adapterProfile: GENERAL_READ_ONLY
+    displayName: 通用只读会话
+    purpose: DEFAULT
+  - slot: IMPLEMENTATION
+    adapterProfile: IMPLEMENTATION
+    displayName: 开发执行会话
+    purpose: DEFAULT
+  - slot: JUDGE_REQUIREMENT_CANDIDATE
+    adapterProfile: JUDGE_CANDIDATE_READ_ONLY
+    displayName: 需求评审员
+    purpose: REQUIREMENT
+  - slot: JUDGE_RISK_CANDIDATE
+    adapterProfile: JUDGE_CANDIDATE_READ_ONLY
+    displayName: 风险评审员
+    purpose: RISK
+  - slot: JUDGE_REQUIREMENT_LEGACY
+    adapterProfile: JUDGE_READ_ONLY
+    displayName: 需求评审员历史通道
+    purpose: REQUIREMENT
+  - slot: JUDGE_RISK_LEGACY
+    adapterProfile: JUDGE_READ_ONLY
+    displayName: 风险评审员历史通道
+    purpose: RISK
+  - slot: JUDGE_REQUIREMENT_FINALIZER
+    adapterProfile: JUDGE_FINALIZER_NO_TOOLS
+    displayName: 需求评审收束
+    purpose: REQUIREMENT
+  - slot: JUDGE_RISK_FINALIZER
+    adapterProfile: JUDGE_FINALIZER_NO_TOOLS
+    displayName: 风险评审收束
+    purpose: RISK
+  - slot: GENERAL_READ_ONLY_COMMIT_MESSAGE
+    adapterProfile: GENERAL_READ_ONLY
+    displayName: 提交说明助手
+    purpose: COMMIT_MESSAGE
+  - slot: GENERAL_READ_ONLY_MERGE_ADVISOR
+    adapterProfile: GENERAL_READ_ONLY
+    displayName: 合并建议助手
+    purpose: MERGE_ADVISOR
+  - slot: GENERAL_READ_ONLY_REQUIREMENT
+    adapterProfile: GENERAL_READ_ONLY
+    displayName: 需求分析师只读
+    purpose: REQUIREMENT
+  - slot: DESIGNER_INTERACTIVE_READ_ONLY_REQUIREMENT
+    adapterProfile: DESIGNER_INTERACTIVE_READ_ONLY
+    displayName: 需求分析师交互
+    purpose: REQUIREMENT
+  - slot: GENERAL_READ_ONLY_DESIGNER
+    adapterProfile: GENERAL_READ_ONLY
+    displayName: 设计师只读
+    purpose: DESIGNER
+  - slot: DESIGNER_INTERACTIVE_READ_ONLY_DESIGNER
+    adapterProfile: DESIGNER_INTERACTIVE_READ_ONLY
+    displayName: 设计师交互
+    purpose: DESIGNER
+  - slot: ACCOUNTING_COMMAND
+    adapterProfile: ACCOUNTING_COMMAND
+    displayName: 统计辅助命令
+    purpose: ACCOUNTING
+roles:
+  - roleId: builtin.source-design-author
+    displayName: 源码详细设计作者
+    description: 按选定的源码文件逐一阅读，编写包含模块职责、接口、流程和来源依据的详细设计。
+    groupKey: source-design
+    groupLabel: 源码详细设计
+    allowedSlots:
+      - SOURCE_DETAILED_DESIGN_NO_TOOLS
+    permissionMode: BASELINE
+    nativeTools: []
+    mcpTools: []
+    requiredMcpTools: []
+    modelPolicy: INHERIT_WORKFLOW
+    runtimePolicy: WORKFLOW_ADAPTER
+    prompts:
+      source.design.author.instructions: source.design.author.instructions
+  - roleId: builtin.source-design-review
+    displayName: 源码详细设计复核员
+    description: 独立核对源码与详细设计，找出遗漏、错误及跨模块矛盾，提出返修意见。
+    groupKey: source-design
+    groupLabel: 源码详细设计
+    allowedSlots:
+      - SOURCE_DESIGN_REVIEW_NO_TOOLS
+    permissionMode: BASELINE
+    nativeTools: []
+    mcpTools: []
+    requiredMcpTools: []
+    modelPolicy: INHERIT_WORKFLOW
+    runtimePolicy: WORKFLOW_ADAPTER
+    prompts:
+      source.design.reviewer.instructions: source.design.reviewer.instructions
+  - roleId: builtin.ppt
+    displayName: PPT 制作助手
+    description: 围绕制作目标和提供的资料讨论内容，按确认的要求生成、修改并交付演示文稿。
+    groupKey: ppt
+    groupLabel: PPT 制作助手
+    allowedSlots:
+      - PPT_AGENT
+    permissionMode: BASELINE
+    nativeTools: []
+    mcpTools: []
+    requiredMcpTools: []
+    modelPolicy: INHERIT_WORKFLOW
+    runtimePolicy: WORKFLOW_ADAPTER
+    prompts:
+      ppt.base: ppt.base
+      ppt.manual: ppt.manual
+      ppt.discussion: ppt.discussion
+      ppt.automatic: ppt.automatic
+      ppt.knowledge: ppt.knowledge
+      ppt.request-write-rules: ppt.request-write-rules
+      ppt.bounded-context: ppt.bounded-context
+      ppt.discussion-boundary: ppt.discussion-boundary
+      ppt.manual-authorization: ppt.manual-authorization
+  - roleId: builtin.knowledge
+    displayName: 知识库助手
+    description: 从项目授权资料中检索并阅读原文，回答问题、继续追问并给出可核对的引用。
+    groupKey: knowledge
+    groupLabel: 知识库助手
+    allowedSlots:
+      - KNOWLEDGE_READ_ONLY
+      - KNOWLEDGE_INTERACTIVE_READ_ONLY
+      - KNOWLEDGE_RESEARCH_READ_ONLY
+      - KNOWLEDGE_RESEARCH_INTERACTIVE_READ_ONLY
+    permissionMode: BASELINE
+    nativeTools: []
+    mcpTools: []
+    requiredMcpTools: []
+    modelPolicy: INHERIT_WORKFLOW
+    runtimePolicy: WORKFLOW_ADAPTER
+    prompts:
+      knowledge.research: knowledge.research
+  - roleId: builtin.document
+    displayName: 文档模板角色
+    description: 阅读上传文档，提取并复核需求；需要评估代码时，逐项核对实现与原文依据。
+    groupKey: document
+    groupLabel: 文档模板角色
+    allowedSlots:
+      - DOCUMENT_CODE_ASSESSMENT_V2_NO_TOOLS
+      - DOCUMENT_CODE_REVIEW_V2_NO_TOOLS
+      - DOCUMENT_REQUIREMENTS_NO_TOOLS
+      - DOCUMENT_REQUIREMENT_REVIEW_NO_TOOLS
+      - REQUIREMENT_CODE_ASSESSMENT_NO_TOOLS
+      - REQUIREMENT_ASSESSMENT_REVIEW_NO_TOOLS
+    permissionMode: BASELINE
+    nativeTools: []
+    mcpTools: []
+    requiredMcpTools: []
+    modelPolicy: INHERIT_WORKFLOW
+    runtimePolicy: WORKFLOW_ADAPTER
+    prompts: {}
+  - roleId: builtin.router
+    displayName: 任务分类器
+    description: 根据用户需求提出任务类型、主要交付物和复杂度分类，帮助选择后续工作流程。
+    groupKey: router
+    groupLabel: 任务分类器
+    allowedSlots:
+      - ROUTER_NO_TOOLS
+    permissionMode: BASELINE
+    nativeTools: []
+    mcpTools: []
+    requiredMcpTools: []
+    modelPolicy: INHERIT_WORKFLOW
+    runtimePolicy: WORKFLOW_ADAPTER
+    prompts: {}
+  - roleId: builtin.template
+    displayName: 模板分析角色
+    description: 按批次分析代码变化和贡献证据，形成代码评审或贡献报告的依据。
+    groupKey: template
+    groupLabel: 模板分析角色
+    allowedSlots:
+      - TEMPLATE_ANALYSIS_NO_TOOLS
+      - TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS
+    permissionMode: BASELINE
+    nativeTools: []
+    mcpTools: []
+    requiredMcpTools: []
+    modelPolicy: INHERIT_WORKFLOW
+    runtimePolicy: WORKFLOW_ADAPTER
+    prompts: {}
+  - roleId: builtin.snapshot-review
+    displayName: 源码评审角色
+    description: 审查指定版本的代码变化与上下文，提出有源码证据支持的问题和复核结论。
+    groupKey: snapshot-review
+    groupLabel: 源码评审角色
+    allowedSlots:
+      - SNAPSHOT_CODE_REVIEW_NO_TOOLS
+    permissionMode: BASELINE
+    nativeTools: []
+    mcpTools: []
+    requiredMcpTools: []
+    modelPolicy: INHERIT_WORKFLOW
+    runtimePolicy: WORKFLOW_ADAPTER
+    prompts: {}
+  - roleId: builtin.decomposer
+    displayName: 任务规划师
+    description: 为大型任务划分范围清楚且有依赖顺序的工作包，标出需要用户补充的需求。
+    groupKey: decomposer
+    groupLabel: 任务规划师
+    allowedSlots:
+      - DECOMPOSER_CANDIDATE_READ_ONLY
+      - DECOMPOSER_READ_ONLY
+    permissionMode: BASELINE
+    nativeTools: []
+    mcpTools: []
+    requiredMcpTools: []
+    modelPolicy: INHERIT_WORKFLOW
+    runtimePolicy: WORKFLOW_ADAPTER
+    prompts:
+      machine-role.decomposer: machine-role.decomposer
+  - roleId: builtin.package-designer
+    displayName: 工作包设计师
+    description: 将工作包需求细化为阶段目标、交付物和验收场景，并通过讨论修正缺口。
+    groupKey: package-designer
+    groupLabel: 工作包设计师
+    allowedSlots:
+      - PACKAGE_DESIGN_CANDIDATE_READ_ONLY
+      - PACKAGE_DESIGN_CANDIDATE_V2_READ_ONLY
+      - PACKAGE_DESIGN_CANDIDATE_V2_INTERACTIVE_READ_ONLY
+      - PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY
+    permissionMode: BASELINE
+    nativeTools: []
+    mcpTools: []
+    requiredMcpTools: []
+    modelPolicy: INHERIT_WORKFLOW
+    runtimePolicy: WORKFLOW_ADAPTER
+    prompts:
+      machine-role.package-designer: machine-role.package-designer
+  - roleId: builtin.acceptance
+    displayName: 验收闭集选择器
+    description: 在已列出的等价验收方案中选择一项，供后续设计采用。
+    groupKey: acceptance
+    groupLabel: 验收闭集选择器
+    allowedSlots:
+      - ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS
+    permissionMode: BASELINE
+    nativeTools: []
+    mcpTools: []
+    requiredMcpTools: []
+    modelPolicy: INHERIT_WORKFLOW
+    runtimePolicy: WORKFLOW_ADAPTER
+    prompts: {}
+  - roleId: builtin.rolling-planner
+    displayName: 滚动计划师
+    description: 根据已完成工作的结果和剩余需求，建议后续工作包的范围、顺序与依赖，供用户确认。
+    groupKey: rolling-planner
+    groupLabel: 滚动计划师
+    allowedSlots:
+      - ROLLING_PACKAGE_CANDIDATE_READ_ONLY
+    permissionMode: BASELINE
+    nativeTools: []
+    mcpTools: []
+    requiredMcpTools: []
+    modelPolicy: INHERIT_WORKFLOW
+    runtimePolicy: WORKFLOW_ADAPTER
+    prompts: {}
+  - roleId: builtin.reviewer
+    displayName: 评审员
+    description: 检查实现与验证材料，指出有证据支持的问题和具体修正建议。
+    groupKey: reviewer
+    groupLabel: 评审员
+    allowedSlots:
+      - REVIEWER_CANDIDATE_READ_ONLY
+      - REVIEWER_READ_ONLY
+    permissionMode: BASELINE
+    nativeTools: []
+    mcpTools: []
+    requiredMcpTools: []
+    modelPolicy: INHERIT_WORKFLOW
+    runtimePolicy: WORKFLOW_ADAPTER
+    prompts: {}
+  - roleId: builtin.convention
+    displayName: 规范工程师
+    description: 基于项目现有结构和可用命令，整理可供预览的开发约定与执行说明。
+    groupKey: convention
+    groupLabel: 规范工程师
+    allowedSlots:
+      - PROJECT_CONVENTION_CANDIDATE_READ_ONLY
+      - PROJECT_CONVENTION_READ_ONLY
+    permissionMode: BASELINE
+    nativeTools: []
+    mcpTools: []
+    requiredMcpTools: []
+    modelPolicy: INHERIT_WORKFLOW
+    runtimePolicy: WORKFLOW_ADAPTER
+    prompts: {}
+  - roleId: builtin.judge
+    displayName: 验收工程师
+    description: 对照任务目标、设计和验证证据，给出是否达到验收条件的判断与理由。
+    groupKey: judge
+    groupLabel: 验收工程师
+    allowedSlots:
+      - JUDGE_CANDIDATE_READ_ONLY
+      - JUDGE_READ_ONLY
+      - JUDGE_FINALIZER_NO_TOOLS
+    permissionMode: BASELINE
+    nativeTools: []
+    mcpTools: []
+    requiredMcpTools: []
+    modelPolicy: INHERIT_WORKFLOW
+    runtimePolicy: WORKFLOW_ADAPTER
+    prompts:
+      machine-role.judge: machine-role.judge
+  - roleId: builtin.designer
+    displayName: 设计师
+    description: 根据已确认的需求设计工作阶段、交付物和验收目标，并在讨论中完善方案。
+    groupKey: designer
+    groupLabel: 设计师
+    allowedSlots:
+      - DESIGNER_INTERACTIVE_READ_ONLY
+      - GENERAL_READ_ONLY_DESIGNER
+      - DESIGNER_INTERACTIVE_READ_ONLY_DESIGNER
+    permissionMode: BASELINE
+    nativeTools: []
+    mcpTools: []
+    requiredMcpTools: []
+    modelPolicy: INHERIT_WORKFLOW
+    runtimePolicy: WORKFLOW_ADAPTER
+    prompts:
+      machine-role.designer: machine-role.designer
+  - roleId: builtin.compiler
+    displayName: 设计编译器
+    description: 在设计方案的阶段或验收条件存在歧义时，提出明确选择或修正建议，供后续执行准备。
+    groupKey: compiler
+    groupLabel: 设计编译器
+    allowedSlots:
+      - COMPILER_READ_ONLY
+      - COMPILER_BINDING_NO_TOOLS
+      - COMPILER_REPAIR_NO_TOOLS
+    permissionMode: BASELINE
+    nativeTools: []
+    mcpTools: []
+    requiredMcpTools: []
+    modelPolicy: INHERIT_WORKFLOW
+    runtimePolicy: WORKFLOW_ADAPTER
+    prompts:
+      machine-role.compiler: machine-role.compiler
+      machine-role.legacy-compiler: machine-role.legacy-compiler
+      machine-role.legacy-semantic-compiler: machine-role.legacy-semantic-compiler
+      machine-role.closed-choice-compiler: machine-role.closed-choice-compiler
+  - roleId: builtin.finalizer
+    displayName: 结果整理助手
+    description: 整理规划或设计过程中已有的结果，使当前流程能够继续检查和确认。
+    groupKey: finalizer
+    groupLabel: 结果整理助手
+    allowedSlots:
+      - MACHINE_FINALIZER_NO_TOOLS
+    permissionMode: BASELINE
+    nativeTools: []
+    mcpTools: []
+    requiredMcpTools: []
+    modelPolicy: INHERIT_WORKFLOW
+    runtimePolicy: WORKFLOW_ADAPTER
+    prompts: {}
+  - roleId: builtin.general
+    displayName: 通用只读助手
+    description: 在指定项目中阅读材料并回答问题或提出建议，适用于无需直接修改文件的辅助任务。
+    groupKey: general
+    groupLabel: 通用只读助手
+    allowedSlots:
+      - GENERAL_READ_ONLY
+    permissionMode: BASELINE
+    nativeTools: []
+    mcpTools: []
+    requiredMcpTools: []
+    modelPolicy: INHERIT_WORKFLOW
+    runtimePolicy: WORKFLOW_ADAPTER
+    prompts: {}
+  - roleId: builtin.implementation
+    displayName: 开发工程师
+    description: 按照已确认的阶段方案修改项目文件，执行相应测试并如实报告结果。
+    groupKey: implementation
+    groupLabel: 开发工程师
+    allowedSlots:
+      - IMPLEMENTATION
+    permissionMode: BASELINE
+    nativeTools: []
+    mcpTools: []
+    requiredMcpTools: []
+    modelPolicy: INHERIT_WORKFLOW
+    runtimePolicy: WORKFLOW_ADAPTER
+    prompts: {}
+  - roleId: builtin.judge-requirement
+    displayName: 需求评审员
+    description: 独立核对实现是否满足已确认的需求与验收条件，并指出未满足之处。
+    groupKey: judge-requirement
+    groupLabel: 需求评审员
+    allowedSlots:
+      - JUDGE_REQUIREMENT_CANDIDATE
+      - JUDGE_REQUIREMENT_LEGACY
+      - JUDGE_REQUIREMENT_FINALIZER
+    permissionMode: BASELINE
+    nativeTools: []
+    mcpTools: []
+    requiredMcpTools: []
+    modelPolicy: INHERIT_WORKFLOW
+    runtimePolicy: WORKFLOW_ADAPTER
+    prompts:
+      machine-role.judge: machine-role.judge
+  - roleId: builtin.judge-risk
+    displayName: 风险评审员
+    description: 独立检查异常路径、变更影响及验证证据，判断仍存在的风险并说明原因。
+    groupKey: judge-risk
+    groupLabel: 风险评审员
+    allowedSlots:
+      - JUDGE_RISK_CANDIDATE
+      - JUDGE_RISK_LEGACY
+      - JUDGE_RISK_FINALIZER
+    permissionMode: BASELINE
+    nativeTools: []
+    mcpTools: []
+    requiredMcpTools: []
+    modelPolicy: INHERIT_WORKFLOW
+    runtimePolicy: WORKFLOW_ADAPTER
+    prompts:
+      machine-role.judge: machine-role.judge
+  - roleId: builtin.commit-message
+    displayName: 提交说明助手
+    description: 根据任务目标和实际 Git 变更拟写简短提交说明，供用户预览和确认。
+    groupKey: commit-message
+    groupLabel: 提交说明助手
+    allowedSlots:
+      - GENERAL_READ_ONLY_COMMIT_MESSAGE
+    permissionMode: BASELINE
+    nativeTools: []
+    mcpTools: []
+    requiredMcpTools: []
+    modelPolicy: INHERIT_WORKFLOW
+    runtimePolicy: WORKFLOW_ADAPTER
+    prompts:
+      commit.subject: commit.subject
+  - roleId: builtin.merge-advisor
+    displayName: 合并建议助手
+    description: 对比同一文件的基线、来源改动与任务改动，提出保留双方工作的合并建议。
+    groupKey: merge-advisor
+    groupLabel: 合并建议助手
+    allowedSlots:
+      - GENERAL_READ_ONLY_MERGE_ADVISOR
+    permissionMode: BASELINE
+    nativeTools: []
+    mcpTools: []
+    requiredMcpTools: []
+    modelPolicy: INHERIT_WORKFLOW
+    runtimePolicy: WORKFLOW_ADAPTER
+    prompts: {}
+  - roleId: builtin.requirement
+    displayName: 需求分析师
+    description: 与用户澄清目标、边界、异常情形和成功条件，整理可确认的需求。
+    groupKey: requirement
+    groupLabel: 需求分析师
+    allowedSlots:
+      - GENERAL_READ_ONLY_REQUIREMENT
+      - DESIGNER_INTERACTIVE_READ_ONLY_REQUIREMENT
+    permissionMode: BASELINE
+    nativeTools: []
+    mcpTools: []
+    requiredMcpTools: []
+    modelPolicy: INHERIT_WORKFLOW
+    runtimePolicy: WORKFLOW_ADAPTER
+    prompts:
+      machine-role.designer: machine-role.designer
+  - roleId: builtin.accounting
+    displayName: 统计辅助助手
+    description: 在设计或开发会话的关键节点记录故事统计，返回本次操作的真实回执。
+    groupKey: accounting
+    groupLabel: 统计辅助助手
+    allowedSlots:
+      - ACCOUNTING_COMMAND
+    permissionMode: BASELINE
+    nativeTools: []
+    mcpTools: []
+    requiredMcpTools: []
+    modelPolicy: INHERIT_WORKFLOW
+    runtimePolicy: ACCOUNTING_COMMAND
+    prompts:
+      accounting.instructions: accounting.instructions

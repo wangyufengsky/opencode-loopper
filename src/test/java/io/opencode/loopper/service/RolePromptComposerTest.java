@@ -1,6 +1,7 @@
 package io.opencode.loopper.service;
 
 import io.opencode.loopper.domain.TestPolicy;
+import io.opencode.loopper.service.roles.RolePromptResources;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -69,5 +70,19 @@ class RolePromptComposerTest {
         assertThat(composer.compilerInstructions("software-mixed", "v1", null,
                 List.of("java", "javascript"), TestPolicy.REQUIRED))
                 .contains("每个 JAVA_PRODUCTION Stage", "Judge-only", "FULL_TEST/BUILD");
+    }
+
+    @Test void historicalRolePackKeepsItsPreviousDefaultTextWithoutUsingCurrentOverrides() {
+        String key = "role-pack.2026-08-dynamic-v7.software-python.implementation";
+        String baseline = composer.implementationInstructions("software-python", "v6", List.of("python"), TestPolicy.OPTIONAL);
+        String historical = RolePromptResources.withFragments(Map.of(key, "CUSTOM ROLE PACK"),
+                () -> composer.implementationInstructions("software-python", "v6", List.of("python"), TestPolicy.OPTIONAL));
+        String current = RolePromptResources.withFragments(Map.of(key, "CUSTOM ROLE PACK"),
+                () -> composer.implementationInstructions("software-python", RolePackRegistry.VERSION, List.of("python"), TestPolicy.OPTIONAL));
+        assertThat(historical).isEqualTo(baseline).contains("pytest/unittest").doesNotContain("CUSTOM ROLE PACK");
+        assertThat(current).contains("CUSTOM ROLE PACK");
+        String example = composer.compilerPlanningExample("software-node", "v6");
+        assertThat(RolePromptResources.withFragments(Map.of("role-pack.2026-08-dynamic-v7.software-node.compiler-example", "CUSTOM EXAMPLE"),
+                () -> composer.compilerPlanningExample("software-node", "v6"))).isEqualTo(example);
     }
 }

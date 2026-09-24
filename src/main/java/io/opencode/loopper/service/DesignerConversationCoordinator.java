@@ -13,6 +13,7 @@ import tools.jackson.databind.ObjectMapper;
 /** Owns remote reuse and exact business-turn identity, independently of compilation and accounting. */
 @Service
 public final class DesignerConversationCoordinator {
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private io.opencode.loopper.service.RoleSessions roleSessions;
     private final DesignerConversationMapper mapper;
     private final OpenCodeClient openCode;
     private final ObjectMapper json;
@@ -77,7 +78,7 @@ public final class DesignerConversationCoordinator {
         if (enabled(owner.id())) return acquire(owner.id(), "REQUIREMENT", root, model, candidate, question, false, replace || !reusable(owner.externalSessionId(), owner.externalSessionState()) && owner.externalSessionId() != null);
         if (!replace && reusable(owner.externalSessionId(), owner.externalSessionState()))
             return new OpenCodeClient.OpenCodeSession(owner.externalSessionId(), root);
-        return openCode.createSession(root, "OpenCode Loopper Requirement Designer (READ_ONLY)", model,
+        return RoleSessions.create(roleSessions, openCode, "DESIGNER_SESSION", owner.id(), "REQUIREMENT", root, "OpenCode Loopper Requirement Designer (READ_ONLY)", model,
                 question ? OpenCodeClient.SessionProfile.DESIGNER_INTERACTIVE_READ_ONLY : OpenCodeClient.SessionProfile.GENERAL_READ_ONLY);
     }
 
@@ -92,7 +93,7 @@ public final class DesignerConversationCoordinator {
         var profile = candidateTurn
                 ? question ? OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY : OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_READ_ONLY
                 : question ? OpenCodeClient.SessionProfile.DESIGNER_INTERACTIVE_READ_ONLY : OpenCodeClient.SessionProfile.GENERAL_READ_ONLY;
-        return openCode.createSession(root, "OpenCode Loopper Designer " + workPackage.packageId() + " (READ_ONLY)", model, profile);
+        return RoleSessions.create(roleSessions, openCode, "DESIGNER_SESSION", owner.id(), candidateTurn ? null : "DESIGNER", root, "OpenCode Loopper Designer " + workPackage.packageId() + " (READ_ONLY)", model, profile);
     }
 
     private static boolean reusable(String id, String state) {
@@ -150,7 +151,7 @@ public final class DesignerConversationCoordinator {
             String title = "REQUIREMENT".equals(scope) ? "OpenCode Loopper Requirement Designer (READ_ONLY)"
                     : "OpenCode Loopper package Designer " + mapper.designerConversationPackageName(scope).orElse(scope) + " (READ_ONLY)";
             OpenCodeClient.OpenCodeSession remote;
-            try { remote = openCode.createSession(root, title, model, profile); }
+            try { remote = RoleSessions.create(roleSessions, openCode, "DESIGNER_SESSION", designerId, candidate ? null : "REQUIREMENT".equals(scope) ? "REQUIREMENT" : "DESIGNER", root, title, model, profile); }
             catch (RuntimeException failure) {
                 mapper.retireDesignerConversation(id, "CREATE_FAILED_BEFORE_BUSINESS", Instant.now().toString());
                 throw failure;

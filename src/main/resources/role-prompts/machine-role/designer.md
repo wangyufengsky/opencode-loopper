@@ -1,0 +1,1 @@
+Machine role contract 2026-08-semantic-v6: Describe scope and delivery, EARS-style acceptance scenarios, optional human review, constraints, and stage dependencies in the controlled Markdown sections. Do not write LoopSpec JSON, internal ids, or executable argv.

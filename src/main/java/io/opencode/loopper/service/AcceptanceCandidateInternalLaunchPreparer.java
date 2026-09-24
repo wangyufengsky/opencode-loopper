@@ -21,6 +21,7 @@ import tools.jackson.databind.ObjectMapper;
 /** Freezes one Acceptance-v7 internal create plan using local runtime identity only. */
 @Service
 final class AcceptanceCandidateInternalLaunchPreparer {
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private io.opencode.loopper.service.RoleSessions roleSessions;
     private final OpenCodeClient openCode;
     private final AcceptanceCandidateInternalLaunchGuard guard;
     private final AcceptanceCandidateInternalLaunchStore store;
@@ -85,6 +86,7 @@ final class AcceptanceCandidateInternalLaunchPreparer {
                 anchor.projectRoot(), baseTitle, command.model(),
                 OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS,
                 credential);
+        plan = RoleSessions.prepare(roleSessions, plan, "DESIGNER_SESSION", command.designerSessionId(), null);
         plans.validatePreparedPlan(baseTitle, command.model(), plan);
         AcceptanceCandidateInternalLaunchRow created = row(command, launchId, candidateRunId, plan);
         if (!plans.decode(created).equals(plan)) {

@@ -21,6 +21,11 @@ public class TaskSessionController {
         return sessions.list(taskId);
     }
 
+    @GetMapping("/{sessionKey}/role")
+    public io.opencode.loopper.service.SessionRoleView.Summary role(@PathVariable String taskId, @PathVariable String sessionKey) {
+        return sessions.role(taskId, sessionKey);
+    }
+
     @GetMapping("/{sessionKey}")
     public TaskSessionMonitorService.SessionActivity activity(@PathVariable String taskId, @PathVariable String sessionKey) {
         return sessions.activity(taskId, sessionKey);

@@ -1,6 +1,64 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
+import { mkdtemp, writeFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { LoopperAccountingGuard } from '../../src/main/resources/opencode/loopper-accounting-guard.mjs'
+
+test('configured statistics inject only the frozen static fragment for the exact message', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'loopper-accounting-role-'))
+  try {
+    const sessionID = 'session-1'
+    const messageID = `msg_loopper_aicoding_${'a'.repeat(32)}_role`
+    const prompt = '本轮只执行已冻结的统计指令。'
+    const sha = value => createHash('sha256').update(value).digest('hex')
+    const descriptor = JSON.stringify({ schemaVersion: 1, sessionID, messageID, roleID: 'accounting',
+      revisionID: 'revision-1', roleSha256: 'b'.repeat(64), promptSha256: sha(prompt), prompt })
+    await writeFile(join(directory, `${messageID}.${sha(descriptor)}.json`), descriptor)
+    const rows = [{ info: { id: messageID, sessionID, role: 'user' }, parts: [] }]
+    const guard = await LoopperAccountingGuard({ directory: '/tmp', client: {
+      tool: { ids: async () => ({ data: ['aicoding_story_start', 'read'] }) },
+      session: { messages: async () => ({ data: rows }) },
+    } }, directory)
+    await guard['chat.message']({ sessionID }, { message: { id: messageID, role: 'user' }, parts: [] })
+    await assert.rejects(() => guard['tool.execute.before']({ sessionID, tool: 'aicoding_story_start', callID: 'call-1' }), /ROLE_PROMPT_MISSING/)
+    const system = { system: ['base'] }
+    await guard['experimental.chat.system.transform']({ sessionID }, system)
+    assert.deepEqual(system.system, ['base', prompt])
+    rows.push({ info: { id: 'assistant-1', role: 'assistant', sessionID, parentID: messageID },
+      parts: [{ type: 'tool', callID: 'call-1' }] })
+    await guard['tool.execute.before']({ sessionID, tool: 'aicoding_story_start', callID: 'call-1' })
+    rows.push({ info: { id: 'business', sessionID, role: 'user' }, parts: [] })
+    await guard['chat.message']({ sessionID }, { message: { id: 'business', role: 'user' }, parts: [] })
+    const business = { system: ['base'] }
+    await guard['experimental.chat.system.transform']({ sessionID }, business)
+    assert.deepEqual(business.system, ['base'])
+  } finally { await rm(directory, { recursive: true, force: true }) }
+})
+
+test('configured statistics reject missing, changed or mismatched role descriptors', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'loopper-accounting-role-'))
+  try {
+    const sessionID = 'session-1'
+    const messageID = `msg_loopper_aicoding_${'c'.repeat(32)}_role`
+    const rows = [{ info: { id: messageID, sessionID, role: 'user' }, parts: [] }]
+    const guard = await LoopperAccountingGuard({ directory: '/tmp', client: {
+      tool: { ids: async () => ({ data: ['aicoding_story_start'] }) },
+      session: { messages: async () => ({ data: rows }) },
+    } }, directory)
+    await assert.rejects(() => guard['chat.message']({ sessionID }, { message: { id: messageID } }), /DESCRIPTOR_MISSING/)
+    const sha = value => createHash('sha256').update(value).digest('hex')
+    const descriptor = JSON.stringify({ schemaVersion: 1, sessionID: 'another-session', messageID,
+      roleID: 'accounting', revisionID: 'revision-1', roleSha256: 'b'.repeat(64),
+      promptSha256: sha('static'), prompt: 'static' })
+    const path = join(directory, `${messageID}.${sha(descriptor)}.json`)
+    await writeFile(path, descriptor)
+    await assert.rejects(() => guard['chat.message']({ sessionID }, { message: { id: messageID } }), /DESCRIPTOR_INVALID/)
+    await writeFile(path, descriptor + 'changed')
+    await assert.rejects(() => guard['chat.message']({ sessionID }, { message: { id: messageID } }), /DESCRIPTOR_INVALID/)
+  } finally { await rm(directory, { recursive: true, force: true }) }
+})
 
 test('native guard removes accounting context and rejects its business tools by exact parent identity', async () => {
   const user = id => ({ info: { id, role: 'user', sessionID: 's' }, parts: [] })

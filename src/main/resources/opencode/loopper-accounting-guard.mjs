@@ -2,10 +2,48 @@
  * Loopper transport guard; does not register or implement aicoding.
  * Statistics identities are durable message IDs, independent of model text.
  */
-export const LoopperAccountingGuard = async ({ client, directory }) => {
+import { createHash } from 'node:crypto'
+import { readFile, readdir } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const configuredMessage = /^msg_loopper_aicoding_[0-9a-f]{32}_role$/
+const sha256 = value => createHash('sha256').update(value).digest('hex')
+const defaultDispatchDirectory = join(dirname(fileURLToPath(import.meta.url)), 'accounting-role-dispatch')
+
+async function roleDescriptor(directory, sessionID, messageID) {
+  if (!configuredMessage.test(messageID) || !sessionID) throw new Error('LOOPPER_ACCOUNTING_ROLE_IDENTITY_INVALID')
+  let names
+  try { names = (await readdir(directory)).filter(name => name.startsWith(`${messageID}.`) && name.endsWith('.json')) }
+  catch { throw new Error('LOOPPER_ACCOUNTING_ROLE_DESCRIPTOR_MISSING') }
+  if (names.length === 0) throw new Error('LOOPPER_ACCOUNTING_ROLE_DESCRIPTOR_MISSING')
+  if (names.length !== 1 || !new RegExp(`^${messageID}\\.[0-9a-f]{64}\\.json$`).test(names[0]))
+    throw new Error('LOOPPER_ACCOUNTING_ROLE_DESCRIPTOR_INVALID')
+  let bytes
+  try { bytes = await readFile(join(directory, names[0])) }
+  catch { throw new Error('LOOPPER_ACCOUNTING_ROLE_DESCRIPTOR_MISSING') }
+  if (bytes.length > 300_000 || sha256(bytes) !== names[0].slice(messageID.length + 1, -5))
+    throw new Error('LOOPPER_ACCOUNTING_ROLE_DESCRIPTOR_INVALID')
+  let descriptor
+  try { descriptor = JSON.parse(bytes.toString('utf8')) }
+  catch { throw new Error('LOOPPER_ACCOUNTING_ROLE_DESCRIPTOR_INVALID') }
+  if (descriptor.schemaVersion !== 1 || descriptor.sessionID !== sessionID || descriptor.messageID !== messageID
+      || typeof descriptor.roleID !== 'string' || !descriptor.roleID
+      || typeof descriptor.revisionID !== 'string' || !descriptor.revisionID
+      || !/^[0-9a-f]{64}$/.test(descriptor.roleSha256)
+      || typeof descriptor.prompt !== 'string' || !descriptor.prompt.trim()
+      || Buffer.byteLength(descriptor.prompt, 'utf8') > 256_000
+      || descriptor.promptSha256 !== sha256(Buffer.from(descriptor.prompt, 'utf8')))
+    throw new Error('LOOPPER_ACCOUNTING_ROLE_DESCRIPTOR_INVALID')
+  return descriptor
+}
+
+export const LoopperAccountingGuard = async ({ client, directory }, dispatchDirectory = defaultDispatchDirectory) => {
   const prefix = 'msg_loopper_aicoding_'
   const affected = new Set()
   const statisticsRound = new Map()
+  const configuredRound = new Map()
+  const roleInjected = new Set()
   const designSessions = new Set()
   const parent = info => info?.parentID ?? info?.parentId
   const isStatistics = message => message.info?.id?.startsWith(prefix)
@@ -29,6 +67,11 @@ export const LoopperAccountingGuard = async ({ client, directory }) => {
   return {
     'chat.message': async (input, output) => {
       const accounting = output.message.id.startsWith(prefix)
+      if (configuredMessage.test(output.message.id)) {
+        await roleDescriptor(dispatchDirectory, input.sessionID, output.message.id)
+        configuredRound.set(input.sessionID, output.message.id)
+        roleInjected.delete(`${input.sessionID}:${output.message.id}`)
+      } else configuredRound.delete(input.sessionID)
       if (designPhase(output.message.id)) designSessions.add(input.sessionID)
       if (!accounting) {
         try { if (!await managedSession(input.sessionID)) return }
@@ -50,6 +93,26 @@ export const LoopperAccountingGuard = async ({ client, directory }) => {
       if (accounting) output.message.agent = 'loopper-accounting'
       statisticsRound.set(input.sessionID, accounting)
       if (accounting) affected.add(input.sessionID)
+    },
+    'experimental.chat.system.transform': async (input, output) => {
+      if (!input.sessionID) return
+      let messages
+      try { messages = (await client.session.messages({ path: { id: input.sessionID }, query: { directory } })).data }
+      catch {
+        if (configuredRound.has(input.sessionID)) throw new Error('LOOPPER_ACCOUNTING_ROLE_MESSAGE_UNVERIFIED')
+        return
+      }
+      const lastUser = Array.isArray(messages) ? messages.findLast(message => message.info?.role === 'user') : null
+      const messageID = lastUser?.info?.id
+      if (!configuredMessage.test(messageID ?? '')) {
+        if (configuredRound.has(input.sessionID)) throw new Error('LOOPPER_ACCOUNTING_ROLE_MESSAGE_UNVERIFIED')
+        return
+      }
+      if (lastUser.info.sessionID !== input.sessionID || configuredRound.get(input.sessionID) !== messageID)
+        throw new Error('LOOPPER_ACCOUNTING_ROLE_MESSAGE_UNVERIFIED')
+      const descriptor = await roleDescriptor(dispatchDirectory, input.sessionID, messageID)
+      output.system.push(descriptor.prompt)
+      roleInjected.add(`${input.sessionID}:${messageID}`)
     },
     'experimental.chat.messages.transform': async (_input, output) => {
       const lastUser = output.messages.findLast(message => message.info?.role === 'user')
@@ -79,8 +142,16 @@ export const LoopperAccountingGuard = async ({ client, directory }) => {
         if (owner) {
           accounting = isStatistics(owner)
           phase = designPhase(parent(owner.info))
+          const messageID = parent(owner.info)
+          if (configuredMessage.test(messageID ?? '') && !roleInjected.has(`${input.sessionID}:${messageID}`))
+            throw new Error('LOOPPER_ACCOUNTING_ROLE_PROMPT_MISSING')
         }
-      } catch { /* Preserve ordinary tool execution if the advisory lookup fails. */ }
+      } catch (error) {
+        if (configuredRound.has(input.sessionID) || String(error?.message).startsWith('LOOPPER_ACCOUNTING_ROLE_')) throw error
+        /* Preserve ordinary tool execution if the advisory lookup fails. */
+      }
+      if (configuredRound.has(input.sessionID) && !roleInjected.has(`${input.sessionID}:${configuredRound.get(input.sessionID)}`))
+        throw new Error('LOOPPER_ACCOUNTING_ROLE_PROMPT_MISSING')
       if (!accounting && !phase && designSessions.has(input.sessionID) && (isSubmissionTool(input.tool) || input.tool === 'question')) throw new Error('LOOPPER_DESIGN_PHASE_UNKNOWN: cannot verify tool message identity')
       if (deniedInPhase(input.tool, phase)) throw new Error('LOOPPER_DESIGN_PHASE_TOOL_DENIED: tool is unavailable in the current design phase')
       if (accounting && !isAccountingTool(input.tool)) throw new Error('LOOPPER_ACCOUNTING_TOOL_DENIED: statistics cannot execute business tools')

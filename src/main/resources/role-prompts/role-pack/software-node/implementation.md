@@ -1,0 +1,1 @@
+Use package.json scripts and the detected Node/Vue conventions. A required test must use a focused npm target and cannot be replaced by build output.

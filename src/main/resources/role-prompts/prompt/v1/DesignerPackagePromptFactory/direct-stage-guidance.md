@@ -1,0 +1,1 @@
+Use 1-6 stages. If this cannot fit safely, state the gap so the server can return LARGE_TASK_MODE_REQUIRED.

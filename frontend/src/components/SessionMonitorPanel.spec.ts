@@ -20,6 +20,34 @@ function activity(parts: TaskSessionActivity['parts'], pendingQuestions: TaskSes
 afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers() })
 
 describe('SessionMonitorPanel', () => {
+  it('reads frozen role permissions only for the Session the user expands', async () => {
+    vi.useFakeTimers()
+    const nextSession = { ...session, key: 'execution:local-2', localSessionId: 'local-2', externalSessionId: 'remote-2' }
+    vi.spyOn(api, 'getTaskSessions').mockResolvedValue([session, nextSession])
+    vi.spyOn(api, 'getTaskSessionActivity').mockResolvedValue(activity([]))
+    const getRole = vi.spyOn(api, 'getTaskSessionRole').mockResolvedValue({ configured: false, roleId: null,
+      revisionId: null, revisionSha256: null, slot: null, adapterProfile: null, adapterVersion: null,
+      permissions: [], permissionSha256: null })
+    const wrapper = mount(SessionMonitorPanel, { props: { taskId: 'task-1' },
+      global: { plugins: [ElementPlus], stubs: { Icon: true, TemplateSessionDiagnosticsPanel: true } } })
+    await flushPromises()
+    expect(getRole).not.toHaveBeenCalled()
+    await wrapper.get('.session-role-toggle').trigger('click')
+    await flushPromises()
+    expect(getRole).toHaveBeenCalledWith('task-1', 'execution:local-1')
+    await vi.advanceTimersByTimeAsync(1200)
+    await flushPromises()
+    expect(getRole).toHaveBeenCalledTimes(1)
+    await wrapper.findAll('.session-option')[1]!.trigger('click')
+    await flushPromises()
+    expect(wrapper.get('.session-role-toggle').attributes('aria-expanded')).toBe('false')
+    expect(getRole).toHaveBeenCalledTimes(1)
+    await wrapper.get('.session-role-toggle').trigger('click')
+    await flushPromises()
+    expect(getRole).toHaveBeenLastCalledWith('task-1', 'execution:local-2')
+    wrapper.unmount()
+  })
+
   it('opens the exact local session key selected from template batch diagnostics', async () => {
     vi.useFakeTimers()
     const target = { ...session, key: 'execution:local-12', localSessionId: 'local-12', externalSessionId: 'ses_remote-12',

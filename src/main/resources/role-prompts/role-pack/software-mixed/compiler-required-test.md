@@ -1,0 +1,1 @@
+每个发生生产变更且已有识别测试框架的技术边界都必须使用自己的聚焦 TEST；每个 JAVA_PRODUCTION Stage 必须保留 Maven/Gradle 聚焦 TEST，Judge-only 时使用 covers:[]。不得创建只有 FULL_TEST/BUILD 的 Java 接线或演示 Stage；应合并到相关聚焦测试 Stage。同一业务 Stage 可以包含多个框架证据，禁止按语言机械拆 Stage。

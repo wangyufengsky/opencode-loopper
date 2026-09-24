@@ -55,15 +55,17 @@ class OpenCodeConfiguration {
     OpenCodeClient openCodeClient(LoopperProperties properties, OpenCodeRuntimeManager runtimeManager,
                                   OpenCodeCapabilityRegistry capabilities,
                                   OpenCodeSessionRuntimeBindings runtimeBindings, OpenCodeAttachmentResources resources,
-                                  StoryAccountingCoordinator storyAccounting, AssistRuntimeSupport assist, PptRuntimeSupport ppt) {
+                                  StoryAccountingCoordinator storyAccounting, AssistRuntimeSupport assist, PptRuntimeSupport ppt, ConfiguredRoleRuntime roles, ConfiguredAccountingRole accountingRoles) {
         if ("fake".equalsIgnoreCase(properties.getOpenCode().getMode())) {
-            return new FakeOpenCodeClient(runtimeBindings);
+            var client = new FakeOpenCodeClient(runtimeBindings); client.installRoles(roles); return client;
         }
         HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(), runtimeManager::connectionForClient,
                 runtimeManager::currentIdentityNoIo, properties, capabilities, runtimeBindings, resources,
                 storyAccounting);
         client.installAssist(assist);
         client.installPpt(ppt);
+        client.installRoles(roles);
+        client.installAccountingRoles(accountingRoles);
         return client;
     }
 }

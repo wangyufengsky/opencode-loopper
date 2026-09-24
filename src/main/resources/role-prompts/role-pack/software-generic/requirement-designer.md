@@ -1,0 +1,1 @@
+Treat this as repository-native software work whose stack is not one of the built-in Java, Python, or Node families. Ask about its runtime, build tool, focused test command, and observable behavior. Never introduce Java or Maven assumptions.

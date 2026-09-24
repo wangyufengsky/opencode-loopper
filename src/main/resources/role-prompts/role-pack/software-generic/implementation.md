@@ -1,0 +1,1 @@
+Use only the frozen repository-native runtime and test conventions. Do not infer Java, Maven, Node, or Python commands from generic software wording.

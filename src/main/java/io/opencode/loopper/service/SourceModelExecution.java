@@ -16,6 +16,7 @@ import tools.jackson.databind.ObjectMapper;
 /** Exact persisted Session and message recovery; candidate acceptance alone never proves remote termination. */
 @Service
 public class SourceModelExecution {
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private RoleSessions roleSessions;
     private final SourceModelStore store;
     private final OpenCodeClient runtime;
     private final org.springframework.beans.factory.ObjectProvider<CandidateRuntimeBindingService> bindings;
@@ -50,12 +51,16 @@ public class SourceModelExecution {
         var parts = contract.model().split("/", 2);
         var model = new OpenCodeClient.OpenCodeModel(parts[0], parts[1], null);
         byte[] nonce = new byte[32]; new SecureRandom().nextBytes(nonce);
-        var plan = runtime.prepareSessionCreation(storage.directory(row.runId()),
+        var profile = SourceTemplateProfiles.profile(MachineCandidateKind.valueOf(row.candidateKind()));
+        var baselinePlan = runtime.prepareSessionCreation(storage.directory(row.runId()),
                 "源码模板 " + row.candidateKind() + " " + row.ordinal(), model,
-                SourceTemplateProfiles.profile(MachineCandidateKind.valueOf(row.candidateKind())),
+                profile,
                 Base64.getUrlEncoder().withoutPadding().encodeToString(nonce));
+        var plan = RoleSessions.prepare(roleSessions, baselinePlan, "SOURCE_TEMPLATE_MODEL_RUN", row.id(), null);
         if (!plan.managed() || plan.internalMcpServer() == null) throw failure("SOURCE_MCP_REQUIRED", "源码模板需要托管模型环境的角色专属 MCP");
-        return store.prepare(row, plan, new DocumentModelStore.FrozenPrompt(prompts.build(row, plan.internalMcpServer()),
+        String prompt = RoleSessions.render(roleSessions, "SOURCE_TEMPLATE_MODEL_RUN", row.id(), profile, null,
+                () -> prompts.build(row, plan.internalMcpServer()));
+        return store.prepare(row, plan, new DocumentModelStore.FrozenPrompt(prompt,
                 "msg_" + row.id().replace("-", "")));
     }
     private SourceTemplateModelRow create(SourceTemplateModelRow row) {

@@ -16,6 +16,7 @@ import tools.jackson.databind.node.ArrayNode;
 /** Signed per-run capability injected only into the outbound HTTP body, never the durable prompt. */
 @Component
 public class PptRuntimeSupport {
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private ConfiguredRoleRuntime roles;
     private static final Set<String> ACTIVE_STATES = Set.of("SENDING", "UNKNOWN", "RUNNING");
     private static final String NOTICE_MARKER = "[Loopper PPT 本轮工具身份通知]";
     private final PptAgentMapper mapper;
@@ -90,6 +91,12 @@ public class PptRuntimeSupport {
         throw denied();
     }
     public void validateGeneration(Run run) { current(run); }
+    public List<String> allowedTools(Run run, List<String> tools) {
+        return roles == null ? tools : roles.allowedInternalTools(run.externalSessionId(), current(run).serverName(), tools);
+    }
+    public void requireTool(Run run, String tool) {
+        if (!allowedTools(run, List.of(tool)).contains(tool)) throw new SessionFailure("PPT_ROLE_TOOL_DENIED", "当前角色配置未授权此工具，请使用已开放的工具或创建采用新配置的运行");
+    }
     public boolean isCurrentGeneration(String generation) {
         return runtime.current().map(active -> active.generation().equals(generation)).orElse(false);
     }

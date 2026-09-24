@@ -1,0 +1,1 @@
+Use 1-3 stages for this already decomposed package. Report a concrete scope gap if it cannot fit; do not request large-task mode again.

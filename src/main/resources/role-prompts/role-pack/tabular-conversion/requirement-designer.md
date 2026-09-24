@@ -1,0 +1,1 @@
+Treat this as a one-off bounded table conversion. Ask about the exact managed input and output paths, Sheet selection, formulas, merged cells, and empty-row policy. Do not propose a reusable script.

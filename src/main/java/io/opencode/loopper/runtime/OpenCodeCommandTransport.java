@@ -24,6 +24,9 @@ final class OpenCodeCommandTransport {
     private final Function<OpenCodeClient.OpenCodeSession, RestClient> commands;
     private final OpenCodeResponseParser responses = new OpenCodeResponseParser();
     private final OpenCodeSessionCommandGate gate = new OpenCodeSessionCommandGate();
+    private volatile ConfiguredAccountingRole accountingRoles;
+
+    void installAccountingRoles(ConfiguredAccountingRole support) { accountingRoles = support; }
 
     OpenCodeCommandTransport(Supplier<RestClient> client,
                              Function<OpenCodeClient.OpenCodeSession, RestClient> sessions) {
@@ -121,6 +124,9 @@ final class OpenCodeCommandTransport {
 
     private CommandResult invoke(OpenCodeSession session, CommandRequest request) {
         try {
+            if (accountingRoles != null) accountingRoles.prepare(session, request);
+            else if (request.messageId().endsWith("_role"))
+                throw new SessionFailure("ROLE_ACCOUNTING_DISPATCH_INVALID", "统计角色尚未接入命令执行器");
             JsonNode response = commands.apply(session).post()
                     .uri(uri -> sessionUri(uri, "/session/{id}/command", session))
                     .contentType(MediaType.APPLICATION_JSON)

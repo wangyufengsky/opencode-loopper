@@ -17,6 +17,7 @@ import org.springframework.stereotype.Component;
 /** Creates the durable Convention candidate owner and local runtime before any remote I/O. */
 @Component
 final class ProjectConventionCandidateDraftCreator {
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private RoleSessions roleSessions;
     private final LoopperMapper mapper;
     private final LifecycleTransitionService lifecycle;
 
@@ -38,7 +39,7 @@ final class ProjectConventionCandidateDraftCreator {
                 ProjectConventionCandidateWorkflow.RESPONSE_MODE,
                 ProjectConventionCandidateWorkflow.SOURCE_REVISION);
         lifecycle.create(subject(created), created.state(), Map.of(),
-                () -> mapper.insertProjectConventionDraft(created),
+                () -> { int inserted = mapper.insertProjectConventionDraft(created); if (inserted == 1) RoleSessions.freeze(roleSessions, "PROJECT_CONVENTION_DRAFT", created.id(), null, null); return inserted; },
                 () -> new ConflictException("PROJECT_CONVENTION_CREATE_CONFLICT",
                         "AGENTS.md proposal could not be created"));
         try {

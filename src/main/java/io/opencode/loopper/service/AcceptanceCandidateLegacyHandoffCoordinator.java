@@ -22,6 +22,7 @@ import org.springframework.stereotype.Component;
 /** Advances one durable unopened-fallback saga step without holding a database transaction over I/O. */
 @Component
 final class AcceptanceCandidateLegacyHandoffCoordinator {
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private io.opencode.loopper.service.RoleSessions roleSessions;
     private final AcceptanceCandidateLegacyHandoffService handoffs;
     private final AcceptanceCandidateHandoffCleanupLedger cleanupLedger;
     private final DesignerAcceptanceCandidateOrchestrator candidates;
@@ -347,6 +348,7 @@ final class AcceptanceCandidateLegacyHandoffCoordinator {
                 "OpenCode Loopper acceptance closed-choice legacy candidate (NO_TOOLS)",
                 command.model(), OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS,
                 Base64.getUrlEncoder().withoutPadding().encodeToString(credential));
+        plan = RoleSessions.prepare(roleSessions, plan, "DESIGNER_SESSION", command.session().id(), null);
         return handoffs.begin(command.compilation(), command.session(), command.planning(), plan);
     }
 

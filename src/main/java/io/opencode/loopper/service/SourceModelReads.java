@@ -25,6 +25,7 @@ public final class SourceModelReads {
         this.access = access; this.models = models; this.runs = runs; this.reads = reads;
         this.policy = policy; this.transactions = transactions; this.json = json;
     }
+    public String authorizedSession(String id) { return access.require(id).externalSessionId(); }
     public Object work(String id) {
         var model = access.require(id); var input = policy.input(model);
         var files = input.paths().stream().map(path -> {

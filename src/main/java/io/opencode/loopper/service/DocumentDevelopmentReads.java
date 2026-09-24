@@ -13,6 +13,7 @@ public final class DocumentDevelopmentReads {
     public DocumentDevelopmentReads(DocumentDevelopmentScope scopes, DocumentRequirementMapper requirements, DocumentTemplateReadService reads) {
         this.scopes = scopes; this.requirements = requirements; this.reads = reads;
     }
+    public String authorizedSession(String grant) { return scopes.authorize(grant).externalSessionId(); }
     public Map<String, Object> guide(String grant) { return scopes.guide(grant); }
     public Object index(String grant, int after) {
         var scope = scopes.authorize(grant);

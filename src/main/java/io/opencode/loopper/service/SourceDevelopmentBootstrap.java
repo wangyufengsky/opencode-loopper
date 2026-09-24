@@ -13,6 +13,7 @@ import tools.jackson.databind.ObjectMapper;
 /** Source intake creates a genuine frozen Designer requirement; Task admission remains a later formal action. */
 @Service
 public final class SourceDevelopmentBootstrap {
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private RoleSessions roleSessions;
     private final SourceTemplateAdmission admission;
     private final SourceTestProfileService testProfiles;
     private final DocumentDevelopmentProfile profiles;
@@ -53,10 +54,12 @@ public final class SourceDevelopmentBootstrap {
                     new LoopSpec.Limits(contract.maxStageAttempts(), contract.maxTaskAttempts(), contract.sessionErrorLimit(),
                             null, contract.maxDurationSeconds(), contract.attemptTimeoutSeconds(), null, contract.timeoutEnabled()),
                     new LoopSpec.ModelSpec(model[0], model[1], null), null, null));
+            RoleSessions.freeze(roleSessions, "LOOP_DRAFT", draft.id(), "SOURCE_TEMPLATE_RUN", run.id());
             var designer = new DesignerSessionRow(designerId, run.projectId(), "PENDING_HANDOFF", "READ_ONLY", now, now, 0,
                     null, "PENDING", draft.id(), "DECOMPOSING", 0, 0, 1, null, "REQUIREMENT", 0, "NONE");
             lifecycle.create(subject(LifecycleMachineType.DESIGNER_SESSION, designerId, run.projectId()), designer.state(),
                     Map.of("sourceTemplateRun", run.id()), () -> domain.insertDesignerSession(designer), SourceTemplateAdmission::conflict);
+            RoleSessions.freeze(roleSessions, "DESIGNER_SESSION", designerId, "SOURCE_TEMPLATE_RUN", run.id());
             conversations.enable(designerId);
             var message = new DesignerMessageRow(UUID.randomUUID().toString(), designerId, 1, "user", index, "PERSISTED", now, "USER", 1, null);
             if (domain.insertDesignerMessage(message) != 1) throw SourceTemplateAdmission.conflict();

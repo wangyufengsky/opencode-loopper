@@ -25,6 +25,7 @@ import tools.jackson.databind.ObjectMapper;
 /** Drives one frozen report batch. Every retry of remote I/O first uses exact persisted identity lookup. */
 @Service
 public class TemplateBatchExecution {
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private io.opencode.loopper.service.RoleSessions roleSessions;
     private final TemplateBatchStore store;
     private final TemplateTaskMapper templates;
     private final LoopperMapper mapper;
@@ -79,8 +80,6 @@ public class TemplateBatchExecution {
             if (cached != null) return store.validated(row, validate(row, cached), true);
         }
         Input input = input(row);
-        String text = input.snapshot() != null ? codec.snapshotPrompt(row) : row.purpose().equals("REVIEW") ? prompts.review(input.units(), input.feedback())
-                : prompts.contributor(input.person(), input.reviews(), input.units(), input.feedback());
         var configured = contract.spec().model();
         var model = new OpenCodeClient.OpenCodeModel(configured.providerId(), configured.modelId(), configured.thinking());
         // Text JSON keeps all repair authority on the server. Some OpenCode versions reject retryCount=0,
@@ -90,8 +89,11 @@ public class TemplateBatchExecution {
         var profile = input.snapshot() != null ? OpenCodeClient.SessionProfile.SNAPSHOT_CODE_REVIEW_NO_TOOLS : List.of("5", "6", "7", "8", "9", "10").contains(contract.definition().version())
                 ? OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS
                 : OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_NO_TOOLS;
+        String text = RoleSessions.render(roleSessions, "TASK", row.taskId(), profile, null, () -> input.snapshot() != null ? codec.snapshotPrompt(row) : row.purpose().equals("REVIEW") ? prompts.review(input.units(), input.feedback())
+                : prompts.contributor(input.person(), input.reviews(), input.units(), input.feedback()));
         var plan = openCode.prepareSessionCreation(root, "模板报告分析 " + (row.ordinal() + 1), model,
                 profile, Base64.getUrlEncoder().withoutPadding().encodeToString(nonce));
+        plan = RoleSessions.prepare(roleSessions, plan, "TASK", row.taskId(), null);
         if ((profile == OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS || profile == OpenCodeClient.SessionProfile.SNAPSHOT_CODE_REVIEW_NO_TOOLS)) {
             if (!plan.managed()) throw unavailable("TEMPLATE_MCP_REQUIRED", "新模板分析需要托管 OpenCode 的专用 MCP 提交工具");
             text = prompts.internal(text, row.id(), plan.internalMcpServer() + "_"

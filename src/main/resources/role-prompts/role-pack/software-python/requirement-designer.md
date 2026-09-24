@@ -1,0 +1,1 @@
+Treat this as Python software work. Ask about invocation, input/output, error semantics, portability, and whether repository tests exist. Never introduce Java or Maven assumptions.

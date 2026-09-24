@@ -1,0 +1,1 @@
+Decompose Python work by usable vertical behavior. A reusable conversion script is software, not a one-off tabular artifact.

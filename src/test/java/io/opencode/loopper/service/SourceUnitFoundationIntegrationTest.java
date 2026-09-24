@@ -6,6 +6,7 @@ import io.opencode.loopper.config.LoopperProperties;
 import io.opencode.loopper.domain.TaskFailure;
 import io.opencode.loopper.persistence.*;
 import io.opencode.loopper.template.*;
+import io.opencode.loopper.service.roles.RoleConfigurationService;
 import java.nio.file.*;
 import java.util.*;
 import org.flywaydb.core.Flyway;
@@ -32,6 +33,7 @@ class SourceUnitFoundationIntegrationTest {
     @Autowired ProjectService projects;
     @Autowired LoopperProperties properties;
     @Autowired JdbcTemplate jdbc;
+    @Autowired RoleConfigurationService roleConfiguration;
     @TempDir Path temporary;
     private Path root;
     private String project;
@@ -54,6 +56,15 @@ class SourceUnitFoundationIntegrationTest {
         coordinator.advance(run.id()); run = admission.require(run.id());
         assertThat(run.designerId()).isNotNull(); assertThat(run.taskId()).isNull();
         var designer = domain.findDesignerSession(run.designerId()).orElseThrow();
+        String sourceRevision = roleConfiguration.resolveFrozen(
+                new RoleConfigurationService.OwnerRef("SOURCE_TEMPLATE_RUN", run.id()),
+                "GENERAL_READ_ONLY_REQUIREMENT").orElseThrow().revisionId();
+        assertThat(roleConfiguration.resolveFrozen(
+                new RoleConfigurationService.OwnerRef("DESIGNER_SESSION", designer.id()),
+                "GENERAL_READ_ONLY_REQUIREMENT").orElseThrow().revisionId()).isEqualTo(sourceRevision);
+        assertThat(roleConfiguration.resolveFrozen(
+                new RoleConfigurationService.OwnerRef("LOOP_DRAFT", designer.loopDraftId()),
+                "GENERAL_READ_ONLY_REQUIREMENT").orElseThrow().revisionId()).isEqualTo(sourceRevision);
         var revision = domain.findCurrentDesignRequirementRevision(designer.id()).orElseThrow();
         assertThat(revision.requirementText()).startsWith("LOOPPER_SOURCE_TEST_INDEX_V1");
         assertThat(revision.requirementText()).contains("补齐空值和边界场景");

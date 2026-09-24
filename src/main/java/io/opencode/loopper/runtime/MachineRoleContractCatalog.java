@@ -1,5 +1,6 @@
 package io.opencode.loopper.runtime;
 
+import io.opencode.loopper.service.roles.RolePromptResources;
 import java.util.Map;
 
 /**
@@ -11,47 +12,33 @@ public final class MachineRoleContractCatalog {
     public static final String CLOSED_CHOICE_CONTRACT_VERSION = "2026-08-semantic-v7";
     public static final String LEGACY_COMPILER_CONTRACT_VERSION = "2026-08-semantic-v5";
 
-    private static final Map<String, String> CARDS = Map.of(
-            "DECOMPOSER", "Return business goal, constraints, 1-6 vertical work packages, index dependencies, and RQ coverage. Do not assign ids or status.",
-            "COMPILER", "Given a server-locked stage topology, fill only the listed unresolved fact assignments and indexed capability preferences. Do not edit stages or locked facts, decide outcome or gaps, or invent commands, paths, ids, criteria, source refs, or executable verifier fields.",
-            "JUDGE", "Return one verdict and one non-empty reason. JSON is preferred; explicit VERDICT/REASON labels are accepted.",
-            "DESIGNER", "Describe scope and delivery, EARS-style acceptance scenarios, optional human review, constraints, and stage dependencies in the controlled Markdown sections. Do not write LoopSpec JSON, internal ids, or executable argv.");
+    private static final Map<String, String> CARD_IDS = Map.of(
+            "DECOMPOSER", "machine-role.decomposer",
+            "COMPILER", "machine-role.compiler",
+            "JUDGE", "machine-role.judge",
+            "DESIGNER", "machine-role.designer");
 
     private MachineRoleContractCatalog() { }
 
     public static String card(String role) {
-        String card = CARDS.get(role);
-        if (card == null) throw new IllegalArgumentException("Unknown machine role: " + role);
-        return "Machine role contract " + CONTRACT_VERSION + ": " + card;
+        String id = CARD_IDS.get(role);
+        if (id == null) throw new IllegalArgumentException("Unknown machine role: " + role);
+        return RolePromptResources.read(id);
     }
 
     public static String packageDesignerCard(boolean candidateChannel) {
-        return candidateChannel ? "Machine role contract PACKAGE_DESIGN_V1: submit scope, deliverables, EARS scenarios, "
-                + "optional human reviews and stage dependencies as one complete typed candidate through the private tool. "
-                + "Use candidate-local keys. Do not write executable LoopSpec JSON, server IDs or command arrays."
-                : card("DESIGNER");
+        return candidateChannel ? RolePromptResources.read("machine-role.package-designer") : card("DESIGNER");
     }
 
     public static String legacyCompilerCard() {
-        return "Machine role contract " + LEGACY_COMPILER_CONTRACT_VERSION
-                + ": Given frozen DesignFacts and verification capabilities, suggest dependency-ordered groups "
-                + "and optional indexed capability preferences. Do not decide outcome or gaps. Do not invent "
-                + "commands, paths, ids, criteria, source refs, or executable verifier fields.";
+        return RolePromptResources.read("machine-role.legacy-compiler");
     }
 
     public static String legacySemanticCompilerCard() {
-        return "Legacy semantic Compiler contract v3: return source-backed stages, criteria, sourceRefs and "
-                + "evidence intentions from the frozen design and indexed repository facts. Use only evidenced "
-                + "paths and direct commands; examples are shapes, not repository evidence. The server validates "
-                + "and derives stable ids, exact excerpts, criterionIds, testTargets and final verifier objects. "
-                + "COMPILED and DESIGN_INCOMPLETE belong only to this legacy envelope, not to v5-v7 closed choices.";
+        return RolePromptResources.read("machine-role.legacy-semantic-compiler");
     }
 
     public static String closedChoiceCompilerCard() {
-        return "Machine role contract " + CLOSED_CHOICE_CONTRACT_VERSION
-                + ": Select every required fact assignment and capability preference only from the server's "
-                + "closed candidates. Do not emit paths, commands, tests, or stages; do not change topology, "
-                + "permissions, safety fields, or invent indexes. Stage indexes are explicit and zero-based; "
-                + "human-readable stage numbers are labels only.";
+        return RolePromptResources.read("machine-role.closed-choice-compiler");
     }
 }

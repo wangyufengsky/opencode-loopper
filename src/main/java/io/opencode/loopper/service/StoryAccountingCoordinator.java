@@ -7,6 +7,7 @@ import io.opencode.loopper.persistence.StoryAccountingCallRow;
 import io.opencode.loopper.persistence.StoryAccountingOwnerRow;
 import io.opencode.loopper.persistence.StoryAccountingSessionRow;
 import io.opencode.loopper.runtime.OpenCodeClient;
+import io.opencode.loopper.service.roles.RoleConfigurationService;
 import jakarta.annotation.PreDestroy;
 import java.time.Instant;
 import java.util.Map;
@@ -43,14 +44,16 @@ public class StoryAccountingCoordinator {
     private final ExecutorService commands = Executors.newVirtualThreadPerTaskExecutor();
     private volatile SessionCommandTransport sessionTransport;
     private final TransactionTemplate transactions;
+    private final RoleConfigurationService roleConfiguration;
     private final Map<String, CompletableFuture<Void>> starting = new ConcurrentHashMap<>();
     private final Map<String, CompletableFuture<Void>> completing = new ConcurrentHashMap<>();
 
     @Autowired
     public StoryAccountingCoordinator(LoopperMapper mapper, TaskEventService taskEvents,
                                      PlatformTransactionManager transactionManager, DesignerEventHub designerEvents,
-                                     StoryAccountingActivityService activity, StoryAccountingEventHub accountingEvents) {
-        this(mapper, taskEvents, new TransactionTemplate(transactionManager));
+                                     StoryAccountingActivityService activity, StoryAccountingEventHub accountingEvents,
+                                     RoleConfigurationService roleConfiguration) {
+        this(mapper, taskEvents, new TransactionTemplate(transactionManager), roleConfiguration);
         this.designerEvents = designerEvents;
         this.activity = activity;
         this.accountingEvents = accountingEvents;
@@ -58,9 +61,15 @@ public class StoryAccountingCoordinator {
 
     StoryAccountingCoordinator(LoopperMapper mapper, TaskEventService taskEvents,
                                TransactionTemplate transactions) {
+        this(mapper, taskEvents, transactions, null);
+    }
+
+    StoryAccountingCoordinator(LoopperMapper mapper, TaskEventService taskEvents,
+                               TransactionTemplate transactions, RoleConfigurationService roleConfiguration) {
         this.mapper = mapper;
         this.taskEvents = taskEvents;
         this.transactions = transactions;
+        this.roleConfiguration = roleConfiguration;
     }
 
     public void beforeBusinessPrompt(OpenCodeClient.OpenCodeSession remote, CommandTransport transport) {
@@ -326,9 +335,24 @@ public class StoryAccountingCoordinator {
     private StoryAccountingCallRow preparedCall(String sessionId, String phase, String operation,
                                                   String arguments, String now) {
         String id = UUID.randomUUID().toString();
-        String messageId = "msg_loopper_aicoding_" + id.replace("-", "");
+        String messageId = "msg_loopper_aicoding_" + id.replace("-", "")
+                + (frozenAccountingRole(sessionId) ? "_role" : "");
         return new StoryAccountingCallRow(id, sessionId, phase, messageId, operation, arguments,
                 "PREPARED", null, null, null, null, false, now, null);
+    }
+
+    private boolean frozenAccountingRole(String accountingSessionId) {
+        if (roleConfiguration == null) return false;
+        var accounting = mapper.findStoryAccountingSessionById(accountingSessionId).orElseThrow();
+        var owner = roleConfiguration.sessionSnapshot(accounting.externalSessionId())
+                .map(snapshot -> snapshot.context().owner()).orElseGet(() -> {
+                    if ("IMPLEMENTATION".equals(accounting.role()) && accounting.taskId() != null)
+                        return new RoleConfigurationService.OwnerRef("TASK", accounting.taskId());
+                    if (accounting.designerSessionId() != null)
+                        return new RoleConfigurationService.OwnerRef("DESIGNER_SESSION", accounting.designerSessionId());
+                    return new RoleConfigurationService.OwnerRef("TASK", accounting.taskId());
+                });
+        return roleConfiguration.resolveFrozen(owner, "ACCOUNTING_COMMAND").isPresent();
     }
 
     private ExecutionOutcome execute(StoryAccountingSessionRow session, StoryAccountingCallRow call,

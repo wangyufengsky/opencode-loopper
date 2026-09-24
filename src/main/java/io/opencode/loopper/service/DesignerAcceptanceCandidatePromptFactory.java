@@ -1,5 +1,6 @@
 package io.opencode.loopper.service;
 
+import io.opencode.loopper.service.roles.RolePromptResources;
 import io.opencode.loopper.persistence.DesignAcceptancePlanningRow;
 import java.util.List;
 import tools.jackson.core.JacksonException;
@@ -24,73 +25,47 @@ final class DesignerAcceptanceCandidatePromptFactory {
             throw new BadRequestException("ACCEPTANCE_CANDIDATE_PROMPT_INVALID",
                     "验收闭集候选提示参数不完整");
         }
-        return """
-                You are OpenCode Loopper's ACCEPTANCE_CLOSED_CHOICE_V7 selector in one no-tools Session.
-                Built-in tools and every user-configured MCP are forbidden. The only submission tool is the exact
-                private tool named below. The read-only describe_submission_contract tool may be used to inspect its schema. Choose exactly one complete equal optimum from the frozen closed set.
-                Do not return or infer commands, paths, tests, topology, permissions, safety rules, or design fields.
-
-                Frozen facts:
-                %s
-                Frozen capabilities:
-                %s
-                Frozen exhaustive resolution:
-                %s
-
-                %s
-
-                Submission contract:
-                runId: %s
-                expectedSubmissionRevision: %d
-                contractVersion: %s
-                exact role submission tool: %s
-
-                Call %s once with runId, a new idempotencyKey, candidate containing exactly factAssignments and
-                capabilityPreferences plus optional summary/handoffSummary, and expectedSubmissionRevision. The tool
-                result is authoritative. When it returns REJECTED with ACCEPTANCE_CANDIDATE_SELECTION_INVALID or
-                ACCEPTANCE_CANDIDATE_CONTRACT_INVALID, require CANDIDATE_DIAGNOSTIC_V2 and repair every returned
-                problem using parameter, JSON Pointer, category, expected, actual, detail, allowedValues, and
-                repairHint. Follow action and submissionRevision; diagnosticsComplete=false or truncated=true
-                means only the bounded returned set is known. Call the same exact tool again with the returned
-                submissionRevision. %s
-                On ACCEPTED or WAITING_INPUT stop.
-                The final text is non-authoritative and must never claim acceptance.
-                """.formatted(facts(planning, routing), capabilities(planning, routing),
-                contract.resolution(routing.resolution()), DesignerClosedChoiceContract.outputContract(), run.runId(), run.version(), run.contractVersion(),
-                exactToolName, exactToolName, CandidateCorrectionPolicy.prompt(run));
+        return (RolePromptResources.read("prompt.v1.DesignerAcceptanceCandidatePromptFactory.block01.segment0")
+                + String.format("%s", (Object) (facts(planning, routing)))
+                + "\nFrozen capabilities:\n"
+                + String.format("%s", (Object) (capabilities(planning, routing)))
+                + RolePromptResources.read("prompt.v1.DesignerAcceptanceCandidatePromptFactory.block01.segment2")
+                + String.format("%s", (Object) (contract.resolution(routing.resolution())))
+                + "\n\n"
+                + String.format("%s", (Object) (DesignerClosedChoiceContract.outputContract()))
+                + RolePromptResources.read("prompt.v1.DesignerAcceptanceCandidatePromptFactory.block01.segment4")
+                + String.format("%s", (Object) (run.runId()))
+                + "\nexpectedSubmissionRevision: "
+                + String.format("%d", (Object) (run.version()))
+                + "\ncontractVersion: "
+                + String.format("%s", (Object) (run.contractVersion()))
+                + "\nexact role submission tool: "
+                + String.format("%s", (Object) (exactToolName))
+                + "\n\nCall "
+                + String.format("%s", (Object) (exactToolName))
+                + RolePromptResources.read("prompt.v1.DesignerAcceptanceCandidatePromptFactory.block01.segment9")
+                + String.format("%s", (Object) (CandidateCorrectionPolicy.prompt(run)))
+                + RolePromptResources.read("prompt.v1.DesignerAcceptanceCandidatePromptFactory.block01.segment10"));
     }
 
     String legacy(DesignAcceptancePlanningRow planning,
                   DesignerAcceptanceWorkflow.RoutingResult routing,
                   MachineCandidateSubmission.SubmissionResult rejected) {
         requireEligible(planning, routing);
-        String repair = rejected == null ? "" : """
-
-                The prior candidate was mechanically rejected. Change only the selection using these safe problems:
-                %s
-                """.formatted(problems(rejected.problems()));
-        return """
-                You are OpenCode Loopper's ACCEPTANCE_CLOSED_CHOICE_V7 compatibility selector in one no-tools Session.
-                Built-in tools and every MCP tool are forbidden. Choose exactly one complete equal optimum from the
-                frozen closed set. Do not return or infer commands, paths, tests, topology, permissions, safety rules,
-                or design fields. The final text is only a candidate; the server is the sole acceptance authority.
-
-                Frozen facts:
-                %s
-                Frozen capabilities:
-                %s
-                Frozen exhaustive resolution:
-                %s
-                %s
-
-                %s
-
-                Return exactly one JSON object between these markers:
-                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
-                {"factAssignments":[],"capabilityPreferences":[{"factIndex":0,"capabilityIndexes":[0]}]}
-                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->
-                """.formatted(facts(planning, routing), capabilities(planning, routing),
-                contract.resolution(routing.resolution()), repair, DesignerClosedChoiceContract.outputContract());
+        String repair = rejected == null ? "" : (RolePromptResources.read("prompt.v1.DesignerAcceptanceCandidatePromptFactory.block02.segment0")
+                + String.format("%s", (Object) (problems(rejected.problems())))
+                + "\n");
+        return (RolePromptResources.read("prompt.v1.DesignerAcceptanceCandidatePromptFactory.block03.segment0")
+                + String.format("%s", (Object) (facts(planning, routing)))
+                + "\nFrozen capabilities:\n"
+                + String.format("%s", (Object) (capabilities(planning, routing)))
+                + RolePromptResources.read("prompt.v1.DesignerAcceptanceCandidatePromptFactory.block01.segment2")
+                + String.format("%s", (Object) (contract.resolution(routing.resolution())))
+                + "\n"
+                + String.format("%s", (Object) (repair))
+                + "\n\n"
+                + String.format("%s", (Object) (DesignerClosedChoiceContract.outputContract()))
+                + RolePromptResources.read("prompt.v1.DesignerAcceptanceCandidatePromptFactory.block03.segment5"));
     }
 
     String candidateJson(String output) {

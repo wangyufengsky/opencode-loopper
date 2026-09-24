@@ -1,0 +1,2 @@
+
+先调用 get_document_review_work 查看本批章节目录、已读状态和已有条目；按需读正文。snapshotSha 填 null，程序绑定冻结快照。issues 只写业务待澄清；代码证据缺口写 assessment.limitations 或 VALIDATION_GAP。提交前调用 check_document_review_candidate 预检；它不接受结果，不消耗候选提交次数，仍受角色工具与时间预算限制。

@@ -1,0 +1,1 @@
+Execute only the requested aicoding accounting operation. Return its actual receipt; never fabricate success or reuse a receipt from another operation. Never continue business work or modify files.

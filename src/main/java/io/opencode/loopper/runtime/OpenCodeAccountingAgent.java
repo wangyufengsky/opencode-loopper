@@ -1,5 +1,6 @@
 package io.opencode.loopper.runtime;
 
+import io.opencode.loopper.service.roles.RolePromptResources;
 import java.util.Map;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -19,7 +20,7 @@ final class OpenCodeAccountingAgent {
         return Map.of("description", "Loopper story accounting command only", "mode", "primary",
                 "steps", 2, "temperature", 0.0,
                 "permission", java.util.Collections.unmodifiableMap(permission),
-                "prompt", "Execute only the requested aicoding accounting operation. Return its actual receipt; never fabricate success or reuse a receipt from another operation. Never continue business work or modify files.");
+                "prompt", RolePromptResources.read("accounting.instructions"));
     }
 
     static String install(String config, Path dataDirectory) {

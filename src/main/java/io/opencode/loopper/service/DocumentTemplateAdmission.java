@@ -19,6 +19,7 @@ import tools.jackson.databind.ObjectMapper;
 /** Short transaction boundary: expected immutable bytes are registered before external persistence. */
 @Service
 public class DocumentTemplateAdmission {
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private io.opencode.loopper.service.RoleSessions roleSessions;
     private final DocumentTemplateMapper mapper;
     private final LifecycleTransitionService lifecycle;
     private final ObjectMapper json;
@@ -32,6 +33,7 @@ public class DocumentTemplateAdmission {
         if (existing != null) return sameRequest(existing, proposed.requestSha256());
         lifecycle.create(subject(proposed), proposed.state(), Map.of("template", proposed.templateId()),
                 () -> mapper.insert(proposed), DocumentTemplateAdmission::conflict);
+        RoleSessions.freeze(roleSessions, "DOCUMENT_TEMPLATE_RUN", proposed.id(), null, null);
         appendFiles(proposed, files, 0);
         return require(proposed.id());
     }

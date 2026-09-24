@@ -19,6 +19,7 @@ import org.springframework.stereotype.Component;
 /** Owns the one-Session PACKAGE_DESIGN_V1 transport without owning Designer persistence transitions. */
 @Component
 final class DesignerPackageCandidateOrchestrator {
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private RoleSessions roleSessions;
     static final String CONTRACT_VERSION = "PACKAGE_DESIGN_V1";
     static final String WORKFLOW_STEP = CONTRACT_VERSION;
     static final int MAX_ATTEMPTS = 3;
@@ -117,12 +118,14 @@ final class DesignerPackageCandidateOrchestrator {
         }
         if (v2) {
             var requirement = conversationMapper.findDesignRequirementRevision(workPackage.requirementRevisionId()).orElseThrow();
-            return new Start(remote, run, PackageDesignV2Prompt.build(basePrompt + "\n冻结有界仓库证据：\n" + conversationMapper.findPackageDesignEvidence(run.runId()).orElseThrow().snapshotJson(), DocumentRequirementContext.resolve(conversationMapper, requirement, workPackage), run,
-                    privateServer + "_" + InternalMcpContractCatalog.PACKAGE_V2_TOOL));
+            String evidenceJson = conversationMapper.findPackageDesignEvidence(run.runId()).orElseThrow().snapshotJson();
+            var context = DocumentRequirementContext.resolve(conversationMapper, requirement, workPackage);
+            String tool = privateServer + "_" + InternalMcpContractCatalog.PACKAGE_V2_TOOL;
+            return new Start(remote, run, RoleSessions.renderSession(roleSessions, remote.id(), () -> PackageDesignV2Prompt.build(
+                    basePrompt + "\n冻结有界仓库证据：\n" + evidenceJson, context, run, tool)));
         }
-        return new Start(remote, run, prompt(basePrompt, run,
-                privateServer + "_" + InternalMcpContractCatalog.toolName(
-                        MachineCandidateKind.PACKAGE_DESIGN_V1)));
+        String tool = privateServer + "_" + InternalMcpContractCatalog.toolName(MachineCandidateKind.PACKAGE_DESIGN_V1);
+        return new Start(remote, run, RoleSessions.renderSession(roleSessions, remote.id(), () -> prompt(basePrompt, run, tool)));
     }
 
     Poll poll(DesignWorkPackageRow workPackage, Path projectRoot, boolean timedOut) {

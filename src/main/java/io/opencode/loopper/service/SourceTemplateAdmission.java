@@ -13,6 +13,7 @@ import tools.jackson.databind.ObjectMapper;
 /** Short CAS transactions own source intake facts; filesystem and model I/O never enter this class. */
 @Service
 public class SourceTemplateAdmission {
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private RoleSessions roleSessions;
     private final SourceTemplateMapper mapper;
     private final LifecycleTransitionService lifecycle;
     private final ObjectMapper json;
@@ -28,6 +29,7 @@ public class SourceTemplateAdmission {
         if (previous != null) return same(previous, proposed.requestSha256());
         lifecycle.create(subject(proposed), proposed.state(), Map.of("template", proposed.templateId()),
                 () -> mapper.insert(proposed), SourceTemplateAdmission::conflict);
+        RoleSessions.freeze(roleSessions, "SOURCE_TEMPLATE_RUN", proposed.id(), null, null);
         return require(proposed.id());
     }
     public SourceTemplateRunRow transition(SourceTemplateRunRow row, SourceTemplateState next,

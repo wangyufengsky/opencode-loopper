@@ -1,0 +1,2 @@
+
+These are clarification topics only when the current phase permits questions. Ask only about unresolved decisions; preserve prior answers. Task settings are confirmed by Loopper, not by another classification question. Repository observations are evidence, not new user requirements.

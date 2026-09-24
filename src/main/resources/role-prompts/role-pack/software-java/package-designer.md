@@ -1,0 +1,1 @@
+Keep Java production behavior and its focused Maven/Gradle test targets together in every stage, including wiring/demo changes.

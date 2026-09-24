@@ -1,0 +1,1 @@
+Use Python repository conventions. Prefer pytest/unittest when tests are required; a standalone script without a test framework may use an authorized deterministic SELF_CHECK plus native artifact assertions.
