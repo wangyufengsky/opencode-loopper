@@ -1125,7 +1125,7 @@ to pass validation. See [role changes, configuration and qualification boundarie
 
 ### V2 工作包整理与工具版本隔离
 
-新建 `PACKAGE_DESIGN_CANDIDATE_V2_READ_ONLY` / `PACKAGE_DESIGN_CANDIDATE_V2_INTERACTIVE_READ_ONLY` 持久 profile 仅允许私有 `submit_package_design_v2`；V1 profile 继续原工具。会话 profile 和候选 contractVersion 冻结，切换开关不修改旧权限。`PACKAGE_SEMANTICS` 使用 `msg_loopper_design_s_` 持久回合身份，guard 禁止 question 与所有候选提交工具；候选设计回合才恢复匹配版本工具。V73 唯一修订记录及原协调器 CAS 防止重复整理，UNKNOWN 投递走原查询恢复，停止未确认不得创建后续业务请求。Codex 离线适配与真实 OpenCode 运行结果必须单列，详见 [工作包三批优化](package-design-luna-optimization.md)。
+新建 `PACKAGE_DESIGN_CANDIDATE_V2_READ_ONLY` / `PACKAGE_DESIGN_CANDIDATE_V2_INTERACTIVE_READ_ONLY` 持久 profile 的候选提交入口仅允许私有 `submit_package_design_v2`；V1 profile 继续原工具。会话 profile 和候选 contractVersion 冻结，切换开关不修改旧权限。`PACKAGE_SEMANTICS` 使用 `msg_loopper_design_s_` 持久回合身份，guard 禁止 question 与所有候选提交工具；候选设计回合才恢复匹配版本工具。V73 唯一修订记录及原协调器 CAS 防止重复整理，UNKNOWN 投递走原查询恢复，停止未确认不得创建后续业务请求。Codex 离线适配与真实 OpenCode 运行结果必须单列，详见 [工作包三批优化](package-design-luna-optimization.md)。
 
 ## 工作包 V2 默认启用（0.3.75）
 
@@ -1136,7 +1136,7 @@ to pass validation. See [role changes, configuration and qualification boundarie
 
 ### 文档原文读取与模板批次窗口
 
-文档模板版本 2 通过 `loopper-document://{role}/{scope}/{file}/{section}` 暴露受限原文，原生 Resource 与 `read_document_resource` Tool 共用冻结源与当前角色许可。新的静态分析及独立复核会话分别使用 `DOCUMENT_CODE_ASSESSMENT_V2_NO_TOOLS`、`DOCUMENT_CODE_REVIEW_V2_NO_TOOLS`，仅允许自己的候选提交工具。原文阅读不授予项目脚本或写入能力；开发和双 Judge 按原会话边界读取来源。详见[文档模板任务合同](document-template-contract.md)。
+文档模板版本 2 通过 `loopper-document://{role}/{scope}/{file}/{section}` 暴露受限原文，原生 Resource 与 `read_document_resource` Tool 共用冻结源与当前角色许可。新的静态分析及独立复核会话分别使用 `DOCUMENT_CODE_ASSESSMENT_V2_NO_TOOLS`、`DOCUMENT_CODE_REVIEW_V2_NO_TOOLS`，候选提交入口仅允许自己的工具。原文阅读不授予项目脚本或写入能力；开发和双 Judge 按原会话边界读取来源。详见[文档模板任务合同](document-template-contract.md)。
 
 非需求开发模板允许独立批次按冻结窗口调度，默认 4、设置范围 1–16；创建、送达未知及停止中的会话仍计入占用。每个批次独立保持 Session、候选版本、投递和停止证明，不能用窗口补位绕过未知投递恢复。历史模板按原版本恢复，窗口不增加原预算。
 
@@ -1146,8 +1146,12 @@ to pass validation. See [role changes, configuration and qualification boundarie
 
 ### 冻结版本审查专用读取
 
-`SNAPSHOT_CODE_REVIEW_NO_TOOLS` 仅开放专用快照导航/读取/检索/已接受结果与 `submit_template_analysis`、合同查询，保持托管代次与角色凭据隔离。不开放目标项目构建测试、原生文件和命令工具，不设 agentic 步数上限；预算、时限及停止证明独立生效。具体候选和范围合同见[冻结版本代码审查](snapshot-code-review-contract.md)。
+`SNAPSHOT_CODE_REVIEW_NO_TOOLS` 的目标代码读取使用专用快照导航/读取/检索/已接受结果与 `submit_template_analysis`、合同查询，保持托管代次与角色凭据隔离。不开放目标项目构建测试、原生文件和命令工具，不设 agentic 步数上限；预算、时限及停止证明独立生效。具体候选和范围合同见[冻结版本代码审查](snapshot-code-review-contract.md)。
 
 ### 项目知识问答
 
 新知识会话使用 `KNOWLEDGE_RESEARCH_READ_ONLY` / `KNOWLEDGE_RESEARCH_INTERACTIVE_READ_ONLY`，新派发问题优先查询知识 MCP 并读取原文取得引用，MCP 查不到或明确不可用时才以原生只读工具补足缺口；模型回答完成后不自动追加自查或 Todo 续查 prompt，已持久化的历史请求保持精确恢复。旧 `KNOWLEDGE_READ_ONLY` / `KNOWLEDGE_INTERACTIVE_READ_ONLY` 保持冻结权限。知识会话免固定角色步数和任务/设计预算。运行代次、所有者、消息身份、正向停止证明及来源快照规则见 [项目知识库合同](knowledge-contract.md)。
+
+## 业务角色的共享知识取证
+
+新业务流程可在上述专用协议之外，按[角色配置合同](role-configuration.md#共享项目知识)获得精确辅助知识读取工具。资料集合由创建时的项目授权冻结，子流程继承；候选查询复用活动运行、所有者版本和代次守卫。源码/文档与快照审查仍使用专用工具读取正式目标，项目背景知识不能替代指定的冻结版本。评审可独立查证，实时业务 SQL 保持独立且不授予评审；路由、纯修复、闭集选择和收尾不增加此通道。旧会话、无知识绑定的历史流程及其恢复保持原权限。

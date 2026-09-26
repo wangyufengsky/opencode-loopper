@@ -14,16 +14,14 @@ import tools.jackson.databind.ObjectMapper;
 public class KnowledgeTools {
     private final KnowledgeMapper mapper;
     private final KnowledgeSources sources;
-    private final KnowledgeReader reader;
-    private final DatabaseQueryService databases;
+    private final KnowledgeReadOperations reads;
     private final ObjectMapper json;
     private final KnowledgeEventHub events;
     private final AssistScopeService scopes;
-    private final KnowledgeGit git;
-    private final KnowledgeSearchService search;
-    public KnowledgeTools(KnowledgeMapper mapper, KnowledgeSources sources, KnowledgeReader reader,
-            DatabaseQueryService databases, ObjectMapper json, KnowledgeEventHub events, AssistScopeService scopes, KnowledgeGit git, KnowledgeSearchService search) {
-        this.search = search; this.git = git; this.mapper = mapper; this.sources = sources; this.reader = reader; this.databases = databases; this.json = json; this.events = events; this.scopes = scopes;
+    public KnowledgeTools(KnowledgeMapper mapper, KnowledgeSources sources, KnowledgeReadOperations reads,
+            ObjectMapper json, KnowledgeEventHub events, AssistScopeService scopes) {
+        this.mapper = mapper; this.sources = sources; this.reads = reads;
+        this.json = json; this.events = events; this.scopes = scopes;
     }
     @org.springframework.context.event.EventListener(org.springframework.boot.context.event.ApplicationReadyEvent.class)
     public void recoverInterruptedCalls() { mapper.interruptedCalls(); }
@@ -47,29 +45,8 @@ public class KnowledgeTools {
     }
     private Turn active(String id) { return mapper.active(id).filter(t -> Set.of("SENDING", "UNKNOWN", "RUNNING").contains(t.state())).orElseThrow(() -> KnowledgeSources.bad("当前回合已结束或正在停止")); }
     private Map<String,Object> execute(Conversation conversation, String turnId, String name, Map<String,Object> args) {
-        if (name.equals("list_knowledge_sources")) return Map.of("sources", sources.frozenViews(conversation));
-        if (name.equals("search_project_knowledge")) return search.search("mcp:" + conversation.id() + ":" + turnId,
-                new KnowledgeSources.Selection(sources.frozen(conversation), sources.connections(conversation)), KnowledgeSearchContracts.Request.from(args));
-        if (name.equals("list_database_connections")) return Map.of("connections", sources.connections(conversation).stream()
-                .map(c -> Map.of("id", c.id(), "name", c.name(), "type", c.config().type(), "schemas", c.config().schemas(), "version", c.version())).toList());
-        if (name.equals("query_database_readonly") || name.equals("inspect_database_schema")) return database(conversation, name, args);
-        var source = sources.frozen(conversation).stream().filter(s -> s.id().equals(string(args, "sourceId"))).findFirst().orElseThrow(() -> KnowledgeSources.bad("资料不属于当前会话"));
-        if (name.contains("knowledge_git")) return git.call(conversation.id(), source, name, args);
-        return switch (name) {
-            case "browse_knowledge_source" -> json.convertValue(reader.browse(source, string(args, "path"), string(args, "query"), string(args, "cursor")), new tools.jackson.core.type.TypeReference<>() { });
-            case "search_knowledge" -> reader.search(source, string(args, "path"), string(args, "query"), string(args, "cursor"));
-            case "read_knowledge_source" -> reader.readRange(source, string(args, "path"), number(args, "section", -1), number(args, "startLine", 1), number(args, "endLine", 0), string(args, "expectedSha"), number(args, "offset", 0), number(args, "textOffset", -1));
-            default -> throw KnowledgeSources.bad("此工具不属于知识问答权限");
-        };
-    }
-    private Map<String,Object> database(Conversation conversation, String name, Map<String,Object> args) {
-        var bound = sources.connections(conversation).stream().filter(c -> c.id().equals(string(args, "connectionId"))).findFirst().orElseThrow(() -> KnowledgeSources.bad("数据库未授权给当前会话"));
-        var output = name.equals("query_database_readonly") ? databases.query(bound, string(args, "sql"))
-                : databases.inspect(bound, string(args, "schema"), string(args, "table"), string(args, "kind"), number(args, "offset", 0));
-        var result = new LinkedHashMap<>(output); result.put("kind", "DATABASE"); result.put("sourceId", "database:" + bound.id()); result.put("name", bound.name());
-        result.put("location", name.equals("query_database_readonly") ? "只读查询" : Objects.toString(string(args, "schema"), "") + "." + Objects.toString(string(args, "table"), "结构"));
-        result.put("sql", name.equals("query_database_readonly") ? string(args, "sql") : ""); result.put("configurationVersion", bound.version());
-        result.put("sha256", AssistFiles.sha(json.writeValueAsBytes(output))); return result;
+        return reads.read(name.contains("knowledge_git") ? conversation.id() : "mcp:" + conversation.id() + ":" + turnId,
+                new KnowledgeSources.Selection(sources.frozen(conversation), sources.connections(conversation)), name, args);
     }
     private Map<String,Object> citation(Conversation conversation, Turn turn, Map<String,Object> body) {
         if (mapper.citationCount(turn.id()) >= 100) return uncited(body);
@@ -101,5 +78,4 @@ public class KnowledgeTools {
         return AssistRedaction.text(value.substring(0, Math.min(value.length(), 160)));
     }
     private static String string(Map<String,Object> args, String key) { return args.get(key) instanceof String text ? text : null; }
-    private static int number(Map<String,Object> args, String key, int fallback) { return args.get(key) instanceof Number n ? n.intValue() : fallback; }
 }

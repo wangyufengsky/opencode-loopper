@@ -225,6 +225,9 @@ export interface RolePermissionPreview {
   complete: boolean
   limitations: string[]
   checkedAt?: string
+  revisionId?: string
+  revisionNumber?: number
+  bindingActive?: boolean
 }
 
 export interface RoleImportDiagnostic { code: string; path: string; message: string }

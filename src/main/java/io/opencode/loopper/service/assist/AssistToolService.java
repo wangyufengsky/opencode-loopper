@@ -10,6 +10,8 @@ import tools.jackson.databind.ObjectMapper;
 /** Auxiliary dispatch cannot advance Task/Attempt state. Failures are tool diagnostics, not task failures. */
 @Service
 public class AssistToolService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private io.opencode.loopper.service.knowledge.WorkflowKnowledgeTools workflowKnowledge;
     private final AssistScopeService scopes;private final DatabaseQueryService databases;private final AssistDocumentService documents;
     private final AssistWordService words;private final AssistEvidenceService evidence;private final AssistMapper mapper;
     private final TaskEventService events;private final ObjectMapper json;
@@ -27,7 +29,9 @@ public class AssistToolService {
             if(arguments==null)throw new AssistFailure("ASSIST_INPUT_INVALID","工具参数必须是对象");
             validate(name,arguments);scope=scopes.authorize(string(arguments,"scope"),name);id=UUID.randomUUID().toString();
             mapper.startCall(id,scope.ownerKey(),scope.externalSessionId(),name,Instant.now().toString());event(scope,name,id,"RUNNING");
-            Map<String,Object> output=execute(scope,name,arguments);scopes.authorize(string(arguments,"scope"),name);
+            Map<String,Object> output= !scope.profile().startsWith("KNOWLEDGE_") && AssistToolCatalog.knowledgeTool(name)
+                    ? workflowKnowledge.call(scope,name,arguments,id) : execute(scope,name,arguments);
+            scopes.authorize(string(arguments,"scope"),name);
             var result=new LinkedHashMap<>(output);result.put("reference","call:"+id);result.put("collectedAt",Instant.now().toString());
             String encoded=AssistRedaction.text(json.writeValueAsString(result));
             if(encoded.getBytes(java.nio.charset.StandardCharsets.UTF_8).length>1048576)throw new AssistFailure("ASSIST_RESULT_LIMIT","结果超过 1 MiB，请缩小查询或读取范围");

@@ -20,16 +20,20 @@ public final class AssistToolCatalog {
                 tool("get_execution_context","读取当前阶段权威合同、附件与证据目录；大正文另行读取",false,Map.of("cursor","string")),
                 tool("get_failure_evidence","读取本阶段最近完成尝试或指定 attemptId 的验证事实",false,Map.of("attemptId","string")),
                 tool("read_task_evidence","读取本任务 evidence:、verification: 或 call: 前缀的证据ID；offset 为字符游标",false,Map.of("reference","string","offset","integer"))));
-        result.addAll(knowledgeTools()); result.addAll(gitTools()); result.addAll(batchTools()); return List.copyOf(result);
+        result.addAll(knowledgeTools()); result.add(workflowEvidenceTool()); result.addAll(gitTools()); result.addAll(batchTools()); return List.copyOf(result);
     }
     public static boolean knowledgeTool(String name) { return name.contains("knowledge"); }
     private static List<Tool> knowledgeTools() {
         return List.of(
             projectKnowledgeSearch(),
-            tool("list_knowledge_sources", "列出当前知识会话冻结授权的代码、文档和数据库", false, Map.of()),
+            tool("list_knowledge_sources", "列出当前会话或业务流程冻结授权的资料；数据库按角色单独授权", false, Map.of()),
             tool("browse_knowledge_source", "分页浏览资料目录；path 为来源内相对路径", false, Map.of("sourceId","string","path","string","query","string","cursor","string")),
             tool("search_knowledge", "有界关键词检索；中文短词按字面匹配，分页及不完整范围见结果", false, Map.of("sourceId","string","path","string","query","string","cursor","string")),
             tool("read_knowledge_source", "读取代码行片段或文档 section；section=-1 查看目录，可按检索返回的 textOffset 跨段读取，返回真实证据 citationId", false, Map.of("sourceId","string","path","string","section","integer","startLine","integer","expectedSha","string","offset","integer","endLine","integer","textOffset","integer")));
+    }
+    public static Tool workflowEvidenceTool() {
+        return tool("read_knowledge_evidence", "读取当前业务角色已保存的知识证据；不能读取其他评审员的私有引用", false,
+                Map.of("reference", "string", "offset", "integer"));
     }
     private static Tool projectKnowledgeSearch() {
         Map<String,Object> properties = new LinkedHashMap<>();
@@ -78,8 +82,14 @@ public final class AssistToolCatalog {
         return new Tool(name,description,writes,Map.of("type","object","properties",properties,"required",required,"additionalProperties",false));
     }
     public static List<String> allowed(String profile) {
-        if(profile==null || profile.contains("NO_TOOLS")&&!profile.startsWith("TEMPLATE_ANALYSIS") || profile.equals("PROJECT_CONVENTION_CANDIDATE_READ_ONLY")) return List.of();
-        if (profile.startsWith("KNOWLEDGE_")) return tools().stream().map(Tool::name).filter(n -> knowledgeTool(n) || List.of("list_database_connections", "inspect_database_schema", "query_database_readonly").contains(n)).toList();
+        var knowledge = io.opencode.loopper.service.knowledge.WorkflowKnowledgePolicy.supports(profile)
+                ? tools().stream().map(Tool::name).filter(AssistToolCatalog::knowledgeTool).toList() : List.<String>of();
+        var baseline = baselineAllowed(profile);
+        return java.util.stream.Stream.concat(baseline.stream(), knowledge.stream()).distinct().toList();
+    }
+    private static List<String> baselineAllowed(String profile) {
+        if(profile==null || profile.contains("NO_TOOLS")&&!profile.startsWith("TEMPLATE_ANALYSIS") || profile.startsWith("PROJECT_CONVENTION_")) return List.of();
+        if (profile.startsWith("KNOWLEDGE_")) return tools().stream().map(Tool::name).filter(n -> !n.equals("read_knowledge_evidence") && (knowledgeTool(n) || List.of("list_database_connections", "inspect_database_schema", "query_database_readonly").contains(n))).toList();
         boolean review=profile.contains("JUDGE") || profile.contains("REVIEWER");
         return tools().stream().filter(t->!knowledgeTool(t.name()) && (!t.writes() || profile.equals("IMPLEMENTATION"))
                 && (!review || t.name().contains("evidence") || t.name().equals("get_execution_context") || t.name().equals("list_test_failures") || t.name().equals("read_test_failure")))

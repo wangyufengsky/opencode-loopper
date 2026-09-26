@@ -83,14 +83,19 @@ class RoleWorkflowIntegrationTest {
         assertThat(copied.revisionId()).isEqualTo(roles.sessionSnapshot(session.id()).orElseThrow().revisionId());
     }
 
-    @Test void everyBuiltinProfileKeepsItsOrderedAdapterPermissions() {
+    @Test void builtinProfilesKeepAdapterPermissionsExceptExplicitImplementationNarrowing() {
         var owner = new RoleConfigurationService.OwnerRef("TASK", UUID.randomUUID().toString());
         roles.freezeOwner(owner, null);
         for (var profile : OpenCodeClient.SessionProfile.values()) {
             var baseline = io.opencode.loopper.runtime.OpenCodePermissionPolicy.previewRules(profile, List.of(), "loopper-internal-equivalence");
             var role = roles.resolveFrozen(owner, profile.name()).orElseThrow();
-            assertThat(roles.compileNarrowedPermissions(role, baseline, Set.of(), "loopper-internal-equivalence"))
-                    .as("ordered default permissions for %s", profile).isEqualTo(baseline);
+            var compiled = roles.compileNarrowedPermissions(role, baseline, Set.of(), "loopper-internal-equivalence");
+            if (profile == OpenCodeClient.SessionProfile.IMPLEMENTATION) {
+                assertThat(compiled.getFirst()).isEqualTo(new OpenCodeClient.SessionPermissionRule("*", "*", "deny"));
+                assertThat(compiled).containsSubsequence(baseline.stream().filter(r -> !r.action().equals("allow")).toList());
+                assertThat(compiled).anyMatch(r -> r.permission().equals("bash") && r.action().equals("allow"));
+                assertThat(compiled).noneMatch(r -> Set.of("task", "skill", "webfetch").contains(r.permission()) && r.action().equals("allow"));
+            } else assertThat(compiled).as("ordered default permissions for %s", profile).isEqualTo(baseline);
         }
     }
 

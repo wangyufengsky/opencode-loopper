@@ -33,12 +33,15 @@ class AssistIntegrationTest {
     @Test void sourceDisableIsAtomicAndDoesNotAffectOtherScopesOrSources() {
         policies.catalog("", "external", List.of("read_one", "read_two"), true);
         policies.catalog("", "other", List.of("read_one"), true);
+        policies.update("", "external", "read_one", 1, 0);
+        policies.update("", "external", "read_two", 1, 0);
+        policies.update("", "other", "read_one", 1, 0);
         policies.update("project", "external", "read_two", 1, -1);
         assertThatThrownBy(() -> policies.disableSource("", "external", List.of(
-                new AssistToolPolicyService.Revision("read_one", 0), new AssistToolPolicyService.Revision("read_two", 99))))
+                new AssistToolPolicyService.Revision("read_one", 1), new AssistToolPolicyService.Revision("read_two", 99))))
                 .isInstanceOf(ConflictException.class);
         assertThat(policies.catalog("", "external", List.of("read_one", "read_two"), true)).allMatch(AssistToolPolicyService.View::enabled);
-        policies.disableSource("", "external", List.of(new AssistToolPolicyService.Revision("read_one", 0), new AssistToolPolicyService.Revision("read_two", 0)));
+        policies.disableSource("", "external", List.of(new AssistToolPolicyService.Revision("read_one", 1), new AssistToolPolicyService.Revision("read_two", 1)));
         assertThat(policies.catalog("", "external", List.of("read_one", "read_two", "new_tool"), true)).noneMatch(AssistToolPolicyService.View::enabled);
         assertThat(policies.catalog("project", "external", List.of("read_two"), true)).allMatch(AssistToolPolicyService.View::enabled);
         assertThat(policies.catalog("", "other", List.of("read_one"), true)).allMatch(AssistToolPolicyService.View::enabled);
@@ -53,7 +56,7 @@ class AssistIntegrationTest {
         databases.save(saved.id(),new DatabaseConnectionService.Request("renamed",saved.config(),null,false,true,List.of(),saved.version()));
         assertThat(mapper.resources("TASK:"+task.id())).contains("内网").doesNotContain("renamed");
         assertThatThrownBy(()->databases.save(saved.id(),new DatabaseConnectionService.Request("stale",saved.config(),null,true,false,List.of(),saved.version()))).isInstanceOf(ConflictException.class);
-        var first=policies.catalog("", "third-party",List.of("search"),true).getFirst();assertThat(first.enabled()).isTrue();
+        var first=policies.catalog("", "third-party",List.of("search"),true).getFirst();assertThat(first.enabled()).isFalse();
         assertThat(policies.catalog("","third-party",List.of("search","new_tool"),true)).anySatisfy(p->{if(p.name().equals("new_tool"))assertThat(p.enabled()).isFalse();});
         policies.update("","third-party","search",0,first.globalVersion());policies.update(project.id(),"third-party","search",1,-1);
         assertThat(policies.catalog(project.id(),"third-party",List.of("search"),true).getFirst().enabled()).isTrue();
@@ -175,7 +178,7 @@ class AssistIntegrationTest {
         assertThatThrownBy(()->snapshotReads.read(owner.key(),snapshot.createdAt(),"snapshot:"+snapshot.id(),0)).isInstanceOf(AssistFailure.class);
         assertThat(snapshotReads.search(owner.key(),"9999",null,"error",null).get("complete")).isEqualTo(true);
         assertThat(policies.catalog("",AssistToolCatalog.SERVER,AssistToolCatalog.tools().stream().map(AssistToolCatalog.Tool::name).toList(),true))
-            .filteredOn(p->AssistToolCatalog.batchTool(p.name())).allSatisfy(p->assertThat(p.enabled()).isFalse());
+            .filteredOn(p->p.name().startsWith("gitlab_")).allSatisfy(p->assertThat(p.enabled()).isFalse());
     }
     @Test void formalCaptureKeepsFullOutputAndDoesNotInventFreshReports() throws Exception {
         var project=projects.create("capture",Files.createDirectory(temp.resolve("capture")).toString());

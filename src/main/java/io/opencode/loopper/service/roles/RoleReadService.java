@@ -73,7 +73,8 @@ public class RoleReadService {
     public record PreviewTool(String name, String server, String source, boolean required,
                               boolean available) { }
     public record Preview(String scope, String slot, String projectId, List<PreviewRule> rules,
-                          List<PreviewTool> mcpTools, boolean complete, List<String> limitations) { }
+                          List<PreviewTool> mcpTools, boolean complete, List<String> limitations,
+                          String revisionId, int revisionNumber, boolean bindingActive) { }
 
     public CatalogPage list(String query, String cursor, Integer limit) {
         int count = pageLimit(limit);
@@ -136,10 +137,12 @@ public class RoleReadService {
     }
 
     public Preview preview(String roleId, String slot, String projectId) {
-        RoleConfigurationMapper.Revision revision = mapper.latest(roleId);
+        var binding = slot == null ? null : mapper.binding(slot);
+        var bound = binding == null || binding.revisionId() == null ? null : mapper.revision(binding.revisionId());
+        boolean bindingActive = bound != null && roleId.equals(bound.roleId());
+        RoleConfigurationMapper.Revision revision = bindingActive ? bound : mapper.latest(roleId);
         if (revision == null) throw new NotFoundException("角色不存在或尚未发布修订");
         RoleManifest.Role role = json.readValue(revision.manifestJson(), RoleManifest.Role.class);
-        var binding = slot == null ? null : mapper.binding(slot);
         if (binding == null || !role.allowedSlots().contains(slot))
             throw bad("角色不支持该工作流槽位");
         String project = projectId == null ? "" : projectId.strip();
@@ -147,7 +150,7 @@ public class RoleReadService {
         if ("ACCOUNTING_COMMAND".equals(slot))
             return new Preview("CONFIG_ONLY", slot, project, List.of(),
                     List.of(), false, List.of("统计辅助使用独立 native Agent 命令；工具、作用域凭证及提交协议由服务端固定。",
-                    "此处仅能查看或导入 accounting.instructions 提示词；预览不执行命令。"));
+                    "此处仅能查看或导入 accounting.instructions 提示词；预览不执行命令。"), revision.revisionId(), revision.revisionNumber(), bindingActive);
         OpenCodeClient.SessionProfile profile = OpenCodeClient.SessionProfile.valueOf(binding.adapterProfile());
         String internal = "role-preview-internal";
         List<OpenCodeClient.SessionPermissionRule> baseline = new ArrayList<>(
@@ -175,6 +178,10 @@ public class RoleReadService {
                 .collect(java.util.stream.Collectors.toSet());
         var resolved = roles.resolveRevision(revision.revisionId(), slot);
         List<String> limitations = new ArrayList<>();
+        limitations.add(bindingActive ? "按此阶段当前绑定版本预览；已有流程继续使用创建时冻结的版本。" : "此角色尚未绑定到所选阶段；预览最新修订，不代表正在生效。");
+        limitations.add("此处展示配置许可；第三方工具发现、运行环境连接与当前业务作用域仍需派发时核定。");
+        if (io.opencode.loopper.service.knowledge.WorkflowKnowledgePolicy.supports(profile.name()))
+            limitations.add("项目知识检索、原文阅读与历史查询仅使用新流程冻结的项目资料；实时业务 SQL 单独授权，评审不开放实时数据库。");
         if (projectRow != null && projectRow.managed() != 1)
             limitations.add("项目当前未处于托管状态，不能据此判断新会话可创建。");
         List<OpenCodeClient.SessionPermissionRule> compiled;
@@ -215,7 +222,7 @@ public class RoleReadService {
                                 : tool.startsWith("@loopper-assist/") ? "@loopper-assist" : "exact",
                         "ROLE_DECLARATION", role.requiredMcpTools().contains(tool), false)));
         return new Preview("CONFIG_ONLY", slot, project, rules, List.copyOf(tools), false,
-                List.copyOf(limitations));
+                List.copyOf(limitations), revision.revisionId(), revision.revisionNumber(), bindingActive);
     }
 
     static List<PreviewTool> systemRequiredTools(OpenCodeClient.SessionProfile profile) {

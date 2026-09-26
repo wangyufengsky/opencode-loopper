@@ -322,8 +322,8 @@ Candidate Session 内通过 MCP 继续修正，不设提交次数上限。`reaso
 不可纠正，危险控制字符检查必须先于长度检查，权威字段的通用语义前缀不能降级成普通附加说明。不可纠正
 候选取得停止证明后直接关闭当前批次到人工输入，不得自动创建新 Session。Legacy 入口同样必须在远端创建前
 冻结 prompt、证据目录和 SHA，完成与 finalizer 只能复用该快照。代次、传输、停止不确定和派发后零提交同样失败关闭。
-`JUDGE_CANDIDATE_READ_ONLY` 只允许 `read/glob/grep` 与精确私有提交工具，不允许 question、shell、写入
-或用户 MCP；最终 assistant text 不读取。accepted result 在候选接受事务冻结，取得正向远端停止证明后
+`JUDGE_CANDIDATE_READ_ONLY` 允许 `read/glob/grep`、精确私有提交工具，以及按[辅助 MCP 合同](assist-mcp-contract.md#知识库资料读取)授权的执行证据和项目知识读取。新流程可独立查证，不允许 question、shell、写入、实时业务 SQL
+或第三方 MCP；最终 assistant text 不读取。accepted result 在候选接受事务冻结，取得正向远端停止证明后
 才与 Judge `COMPLETED` 原子结算。
 
 Stage 组装完成后，服务端优先接受 `负责路径` 的唯一显式声明，随后兼容 Stage 精确引用产生义务的受控

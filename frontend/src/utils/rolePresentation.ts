@@ -92,7 +92,8 @@ const descriptions: Record<string, string> = {
   "list_test_failures": "分页列出已保存报告中的失败用例",
   "read_test_failure": "按 failureId 读取失败断言、异常栈和来源",
   "search_evidence": "在当前授权快照中按字面关键词搜索，范围不完整时明确返回",
-  "search_project_knowledge": "统一检索项目资料"
+  "search_project_knowledge": "统一检索项目资料",
+  "read_knowledge_evidence": "读取本角色保存的知识证据"
 }
 
 export function stableToolName(name: string): string {

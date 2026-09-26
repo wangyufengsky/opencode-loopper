@@ -47,7 +47,7 @@ class AssistRuntimeSupportTest {
         assertThat(rules.stream().filter(r -> r.get("action").equals("allow")).map(r -> r.get("permission"))).containsExactlyInAnyOrderElementsOf(expected);
         assertThat(OpenCodeAgentPolicy.stepLimit(profile)).isZero();
         }
-        assertThat(AssistToolCatalog.allowed("IMPLEMENTATION")).noneMatch(AssistToolCatalog::knowledgeTool);
+        assertThat(AssistToolCatalog.allowed("IMPLEMENTATION")).contains("search_project_knowledge", "read_knowledge_source", "read_knowledge_evidence");
         verifyNoInteractions(inventory);
     }
     private static AssistToolPolicyService.View setting(String name,boolean enabled){return new AssistToolPolicyService.View(name,true,false,true,"INHERIT",enabled,"GLOBAL",0,-1,"");}

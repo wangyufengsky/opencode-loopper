@@ -51,6 +51,23 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks())
 
 describe('RoleManagementView', () => {
+  it('shows the bound revision without merging declarations from an unactivated newer revision', async () => {
+    vi.mocked(api.getRoleRevision).mockResolvedValue({ ...revision, nativeTools: ['bash'], permissionMode: 'INTERSECT' })
+    vi.mocked(api.previewRoleSlot).mockResolvedValue({ scope: 'CONFIG_ONLY', slot: binding.slot,
+      revisionId: 'revision-1', revisionNumber: 1, bindingActive: true, complete: false, limitations: [],
+      rules: [{ permission: 'read', pattern: '*', action: 'allow' }],
+      mcpTools: [{ name: 'read', source: 'NATIVE_POLICY' }] })
+    const wrapper = view()
+    await flushPromises()
+    await wrapper.get('.role-item').trigger('click')
+    await flushPromises()
+    await wrapper.findAll('.detail-tabs button')[1]!.trigger('click')
+    await flushPromises()
+    expect(wrapper.get('.preview-status').text()).toContain('阶段绑定配置 · 版本 1')
+    expect(wrapper.get('.tool-list').text()).toContain('read')
+    expect(wrapper.get('.tool-list').text()).not.toContain('bash')
+    wrapper.unmount()
+  })
   it('combines inherited, native and declared tools with Chinese descriptions and preserves blockers', async () => {
     vi.mocked(api.getRoleRevision).mockResolvedValue({ ...revision, nativeTools: ['read'],
       mcpTools: ['@loopper-internal/submit_package_design_v2'] })
@@ -132,7 +149,7 @@ describe('RoleManagementView', () => {
     await wrapper.findAll('.detail-tabs button')[1]!.trigger('click')
     await flushPromises()
     expect(api.previewRoleSlot).toHaveBeenCalledWith(role.roleId, binding.slot, '')
-    expect(wrapper.get('.preview-status').text()).toContain('仍需运行时核定')
+    expect(wrapper.get('.preview-status').text()).toContain('调用条件待运行时核定')
     await wrapper.findAll('.detail-tabs button')[2]!.trigger('click')
     await flushPromises()
     expect(api.getRoleRevision).toHaveBeenCalledWith(role.roleId, 'revision-2')

@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class ProjectConventionService {
     @org.springframework.beans.factory.annotation.Autowired(required = false) private io.opencode.loopper.service.RoleSessions roleSessions;
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private io.opencode.loopper.service.knowledge.WorkflowKnowledgeBindings knowledgeBindings;
     public static final String START_MARKER = ProjectConventionDocumentStore.START_MARKER;
     public static final String END_MARKER = ProjectConventionDocumentStore.END_MARKER;
     private static final int MAX_PROJECT_CONTEXT_REPAIR_ATTEMPTS = 2;
@@ -83,6 +84,8 @@ public class ProjectConventionService {
             return startCandidate(project, source, stackProfile);
         }
         String roleOwnerId = UUID.randomUUID().toString();
+        if (knowledgeBindings != null) knowledgeBindings.freezeProject(
+                new io.opencode.loopper.service.roles.RoleConfigurationService.OwnerRef("PROJECT_CONVENTION_DRAFT", roleOwnerId), project.id());
         RoleSessions.freeze(roleSessions, "PROJECT_CONVENTION_DRAFT", roleOwnerId, null, null);
         OpenCodeClient.OpenCodeSession remote;
         try {

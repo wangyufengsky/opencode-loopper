@@ -523,9 +523,53 @@ roles:
     groupLabel: 开发工程师
     allowedSlots:
       - IMPLEMENTATION
-    permissionMode: BASELINE
-    nativeTools: []
-    mcpTools: []
+    permissionMode: INTERSECT
+    nativeTools: [read, glob, grep, edit, write, patch, apply_patch, bash, question, todoread, todowrite]
+    mcpTools:
+      - "@loopper-assist/list_database_connections"
+      - "@loopper-assist/inspect_database_schema"
+      - "@loopper-assist/query_database_readonly"
+      - "@loopper-assist/inspect_document"
+      - "@loopper-assist/read_document"
+      - "@loopper-assist/generate_word"
+      - "@loopper-assist/get_execution_context"
+      - "@loopper-assist/get_failure_evidence"
+      - "@loopper-assist/read_task_evidence"
+      - "@loopper-assist/search_project_knowledge"
+      - "@loopper-assist/list_knowledge_sources"
+      - "@loopper-assist/browse_knowledge_source"
+      - "@loopper-assist/search_knowledge"
+      - "@loopper-assist/read_knowledge_source"
+      - "@loopper-assist/read_knowledge_evidence"
+      - "@loopper-assist/inspect_knowledge_git"
+      - "@loopper-assist/list_knowledge_git_authors"
+      - "@loopper-assist/search_knowledge_git_commits"
+      - "@loopper-assist/read_knowledge_git_commit"
+      - "@loopper-assist/read_knowledge_git_file"
+      - "@loopper-assist/blame_knowledge_git_lines"
+      - "@loopper-assist/gitlab_project_context"
+      - "@loopper-assist/gitlab_list_issues"
+      - "@loopper-assist/gitlab_list_merge_requests"
+      - "@loopper-assist/gitlab_list_pipelines"
+      - "@loopper-assist/gitlab_read_issue"
+      - "@loopper-assist/gitlab_read_merge_request"
+      - "@loopper-assist/gitlab_read_merge_request_diff"
+      - "@loopper-assist/gitlab_list_pipeline_jobs"
+      - "@loopper-assist/gitlab_read_job_log"
+      - "@loopper-assist/list_test_failures"
+      - "@loopper-assist/read_test_failure"
+      - "@loopper-assist/search_evidence"
+      - "@loopper-internal/get_development_task_guide"
+      - "@loopper-internal/list_development_requirements"
+      - "@loopper-internal/read_development_requirement"
+      - "@loopper-internal/read_development_source"
+      - "@loopper-internal/list_development_documents"
+      - "@loopper-internal/list_development_sections"
+      - "@loopper-internal/read_document_resource"
+      - "@loopper-internal/get_source_development_work"
+      - "@loopper-internal/list_source_development_files"
+      - "@loopper-internal/read_source_development_file"
+
     requiredMcpTools: []
     modelPolicy: INHERIT_WORKFLOW
     runtimePolicy: WORKFLOW_ADAPTER
@@ -571,7 +615,7 @@ roles:
     groupLabel: 提交说明助手
     allowedSlots:
       - GENERAL_READ_ONLY_COMMIT_MESSAGE
-    permissionMode: BASELINE
+    permissionMode: INTERSECT
     nativeTools: []
     mcpTools: []
     requiredMcpTools: []
@@ -586,7 +630,7 @@ roles:
     groupLabel: 合并建议助手
     allowedSlots:
       - GENERAL_READ_ONLY_MERGE_ADVISOR
-    permissionMode: BASELINE
+    permissionMode: INTERSECT
     nativeTools: []
     mcpTools: []
     requiredMcpTools: []

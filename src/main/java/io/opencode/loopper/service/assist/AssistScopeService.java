@@ -16,6 +16,8 @@ import tools.jackson.databind.ObjectMapper;
 /** Signed, generation-bound grants are injected only at transport time, never persisted with prompts. */
 @Service
 public class AssistScopeService {
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private io.opencode.loopper.service.knowledge.WorkflowKnowledgeAccess workflowKnowledge;
     private final AssistMapper mapper;
     private final LoopperMapper domain;
     private final InternalMcpRuntimeAccess runtime;
@@ -56,8 +58,13 @@ public class AssistScopeService {
         var snapshot=mapper.session(session);var current=runtime.current().orElseThrow(AssistScopeService::denied);
         if(snapshot==null || !snapshot.generation().equals(current.generation()))throw denied();
         if (snapshot.profile().startsWith("KNOWLEDGE_")) return knowledgeScope(session, snapshot);
+        if (workflowKnowledge != null) {
+            var specialized = workflowKnowledge.specialized(snapshot);
+            if (specialized.isPresent()) return specialized.get();
+        }
         AssistMapper.Owner owner;
-        if(snapshot.profile().equals("IMPLEMENTATION") || snapshot.profile().startsWith("TEMPLATE_ANALYSIS"))owner=mapper.executionOwner(session);
+        if(snapshot.profile().equals("IMPLEMENTATION") || snapshot.profile().startsWith("TEMPLATE_ANALYSIS")
+                || snapshot.profile().equals("SNAPSHOT_CODE_REVIEW_NO_TOOLS"))owner=mapper.executionOwner(session);
         else if(snapshot.profile().contains("CANDIDATE"))owner=mapper.candidateOwner(session);
         else if(snapshot.profile().contains("JUDGE"))owner=mapper.judgeOwner(session);
         else {owner=mapper.designerOwner(session);if(owner==null)owner=mapper.designerRoleOwner(session);}

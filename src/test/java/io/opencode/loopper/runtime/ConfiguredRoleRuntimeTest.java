@@ -10,6 +10,27 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class ConfiguredRoleRuntimeTest {
+    @Test void knowledgeGrantsRequireNewOwnerAndUseItsProjectPolicyInsteadOfScratchDirectory() {
+        var configurations=mock(RoleConfigurationService.class);
+        var knowledge=mock(io.opencode.loopper.service.knowledge.WorkflowKnowledgeBindings.class);
+        var policies=mock(io.opencode.loopper.service.assist.AssistToolPolicyService.class);
+        var runtime=new ConfiguredRoleRuntime(configurations);
+        org.springframework.test.util.ReflectionTestUtils.setField(runtime,"knowledge",knowledge);
+        org.springframework.test.util.ReflectionTestUtils.setField(runtime,"toolPolicies",policies);
+        var context=new RoleContext("TASK","new","JUDGE_READ_ONLY");
+        var baseline=List.of(new SessionPermissionRule("*","*","deny"),
+                new SessionPermissionRule("private_assist_search_project_knowledge","*","allow"));
+        assertThat(runtime.permissions(context,SessionProfile.JUDGE_READ_ONLY,baseline,"private"))
+                .containsExactly(baseline.getFirst());
+        when(knowledge.project(new RoleConfigurationService.OwnerRef("TASK","new"))).thenReturn("actual-project");
+        when(policies.readCatalog(eq("actual-project"),eq("@loopper-assist"),anyList(),eq(true)))
+                .thenReturn(List.of(new io.opencode.loopper.service.assist.AssistToolPolicyService.View(
+                        "read_knowledge_source",true,false,true,"INHERIT",true,"GLOBAL",0,-1,"")));
+        var granted=runtime.permissions(context,SessionProfile.JUDGE_READ_ONLY,baseline,"private");
+        assertThat(granted).contains(new SessionPermissionRule("private_assist_read_knowledge_source","*","allow"))
+                .doesNotContain(baseline.getLast());
+        verify(policies).readCatalog(eq("actual-project"),eq("@loopper-assist"),anyList(),eq(true));
+    }
     @Test void onlyProgramFragmentsUseTheFrozenRevisionAndUserFactsStayVerbatim() {
         var configurations = mock(RoleConfigurationService.class);
         var runtime = new ConfiguredRoleRuntime(configurations);

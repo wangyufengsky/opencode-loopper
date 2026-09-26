@@ -17,6 +17,22 @@ class RoleConfigurationServiceTest {
     private final RoleConfigurationService roles = new RoleConfigurationService(
             mock(RoleConfigurationMapper.class), new ObjectMapper());
 
+    @Test void optionalPrivateToolsRemainOptionalWhenRuntimeHasNoInternalServer() {
+        var role=role("IMPLEMENTATION",List.of("read"),List.of("@loopper-assist/read_knowledge_source"),List.of());
+        var compiled=roles.compileNarrowedPermissions(role,List.of(),Set.of(),null);
+        assertThat(compiled).contains(rule("*","*","deny"),rule("read","*","allow"),rule("read",".env","deny"));
+        assertThat(compiled).noneMatch(r->r.permission().contains("assist"));
+    }
+
+    @Test void commitAndMergeHelpersDoNotInheritAccountingOrNativeToolGrants() {
+        for (String slot : List.of("GENERAL_READ_ONLY_COMMIT_MESSAGE","GENERAL_READ_ONLY_MERGE_ADVISOR")) {
+            var role=new RoleConfigurationService.ResolvedRole("helper","revision","sha",slot,"GENERAL_READ_ONLY",Map.of(),
+                    "INTERSECT",List.of(),List.of(),List.of(),"INHERIT_WORKFLOW","WORKFLOW_ADAPTER");
+            var compiled=roles.compileNarrowedPermissions(role,List.of(rule("*","*","deny"),rule("read","*","allow"),rule("aicoding_*","*","allow")),Set.of(),"private");
+            assertThat(compiled).containsExactly(rule("*","*","deny"));
+        }
+    }
+
     @Test
     void implementationIntersectionStartsWithDenyAllAndPreservesProtectedSpecificDenialsLast() {
         var role = role("IMPLEMENTATION", List.of("bash"), List.of(), List.of());
@@ -32,7 +48,7 @@ class RoleConfigurationServiceTest {
     }
 
     @Test
-    void intersectionDropsBroadInternalAndExternalWildcardGrants() {
+    void intersectionPreservesGuardedAccountingButDropsExternalWildcardGrants() {
         var role = role("GENERAL_READ_ONLY", List.of("read"), List.of(), List.of());
         var baseline = List.of(rule("*", "*", "deny"), rule("read", "*", "allow"),
                 rule("aicoding_*", "*", "allow"), rule("external_*", "*", "allow"),
@@ -41,8 +57,8 @@ class RoleConfigurationServiceTest {
         var compiled = roles.compileNarrowedPermissions(role, baseline, Set.of(), "loopper-internal-1");
 
         assertThat(compiled).contains(rule("read", "*", "allow"));
-        assertThat(compiled).doesNotContain(rule("aicoding_*", "*", "allow"),
-                rule("external_*", "*", "allow"));
+        assertThat(compiled).contains(rule("aicoding_*", "*", "allow"));
+        assertThat(compiled).doesNotContain(rule("external_*", "*", "allow"));
         assertThat(compiled).contains(rule("external_directory", "*", "deny"));
     }
 

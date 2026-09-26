@@ -11,6 +11,10 @@ import static io.opencode.loopper.runtime.OpenCodeClient.*;
 /** Connects explicit workflow ownership to frozen transport policy and prompt content. */
 @Component
 public final class ConfiguredRoleRuntime {
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private io.opencode.loopper.service.knowledge.WorkflowKnowledgeBindings knowledge;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private io.opencode.loopper.service.assist.AssistToolPolicyService toolPolicies;
     private final RoleConfigurationService roles;
     public ConfiguredRoleRuntime(RoleConfigurationService roles) { this.roles = roles; }
 
@@ -26,14 +30,30 @@ public final class ConfiguredRoleRuntime {
     }
     public List<SessionPermissionRule> permissions(RoleContext context, SessionProfile profile,
             List<SessionPermissionRule> baseline, String internalServer) {
+        if (!profile.name().startsWith("KNOWLEDGE_") && profile != SessionProfile.PPT_AGENT) {
+            baseline = workflowKnowledgePermissions(context, profile, baseline, internalServer);
+        }
         if (context == null) return baseline;
+        final var effectiveBaseline = baseline;
         return roles.resolveFrozen(owner(context), context.slot()).map(role -> {
             if (!role.adapterProfile().equals(profile.name())) throw mismatch();
             Set<String> exact = new HashSet<>();
-            baseline.stream().filter(r -> "allow".equals(r.action()) && !r.permission().contains("*") && !RoleConfigurationService.NATIVE_TOOLS.contains(r.permission()))
+            effectiveBaseline.stream().filter(r -> "allow".equals(r.action()) && !r.permission().contains("*") && !RoleConfigurationService.NATIVE_TOOLS.contains(r.permission()))
                     .forEach(r -> exact.add(r.permission()));
-            return roles.compileNarrowedPermissions(role, baseline, exact, internalServer);
-        }).orElse(baseline);
+            return roles.compileNarrowedPermissions(role, effectiveBaseline, exact, internalServer);
+        }).orElse(effectiveBaseline);
+    }
+    private List<SessionPermissionRule> workflowKnowledgePermissions(RoleContext context, SessionProfile profile,
+            List<SessionPermissionRule> baseline, String internal) {
+        var result = new ArrayList<>(baseline.stream().filter(r -> !r.permission().contains("_assist_")
+                || !io.opencode.loopper.service.assist.AssistToolCatalog.knowledgeTool(r.permission())).toList());
+        String project = context == null || knowledge == null ? null : knowledge.project(owner(context));
+        if (project == null || internal == null || toolPolicies == null) return List.copyOf(result);
+        var names = io.opencode.loopper.service.assist.AssistToolCatalog.allowed(profile.name()).stream()
+                .filter(io.opencode.loopper.service.assist.AssistToolCatalog::knowledgeTool).toList();
+        for (var setting : toolPolicies.readCatalog(project, "@loopper-assist", names, true))
+            if (setting.enabled()) result.add(new SessionPermissionRule(io.opencode.loopper.service.assist.AssistToolCatalog.serverName(internal).replaceAll("[^a-zA-Z0-9_-]", "_") + "_" + setting.name(), "*", "allow"));
+        return List.copyOf(result);
     }
     public SessionCreationPlan prepare(SessionCreationPlan plan, RoleContext context) {
         var permissions = permissions(context, plan.profile(), plan.permissionPolicy(), plan.internalMcpServer());

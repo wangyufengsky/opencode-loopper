@@ -111,7 +111,7 @@ const visibleTools = computed(() => {
   for (const tool of preview.value?.mcpTools ?? []) {
     tools.set(tool.name, { ...tool, description: roleToolDescription(tool.name), source: tool.source === 'NATIVE_POLICY' ? '原生工具' : tool.source === 'SYSTEM_REQUIRED' ? '服务端必需' : tool.source === 'BUNDLED_POLICY' ? '程序内置' : '配置声明' })
   }
-  for (const name of [...(revision.value?.nativeTools ?? []), ...(revision.value?.mcpTools ?? [])]) {
+  for (const name of preview.value ? [] : [...(revision.value?.nativeTools ?? []), ...(revision.value?.mcpTools ?? [])]) {
     if (!tools.has(name)) tools.set(name, { name, description: roleToolDescription(name), source: '配置声明', required: revision.value?.requiredMcpTools?.includes(name) })
   }
   return [...tools.values()]
@@ -532,7 +532,7 @@ onMounted(() => { void loadRoles(); void loadBindings(); void loadProjects() })
             <p v-if="!activeBindings.length" class="empty-note">当前未绑定运行阶段。</p>
           </div>
           <div v-if="activeTab === 'permissions'" class="detail-section">
-            <div class="section-heading"><h3>工具与访问权限</h3><span v-if="revision">{{ permissionModeLabel(revision) }}</span></div>
+            <div class="section-heading"><h3>工具与访问权限</h3><span v-if="revision && (!preview || preview.revisionId === revision.revisionId)">{{ permissionModeLabel(revision) }}</span></div>
             <p v-if="revision?.manifest.runtimePolicy === 'ACCOUNTING_COMMAND'" class="page-note">统计辅助通过独立命令运行，工具范围由服务端固定。</p>
             <p v-if="revisionError" class="error-text" role="alert">{{ revisionError }} <button class="inline-button" @click="loadRevision">重试</button></p>
             <div class="preview-controls">
@@ -544,7 +544,7 @@ onMounted(() => { void loadRoles(); void loadBindings(); void loadProjects() })
             <p v-if="bindingsError" class="error-text" role="alert">{{ bindingsError }} <button class="inline-button" @click="loadBindings">重试</button></p>
             <p v-if="previewError" class="error-text" role="alert">{{ previewError }} <button class="inline-button" @click="loadPreview">重试</button></p>
             <p v-if="previewLoading || revisionLoading" role="status">正在读取工具与权限…</p>
-            <p v-if="preview" class="preview-status">配置预览 · {{ preview.complete ? '信息完整' : '仍需运行时核定' }}</p>
+            <p v-if="preview" class="preview-status">{{ preview.bindingActive === false ? '未激活配置' : '阶段绑定配置' }}<template v-if="preview.revisionNumber"> · 版本 {{ preview.revisionNumber }}</template> · {{ preview.complete ? '信息完整' : '调用条件待运行时核定' }}</p>
             <ul v-if="preview?.limitations.length" class="limitations"><li v-for="(item, index) in preview.limitations" :key="index">{{ item }}</li></ul>
             <details class="capability-panel" aria-label="MCP 工具清单" open>
               <summary class="section-heading"><h3><Icon icon="lucide:plug" width="18" /> MCP</h3><span>{{ visibleTools.length }} 项工具 <Icon class="collapse-arrow" icon="lucide:chevron-down" width="16" /></span></summary>

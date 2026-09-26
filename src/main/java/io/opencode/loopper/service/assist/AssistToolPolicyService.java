@@ -21,7 +21,7 @@ public class AssistToolPolicyService {
         String now=Instant.now().toString();
         if(complete && !protectedServer) {
             boolean first=mapper.catalogRegistered(server)==0;
-            for(String tool:tools) {validate(server,tool);mapper.insertPolicy(new AssistMapper.Policy("",server,tool,first && !(server.equals(AssistToolCatalog.SERVER)&&AssistToolCatalog.batchTool(tool))?1:0,0,now));}
+            for(String tool:tools) {validate(server,tool);mapper.insertPolicy(new AssistMapper.Policy("",server,tool,defaultEnabled(server,tool,first)?1:0,0,now));}
             mapper.registerCatalog(server,now);
         }
         return views(project,server,tools,complete,false);
@@ -42,13 +42,17 @@ public class AssistToolPolicyService {
             var global=policies.stream().filter(p->p.scope().isEmpty()&&p.toolName().equals(tool)).findFirst().orElse(null);
             var local=project.isEmpty()?null:policies.stream().filter(p->p.scope().equals(project)&&p.toolName().equals(tool)).findFirst().orElse(null);
             boolean defaultOn=protectedServer || global!=null&&global.enabled()==1
-                    || first && global==null && !(server.equals(AssistToolCatalog.SERVER)&&AssistToolCatalog.batchTool(tool));
+                    || simulateFirstDefaults && global==null && defaultEnabled(server,tool,first);
             boolean overridden=local!=null&&local.enabled()!=-1;
             boolean writes=AssistToolCatalog.tools().stream().anyMatch(t->server.equals(AssistToolCatalog.SERVER)&&t.name().equals(tool)&&t.writes());
             return new View(tool,!protectedServer&&complete,writes,defaultOn,overridden?(local.enabled()==1?"ENABLED":"DISABLED"):"INHERIT",
                     protectedServer || (overridden?local.enabled()==1:defaultOn),protectedServer?"SYSTEM":overridden?"PROJECT":"GLOBAL",
                     global==null?-1:global.version(),local==null?-1:local.version(), "");
         }).toList();
+    }
+    private static boolean defaultEnabled(String server, String tool, boolean first) {
+        return server.equals(AssistToolCatalog.SERVER) && (first && !tool.startsWith("gitlab_")
+                || Set.of("search_project_knowledge", "read_knowledge_evidence", "list_test_failures", "read_test_failure", "search_evidence").contains(tool));
     }
     @Transactional
     public void update(String scope,String server,String tool,int enabled,long version) {

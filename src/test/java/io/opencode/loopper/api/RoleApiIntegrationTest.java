@@ -72,7 +72,7 @@ class RoleApiIntegrationTest {
         assertThat(roles.preview("builtin.router", "ROUTER_NO_TOOLS", "").mcpTools()).isEmpty();
         assertThat(ppt.mcpTools()).allMatch(tool -> !tool.available());
         assertThat(implementation.mcpTools()).extracting(RoleReadService.PreviewTool::name).doesNotHaveDuplicates();
-        assertThat(implementation.limitations()).isEmpty();
+        assertThat(implementation.limitations()).anyMatch(s -> s.contains("运行环境"));
     }
 
     @Test void narrowedPreviewDoesNotReintroduceBaselineTools() {
@@ -86,5 +86,24 @@ class RoleApiIntegrationTest {
                 "preview-narrowed-1234", validation.activations()));
         assertThat(roles.preview("custom.reader", "GENERAL_READ_ONLY", "").mcpTools())
                 .extracting(RoleReadService.PreviewTool::name).containsExactly("read");
+    }
+
+    @Test void newerUnactivatedRevisionDoesNotReplaceBoundPreview() {
+        String original=roles.preview("builtin.implementation","IMPLEMENTATION","").revisionId();
+        var old=roles.revision("builtin.implementation",original);
+        var definition=new RoleManifest.Role("builtin.implementation","实施","新版未激活","implementation","实施",
+                List.of("IMPLEMENTATION"),"INTERSECT",List.of("read"),List.of(),List.of(),
+                "INHERIT_WORKFLOW","WORKFLOW_ADAPTER",Map.of());
+        var parsed=new RoleArchive.Parsed("c".repeat(64),new RoleManifest.Document(1,List.of(),List.of(definition),List.of()),
+                Map.of("builtin.implementation",Map.of()));
+        var checked=publishing.validate(parsed);
+        assertThat(checked.valid()).as(checked.diagnostics().toString()).isTrue();
+        publishing.publish(parsed,new RolePublishingService.PublishRequest(parsed.sourceSha256(),"unactivated-preview-123",checked.activations()));
+        assertThat(roles.detail("builtin.implementation").latestRevisionId()).isNotEqualTo(original);
+        var preview=roles.preview("builtin.implementation","IMPLEMENTATION","");
+        assertThat(preview.revisionId()).isEqualTo(original);
+        assertThat(preview.bindingActive()).isTrue();
+        assertThat(preview.revisionNumber()).isEqualTo(old.revisionNumber());
+        assertThat(preview.mcpTools()).extracting(RoleReadService.PreviewTool::name).contains("bash");
     }
 }

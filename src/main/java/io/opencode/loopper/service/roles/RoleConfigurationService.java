@@ -26,6 +26,7 @@ import tools.jackson.databind.ObjectMapper;
 /** Runtime-facing role revision boundary. A role id never substitutes for a SessionProfile. */
 @Service
 public class RoleConfigurationService {
+    @Autowired(required = false) private io.opencode.loopper.service.knowledge.WorkflowKnowledgeBindings knowledgeBindings;
     public static final String ROLE_ADAPTER_V1 = "ROLE_ADAPTER_V1";
     public static final Set<String> NATIVE_TOOLS = Set.of("read", "glob", "grep", "question", "todowrite",
             "todoread", "bash", "edit", "write", "patch", "apply_patch", "webfetch", "task", "skill");
@@ -134,6 +135,7 @@ public class RoleConfigurationService {
                 optionalParent == null ? null : optionalParent.type(), optionalParent == null ? null : optionalParent.id(),
                 source.size(), digest, Instant.now().toString())) != 1)
             throw new ConflictException("ROLE_OWNER_BINDING_CONFLICT", "Owner 角色快照冻结失败");
+        if (knowledgeBindings != null) knowledgeBindings.freeze(owner, optionalParent);
     }
 
     private void markLegacy(OwnerRef owner, OwnerRef parent) {
@@ -228,6 +230,7 @@ public class RoleConfigurationService {
         String required = InternalMcpContractCatalog.toolName(OpenCodeClient.SessionProfile.valueOf(role.adapterProfile()))
                 .map(tool -> internal + tool).orElse(null);
         Set<String> configuredMcp = role.mcpTools().stream()
+                .filter(name -> internalMcpServer != null || !name.startsWith("@loopper-"))
                 .map(name -> actualTool(name, internalMcpServer)).collect(java.util.stream.Collectors.toSet());
         if (!NATIVE_TOOLS.containsAll(role.nativeTools())) throw invalid("角色包含不受支持的原生工具");
         if ("IMPLEMENTATION".equals(role.adapterProfile())) {
@@ -238,6 +241,12 @@ public class RoleConfigurationService {
                     throw invalid("Unsupported native tool permission");
                 result.add(new OpenCodeClient.SessionPermissionRule(name, "*", "allow"));
             }
+            // Reserved statistics messages are separately gated by the managed plugin. Normal rounds cannot use them.
+            if (internalMcpServer != null) result.add(new OpenCodeClient.SessionPermissionRule("aicoding_*", "*", "allow"));
+            // Explicit read grants must retain OpenCode secret-file protections.
+            result.add(new OpenCodeClient.SessionPermissionRule("read", ".env", "deny"));
+            result.add(new OpenCodeClient.SessionPermissionRule("read", ".env.*", "deny"));
+            if (role.nativeTools().contains("read")) result.add(new OpenCodeClient.SessionPermissionRule("read", ".env.example", "allow"));
             // Native path, Git, service and deletion denials must follow native grants.
             orderedBaseline.stream().filter(rule -> !"allow".equals(rule.action())).forEach(result::add);
             // A prior broad server deny can be overridden only by an exact tool already
@@ -252,6 +261,7 @@ public class RoleConfigurationService {
             if (!"allow".equals(rule.action())) { result.add(rule); continue; }
             String name = rule.permission();
             if (mandatory(name, internal, required)
+                    || name.equals("aicoding_*") && !Set.of("GENERAL_READ_ONLY_COMMIT_MESSAGE", "GENERAL_READ_ONLY_MERGE_ADVISOR").contains(role.slot())
                     || role.adapterProfile().startsWith("KNOWLEDGE_RESEARCH_")
                     && name.equals(KnowledgeSessionPolicy.MARKER)) { result.add(rule); continue; }
             if (name.endsWith("_*")) continue;
@@ -260,6 +270,7 @@ public class RoleConfigurationService {
             } else if (exact.contains(name) && configuredMcp.contains(name)) result.add(rule);
         }
         for (String stable : role.mcpTools()) {
+            if (internalMcpServer == null && stable.startsWith("@loopper-")) continue;
             String name = actualTool(stable, internalMcpServer);
             if (!exact.contains(name) || stable.startsWith("@loopper-internal/")) continue;
             boolean granted = result.stream().anyMatch(rule -> "allow".equals(rule.action()) && name.equals(rule.permission()));
