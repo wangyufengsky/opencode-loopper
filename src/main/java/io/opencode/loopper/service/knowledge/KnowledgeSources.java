@@ -34,7 +34,12 @@ public class KnowledgeSources {
         catch (java.io.IOException failure) { throw bad("受管资料目录无法读取，请检查数据目录"); }
     }
     public record Bound(String id, String kind, String name, String path, String sha256, String state, String detail, long version) { }
-    public record View(String id, String kind, String name, String state, String detail, long version) { }
+    public record View(String id, String kind, String name, String state, String detail, long version) {
+        @com.fasterxml.jackson.annotation.JsonProperty("pathBase")
+        public String pathBase() { return Set.of("code", "documents", "task-code").contains(id) ? "PROJECT_ROOT" : kind.equals("GIT") ? "GIT_PROJECT_ROOT" : kind.equals("UPLOAD") ? "SINGLE_UPLOAD" : kind.equals("DATABASE") ? "DATABASE_SCHEMA" : "SOURCE_ROOT"; }
+        @com.fasterxml.jackson.annotation.JsonProperty("pathHint")
+        public String pathHint() { return kind.equals("UPLOAD") ? "单个上传文件，path 省略；文档用 section 定位" : kind.equals("DATABASE") ? "请使用 schema/table 参数" : "path 相对于此来源根目录，不是进程工作目录；根目录可用 . 或空字符串，文件可用 ./ 前缀；不要重复来源目录前缀"; }
+    }
     public record Selection(List<Bound> sources, List<DatabaseConnectionService.Bound> connections) { }
     public record Incoming(String name, byte[] bytes) { }
     public static View view(Bound source) { return new View(source.id(), source.kind(), source.name(), source.state(), source.detail(), source.version()); }

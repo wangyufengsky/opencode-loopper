@@ -36,7 +36,7 @@ class RoleCapabilitiesTest {
             if (shared) assertThat(WorkflowKnowledgePolicy.evidenceOnly(name)).as(name).isEqualTo(oldEvidenceOnly);
             var expected = AssistToolCatalog.tools().stream().filter(tool -> {
                 if (RoleCapabilities.assist(tool.name()) == PROJECT_KNOWLEDGE)
-                    return shared || name.startsWith("KNOWLEDGE_") && !tool.name().equals("read_knowledge_evidence");
+                    return shared || name.startsWith("KNOWLEDGE_");
                 if (name.contains("NO_TOOLS") && !name.startsWith("TEMPLATE_ANALYSIS") || name.startsWith("PROJECT_CONVENTION_")) return false;
                 if (name.startsWith("KNOWLEDGE_")) return RoleCapabilities.assist(tool.name()) == DATABASE_READ;
                 return (!tool.writes() || name.equals("IMPLEMENTATION"))
@@ -54,6 +54,12 @@ class RoleCapabilitiesTest {
         assertThat(document.schemaVersion()).isEqualTo(2);
         for (var role : document.roles()) {
             assertThat(role.capabilities()).isNotNull();
+            if (role.roleId().equals("builtin.implementation")) {
+                var knowledge = AssistToolCatalog.tools().stream().map(AssistToolCatalog.Tool::name)
+                        .filter(name -> RoleCapabilities.assist(name) == PROJECT_KNOWLEDGE)
+                        .map(name -> "@loopper-assist/" + name).toList();
+                assertThat(role.mcpTools()).containsAll(knowledge);
+            }
             for (String slot : role.allowedSlots()) {
                 String profile = document.slots().stream().filter(item -> item.slot().equals(slot)).findFirst().orElseThrow().adapterProfile();
                 if (profile.equals("ACCOUNTING_COMMAND")) continue;

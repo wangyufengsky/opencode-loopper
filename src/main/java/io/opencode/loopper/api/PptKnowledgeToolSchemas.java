@@ -12,8 +12,14 @@ final class PptKnowledgeToolSchemas {
                 args.put("mode",Map.of("type","string","enum",List.of("AUTO","FIELD","PHRASE","EXACT")));
                 for(String key:List.of("terms","sourceIds"))args.put(key,Map.of("type","array","items",Map.of("type","string"),"maxItems",key.equals("terms")?8:100));
                 integer(args,"limit",1,30);
+                args.put("resultMode",Map.of("type","string","enum",List.of("files","occurrences")));
             }
-            case "ppt_browse_knowledge_source" -> { strings(args,"sourceId","path","query","cursor");required.add("sourceId"); }
+            case "ppt_browse_knowledge_source" -> {
+                strings(args,"sourceId","path","query","cursor","pathPattern");required.add("sourceId");
+                integer(args,"depth",1,12);args.put("recursive",Map.of("type","boolean"));
+                args.put("entryType",Map.of("type","string","enum",List.of("all","files","directories")));
+                args.put("extensions",Map.of("type","array","maxItems",20,"items",Map.of("type","string","pattern","^[a-zA-Z0-9]{1,16}$")));
+            }
             case "ppt_read_knowledge_source" -> {
                 strings(args,"sourceId","evidenceId","path","expectedSha");
                 integer(args,"textOffset",0,12000);integer(args,"section",-1,10000);integer(args,"startLine",1,Integer.MAX_VALUE);integer(args,"endLine",0,Integer.MAX_VALUE);integer(args,"offset",0,10000);

@@ -51,6 +51,8 @@ class WorkflowKnowledgeIntegrationTest {
         assertThat(read.error()).as(read.content().toString()).isFalse();
         assertThat(read.content()).containsKeys("citationId","sha256","collectedAt");
         String citation=read.content().get("citationId").toString();
+        var directory=tools.call("list_knowledge_evidence",Map.of("scope",grant));
+        assertThat(directory.error()).as(directory.content().toString()).isFalse(); assertThat(directory.content().toString()).contains(citation);
         Files.writeString(root.resolve("rules.md"),"# 新约定\n资料已变更。\n");
         assertThat(tools.call("read_knowledge_source",Map.of("scope",grant,"sourceId","documents","path","rules.md","section",0,"expectedSha",read.content().get("sha256"))).error()).isTrue();
         var saved=tools.call("read_knowledge_evidence",Map.of("scope",grant,"reference",citation));

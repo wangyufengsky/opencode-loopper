@@ -32,7 +32,8 @@ public class KnowledgeTools {
             Map<String,Object> result = execute(conversation, turn.id(), name, args);
             scopes.authorize(string(args, "scope"), name);
             if (!active(conversation.id()).id().equals(turn.id())) throw KnowledgeSources.bad("问答回合已变化，结果已丢弃");
-            if (name.equals("read_knowledge_source") && !Objects.toString(result.get("text"), "").isEmpty()
+            if (name.equals("read_knowledge_sources")) result = batchCitations(conversation, turn, result);
+            if (Set.of("read_knowledge_source", "browse_knowledge_source", "inspect_knowledge_project").contains(name)
                     || name.contains("knowledge_git") || name.equals("query_database_readonly") || name.equals("inspect_database_schema")) result = citation(conversation, turn, result);
             mapper.finishCall(id, "SUCCEEDED", callDetail(args), Instant.now().toString()); return result;
         } catch (RuntimeException failure) {
@@ -45,13 +46,25 @@ public class KnowledgeTools {
     }
     private Turn active(String id) { return mapper.active(id).filter(t -> Set.of("SENDING", "UNKNOWN", "RUNNING").contains(t.state())).orElseThrow(() -> KnowledgeSources.bad("当前回合已结束或正在停止")); }
     private Map<String,Object> execute(Conversation conversation, String turnId, String name, Map<String,Object> args) {
+        if (name.equals("list_knowledge_evidence")) return KnowledgeEvidence.list(mapper, conversation.id(), args);
+        if (name.equals("read_knowledge_evidence")) return KnowledgeEvidence.read(mapper, conversation.id(), args);
         return reads.read(name.contains("knowledge_git") ? conversation.id() : "mcp:" + conversation.id() + ":" + turnId,
                 new KnowledgeSources.Selection(sources.frozen(conversation), sources.connections(conversation)), name, args);
+    }
+    @SuppressWarnings("unchecked")
+    private Map<String,Object> batchCitations(Conversation conversation, Turn turn, Map<String,Object> batch) {
+        var output = new LinkedHashMap<>(batch); var items = new ArrayList<Map<String,Object>>();
+        for (var item : (List<Map<String,Object>>)batch.get("items")) {
+            var row = new LinkedHashMap<>(item);
+            if (row.get("result") instanceof Map<?,?> body) row.put("result", citation(conversation, turn, (Map<String,Object>)body));
+            items.add(row);
+        }
+        output.put("items", items); return output;
     }
     private Map<String,Object> citation(Conversation conversation, Turn turn, Map<String,Object> body) {
         if (mapper.citationCount(turn.id()) >= 100) return uncited(body);
         String id = UUID.randomUUID().toString(), now = Instant.now().toString();
-        if (!Set.of("DATABASE", "GIT").contains(body.get("kind"))) {
+        if (Set.of("CODE", "DOCUMENT").contains(body.get("kind"))) {
             String previous = mapper.previousFileSha(turn.id(), Objects.toString(body.get("sourceId")), Objects.toString(body.get("path"), ""));
             if (previous != null && !previous.equals(body.get("sha256"))) {
                 body = new LinkedHashMap<>(body); body.put("changedSinceEarlierRead", true); body.put("previousSha256", previous);

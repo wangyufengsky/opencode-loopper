@@ -105,6 +105,8 @@ public interface KnowledgeMapper {
     List<Citation> citationsForTurns(String conversation, List<String> ids);
     @Select("<script>SELECT id,conversation_id,turn_id,tool,state,detail,created_at,updated_at FROM (SELECT *,row_number() OVER(PARTITION BY turn_id ORDER BY created_at DESC,id DESC) AS rn FROM knowledge_call WHERE conversation_id=#{conversation} AND turn_id IN <foreach collection='ids' item='id' open='(' separator=',' close=')'>#{id}</foreach>) WHERE rn &lt;=30 ORDER BY created_at,id</script>")
     List<Call> callsForTurns(String conversation, List<String> ids);
+    @Select("SELECT id,conversation_id,turn_id,kind,source_id,name,location,sha256,NULL AS body_json,created_at FROM knowledge_citation WHERE conversation_id=#{conversation} AND (#{before}='' OR created_at < #{before} OR (created_at=#{before} AND id < #{id})) ORDER BY created_at DESC,id DESC LIMIT 51")
+    List<Citation> evidencePage(String conversation, String before, String id);
     @Select("SELECT * FROM knowledge_citation WHERE conversation_id=#{conversation} AND id=#{id}")
     Optional<Citation> citation(String conversation, String id);
     @Select("SELECT id,conversation_id,turn_id,kind,source_id,name,location,sha256,NULL AS body_json,created_at FROM knowledge_citation WHERE conversation_id=#{conversation} AND turn_id=#{turn} ORDER BY created_at,id LIMIT 100")

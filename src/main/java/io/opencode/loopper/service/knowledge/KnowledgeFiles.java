@@ -15,7 +15,7 @@ public final class KnowledgeFiles {
             "coverage", "__pycache__", "credentials", "secrets");
     private KnowledgeFiles() { }
     private static final KnowledgeDirectoryPages PAGES = new KnowledgeDirectoryPages();
-    private record DirectoryScope(Path root, Path start, String rootIdentity, String startIdentity, boolean documents, String query, boolean recursive) { }
+    private record DirectoryScope(Path root, Path start, String rootIdentity, String startIdentity, boolean documents, String query, Object options) { }
     public static String extension(String name) { return name.substring(name.lastIndexOf('.') + 1).toLowerCase(Locale.ROOT); }
     public static boolean allowed(Path relative) {
         for (Path part : relative) {
@@ -40,9 +40,26 @@ public final class KnowledgeFiles {
     }
     public static Path resolve(String root, String relative) {
         Path base = directory(root);
-        if (relative == null || relative.isEmpty()) return base;
-        if (!allowed(Path.of(relative))) throw denied();
-        return AssistFiles.resolve(base, relative);
+        String normalized = relative(relative);
+        if (normalized.isEmpty()) return base;
+        return AssistFiles.resolve(base, normalized);
+    }
+    /** Accept harmless dot segments while rejecting every parent traversal before normalization. */
+    public static String relative(String value) {
+        if (value == null || value.isEmpty()) return "";
+        if (value.length() > 1024 || value.contains("\\") || value.contains(":")) throw pathInput();
+        try {
+            Path input = Path.of(value);
+            if (input.isAbsolute()) throw pathInput();
+            for (Path part : input) if (part.toString().equals("..")) throw pathInput();
+            Path normalized = input.normalize();
+            if (normalized.toString().isEmpty()) return "";
+            if (!allowed(normalized)) throw denied();
+            return normalized.toString().replace('\\', '/');
+        } catch (InvalidPathException failure) { throw pathInput(); }
+    }
+    private static AssistFailure pathInput() {
+        return new AssistFailure("KNOWLEDGE_PATH_INVALID", "path 应为 sourceId 对应来源内的相对路径，如 src/App.java 或 ./src/App.java；浏览根目录用空字符串或 .。不要传绝对路径、重复来源目录前缀或包含 .. 的路径");
     }
     public static byte[] read(Path root, String relative, int limit) {
         if (relative == null || relative.isBlank()) throw denied();
@@ -93,37 +110,44 @@ public final class KnowledgeFiles {
         public Listing(List<Entry> items, String nextCursor, boolean incomplete, String detail) { this(items, nextCursor, incomplete, detail, null); }
     }
     public static Listing list(String root, String relative, boolean documents, String query, String cursor, boolean recursive) {
+        return list(root, relative, documents, query, cursor, new KnowledgeBrowseOptions(recursive ? 12 : 1, "all", List.of(), "", false));
+    }
+    public static Listing list(String root, String relative, boolean documents, String query, String cursor, KnowledgeBrowseOptions options) {
         Path base = directory(root), start = resolve(root, relative);
         DirectoryScope scope;
         try { scope = new DirectoryScope(base, start, identity(base), identity(start), documents,
-                Objects.toString(query, "").toLowerCase(Locale.ROOT), recursive); }
+                Objects.toString(query, "").toLowerCase(Locale.ROOT), options); }
         catch (IOException unavailable) { throw denied(); }
-        return PAGES.page(scope, cursor, () -> scan(base, start, documents, query, recursive));
+        return PAGES.page(scope, cursor, () -> scan(base, start, documents, query, options));
     }
     private static String identity(Path path) throws IOException {
         var a = Files.readAttributes(path, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
         if (a.isSymbolicLink() || !a.isDirectory() && !a.isRegularFile()) throw denied();
         return a.fileKey() + ":" + a.creationTime();
     }
-    private static Listing scan(Path base, Path start, boolean documents, String query, boolean recursive) {
+    private static Listing scan(Path base, Path start, boolean documents, String query, KnowledgeBrowseOptions options) {
         List<Entry> entries = new ArrayList<>(); int[] visited = {0}; boolean[] incomplete = {false};
         long deadline = System.nanoTime() + 2_000_000_000L;
         String needle = query == null ? "" : query.toLowerCase(Locale.ROOT);
         try {
-            Files.walkFileTree(start, Set.of(), recursive ? 12 : 1, new SimpleFileVisitor<>() {
+            Files.walkFileTree(start, Set.of(), options.depth(), new SimpleFileVisitor<>() {
                 private boolean stop() { return ++visited[0] > 4096 || System.nanoTime() > deadline; }
                 @Override public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
                     if (stop()) { incomplete[0] = true; return FileVisitResult.TERMINATE; }
-                    return dir.equals(start) || allowed(base.relativize(dir)) ? FileVisitResult.CONTINUE : FileVisitResult.SKIP_SUBTREE;
+                    if (!dir.equals(start) && !allowed(base.relativize(dir))) return FileVisitResult.SKIP_SUBTREE;
+                    if (!dir.equals(start) && options.includeIntermediate()) add(dir, attrs);
+                    return FileVisitResult.CONTINUE;
                 }
                 @Override public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
                     if (stop()) { incomplete[0] = true; return FileVisitResult.TERMINATE; }
+                    add(file, attrs); return FileVisitResult.CONTINUE;
+                }
+                private void add(Path file, BasicFileAttributes attrs) {
                     Path rel = base.relativize(file); String name = rel.toString().replace('\\', '/');
-                    if (!allowed(rel) || attrs.isSymbolicLink() || !attrs.isRegularFile() && !attrs.isDirectory()) return FileVisitResult.CONTINUE;
-                    if (recursive && attrs.isDirectory()) incomplete[0] = true;
-                    if (documents && !attrs.isDirectory() && !DOCUMENTS.contains(extension(name))) return FileVisitResult.CONTINUE;
-                    if (name.toLowerCase(Locale.ROOT).contains(needle)) entries.add(new Entry(name, file.getFileName().toString(), attrs.isDirectory(), attrs.size()));
-                    return FileVisitResult.CONTINUE;
+                    if (!allowed(rel) || attrs.isSymbolicLink() || !attrs.isRegularFile() && !attrs.isDirectory()) return;
+                    if (options.depth() > 1 && attrs.isDirectory() && start.relativize(file).getNameCount() >= options.depth()) incomplete[0] = true;
+                    if (documents && !attrs.isDirectory() && !DOCUMENTS.contains(extension(name))) return;
+                    if (name.toLowerCase(Locale.ROOT).contains(needle) && options.matches(name, attrs.isDirectory())) entries.add(new Entry(name, file.getFileName().toString(), attrs.isDirectory(), attrs.size()));
                 }
                 @Override public FileVisitResult visitFileFailed(Path file, IOException e) { incomplete[0] = true; return FileVisitResult.CONTINUE; }
             });

@@ -32,7 +32,8 @@ public final class RoleCapabilities {
             case "get_execution_context", "get_failure_evidence", "read_task_evidence", "list_test_failures", "read_test_failure", "search_evidence" -> Capability.TASK_EVIDENCE;
             case "gitlab_project_context", "gitlab_list_issues", "gitlab_list_merge_requests", "gitlab_list_pipelines",
                  "gitlab_read_issue", "gitlab_read_merge_request", "gitlab_read_merge_request_diff", "gitlab_list_pipeline_jobs", "gitlab_read_job_log" -> Capability.GITLAB_READ;
-            case "search_project_knowledge", "list_knowledge_sources", "browse_knowledge_source", "search_knowledge",
+            case "inspect_knowledge_project", "list_knowledge_evidence", "read_knowledge_sources", "find_knowledge_symbol",
+                 "search_knowledge_git_content", "search_knowledge_git_patches", "compare_knowledge_git_versions", "search_project_knowledge", "list_knowledge_sources", "browse_knowledge_source", "search_knowledge",
                  "read_knowledge_source", "read_knowledge_evidence", "inspect_knowledge_git", "list_knowledge_git_authors",
                  "search_knowledge_git_commits", "read_knowledge_git_commit", "read_knowledge_git_file", "blame_knowledge_git_lines" -> Capability.PROJECT_KNOWLEDGE;
             default -> null;
@@ -41,7 +42,7 @@ public final class RoleCapabilities {
     public static boolean allowsAssist(Set<Capability> capabilities, String tool) {
         Capability capability = assist(tool);
         if (capability == Capability.PROJECT_KNOWLEDGE && capabilities.contains(Capability.KNOWLEDGE_CONVERSATION))
-            return !tool.equals("read_knowledge_evidence");
+            return true;
         return capability != null && capabilities.contains(capability);
     }
     public static boolean allows(Set<Capability> capabilities, String name, String internalServer) {

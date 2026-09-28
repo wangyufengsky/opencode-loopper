@@ -17,6 +17,21 @@ public class KnowledgeReader {
         if (source.kind().equals("UPLOAD")) return new KnowledgeFiles.Listing(List.of(new KnowledgeFiles.Entry("", source.name(), false, 0)), null, false, "");
         return KnowledgeFiles.list(source.path(), path == null ? "" : path, !source.kind().equals("CODE"), query, cursor, query != null && !query.isBlank());
     }
+    public KnowledgeFiles.Listing browse(KnowledgeSources.Bound source, Map<String,Object> args) {
+        requireFileSource(source); var options = KnowledgeBrowseOptions.from(args);
+        if (source.kind().equals("UPLOAD")) {
+            var items = options.matches(source.name(), false) && source.name().toLowerCase(Locale.ROOT).contains(Objects.toString(args.get("query"), "").toLowerCase(Locale.ROOT))
+                    ? List.of(new KnowledgeFiles.Entry("", source.name(), false, 0)) : List.<KnowledgeFiles.Entry>of();
+            return new KnowledgeFiles.Listing(items, null, false, "");
+        }
+        return KnowledgeFiles.list(source.path(), Objects.toString(args.get("path"), ""), !source.kind().equals("CODE"),
+                Objects.toString(args.get("query"), ""), (String) args.get("cursor"), options);
+    }
+    private final KnowledgeOccurrences occurrences = new KnowledgeOccurrences();
+    public Map<String,Object> occurrences(String owner, KnowledgeSources.Bound source, String path, KnowledgeSearchQuery query, String cursor) {
+        requireFileSource(source);
+        return occurrences.search(owner, source, path, query, cursor, sources, documents);
+    }
     public Map<String,Object> read(KnowledgeSources.Bound source, String relative, int section, int startLine, String expected) {
         return read(source, relative, section, startLine, expected, 0);
     }
@@ -26,7 +41,9 @@ public class KnowledgeReader {
     private Map<String,Object> read(KnowledgeSources.Bound source, String relative, int section, int startLine, String expected, int offset, int textOffset) {
         requireFileSource(source);
         if (offset < 0 || offset > 10000) throw KnowledgeSources.bad("文档目录游标无效");
-        Path path = sources.path(source, relative); String name = source.kind().equals("UPLOAD") ? source.name() : path.getFileName().toString();
+        Path path = sources.path(source, relative);
+        if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) throw new AssistFailure("KNOWLEDGE_FILE_NOT_FOUND", "当前 sourceId 中没有此普通文件：请先用 browse_knowledge_source 确认来源内路径；目录请用 browse，文件路径不要重复项目或来源目录前缀");
+        String name = source.kind().equals("UPLOAD") ? source.name() : path.getFileName().toString();
         boolean document = !source.kind().equals("CODE") || KnowledgeFiles.DOCUMENTS.contains(KnowledgeFiles.extension(name));
         if (document && !KnowledgeFiles.DOCUMENTS.contains(KnowledgeFiles.extension(name))) throw KnowledgeSources.bad("此来源仅允许读取支持的项目文档");
         String sha; Map<String,Object> body = new LinkedHashMap<>();
@@ -89,8 +106,9 @@ public class KnowledgeReader {
     }
     public Map<String,Object> search(KnowledgeSources.Bound source, String relative, KnowledgeSearchQuery query, String cursor) {
         requireFileSource(source);
+        String filename = source.kind().equals("CODE") ? query.fileName() : null;
         var listing = source.kind().equals("UPLOAD") ? browse(source, "", "", null)
-                : KnowledgeFiles.list(source.path(), relative == null ? "" : relative, !source.kind().equals("CODE"), "", cursor, true);
+                : KnowledgeFiles.list(source.path(), relative == null ? "" : relative, !source.kind().equals("CODE"), filename == null ? "" : filename, cursor, true);
         List<Map<String,Object>> matches = new ArrayList<>(); List<String> limitations = new ArrayList<>();
         if (listing.incomplete()) limitations.add(listing.detail());
         long deadline = System.nanoTime() + 3_000_000_000L, bytes = 0; String next = listing.nextCursor();
@@ -98,7 +116,7 @@ public class KnowledgeReader {
         for (var entry : listing.items()) {
             if (Thread.currentThread().isInterrupted() || System.nanoTime() > deadline || bytes > 16 * 1024 * 1024 || matches.size() >= 30) { next = KnowledgeDirectoryPages.resume(listing, processed); limitations.add("检索达到单次边界，请继续下一页或缩小目录"); break; }
             processed++;
-            if (entry.directory()) continue;
+            if (entry.directory() || filename != null && !entry.name().equalsIgnoreCase(filename)) continue;
             try {
                 Path path = sources.path(source, entry.path()); String name = source.kind().equals("UPLOAD") ? source.name() : entry.name();
                 bytes += Files.size(path); examined++;
@@ -119,7 +137,7 @@ public class KnowledgeReader {
         }
         var result = new LinkedHashMap<String,Object>(); result.put("matches", matches); result.put("nextCursor", next);
         result.put("incomplete", listing.incomplete() || next != null || !limitations.isEmpty()); result.put("limitations", limitations);
-        result.put("examinedFiles", examined); result.put("detail", "检索片段只用于定位；引用前请读取原文。无命中不是功能不存在的证明。"); return result;
+        result.put("examinedFiles", examined); result.put("searchIntent", filename == null ? "TEXT_AND_NAME" : "FILE_NAME"); result.put("detail", "检索片段只用于定位；引用前请读取原文。无命中不是功能不存在的证明。"); return result;
     }
     private static Map<String,Object> scored(Map<String,Object> match, KnowledgeSearchQuery.Hit hit, String kind) {
         var result = new LinkedHashMap<>(match); result.put("score", hit.score()); result.put("matchType", hit.matchType());

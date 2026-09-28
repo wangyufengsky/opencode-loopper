@@ -38,6 +38,7 @@ class KnowledgeGitTest {
         assertThat(items(result)).hasSize(1); assertThat(items(result).getFirst().get("sha")).isEqualTo(sha);
         assertThat(items(git.call("chat", source, "search_knowledge_git_commits", Map.of("timeField", "committer", "since", "2026-09-16T00:00:00+08:00", "until", "2026-09-17T00:00:00+08:00")))).isEmpty();
         var file = git.call("chat", source, "read_knowledge_git_file", Map.of("commit", sha, "path", "Service.java", "startLine", 2, "endLine", 2));
+        assertThat(git.call("chat", source, "read_knowledge_git_file", Map.of("commit", sha, "path", "./Service.java")).get("text")).asString().contains("first");
         assertThat(file.get("text")).isEqualTo("second\n"); assertThat(file.get("startLine")).isEqualTo(2);
         var diff = git.call("chat", source, "read_knowledge_git_commit", Map.of("commit", sha)); assertThat(diff.toString()).contains("app/Service.java").doesNotContain("sibling/private", "sibling secret");
         Files.writeString(root.resolve("app/Service.java"), "new local text");
@@ -96,6 +97,34 @@ class KnowledgeGitTest {
         assertThat(next.get("nextCursor")).isEqualTo(""); assertThat(next.get("incomplete")).isEqualTo(false);
         assertThat(git.call("chat", source, "search_knowledge_git_commits", Map.of("query", "old", "cursor", cursor))).isEqualTo(next);
         assertThatThrownBy(() -> git.call("other", source, "search_knowledge_git_commits", Map.of("query", "old", "cursor", cursor))).isInstanceOf(AssistFailure.class);
+    }
+
+    @Test void contentSearchPagesFixedShaAndRejectsOwnerAndQueryChanges() throws Exception {
+        Files.createDirectory(root.resolve("app")); Files.createDirectory(root.resolve("sibling"));
+        Files.writeString(root.resolve("app/A.java"), "needle ".repeat(65)); Files.writeString(root.resolve("sibling/S.java"), "needle-private");
+        Files.writeString(root.resolve("app/.env"), "needle-secret"); Files.createSymbolicLink(root.resolve("app/link"), Path.of("A.java"));
+        String sha = commit("unrelated title"); var source = git.source(root.resolve("app").toString());
+        var args = new HashMap<String,Object>(Map.of("commit", sha, "query", "needle"));
+        var first = git.call("chat", source, "search_knowledge_git_content", args); assertThat(first.get("matches")).asList().hasSize(30);
+        assertThat(first.toString()).doesNotContain("needle-private", "needle-secret", "link");
+        args.put("cursor", first.get("nextCursor")); var second = git.call("chat", source, "search_knowledge_git_content", args);
+        assertThat(second.get("matches")).asList().hasSize(30); assertThat(git.call("chat", source, "search_knowledge_git_content", args)).isEqualTo(second);
+        assertThatThrownBy(() -> git.call("other", source, "search_knowledge_git_content", args)).isInstanceOf(AssistFailure.class);
+        var changed = new HashMap<>(args); changed.put("query", "other");
+        assertThatThrownBy(() -> git.call("chat", source, "search_knowledge_git_content", changed)).isInstanceOf(AssistFailure.class);
+        Files.writeString(root.resolve("app/A.java"), "new local"); commit("later");
+        args.put("cursor", second.get("nextCursor")); var third = git.call("chat", source, "search_knowledge_git_content", args);
+        assertThat(third.get("matches")).asList().hasSize(5); assertThat(third.get("nextCursor")).isNull();
+    }
+    @Test void patchSearchAndVersionComparisonFindBodyChangesWithoutCommitTitleMatches() throws Exception {
+        Files.writeString(root.resolve("A.java"), "before\n"); String before = commit("base");
+        Files.writeString(root.resolve("A.java"), "needle-body\n"); Files.writeString(root.resolve(".env"), "needle-secret"); String after = commit("neutral title");
+        var source = git.source(root.toString());
+        var result = git.call("chat", source, "search_knowledge_git_patches", Map.of("baseCommit", before, "commit", after, "query", "needle-body"));
+        assertThat(result.get("matches")).asList().hasSize(1); assertThat(result.toString()).doesNotContain("needle-secret");
+        var compared = git.call("chat", source, "compare_knowledge_git_versions", Map.of("baseCommit", before, "commit", after));
+        assertThat(compared.get("text")).asString().contains("-before", "+needle-body").doesNotContain("needle-secret");
+        assertThatThrownBy(() -> git.call("chat", source, "compare_knowledge_git_versions", Map.of("baseCommit", before, "commit", after, "path", "../sibling"))).isInstanceOf(AssistFailure.class);
     }
 
 }

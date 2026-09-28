@@ -32,7 +32,7 @@ public class AssistToolService {
             Map<String,Object> output= !scope.profile().startsWith("KNOWLEDGE_") && AssistToolCatalog.knowledgeTool(name)
                     ? workflowKnowledge.call(scope,name,arguments,id) : execute(scope,name,arguments);
             scopes.authorize(string(arguments,"scope"),name);
-            var result=new LinkedHashMap<>(output);result.put("reference","call:"+id);result.put("collectedAt",Instant.now().toString());
+            var result=new LinkedHashMap<>(output);result.putIfAbsent("reference","call:"+id);result.putIfAbsent("collectedAt",Instant.now().toString());
             String encoded=AssistRedaction.text(json.writeValueAsString(result));
             if(encoded.getBytes(java.nio.charset.StandardCharsets.UTF_8).length>1048576)throw new AssistFailure("ASSIST_RESULT_LIMIT","结果超过 1 MiB，请缩小查询或读取范围");
             mapper.finishCall(id,"SUCCEEDED",encoded,Instant.now().toString());event(scope,name,id,"SUCCEEDED");

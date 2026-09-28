@@ -30,6 +30,14 @@ public class KnowledgeSearchScanner {
                 (List<String>) result.get("limitations"), ((Number) result.get("examinedFiles")).intValue());
     }
     @SuppressWarnings("unchecked")
+    public Chunk occurrences(KnowledgeSources.Bound source, KnowledgeSearchQuery query, String path, String cursor, String owner) {
+        var result = reader.occurrences(owner, source, path, query, cursor);
+        var matches = (List<Map<String,Object>>) result.get("matches"); String now = Instant.now().toString();
+        matches.forEach(row -> row.put("collectedAt", now));
+        return new Chunk(matches, (String)result.get("nextCursor"), Boolean.TRUE.equals(result.get("incomplete")),
+                (List<String>)result.get("limitations"), ((Number)result.get("examinedFiles")).intValue());
+    }
+    @SuppressWarnings("unchecked")
     public Chunk database(DatabaseConnectionService.Bound source, KnowledgeSearchQuery query, String cursor) {
         String[] position = cursor == null ? new String[]{"0", "columns", "0"} : cursor.split(":");
         int index = Integer.parseInt(position[0]), offset = Integer.parseInt(position[2]); String phase = position[1];

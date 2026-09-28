@@ -20,7 +20,7 @@ public final class AssistToolCatalog {
                 tool("get_execution_context","读取当前阶段权威合同、附件与证据目录；大正文另行读取",false,Map.of("cursor","string")),
                 tool("get_failure_evidence","读取本阶段最近完成尝试或指定 attemptId 的验证事实",false,Map.of("attemptId","string")),
                 tool("read_task_evidence","读取本任务 evidence:、verification: 或 call: 前缀的证据ID；offset 为字符游标",false,Map.of("reference","string","offset","integer"))));
-        result.addAll(knowledgeTools()); result.add(workflowEvidenceTool()); result.addAll(gitTools()); result.addAll(batchTools()); return List.copyOf(result);
+        result.addAll(knowledgeTools()); result.add(workflowEvidenceTool()); result.addAll(gitTools()); result.addAll(batchTools()); result.addAll(KnowledgeToolSchemas.added()); return result.stream().map(KnowledgeToolSchemas::enhance).toList();
     }
     public static boolean knowledgeTool(String name) {
         if (name == null) return false;
@@ -32,13 +32,13 @@ public final class AssistToolCatalog {
     private static List<Tool> knowledgeTools() {
         return List.of(
             projectKnowledgeSearch(),
-            tool("list_knowledge_sources", "列出当前会话或业务流程冻结授权的资料；数据库按角色单独授权", false, Map.of()),
-            tool("browse_knowledge_source", "分页浏览资料目录；path 为来源内相对路径", false, Map.of("sourceId","string","path","string","query","string","cursor","string")),
-            tool("search_knowledge", "有界关键词检索；中文短词按字面匹配，分页及不完整范围见结果", false, Map.of("sourceId","string","path","string","query","string","cursor","string")),
+            tool("list_knowledge_sources", "列出当前会话或业务流程冻结授权的资料；code 可读代码，documents 及独立文档目录仅含文档。查代码文件名应选 code；数据库按角色单独授权", false, Map.of()),
+            tool("browse_knowledge_source", "按文件名或路径 query 快速定位，查代码文件用 sourceId=code、entryType=files、recursive=true，再按返回 read 参数读取正文；也可分页浏览目录。path 为来源内相对路径，支持 ./ 和 .，不重复来源目录前缀", false, Map.of("sourceId","string","path","string","query","string","cursor","string")),
+            tool("search_knowledge", "代码来源支持只传 xxx.java 等文件名自动递归定位所有同名文件及代码片段，无需先知道路径；一般关键词查正文，引用前读取原文，分页及不完整范围见结果", false, Map.of("sourceId","string","path","string","query","string","cursor","string")),
             tool("read_knowledge_source", "读取代码行片段或文档 section；section=-1 查看目录，可按检索返回的 textOffset 跨段读取，返回真实证据 citationId", false, Map.of("sourceId","string","path","string","section","integer","startLine","integer","expectedSha","string","offset","integer","endLine","integer","textOffset","integer")));
     }
     public static Tool workflowEvidenceTool() {
-        return tool("read_knowledge_evidence", "读取当前业务角色已保存的知识证据；不能读取其他评审员的私有引用", false,
+        return tool("read_knowledge_evidence", "读取当前拥有者已保存的知识证据：知识问答使用 knowledge:，业务角色使用 call:；不得跨会话读取", false,
                 Map.of("reference", "string", "offset", "integer"));
     }
     private static Tool projectKnowledgeSearch() {
@@ -51,7 +51,7 @@ public final class AssistToolCatalog {
         properties.put("path", Map.of("type", "string", "description", "可选来源内相对目录；限定目录时跳过数据库"));
         properties.put("limit", Map.of("type", "integer", "minimum", 1, "maximum", 30));
         properties.put("cursor", Map.of("type", "string", "description", "下一页游标；保持原查询、来源和数量；5 分钟有效"));
-        return new Tool("search_project_knowledge", "统一检索授权代码、文档和数据库表字段注释；支持原句、字段命名与显式扩展词。检查 coverage 和 nextCursor，按 read 参数读取原文后引用。Git 历史需专用工具。", false,
+        return new Tool("search_project_knowledge", "统一检索授权代码、文档和数据库表字段注释；默认 files 模式只给 xxx.java 等文件名即可递归定位同名代码文件及片段，无需路径，查其他文件内的提及用 occurrences。支持原句、字段命名与显式扩展词。检查 coverage 和 nextCursor，按 read 参数读取原文后引用。Git 历史需专用工具。", false,
                 Map.of("type", "object", "properties", properties, "required", List.of("scope", "query"), "additionalProperties", false));
     }
     private static List<Tool> gitTools() {

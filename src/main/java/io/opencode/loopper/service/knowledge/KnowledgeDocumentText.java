@@ -34,6 +34,19 @@ final class KnowledgeDocumentText {
         }
         return found;
     }
+    List<Map<String,Object>> occurrences(KnowledgeSearchQuery query, int from, int limit) {
+        var found = new ArrayList<Map<String,Object>>();
+        for (var hit : query.occurrences(text, from, limit)) {
+            int section = Arrays.binarySearch(starts, hit.index()); if (section < 0) section = -section - 2;
+            int offset = Math.max(0, hit.index() - starts[section] - 60);
+            if (offset > 0 && Character.isLowSurrogate(text.charAt(starts[section] + offset))) offset--;
+            var row = KnowledgeOccurrences.hit(text, hit, markdown ? 0 : starts[section]);
+            row.put("section", section); row.put("textOffset", offset);
+            row.put("lineBasis", markdown ? "原文件行号" : "本段解析文本行号");
+            found.add(row);
+        }
+        return found;
+    }
     void read(Map<String,Object> body, int section, int offset) {
         var part = document.sections().get(section);
         if (offset < 0 || offset > part.markdown().length() || offset > 12000) throw KnowledgeSources.bad("文档文本位置无效，请重新检索");

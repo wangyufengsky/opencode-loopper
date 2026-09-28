@@ -9,7 +9,9 @@ public final class KnowledgeSearchQuery {
     private final String mode;
     private final List<Term> terms;
     private record Term(String text, Pattern literal, Pattern phrase, Pattern field, boolean expanded) { }
-    public record Hit(int index, int score, String matchType, String matchedTerm) { }
+    public record Hit(int index, int score, String matchType, String matchedTerm, int endIndex) {
+        public Hit(int index, int score, String matchType, String matchedTerm) { this(index, score, matchType, matchedTerm, index + matchedTerm.length()); }
+    }
 
     public KnowledgeSearchQuery(String query, String mode, List<String> expandedTerms) {
         if (query == null || query.isBlank() || query.length() > 200) throw KnowledgeSources.bad("请输入 1–200 字符的检索词");
@@ -22,6 +24,10 @@ public final class KnowledgeSearchQuery {
     }
     public String query() { return query; }
     public String mode() { return mode; }
+    public String fileName() {
+        return !mode.equals("FIELD") && terms.stream().noneMatch(Term::expanded)
+                && query.matches("(?i)[\\p{L}_$][^\\s/\\\\]*\\.(java|kt|kts|scala|groovy|py|js|jsx|ts|tsx|vue|c|h|cpp|hpp|cs|go|rs|rb|php|swift|xml|json|yaml|yml|toml|properties|sql|sh|md|markdown)") ? query : null;
+    }
     public List<String> expandedTerms() { return terms.stream().filter(Term::expanded).map(Term::text).toList(); }
     private static Term term(String text, boolean expanded) {
         int flags = Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE;
@@ -56,7 +62,28 @@ public final class KnowledgeSearchQuery {
     }
     private static Hit match(Pattern pattern, String text, Term term, int score, String type) {
         var matcher = pattern.matcher(text);
-        return matcher.find() ? new Hit(matcher.start(), term.expanded() ? 50 : score, term.expanded() ? "EXPANDED" : type, term.text()) : null;
+        return matcher.find() ? new Hit(matcher.start(), term.expanded() ? 50 : score, term.expanded() ? "EXPANDED" : type, term.text(), matcher.end()) : null;
+    }
+    /** Ordered occurrence positions. A single position shared by aliases is returned once. */
+    public List<Hit> occurrences(String text, int from, int limit) {
+        var hits = new TreeMap<Integer,Hit>();
+        for (var term : terms) {
+            if (!mode.equals("FIELD")) occurrences(term.literal(), text, from, limit, term, 100, "EXACT", hits);
+            if (Set.of("AUTO", "PHRASE").contains(mode)) occurrences(term.phrase(), text, from, limit, term, 95, "PHRASE", hits);
+            if (Set.of("AUTO", "FIELD").contains(mode)) occurrences(term.field(), text, from, limit, term, 110, "FIELD", hits);
+        }
+        return hits.values().stream().limit(limit).toList();
+    }
+    private static void occurrences(Pattern pattern, String text, int from, int limit, Term term, int score, String type, TreeMap<Integer,Hit> hits) {
+        var matcher = pattern.matcher(text); int count = 0;
+        if (from >= text.length()) return;
+        matcher.region(from, text.length()).useTransparentBounds(true);
+        while (count++ < limit && matcher.find()) {
+            if (Thread.currentThread().isInterrupted()) throw KnowledgeSources.bad("检索已中断，请重试");
+            var hit = new Hit(matcher.start(), term.expanded() ? 50 : score, term.expanded() ? "EXPANDED" : type, term.text(), matcher.end());
+            hits.merge(hit.index(), hit, (a, b) -> a.score() >= b.score() ? a : b);
+            if (hits.size() > limit) hits.pollLastEntry();
+        }
     }
     public Hit locate(String text, String name) {
         Hit content = find(text), named = find(name);
@@ -78,7 +105,7 @@ public final class KnowledgeSearchQuery {
         while (from < text.length() && matcher.find(from)) {
             if (Thread.currentThread().isInterrupted()) throw KnowledgeSources.bad("检索已中断，请重试");
             int section = Arrays.binarySearch(starts, matcher.start()); if (section < 0) section = -section - 2;
-            var hit = new Hit(matcher.start(), term.expanded() ? 50 : score, term.expanded() ? "EXPANDED" : type, term.text());
+            var hit = new Hit(matcher.start(), term.expanded() ? 50 : score, term.expanded() ? "EXPANDED" : type, term.text(), matcher.end());
             if (hits[section] == null || hit.score() > hits[section].score()) hits[section] = hit;
             if (section + 1 == starts.length) break;
             from = starts[section + 1];

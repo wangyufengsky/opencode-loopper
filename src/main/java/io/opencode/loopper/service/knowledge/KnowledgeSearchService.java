@@ -48,7 +48,7 @@ public class KnowledgeSearchService {
         int limit = request.limit() == null ? 20 : request.limit(); if (limit < 1 || limit > 30) throw KnowledgeSources.bad("返回数量必须是 1–30 的整数");
         String path = Objects.toString(request.path(), ""); if (path.length() > 1000) throw KnowledgeSources.bad("检索目录过长");
         var chosen = subset(selection, request.sourceIds());
-        String fingerprint = AssistFiles.sha(json.writeValueAsBytes(List.of(owner, chosen, query.query(), query.mode(), query.expandedTerms(), path, limit)));
+        String fingerprint = AssistFiles.sha(json.writeValueAsBytes(List.of(owner, chosen, query.query(), query.mode(), query.expandedTerms(), path, limit, request.resultMode())));
         Search search; int page = 0;
         synchronized (cache) {
             cache.values().removeIf(s -> System.nanoTime() - s.created > TimeUnit.MINUTES.toNanos(5));
@@ -77,7 +77,7 @@ public class KnowledgeSearchService {
             if (page < 0 || page > search.pages.size()) throw KnowledgeSources.bad("检索页不存在，请使用返回的下一页游标");
             if (page < search.pages.size()) return search.pages.get(page);
             if (page >= MAX_PAGES) throw KnowledgeSources.bad("检索达到分页上限，请缩小范围重新检索");
-            if (search.buffer.isEmpty()) scan(search, query, path);
+            if (search.buffer.isEmpty()) scan(search, query, path, request.resultMode(), owner);
             search.buffer.sort(Comparator.<Map<String,Object>>comparingInt(m -> -((Number)m.getOrDefault("score", 0)).intValue())
                     .thenComparing(m -> Objects.toString(m.get("path"), "")).thenComparing(m -> Objects.toString(m.get("sourceId"), "")));
             var matches = List.copyOf(search.buffer.subList(0, Math.min(limit, search.buffer.size()))); search.buffer.subList(0, matches.size()).clear();
@@ -94,8 +94,9 @@ public class KnowledgeSearchService {
             result.put("coverage", search.sources.stream().map(KnowledgeSearchService::coverage).toList());
             result.put("incomplete", more || search.sources.stream().anyMatch(s -> !s.state.equals("COMPLETE") || s.limited));
             result.put("limitations", search.sources.stream().flatMap(s -> s.limitations.stream().map(l -> s.name + "：" + l)).distinct().limit(20).toList());
-            result.put("collectedAt", Instant.now().toString());
-            result.put("detail", "按已扫描批次的匹配度排序；代码每文件返回一个定位片段，文档按分段匹配。扩展词只提供线索，不证明概念等价。引用前调用 read 中的工具读取原文。数据库仅查结构；无命中不能证明不存在。继续分页须保留原查询与来源，游标 5 分钟有效。");
+            result.put("collectedAt", Instant.now().toString()); result.put("resultMode", request.resultMode()); result.put("codeSearchIntent", request.resultMode().equals("files") && query.fileName() != null ? "FILE_NAME" : "TEXT_AND_NAME");
+            result.put("nextActions", nextActions(search, query, path, request, (String)result.get("nextCursor"), limit));
+            result.put("detail", "按已扫描批次的匹配度排序；files 模式按文件/分段定位，明确的代码文件名先递归定位所有同名代码文件；occurrences 模式返回逐条正文命中（含其他文件内提到此文件名的位置）。扩展词只提供线索，不证明概念等价。引用前调用 read 中的工具读取原文。数据库仅查结构；无命中不能证明不存在。继续分页须保留原查询与来源，游标 5 分钟有效。");
             search.bytes += json.writeValueAsBytes(result).length; search.pages.add(Collections.unmodifiableMap(result)); return search.pages.getLast();
         } finally { search.lock.unlock(); }
     }
@@ -106,11 +107,11 @@ public class KnowledgeSearchService {
         return new KnowledgeSources.Selection(selection.sources().stream().filter(s -> ids.contains(s.id())).toList(),
                 selection.connections().stream().filter(s -> ids.contains("database:" + s.id())).toList());
     }
-    private void scan(Search search, KnowledgeSearchQuery query, String path) {
+    private void scan(Search search, KnowledgeSearchQuery query, String path, String resultMode, String owner) {
         var running = new LinkedHashMap<Progress,Future<Chunk>>(); long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(6);
         for (int i = 0; i < 3 && !search.pending.isEmpty(); i++) {
             var source = search.pending.removeFirst();
-            try { running.put(source, workers.submit(() -> source.file != null ? scanner.files(source.file, query, path, source.cursor) : scanner.database(source.database, query, source.cursor))); }
+            try { running.put(source, workers.submit(() -> source.file != null ? (resultMode.equals("occurrences") ? scanner.occurrences(source.file, query, path, source.cursor, owner) : scanner.files(source.file, query, path, source.cursor)) : scanner.database(source.database, query, source.cursor))); }
             catch (RejectedExecutionException busy) { source.state = "FAILED"; source.limitations.add("检索工作线程繁忙，请稍后重新检索此来源"); }
         }
         for (var entry : running.entrySet()) {
@@ -122,7 +123,7 @@ public class KnowledgeSearchService {
                 if (chunk.nextCursor() != null && Objects.equals(chunk.nextCursor(), source.cursor)) { source.limited = true; source.limitations.add("来源分页未推进，请缩小范围"); source.state = "LIMITED"; }
                 else { source.cursor = chunk.nextCursor(); source.state = source.cursor != null ? "PARTIAL" : source.limited ? "LIMITED" : "COMPLETE"; if (source.cursor != null) search.pending.addLast(source); }
                 for (var match : chunk.matches()) {
-                    String key = List.of("resourceKey", "sha256", "section", "startLine").stream().map(k -> Objects.toString(match.get(k), "")).reduce((a,b) -> a + ":" + b).orElse("");
+                    String key = List.of("resourceKey", "sha256", "section", "startLine", "matchOffset").stream().map(k -> Objects.toString(match.get(k), "")).reduce((a,b) -> a + ":" + b).orElse("");
                     if (search.seen.add(key)) search.buffer.add(match);
                 }
             } catch (TimeoutException timedOut) { future.cancel(true); source.state = "TIMED_OUT"; source.limitations.add("来源检索超时，尚未获得完整结果；请缩小范围后重试"); }
@@ -133,6 +134,25 @@ public class KnowledgeSearchService {
             }
         }
         workers.purge();
+    }
+    private static List<Map<String,Object>> nextActions(Search search, KnowledgeSearchQuery query, String path, Request request, String cursor, int limit) {
+        var actions = new ArrayList<Map<String,Object>>();
+        var original = new LinkedHashMap<String,Object>(); original.put("query", query.query()); original.put("mode", query.mode());
+        original.put("terms", query.expandedTerms()); original.put("path", path); original.put("resultMode", request.resultMode()); original.put("limit", limit);
+        if (request.sourceIds() != null) original.put("sourceIds", request.sourceIds());
+        if (cursor != null) {
+            var next = new LinkedHashMap<>(original); next.put("cursor", cursor);
+            actions.add(Map.of("action", "CONTINUE_CURSOR", "tool", "search_project_knowledge", "arguments", next));
+        }
+        for (var source : search.sources) {
+            if (source.kind.equals("GIT")) actions.add(Map.of("sourceId", source.id, "action", "USE_GIT_TOOLS", "tool", "inspect_knowledge_git", "arguments", Map.of("sourceId", source.id)));
+            else if (Set.of("LIMITED", "FAILED", "TIMED_OUT").contains(source.state) || source.limited) {
+                var retry = new LinkedHashMap<>(original); retry.put("sourceIds", List.of(source.id));
+                actions.add(Map.of("sourceId", source.id, "action", "NARROW_OR_RETRY_SOURCE", "tool", "search_project_knowledge", "arguments", retry,
+                        "detail", "可重试此来源；若再次受限，先缩小 path 或调整关键词"));
+            }
+        }
+        return actions;
     }
     private static Map<String,Object> coverage(Progress s) {
         return Map.of("sourceId", s.id, "name", s.name, "kind", s.kind, "state", s.state, "examined", s.examined,

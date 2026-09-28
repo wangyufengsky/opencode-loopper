@@ -320,6 +320,33 @@ class KnowledgeIntegrationTest {
         assertThat(reader.browse(source, "", "", null).items()).extracting(KnowledgeFiles.Entry::name).doesNotContain(".env", "target", "outside");
         assertThat(reader.search(source, "", "审批", null).get("matches")).asList().hasSize(1);
     }
+    @Test void extendedToolsPersistIndependentEvidenceAndReadHistoryWithoutCurrentFileAccess() throws Exception {
+        Files.writeString(root.resolve("A.java"), "class A { String xxx; }\n");
+        var chat = researchChat(); var turn = run(chat.id()); String session = mapper.conversation(chat.id()).orElseThrow().remoteId();
+        var credentials = runtime.current().orElseGet(() -> new InternalMcpCredentialProvider(() -> 19000).issue()); runtime.activate(credentials);
+        assist.insertSession(new AssistMapper.Session(session, credentials.generation(), root.toString(), "KNOWLEDGE_RESEARCH_READ_ONLY", "[]", json.writeValueAsString(AssistToolCatalog.allowed("KNOWLEDGE_RESEARCH_READ_ONLY")), Instant.now().toString()));
+        String grant = scopes.grant(session);
+        var overview = tools.call("inspect_knowledge_project", Map.of("scope", grant)); assertThat(overview.error()).as(overview.content().toString()).isFalse();
+        assertThat(overview.content()).containsKey("citationId");
+        var batch = tools.call("read_knowledge_sources", Map.of("scope", grant, "items", List.of(Map.of("sourceId", "code", "path", "./A.java"), Map.of("sourceId", "code", "path", ".env"))));
+        assertThat(batch.error()).as(batch.content().toString()).isFalse(); assertThat(batch.content().get("partial")).isEqualTo(true);
+        var read = json.valueToTree(batch.content()).path("items").get(0).path("result"); String reference = read.path("citationLink").asText();
+        assertThat(reference).startsWith("knowledge:"); assertThat(mapper.citationCount(turn.id())).isEqualTo(2);
+        Files.writeString(root.resolve("A.java"), "changed current text");
+        var saved = tools.call("read_knowledge_evidence", Map.of("scope", grant, "reference", reference));
+        assertThat(saved.error()).as(saved.content().toString()).isFalse(); assertThat(saved.content().get("content")).asString().contains("String xxx").doesNotContain("changed current");
+        assertThat(saved.content()).containsEntry("reference", reference).containsEntry("collectedAt", read.path("collectedAt").asText());
+        var listed = tools.call("list_knowledge_evidence", Map.of("scope", grant)); assertThat(listed.error()).isFalse(); assertThat(listed.content().get("items")).asList().hasSize(2);
+        assertThat(tools.call("read_knowledge_evidence", Map.of("scope", grant, "reference", "call:" + UUID.randomUUID())).error()).isTrue();
+        for (int i = 0; i < 51; i++) mapper.cite(new KnowledgeRows.Citation(UUID.randomUUID().toString(), chat.id(), turn.id(), "CODE", "code", "saved", "line", "sha", "{}", Instant.now().toString()));
+        var page = tools.call("list_knowledge_evidence", Map.of("scope", grant)); assertThat(page.content().get("items")).asList().hasSize(50);
+        var page2 = tools.call("list_knowledge_evidence", Map.of("scope", grant, "cursor", page.content().get("nextCursor")));
+        assertThat(page2.error()).as(page2.content().toString()).isFalse(); assertThat(page2.content().get("items")).asList().hasSize(3);
+        var other = researchChat(); var otherTurn = run(other.id()); String otherSession = mapper.conversation(other.id()).orElseThrow().remoteId();
+        assist.insertSession(new AssistMapper.Session(otherSession, credentials.generation(), root.toString(), "KNOWLEDGE_RESEARCH_READ_ONLY", "[]", json.writeValueAsString(AssistToolCatalog.allowed("KNOWLEDGE_RESEARCH_READ_ONLY")), Instant.now().toString()));
+        assertThat(tools.call("read_knowledge_evidence", Map.of("scope", scopes.grant(otherSession), "reference", reference)).error()).isTrue();
+        persistence.stop(chat.id()); assertThat(tools.call("list_knowledge_evidence", Map.of("scope", grant)).error()).isTrue();
+    }
     @Test void citationIsDurableAndScopedAndToolsCannotExpandAuthorization() throws Exception {
         var uploaded = sources.upload(project, List.of(new KnowledgeSources.Incoming("说明.md", "# 付款\n先审批再付款".getBytes(java.nio.charset.StandardCharsets.UTF_8)))).getFirst();
         var chat = create(List.of(uploaded.id())); var turn = run(chat.id()); String session = mapper.conversation(chat.id()).orElseThrow().remoteId();

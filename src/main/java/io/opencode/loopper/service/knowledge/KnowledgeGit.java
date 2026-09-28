@@ -49,6 +49,7 @@ public final class KnowledgeGit {
     public Map<String,Object> call(String owner, KnowledgeSources.Bound source, String tool, Map<String,Object> args) {
         var repository = authorized(source);
         Map<String,Object> result = switch (tool) {
+            case "search_knowledge_git_content", "search_knowledge_git_patches", "compare_knowledge_git_versions" -> new KnowledgeGitContent(this, mapper, json).call(owner, source, repository, tool, args);
             case "inspect_knowledge_git" -> inspect(repository);
             case "search_knowledge_git_commits", "list_knowledge_git_authors" -> history(owner, source, repository, tool, args);
             case "read_knowledge_git_commit" -> commit(repository, args);
@@ -154,7 +155,7 @@ public final class KnowledgeGit {
     private Map<String,Object> commit(Repository repository, Map<String,Object> args) {
         String sha = revision(repository, string(args, "commit"));
         String paths = read(repository.root(), "diff-tree", "--root", "-m", "--no-commit-id", "--name-only", "--no-renames", "-r", "-z", sha, "--", literal(repository.prefix()));
-        List<String> visible = Arrays.stream(paths.split("\0")).filter(p -> !p.isBlank() && allowedRepositoryPath(repository, p)).distinct().toList();
+        List<String> visible = readableChanges(repository, paths, read(repository.root(), "rev-list", "--parents", "-n", "1", sha).strip().split(" "));
         if (visible.isEmpty()) throw KnowledgeSources.bad("此提交没有当前项目范围内的可读变更");
         var command = new ArrayList<>(List.of("show", "-m", "--format=fuller", "--no-ext-diff", "--no-textconv", "--no-renames", sha, "--"));
         visible.stream().limit(50).map(KnowledgeGit::literal).forEach(command::add);
@@ -178,7 +179,7 @@ public final class KnowledgeGit {
         }
         return result;
     }
-    private String revision(Repository repository, String input) {
+    String revision(Repository repository, String input) {
         if (!input.matches("[a-f0-9]{40}|[a-f0-9]{64}")) throw KnowledgeSources.bad("请使用提交查询返回的完整 SHA");
         var references = refs(repository);
         if (!references.isEmpty()) {
@@ -188,7 +189,8 @@ public final class KnowledgeGit {
         }
         throw KnowledgeSources.bad("提交不属于当前仓库可查询的引用范围");
     }
-    private String path(Repository repository, String relative, boolean empty) {
+    String path(Repository repository, String relative, boolean empty) {
+        relative = KnowledgeFiles.relative(relative);
         if (relative.isBlank()) { if (empty) return repository.prefix(); throw KnowledgeFiles.denied(); }
         Path path;
         try { path = Path.of(relative); } catch (InvalidPathException invalid) { throw KnowledgeFiles.denied(); }
@@ -196,11 +198,22 @@ public final class KnowledgeGit {
                 || path.startsWith("..") || relative.equals(".")) throw KnowledgeFiles.denied();
         return repository.prefix().isBlank() ? relative : repository.prefix() + "/" + relative;
     }
-    private boolean allowedRepositoryPath(Repository repository, String path) {
+    boolean allowedRepositoryPath(Repository repository, String path) {
         String prefix = repository.prefix();
         if (!prefix.isBlank() && !path.startsWith(prefix + "/")) return false;
         String relative = prefix.isBlank() ? path : path.substring(prefix.length() + 1);
         return KnowledgeFiles.allowed(Path.of(relative));
+    }
+    List<String> readableChanges(Repository repository, String raw, String... commits) {
+        var denied = new HashSet<String>();
+        for (String commit : commits) {
+            String tree = read(repository.root(), "ls-tree", "-r", "-z", commit, "--", literal(repository.prefix()));
+            for (String entry : tree.split("\0")) {
+                int tab = entry.indexOf('\t');
+                if (tab > 0 && !entry.startsWith("100644 blob ") && !entry.startsWith("100755 blob ")) denied.add(entry.substring(tab + 1));
+            }
+        }
+        return Arrays.stream(raw.split("\0")).filter(p -> !p.isBlank() && allowedRepositoryPath(repository, p) && !denied.contains(p)).distinct().toList();
     }
     static Map<String,Object> segment(String text, int start, int requestedEnd) {
         if (text.indexOf('\0') >= 0) throw KnowledgeSources.bad("此 Git 文件不是可读取文本");
@@ -213,7 +226,7 @@ public final class KnowledgeGit {
         var result = new LinkedHashMap<String,Object>(); result.put("text", body.toString()); result.put("startLine", start); result.put("endLine", actual);
         result.put("totalLines", lines.length); result.put("nextLine", actual < lines.length ? actual + 1 : -1); return result;
     }
-    private String read(Path directory, String... args) {
+    String read(Path directory, String... args) {
         String output = optional(directory, args); return output;
     }
     private String optional(Path directory, String... args) {
@@ -225,7 +238,7 @@ public final class KnowledgeGit {
         }
         return result.output();
     }
-    private static String literal(String path) { return ":(literal)" + (path.isBlank() ? "." : path); }
+    static String literal(String path) { return ":(literal)" + (path.isBlank() ? "." : path); }
     private static String string(Map<String,Object> args, String key) { String value = Objects.toString(args.get(key), ""); if (value.length() > 4096) throw KnowledgeSources.bad("Git 查询参数过长"); return value; }
     private static int integer(Map<String,Object> args, String key, int fallback) { return args.get(key) instanceof Number n ? n.intValue() : fallback; }
     private static Instant time(Map<String,Object> args, String key) { String value = string(args,key); try { return value.isBlank() ? null : OffsetDateTime.parse(value).toInstant(); } catch (java.time.format.DateTimeParseException invalid) { throw KnowledgeSources.bad("日期请包含时区，例如 2026-09-16T00:00:00+08:00"); } }

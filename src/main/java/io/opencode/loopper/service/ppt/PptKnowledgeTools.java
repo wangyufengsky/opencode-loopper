@@ -36,7 +36,7 @@ public class PptKnowledgeTools {
             return evidence.capture(document,run,database(selection,tool,args),guard);
         var source=selection.sources().stream().filter(s->s.id().equals(text(args,"sourceId"))).findFirst()
                 .orElseThrow(()->PptSupport.bad("PPT_KNOWLEDGE_SOURCE_DENIED","资料不属于此作品已开放的项目来源"));
-        if(tool.equals("ppt_browse_knowledge_source"))return reader.browse(source,text(args,"path"),text(args,"query"),text(args,"cursor"));
+        if(tool.equals("ppt_browse_knowledge_source"))return reader.browse(source,input);
         Map<String,Object> result;
         if(tool.equals("ppt_read_knowledge_source"))result=reader.readRange(source,text(args,"path"),number(args,"section",-1),number(args,"startLine",1),
                 number(args,"endLine",0),text(args,"expectedSha"),number(args,"offset",0),number(args,"textOffset",-1));
@@ -69,6 +69,13 @@ public class PptKnowledgeTools {
         for(var match:node.path("matches")) {
             var read=match.get("read");if(read instanceof tools.jackson.databind.node.ObjectNode object)
                 object.put("tool",read.path("tool").asText().equals("inspect_database_schema")?"ppt_inspect_knowledge_database":"ppt_read_knowledge_source");
+        }
+        for (var action : node.path("nextActions")) {
+            if (action instanceof tools.jackson.databind.node.ObjectNode object) {
+                boolean history = action.path("tool").asText().equals("inspect_knowledge_git");
+                object.put("tool", history ? "ppt_read_knowledge_git" : "ppt_search_project_knowledge");
+                if (history && object.get("arguments") instanceof tools.jackson.databind.node.ObjectNode arguments) arguments.put("operation", "inspect");
+            }
         }
         return node;
     }

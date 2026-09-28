@@ -50,5 +50,10 @@ watch(() => [props.body, props.focusRange], async () => {
       <CodeMergeEditor v-else ref="editor" :key="`${citation?.id}:${body.sha256}:${first}:${language}`" :model-value="body.text" readonly line-wrapping :first-line-number="first" :highlighted-lines="lines" :language="language" aria-label="引用原文片段" />
       <details v-if="Array.isArray(body.authors)"><summary>最后修改记录</summary><div v-for="(author, index) in (body.authors as Record<string, unknown>[])" :key="index" class="knowledge-author">{{ author.number }} · {{ author.author }} · {{ String(author.commit).slice(0, 12) }}</div></details>
     </template>
+    <template v-else>
+      <p class="knowledge-muted">这是采集时保存的目录或资料概览，不代表当前文件状态。</p>
+      <p v-if="body.incomplete || body.nextCursor" class="knowledge-notice">结果未覆盖全部资料，仅展示本次采集范围</p>
+      <CodeMergeEditor :model-value="jsonBody" readonly line-wrapping language="json" aria-label="保存的资料概览" />
+    </template>
   </section>
 </template>

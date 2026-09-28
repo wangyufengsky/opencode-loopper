@@ -30,6 +30,9 @@ public interface WorkflowKnowledgeMapper {
     String convention(String owner, String session);
     @Select("SELECT result_json FROM assist_call WHERE id=#{id} AND external_session_id=#{session} AND state='SUCCEEDED' AND tool_name LIKE '%knowledge%'")
     String evidence(String session, String id);
+    record Evidence(String id, String toolName, String createdAt) { }
+    @Select("SELECT id,tool_name,created_at FROM assist_call WHERE external_session_id=#{session} AND state='SUCCEEDED' AND tool_name LIKE '%knowledge%' AND tool_name NOT IN ('list_knowledge_evidence','read_knowledge_evidence') AND (#{before}='' OR created_at < #{before} OR (created_at=#{before} AND id < #{id})) ORDER BY created_at DESC,id DESC LIMIT 51")
+    List<Evidence> evidencePage(String session, String before, String id);
     @Select("SELECT source_json FROM workflow_knowledge_git WHERE external_session_id=#{session}")
     String git(String session);
     @Insert("INSERT OR IGNORE INTO workflow_knowledge_git VALUES(#{session},#{source})")

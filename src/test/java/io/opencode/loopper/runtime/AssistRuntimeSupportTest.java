@@ -42,7 +42,10 @@ class AssistRuntimeSupportTest {
             "private_assist_list_knowledge_sources", "private_assist_browse_knowledge_source", "private_assist_search_project_knowledge", "private_assist_search_knowledge", "private_assist_read_knowledge_source",
             "private_assist_list_database_connections", "private_assist_inspect_database_schema", "private_assist_query_database_readonly",
             "private_assist_inspect_knowledge_git", "private_assist_list_knowledge_git_authors", "private_assist_search_knowledge_git_commits",
-            "private_assist_read_knowledge_git_commit", "private_assist_read_knowledge_git_file", "private_assist_blame_knowledge_git_lines"));
+            "private_assist_read_knowledge_git_commit", "private_assist_read_knowledge_git_file", "private_assist_blame_knowledge_git_lines",
+            "private_assist_read_knowledge_evidence", "private_assist_inspect_knowledge_project", "private_assist_list_knowledge_evidence",
+            "private_assist_read_knowledge_sources", "private_assist_find_knowledge_symbol", "private_assist_search_knowledge_git_content",
+            "private_assist_search_knowledge_git_patches", "private_assist_compare_knowledge_git_versions"));
         if (profile == OpenCodeClient.SessionProfile.KNOWLEDGE_INTERACTIVE_READ_ONLY) expected.add("question");
         assertThat(rules.stream().filter(r -> r.get("action").equals("allow")).map(r -> r.get("permission"))).containsExactlyInAnyOrderElementsOf(expected);
         assertThat(OpenCodeAgentPolicy.stepLimit(profile)).isZero();

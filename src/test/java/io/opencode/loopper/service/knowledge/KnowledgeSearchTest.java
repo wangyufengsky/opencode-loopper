@@ -33,6 +33,9 @@ class KnowledgeSearchTest {
         var service = new KnowledgeSearchService(scanner, new ObjectMapper());
         try {
             var selection = selected("code", "documents"); var first = service.search("turn", selection, request(null));
+            @SuppressWarnings("unchecked") var action = ((List<Map<String,Object>>)first.get("nextActions")).getFirst();
+            @SuppressWarnings("unchecked") var nextArguments = (Map<String,Object>)action.get("arguments");
+            assertThat(nextArguments).containsEntry("limit", 1).containsEntry("cursor", first.get("nextCursor"));
             String cursor = (String) first.get("nextCursor"); var second = service.search("turn", selection, request(cursor));
             assertThat(second.get("matches")).isEqualTo(List.of(match("b")));
             assertThat(service.search("turn", selection, request(cursor))).isSameAs(second);

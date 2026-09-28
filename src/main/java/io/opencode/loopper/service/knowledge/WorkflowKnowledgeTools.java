@@ -23,6 +23,7 @@ public final class WorkflowKnowledgeTools {
     }
     public Map<String,Object> call(AssistScopeService.Scope scope, String tool, Map<String,Object> args, String receipt) {
         var binding = access.require(scope);
+        if (tool.equals("list_knowledge_evidence")) return listEvidence(scope.externalSessionId(), args);
         if (tool.equals("read_knowledge_evidence")) return evidence(scope.externalSessionId(), args);
         var selected = new ArrayList<>(bindings.sources(binding));
         if (scope.taskId() != null) selected.add(new KnowledgeSources.Bound("task-code", "CODE", "当前任务代码",
@@ -42,21 +43,46 @@ public final class WorkflowKnowledgeTools {
         access.require(scope);
         var body = new LinkedHashMap<>(result);
         body.put("evidenceUse", "补充项目证据；不替代任务冻结输入、目标版本或正式验收。搜索命中须读取原文后引用。");
-        if (tool.contains("knowledge_git") || tool.equals("read_knowledge_source") && !Objects.toString(result.get("text"), "").isEmpty()) {
+        if (tool.contains("knowledge_git") || Set.of("read_knowledge_source", "read_knowledge_sources", "browse_knowledge_source", "inspect_knowledge_project").contains(tool)) {
             body.put("citationId", "call:" + receipt); body.put("collectedAt", Instant.now().toString());
             body.put("sourceAuthorizationFrozenAt", binding.frozenAt());
+            if (tool.equals("read_knowledge_sources")) citeBatch(body, receipt);
         }
         return body;
+    }
+    @SuppressWarnings("unchecked")
+    private static void citeBatch(Map<String,Object> body, String receipt) {
+        var items = new ArrayList<Map<String,Object>>();
+        for (var item : (List<Map<String,Object>>)body.get("items")) {
+            var row = new LinkedHashMap<>(item);
+            if (item.get("result") instanceof Map<?,?> result) {
+                var saved = new LinkedHashMap<>((Map<String,Object>)result); saved.put("citationId", "call:" + receipt);
+                saved.put("evidenceItem", item.get("index")); saved.put("collectedAt", body.get("collectedAt")); row.put("result", saved);
+            }
+            items.add(row);
+        }
+        body.put("items", items);
+    }
+    private Map<String,Object> listEvidence(String session, Map<String,Object> args) {
+        String cursor = Objects.toString(args.get("cursor"), "");
+        var page = cursor.isBlank() ? null : io.opencode.loopper.service.PageCursor.decode(cursor);
+        if (page != null && mapper.evidence(session, page.id()) == null) throw KnowledgeSources.bad("证据游标不属于当前角色会话");
+        var rows = mapper.evidencePage(session, page == null ? "" : page.value(), page == null ? "" : page.id());
+        var result = new LinkedHashMap<String,Object>();
+        result.put("items", rows.stream().limit(50).map(r -> Map.of("reference", "call:" + r.id(), "tool", r.toolName(), "collectedAt", r.createdAt())).toList());
+        result.put("nextCursor", rows.size() > 50 ? new io.opencode.loopper.service.PageCursor(rows.get(49).createdAt(), rows.get(49).id()).encode() : null); return result;
     }
     private Map<String,Object> evidence(String session, Map<String,Object> args) {
         String reference = Objects.toString(args.get("reference"), "");
         if (!reference.matches("call:[a-f0-9-]{36}")) throw KnowledgeSources.bad("请使用本角色实际读取返回的 call: 引用");
         String saved = mapper.evidence(session, reference.substring(5));
         if (saved == null) throw KnowledgeSources.bad("引用不存在或属于其他角色会话");
-        int offset = args.get("offset") instanceof Number n ? n.intValue() : 0;
+        Object requested = args.getOrDefault("offset", 0);
+        if (!(requested instanceof Number n) || n.doubleValue() != n.intValue()) throw KnowledgeSources.bad("引用读取位置必须是整数");
+        int offset = n.intValue();
         if (offset < 0 || offset > saved.length()) throw KnowledgeSources.bad("引用读取位置无效");
         int end = Math.min(saved.length(), offset + 12000);
         if (end < saved.length() && end > offset && Character.isHighSurrogate(saved.charAt(end - 1))) end--;
-        return Map.of("reference", reference, "content", saved.substring(offset, end), "nextOffset", end < saved.length() ? end : -1, "historical", true);
+        return Map.of("reference", reference, "content", saved.substring(offset, end), "nextOffset", end < saved.length() ? end : -1, "historical", true, "collectedAt", json.readTree(saved).path("collectedAt").asText(""));
     }
 }

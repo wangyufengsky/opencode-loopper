@@ -52,7 +52,7 @@ public class AssistToolPolicyService {
     }
     private static boolean defaultEnabled(String server, String tool, boolean first) {
         return server.equals(AssistToolCatalog.SERVER) && (first && !tool.startsWith("gitlab_")
-                || Set.of("search_project_knowledge", "read_knowledge_evidence", "list_test_failures", "read_test_failure", "search_evidence").contains(tool));
+                || Set.of("inspect_knowledge_project", "list_knowledge_evidence", "read_knowledge_sources", "find_knowledge_symbol", "search_knowledge_git_content", "search_knowledge_git_patches", "compare_knowledge_git_versions", "search_project_knowledge", "read_knowledge_evidence", "list_test_failures", "read_test_failure", "search_evidence").contains(tool));
     }
     @Transactional
     public void update(String scope,String server,String tool,int enabled,long version) {
