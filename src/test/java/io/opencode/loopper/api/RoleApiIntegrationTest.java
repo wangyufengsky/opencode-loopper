@@ -78,7 +78,7 @@ class RoleApiIntegrationTest {
     @Test void narrowedPreviewDoesNotReintroduceBaselineTools() {
         var definition = new RoleManifest.Role("custom.reader", "读取助手", "只读取文件", "general", "辅助",
                 List.of("GENERAL_READ_ONLY"), "INTERSECT", List.of("read"), List.of(), List.of(),
-                "INHERIT_WORKFLOW", "WORKFLOW_ADAPTER", Map.of());
+                "INHERIT_WORKFLOW", "WORKFLOW_ADAPTER", Map.of(), List.of(RoleCapabilities.Capability.NATIVE_TOOLS));
         var parsed = new RoleArchive.Parsed("a".repeat(64),
                 new RoleManifest.Document(1, List.of(), List.of(definition)), Map.of("custom.reader", Map.of()));
         var validation = publishing.validate(parsed);

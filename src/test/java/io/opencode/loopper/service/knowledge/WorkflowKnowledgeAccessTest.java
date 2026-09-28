@@ -11,6 +11,29 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class WorkflowKnowledgeAccessTest {
+    @Test void metadataUsesFrozenRoleCapabilitiesAndCannotAcquireCurrentDefaults() {
+        var mapper = mock(WorkflowKnowledgeMapper.class);
+        var roles = mock(RoleConfigurationMapper.class);
+        var binding = mock(WorkflowKnowledgeBindings.class);
+        var json = new ObjectMapper();
+        var access = new WorkflowKnowledgeAccess(mapper, roles, binding, mock(MachineCandidateSubmission.class), List.of(), json);
+        var snapshot = mock(RoleConfigurationMapper.SessionSnapshot.class);
+        when(snapshot.revisionId()).thenReturn("frozen");
+        when(snapshot.adapterProfile()).thenReturn("GENERAL_READ_ONLY");
+        when(roles.sessionSnapshot("session")).thenReturn(snapshot);
+        var revision = mock(RoleConfigurationMapper.Revision.class);
+        when(roles.revision("frozen")).thenReturn(revision);
+        var scope = new AssistScopeService.Scope("session", "owner", "project", null, null, null, null,
+                "GENERAL_READ_ONLY", java.nio.file.Path.of("/scratch"), List.of(), List.of());
+        when(revision.manifestJson()).thenReturn("{\"capabilities\":[\"PROJECT_KNOWLEDGE\"]}");
+        assertThat(access.evidenceOnly(scope)).isTrue();
+        when(revision.manifestJson()).thenReturn("{}");
+        assertThat(access.evidenceOnly(scope)).isFalse();
+        when(revision.manifestJson()).thenReturn("{\"capabilities\":[]}");
+        assertThatThrownBy(() -> access.require(scope)).isInstanceOf(AssistFailure.class);
+        verify(roles, never()).binding(anyString());
+    }
+
     @Test void specializedCandidateRequiresActiveOwnerGuardAndCannotSwapProjectOrReadBusinessSql() {
         var mapper=mock(WorkflowKnowledgeMapper.class);var roles=mock(RoleConfigurationMapper.class);
         var bindings=mock(WorkflowKnowledgeBindings.class);var submissions=mock(MachineCandidateSubmission.class);

@@ -10,7 +10,7 @@ import type {
   RoleImportValidation, RolePermissionPreview, RoleRevision, RoleRevisionSummary, RoleSlotBinding,
 } from '@/types/domain'
 import { userFacingError } from '@/utils/displayLabels'
-import { roleToolDescription, stableToolName, workflowForSlot } from '@/utils/rolePresentation'
+import { roleToolDescription, roleToolStatus, stableToolName, workflowForSlot } from '@/utils/rolePresentation'
 
 const PAGE_SIZE = 12
 const roles = ref<RoleCatalogItem[]>([])
@@ -107,7 +107,7 @@ const importChanges = computed(() => {
   return result
 })
 const visibleTools = computed(() => {
-  const tools = new Map<string, { name: string; description: string; source: string; required?: boolean }>()
+  const tools = new Map<string, { name: string; description: string; source: string; required?: boolean; status?: string; reason?: string }>()
   for (const tool of preview.value?.mcpTools ?? []) {
     tools.set(tool.name, { ...tool, description: roleToolDescription(tool.name), source: tool.source === 'NATIVE_POLICY' ? '原生工具' : tool.source === 'SYSTEM_REQUIRED' ? '服务端必需' : tool.source === 'BUNDLED_POLICY' ? '程序内置' : '配置声明' })
   }
@@ -115,6 +115,11 @@ const visibleTools = computed(() => {
     if (!tools.has(name)) tools.set(name, { name, description: roleToolDescription(name), source: '配置声明', required: revision.value?.requiredMcpTools?.includes(name) })
   }
   return [...tools.values()]
+})
+
+const toolSummary = computed(() => {
+  const disabled = visibleTools.value.filter(tool => ['ROLE_DISABLED', 'POLICY_DISABLED', 'CONFIGURATION_BLOCKED'].includes(tool.status ?? '')).length
+  return `配置 ${visibleTools.value.length} 项 · 受限 ${disabled} 项 · 待核定 ${visibleTools.value.length - disabled} 项`
 })
 
 const canPublish = computed(() => !!importFile.value && !!importPreview.value?.valid && confirmed.value
@@ -547,8 +552,8 @@ onMounted(() => { void loadRoles(); void loadBindings(); void loadProjects() })
             <p v-if="preview" class="preview-status">{{ preview.bindingActive === false ? '未激活配置' : '阶段绑定配置' }}<template v-if="preview.revisionNumber"> · 版本 {{ preview.revisionNumber }}</template> · {{ preview.complete ? '信息完整' : '调用条件待运行时核定' }}</p>
             <ul v-if="preview?.limitations.length" class="limitations"><li v-for="(item, index) in preview.limitations" :key="index">{{ item }}</li></ul>
             <details class="capability-panel" aria-label="MCP 工具清单" open>
-              <summary class="section-heading"><h3><Icon icon="lucide:plug" width="18" /> MCP</h3><span>{{ visibleTools.length }} 项工具 <Icon class="collapse-arrow" icon="lucide:chevron-down" width="16" /></span></summary>
-              <ul class="tool-list"><li v-for="tool in visibleTools" :key="tool.name"><div class="tool-copy"><strong>{{ tool.name }}</strong><span>{{ tool.description }}</span></div><small>{{ tool.source }}{{ tool.required && tool.source !== '服务端必需' ? ' · 必需' : '' }}</small></li></ul>
+              <summary class="section-heading"><h3><Icon icon="lucide:plug" width="18" /> MCP</h3><span>{{ toolSummary }} <Icon class="collapse-arrow" icon="lucide:chevron-down" width="16" /></span></summary>
+              <ul class="tool-list"><li v-for="tool in visibleTools" :key="tool.name"><div class="tool-copy"><strong>{{ tool.name }}</strong><span>{{ tool.description }}</span><span v-if="tool.reason" class="tool-reason">{{ tool.reason }}</span></div><div class="tool-state"><span class="tool-status" :class="{ denied: ['ROLE_DISABLED', 'POLICY_DISABLED', 'CONFIGURATION_BLOCKED'].includes(tool.status ?? '') }">{{ roleToolStatus(tool.status) }}</span><small>{{ tool.source }}{{ tool.required && tool.source !== '服务端必需' ? ' · 必需' : '' }}</small></div></li></ul>
               <p v-if="!visibleTools.length && !previewLoading && !revisionLoading" class="empty-note">{{ previewError ? '工具清单读取失败，请重试。' : '当前阶段没有工具清单。' }}</p>
             </details>
             <details v-if="preview" class="capability-panel" aria-label="权限规则" open>
@@ -595,4 +600,5 @@ button:focus-visible{outline:2px solid var(--color-accent-cyan);outline-offset:3
 .role-workspace{height:100dvh;display:flex;flex-direction:column;min-height:0}.role-workspace>.page-header{flex-shrink:0}.roles-content{width:100%;flex:1;min-height:0;display:flex;flex-direction:column;padding-top:16px;padding-bottom:20px;overflow:hidden}.role-intro{flex-shrink:0;padding:14px 20px;margin-bottom:16px}.role-intro h2{font-size:18px;margin:2px 0 5px}.intro-mark{width:42px;height:42px}.role-intro .eyebrow{display:none}.roles-layout{flex:1;min-height:0;align-items:stretch;grid-template-columns:minmax(250px,310px) minmax(0,1fr)}.role-list{display:flex;flex-direction:column;min-height:0;padding:20px}.role-list>.section-heading,.search-row,.pagination{flex-shrink:0}.role-items{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding-right:6px}.pagination{margin-top:14px;border-top:1px solid var(--color-border-default);padding-top:14px}.role-detail{display:flex;flex-direction:column;min-height:0;padding:22px;container-type:inline-size;container-name:role-detail}.detail-heading,.detail-tabs{flex-shrink:0}.detail-heading{padding-bottom:16px}.detail-heading h2{font-size:23px}.detail-tabs{margin:14px 0 0;padding-bottom:12px}.role-detail-body{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding:18px 8px 8px 0}.role-detail-body:focus-visible,.role-items:focus-visible{outline:2px solid var(--color-accent-cyan);outline-offset:-2px}.empty-detail{min-height:0;flex:1}.role-detail .eyebrow{margin:0 0 6px}.detail-section>h3:first-child{margin-top:0}.workflow-title{margin-top:26px}.prompt-toolbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px}.import-panel{flex-shrink:0;max-height:40vh;overflow:auto}.capability-panel{margin-top:16px}.capability-panel summary{cursor:pointer;list-style:none;margin:0!important}.capability-panel summary::-webkit-details-marker{display:none}.capability-panel summary>span{display:flex;align-items:center;gap:10px}.capability-panel[open] summary{margin-bottom:14px!important}.capability-panel:not([open]) .collapse-arrow{transform:rotate(-90deg)}.capability-panel summary:focus-visible{outline:2px solid var(--color-accent-cyan);outline-offset:5px}.history-revision{padding:16px}
 @media(max-width:900px){.role-workspace{height:auto;min-height:100dvh}.roles-content{overflow:visible;flex:none}.roles-layout{display:grid;grid-template-columns:1fr;flex:none}.role-items{max-height:300px;flex:auto}.role-detail-body{overflow:visible;flex:none}.role-detail{min-height:350px}.import-panel{max-height:none}.empty-detail{min-height:160px}}
 @media(max-width:600px){.role-intro{padding:12px}.role-intro h2{font-size:16px}.role-list,.role-detail{padding:16px}.detail-tabs button{font-size:12px}.role-detail-body{padding-right:0}.intro-caption{display:none}}
+.tool-state{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0}.tool-status{font-size:12px;border:1px solid var(--color-border-default);border-radius:var(--radius-control);padding:3px 7px;color:var(--color-text-secondary)}.tool-reason{font-size:12px;flex-basis:100%}.tool-state small{font-size:11px;color:var(--color-text-secondary)}.tool-status.denied{color:var(--color-task-danger)}
 </style>

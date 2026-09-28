@@ -151,6 +151,7 @@ public class RolePublishingService {
                             "静态提示词不能新增变量、脚本表达式或 include 指令；动态事实由服务端装配"));
             }
             RoleManifest.Role normalized = canonicalRole(role, fragments);
+            validateCapabilities(normalized, diagnostics, path);
             String sha = contentSha(normalized, fragments);
             var existing = mapper.latest(role.roleId());
             if (existing == null) {
@@ -378,12 +379,34 @@ public class RolePublishingService {
         return Map.copyOf(inherited);
     }
 
-    private static RoleManifest.Role canonicalRole(RoleManifest.Role role, Map<String, String> fragments) {
+    private RoleManifest.Role canonicalRole(RoleManifest.Role role, Map<String, String> fragments) {
         Map<String, String> keys = new TreeMap<>();
         fragments.keySet().forEach(key -> keys.put(key, key));
-        return new RoleManifest.Role(role.roleId(), role.displayName(), role.description(), role.groupKey(),
+        var normalized = new RoleManifest.Role(role.roleId(), role.displayName(), role.description(), role.groupKey(),
                 role.groupLabel(), role.allowedSlots(), role.permissionMode(), role.nativeTools(), role.mcpTools(),
-                role.requiredMcpTools(), role.modelPolicy(), role.runtimePolicy(), keys);
+                role.requiredMcpTools(), role.modelPolicy(), role.runtimePolicy(), keys,
+                role.capabilities());
+        if (role.capabilities() != null || mapper.byContent(role.roleId(), contentSha(normalized, fragments)) != null)
+            return normalized;
+        return new RoleManifest.Role(normalized.roleId(), normalized.displayName(), normalized.description(),
+                normalized.groupKey(), normalized.groupLabel(), normalized.allowedSlots(), normalized.permissionMode(),
+                normalized.nativeTools(), normalized.mcpTools(), normalized.requiredMcpTools(), normalized.modelPolicy(),
+                normalized.runtimePolicy(), normalized.prompts(), List.of());
+    }
+
+    private void validateCapabilities(RoleManifest.Role role, List<Diagnostic> problems, String path) {
+        if (role.capabilities() == null) return; // Existing schema-1 revisions retain their frozen contract.
+        var ceiling = new HashSet<RoleCapabilities.Capability>();
+        for (String slot : role.allowedSlots()) {
+            var binding = mapper.binding(slot);
+            if (binding != null) ceiling.addAll(RoleCapabilities.profile(binding.adapterProfile()));
+        }
+        if (!ceiling.containsAll(role.capabilities())) problems.add(new Diagnostic("ROLE_CAPABILITY_OUTSIDE_SLOT",
+                path + "/capabilities", "角色能力超出所选工作流槽位的授权上限"));
+        for (String tool : role.requiredMcpTools())
+            if (!RoleCapabilities.allows(Set.copyOf(role.capabilities()), tool, null))
+                problems.add(new Diagnostic("ROLE_REQUIRED_CAPABILITY_MISSING", path + "/capabilities",
+                        "必需 MCP 工具缺少对应的角色能力：" + tool));
     }
 
     private static boolean introducesTemplateDirective(String baseline, String candidate) {
@@ -433,6 +456,7 @@ public class RolePublishingService {
 
     private String contentSha(RoleManifest.Role role, Map<String, String> fragments) {
         Map<String, Object> semantic = new TreeMap<>();
+        if (role.capabilities() != null) semantic.put("capabilities", role.capabilities());
         semantic.put("roleId", role.roleId());
         semantic.put("displayName", role.displayName());
         semantic.put("description", role.description());
@@ -473,6 +497,7 @@ public class RolePublishingService {
     }
 
     private static void fieldDiff(String path, RoleManifest.Role before, RoleManifest.Role after, List<Change> changes) {
+        if (!Objects.equals(before.capabilities(), after.capabilities())) changes.add(new Change(path + "/capabilities", before.capabilities(), after.capabilities()));
         if (!before.displayName().equals(after.displayName())) changes.add(new Change(path + "/displayName", before.displayName(), after.displayName()));
         if (!before.description().equals(after.description())) changes.add(new Change(path + "/description", before.description(), after.description()));
         if (!before.groupKey().equals(after.groupKey())) changes.add(new Change(path + "/groupKey", before.groupKey(), after.groupKey()));

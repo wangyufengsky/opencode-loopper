@@ -39,6 +39,8 @@ public class RoleReadService {
     private final AssistToolPolicyService assistPolicies;
     private final ProjectService projects;
     private final ObjectMapper json;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private io.opencode.loopper.runtime.InternalMcpRuntimeAccess runtimeAccess;
 
     public RoleReadService(RoleConfigurationMapper mapper, RolePublishingService publishing,
                            RoleConfigurationService roles, AssistToolPolicyService assistPolicies,
@@ -71,7 +73,11 @@ public class RoleReadService {
                              List<RolePublishingService.Change> changes) { }
     public record PreviewRule(String permission, String pattern, String action, String source) { }
     public record PreviewTool(String name, String server, String source, boolean required,
-                              boolean available) { }
+                              boolean available, String status, String reason) {
+        public PreviewTool(String name, String server, String source, boolean required, boolean available) {
+            this(name, server, source, required, available, "SCOPE_REQUIRED", "调用条件待会话核定。");
+        }
+    }
     public record Preview(String scope, String slot, String projectId, List<PreviewRule> rules,
                           List<PreviewTool> mcpTools, boolean complete, List<String> limitations,
                           String revisionId, int revisionNumber, boolean bindingActive) { }
@@ -155,6 +161,7 @@ public class RoleReadService {
         String internal = "role-preview-internal";
         List<OpenCodeClient.SessionPermissionRule> baseline = new ArrayList<>(
                 OpenCodePermissionPolicy.previewRules(profile, List.of(), internal));
+        List<AssistToolPolicyService.View> settings = List.of();
         if (profile != OpenCodeClient.SessionProfile.PPT_AGENT) {
             baseline.add(new OpenCodeClient.SessionPermissionRule(
                     AssistToolCatalog.serverName(internal) + "_*", "*", "deny"));
@@ -166,7 +173,8 @@ public class RoleReadService {
             }
             var allowed = AssistToolCatalog.allowed(profile.name());
             var bundledTools = AssistToolCatalog.tools().stream().map(AssistToolCatalog.Tool::name).toList();
-            for (var setting : assistPolicies.readCatalog(project, AssistToolCatalog.SERVER, bundledTools, true))
+            settings = assistPolicies.readCatalog(project, AssistToolCatalog.SERVER, bundledTools, true);
+            for (var setting : settings)
                 if (setting.enabled() && allowed.contains(setting.name()))
                     baseline.add(new OpenCodeClient.SessionPermissionRule(
                             AssistToolCatalog.serverName(internal) + "_" + setting.name(), "*", "allow"));
@@ -192,35 +200,8 @@ public class RoleReadService {
         }
         List<PreviewRule> rules = compiled.stream().map(rule -> new PreviewRule(rule.permission(),
                 rule.pattern(), rule.action(), "ADAPTER_PROJECT_ROLE_ESTIMATE")).toList();
-        List<PreviewTool> tools = new ArrayList<>(systemRequiredTools(profile));
-        if (!compiled.isEmpty()) for (String name : RoleConfigurationService.NATIVE_TOOLS.stream().sorted().toList()) {
-            String action = profile == OpenCodeClient.SessionProfile.IMPLEMENTATION ? "allow" : "deny";
-            for (var rule : compiled) {
-                if ("*".equals(rule.pattern()) && ("*".equals(rule.permission()) || name.equals(rule.permission())))
-                    action = rule.action();
-            }
-            if ("allow".equals(action)) tools.add(new PreviewTool(name, "native", "NATIVE_POLICY", false, false));
-        }
-        java.util.Set<String> systemNames = tools.stream().map(PreviewTool::name)
-                .collect(java.util.stream.Collectors.toSet());
-        // BASELINE manifests intentionally have empty tool declarations. Project the
-        // adapter's exact bundled tools as well, without claiming a live connection.
-        var actions = new LinkedHashMap<String, String>();
-        compiled.stream().filter(rule -> "*".equals(rule.pattern()))
-                .forEach(rule -> actions.put(rule.permission(), rule.action()));
-        actions.forEach((name, action) -> {
-            if (!"allow".equals(action) || name.endsWith("_*") || !name.startsWith(internal + "_")) return;
-            String server = name.startsWith(internal + "_assist_") ? "@loopper-assist" : "@loopper-internal";
-            String prefix = server.equals("@loopper-assist") ? internal + "_assist_" : internal + "_";
-            String stableName = server + "/" + name.substring(prefix.length());
-            if (systemNames.add(stableName)) tools.add(new PreviewTool(stableName, server,
-                    "BUNDLED_POLICY", role.requiredMcpTools().contains(stableName), false));
-        });
-        role.mcpTools().stream().filter(tool -> !systemNames.contains(tool)).forEach(tool ->
-                tools.add(new PreviewTool(tool,
-                        tool.startsWith("@loopper-internal/") ? "@loopper-internal"
-                                : tool.startsWith("@loopper-assist/") ? "@loopper-assist" : "exact",
-                        "ROLE_DECLARATION", role.requiredMcpTools().contains(tool), false)));
+        List<PreviewTool> tools = RoleToolPreview.tools(resolved, baseline, compiled, settings, internal,
+                runtimeAccess == null ? "INACTIVE" : runtimeAccess.readiness().status());
         return new Preview("CONFIG_ONLY", slot, project, rules, List.copyOf(tools), false,
                 List.copyOf(limitations), revision.revisionId(), revision.revisionNumber(), bindingActive);
     }
@@ -243,7 +224,9 @@ public class RoleReadService {
         value.promptFragments().keySet().forEach(key -> promptPaths.put(key, "prompts/" + key + ".md"));
         manifestRole.put("prompts", promptPaths);
         Map<String, Object> manifest = new LinkedHashMap<>();
-        manifest.put("schemaVersion", 1);
+        boolean explicit = manifestRole.get("capabilities") != null;
+        if (!explicit) manifestRole.remove("capabilities");
+        manifest.put("schemaVersion", explicit ? 2 : 1);
         manifest.put("roles", List.of(manifestRole));
         manifest.put("bindings", publishing.bindings().stream()
                 .filter(binding -> roleId.equals(binding.activeRoleId()))

@@ -24,12 +24,56 @@ class RolePublishingIntegrationTest {
     @Autowired private RoleConfigurationService roles;
     @Autowired private RoleConfigurationMapper mapper;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private RoleReadService reads;
+    @Autowired private RoleArchive archive;
+    @Autowired private tools.jackson.databind.ObjectMapper json;
 
     @BeforeEach
     void migrateAndSeed() {
         flyway.clean();
         flyway.migrate();
         publishing.seedBuiltin();
+    }
+
+    @Test void newLegacyShapedRolesDefaultClosedAndRequiredCapabilitiesAreValidated() {
+        var definition = new RoleManifest.Role("custom.closed", "新角色", "", "general", "通用",
+                List.of("IMPLEMENTATION"), "BASELINE", List.of(), List.of(), List.of(),
+                "INHERIT_WORKFLOW", "WORKFLOW_ADAPTER", Map.of());
+        var parsed = new RoleArchive.Parsed("f".repeat(64), new RoleManifest.Document(1, List.of(), List.of(definition)), Map.of());
+        var validation = publishing.validate(parsed);
+        assertThat(validation.valid()).isTrue();
+        publishing.publish(parsed, new RolePublishingService.PublishRequest(parsed.sourceSha256(), "new-closed-role", validation.activations()));
+        var resolved = roles.resolveActive("IMPLEMENTATION").orElseThrow();
+        assertThat(resolved.capabilities()).isEmpty();
+        assertThat(roles.compileNarrowedPermissions(resolved, List.of(), java.util.Set.of(), "internal"))
+                .contains(new io.opencode.loopper.runtime.OpenCodeClient.SessionPermissionRule("*", "*", "deny"));
+        var required = new RoleManifest.Role("custom.required", "必需工具", "", "general", "通用", List.of("GENERAL_READ_ONLY"),
+                "INTERSECT", List.of(), List.of("@loopper-assist/search_knowledge"), List.of("@loopper-assist/search_knowledge"),
+                "INHERIT_WORKFLOW", "WORKFLOW_ADAPTER", Map.of(), List.of());
+        var bad = new RoleArchive.Parsed("e".repeat(64), new RoleManifest.Document(2, List.of(), List.of(required)), Map.of());
+        assertThat(publishing.validate(bad).diagnostics()).extracting(RolePublishingService.Diagnostic::code)
+                .contains("ROLE_REQUIRED_CAPABILITY_MISSING");
+    }
+
+    @Test void exactHistoricalSchemaOneRevisionRoundTripsWithoutChangingItsHashOrFrozenOwner() {
+        var current = mapper.latest("builtin.router");
+        Map<String, Object> legacy = new java.util.TreeMap<>(json.readValue(current.manifestJson(), new tools.jackson.core.type.TypeReference<Map<String, Object>>() { }));
+        legacy.remove("capabilities");
+        legacy.put("prompts", new java.util.TreeMap<>((Map<String, Object>) legacy.get("prompts")));
+        String manifest = json.writeValueAsString(legacy);
+        String sha = RoleConfigurationService.sha256(manifest + "\n" + json.writeValueAsString(new java.util.TreeMap<>(
+                json.readValue(current.promptFragmentsJson(), new tools.jackson.core.type.TypeReference<Map<String, String>>() { }))));
+        var old = new RoleConfigurationMapper.Revision("legacy-router", current.roleId(), current.revisionNumber() + 1,
+                manifest, current.promptFragmentsJson(), sha, "0".repeat(64), "IMPORTED", java.time.Instant.now().toString());
+        mapper.insertRevision(old);
+        var parsed = archive.parse(reads.export("builtin.router", old.revisionId()));
+        assertThat(parsed.manifest().schemaVersion()).isEqualTo(1);
+        assertThat(parsed.manifest().roles().getFirst().capabilities()).isNull();
+        var validation = publishing.validate(parsed);
+        assertThat(validation.roles().getFirst().contentSha256()).isEqualTo(sha);
+        var published = publishing.publish(parsed, new RolePublishingService.PublishRequest(parsed.sourceSha256(), "legacy-roundtrip", validation.activations()));
+        assertThat(published.roles().getFirst().revisionId()).isEqualTo(old.revisionId());
+        assertThat(roles.resolveActive("ROUTER_NO_TOOLS").orElseThrow().capabilities()).isNull();
     }
 
     @Test

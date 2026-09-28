@@ -22,7 +22,13 @@ public final class AssistToolCatalog {
                 tool("read_task_evidence","读取本任务 evidence:、verification: 或 call: 前缀的证据ID；offset 为字符游标",false,Map.of("reference","string","offset","integer"))));
         result.addAll(knowledgeTools()); result.add(workflowEvidenceTool()); result.addAll(gitTools()); result.addAll(batchTools()); return List.copyOf(result);
     }
-    public static boolean knowledgeTool(String name) { return name.contains("knowledge"); }
+    public static boolean knowledgeTool(String name) {
+        if (name == null) return false;
+        String tool = name.startsWith("@loopper-assist/") ? name.substring(16)
+                : name.contains("_assist_") ? name.substring(name.lastIndexOf("_assist_") + 8) : name;
+        return io.opencode.loopper.service.roles.RoleCapabilities.assist(tool)
+                == io.opencode.loopper.service.roles.RoleCapabilities.Capability.PROJECT_KNOWLEDGE;
+    }
     private static List<Tool> knowledgeTools() {
         return List.of(
             projectKnowledgeSearch(),
@@ -82,17 +88,8 @@ public final class AssistToolCatalog {
         return new Tool(name,description,writes,Map.of("type","object","properties",properties,"required",required,"additionalProperties",false));
     }
     public static List<String> allowed(String profile) {
-        var knowledge = io.opencode.loopper.service.knowledge.WorkflowKnowledgePolicy.supports(profile)
-                ? tools().stream().map(Tool::name).filter(AssistToolCatalog::knowledgeTool).toList() : List.<String>of();
-        var baseline = baselineAllowed(profile);
-        return java.util.stream.Stream.concat(baseline.stream(), knowledge.stream()).distinct().toList();
-    }
-    private static List<String> baselineAllowed(String profile) {
-        if(profile==null || profile.contains("NO_TOOLS")&&!profile.startsWith("TEMPLATE_ANALYSIS") || profile.startsWith("PROJECT_CONVENTION_")) return List.of();
-        if (profile.startsWith("KNOWLEDGE_")) return tools().stream().map(Tool::name).filter(n -> !n.equals("read_knowledge_evidence") && (knowledgeTool(n) || List.of("list_database_connections", "inspect_database_schema", "query_database_readonly").contains(n))).toList();
-        boolean review=profile.contains("JUDGE") || profile.contains("REVIEWER");
-        return tools().stream().filter(t->!knowledgeTool(t.name()) && (!t.writes() || profile.equals("IMPLEMENTATION"))
-                && (!review || t.name().contains("evidence") || t.name().equals("get_execution_context") || t.name().equals("list_test_failures") || t.name().equals("read_test_failure")))
-                .map(Tool::name).toList();
+        var capabilities = io.opencode.loopper.service.roles.RoleCapabilities.profile(profile);
+        return tools().stream().map(Tool::name)
+                .filter(tool -> io.opencode.loopper.service.roles.RoleCapabilities.allowsAssist(capabilities, tool)).toList();
     }
 }

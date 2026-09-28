@@ -13,8 +13,15 @@ public final class RoleManifest {
                        String groupKey, String groupLabel, List<String> allowedSlots,
                        String permissionMode, List<String> nativeTools, List<String> mcpTools,
                        List<String> requiredMcpTools, String modelPolicy, String runtimePolicy,
-                       Map<String, String> prompts) {
+                       Map<String, String> prompts, List<RoleCapabilities.Capability> capabilities) {
+        public Role(String roleId, String displayName, String description, String groupKey, String groupLabel,
+                    List<String> allowedSlots, String permissionMode, List<String> nativeTools, List<String> mcpTools,
+                    List<String> requiredMcpTools, String modelPolicy, String runtimePolicy, Map<String, String> prompts) {
+            this(roleId, displayName, description, groupKey, groupLabel, allowedSlots, permissionMode,
+                    nativeTools, mcpTools, requiredMcpTools, modelPolicy, runtimePolicy, prompts, null);
+        }
         public Role {
+            capabilities = capabilities == null ? null : List.copyOf(capabilities);
             allowedSlots = allowedSlots == null ? List.of() : List.copyOf(allowedSlots);
             nativeTools = nativeTools == null ? List.of() : List.copyOf(nativeTools);
             mcpTools = mcpTools == null ? List.of() : List.copyOf(mcpTools);

@@ -4,6 +4,9 @@ import io.opencode.loopper.persistence.*;
 import io.opencode.loopper.service.*;
 import io.opencode.loopper.service.assist.*;
 import io.opencode.loopper.service.roles.RoleConfigurationService.OwnerRef;
+import io.opencode.loopper.service.roles.RoleCapabilities;
+import io.opencode.loopper.service.roles.RoleCapabilities.Capability;
+import io.opencode.loopper.service.roles.RoleManifest;
 import java.nio.file.Path;
 import java.util.*;
 import org.springframework.stereotype.Service;
@@ -25,11 +28,22 @@ public final class WorkflowKnowledgeAccess {
     }
     public WorkflowKnowledgeMapper.Binding require(AssistScopeService.Scope scope) {
         var role = roles.sessionSnapshot(scope.externalSessionId());
-        if (role == null) throw denied();
+        if (role == null || !role.adapterProfile().equals(scope.profile())
+                || !capabilities(scope).contains(Capability.PROJECT_KNOWLEDGE)) throw denied();
         var binding = bindings.require(new OwnerRef(role.ownerType(), role.ownerId()), scope.projectId());
         String run = mapper.candidate(scope.externalSessionId());
         if (run != null) validate(run, scope.externalSessionId());
         return binding;
+    }
+    public boolean evidenceOnly(AssistScopeService.Scope scope) {
+        return !capabilities(scope).contains(Capability.KNOWLEDGE_DATABASE_METADATA);
+    }
+    private Set<Capability> capabilities(AssistScopeService.Scope scope) {
+        var snapshot = roles.sessionSnapshot(scope.externalSessionId());
+        var revision = snapshot == null ? null : roles.revision(snapshot.revisionId());
+        if (revision == null) throw denied();
+        var role = json.readValue(revision.manifestJson(), RoleManifest.Role.class);
+        return RoleCapabilities.effective(scope.profile(), role.capabilities());
     }
     public Optional<AssistScopeService.Scope> specialized(AssistMapper.Session session) {
         if (!WorkflowKnowledgePolicy.supports(session.profile()) || !WorkflowKnowledgePolicy.evidenceOnly(session.profile())) return Optional.empty();

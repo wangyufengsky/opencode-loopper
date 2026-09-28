@@ -221,7 +221,7 @@ export interface RolePermissionPreview {
   slot: string
   projectId?: string
   rules: Array<{ permission: string; pattern: string; action: string; source?: string }>
-  mcpTools: Array<{ name: string; server?: string; source?: string; required?: boolean; available?: boolean }>
+  mcpTools: Array<{ name: string; server?: string; source?: string; required?: boolean; available?: boolean; status?: string; reason?: string }>
   complete: boolean
   limitations: string[]
   checkedAt?: string

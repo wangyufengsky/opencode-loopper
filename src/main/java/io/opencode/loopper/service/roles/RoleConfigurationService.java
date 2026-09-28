@@ -28,8 +28,7 @@ import tools.jackson.databind.ObjectMapper;
 public class RoleConfigurationService {
     @Autowired(required = false) private io.opencode.loopper.service.knowledge.WorkflowKnowledgeBindings knowledgeBindings;
     public static final String ROLE_ADAPTER_V1 = "ROLE_ADAPTER_V1";
-    public static final Set<String> NATIVE_TOOLS = Set.of("read", "glob", "grep", "question", "todowrite",
-            "todoread", "bash", "edit", "write", "patch", "apply_patch", "webfetch", "task", "skill");
+    public static final Set<String> NATIVE_TOOLS = RoleCapabilities.NATIVE_TOOLS;
     private final RoleConfigurationMapper mapper;
     private final ObjectMapper json;
     private final RolePublishingService publishing;
@@ -62,8 +61,16 @@ public class RoleConfigurationService {
     public record ResolvedRole(String roleId, String revisionId, String contentSha256, String slot,
                                String adapterProfile, Map<String, String> fragments,
                                String permissionMode, List<String> nativeTools, List<String> mcpTools,
-                               List<String> requiredMcpTools, String modelPolicy, String runtimePolicy) {
+                               List<String> requiredMcpTools, String modelPolicy, String runtimePolicy, List<RoleCapabilities.Capability> capabilities) {
+        public ResolvedRole(String roleId, String revisionId, String contentSha256, String slot,
+                            String adapterProfile, Map<String, String> fragments, String permissionMode,
+                            List<String> nativeTools, List<String> mcpTools, List<String> requiredMcpTools,
+                            String modelPolicy, String runtimePolicy) {
+            this(roleId, revisionId, contentSha256, slot, adapterProfile, fragments, permissionMode,
+                    nativeTools, mcpTools, requiredMcpTools, modelPolicy, runtimePolicy, null);
+        }
         public ResolvedRole {
+            capabilities = capabilities == null ? null : List.copyOf(capabilities);
             fragments = Map.copyOf(fragments);
             nativeTools = List.copyOf(nativeTools);
             mcpTools = List.copyOf(mcpTools);
@@ -196,7 +203,7 @@ public class RoleConfigurationService {
         Map<String, String> fragments = json.readValue(row.promptFragmentsJson(), new TypeReference<>() { });
         return new ResolvedRole(row.roleId(), row.revisionId(), row.contentSha256(), slot,
                 binding.adapterProfile(), fragments, role.permissionMode(), role.nativeTools(), role.mcpTools(),
-                role.requiredMcpTools(), role.modelPolicy(), role.runtimePolicy());
+                role.requiredMcpTools(), role.modelPolicy(), role.runtimePolicy(), role.capabilities());
     }
 
     /** Required declarations are checked only against tools discovered for this exact new Session. */
@@ -211,6 +218,15 @@ public class RoleConfigurationService {
 
     /** Preserve baseline order and every denial. Config may remove grants, never add authority. */
     public List<OpenCodeClient.SessionPermissionRule> compileNarrowedPermissions(
+            ResolvedRole role, List<OpenCodeClient.SessionPermissionRule> orderedBaseline,
+            Set<String> discoveredExactTools, String internalMcpServer) {
+        var compiled = compileToolPermissions(role, orderedBaseline, discoveredExactTools, internalMcpServer);
+        var narrowed = RoleCapabilities.narrow(compiled, role.adapterProfile(), role.capabilities(), internalMcpServer);
+        requireCompiledToolsAvailable(role, narrowed, internalMcpServer);
+        return narrowed;
+    }
+
+    private List<OpenCodeClient.SessionPermissionRule> compileToolPermissions(
             ResolvedRole role, List<OpenCodeClient.SessionPermissionRule> orderedBaseline,
             Set<String> discoveredExactTools, String internalMcpServer) {
         Objects.requireNonNull(role);

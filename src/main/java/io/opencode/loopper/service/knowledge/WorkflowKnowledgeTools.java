@@ -37,7 +37,7 @@ public final class WorkflowKnowledgeTools {
         var repository = json.readValue(saved, KnowledgeSources.Bound.class);
         if (repository != null) selected.add(repository);
         // Reviewers can search documents/code/history independently; no live SQL or metadata scans.
-        var connections = WorkflowKnowledgePolicy.evidenceOnly(scope.profile()) ? List.<DatabaseConnectionService.Bound>of() : scope.connections();
+        var connections = (WorkflowKnowledgePolicy.evidenceOnly(scope.profile()) || access.evidenceOnly(scope)) ? List.<DatabaseConnectionService.Bound>of() : scope.connections();
         var result = reads.read("workflow:" + scope.externalSessionId(), new KnowledgeSources.Selection(selected, connections), tool, args);
         access.require(scope);
         var body = new LinkedHashMap<>(result);

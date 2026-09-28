@@ -51,6 +51,30 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks())
 
 describe('RoleManagementView', () => {
+  it('shows policy and runtime blockers without counting configured tools as usable', async () => {
+    vi.mocked(api.previewRoleSlot).mockResolvedValue({ scope: 'CONFIG_ONLY', slot: binding.slot,
+      complete: false, limitations: [], rules: [], mcpTools: [
+        { name: '@loopper-assist/search_knowledge', status: 'POLICY_DISABLED', reason: '所选项目已关闭此工具。' },
+        { name: '@loopper-internal/submit_package_design_v2', status: 'RUNTIME_UNAVAILABLE' },
+        { name: 'read', status: 'SCOPE_REQUIRED' },
+        { name: 'external_search', status: 'DISCOVERY_REQUIRED' },
+        { name: 'bash', status: 'ROLE_DISABLED' },
+      ] })
+    const wrapper = view()
+    await flushPromises()
+    await wrapper.get('.role-item').trigger('click')
+    await flushPromises()
+    await wrapper.findAll('.detail-tabs button')[1]!.trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('配置 5 项 · 受限 2 项 · 待核定 3 项')
+    expect(wrapper.get('.tool-list').text()).toContain('策略已关闭')
+    expect(wrapper.get('.tool-list').text()).toContain('所选项目已关闭此工具。')
+    expect(wrapper.get('.tool-list').text()).toContain('运行环境未就绪')
+    expect(wrapper.get('.tool-list').text()).toContain('待任务授权')
+    expect(wrapper.get('.tool-list').text()).toContain('待工具发现')
+    expect(wrapper.get('.tool-list').text()).not.toContain('可用')
+    wrapper.unmount()
+  })
   it('shows the bound revision without merging declarations from an unactivated newer revision', async () => {
     vi.mocked(api.getRoleRevision).mockResolvedValue({ ...revision, nativeTools: ['bash'], permissionMode: 'INTERSECT' })
     vi.mocked(api.previewRoleSlot).mockResolvedValue({ scope: 'CONFIG_ONLY', slot: binding.slot,

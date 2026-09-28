@@ -78,7 +78,7 @@ public final class RoleArchive {
         try { loaded = new Yaml(new SafeConstructor(options)).load(yaml); }
         catch (RuntimeException invalid) { throw bad("角色 YAML 格式无效"); }
         Map<String, Object> root = map(loaded, Set.of("schemaVersion", "slots", "roles", "bindings"));
-        if (!(root.get("schemaVersion") instanceof Integer version) || version != 1)
+        if (!(root.get("schemaVersion") instanceof Integer version) || (version != 1 && version != 2))
             throw bad("角色清单版本不受支持");
         List<RoleManifest.Slot> slots = new ArrayList<>();
         Object rawSlots = root.get("slots");
@@ -93,7 +93,7 @@ public final class RoleArchive {
         for (Object raw : list(root.get("roles"), 100)) {
             Map<String, Object> node = map(raw, Set.of("roleId", "displayName", "description", "groupKey",
                     "groupLabel", "allowedSlots", "permissionMode", "nativeTools", "mcpTools",
-                    "requiredMcpTools", "modelPolicy", "runtimePolicy", "prompts"));
+                    "requiredMcpTools", "modelPolicy", "runtimePolicy", "prompts", "capabilities"));
             String mode = text(node, "permissionMode", 20);
             if (!Set.of("BASELINE", "INTERSECT").contains(mode)) throw bad("角色权限模式无效");
             List<String> nativeTools = strings(node.get("nativeTools"), 100, "[a-z][a-z0-9_]{0,63}");
@@ -118,7 +118,7 @@ public final class RoleArchive {
             roles.add(new RoleManifest.Role(roleId(node), text(node, "displayName", 100),
                     optionalText(node, "description", 1000), text(node, "groupKey", 80),
                     text(node, "groupLabel", 100), strings(node.get("allowedSlots"), 100, "[A-Z][A-Z0-9_]{0,95}"),
-                    mode, nativeTools, mcpTools, requiredMcpTools, modelPolicy, runtimePolicy, prompts));
+                    mode, nativeTools, mcpTools, requiredMcpTools, modelPolicy, runtimePolicy, prompts, capabilities(node, version)));
         }
         if (roles.isEmpty()) throw bad("角色清单没有角色");
         if (roles.stream().map(RoleManifest.Role::roleId).distinct().count() != roles.size()
@@ -134,7 +134,16 @@ public final class RoleArchive {
             if (bindings.stream().map(RoleManifest.Binding::slot).distinct().count() != bindings.size())
                 throw bad("角色激活目标包含重复槽位");
         }
-        return new RoleManifest.Document(1, slots, roles, bindings);
+        return new RoleManifest.Document(version, slots, roles, bindings);
+    }
+
+    private static List<RoleCapabilities.Capability> capabilities(Map<String, Object> node, int version) {
+        if (!node.containsKey("capabilities")) return version == 1 ? null : List.of();
+        if (node.get("capabilities") == null) throw bad("角色能力必须是列表");
+        try {
+            return strings(node.get("capabilities"), 32, "[A-Z_]+").stream()
+                    .map(RoleCapabilities.Capability::valueOf).toList();
+        } catch (IllegalArgumentException invalid) { throw bad("角色能力不受支持"); }
     }
 
     private static String roleId(Map<String, Object> node) {

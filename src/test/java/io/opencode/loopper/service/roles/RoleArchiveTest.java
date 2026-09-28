@@ -67,6 +67,24 @@ class RoleArchiveTest {
         assertThatThrownBy(() -> archive.parseYaml(yaml)).isInstanceOf(BadRequestException.class);
     }
 
+    @Test void schemaTwoDefaultsClosedAndRejectsUnknownDuplicateOrNullCapabilities() {
+        String yaml = """
+                schemaVersion: 2
+                roles:
+                  - roleId: custom.reader
+                    displayName: 读取助手
+                    groupKey: general
+                    groupLabel: 通用
+                    allowedSlots: [GENERAL_READ_ONLY]
+                    permissionMode: BASELINE
+                """;
+        assertThat(archive.parseYaml(yaml).roles().getFirst().capabilities()).isEmpty();
+        assertThat(archive.parseYaml(yaml.replace("schemaVersion: 2", "schemaVersion: 1")).roles().getFirst().capabilities()).isNull();
+        for (String value : java.util.List.of("[UNKNOWN]", "[NATIVE_TOOLS, NATIVE_TOOLS]", "null"))
+            assertThatThrownBy(() -> archive.parseYaml(yaml + "    capabilities: " + value + "\n"))
+                    .isInstanceOf(BadRequestException.class);
+    }
+
     private static byte[] zip(String firstName, String first, String secondName, String second) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try (ZipOutputStream zip = new ZipOutputStream(bytes, StandardCharsets.UTF_8)) {

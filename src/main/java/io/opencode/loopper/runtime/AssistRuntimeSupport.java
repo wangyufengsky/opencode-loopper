@@ -35,8 +35,9 @@ public class AssistRuntimeSupport {
         broad.stream().filter(p->!p.equals("aicoding_*")&&!p.equals(internal+"_*")).sorted()
                 .forEach(p->base.add(Map.of("permission",p,"pattern","*","action","deny")));
         if(internal!=null)base.add(Map.of("permission",AssistToolCatalog.serverName(internal)+"_*","pattern","*","action","deny"));
-        String project=project(directory); boolean candidate=OpenCodeHttpClientSemantics.candidateProfile(profile);
-        if(!profile.name().startsWith("KNOWLEDGE_") && !localOnly && !candidate && !profile.name().contains("NO_TOOLS") && !profile.name().contains("JUDGE") && !profile.name().contains("REVIEWER")) {
+        String project=project(directory);
+        if(!localOnly && io.opencode.loopper.service.roles.RoleCapabilities.has(profile.name(),
+                io.opencode.loopper.service.roles.RoleCapabilities.Capability.EXTERNAL_MCP)) {
             Set<String> names=new HashSet<>();
             for(String server:servers) {
                 if(server.equals(internal)||server.equals(AssistToolCatalog.serverName(internal))||server.equals("aicoding"))continue;

@@ -133,3 +133,9 @@ export function workflowForSlot(slot: string): { name: string; position: string 
   if (slot === 'ACCOUNTING_COMMAND') return { name: '故事统计', position: '设计或开发关键节点 · 记录统计回执' }
   return { name: '项目辅助', position: '流程辅助阶段 · 只读分析与建议' }
 }
+
+export function roleToolStatus(status?: string): string {
+  return ({ ROLE_DISABLED: '角色未授权', POLICY_DISABLED: '策略已关闭', RUNTIME_UNAVAILABLE: '运行环境未就绪',
+    DISCOVERY_REQUIRED: '待工具发现', SCOPE_REQUIRED: '待任务授权', CONFIGURATION_BLOCKED: '配置待处理',
+  } as Record<string, string>)[status ?? ''] ?? '待核定'
+}

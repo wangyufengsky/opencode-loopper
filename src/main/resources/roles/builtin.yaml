@@ -1,4 +1,4 @@
-schemaVersion: 1
+schemaVersion: 2
 slots:
   - slot: SOURCE_DETAILED_DESIGN_NO_TOOLS
     adapterProfile: SOURCE_DETAILED_DESIGN_NO_TOOLS
@@ -216,6 +216,7 @@ roles:
     groupLabel: 源码详细设计
     allowedSlots:
       - SOURCE_DETAILED_DESIGN_NO_TOOLS
+    capabilities: [PROJECT_KNOWLEDGE]
     permissionMode: BASELINE
     nativeTools: []
     mcpTools: []
@@ -231,6 +232,7 @@ roles:
     groupLabel: 源码详细设计
     allowedSlots:
       - SOURCE_DESIGN_REVIEW_NO_TOOLS
+    capabilities: [PROJECT_KNOWLEDGE]
     permissionMode: BASELINE
     nativeTools: []
     mcpTools: []
@@ -246,6 +248,7 @@ roles:
     groupLabel: PPT 制作助手
     allowedSlots:
       - PPT_AGENT
+    capabilities: []
     permissionMode: BASELINE
     nativeTools: []
     mcpTools: []
@@ -272,6 +275,7 @@ roles:
       - KNOWLEDGE_INTERACTIVE_READ_ONLY
       - KNOWLEDGE_RESEARCH_READ_ONLY
       - KNOWLEDGE_RESEARCH_INTERACTIVE_READ_ONLY
+    capabilities: [DATABASE_READ, KNOWLEDGE_CONVERSATION, NATIVE_TOOLS]
     permissionMode: BASELINE
     nativeTools: []
     mcpTools: []
@@ -292,6 +296,7 @@ roles:
       - DOCUMENT_REQUIREMENT_REVIEW_NO_TOOLS
       - REQUIREMENT_CODE_ASSESSMENT_NO_TOOLS
       - REQUIREMENT_ASSESSMENT_REVIEW_NO_TOOLS
+    capabilities: [PROJECT_KNOWLEDGE]
     permissionMode: BASELINE
     nativeTools: []
     mcpTools: []
@@ -306,6 +311,7 @@ roles:
     groupLabel: 任务分类器
     allowedSlots:
       - ROUTER_NO_TOOLS
+    capabilities: []
     permissionMode: BASELINE
     nativeTools: []
     mcpTools: []
@@ -321,6 +327,7 @@ roles:
     allowedSlots:
       - TEMPLATE_ANALYSIS_NO_TOOLS
       - TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS
+    capabilities: [DATABASE_READ, DOCUMENT_READ, GITLAB_READ, PROJECT_KNOWLEDGE, TASK_EVIDENCE]
     permissionMode: BASELINE
     nativeTools: []
     mcpTools: []
@@ -335,6 +342,7 @@ roles:
     groupLabel: 源码评审角色
     allowedSlots:
       - SNAPSHOT_CODE_REVIEW_NO_TOOLS
+    capabilities: [PROJECT_KNOWLEDGE]
     permissionMode: BASELINE
     nativeTools: []
     mcpTools: []
@@ -350,6 +358,7 @@ roles:
     allowedSlots:
       - DECOMPOSER_CANDIDATE_READ_ONLY
       - DECOMPOSER_READ_ONLY
+    capabilities: [DATABASE_READ, DOCUMENT_READ, EXTERNAL_MCP, GITLAB_READ, KNOWLEDGE_DATABASE_METADATA, NATIVE_TOOLS, PROJECT_KNOWLEDGE, TASK_EVIDENCE]
     permissionMode: BASELINE
     nativeTools: []
     mcpTools: []
@@ -368,6 +377,7 @@ roles:
       - PACKAGE_DESIGN_CANDIDATE_V2_READ_ONLY
       - PACKAGE_DESIGN_CANDIDATE_V2_INTERACTIVE_READ_ONLY
       - PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY
+    capabilities: [DATABASE_READ, DOCUMENT_READ, GITLAB_READ, KNOWLEDGE_DATABASE_METADATA, NATIVE_TOOLS, PROJECT_KNOWLEDGE, TASK_EVIDENCE]
     permissionMode: BASELINE
     nativeTools: []
     mcpTools: []
@@ -383,6 +393,7 @@ roles:
     groupLabel: 验收闭集选择器
     allowedSlots:
       - ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS
+    capabilities: []
     permissionMode: BASELINE
     nativeTools: []
     mcpTools: []
@@ -397,6 +408,7 @@ roles:
     groupLabel: 滚动计划师
     allowedSlots:
       - ROLLING_PACKAGE_CANDIDATE_READ_ONLY
+    capabilities: [DATABASE_READ, DOCUMENT_READ, GITLAB_READ, KNOWLEDGE_DATABASE_METADATA, NATIVE_TOOLS, PROJECT_KNOWLEDGE, TASK_EVIDENCE]
     permissionMode: BASELINE
     nativeTools: []
     mcpTools: []
@@ -412,6 +424,7 @@ roles:
     allowedSlots:
       - REVIEWER_CANDIDATE_READ_ONLY
       - REVIEWER_READ_ONLY
+    capabilities: [NATIVE_TOOLS, PROJECT_KNOWLEDGE, TASK_EVIDENCE]
     permissionMode: BASELINE
     nativeTools: []
     mcpTools: []
@@ -427,6 +440,7 @@ roles:
     allowedSlots:
       - PROJECT_CONVENTION_CANDIDATE_READ_ONLY
       - PROJECT_CONVENTION_READ_ONLY
+    capabilities: [EXTERNAL_MCP, NATIVE_TOOLS, PROJECT_KNOWLEDGE]
     permissionMode: BASELINE
     nativeTools: []
     mcpTools: []
@@ -443,6 +457,7 @@ roles:
       - JUDGE_CANDIDATE_READ_ONLY
       - JUDGE_READ_ONLY
       - JUDGE_FINALIZER_NO_TOOLS
+    capabilities: [NATIVE_TOOLS, PROJECT_KNOWLEDGE, TASK_EVIDENCE]
     permissionMode: BASELINE
     nativeTools: []
     mcpTools: []
@@ -460,6 +475,7 @@ roles:
       - DESIGNER_INTERACTIVE_READ_ONLY
       - GENERAL_READ_ONLY_DESIGNER
       - DESIGNER_INTERACTIVE_READ_ONLY_DESIGNER
+    capabilities: [DATABASE_READ, DOCUMENT_READ, EXTERNAL_MCP, GITLAB_READ, KNOWLEDGE_DATABASE_METADATA, NATIVE_TOOLS, PROJECT_KNOWLEDGE, TASK_EVIDENCE]
     permissionMode: BASELINE
     nativeTools: []
     mcpTools: []
@@ -477,6 +493,7 @@ roles:
       - COMPILER_READ_ONLY
       - COMPILER_BINDING_NO_TOOLS
       - COMPILER_REPAIR_NO_TOOLS
+    capabilities: [DATABASE_READ, DOCUMENT_READ, EXTERNAL_MCP, GITLAB_READ, KNOWLEDGE_DATABASE_METADATA, NATIVE_TOOLS, PROJECT_KNOWLEDGE, TASK_EVIDENCE]
     permissionMode: BASELINE
     nativeTools: []
     mcpTools: []
@@ -495,6 +512,7 @@ roles:
     groupLabel: 结果整理助手
     allowedSlots:
       - MACHINE_FINALIZER_NO_TOOLS
+    capabilities: []
     permissionMode: BASELINE
     nativeTools: []
     mcpTools: []
@@ -509,6 +527,7 @@ roles:
     groupLabel: 通用只读助手
     allowedSlots:
       - GENERAL_READ_ONLY
+    capabilities: [DATABASE_READ, DOCUMENT_READ, EXTERNAL_MCP, GITLAB_READ, KNOWLEDGE_DATABASE_METADATA, NATIVE_TOOLS, PROJECT_KNOWLEDGE, TASK_EVIDENCE]
     permissionMode: BASELINE
     nativeTools: []
     mcpTools: []
@@ -523,6 +542,7 @@ roles:
     groupLabel: 开发工程师
     allowedSlots:
       - IMPLEMENTATION
+    capabilities: [DATABASE_READ, DOCUMENT_READ, DOCUMENT_WRITE, EXTERNAL_MCP, GITLAB_READ, KNOWLEDGE_DATABASE_METADATA, NATIVE_TOOLS, PROJECT_KNOWLEDGE, TASK_EVIDENCE]
     permissionMode: INTERSECT
     nativeTools: [read, glob, grep, edit, write, patch, apply_patch, bash, question, todoread, todowrite]
     mcpTools:
@@ -583,6 +603,7 @@ roles:
       - JUDGE_REQUIREMENT_CANDIDATE
       - JUDGE_REQUIREMENT_LEGACY
       - JUDGE_REQUIREMENT_FINALIZER
+    capabilities: [NATIVE_TOOLS, PROJECT_KNOWLEDGE, TASK_EVIDENCE]
     permissionMode: BASELINE
     nativeTools: []
     mcpTools: []
@@ -600,6 +621,7 @@ roles:
       - JUDGE_RISK_CANDIDATE
       - JUDGE_RISK_LEGACY
       - JUDGE_RISK_FINALIZER
+    capabilities: [NATIVE_TOOLS, PROJECT_KNOWLEDGE, TASK_EVIDENCE]
     permissionMode: BASELINE
     nativeTools: []
     mcpTools: []
@@ -615,6 +637,7 @@ roles:
     groupLabel: 提交说明助手
     allowedSlots:
       - GENERAL_READ_ONLY_COMMIT_MESSAGE
+    capabilities: []
     permissionMode: INTERSECT
     nativeTools: []
     mcpTools: []
@@ -630,6 +653,7 @@ roles:
     groupLabel: 合并建议助手
     allowedSlots:
       - GENERAL_READ_ONLY_MERGE_ADVISOR
+    capabilities: []
     permissionMode: INTERSECT
     nativeTools: []
     mcpTools: []
@@ -645,6 +669,7 @@ roles:
     allowedSlots:
       - GENERAL_READ_ONLY_REQUIREMENT
       - DESIGNER_INTERACTIVE_READ_ONLY_REQUIREMENT
+    capabilities: [DATABASE_READ, DOCUMENT_READ, EXTERNAL_MCP, GITLAB_READ, KNOWLEDGE_DATABASE_METADATA, NATIVE_TOOLS, PROJECT_KNOWLEDGE, TASK_EVIDENCE]
     permissionMode: BASELINE
     nativeTools: []
     mcpTools: []
@@ -660,6 +685,7 @@ roles:
     groupLabel: 统计辅助助手
     allowedSlots:
       - ACCOUNTING_COMMAND
+    capabilities: []
     permissionMode: BASELINE
     nativeTools: []
     mcpTools: []

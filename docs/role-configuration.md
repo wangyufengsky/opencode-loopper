@@ -21,6 +21,28 @@
 
 Designer 会话、直接创建的 Task、模板 Task、文档导入流程、知识会话、源码模板流程与 PPT Run 在各自创建边界冻结。Task 从 Designer、文档或源码模板流程派生时继承原绑定；恢复任务经新草稿继承父 Task 快照。新 Attempt 继续使用 Task 的角色修订，工具策略按原有工具授权合同编译，不能扩大 Task/Stage 已冻结的数据或路径授权。
 
+## 显式能力与工具状态
+
+`roles/capabilities.json` 为全部 39 个 SessionProfile 和独立统计命令声明服务端能力上限。共享知识和辅助 MCP 不再根据角色名称中的关键词或排除表推断权限；未登记的适配器默认无能力，新增适配器必须补齐登记。数据库读取维持原范围，本次不引入新的数据库分级。
+
+schemaVersion 2 的 `capabilities` 是角色能力声明，缺省为空；生效能力取声明与当前职责位置上限的交集，再叠加原有权限模式、工具清单、项目策略和任务冻结范围。能力只收窄授权，不替代路径、查询、候选或生命周期校验。正式候选提交、私有流程工具及受管统计协议由服务端持有，不能用能力声明新增业务权限。
+
+| 能力 | 含义 |
+| --- | --- |
+| PROJECT_KNOWLEDGE | 工作流共享知识检索、原文和历史证据 |
+| KNOWLEDGE_CONVERSATION | 独立知识问答的原有知识工具 |
+| KNOWLEDGE_DATABASE_METADATA | 共享知识读取中可使用原已授权的数据库结构资料 |
+| DATABASE_READ | 原有项目只读数据库工具 |
+| DOCUMENT_READ / DOCUMENT_WRITE | 文档读取 / 受控文档生成 |
+| TASK_EVIDENCE | 当前任务证据与失败查询 |
+| GITLAB_READ | 项目 GitLab 只读工具 |
+| NATIVE_TOOLS | 适配器原生工具上限，仍由 nativeTools 和原权限规则收窄 |
+| EXTERNAL_MCP | 适配器原有第三方工具上限，仍需精确发现及策略授权 |
+
+旧持久化修订缺少能力字段时按历史合同恢复，哈希不增加空字段。原样导出再导入的旧修订复用原版本；新角色或新内容即使使用 schemaVersion 1，缺少能力声明也保存为空，不能借旧格式取得默认权限。内置新修订不会自动覆盖已激活绑定。
+
+权限页分别展示角色未授权、策略已关闭、运行环境未就绪、待工具发现、待任务授权及配置待处理。关闭的声明仍可见，原因区分全局与项目策略；统计使用配置项数、受限数和待核定数。页面没有具体执行会话，所有工具 `available=false`、预览 `complete=false`。纯读取预览不注册工具、不启动进程、不探测网络；内部 MCP 已连接也不证明辅助或第三方 MCP 已发现。
+
 ## 配置包
 
 系统 → 角色管理（`/roles`，原 `/settings/roles` 自动跳转）可查看、按版本导出配置 ZIP。导出的清单和 Markdown 文件可在外部编辑，再通过页面校验、检查差异并发布。首版没有在线创建/编辑表单；通过配置包可以新增使用现有适配器的角色。
@@ -32,7 +54,7 @@ ZIP 在内存中解析，不解压到项目目录。只接受 `manifest.yaml` �
 下面是只读助手的配置示例。实际使用时先导出目标角色，以保留它的完整 Prompt 片段引用。
 
 ```yaml
-schemaVersion: 1
+schemaVersion: 2
 roles:
   - roleId: team.reader
     displayName: 项目只读助手
@@ -41,6 +63,7 @@ roles:
     groupLabel: 通用助手
     allowedSlots: [GENERAL_READ_ONLY]
     permissionMode: INTERSECT
+    capabilities: [NATIVE_TOOLS]
     nativeTools: [read, glob, grep]
     mcpTools: []
     requiredMcpTools: []
