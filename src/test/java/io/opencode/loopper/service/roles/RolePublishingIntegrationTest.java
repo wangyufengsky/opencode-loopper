@@ -96,6 +96,53 @@ class RolePublishingIntegrationTest {
     }
 
     @Test
+    void upgradedPromptOwnershipPublishesOverOldBindingAndHistoricalExportsKeepTheirHash() {
+        String roleId = "builtin.snapshot-review", slot = "SNAPSHOT_CODE_REVIEW_NO_TOOLS";
+        var current = mapper.latest(roleId);
+        var fragments = new java.util.TreeMap<>(RolePromptResources.defaultsForRole(roleId));
+        fragments.keySet().removeIf(key -> key.startsWith("prompt.v1.TemplateAnalysisPromptFactory."));
+        var manifest = new java.util.TreeMap<>(json.readValue(current.manifestJson(),
+                new tools.jackson.core.type.TypeReference<Map<String, Object>>() { }));
+        var keys = new java.util.TreeMap<String, String>();
+        fragments.keySet().forEach(key -> keys.put(key, key));
+        manifest.put("prompts", keys);
+        String raw = json.writeValueAsString(manifest);
+        String sha = RoleConfigurationService.sha256(raw + "\n" + json.writeValueAsString(fragments));
+        var old = new RoleConfigurationMapper.Revision("old-snapshot-role", roleId, current.revisionNumber() + 1,
+                raw, json.writeValueAsString(fragments), sha, "0".repeat(64), "BUILTIN", java.time.Instant.now().toString());
+        mapper.insertRevision(old);
+        var binding = mapper.binding(slot);
+        assertThat(mapper.activate(slot, old.revisionId(), binding.version(), old.publishedAt())).isEqualTo(1);
+        var owner = new RoleConfigurationService.OwnerRef("TASK", UUID.randomUUID().toString());
+        roles.freezeOwner(owner, null);
+        var upgraded = archive.parse(reads.export(roleId, current.revisionId()));
+        var validation = publishing.validate(upgraded);
+        assertThat(validation.diagnostics()).isEmpty();
+        publishing.publish(upgraded, new RolePublishingService.PublishRequest(upgraded.sourceSha256(),
+                "upgrade-prompt-ownership", validation.activations()));
+        assertThat(mapper.binding(slot).revisionId()).isEqualTo(current.revisionId());
+        assertThat(roles.resolveFrozen(owner, slot).orElseThrow().revisionId()).isEqualTo(old.revisionId());
+        var historical = archive.parse(reads.export(roleId, old.revisionId()));
+        var historicalValidation = publishing.validate(historical);
+        assertThat(historicalValidation.valid()).isTrue();
+        assertThat(historicalValidation.roles().getFirst().contentSha256()).isEqualTo(sha);
+        var foreign = new java.util.TreeMap<>(fragments); foreign.put("ppt.base", "foreign prompt");
+        var invalid = new RoleArchive.Parsed("c".repeat(64), historical.manifest(), Map.of(roleId, foreign));
+        assertThat(publishing.validate(invalid).diagnostics()).extracting(RolePublishingService.Diagnostic::code)
+                .contains("ROLE_PROMPT_OUTSIDE_SLOT");
+    }
+
+    @Test
+    void everyPackagedRoleExportCanBeValidatedWithoutChangingItsRevision() {
+        for (String roleId : publishing.bindings().stream().map(RolePublishingService.BindingView::activeRoleId).distinct().toList()) {
+            var revision = mapper.latest(roleId);
+            var validation = publishing.validate(archive.parse(reads.export(roleId, revision.revisionId())));
+            assertThat(validation.diagnostics()).as(roleId).isEmpty();
+            assertThat(validation.roles().getFirst().contentSha256()).isEqualTo(revision.contentSha256());
+        }
+    }
+
+    @Test
     void publishUsesSlotCasAndReceiptIdentityWithoutChangingFrozenOwner() {
         var owner = new RoleConfigurationService.OwnerRef("TASK", UUID.randomUUID().toString());
         roles.freezeOwner(owner, null);

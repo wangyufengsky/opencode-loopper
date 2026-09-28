@@ -54,4 +54,16 @@ class PptAgentPromptsTest {
         assertThat(prompt.text()).hasSizeLessThan(2000).contains("discussion","nextOffset",request.userText());
         assertThat(PptAgentPayloads.prompt("要求".repeat(20000),"requirements")).contains("requirements","40000","读完所有分段");
     }
+    @Test void frozenBaseIsInEachRequestAndRestoreDoesNotReadNewRoleDefaults() {
+        var request = run("DESIGN", "{}");
+        var built = io.opencode.loopper.service.roles.RolePromptResources.withFragments(java.util.Map.of("ppt.base", "冻结基础说明"),
+                () -> PptAgentPrompts.build(request, List.of(), json));
+        assertThat(built.system()).startsWith("冻结基础说明").doesNotContain(PptAgentProfile.BASE_PROMPT);
+        var stored = json.valueToTree(request);
+        ((tools.jackson.databind.node.ObjectNode) stored).put("requestJson", json.writeValueAsString(built));
+        var restored = io.opencode.loopper.service.roles.RolePromptResources.withFragments(java.util.Map.of("ppt.base", "新版本说明"),
+                () -> PptAgentPrompts.restore(json.treeToValue(stored, Run.class), json));
+        assertThat(restored.system()).isEqualTo(built.system()).doesNotContain("新版本说明");
+    }
+
 }

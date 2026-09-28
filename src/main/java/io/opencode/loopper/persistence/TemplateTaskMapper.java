@@ -95,9 +95,13 @@ public interface TemplateTaskMapper {
             SELECT batch.output_json FROM template_task_batch batch JOIN task ON task.id=batch.task_id
             JOIN attempt accepted ON accepted.id=batch.attempt_id
             WHERE batch.input_sha256=#{inputSha256} AND batch.state='VALIDATED' AND task.state='COMPLETED'
+                AND EXISTS (SELECT 1 FROM role_owner_snapshot role WHERE role.owner_type='TASK'
+                    AND role.owner_id=batch.task_id AND role.binding_count>0 AND role.bindings_sha256=#{roleSha256})
+                AND NOT EXISTS (SELECT 1 FROM workflow_knowledge_binding knowledge WHERE knowledge.owner_type='TASK'
+                    AND knowledge.owner_id=batch.task_id AND knowledge.sources_json!='[]')
                 AND accepted.state='SUCCEEDED' AND NOT EXISTS (
                     SELECT 1 FROM attempt newer WHERE newer.stage_id=accepted.stage_id AND newer.ordinal>accepted.ordinal)
             ORDER BY batch.updated_at DESC,batch.id DESC LIMIT 1
             """)
-    Optional<String> acceptedCachedOutput(String inputSha256);
+    Optional<String> acceptedCachedOutput(String inputSha256, String roleSha256);
 }

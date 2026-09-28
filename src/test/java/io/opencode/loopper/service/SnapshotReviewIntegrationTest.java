@@ -44,6 +44,7 @@ class SnapshotReviewIntegrationTest {
     @Autowired ObjectMapper json;
     @Autowired TemplateTaskAdmission frozenAdmission;
     @Autowired SnapshotReviewMapper snapshotRecords;
+    @org.springframework.test.context.bean.override.mockito.MockitoSpyBean io.opencode.loopper.service.knowledge.WorkflowKnowledgeBindings knowledgeBindings;
     @Autowired TaskService taskService;
     @Autowired SnapshotReviewPartialReports partialReports;
     @Autowired TemplateTaskContractFactory contractFactory;
@@ -229,6 +230,8 @@ class SnapshotReviewIntegrationTest {
     }
     @Test void compactReusesOnlyIdenticalScopeModelAndCompleteDependencyTrees() throws Exception {
         lightweight = true;
+        // Simulate a frozen workflow from before shared project knowledge was introduced.
+        org.mockito.Mockito.doNothing().when(knowledgeBindings).freeze(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
         var first = create(Mode.FULL); start(first); run(first);
         assertThat(mapper.listSessions(first.id())).hasSize(1);
         git.read(source, "-c", "core.hooksPath=/dev/null", "commit", "--allow-empty", "-m", "new week same tree");
@@ -243,6 +246,13 @@ class SnapshotReviewIntegrationTest {
         properties.getOpenCode().setModel("fake/other");
         var otherModel = create(Mode.FULL); start(otherModel); run(otherModel);
         assertThat(mapper.listSessions(otherModel.id())).hasSize(1);
+    }
+    @Test void identicalTreesWithLiveProjectKnowledgeStillRequireFreshAnalysis() {
+        lightweight = true;
+        var first = create(Mode.FULL); start(first); run(first);
+        var second = create(Mode.FULL); start(second); run(second);
+        assertThat(mapper.listSessions(second.id())).hasSize(1);
+        assertThat(snapshotRecords.reuses(second.id())).isEmpty();
     }
     @Test void partialReportShowsPendingBeforeCompletionWithoutAnyModelCall() {
         lightweight = true; var task = create(Mode.FULL); start(task);

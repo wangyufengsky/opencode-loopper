@@ -166,7 +166,7 @@ class KnowledgeMcpTransportIntegrationTest {
         persistence.begin(chat.id(), UUID.randomUUID().toString(), "直接使用原生工具调查项目实现");
         coordinator.tick(chat.id()); coordinator.tick(chat.id());
         assertThat(sentPrompt.get()).isNotNull();
-        assertThat(sentPrompt.get().path("system").asText()).contains("原生 read", "不要因此停止整个调查");
+        assertThat(sentPrompt.get().path("system").asText()).contains("可按原有路径授权使用 read、glob、grep", "不要调用未授权工具");
         assertThat(sentPrompt.get().path("system").asText()).doesNotContain("先使用 list_knowledge_sources");
         assertThat(sessionRequest.get().path("permission").valueStream().filter(n -> n.path("action").asText().equals("allow"))
                 .map(n -> n.path("permission").asText()).toList()).contains("read", "glob", "grep", "todowrite");

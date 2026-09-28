@@ -10,6 +10,7 @@ import tools.jackson.databind.ObjectMapper;
 /** Conservative reuse: an unchanged full dependency tree, frozen policy/model/scope and identical input are required. */
 @Service
 public class SnapshotReviewReuse {
+    @org.springframework.beans.factory.annotation.Autowired private TemplateReuseContext reuseContext;
     private final SnapshotReviewMapper records;
     private final TemplateTaskMapper tasks;
     private final TemplateBatchStore batches;
@@ -24,7 +25,9 @@ public class SnapshotReviewReuse {
         var run = tasks.findRun(row.taskId()).orElseThrow();
         if (run.bypassCache() != 0 || run.repairRound() != 0 || snapshot.scopeIdentity() == null
                 || input.units().stream().anyMatch(u -> u.limitation() != null || u.initialEvidence().isEmpty())) return row;
-        String key = fingerprint(snapshot, input, contract);
+        String context = reuseContext.key(row.taskId(), io.opencode.loopper.runtime.OpenCodeClient.SessionProfile.SNAPSHOT_CODE_REVIEW_NO_TOOLS);
+        if (context == null) return row;
+        String key = fingerprint(snapshot, input, contract, context);
         if (row.state().equals("VALIDATED") && row.sessionId() != null) {
             var output = json.readValue(row.outputJson(), Analysis.class);
             if (eligible(output)) records.reusable(row.id(), key, TemplateGitEvidenceCollector.hash(row.outputJson()));
@@ -50,11 +53,11 @@ public class SnapshotReviewReuse {
         return output.findings().isEmpty() && output.supplements().isEmpty() && output.limitations().isEmpty()
                 && output.coverage().stream().allMatch(c -> c.limitations().isEmpty() && c.evidence().isEmpty());
     }
-    private String fingerprint(Snapshot snapshot, Input input, TemplateTaskContractFactory.Frozen contract) {
+    private String fingerprint(Snapshot snapshot, Input input, TemplateTaskContractFactory.Frozen contract, String context) {
         // Whole trees also invalidate negative searches, incoming callers, configuration, additions and deletions.
         var units = input.units().stream().map(u -> Arrays.asList(u.path(), u.beforePath(), u.change(), u.excerpt(),
                 u.initialEvidence().stream().map(r -> List.of(r.path(), r.blob(), r.startLine(), r.endLine(), r.quote())).toList())).toList();
-        return TemplateGitEvidenceCollector.hash(json.writeValueAsString(Arrays.asList("SNAPSHOT_REUSE_V1", input.policy(),
+        return TemplateGitEvidenceCollector.hash(json.writeValueAsString(Arrays.asList("SNAPSHOT_REUSE_V2", context, input.policy(),
                 snapshot.scopeIdentity(), snapshot.targetTree(), snapshot.baselineTree(), contract.spec().projectId(),
                 contract.definition().version(), contract.spec().model(), units)));
     }

@@ -51,4 +51,28 @@ class AssistRuntimeSupportTest {
         verifyNoInteractions(inventory);
     }
     private static AssistToolPolicyService.View setting(String name,boolean enabled){return new AssistToolPolicyService.View(name,true,false,true,"INHERIT",enabled,"GLOBAL",0,-1,"");}
+    @Test void nativeFallbackRespectsNarrowedPermissionsAndDisabledRequestTools() {
+        var mapper = mock(AssistMapper.class); var scopes = mock(AssistScopeService.class);
+        var json = new ObjectMapper(); var profile = OpenCodeClient.SessionProfile.KNOWLEDGE_RESEARCH_READ_ONLY;
+        var support = new AssistRuntimeSupport(mapper, mock(AssistToolPolicyService.class), mock(OpenCodeToolInventory.class),
+                scopes, json, mock(io.opencode.loopper.service.DocumentDevelopmentScope.class));
+        when(scopes.grant("s")).thenReturn("");
+        var rules = List.of(Map.of("permission", "*", "pattern", "*", "action", "deny"),
+                Map.of("permission", "read", "pattern", "*", "action", "allow"),
+                Map.of("permission", "read", "pattern", ".env", "action", "deny"));
+        when(mapper.session("s")).thenReturn(new AssistMapper.Session("s", "g", "/project", profile.name(),
+                json.writeValueAsString(rules), "[]", "now"));
+        var body = new HashMap<String, Object>(); support.enrich("s", body, profile);
+        assertThat(body.get("system").toString()).contains("使用 read").doesNotContain("glob", "grep");
+        body.put("tools", Map.of("read", false)); body.remove("system"); support.enrich("s", body, profile);
+        assertThat(body.get("system").toString()).contains("未授权可用的原生读取工具").doesNotContain("使用 read");
+        var denied = new ArrayList<>(rules); denied.add(Map.of("permission", "*", "pattern", "*", "action", "deny"));
+        when(mapper.session("s")).thenReturn(new AssistMapper.Session("s", "g", "/project", profile.name(),
+                json.writeValueAsString(denied), "[]", "now"));
+        body.clear(); support.enrich("s", body, profile);
+        assertThat(body.get("system").toString()).contains("未授权可用的原生读取工具").doesNotContain("使用 read");
+        when(mapper.session("s")).thenReturn(null); body.clear(); support.enrich("s", body, profile);
+        assertThat(body.get("system").toString()).contains("未授权可用的原生读取工具");
+    }
+
 }

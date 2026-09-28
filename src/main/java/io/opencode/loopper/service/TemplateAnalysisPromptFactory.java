@@ -32,7 +32,7 @@ public final class TemplateAnalysisPromptFactory {
     }
 
     public String internal(String evidencePrompt, String batchId, String toolName) {
-        return evidencePrompt.replace(textTransport(), "") + "\n" + ("结果必须调用 "
+        return evidencePrompt + "\n" + ("结果必须调用 "
                 + String.format("%s", (Object) (toolName))
                 + RolePromptResources.read("prompt.v1.TemplateAnalysisPromptFactory.block04.segment1")
                 + String.format("%s", (Object) (batchId))
@@ -40,7 +40,11 @@ public final class TemplateAnalysisPromptFactory {
     }
 
     public String review(List<Unit> units, String feedback) {
-        StringBuilder prompt = new StringBuilder(rules() + textTransport()).append(RolePromptResources.read("prompt.v1.TemplateAnalysisPromptFactory.block05"));
+        return review(units, feedback, true);
+    }
+
+    public String review(List<Unit> units, String feedback, boolean textChannel) {
+        StringBuilder prompt = new StringBuilder(rules() + (textChannel ? textTransport() : "")).append(RolePromptResources.read("prompt.v1.TemplateAnalysisPromptFactory.block05"));
         for (Unit unit : units) {
             prompt.append("\n冻结证据：").append(json.writeValueAsString(Map.of(
                     "unitId", unit.id(), "commitSha", unit.commitSha(), "evidenceId", unit.evidenceId(), "path", unit.path(),
@@ -53,7 +57,11 @@ public final class TemplateAnalysisPromptFactory {
     }
 
     public String contributor(Person person, List<TemplateAnalysis.UnitReview> reviews, List<Unit> units, String feedback) {
-        StringBuilder prompt = new StringBuilder(rules() + textTransport()).append((RolePromptResources.read("prompt.v1.TemplateAnalysisPromptFactory.block06.segment0")
+        return contributor(person, reviews, units, feedback, true);
+    }
+
+    public String contributor(Person person, List<TemplateAnalysis.UnitReview> reviews, List<Unit> units, String feedback, boolean textChannel) {
+        StringBuilder prompt = new StringBuilder(rules() + (textChannel ? textTransport() : "")).append((RolePromptResources.read("prompt.v1.TemplateAnalysisPromptFactory.block06.segment0")
                 + String.format("%s", (Object) (json.writeValueAsString(person.author().identity())))
                 + RolePromptResources.read("prompt.v1.TemplateAnalysisPromptFactory.block06.segment1")));
         prompt.append("\n内置标准：").append(json.writeValueAsString(ContributionScore.DIMENSIONS));

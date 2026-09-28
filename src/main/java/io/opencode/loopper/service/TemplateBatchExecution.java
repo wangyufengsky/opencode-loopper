@@ -26,6 +26,7 @@ import tools.jackson.databind.ObjectMapper;
 @Service
 public class TemplateBatchExecution {
     @org.springframework.beans.factory.annotation.Autowired(required = false) private io.opencode.loopper.service.RoleSessions roleSessions;
+    @org.springframework.beans.factory.annotation.Autowired private TemplateReuseContext reuseContext;
     private final TemplateBatchStore store;
     private final TemplateTaskMapper templates;
     private final LoopperMapper mapper;
@@ -75,31 +76,33 @@ public class TemplateBatchExecution {
 
     private TemplateTaskBatchRow prepare(TemplateTaskBatchRow row, TemplateTaskContractFactory.Frozen contract) {
         var run = templates.findRun(row.taskId()).orElseThrow();
+        Input input = input(row);
+        var profile = input.snapshot() != null ? OpenCodeClient.SessionProfile.SNAPSHOT_CODE_REVIEW_NO_TOOLS : List.of("5", "6", "7", "8", "9", "10").contains(contract.definition().version())
+                ? OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS
+                : OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_NO_TOOLS;
         if (!io.opencode.loopper.template.SnapshotReview.batch(row.purpose()) && run.bypassCache() == 0 && run.repairRound() == 0 && row.generation() == 0) {
-            String cached = templates.acceptedCachedOutput(row.inputSha256()).orElse(null);
+            String context = reuseContext.key(row.taskId(), profile);
+            String cached = context == null ? null : templates.acceptedCachedOutput(row.inputSha256(), context).orElse(null);
             if (cached != null) return store.validated(row, validate(row, cached), true);
         }
-        Input input = input(row);
         var configured = contract.spec().model();
         var model = new OpenCodeClient.OpenCodeModel(configured.providerId(), configured.modelId(), configured.thinking());
         // Text JSON keeps all repair authority on the server. Some OpenCode versions reject retryCount=0,
         // while using their default would authorize hidden retries outside the frozen two-round policy.
         Path root = Path.of(mapper.findTask(row.taskId()).orElseThrow().worktreePath());
         byte[] nonce = new byte[32]; new SecureRandom().nextBytes(nonce);
-        var profile = input.snapshot() != null ? OpenCodeClient.SessionProfile.SNAPSHOT_CODE_REVIEW_NO_TOOLS : List.of("5", "6", "7", "8", "9", "10").contains(contract.definition().version())
-                ? OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS
-                : OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_NO_TOOLS;
-        String text = RoleSessions.render(roleSessions, "TASK", row.taskId(), profile, null, () -> input.snapshot() != null ? codec.snapshotPrompt(row) : row.purpose().equals("REVIEW") ? prompts.review(input.units(), input.feedback())
-                : prompts.contributor(input.person(), input.reviews(), input.units(), input.feedback()));
         var plan = openCode.prepareSessionCreation(root, "模板报告分析 " + (row.ordinal() + 1), model,
                 profile, Base64.getUrlEncoder().withoutPadding().encodeToString(nonce));
         plan = RoleSessions.prepare(roleSessions, plan, "TASK", row.taskId(), null);
-        if ((profile == OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS || profile == OpenCodeClient.SessionProfile.SNAPSHOT_CODE_REVIEW_NO_TOOLS)) {
-            if (!plan.managed()) throw unavailable("TEMPLATE_MCP_REQUIRED", "新模板分析需要托管 OpenCode 的专用 MCP 提交工具");
-            text = prompts.internal(text, row.id(), plan.internalMcpServer() + "_"
-                    + InternalMcpContractCatalog.TEMPLATE_TOOL);
-            if (input.snapshot() != null) text = text.replace("不调用其他工具", "仅调用本合同允许的快照读取、合同查询和候选提交工具");
-        }
+        boolean internal = profile != OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_NO_TOOLS;
+        if (internal && !plan.managed()) throw unavailable("TEMPLATE_MCP_REQUIRED", "新模板分析需要托管 OpenCode 的专用 MCP 提交工具");
+        String tool = plan.internalMcpServer() + "_" + InternalMcpContractCatalog.TEMPLATE_TOOL;
+        String text = RoleSessions.render(roleSessions, "TASK", row.taskId(), profile, null, () -> {
+            String evidence = input.snapshot() != null ? codec.snapshotPrompt(row) : row.purpose().equals("REVIEW")
+                    ? prompts.review(input.units(), input.feedback(), !internal)
+                    : prompts.contributor(input.person(), input.reviews(), input.units(), input.feedback(), !internal);
+            return internal ? prompts.internal(evidence, row.id(), tool) : evidence;
+        });
         var prompt = new TemplateBatchStore.FrozenPrompt(text, "msg_" + row.id().replace("-", ""), null, null);
         return store.prepareSession(row, plan, prompt);
     }

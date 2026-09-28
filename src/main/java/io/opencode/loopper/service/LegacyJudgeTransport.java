@@ -85,7 +85,7 @@ final class LegacyJudgeTransport {
             lifecycle.mutateWithoutTransition(() -> mapper.updateJudgeRun(recovered),
                     () -> new ConflictException("JUDGE_VERSION_CONFLICT", "Judge run was updated concurrently"));
             String prompt = evidence.frozenLegacyJudgeSource(task, judge).source().prompt()
-                    + "\n\nFINALIZER RECOVERY: Do not call built-in tools. Configured MCP tools remain allowed;"
+                    + "\n\nFINALIZER RECOVERY: Do not call built-in tools. Use the supplied frozen evidence without additional tool calls;"
                     + " return the requested Judge object now." + priorEvidence;
             OpenCodeClient.PromptRequest request = ModelResponseMode.JSON_SCHEMA.name().equals(judge.responseMode())
                     ? new OpenCodeClient.PromptRequest(prompt, null, null,

@@ -505,7 +505,7 @@ class TemplateTaskExecutionIntegrationTest {
         assertThat(mapper.findActiveWorkspaceLeaseByHolder(task.id())).isPresent();
     }
 
-    @Test void onlyAcceptedSameInputCacheSkipsAnalysisSessions() {
+    @Test void liveAuxiliaryEvidenceRequiresFreshAnalysisEvenForAcceptedSameInput() {
         TaskRow first = create("CODE_REVIEW");
         states.start(first.id(), evidence.contract(first.id())); run(first.id(), false);
         String today = LocalDate.now(TemplateDateRange.ZONE).toString();
@@ -514,7 +514,7 @@ class TemplateTaskExecutionIntegrationTest {
         LegacyTemplateFixture.freezeV4(jdbc, json, second.id());
         states.start(second.id(), evidence.contract(second.id())); run(second.id(), false);
         assertThat(states.task(second.id()).state()).isEqualTo("COMPLETED");
-        assertThat(mapper.listSessions(second.id())).isEmpty();
+        assertThat(mapper.listSessions(second.id())).hasSize(1);
         assertThat(bundles.find(first.id(), main(first.id()).attemptId()).orElseThrow().sequence()).isEqualTo(1);
         assertThat(bundles.find(second.id(), main(second.id()).attemptId()).orElseThrow().sequence()).isEqualTo(2);
         tasks.archive(first.id()); tasks.deleteArchived(first.id());

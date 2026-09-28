@@ -23,6 +23,7 @@ import tools.jackson.databind.ObjectMapper;
 /** Short, audited CAS checkpoints for remote boundaries. No method calls the provider or filesystem. */
 @Service
 public class TemplateBatchStore {
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private RoleSessions roleSessions;
     private final TemplateTaskMapper templates;
     private final LoopperMapper mapper;
     private final LifecycleTransitionService lifecycle;
@@ -58,7 +59,8 @@ public class TemplateBatchStore {
                 "分析连续三次达到生成长度上限，期间没有新的不同内容 MCP 提交；已停止自动续接，请检查模型推理与输出额度后重新发起");
         int ordinal = previous == null ? 1 : previous.ordinal() + 1;
         var plan = json.readValue(row.creationPlanJson(), OpenCodeClient.SessionCreationPlan.class);
-        String text = TemplateAnalysisPromptFactory.continuation(row.id(), plan.internalMcpServer(), submissions.revision(row.id()));
+        String text = RoleSessions.render(roleSessions, "TASK", row.taskId(), plan.profile(), null,
+                () -> TemplateAnalysisPromptFactory.continuation(row.id(), plan.internalMcpServer(), submissions.revision(row.id())));
         var prompt = new FrozenPrompt(text, "msg_" + row.id().replace("-", "") + "_continue_" + ordinal, null, null);
         String value = json.writeValueAsString(prompt);
         String hash = OpenCodeClient.promptRequestSha256(prompt.request());

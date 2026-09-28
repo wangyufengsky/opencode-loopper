@@ -29,4 +29,33 @@ class TemplateAnalysisPromptFactoryTest {
         String prompt = new TemplateAnalysisPromptFactory(new ObjectMapper()).review(List.of(unit), "");
         assertThat(prompt).contains("不得从 1 重新计数", "501-502", "700-701", "evidence:1");
     }
+    @Test void internalTransportNeverStripsEvidenceAndUsesFrozenFragments() {
+        var factory = new TemplateAnalysisPromptFactory(new ObjectMapper());
+        String marker = "CUSTOM TEXT TRANSPORT";
+        var fragments = java.util.Map.of("prompt.v1.TemplateAnalysisPromptFactory.block01", marker,
+                "prompt.v1.TemplateAnalysisPromptFactory.block04.segment2", "CUSTOM MCP RULES",
+                "prompt.v1.TemplateAnalysisPromptFactory.block03.segment0", "CUSTOM CONTINUATION ");
+        String prompt = io.opencode.loopper.service.roles.RolePromptResources.withFragments(fragments, () ->
+                factory.internal(factory.review(List.of(), "user content: " + marker, false), "batch", "server_submit_template_analysis"));
+        assertThat(prompt).contains("user content: " + marker, "CUSTOM MCP RULES", "server_submit_template_analysis")
+                .doesNotContain(TemplateAnalysisPromptFactory.START);
+        assertThat(prompt.indexOf(marker)).isEqualTo(prompt.lastIndexOf(marker));
+        String legacy = io.opencode.loopper.service.roles.RolePromptResources.withFragments(fragments,
+                () -> factory.review(List.of(), ""));
+        assertThat(legacy).contains(marker).doesNotContain("CUSTOM MCP RULES");
+        assertThat(io.opencode.loopper.service.roles.RolePromptResources.withFragments(fragments,
+                () -> TemplateAnalysisPromptFactory.continuation("batch", "server", 2))).contains("CUSTOM CONTINUATION");
+    }
+
+    @Test void snapshotRoleFreezesItsSharedSubmissionAndContinuationFragments() {
+        var fragments = new java.util.HashMap<>(io.opencode.loopper.service.roles.RolePromptResources.defaultsForRole("builtin.snapshot-review"));
+        assertThat(fragments).containsKeys("snapshot.review.compact", "prompt.v1.TemplateAnalysisPromptFactory.block04.segment2",
+                "prompt.v1.TemplateAnalysisPromptFactory.block03.segment0", "prompt.v1.TemplateAnalysisPromptFactory.block03.segment3");
+        assertThat(fragments.get("snapshot.review.standard")).contains("授权项目知识工具", "替代冻结快照").doesNotContain("只能使用专用 MCP");
+        assertThat(fragments.get("snapshot.review.compact")).contains("授权项目知识工具", "不得扩大本批范围");
+        fragments.put("prompt.v1.TemplateAnalysisPromptFactory.block04.segment2", "快照角色专属提交规则");
+        assertThat(io.opencode.loopper.service.roles.RolePromptResources.withFragments(fragments,
+                () -> new TemplateAnalysisPromptFactory(new ObjectMapper()).internal("冻结快照", "batch", "submit")))
+                .contains("快照角色专属提交规则");
+    }
 }

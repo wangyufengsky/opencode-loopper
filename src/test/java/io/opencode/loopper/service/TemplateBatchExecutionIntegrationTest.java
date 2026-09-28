@@ -62,6 +62,10 @@ class TemplateBatchExecutionIntegrationTest {
     @Autowired io.opencode.loopper.persistence.TemplateBatchRecoveryMapper recoveryLedger;
     @Autowired TemplateSessionDiagnostics diagnostics;
     @Autowired TemplateBatchResilience resilience;
+    @Autowired io.opencode.loopper.service.roles.RoleReadService roleReads;
+    @Autowired io.opencode.loopper.service.roles.RolePublishingService rolePublishing;
+    @Autowired io.opencode.loopper.service.roles.RoleArchive roleArchives;
+    @org.springframework.test.context.bean.override.mockito.MockitoSpyBean io.opencode.loopper.service.knowledge.WorkflowKnowledgeBindings knowledgeBindings;
     @Autowired TemplateBatchAutomaticRetries automatic;
     @Autowired io.opencode.loopper.persistence.TemplateBatchResilienceMapper resilienceLedger;
     @TempDir Path temporary;
@@ -70,7 +74,7 @@ class TemplateBatchExecutionIntegrationTest {
     private TemplateTaskContractFactory.Frozen contract;
     private FakeOpenCodeClient fake;
 
-    @BeforeEach void prepare() throws Exception {
+    @BeforeEach void prepare(org.junit.jupiter.api.TestInfo info) throws Exception {
         flyway.clean(); flyway.migrate();
         fake = (FakeOpenCodeClient) client; fake.reset();
         properties.getOpenCode().setModel("fake/test-model");
@@ -78,6 +82,10 @@ class TemplateBatchExecutionIntegrationTest {
         git.read(source, "init", "-b", "main");
         git.read(source, "-c", "user.name=Test", "-c", "user.email=test@example.test", "commit", "--allow-empty", "-m", "root");
         String project = projects.create("project", source.toString(), "test").id();
+        if (info.getTestMethod().orElseThrow().getName().equals("historyCacheRequiresMatchingRolesAndClosedKnowledgeOnBothSides"))
+            org.mockito.Mockito.doNothing().when(knowledgeBindings).freeze(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+        if (info.getTestMethod().orElseThrow().getName().equals("frozenTemplateFragmentsCoverInitialMcpAndContinuationAfterBindingChange"))
+            publishTemplate("FIRST");
         task = tasks.create(new TemplateTaskService.Request(UUID.randomUUID().toString(), "CODE_REVIEW", io.opencode.loopper.template.TemplateTaskDefinition.VERSION, project,
                 "local:refs/heads/main", "2026-09-11", "2026-09-11", StoryBindingConfiguration.disabled()), false);
         LegacyTemplateFixture.freezeV4(jdbc, json, task.id());
@@ -94,6 +102,49 @@ class TemplateBatchExecutionIntegrationTest {
         String input = json.writeValueAsString(new TemplateBatchExecution.Input(List.of(unit), null, List.of(), null));
         batch = batches.create(attempt, 0, "REVIEW", input, TemplateGitEvidenceCollector.hash(input));
         fake.setJudgeOutput("{\"reviews\":[{\"unitId\":\"unit\",\"summary\":\"新增内容\",\"findings\":[],\"limitations\":[\"未执行测试\"]}]}");
+    }
+
+    @Test void frozenTemplateFragmentsCoverInitialMcpAndContinuationAfterBindingChange() throws Exception {
+        startContinuable();
+        assertThat(batch.promptJson()).contains("MCP_FIRST").doesNotContain("TEXT_FIRST", TemplateAnalysisPromptFactory.START);
+        publishTemplate("SECOND");
+        batch = execution.advance(batch, contract);
+        assertThat(batch.state()).isEqualTo("DISPATCHING");
+        assertThat(batch.promptJson()).contains("CONT_FIRST").doesNotContain("CONT_SECOND");
+    }
+
+    private void publishTemplate(String marker) throws Exception {
+        rolePublishing.seedBuiltin();
+        var bytes = new java.io.ByteArrayOutputStream();
+        try (var input = new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(roleReads.export("builtin.template", null)));
+             var output = new java.util.zip.ZipOutputStream(bytes)) {
+            java.util.zip.ZipEntry entry;
+            while ((entry = input.getNextEntry()) != null) {
+                String text = new String(input.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+                for (var item : Map.of("block01", "TEXT_", "block04.segment2", "MCP_", "block03.segment0", "CONT_").entrySet()) {
+                    String key = "prompt.v1.TemplateAnalysisPromptFactory." + item.getKey();
+                    if (entry.getName().endsWith(key + ".md")) text = item.getValue() + marker + "\n"
+                            + io.opencode.loopper.service.roles.RolePromptResources.readBaseline(key);
+                }
+                output.putNextEntry(new java.util.zip.ZipEntry(entry.getName()));
+                output.write(text.getBytes(java.nio.charset.StandardCharsets.UTF_8)); output.closeEntry();
+            }
+        }
+        var parsed = roleArchives.parse(bytes.toByteArray());
+        var checked = rolePublishing.validate(parsed); assertThat(checked.diagnostics()).isEmpty();
+        rolePublishing.publish(parsed, new io.opencode.loopper.service.roles.RolePublishingService.PublishRequest(
+                parsed.sourceSha256(), "template-" + marker, checked.activations()));
+    }
+
+    @Test void historyCacheRequiresMatchingRolesAndClosedKnowledgeOnBothSides() {
+        var digest = jdbc.queryForObject("SELECT bindings_sha256 FROM role_owner_snapshot WHERE owner_type='TASK' AND owner_id=?", String.class, task.id());
+        jdbc.update("UPDATE template_task_batch SET state='VALIDATED', output_json='cached' WHERE id=?", batch.id());
+        jdbc.update("UPDATE task SET state='COMPLETED' WHERE id=?", task.id());
+        jdbc.update("UPDATE attempt SET state='SUCCEEDED' WHERE id=?", batch.attemptId());
+        assertThat(templates.acceptedCachedOutput(batch.inputSha256(), digest)).contains("cached");
+        assertThat(templates.acceptedCachedOutput(batch.inputSha256(), "different-role-revision")).isEmpty();
+        jdbc.update("INSERT INTO workflow_knowledge_binding VALUES('TASK',?,?,?,?)", task.id(), task.projectId(), "[{\"kind\":\"CODE\"}]", Instant.now().toString());
+        assertThat(templates.acceptedCachedOutput(batch.inputSha256(), digest)).isEmpty();
     }
 
     @Autowired io.opencode.loopper.persistence.TemplateSessionReadMapper sessionLabels;

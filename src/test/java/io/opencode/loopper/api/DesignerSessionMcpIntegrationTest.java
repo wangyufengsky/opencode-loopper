@@ -3562,7 +3562,7 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(fake().profileForSession(repairing.externalSessionId()))
                 .isEqualTo(OpenCodeClient.SessionProfile.COMPILER_REPAIR_NO_TOOLS);
         assertThat(fake().promptForSession(repairing.externalSessionId()))
-                .contains("Built-in repository", "tools are disabled", "Configured MCP tools remain available",
+                .contains("Built-in repository", "tools are disabled", "No additional tool access is implied",
                         "return the complete object immediately")
                 .contains("Machine role contract 2026-08-semantic-v5", "Frozen DesignFacts", "mvn")
                 .doesNotContain("Use DOCUMENT_STRUCTURE or TABULAR_DATA native evidence");

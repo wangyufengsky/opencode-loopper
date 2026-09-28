@@ -39,11 +39,16 @@ public class RolePublishingService {
     private final RoleConfigurationMapper mapper;
     private final RoleArchive archive;
     private final ObjectMapper json;
+    private final Map<String, Set<String>> builtinPromptKeys = new LinkedHashMap<>();
 
     public RolePublishingService(RoleConfigurationMapper mapper, RoleArchive archive, ObjectMapper json) {
         this.mapper = mapper;
         this.archive = archive;
         this.json = json;
+        for (var role : archive.parseYaml(builtinSource()).roles())
+            for (String slot : role.allowedSlots())
+                builtinPromptKeys.computeIfAbsent(slot, ignored -> new HashSet<>())
+                        .addAll(RolePromptResources.defaultsForRole(role.roleId()).keySet());
     }
 
     public record Diagnostic(String code, String path, String message) { }
@@ -248,12 +253,18 @@ public class RolePublishingService {
     @EventListener(ApplicationReadyEvent.class)
     @Transactional
     public void seedBuiltin() {
-        String source;
+        String source = builtinSource();
+        seedBuiltin(source, archive.parseYaml(source));
+    }
+
+    private static String builtinSource() {
         try (InputStream stream = RolePublishingService.class.getClassLoader().getResourceAsStream("roles/builtin.yaml")) {
             if (stream == null) throw new IllegalStateException("Missing built-in role manifest");
-            source = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+            return new String(stream.readAllBytes(), StandardCharsets.UTF_8);
         } catch (IOException failure) { throw new IllegalStateException("Cannot load built-in roles", failure); }
-        RoleManifest.Document document = archive.parseYaml(source);
+    }
+
+    private void seedBuiltin(String source, RoleManifest.Document document) {
         String sourceSha = builtinSourceSha(source, document);
         var previous = mapper.bootstrap();
         List<RoleConfigurationMapper.Binding> currentBindings = mapper.bindings();
@@ -353,7 +364,9 @@ public class RolePublishingService {
     private Map<String, String> effectiveFragments(RoleManifest.Role role, Map<String, String> overrides,
                                                    List<Diagnostic> diagnostics, String path) {
         Map<String, String> inherited = new TreeMap<>();
+        Set<String> allowed = new HashSet<>();
         for (String slot : role.allowedSlots()) {
+            allowed.addAll(builtinPromptKeys.getOrDefault(slot, Set.of()));
             var binding = mapper.binding(slot);
             if (binding == null || binding.revisionId() == null) continue;
             var revision = mapper.revision(binding.revisionId());
@@ -370,12 +383,16 @@ public class RolePublishingService {
                             "所选槽位的同名提示词不同，请在导入包中明确该片段"));
             }
         }
+        allowed.addAll(inherited.keySet());
         for (var override : overrides.entrySet()) {
-            if (!inherited.containsKey(override.getKey()))
+            if (!allowed.contains(override.getKey()))
                 diagnostics.add(new Diagnostic("ROLE_PROMPT_OUTSIDE_SLOT", path + "/prompts/" + override.getKey(),
                         "该提示词片段不属于所选工作流槽位"));
             inherited.put(override.getKey(), override.getValue());
         }
+        // An exact exported revision keeps its original fragment set after newer slots are activated.
+        if (mapper.byContent(role.roleId(), contentSha(canonicalRole(role, overrides), overrides)) != null)
+            return Map.copyOf(overrides);
         return Map.copyOf(inherited);
     }
 

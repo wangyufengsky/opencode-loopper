@@ -8,7 +8,7 @@ class PptAgentPolicyTest {
     @Test void actualPptAgentCannotBeReplacedByBuildAndOnlyExactPptToolsAreGranted() {
         var profile = OpenCodeClient.SessionProfile.PPT_AGENT;
         assertThat(OpenCodeAgentPolicy.promptAgent("build", profile, true)).isEqualTo(PptAgentProfile.AGENT);
-        assertThat(((Map<?, ?>) OpenCodeAgentPolicy.managedDefinitions().get(PptAgentProfile.AGENT)).get("prompt")).isEqualTo(PptAgentProfile.BASE_PROMPT);
+        assertThat(((Map<?, ?>) OpenCodeAgentPolicy.managedDefinitions().get(PptAgentProfile.AGENT)).get("prompt")).isEqualTo("Follow the frozen per-request PPT workflow and effective session permissions. Respect locks and sources; never use shell, arbitrary file writes or other roles' tools. Do not disclose credentials. Program state owns save/export success.");
         assertThat(PptAgentProfile.BASE_PROMPT).doesNotContain("BRIEFING","DIRECTION","用户点击开始制作","用户明确要求导出时才");
         assertThat(OpenCodeAgentPolicy.stepLimit(profile)).isZero();
         var rules = OpenCodePermissionPolicy.rules(profile, List.of("github", "filesystem"), "private_generation");

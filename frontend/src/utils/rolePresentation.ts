@@ -114,8 +114,8 @@ export function workflowForSlot(slot: string): { name: string; position: string 
   if (slot.startsWith('KNOWLEDGE')) return { name: '知识库问答', position: '问题分析 → 资料检索与读取 → 来源核对与回答' }
   if (slot.startsWith('SOURCE_')) return { name: '源码详细设计', position: slot.includes('REVIEW') ? '详细设计之后 · 独立复核' : '来源分析之后 · 编写详细设计' }
   if (slot.startsWith('DOCUMENT_') || slot.startsWith('REQUIREMENT_CODE') || slot.startsWith('REQUIREMENT_ASSESSMENT')) return { name: '文档需求与代码评估', position: slot.includes('REVIEW') ? '生成结果之后 · 独立复核' : '文档读取之后 · 需求整理或代码评估' }
-  if (slot.startsWith('SNAPSHOT')) return { name: '源码快照评审', position: '固定源码版本之后 · 分组审查与结果提交' }
-  if (slot.startsWith('TEMPLATE')) return { name: '模板任务', position: '模板输入之后 · 分析并形成执行候选' }
+  if (slot.startsWith('SNAPSHOT')) return { name: '源码快照评审', position: '固定源码版本之后 · 分组审查与问题独立复核' }
+  if (slot.startsWith('TEMPLATE')) return { name: '模板任务', position: '确认并开始之后 · 根据冻结证据提交报告候选' }
   if (slot.startsWith('ROUTER')) return { name: '任务设计', position: '流程入口 · 判断任务类型' }
   if (slot.startsWith('DECOMPOSER')) return { name: '工作包规划', position: '需求确认之后 · 拆分工作包与依赖' }
   if (slot.startsWith('ROLLING')) return { name: '滚动工作包', position: '前序工作完成之后 · 规划下一批工作' }

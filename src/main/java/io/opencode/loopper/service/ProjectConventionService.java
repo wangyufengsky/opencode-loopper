@@ -376,7 +376,7 @@ public class ProjectConventionService {
             ProjectConventionDocumentStore.SourceSnapshot source = new ProjectConventionDocumentStore.SourceSnapshot(updated.sourceExists() == 1, updated.sourceContent(),
                     updated.sourceSha256());
             openCode.promptAsync(finalizer, RoleSessions.renderSession(roleSessions, finalizer.id(), () -> stackPolicy.prompt(project, source.exists(), source.content(), stackPolicy.snapshot(updated)))
-                    + "\n\nFINALIZER RECOVERY: Do not call built-in tools. Configured MCP tools remain allowed; return the requested Markdown now."
+                    + "\n\nFINALIZER RECOVERY: Do not call built-in tools. Use the supplied frozen evidence without additional tool calls; return the requested Markdown now."
                     + evidence);
             return true;
         } catch (RuntimeException recoveryFailure) {

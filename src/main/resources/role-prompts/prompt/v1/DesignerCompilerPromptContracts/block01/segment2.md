@@ -3,7 +3,7 @@
   catalogs. Every acceptance fact should appear in one group. dependsOnHintIndexes may reference only
   an earlier group. Preferences are soft; omit them when uncertain.
 - Never invent a verifier, test command, source reference, path, id, or fact.
-- Built-in repository tools are disabled in this binding session. Configured MCP tools remain available
+- Built-in repository tools are disabled in this binding session. No additional tool access is implied by MCP configuration; use only the supplied frozen input
   under the existing permission policy; do not read the repository again; return the complete object immediately.
 In TEXT_MARKER compatibility mode, put the same complete object between
 LOOPSPEC_COMPILATION_PLAN_JSON_START and LOOPSPEC_COMPILATION_PLAN_JSON_END markers.

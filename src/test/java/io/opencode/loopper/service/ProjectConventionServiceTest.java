@@ -600,7 +600,7 @@ class ProjectConventionServiceTest {
         assertThat(fake.profileForSession(finalizing.externalSessionId()))
                 .isEqualTo(OpenCodeClient.SessionProfile.MACHINE_FINALIZER_NO_TOOLS);
         assertThat(fake.promptForSession(finalizing.externalSessionId()))
-                .contains("FINALIZER RECOVERY", "Do not call built-in tools", "Configured MCP tools remain allowed");
+                .contains("FINALIZER RECOVERY", "Do not call built-in tools", "Use the supplied frozen evidence without additional tool calls");
 
         conventions.pollActiveGenerations();
         assertThat(conventions.get(project.id(), running.id()).state())

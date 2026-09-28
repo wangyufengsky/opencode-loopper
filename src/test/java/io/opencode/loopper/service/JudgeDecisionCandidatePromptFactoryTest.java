@@ -41,7 +41,7 @@ class JudgeDecisionCandidatePromptFactoryTest {
                         "verification-v2", "task-diff", "loopper_internal_submit_candidate")
                 .contains("expectedSubmissionRevision: 7", "submissionRevision",
                         "diagnosticsComplete=false", "repairHint")
-                .contains("one line", "no CR, LF, or TAB")
+                .contains("one line", "no CR, LF, or TAB", "read_knowledge_evidence", "补充背景", "or enter evidenceIds", "another reviewer")
                 .contains("JSON object, not a JSON-encoded string", "semicolon-separated sentences")
                 .contains("JUDGE_DECISION_REASON_LINE_BREAK_INVALID", "do not resend the same reason")
                 .contains("Do not return the candidate as final assistant text", "fallbackAllowed: false")
