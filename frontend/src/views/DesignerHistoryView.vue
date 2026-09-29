@@ -203,7 +203,7 @@ onBeforeUnmount(() => { if (reloadTimer) window.clearTimeout(reloadTimer) })
   <PageHeader eyebrow="设计记录" title="历史设计">
     <template #actions>
       <el-button plain :loading="loading" @click="loadHistory()"><Icon icon="lucide:refresh-cw" />刷新</el-button>
-      <el-button type="primary" @click="router.push('/designer')"><Icon icon="lucide:plus" />新建设计</el-button>
+      <el-button type="primary" @click="router.push({ path: '/requirements/new', query: typeof route.query.projectId === 'string' ? { projectId: route.query.projectId } : {} })"><Icon icon="lucide:plus" />新增需求</el-button>
     </template>
   </PageHeader>
   <main id="main-content" class="content design-history-page" tabindex="-1">
@@ -265,7 +265,7 @@ onBeforeUnmount(() => { if (reloadTimer) window.clearTimeout(reloadTimer) })
       </article>
     </section>
     <div v-if="nextCursor" class="history-load-more"><el-button plain :loading="loading" @click="loadHistory(true)">加载更多历史设计</el-button></div>
-    <section v-if="!loading && !error && !visibleDesigns.length" class="card empty-state"><div><Icon icon="lucide:history" width="30" /><strong>还没有历史设计</strong><el-button type="primary" @click="router.push('/designer')">新建设计</el-button></div></section>
+    <section v-if="!loading && !error && !visibleDesigns.length" class="card empty-state"><div><Icon icon="lucide:history" width="30" /><strong>还没有历史设计</strong><el-button type="primary" @click="router.push({ path: '/requirements/new', query: typeof route.query.projectId === 'string' ? { projectId: route.query.projectId } : {} })">新增需求</el-button></div></section>
   </main>
 </template>
 

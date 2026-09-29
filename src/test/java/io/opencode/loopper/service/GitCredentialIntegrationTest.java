@@ -89,6 +89,21 @@ class GitCredentialIntegrationTest {
         assertThatThrownBy(() -> service.testEnvironment(project.id(), request("CUSTOM", "https://gitlab.example", "own", null, 1), "http://gitlab.example/a.git"))
                 .hasMessageContaining("服务器不一致");
     }
+    @Test void supervisedScopeKeepsProjectOverrideAndExactOriginWithoutExposingItsSecret() throws Exception {
+        var project=project("supervised");var root=Path.of(project.rootPath());
+        service.save(null,request("CUSTOM","https://gitlab.example","global","global-fixture",0));
+        var inherited=service.scope(root);
+        assertThat(inherited.forRemote("https://other.example/repo.git")).isEmpty();
+        assertThat(inherited.forRemote("https://GITLAB.example:443/repo.git")).isEqualTo(service.environment(root,"https://gitlab.example/repo.git"));
+        assertThat(service.scope(temp).environment()).isEmpty();
+        service.save(project.id(),request("CUSTOM","https://gitlab.example","own","scoped-fixture",0));
+        var scoped=service.scope(root);
+        assertThatThrownBy(()->scoped.forRemote("http://gitlab.example/repo.git")).hasMessageContaining("服务器不匹配");
+        assertThatThrownBy(()->scoped.forRemote("https://gitlab.example:8443/repo.git")).hasMessageContaining("服务器不匹配");
+        assertThat(scoped.forRemote("https://gitlab.example/repo.git")).isEqualTo(service.environment(root,"https://gitlab.example/repo.git"));
+        assertThat(scoped.toString()).doesNotContain("scoped-fixture","gitlab.example","Authorization");
+        assertThat(scoped.forWorker()).containsEntry("LOOPPER_SNAPSHOT_GIT_ORIGIN","https://gitlab.example").containsEntry("LOOPPER_SNAPSHOT_GIT_STRICT","true");
+    }
     @Test void actualGitAuthenticatesFetchFromPrivateSnapshotWithProjectOverrideAndNoConfigWrites() throws Exception {
         var project = project("source"); Path source = Path.of(project.rootPath());
         git.read(source, "config", "user.name", "Fixture"); git.read(source, "config", "user.email", "fixture@example.invalid");

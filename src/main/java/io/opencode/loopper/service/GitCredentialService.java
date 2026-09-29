@@ -66,19 +66,28 @@ public class GitCredentialService implements GitCredentialProvider {
     }
     @Override public Map<String, String> environment(Path registeredProject, String remoteUrl) {
         String projectId;
+        try {projectId=projects.findProjectByRoot(registeredProject.toRealPath().toString()).map(ProjectRow::id).orElse(null);}
+        catch(java.io.IOException invalid){throw unavailable();}
+        if(projectId==null)return Map.of();
+        var row=effective(mapper.find("project:"+projectId).orElse(null),projectId);
+        if(row==null)return Map.of();
+        if(!row.serverUrl().equals(GitHttpAuthentication.origin(remoteUrl))) {
+            if(row.projectId()!=null)throw new TaskFailure("GIT_CREDENTIAL_HOST_MISMATCH","项目独立账号与 Git 服务器不匹配，请检查项目 Git 账号");
+            return Map.of();
+        }
+        return GitHttpAuthentication.environment(row.serverUrl(),row.username(),decrypt(row.secretRef()),remoteUrl);
+    }
+    @Override public GitCredentialProvider.Scope scope(Path registeredProject) {
+        String projectId;
         try {
             projectId = projects.findProjectByRoot(registeredProject.toRealPath().toString()).map(ProjectRow::id).orElse(null);
         } catch (java.io.IOException invalid) { throw unavailable(); }
         // A private execution directory must be accompanied by its actual registered project path.
-        if (projectId == null) return Map.of();
+        if (projectId == null) return new GitCredentialProvider.Scope("",false,Map.of());
         var row = effective(mapper.find("project:" + projectId).orElse(null), projectId);
-        if (row == null) return Map.of();
-        String target = GitHttpAuthentication.origin(remoteUrl);
-        if (!row.serverUrl().equals(target)) {
-            if (row.projectId() != null) throw new TaskFailure("GIT_CREDENTIAL_HOST_MISMATCH", "项目独立账号与 Git 服务器不匹配，请检查项目 Git 账号");
-            return Map.of();
-        }
-        return GitHttpAuthentication.environment(row.serverUrl(), row.username(), decrypt(row.secretRef()), remoteUrl);
+        if (row == null) return new GitCredentialProvider.Scope("",false,Map.of());
+        return new GitCredentialProvider.Scope(row.serverUrl(),row.projectId()!=null,
+                GitHttpAuthentication.environment(row.serverUrl(),row.username(),decrypt(row.secretRef()),row.serverUrl()));
     }
     public Map<String, String> testEnvironment(String projectId, Request request, String remoteUrl) {
         var old = mapper.find(scope(projectId)).orElse(null);

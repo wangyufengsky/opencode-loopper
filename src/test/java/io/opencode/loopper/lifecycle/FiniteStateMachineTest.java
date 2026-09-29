@@ -238,7 +238,11 @@ class FiniteStateMachineTest {
                 key(LifecycleMachineType.DESIGNER_SESSION, "PENDING_HANDOFF", LifecycleEvent.DEFER),
                 key(LifecycleMachineType.ACCEPTANCE_CANDIDATE_HANDOFF,
                         "STOPPING_LEGACY", LifecycleEvent.UPDATE),
-                key(LifecycleMachineType.WORKSPACE_LEASE, "HELD", LifecycleEvent.TRANSFER));
+                key(LifecycleMachineType.WORKSPACE_LEASE, "HELD", LifecycleEvent.TRANSFER),
+                key(LifecycleMachineType.WORKFLOW_CONTROL, "ACTIVE", LifecycleEvent.UPDATE),
+                key(LifecycleMachineType.WORKFLOW_CONTROL, "PAUSED", LifecycleEvent.UPDATE),
+                key(LifecycleMachineType.WORKFLOW_CONTROL, "WAITING", LifecycleEvent.UPDATE),
+                key(LifecycleMachineType.WORKFLOW_CONTROL, "STALLED", LifecycleEvent.UPDATE));
     }
 
     @Test

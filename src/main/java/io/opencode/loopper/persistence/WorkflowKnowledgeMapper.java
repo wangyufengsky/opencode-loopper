@@ -19,6 +19,7 @@ public interface WorkflowKnowledgeMapper {
           UNION ALL SELECT project_id FROM document_template_run WHERE #{type}='DOCUMENT_TEMPLATE_RUN' AND id=#{id}
           UNION ALL SELECT project_id FROM source_template_run WHERE #{type}='SOURCE_TEMPLATE_RUN' AND id=#{id}
           UNION ALL SELECT project_id FROM project_convention_draft WHERE #{type}='PROJECT_CONVENTION_DRAFT' AND id=#{id}
+          UNION ALL SELECT r.project_id FROM workflow_node_run n JOIN workflow_requirement r ON r.id=n.requirement_id WHERE #{type}='WORKFLOW_NODE' AND n.id=#{id}
         ) LIMIT 1
         """)
     String project(String type, String id);
@@ -33,6 +34,13 @@ public interface WorkflowKnowledgeMapper {
     record Evidence(String id, String toolName, String createdAt) { }
     @Select("SELECT id,tool_name,created_at FROM assist_call WHERE external_session_id=#{session} AND state='SUCCEEDED' AND tool_name LIKE '%knowledge%' AND tool_name NOT IN ('list_knowledge_evidence','read_knowledge_evidence') AND (#{before}='' OR created_at < #{before} OR (created_at=#{before} AND id < #{id})) ORDER BY created_at DESC,id DESC LIMIT 51")
     List<Evidence> evidencePage(String session, String before, String id);
+    record NodeEvidence(String id,String toolName,String createdAt,String resultJson) { }
+    @Select("SELECT id,tool_name,created_at FROM assist_call WHERE external_session_id=#{session} AND owner_key=#{owner} AND state='SUCCEEDED' AND tool_name LIKE '%knowledge%' AND tool_name NOT IN ('list_knowledge_evidence','read_knowledge_evidence') AND (#{before}='' OR created_at < #{before} OR (created_at=#{before} AND id < #{id})) ORDER BY created_at DESC,id DESC LIMIT #{limit}")
+    List<Evidence> nodeEvidencePage(String session,String owner,String before,String id,int limit);
+    @Select("SELECT id,tool_name,created_at FROM assist_call WHERE id=#{id} AND external_session_id=#{session} AND owner_key=#{owner} AND state='SUCCEEDED' AND tool_name LIKE '%knowledge%' AND tool_name NOT IN ('list_knowledge_evidence','read_knowledge_evidence')")
+    Evidence nodeEvidenceIdentity(String session,String owner,String id);
+    @Select("SELECT id,tool_name,created_at,result_json FROM assist_call WHERE id=#{id} AND external_session_id=#{session} AND owner_key=#{owner} AND state='SUCCEEDED' AND tool_name LIKE '%knowledge%' AND tool_name NOT IN ('list_knowledge_evidence','read_knowledge_evidence')")
+    NodeEvidence nodeEvidence(String session,String owner,String id);
     @Select("SELECT source_json FROM workflow_knowledge_git WHERE external_session_id=#{session}")
     String git(String session);
     @Insert("INSERT OR IGNORE INTO workflow_knowledge_git VALUES(#{session},#{source})")

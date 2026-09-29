@@ -46,7 +46,15 @@ class RoleConfigurationMigrationTest {
                 try (var rows = statement.executeQuery("SELECT type,name,sql FROM sqlite_master WHERE sql IS NOT NULL")) {
                     while (rows.next()) {
                         String key = rows.getString(1) + ":" + rows.getString(2);
-                        if (schema.containsKey(key)) assertThat(rows.getString(3)).as(key).isEqualTo(schema.remove(key));
+                        String actual = rows.getString(3);
+                        actual = MigrationTestSchema.withoutWorkflowLeaseOwner(key,actual);
+                        if (key.equals("table:ai_candidate_submission_run")) {
+                            // V141 adds only this frozen output-storage marker; every prior constraint remains.
+                            String addition = ", result_storage_version INTEGER NOT NULL DEFAULT 0 CHECK (result_storage_version IN (0,1))";
+                            assertThat(actual).containsOnlyOnce(addition);
+                            actual = actual.replace(addition, "");
+                        }
+                        if (schema.containsKey(key)) assertThat(actual).as(key).isEqualTo(schema.remove(key));
                     }
                 }
                 assertThat(schema).isEmpty();

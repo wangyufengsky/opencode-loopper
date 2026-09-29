@@ -61,53 +61,17 @@ public final class SourceUnitScopeGuard implements io.opencode.loopper.verificat
         Path root = SourcePathPolicy.root(worktree.toString());
         var before = baseline(run.id()); var after = SourceTestTree.scan(root, data());
         var profile = profiles.require(run.id());
-        var names = new TreeSet<String>(before.keySet()); names.addAll(after.keySet());
-        var violations = new ArrayList<String>();
-        for (String path : names) {
-            var old = before.get(path); var current = after.get(path);
-            if (Objects.equals(old, current)) continue;
-            if (current == null) { violations.add(path + "：禁止删除或重命名已有文件"); continue; }
-            if (!current.kind().equals("FILE") || old != null && !old.kind().equals("FILE")) {
-                violations.add(path + "：不允许创建或改变符号链接及特殊文件"); continue;
-            }
-            boolean fixture = profile.modules().stream().flatMap(m -> m.fixtureRoots().stream()).anyMatch(r -> SourceTestProfileService.beneath(path, r));
-            boolean test = profile.modules().stream().anyMatch(m -> m.testRoots().stream().anyMatch(r -> SourceTestProfileService.beneath(path, r))
-                    && testSource(path, m.framework()));
-            if (!fixture && !test || SourcePathPolicy.exclusion(path, fixture) != null) {
-                violations.add(path + "：不属于冻结测试源码或夹具范围"); continue;
-            }
-            if (test) {
-                if (current.size() > SourceTreeCapture.MAX_FILE_BYTES) { violations.add(path + "：测试文件超过校验上限"); continue; }
-                String value = readTest(root, path, current);
-                String original = "";
-                if (old != null) {
-                    var frozen = runs.file(run.id(), path).orElseThrow(() -> SourceTestTree.failure("已有测试缺少冻结正文，不能批准修改"));
-                    original = frozen.sha256() == null ? "" : storage.read(run.id(), frozen.sha256());
-                    if (frozen.sha256() == null || !SourceExistingTests.preserved(path, original, value))
-                        violations.add(path + "：已有测试正文或断言被移除或改写，请保留已有测试，用新增测试文件补齐场景");
-                }
-                if (disabledCount(value) > disabledCount(original)) violations.add(path + "：检测到屏蔽测试执行的语法");
-            }
-        }
-        if (!violations.isEmpty()) throw new TaskFailure("SOURCE_TEST_WRITE_RANGE_VIOLATION",
-                "单元测试模板范围检查未通过：" + String.join("；", violations.stream().limit(20).toList()));
+        SourceTestScope.check(before,after,profile,path->readTest(root,path,after.get(path)),path->{
+            var frozen=runs.file(run.id(),path).orElseThrow(()->SourceTestTree.failure("已有测试缺少冻结正文，不能批准修改"));
+            return frozen.sha256()==null?null:storage.read(run.id(),frozen.sha256());
+        });
     }
     private Map<String, SourceTestTree.File> baseline(String run) {
         var row = domain.sourceTestBaseline(run).orElseThrow(() -> SourceTestTree.failure("测试写入基线不存在"));
         if (!DocumentModelStore.hash(row.profileJson()).equals(row.sha256())) throw SourceTestTree.failure("测试基线哈希不一致");
         return json.readValue(row.profileJson(), new TypeReference<>() { });
     }
-    static boolean testSource(String path, String framework) {
-        if (Set.of("junit", "testng").contains(framework)) return path.matches(".*\\.(java|kt|scala)$");
-        if (framework.equals("pytest")) return path.endsWith(".py");
-        return SourcePathPolicy.testPath(path) && path.matches(".*\\.[jt]sx?$");
-    }
-    static boolean disabled(String value) {
-        return disabledCount(value) > 0;
-    }
-    private static long disabledCount(String value) {
-        return java.util.regex.Pattern.compile("@(?:[\\w$]+\\.)*(?:Disabled|Ignore)\\b|enabled\\s*=\\s*false|\\b(?:describe|it|test)\\.(?:skip|only)\\b|\\b(?:xdescribe|xit|xtest)\\s*\\(|pytest\\.mark\\.(?:skip|xfail)|unittest\\.skip").matcher(value).results().count();
-    }
+    static boolean disabled(String value){return SourceTestScope.disabled(value);}
     private static String readTest(Path root, String path, SourceTestTree.File expected) {
         Path file = root.resolve(path);
         SourcePathPolicy.requireContained(root, file);

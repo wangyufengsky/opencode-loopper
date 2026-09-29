@@ -8,7 +8,8 @@ import org.springframework.web.server.ResponseStatusException;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 /**
- * Forwards extensionless Vue history routes to the packaged SPA entrypoint.
+ * Forwards Vue history routes, including the explicit built-in workflow ID
+ * namespace, to the packaged SPA entrypoint.
  * API, actuator and static-asset URLs are rejected from the catch-all, so their
  * normal HTTP errors remain observable to operators and clients.
  */
@@ -17,7 +18,8 @@ public class SpaFallbackController {
     @GetMapping({
             "/", "/projects", "/designer", "/tasks", "/tasks/{taskId}",
             "/tasks/{taskId}/recovery", "/tasks/{taskId}/design",
-            "/inbox", "/insights", "/automations", "/runtime", "/settings"
+            "/inbox", "/insights", "/automations", "/runtime", "/settings",
+            "/workflows/{templateId:builtin\\.workflow\\.[a-z][a-z-]*}"
     })
     public String index() {
         return "forward:/index.html";

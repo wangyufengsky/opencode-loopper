@@ -9,7 +9,7 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 /** Domain-focused persistence contract composed by {@link LoopperMapper}. */
-public interface LoopperTaskMapper {
+public interface LoopperTaskMapper extends WorkspaceLeaseMapper {
     @Insert("INSERT INTO task(id,project_id,loop_draft_id,title,state,worktree_path,branch_name,source_branch,baseline_commit,created_at,updated_at,version,task_profile_id,role_pack_id,role_pack_version,execution_mode,workspace_policy) VALUES(#{id},#{projectId},#{loopDraftId},#{title},#{state},#{worktreePath},#{branchName},#{sourceBranch},#{baselineCommit},#{createdAt},#{updatedAt},#{version},#{taskProfileId},#{rolePackId},#{rolePackVersion},#{executionMode},#{workspacePolicy})")
     int insertTask(TaskRow row);
     @Select("SELECT * FROM task WHERE id=#{id}") Optional<TaskRow> findTask(String id);
@@ -367,77 +367,6 @@ public interface LoopperTaskMapper {
     @Select("SELECT * FROM ai_output_handling_event WHERE scope_type=#{scopeType} AND scope_id=#{scopeId} ORDER BY created_at,id")
     List<AiOutputHandlingEventRow> listAiOutputHandlingEvents(@Param("scopeType") String scopeType,
                                                               @Param("scopeId") String scopeId);
-
-    @Select("SELECT * FROM workspace_lease WHERE canonical_root=#{canonicalRoot}")
-    Optional<WorkspaceLeaseRow> findWorkspaceLease(String canonicalRoot);
-    @Select("SELECT * FROM workspace_lease WHERE state IN ('HELD','RELEASE_PENDING') ORDER BY heartbeat_at")
-    List<WorkspaceLeaseRow> blockingWorkspaceLeases();
-    @Select("""
-            SELECT lease.* FROM workspace_lease lease JOIN task holder ON holder.id=lease.holder_task_id
-            JOIN task requester ON requester.id=#{taskId}
-            WHERE lease.state IN ('HELD','RELEASE_PENDING')
-              AND holder.execution_mode != 'TEMPLATE_REPORT' AND requester.execution_mode != 'TEMPLATE_REPORT'
-            """)
-    List<WorkspaceLeaseRow> blockingSourceWorkspaceLeases(String taskId);
-    @Select("SELECT * FROM workspace_lease WHERE holder_task_id=#{taskId} AND state IN ('HELD','RELEASE_PENDING') LIMIT 1")
-    Optional<WorkspaceLeaseRow> findActiveWorkspaceLeaseByHolder(String taskId);
-    @Select("""
-            SELECT lease.* FROM workspace_lease lease
-            WHERE lease.state IN ('HELD','RELEASE_PENDING')
-              AND EXISTS (
-                SELECT 1 FROM task_queue queued
-                WHERE queued.canonical_root=lease.canonical_root AND queued.state='QUEUED'
-              )
-            ORDER BY lease.heartbeat_at
-            """)
-    List<WorkspaceLeaseRow> blockingWorkspaceLeasesWithQueuedWaiter();
-    @Insert("""
-            INSERT INTO workspace_lease(canonical_root,root_fingerprint,mode,holder_task_id,writer_session_id,state,
-              acquired_at,heartbeat_at,released_at,release_reason,version)
-            VALUES(#{canonicalRoot},#{rootFingerprint},#{mode},#{holderTaskId},#{writerSessionId},#{state},
-              #{acquiredAt},#{heartbeatAt},#{releasedAt},#{releaseReason},#{version})
-            """)
-    int insertWorkspaceLease(WorkspaceLeaseRow row);
-    @Update("""
-            UPDATE workspace_lease SET root_fingerprint=#{rootFingerprint},mode=#{mode},holder_task_id=#{holderTaskId},
-              writer_session_id=#{writerSessionId},state=#{state},acquired_at=#{acquiredAt},heartbeat_at=#{heartbeatAt},
-              released_at=#{releasedAt},release_reason=#{releaseReason},version=version+1
-            WHERE canonical_root=#{canonicalRoot} AND version=#{version}
-            """)
-    int updateWorkspaceLease(WorkspaceLeaseRow row);
-    @Update("""
-            UPDATE workspace_lease SET root_fingerprint=#{rootFingerprint},mode=#{mode},holder_task_id=#{holderTaskId},
-              writer_session_id=#{writerSessionId},acquired_at=#{acquiredAt},heartbeat_at=#{heartbeatAt},
-              released_at=#{releasedAt},release_reason=#{releaseReason},version=version+1
-            WHERE canonical_root=#{canonicalRoot} AND version=#{version}
-            """)
-    int updateWorkspaceLeaseDetails(WorkspaceLeaseRow row);
-
-    @Select("SELECT COALESCE(MAX(position),0)+1 FROM task_queue WHERE canonical_root=#{canonicalRoot}")
-    long nextQueuePosition(String canonicalRoot);
-    @Insert("""
-            INSERT INTO task_queue(task_id,canonical_root,root_fingerprint,position,source,state,enqueued_at,
-              admitted_at,finished_at,version)
-            VALUES(#{taskId},#{canonicalRoot},#{rootFingerprint},#{position},#{source},#{state},#{enqueuedAt},
-              #{admittedAt},#{finishedAt},#{version})
-            """)
-    int insertTaskQueue(TaskQueueRow row);
-    @Select("SELECT * FROM task_queue WHERE task_id=#{taskId}") Optional<TaskQueueRow> findTaskQueue(String taskId);
-    @Select("SELECT * FROM task_queue WHERE canonical_root=#{canonicalRoot} ORDER BY position")
-    List<TaskQueueRow> listTaskQueue(String canonicalRoot);
-    @Select("SELECT * FROM task_queue WHERE canonical_root=#{canonicalRoot} AND state='QUEUED' ORDER BY position LIMIT 1")
-    Optional<TaskQueueRow> nextQueuedTask(String canonicalRoot);
-    @Update("""
-            UPDATE task_queue SET state=#{state},admitted_at=#{admittedAt},finished_at=#{finishedAt},version=version+1
-            WHERE task_id=#{taskId} AND version=#{version}
-            """)
-    int updateTaskQueue(TaskQueueRow row);
-    @Update("""
-            UPDATE task_queue SET root_fingerprint=#{rootFingerprint},position=#{position},source=#{source},state=#{state},
-              enqueued_at=#{enqueuedAt},admitted_at=#{admittedAt},finished_at=#{finishedAt},version=version+1
-            WHERE task_id=#{taskId} AND version=#{version}
-            """)
-    int requeueTask(TaskQueueRow row);
 
     @Insert("""
             INSERT INTO interaction(id,scope_type,scope_id,task_id,designer_session_id,local_session_id,

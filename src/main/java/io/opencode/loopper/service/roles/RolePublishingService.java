@@ -128,7 +128,6 @@ public class RolePublishingService {
                     diagnostics.add(new Diagnostic("ROLE_SLOT_UNKNOWN", path + "/allowedSlots", "工作流槽位不受支持"));
                     continue;
                 }
-                for (String tool : role.mcpTools()) validateTool(tool, current.adapterProfile(), diagnostics, path);
                 if (!role.roleId().equals(targets.get(slot))) continue;
                 if (!activeSlots.add(slot)) diagnostics.add(new Diagnostic("ROLE_SLOT_DUPLICATE", path + "/allowedSlots",
                         "同一导入包中每个槽位只能激活一次"));
@@ -140,6 +139,7 @@ public class RolePublishingService {
                     diagnostics.add(new Diagnostic("ROLE_NATIVE_TOOL_UNSAFE", path + "/nativeTools",
                             "开发执行角色不能授予受保护的原生工具"));
             }
+            validateTools(role, diagnostics, path);
             Map<String, String> overrides = parsed.fragmentsByRole().getOrDefault(role.roleId(), Map.of());
             Map<String, String> fragments = effectiveFragments(role, overrides, diagnostics, path);
             if (accounting && (fragments.get("accounting.instructions") == null
@@ -266,6 +266,7 @@ public class RolePublishingService {
 
     private void seedBuiltin(String source, RoleManifest.Document document) {
         String sourceSha = builtinSourceSha(source, document);
+        Map<String, String> defaults = builtinDefaults(document);
         var previous = mapper.bootstrap();
         List<RoleConfigurationMapper.Binding> currentBindings = mapper.bindings();
         if (previous == null) {
@@ -303,6 +304,7 @@ public class RolePublishingService {
                 if (mapper.insertRevision(revision) != 1) throw new IllegalStateException("Cannot seed role " + role.roleId());
             }
             for (String slot : role.allowedSlots()) {
+                if (!role.roleId().equals(defaults.getOrDefault(slot, role.roleId()))) continue;
                 var binding = mapper.binding(slot);
                 if (binding == null) throw new IllegalStateException("Missing built-in role slot: " + slot);
                 if (binding.revisionId() == null && mapper.activate(slot, revision.revisionId(), binding.version(), now) != 1)
@@ -316,6 +318,18 @@ public class RolePublishingService {
                 : mapper.updateBootstrap(sourceSha, marker.bindingsSha256(), marker.bindingCount(), now,
                         previous.sourceSha256());
         if (changed != 1) throw new ConflictException("ROLE_BOOTSTRAP_CONFLICT", "内置角色初始化状态保存失败");
+    }
+
+    /** Supporting another slot does not implicitly replace that slot's declared initial role. */
+    private static Map<String, String> builtinDefaults(RoleManifest.Document document) {
+        var defaults = new LinkedHashMap<String, String>();
+        for (var binding : document.bindings() == null ? List.<RoleManifest.Binding>of() : document.bindings()) {
+            if (document.slots().stream().noneMatch(slot -> slot.slot().equals(binding.slot()))
+                    || document.roles().stream().noneMatch(role -> role.roleId().equals(binding.roleId()) && role.allowedSlots().contains(binding.slot()))
+                    || defaults.putIfAbsent(binding.slot(), binding.roleId()) != null)
+                throw new IllegalStateException("Invalid built-in default role binding: " + binding.slot());
+        }
+        return Map.copyOf(defaults);
     }
 
     /** Owner creation may follow Flyway clean/migrate in tests; only this write path may bootstrap. */
@@ -402,13 +416,13 @@ public class RolePublishingService {
         var normalized = new RoleManifest.Role(role.roleId(), role.displayName(), role.description(), role.groupKey(),
                 role.groupLabel(), role.allowedSlots(), role.permissionMode(), role.nativeTools(), role.mcpTools(),
                 role.requiredMcpTools(), role.modelPolicy(), role.runtimePolicy(), keys,
-                role.capabilities());
+                role.capabilities(), role.workInstructions());
         if (role.capabilities() != null || mapper.byContent(role.roleId(), contentSha(normalized, fragments)) != null)
             return normalized;
         return new RoleManifest.Role(normalized.roleId(), normalized.displayName(), normalized.description(),
                 normalized.groupKey(), normalized.groupLabel(), normalized.allowedSlots(), normalized.permissionMode(),
                 normalized.nativeTools(), normalized.mcpTools(), normalized.requiredMcpTools(), normalized.modelPolicy(),
-                normalized.runtimePolicy(), normalized.prompts(), List.of());
+                normalized.runtimePolicy(), normalized.prompts(), List.of(), normalized.workInstructions());
     }
 
     private void validateCapabilities(RoleManifest.Role role, List<Diagnostic> problems, String path) {
@@ -437,6 +451,23 @@ public class RolePublishingService {
         Matcher matcher = TEMPLATE_DIRECTIVE.matcher(source);
         while (matcher.find()) tokens.merge(matcher.group().strip(), 1, Integer::sum);
         return tokens;
+    }
+
+    private void validateTools(RoleManifest.Role role, List<Diagnostic> problems, String path) {
+        var profiles = role.allowedSlots().stream().map(mapper::binding).filter(Objects::nonNull)
+                .map(RoleConfigurationMapper.Binding::adapterProfile).distinct().toList();
+        for (String tool : role.mcpTools()) {
+            // Optional declarations may serve different slots. Runtime authority remains their exact intersection.
+            var rejected = new ArrayList<Diagnostic>();
+            boolean supported = false;
+            for (String profile : profiles) {
+                var diagnostics = new ArrayList<Diagnostic>();
+                validateTool(tool, profile, diagnostics, path);
+                if (diagnostics.isEmpty()) supported = true;
+                else rejected.add(diagnostics.getFirst());
+            }
+            if (!supported || role.requiredMcpTools().contains(tool)) problems.addAll(rejected);
+        }
     }
 
     private void validateTool(String name, String profile, List<Diagnostic> problems, String path) {
@@ -473,6 +504,7 @@ public class RolePublishingService {
 
     private String contentSha(RoleManifest.Role role, Map<String, String> fragments) {
         Map<String, Object> semantic = new TreeMap<>();
+        if (role.workInstructions() != null) semantic.put("workInstructions", role.workInstructions());
         if (role.capabilities() != null) semantic.put("capabilities", role.capabilities());
         semantic.put("roleId", role.roleId());
         semantic.put("displayName", role.displayName());
@@ -514,6 +546,7 @@ public class RolePublishingService {
     }
 
     private static void fieldDiff(String path, RoleManifest.Role before, RoleManifest.Role after, List<Change> changes) {
+        if (!Objects.equals(before.workInstructions(), after.workInstructions())) changes.add(new Change(path + "/workInstructions", before.workInstructions(), after.workInstructions()));
         if (!Objects.equals(before.capabilities(), after.capabilities())) changes.add(new Change(path + "/capabilities", before.capabilities(), after.capabilities()));
         if (!before.displayName().equals(after.displayName())) changes.add(new Change(path + "/displayName", before.displayName(), after.displayName()));
         if (!before.description().equals(after.description())) changes.add(new Change(path + "/description", before.description(), after.description()));

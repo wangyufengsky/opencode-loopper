@@ -20,9 +20,16 @@ public class DocumentModelStore {
     private final DocumentTemplateMapper runs;
     private final LifecycleTransitionService lifecycle;
     private final ObjectMapper json;
+    private final DocumentWorkInputs workInputs;
     public DocumentModelStore(DocumentTemplateModelMapper models, DocumentTemplateMapper runs,
-            LifecycleTransitionService lifecycle, ObjectMapper json) {
-        this.models = models; this.runs = runs; this.lifecycle = lifecycle; this.json = json;
+            LifecycleTransitionService lifecycle, ObjectMapper json, DocumentWorkInputs workInputs) {
+        this.models = models; this.runs = runs; this.lifecycle = lifecycle; this.json = json; this.workInputs = workInputs;
+    }
+    @Transactional
+    public DocumentTemplateModelRow createFrom(String runId, MachineCandidateKind kind, int ordinal,
+            int generation, DocumentModelInput input, Map<String, String> producers) {
+        requireActive(runId);
+        return create(runId, kind, ordinal, generation, workInputs.freeze(runId, input, producers));
     }
     @Transactional
     public DocumentTemplateModelRow create(String runId, MachineCandidateKind kind, int ordinal,
@@ -43,6 +50,7 @@ public class DocumentModelStore {
     @Transactional
     public DocumentTemplateModelRow prepare(DocumentTemplateModelRow row, OpenCodeClient.SessionCreationPlan plan, FrozenPrompt prompt) {
         requireActive(row.runId());
+        workInputs.verify(row.runId(), json.readValue(row.inputJson(), DocumentModelInput.class));
         if (models.prepare(row.id(), row.version(), json.writeValueAsString(plan), json.writeValueAsString(prompt),
                 OpenCodeClient.promptRequestSha256(prompt.request()), Instant.now().toString()) != 1) throw conflict();
         return transition(require(row.id()), TemplateBatchState.CREATING, LifecycleEvent.PREPARE, null);

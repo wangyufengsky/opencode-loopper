@@ -2,6 +2,8 @@
 
 ## 当前授权与冻结范围
 
+新建需求统一使用[流程产品合同](workflow-contract.md#入口与兼容)的需求任务画布。下文 Designer、滚动任务和原文开发模板的授权继续约束历史会话及任务的确认、执行与恢复，不将这些冻结授权套用到新流程候选；新流程候选均须用户查看并明确应用。
+
 “全自动”是特定 Designer 会话的授权，不是产品所有动作的授权。服务端持有动作能力，前端不得从一个总开关推导全部许可。
 
 | 流程 | 普通模式 | 已授权 Designer 全自动 |
@@ -81,7 +83,7 @@ contrast.
 
 根路径 `/` 默认显示主页，品牌链接与主导航“主页”均返回 `/`；未知前端路径回到主页。已有页面及任务深层链接保持原路径。
 
-主页复用皮肤配置变量、现有侧栏和 PageHeader；提供项目、设计与执行规范、任务、待处理中心、历史设计、质量与用量、模板任务、运行环境、工具和设置的普通路由入口。“开始设计”只跳转设计页，不创建任务、确认设计或触发执行。主页不加载全量项目或任务，不显示模拟统计、进度或服务健康结论。
+主页复用皮肤配置变量、现有侧栏和 PageHeader；提供项目、需求任务、流程、任务、待处理中心、历史设计、质量与用量、模板任务、运行环境、工具和设置的普通路由入口。“新增需求”只跳转 `/requirements/new`，不创建任务、确认计划或触发执行。主导航不再提供旧设计台的新建入口，历史设计仍按原链接打开。主页不加载全量项目或任务，不显示模拟统计、进度或服务健康结论。
 
 系统“工具与 Skill”入口在同一页面提供“工具”和“Skill”分页；Skill 清单支持名称/说明搜索，点击后提供 Markdown 预览与源文阅读。数据来源、只读边界与读取上限见 [OpenCode 合同](opencode-contract.md)。
 
@@ -92,6 +94,10 @@ including an unknown multi-segment path, to `index.html`; Vue Router then applie
 its own not-found redirect. The catch-all must not turn missing `/api`,
 `/actuator`, `/assets`, or file-extension URLs into HTML, so backend and static
 resource errors remain observable as HTTP 404 responses.
+The explicit `/workflows/builtin.workflow.<slug>` route is also a Vue history
+route: the dots belong to the built-in template identity, not a file extension.
+Only that namespace with a lowercase letter/hyphen slug receives this mapping;
+asset paths and an additional extension such as `.js` retain normal 404 handling.
 
 ## Error presentation invariant
 

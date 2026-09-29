@@ -8,10 +8,10 @@ import java.security.MessageDigest;
 import java.util.*;
 
 /** Private hashes include ignored and sensitive files without exposing their contents to any model. */
-final class SourceTestTree {
+public final class SourceTestTree {
     private static final Set<String> CACHES = Set.of("__pycache__", ".pytest_cache", ".mypy_cache");
     private SourceTestTree() { }
-    static Map<String, File> scan(Path root, Path data) {
+    public static Map<String, File> scan(Path root, Path data) {
         var result = new TreeMap<String, File>(); long[] bytes = {0};
         long deadline = System.nanoTime() + java.time.Duration.ofSeconds(30).toNanos();
         try {
@@ -47,6 +47,11 @@ final class SourceTestTree {
         } catch (IOException unavailable) { throw failure("无法完整检查工作区文件，请确认文件权限与停止状态"); }
         return Collections.unmodifiableMap(result);
     }
+    public static boolean included(Path root,String path,Path data) {
+        for(Path parent=root.resolve(path).getParent();parent!=null&&!parent.equals(root);parent=parent.getParent())
+            if(parent.startsWith(data)||generated(root,parent))return false;
+        return true;
+    }
     private static boolean generated(Path root, Path directory) {
         String name = directory.getFileName().toString();
         if (directory.equals(root.resolve(".git"))) return true;
@@ -63,6 +68,6 @@ final class SourceTestTree {
             default -> false;
         };
     }
-    static TaskFailure failure(String message) { return new TaskFailure("SOURCE_TEST_SCOPE_UNVERIFIED", message); }
-    record File(String kind, long size, String sha256) { }
+    public static TaskFailure failure(String message) { return new TaskFailure("SOURCE_TEST_SCOPE_UNVERIFIED", message); }
+    public record File(String kind, long size, String sha256) { }
 }

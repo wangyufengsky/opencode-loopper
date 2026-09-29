@@ -14,6 +14,25 @@ import org.junit.jupiter.api.Test;
 class RoleArchiveTest {
     private final RoleArchive archive = new RoleArchive();
 
+    @Test void workInstructionsAreOptionalBoundedLiteralText() {
+        String yaml = """
+                schemaVersion: 2
+                roles:
+                  - roleId: custom.designer
+                    displayName: 设计师
+                    groupKey: general
+                    groupLabel: 通用
+                    allowedSlots: [GENERAL_READ_ONLY]
+                    permissionMode: BASELINE
+                """;
+        assertThat(archive.parseYaml(yaml).roles().getFirst().workInstructions()).isNull();
+        assertThat(archive.parseYaml(yaml + "    workInstructions: |\n      给出设计与候选阶段安排。保留 ${example}。\n")
+                .roles().getFirst().workInstructions()).isEqualTo("给出设计与候选阶段安排。保留 ${example}。\n");
+        for (String value : java.util.List.of("null", "''", "42", "'" + "x".repeat(32_001) + "'"))
+            assertThatThrownBy(() -> archive.parseYaml(yaml + "    workInstructions: " + value + "\n"))
+                    .isInstanceOf(BadRequestException.class);
+    }
+
     @Test
     void importsAnExactPromptFragmentWithoutAllowingWorkflowSlotDefinitions() throws IOException {
         byte[] bytes = zip("manifest.yaml", """

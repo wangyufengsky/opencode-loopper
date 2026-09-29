@@ -299,6 +299,15 @@ public class GitWorktreeManager {
         return checkpoints.freeze(projectRoot, taskId, cycleId, expectedBranch);
     }
 
+    public synchronized WorkspaceCheckpoint freezePinnedWorkspace(Path projectRoot,String owner,String attempt,String branch,String head) {
+        if (!safeId(owner) || !safeId(attempt)) throw new TaskFailure("WORKFLOW_CHECKPOINT_INVALID","节点检查点身份无效");
+        return checkpoints.freezePinned(projectRoot,owner,attempt,branch,head);
+    }
+
+    public synchronized boolean workspaceMatchesTree(Path projectRoot,String branch,String tree) {
+        return checkpoints.matchesTree(projectRoot,branch,tree);
+    }
+
     /** Restores a verified private checkpoint as uncommitted changes on the unchanged Task branch. */
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public synchronized DirtyWorkspace restoreWorkspaceCheckpoint(Path projectRoot, String taskBranch,

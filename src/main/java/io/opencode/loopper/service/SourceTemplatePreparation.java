@@ -13,13 +13,13 @@ import tools.jackson.databind.ObjectMapper;
 public class SourceTemplatePreparation {
     private final SourceTemplateAdmission admission;
     private final SourceTemplateMapper mapper;
-    private final LoopperMapper domain;
+    private final SourceWorkspaceGuard workspace;
     private final SourceTreeCapture capture;
     private final SourceSnapshotStorage storage;
     private final ObjectMapper json;
-    public SourceTemplatePreparation(SourceTemplateAdmission admission, SourceTemplateMapper mapper, LoopperMapper domain,
+    public SourceTemplatePreparation(SourceTemplateAdmission admission, SourceTemplateMapper mapper, SourceWorkspaceGuard workspace,
             SourceTreeCapture capture, SourceSnapshotStorage storage, ObjectMapper json) {
-        this.admission = admission; this.mapper = mapper; this.domain = domain;
+        this.admission = admission; this.mapper = mapper; this.workspace = workspace;
         this.capture = capture; this.storage = storage; this.json = json;
     }
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -39,11 +39,7 @@ public class SourceTemplatePreparation {
         return admission.ready(row);
     }
     public void requireNoWriter(Path root) {
-        for (var lease : domain.blockingWorkspaceLeases()) {
-            Path leased = Path.of(lease.canonicalRoot()).toAbsolutePath().normalize();
-            if (root.startsWith(leased) || leased.startsWith(root))
-                throw new ConflictException("SOURCE_WORKSPACE_BUSY", "项目存在活动写入任务或停止待确认，请处理后重新检查");
-        }
+        workspace.requireNoWriter(root);
     }
     private boolean persistedBytesReady(String id) {
         try {

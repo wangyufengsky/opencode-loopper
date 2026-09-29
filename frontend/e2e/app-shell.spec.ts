@@ -5,6 +5,7 @@ test.beforeEach(async ({ page }) => {
     const path = new URL(route.request().url()).pathname
     const payload = path === '/api/template-tasks/catalog' ? { templates: [], dimensions: [], defaultStartDate: '2026-09-05', defaultEndDate: '2026-09-11' }
       : (path === '/api/template-tasks/projects' || path === '/api/template-tasks') ? { items: [], nextCursor: null }
+      : (path === '/api/workflows/requirements' || path === '/api/workflows/templates') ? { items: [], nextCursor: null }
       : path === '/api/projects/summaries'
       ? [{ id: 'e2e-project', name: 'E2E 隔离项目', rootPath: '/tmp/loopper-e2e', status: 'READY', updatedAt: '2026-08-05T00:00:00Z', taskCount: 0, openDesignerSessionCount: 0 }]
       : path === '/api/tasks/summaries'
@@ -24,16 +25,16 @@ test('默认 spdb 中文外壳可启动并在主要路由间导航', async ({ pa
 
   await expect(page).toHaveTitle('OpenCode Loopper')
   await expect(page.getByRole('link', { name: 'OpenCode Loopper 首页' })).toBeVisible()
-  await expect(page.getByRole('navigation', { name: '主导航' })).toContainText('设计与执行规范')
+  await expect(page.getByRole('navigation', { name: '主导航' })).toContainText('需求任务')
   await expect(page.locator('.app-shell')).toBeVisible()
   await expect(page.locator('html')).toHaveCSS('color-scheme', 'light')
   await expect(page.locator('html')).toHaveAttribute('data-skin', 'spdb')
   await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(255, 255, 255)')
   await expect(page.getByRole('heading', { name: '任务控制台' })).toBeVisible()
 
-  await page.getByRole('link', { name: '设计与执行规范' }).click()
-  await expect(page).toHaveURL(/\/designer$/)
-  await expect(page.getByRole('heading', { name: '设计工作台' })).toBeVisible()
+  await page.getByRole('link', { name: '需求任务' }).click()
+  await expect(page).toHaveURL(/\/requirements$/)
+  await expect(page.getByRole('heading', { name: '需求任务' })).toBeVisible()
 
   await page.getByRole('link', { name: '运行环境', exact: true }).click()
   await expect(page).toHaveURL(/\/runtime$/)

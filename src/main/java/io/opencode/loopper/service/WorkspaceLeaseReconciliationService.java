@@ -172,9 +172,10 @@ public class WorkspaceLeaseReconciliationService {
             Map<String, Object> evidence = new LinkedHashMap<>();
             evidence.put("trigger", normalizedTrigger);
             evidence.put("reason", releaseReason == null ? "TERMINAL_TASK_RECONCILED" : releaseReason);
-            evidence.put("state", released.admittedNext() == null
+            evidence.put("state", WorkspaceLeaseState.RELEASED.name().equals(released.releasedHolder().state())
                     ? WorkspaceLeaseState.RELEASED.name() : "TRANSFERRED");
             if (released.admittedNext() != null) evidence.put("admittedTaskId", released.admittedNext().taskId());
+            if (released.admittedWorkflowAttemptId() != null) evidence.put("admittedWorkflowAttemptId", released.admittedWorkflowAttemptId());
             events.emit(task.id(), "workspace.lease_released", evidence);
             return Result.released(task.id(), released.admittedNext());
         } catch (TaskFailure failure) {

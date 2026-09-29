@@ -27,8 +27,9 @@ const templateQuery = ref('')
 const category = ref('全部')
 const documentPath = ref('')
 const pickingDocumentPath = ref(false)
-const categories = computed(() => ['全部', ...new Set(store.catalog?.templates.map(item => item.category || '通用') ?? [])])
-const visibleTemplates = computed(() => (store.catalog?.templates ?? []).filter(item =>
+const creationTemplates = computed(() => (store.catalog?.templates ?? []).filter(item => item.id !== 'REQUIREMENT_DEVELOPMENT'))
+const categories = computed(() => ['全部', ...new Set(creationTemplates.value.map(item => item.category || '通用'))])
+const visibleTemplates = computed(() => creationTemplates.value.filter(item =>
   (category.value === '全部' || (item.category || '通用') === category.value)
   && (!templateQuery.value.trim() || `${item.title} ${item.description}`.toLocaleLowerCase().includes(templateQuery.value.trim().toLocaleLowerCase()))))
 const projectId = ref('')
@@ -50,7 +51,7 @@ const error = ref('')
 const branchError = ref('')
 let projectGeneration = 0
 let branchGeneration = 0
-const definition = computed(() => store.catalog?.templates.find(item => item.id === selected.value))
+const definition = computed(() => creationTemplates.value.find(item => item.id === selected.value))
 const isDocument = computed(() => definition.value?.inputs?.documents === true)
 const isSource = computed(() => definition.value?.inputs?.sourcePath === true)
 const needsBranch = computed(() => definition.value?.inputs?.branch ?? true)
@@ -129,7 +130,7 @@ async function submit() {
 }
 onMounted(async () => {
   await Promise.all([searchProjects(), store.loadCatalog().then(() => {
-    selected.value = store.catalog?.templates[0]?.id ?? ''
+    selected.value = creationTemplates.value[0]?.id ?? ''
     startDate.value = store.catalog?.defaultStartDate ?? ''; endDate.value = store.catalog?.defaultEndDate ?? ''
   }).catch(failure => { error.value = userFacingError(failure, '模板目录加载失败，请刷新页面') })])
   if (typeof route.query.projectId === 'string') {
@@ -150,9 +151,10 @@ onBeforeUnmount(() => { ++projectGeneration; ++branchGeneration })
   </PageHeader>
   <main id="main-content" class="content template-tasks" tabindex="-1">
     <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" />
+    <section class="card card-pad"><h2>需求开发</h2><p>在需求任务中选择流程，进入画布后上传需求原文、安排开发与检查。</p><RouterLink :to="{ path: '/requirements/new', query: { template: 'builtin.workflow.development', ...(projectId ? { projectId } : {}) } }">创建需求任务</RouterLink><p v-if="documents.previousRun"><RouterLink :to="`/template-tasks/document-runs/${documents.previousRun.id}`">查看上次上传：{{ documents.previousRun.title }}</RouterLink></p></section>
     <div class="template-workspace">
     <aside class="card card-pad template-catalog" aria-label="模板目录">
-      <div class="catalog-heading"><h2>选择模板</h2><span class="muted tiny">{{ store.catalog?.templates.length ?? 0 }} 个</span></div>
+      <div class="catalog-heading"><h2>选择模板</h2><span class="muted tiny">{{ creationTemplates.length }} 个</span></div>
       <el-input v-model="templateQuery" clearable aria-label="搜索模板" placeholder="搜索模板"><template #prefix><Icon icon="lucide:search" /></template></el-input>
       <el-select v-if="categories.length > 2" v-model="category" aria-label="模板分类"><el-option v-for="item in categories" :key="item" :value="item" :label="item === '全部' ? '全部分类' : item" /></el-select>
       <section class="template-choices" aria-label="选择模板任务">
@@ -204,15 +206,14 @@ onBeforeUnmount(() => { ++projectGeneration; ++branchGeneration })
         <DocumentFilePicker v-model="files" input-id="requirement-files" :disabled="busy" />
         <p class="muted tiny">图片和流程图的提取局限会在结果中列出。</p>
         <el-alert v-if="fileError" :title="fileError" type="error" :closable="false" />
-        <p v-if="definition.id === 'REQUIREMENT_DEVELOPMENT'" class="muted">在项目当前目录开发，按需求自动设计、编码与测试；业务待决事项会暂停等待处理。</p>
-        <p v-else class="muted">评审冻结分支的相关代码；本次不修改代码、不执行构建或测试。</p>
-        <RouterLink v-if="documents.previousRun" :to="`/template-tasks/document-runs/${documents.previousRun.id}`">查看上次上传：{{ documents.previousRun.title }}</RouterLink>
+        <p class="muted">评审冻结分支的相关代码；本次不修改代码、不执行构建或测试。</p>
+
       </div>
       <el-alert v-if="needsDates && dateError" :title="dateError" type="error" :closable="false" />
       <el-alert v-if="needsBranch && branchError" :title="branchError" type="error" :closable="false"><el-button text @click="searchBranches('', false, true)">重新读取分支</el-button></el-alert>
       <el-alert v-else-if="needsBranch && !remoteAvailable" :title="remoteProblems.length ? `${remoteProblems.join('；')}；也可明确选择可用的本地分支` : '部分远程分支暂不可访问，请检查连接后重新读取，或明确选择可用的本地分支'" type="warning" :closable="false" />
       </div>
-      <footer class="run-action"><p v-if="isSource" class="action-hint"><Icon :icon="valid ? 'lucide:circle-check' : 'lucide:info'" />{{ valid ? '范围已检查，创建后在详情页开始执行' : '先检查处理范围，再创建任务' }}</p><el-button type="primary" native-type="submit" :loading="busy" :disabled="!valid">{{ isSource ? '创建任务' : isDocument ? (definition.id === 'REQUIREMENT_DEVELOPMENT' ? '开始开发' : '开始评审') : '开始执行' }}<Icon icon="lucide:arrow-right" /></el-button></footer>
+      <footer class="run-action"><p v-if="isSource" class="action-hint"><Icon :icon="valid ? 'lucide:circle-check' : 'lucide:info'" />{{ valid ? '范围已检查，创建后在详情页开始执行' : '先检查处理范围，再创建任务' }}</p><el-button type="primary" native-type="submit" :loading="busy" :disabled="!valid">{{ isSource ? '创建任务' : isDocument ? '开始评审' : '开始执行' }}<Icon icon="lucide:arrow-right" /></el-button></footer>
     </form>
     <details v-if="definition?.scoringVersion && store.catalog" class="card card-pad rubric">
       <summary>内置评分标准 · 满分 100</summary>

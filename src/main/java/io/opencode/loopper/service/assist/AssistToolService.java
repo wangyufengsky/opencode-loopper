@@ -35,7 +35,10 @@ public class AssistToolService {
             var result=new LinkedHashMap<>(output);result.putIfAbsent("reference","call:"+id);result.putIfAbsent("collectedAt",Instant.now().toString());
             String encoded=AssistRedaction.text(json.writeValueAsString(result));
             if(encoded.getBytes(java.nio.charset.StandardCharsets.UTF_8).length>1048576)throw new AssistFailure("ASSIST_RESULT_LIMIT","结果超过 1 MiB，请缩小查询或读取范围");
-            mapper.finishCall(id,"SUCCEEDED",encoded,Instant.now().toString());event(scope,name,id,"SUCCEEDED");
+            String now=Instant.now().toString();
+            if(!io.opencode.loopper.service.workflow.WorkflowNodeKnowledgeAccess.supports(scope.profile())
+                    || !workflowKnowledge.completeNodeEvidence(scope,id,encoded,now))mapper.finishCall(id,"SUCCEEDED",encoded,now);
+            event(scope,name,id,"SUCCEEDED");
             return new Result(json.readValue(encoded,new tools.jackson.core.type.TypeReference<>(){}),false);
         }catch(AssistFailure failure){return failed(scope,name,id,failure);}
         catch(RuntimeException failure){return failed(scope,name,id,new AssistFailure("ASSIST_UNAVAILABLE","辅助操作暂不可用，请检查运行环境和已登记调用状态","STOP_AND_INSPECT"));}

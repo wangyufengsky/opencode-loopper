@@ -11,6 +11,8 @@ class InternalMcpContractCatalogTest {
     @Test
     void exposesOneStronglyTypedToolPerCandidateRoleAndKeepsTheLegacyNameForRecovery() {
         assertThat(InternalMcpContractCatalog.toolNames()).containsExactly(
+                "get_workflow_node_work", "read_workflow_node_input",
+                "list_workflow_input_files", "read_workflow_input_file", "submit_workflow_node_result",
                 "submit_source_detailed_design", "submit_source_design_review", "get_source_design_work",
                 "list_source_template_files", "read_source_template_file", "list_source_design_results",
                 "read_source_design_result", "get_source_development_work", "list_source_development_files",
@@ -90,6 +92,10 @@ class InternalMcpContractCatalogTest {
                 .contains("submit_judge_decision");
         assertThat(InternalMcpContractCatalog.toolName(
                 OpenCodeClient.SessionProfile.GENERAL_READ_ONLY)).isEmpty();
+        assertThat(InternalMcpContractCatalog.toolName(OpenCodeClient.SessionProfile.WORKFLOW_WRITE))
+                .contains("submit_workflow_node_result");
+        assertThat(InternalMcpContractCatalog.toolName(OpenCodeClient.SessionProfile.WORKFLOW_READ_ONLY))
+                .contains("submit_workflow_node_result");
     }
 
     @SuppressWarnings("unchecked")

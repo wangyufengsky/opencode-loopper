@@ -1,0 +1,7 @@
+export const snapshotReference = { version: 'b'.repeat(40), path: 'src/main/java/example/Validation.java', blob: 'c'.repeat(40), startLine: 24, endLine: 25, quote: 'validate(input);\nreturn input.value();' }
+export const snapshotFinding = { key: 'private-finding', severity: 'HIGH', title: '空输入未被处理', trigger: '输入为空', behavior: '进入后续调用时抛出异常。', recommendation: '明确校验空值，并补充相关测试。', attribution: 'UNDETERMINED', evidence: [snapshotReference] }
+export const snapshotSource = { version: 1, type: 'REVIEW_SOURCE', snapshotId: 'private-source', sha256: 'a'.repeat(64) }
+export const snapshotAnalysis = { version: 1, type: 'SNAPSHOT_ANALYSIS', source: snapshotSource, batchOrdinal: 1, batchCount: 3,
+  locations: [{ unitId: 'private-unit', path: snapshotReference.path }], claims: { coverage: [{ unitId: 'private-unit', conclusion: '检查输入校验及后续调用。', evidence: [], limitations: [] }], findings: [snapshotFinding], supplements: [], limitations: ['静态审查，未运行测试。'] } }
+export const snapshotReview = { version: 1, type: 'SNAPSHOT_REVIEW', source: snapshotSource, analysisAttempt: 'private-analysis', findings: [{ key: snapshotFinding.key, title: snapshotFinding.title }],
+  claims: { checkedUnitIds: ['private-unit'], decisions: [{ findingKey: snapshotFinding.key, verdict: 'SUPPORTED', reason: '独立读取表明空值未被处理。', duplicateOf: null, evidence: [snapshotReference] }], evidence: [snapshotReference], conclusion: '候选问题有源码支持。', limitations: ['尚未执行相关测试。'] } }

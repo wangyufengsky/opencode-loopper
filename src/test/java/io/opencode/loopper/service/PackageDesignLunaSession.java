@@ -54,7 +54,7 @@ final class PackageDesignLunaSession {
         }
         service = new PersistentMachineCandidateSubmission(mapper, lifecycle, json,
                 List.of(new PackageDesignCandidatePolicy(inputs, compiler, mapper)),
-                List.of(new PackageDesignAcceptedCandidateWriter(mapper, inputs, compiler)), List.of());
+                List.of(new PackageDesignAcceptedCandidateWriter(mapper, inputs, compiler)), List.of(), mock(AcceptedWorkResults.class));
     }
 
     MachineCandidateSubmission.SubmissionResult submit(String candidate) {

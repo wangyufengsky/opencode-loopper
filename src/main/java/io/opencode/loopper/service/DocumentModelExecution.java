@@ -24,11 +24,13 @@ public class DocumentModelExecution {
     private final DocumentModelPrompt prompts;
     private final DocumentTemplateStorage storage;
     private final ObjectMapper json;
+    private final AcceptedWorkResults workResults;
     public DocumentModelExecution(DocumentModelStore store, OpenCodeClient runtime,
             org.springframework.beans.factory.ObjectProvider<CandidateRuntimeBindingService> bindings, MachineCandidateSubmission submissions,
-            DocumentModelPrompt prompts, DocumentTemplateStorage storage, ObjectMapper json) {
+            DocumentModelPrompt prompts, DocumentTemplateStorage storage, ObjectMapper json, AcceptedWorkResults workResults) {
         this.store = store; this.runtime = runtime; this.bindings = bindings; this.submissions = submissions;
         this.prompts = prompts; this.storage = storage; this.json = json;
+        this.workResults = workResults;
     }
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public DocumentTemplateModelRow advance(String id, DocumentTemplateService.Contract contract) {
@@ -107,6 +109,9 @@ public class DocumentModelExecution {
         }
         if (status.failed()) throw failure("DOCUMENT_MODEL_FAILED", "分析会话失败，已保留本次输入和输出证据");
         if (row.outputJson() == null) throw failure("DOCUMENT_SUBMISSION_MISSING", "模型已结束但没有提交有效候选，请检查预算或模型配置后恢复");
+        workResults.verifyNative(MachineCandidateSubmission.CandidateScope.project(store.requireActive(row.runId()).projectId()),
+                new MachineCandidateSubmission.CandidateOwnerRef(MachineCandidateSubmission.CandidateOwnerType.DOCUMENT_TEMPLATE_MODEL_RUN, row.id()),
+                row.id(), row.outputJson(), row.outputSha256());
         return store.transition(row, VALIDATED, LifecycleEvent.COMPLETE, null);
     }
     /** Caller serializes local I/O before this method; unknown stop retains the blocking state. */

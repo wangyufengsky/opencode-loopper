@@ -1,0 +1,2048 @@
+{
+  "schemaVersion": 1,
+  "flows": [
+    {
+      "id": "builtin.workflow.analysis",
+      "title": "资料分析与人工检查",
+      "description": "只读分析后由用户核对成果，可复制后调整角色、任务和完成规则。",
+      "nodes": [
+        {
+          "id": "analysis",
+          "presetId": "analysis.read",
+          "presetVersion": 1,
+          "inputs": []
+        },
+        {
+          "id": "check",
+          "presetId": "human.confirm",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "material",
+              "source": "NODE",
+              "sourceId": "analysis",
+              "output": "result",
+              "kind": "TEXT",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "id": "e_analysis_check",
+          "to": "check",
+          "outcome": null,
+          "from": "analysis"
+        }
+      ],
+      "inputs": [],
+      "layout": {
+        "positions": {
+          "analysis": {
+            "x": 40,
+            "y": 0
+          },
+          "check": {
+            "x": 40,
+            "y": 190
+          }
+        },
+        "x": 32,
+        "y": 36,
+        "zoom": 1
+      }
+    },
+    {
+      "id": "builtin.workflow.design",
+      "title": "需求澄清与阶段规划",
+      "description": "设计师提出问题，用户补充需求，再交付方案和需要确认的候选阶段计划。",
+      "nodes": [
+        {
+          "id": "questions",
+          "presetId": "design.questions",
+          "presetVersion": 1,
+          "inputs": []
+        },
+        {
+          "id": "answers",
+          "presetId": "human.confirm",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "material",
+              "source": "NODE",
+              "sourceId": "questions",
+              "output": "questions",
+              "kind": "TEXT",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "design",
+          "presetId": "design.plan",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "requirements",
+              "source": "NODE",
+              "sourceId": "answers",
+              "output": "result",
+              "kind": "TEXT",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "id": "e_questions_answers",
+          "to": "answers",
+          "outcome": null,
+          "from": "questions"
+        },
+        {
+          "id": "e_answers_design",
+          "to": "design",
+          "outcome": null,
+          "from": "answers"
+        }
+      ],
+      "inputs": [],
+      "layout": {
+        "positions": {
+          "questions": {
+            "x": 40,
+            "y": 0
+          },
+          "answers": {
+            "x": 40,
+            "y": 190
+          },
+          "design": {
+            "x": 40,
+            "y": 380
+          }
+        },
+        "x": 32,
+        "y": 36,
+        "zoom": 1
+      }
+    },
+    {
+      "id": "builtin.workflow.file-work",
+      "title": "文件开发与人工检查",
+      "description": "开发工程师完成文件工作，程序保存代码版本，由用户核对工作说明、实际检查记录和代码。当前文件工作需要 Git 项目。",
+      "nodes": [
+        {
+          "id": "develop",
+          "presetId": "development.implement",
+          "presetVersion": 1,
+          "inputs": []
+        },
+        {
+          "id": "check",
+          "presetId": "human.confirm",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "material",
+              "source": "NODE",
+              "sourceId": "develop",
+              "output": "result",
+              "kind": "TEXT",
+              "required": true
+            },
+            {
+              "name": "code",
+              "source": "NODE",
+              "sourceId": "develop",
+              "output": "code",
+              "kind": "CODE",
+              "required": true
+            },
+            {
+              "name": "checks",
+              "source": "NODE",
+              "sourceId": "develop",
+              "output": "checks",
+              "kind": "TEXT",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "id": "e_develop_check",
+          "to": "check",
+          "outcome": null,
+          "from": "develop"
+        }
+      ],
+      "inputs": [],
+      "layout": {
+        "positions": {
+          "develop": {
+            "x": 40,
+            "y": 0
+          },
+          "check": {
+            "x": 40,
+            "y": 190
+          }
+        },
+        "x": 32,
+        "y": 36,
+        "zoom": 1
+      }
+    },
+    {
+      "id": "builtin.workflow.development",
+      "title": "默认开发流程",
+      "description": "需求提问、用户回答、设计与候选阶段计划、文件开发、程序验证、独立需求与风险评审、同批验收。设计师按实际项目配置验证命令，候选先由用户确认；复制后可删改完成策略。支持 Git 项目和普通目录；最终成果由用户选择提交或回填。",
+      "nodes": [
+        {
+          "id": "questions",
+          "presetId": "design.questions",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "documents",
+              "source": "REQUIREMENT",
+              "sourceId": "documents",
+              "output": null,
+              "kind": "DOCUMENT",
+              "required": false
+            }
+          ],
+          "task": "结合本次需求目标与已绑定资料识别关键信息缺口。有需求原文时使用文件 MCP 阅读清单和正文，说明解析局限与不能确认的内容。交付有编号的澄清问题及提出原因；已有信息充分时明确说明，不虚构用户回答。"
+        },
+        {
+          "id": "answers",
+          "presetId": "human.confirm",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "material",
+              "source": "NODE",
+              "sourceId": "questions",
+              "output": "questions",
+              "kind": "TEXT",
+              "required": true
+            }
+          ],
+          "title": "补充与确认需求",
+          "task": "阅读设计师提出的问题，填写回答、补充信息和本次确认的要求。不能由程序代填用户答案。"
+        },
+        {
+          "id": "design",
+          "presetId": "design.plan",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "requirements",
+              "source": "NODE",
+              "sourceId": "answers",
+              "output": "result",
+              "kind": "TEXT",
+              "required": true
+            },
+            {
+              "name": "documents",
+              "source": "REQUIREMENT",
+              "sourceId": "documents",
+              "output": null,
+              "kind": "DOCUMENT",
+              "required": false
+            }
+          ],
+          "task": "有需求原文时使用文件 MCP 阅读固定原文清单与正文，结合用户回答保留来源和解析局限。阅读本次目标、已确认需求及实际项目，交付设计方案和候选后续计划。读取 planning 的完整基准，只调整允许的后继区域。根据真实项目脚本和测试框架配置 verify 的 commandVerification 独立 argv、用途、时限与输出要求：测试框架命令用 TEST，普通项目检查脚本用 CHECK，不猜测通用命令；无法确定时在方案中说明并保留空命令待用户配置。可细化 develop 为多个有明确输入输出的阶段，后续代码使用前阶段固定 CODE。保留用户当前选择的程序验证、需求评审、风险评审和验收意图，将两份评审绑定到同一份最终设计、代码及该代码的程序报告；若用户已明确移除则不偷偷恢复。候选计划须由用户查看确认，不能自行应用、执行或认定验收成功。"
+        },
+        {
+          "id": "develop",
+          "presetId": "development.implement",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "design",
+              "source": "NODE",
+              "sourceId": "design",
+              "output": "design",
+              "kind": "TEXT",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "verify",
+          "presetId": "verification.command",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "code",
+              "source": "NODE",
+              "sourceId": "develop",
+              "output": "code",
+              "kind": "CODE",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "requirementReview",
+          "presetId": "review.requirement",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "design",
+              "source": "NODE",
+              "sourceId": "design",
+              "output": "design",
+              "kind": "TEXT",
+              "required": true
+            },
+            {
+              "name": "code",
+              "source": "NODE",
+              "sourceId": "develop",
+              "output": "code",
+              "kind": "CODE",
+              "required": true
+            },
+            {
+              "name": "verification",
+              "source": "NODE",
+              "sourceId": "verify",
+              "output": "report",
+              "kind": "JSON",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "riskReview",
+          "presetId": "review.risk",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "design",
+              "source": "NODE",
+              "sourceId": "design",
+              "output": "design",
+              "kind": "TEXT",
+              "required": true
+            },
+            {
+              "name": "code",
+              "source": "NODE",
+              "sourceId": "develop",
+              "output": "code",
+              "kind": "CODE",
+              "required": true
+            },
+            {
+              "name": "verification",
+              "source": "NODE",
+              "sourceId": "verify",
+              "output": "report",
+              "kind": "JSON",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "acceptance",
+          "presetId": "review.dual",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "requirementReview",
+              "source": "NODE",
+              "sourceId": "requirementReview",
+              "output": "review",
+              "kind": "DECISION",
+              "required": true
+            },
+            {
+              "name": "riskReview",
+              "source": "NODE",
+              "sourceId": "riskReview",
+              "output": "review",
+              "kind": "DECISION",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "id": "e_questions_answers",
+          "from": "questions",
+          "to": "answers",
+          "outcome": null
+        },
+        {
+          "id": "e_answers_design",
+          "from": "answers",
+          "to": "design",
+          "outcome": null
+        },
+        {
+          "id": "e_design_develop",
+          "from": "design",
+          "to": "develop",
+          "outcome": null
+        },
+        {
+          "id": "e_develop_verify",
+          "from": "develop",
+          "to": "verify",
+          "outcome": null
+        },
+        {
+          "id": "e_verify_requirementReview",
+          "from": "verify",
+          "to": "requirementReview",
+          "outcome": null
+        },
+        {
+          "id": "e_verify_riskReview",
+          "from": "verify",
+          "to": "riskReview",
+          "outcome": null
+        },
+        {
+          "id": "e_requirementReview_acceptance",
+          "from": "requirementReview",
+          "to": "acceptance",
+          "outcome": null
+        },
+        {
+          "id": "e_riskReview_acceptance",
+          "from": "riskReview",
+          "to": "acceptance",
+          "outcome": null
+        }
+      ],
+      "inputs": [
+        {
+          "name": "documents",
+          "title": "需求原文（可选）",
+          "kind": "DOCUMENT",
+          "required": false
+        }
+      ],
+      "layout": {
+        "positions": {
+          "questions": {
+            "x": 190,
+            "y": 0
+          },
+          "answers": {
+            "x": 190,
+            "y": 190
+          },
+          "design": {
+            "x": 190,
+            "y": 380
+          },
+          "develop": {
+            "x": 190,
+            "y": 570
+          },
+          "verify": {
+            "x": 190,
+            "y": 760
+          },
+          "requirementReview": {
+            "x": 40,
+            "y": 950
+          },
+          "riskReview": {
+            "x": 360,
+            "y": 950
+          },
+          "acceptance": {
+            "x": 190,
+            "y": 1140
+          }
+        },
+        "x": 32,
+        "y": 36,
+        "zoom": 0.55
+      }
+    },
+    {
+      "id": "builtin.workflow.source-design",
+      "title": "源码详细设计",
+      "description": "冻结项目内源码，按目录与规模生成完整分批候选计划，经用户确认后编写、独立复核并汇总 Markdown。支持非 Git 项目；可复制调整角色、任务和复核策略。",
+      "nodes": [
+        {
+          "id": "source",
+          "presetId": "source.snapshot",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "path",
+              "source": "REQUIREMENT",
+              "sourceId": "path",
+              "output": null,
+              "kind": "TEXT",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "batches",
+          "presetId": "source.design-plan",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "source",
+              "source": "NODE",
+              "sourceId": "source",
+              "output": "source",
+              "kind": "DOCUMENT",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "author",
+          "presetId": "source.design",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "source",
+              "source": "NODE",
+              "sourceId": "source",
+              "output": "source",
+              "kind": "DOCUMENT",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "reviewer",
+          "presetId": "source.design-review",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "source",
+              "source": "NODE",
+              "sourceId": "source",
+              "output": "source",
+              "kind": "DOCUMENT",
+              "required": true
+            },
+            {
+              "name": "draft",
+              "source": "NODE",
+              "sourceId": "author",
+              "output": "design",
+              "kind": "JSON",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "document",
+          "presetId": "source.design-document",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "source",
+              "source": "NODE",
+              "sourceId": "source",
+              "output": "source",
+              "kind": "DOCUMENT",
+              "required": true
+            },
+            {
+              "name": "draft",
+              "source": "NODE",
+              "sourceId": "author",
+              "output": "design",
+              "kind": "JSON",
+              "required": true
+            },
+            {
+              "name": "review",
+              "source": "NODE",
+              "sourceId": "reviewer",
+              "output": "review",
+              "kind": "DECISION",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "id": "e_source_batches",
+          "from": "source",
+          "to": "batches",
+          "outcome": null
+        },
+        {
+          "id": "e_batches_author",
+          "from": "batches",
+          "to": "author",
+          "outcome": null
+        },
+        {
+          "id": "e_author_reviewer",
+          "from": "author",
+          "to": "reviewer",
+          "outcome": null
+        },
+        {
+          "id": "e_reviewer_document",
+          "from": "reviewer",
+          "to": "document",
+          "outcome": null
+        }
+      ],
+      "inputs": [
+        {
+          "name": "path",
+          "title": "源码路径",
+          "kind": "TEXT",
+          "required": true
+        }
+      ],
+      "layout": {
+        "positions": {
+          "source": {
+            "x": 40,
+            "y": 0
+          },
+          "batches": {
+            "x": 40,
+            "y": 190
+          },
+          "author": {
+            "x": 40,
+            "y": 380
+          },
+          "reviewer": {
+            "x": 40,
+            "y": 570
+          },
+          "document": {
+            "x": 40,
+            "y": 760
+          }
+        },
+        "x": 32,
+        "y": 36,
+        "zoom": 0.7
+      }
+    },
+    {
+      "id": "builtin.workflow.source-unit-test",
+      "title": "源码单元测试",
+      "description": "冻结源码并识别原生测试配置，分批计划先由用户确认；逐批编写并继承代码，最后对同一份代码执行全部模块测试，明确展示双份独立复核和汇总策略。",
+      "nodes": [
+        {
+          "id": "source",
+          "presetId": "source.test-snapshot",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "path",
+              "source": "REQUIREMENT",
+              "sourceId": "path",
+              "output": null,
+              "kind": "TEXT",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "profile",
+          "presetId": "source.test-profile",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "source",
+              "source": "NODE",
+              "sourceId": "source",
+              "output": "source",
+              "kind": "DOCUMENT",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "batches",
+          "presetId": "source.test-plan",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "source",
+              "source": "NODE",
+              "sourceId": "source",
+              "output": "source",
+              "kind": "DOCUMENT",
+              "required": true
+            },
+            {
+              "name": "profile",
+              "source": "NODE",
+              "sourceId": "profile",
+              "output": "profile",
+              "kind": "JSON",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "design",
+          "presetId": "source.test-design",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "source",
+              "source": "NODE",
+              "sourceId": "source",
+              "output": "source",
+              "kind": "DOCUMENT",
+              "required": true
+            },
+            {
+              "name": "profile",
+              "source": "NODE",
+              "sourceId": "profile",
+              "output": "profile",
+              "kind": "JSON",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "write",
+          "presetId": "source.test-write",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "source",
+              "source": "NODE",
+              "sourceId": "source",
+              "output": "source",
+              "kind": "DOCUMENT",
+              "required": true
+            },
+            {
+              "name": "profile",
+              "source": "NODE",
+              "sourceId": "profile",
+              "output": "profile",
+              "kind": "JSON",
+              "required": true
+            },
+            {
+              "name": "design",
+              "source": "NODE",
+              "sourceId": "design",
+              "output": "design",
+              "kind": "JSON",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "test",
+          "presetId": "source.test-final-run",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "source",
+              "source": "NODE",
+              "sourceId": "source",
+              "output": "source",
+              "kind": "DOCUMENT",
+              "required": true
+            },
+            {
+              "name": "profile",
+              "source": "NODE",
+              "sourceId": "profile",
+              "output": "profile",
+              "kind": "JSON",
+              "required": true
+            },
+            {
+              "name": "design",
+              "source": "NODE",
+              "sourceId": "design",
+              "output": "design",
+              "kind": "JSON",
+              "required": true
+            },
+            {
+              "name": "code",
+              "source": "NODE",
+              "sourceId": "write",
+              "output": "code",
+              "kind": "CODE",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "review",
+          "presetId": "source.test-final-review",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "source",
+              "source": "NODE",
+              "sourceId": "source",
+              "output": "source",
+              "kind": "DOCUMENT",
+              "required": true
+            },
+            {
+              "name": "profile",
+              "source": "NODE",
+              "sourceId": "profile",
+              "output": "profile",
+              "kind": "JSON",
+              "required": true
+            },
+            {
+              "name": "design",
+              "source": "NODE",
+              "sourceId": "design",
+              "output": "design",
+              "kind": "JSON",
+              "required": true
+            },
+            {
+              "name": "code",
+              "source": "NODE",
+              "sourceId": "write",
+              "output": "code",
+              "kind": "CODE",
+              "required": true
+            },
+            {
+              "name": "test",
+              "source": "NODE",
+              "sourceId": "test",
+              "output": "report",
+              "kind": "JSON",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "risk",
+          "presetId": "source.test-final-risk",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "source",
+              "source": "NODE",
+              "sourceId": "source",
+              "output": "source",
+              "kind": "DOCUMENT",
+              "required": true
+            },
+            {
+              "name": "profile",
+              "source": "NODE",
+              "sourceId": "profile",
+              "output": "profile",
+              "kind": "JSON",
+              "required": true
+            },
+            {
+              "name": "design",
+              "source": "NODE",
+              "sourceId": "design",
+              "output": "design",
+              "kind": "JSON",
+              "required": true
+            },
+            {
+              "name": "code",
+              "source": "NODE",
+              "sourceId": "write",
+              "output": "code",
+              "kind": "CODE",
+              "required": true
+            },
+            {
+              "name": "test",
+              "source": "NODE",
+              "sourceId": "test",
+              "output": "report",
+              "kind": "JSON",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "summary",
+          "presetId": "source.test-summary",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "source",
+              "source": "NODE",
+              "sourceId": "source",
+              "output": "source",
+              "kind": "DOCUMENT",
+              "required": true
+            },
+            {
+              "name": "profile",
+              "source": "NODE",
+              "sourceId": "profile",
+              "output": "profile",
+              "kind": "JSON",
+              "required": true
+            },
+            {
+              "name": "code",
+              "source": "NODE",
+              "sourceId": "write",
+              "output": "code",
+              "kind": "CODE",
+              "required": true
+            },
+            {
+              "name": "test_1",
+              "source": "NODE",
+              "sourceId": "test",
+              "output": "report",
+              "kind": "JSON",
+              "required": true
+            },
+            {
+              "name": "review_1",
+              "source": "NODE",
+              "sourceId": "review",
+              "output": "review",
+              "kind": "DECISION",
+              "required": true
+            },
+            {
+              "name": "review_2",
+              "source": "NODE",
+              "sourceId": "risk",
+              "output": "review",
+              "kind": "DECISION",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "id": "e_source_profile",
+          "from": "source",
+          "to": "profile",
+          "outcome": null
+        },
+        {
+          "id": "e_profile_batches",
+          "from": "profile",
+          "to": "batches",
+          "outcome": null
+        },
+        {
+          "id": "e_batches_design",
+          "from": "batches",
+          "to": "design",
+          "outcome": null
+        },
+        {
+          "id": "e_design_write",
+          "from": "design",
+          "to": "write",
+          "outcome": null
+        },
+        {
+          "id": "e_write_test",
+          "from": "write",
+          "to": "test",
+          "outcome": null
+        },
+        {
+          "id": "e_test_review",
+          "from": "test",
+          "to": "review",
+          "outcome": null
+        },
+        {
+          "id": "e_test_risk",
+          "from": "test",
+          "to": "risk",
+          "outcome": null
+        },
+        {
+          "id": "e_test_summary",
+          "from": "test",
+          "to": "summary",
+          "outcome": null
+        },
+        {
+          "id": "e_review_summary",
+          "from": "review",
+          "to": "summary",
+          "outcome": null
+        },
+        {
+          "id": "e_risk_summary",
+          "from": "risk",
+          "to": "summary",
+          "outcome": null
+        }
+      ],
+      "inputs": [
+        {
+          "name": "path",
+          "title": "源码路径",
+          "kind": "TEXT",
+          "required": true
+        }
+      ],
+      "layout": {
+        "positions": {
+          "source": {
+            "x": 40,
+            "y": 0
+          },
+          "profile": {
+            "x": 40,
+            "y": 190
+          },
+          "batches": {
+            "x": 40,
+            "y": 380
+          },
+          "design": {
+            "x": 40,
+            "y": 570
+          },
+          "write": {
+            "x": 40,
+            "y": 760
+          },
+          "test": {
+            "x": 40,
+            "y": 950
+          },
+          "review": {
+            "x": -150,
+            "y": 1140
+          },
+          "risk": {
+            "x": 230,
+            "y": 1140
+          },
+          "summary": {
+            "x": 40,
+            "y": 1330
+          }
+        },
+        "x": 32,
+        "y": 36,
+        "zoom": 0.55
+      }
+    },
+    {
+      "id": "builtin.workflow.document-review",
+      "title": "需求原文与代码评审",
+      "description": "固定原文和指定分支代码，经用户确认分批候选后完成静态评审、独立复核及完整报告。可复制调整角色和复核策略。",
+      "nodes": [
+        {
+          "id": "repository",
+          "presetId": "repository.snapshot",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "branch",
+              "source": "REQUIREMENT",
+              "sourceId": "branch",
+              "output": null,
+              "kind": "TEXT",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "batches",
+          "presetId": "document.review-plan",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "documents",
+              "source": "REQUIREMENT",
+              "sourceId": "documents",
+              "output": null,
+              "kind": "DOCUMENT",
+              "required": true
+            },
+            {
+              "name": "code",
+              "source": "NODE",
+              "sourceId": "repository",
+              "output": "source",
+              "kind": "DOCUMENT",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "author",
+          "presetId": "document.direct-review",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "documents",
+              "source": "REQUIREMENT",
+              "sourceId": "documents",
+              "output": null,
+              "kind": "DOCUMENT",
+              "required": true
+            },
+            {
+              "name": "code",
+              "source": "NODE",
+              "sourceId": "repository",
+              "output": "source",
+              "kind": "DOCUMENT",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "reviewer",
+          "presetId": "document.direct-review-check",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "documents",
+              "source": "REQUIREMENT",
+              "sourceId": "documents",
+              "output": null,
+              "kind": "DOCUMENT",
+              "required": true
+            },
+            {
+              "name": "code",
+              "source": "NODE",
+              "sourceId": "repository",
+              "output": "source",
+              "kind": "DOCUMENT",
+              "required": true
+            },
+            {
+              "name": "draft",
+              "source": "NODE",
+              "sourceId": "author",
+              "output": "assessment",
+              "kind": "JSON",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "report",
+          "presetId": "document.review-report",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "documents",
+              "source": "REQUIREMENT",
+              "sourceId": "documents",
+              "output": null,
+              "kind": "DOCUMENT",
+              "required": true
+            },
+            {
+              "name": "code",
+              "source": "NODE",
+              "sourceId": "repository",
+              "output": "source",
+              "kind": "DOCUMENT",
+              "required": true
+            },
+            {
+              "name": "draft",
+              "source": "NODE",
+              "sourceId": "author",
+              "output": "assessment",
+              "kind": "JSON",
+              "required": true
+            },
+            {
+              "name": "review",
+              "source": "NODE",
+              "sourceId": "reviewer",
+              "output": "review",
+              "kind": "DECISION",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "id": "e_repository_batches",
+          "from": "repository",
+          "to": "batches",
+          "outcome": null
+        },
+        {
+          "id": "e_batches_author",
+          "from": "batches",
+          "to": "author",
+          "outcome": null
+        },
+        {
+          "id": "e_author_reviewer",
+          "from": "author",
+          "to": "reviewer",
+          "outcome": null
+        },
+        {
+          "id": "e_reviewer_report",
+          "from": "reviewer",
+          "to": "report",
+          "outcome": null
+        }
+      ],
+      "inputs": [
+        {
+          "name": "branch",
+          "title": "代码分支",
+          "kind": "TEXT",
+          "required": true
+        },
+        {
+          "name": "documents",
+          "title": "需求原文",
+          "kind": "DOCUMENT",
+          "required": true
+        }
+      ],
+      "layout": {
+        "positions": {
+          "repository": {
+            "x": 40,
+            "y": 0
+          },
+          "batches": {
+            "x": 40,
+            "y": 190
+          },
+          "author": {
+            "x": 40,
+            "y": 380
+          },
+          "reviewer": {
+            "x": 40,
+            "y": 570
+          },
+          "report": {
+            "x": 40,
+            "y": 760
+          }
+        },
+        "x": 32,
+        "y": 36,
+        "zoom": 0.7
+      }
+    },
+    {
+      "id": "builtin.workflow.knowledge",
+      "title": "知识检索与资料整理",
+      "description": "先查询并固定所选证据，再按固定版本整理说明；可自由添加人工检查或其他工作。",
+      "nodes": [
+        {
+          "id": "research",
+          "presetId": "knowledge.research",
+          "presetVersion": 1,
+          "inputs": []
+        },
+        {
+          "id": "summary",
+          "presetId": "knowledge.summarize",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "findings",
+              "source": "NODE",
+              "sourceId": "research",
+              "output": "result",
+              "kind": "TEXT",
+              "required": true
+            },
+            {
+              "name": "evidence",
+              "source": "NODE",
+              "sourceId": "research",
+              "output": "evidence",
+              "kind": "JSON",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "id": "e_research_summary",
+          "to": "summary",
+          "outcome": null,
+          "from": "research"
+        }
+      ],
+      "inputs": [],
+      "layout": {
+        "positions": {
+          "research": {
+            "x": 40,
+            "y": 0
+          },
+          "summary": {
+            "x": 40,
+            "y": 190
+          }
+        },
+        "x": 32,
+        "y": 36,
+        "zoom": 1
+      }
+    },
+    {
+      "id": "builtin.workflow.history-review",
+      "title": "历史提交审查",
+      "description": "固定分支与日期范围，经用户确认完整分批后执行分析，生成可下载的总结与明细；可复制调整角色和流程。",
+      "nodes": [
+        {
+          "id": "source",
+          "presetId": "git.history",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "branch",
+              "source": "REQUIREMENT",
+              "sourceId": "branch",
+              "output": null,
+              "kind": "TEXT",
+              "required": true
+            },
+            {
+              "name": "startDate",
+              "source": "REQUIREMENT",
+              "sourceId": "startDate",
+              "output": null,
+              "kind": "TEXT",
+              "required": true
+            },
+            {
+              "name": "endDate",
+              "source": "REQUIREMENT",
+              "sourceId": "endDate",
+              "output": null,
+              "kind": "TEXT",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "batches",
+          "presetId": "history.plan",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "source",
+              "source": "NODE",
+              "sourceId": "source",
+              "output": "source",
+              "kind": "DOCUMENT",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "review",
+          "presetId": "history.review",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "source",
+              "source": "NODE",
+              "sourceId": "source",
+              "output": "source",
+              "kind": "DOCUMENT",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "report",
+          "presetId": "history.report",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "source",
+              "source": "NODE",
+              "sourceId": "source",
+              "output": "source",
+              "kind": "DOCUMENT",
+              "required": true
+            },
+            {
+              "name": "review",
+              "source": "NODE",
+              "sourceId": "review",
+              "output": "analysis",
+              "kind": "JSON",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "id": "e_source_batches",
+          "from": "source",
+          "to": "batches",
+          "outcome": null
+        },
+        {
+          "id": "e_batches_review",
+          "from": "batches",
+          "to": "review",
+          "outcome": null
+        },
+        {
+          "id": "e_review_report",
+          "from": "review",
+          "to": "report",
+          "outcome": null
+        }
+      ],
+      "inputs": [
+        {
+          "name": "branch",
+          "title": "代码分支",
+          "kind": "TEXT",
+          "required": true
+        },
+        {
+          "name": "startDate",
+          "title": "开始日期（YYYY-MM-DD）",
+          "kind": "TEXT",
+          "required": true
+        },
+        {
+          "name": "endDate",
+          "title": "结束日期（YYYY-MM-DD）",
+          "kind": "TEXT",
+          "required": true
+        }
+      ],
+      "layout": {
+        "positions": {
+          "source": {
+            "x": 40,
+            "y": 0
+          },
+          "batches": {
+            "x": 40,
+            "y": 190
+          },
+          "review": {
+            "x": 40,
+            "y": 380
+          },
+          "report": {
+            "x": 40,
+            "y": 570
+          }
+        },
+        "x": 32,
+        "y": 36,
+        "zoom": 0.7
+      }
+    },
+    {
+      "id": "builtin.workflow.history-contribution",
+      "title": "项目贡献周报",
+      "description": "固定分支与日期范围，经用户确认完整分批后执行分析，生成可下载的总结与明细；可复制调整角色和流程。",
+      "nodes": [
+        {
+          "id": "source",
+          "presetId": "git.history",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "branch",
+              "source": "REQUIREMENT",
+              "sourceId": "branch",
+              "output": null,
+              "kind": "TEXT",
+              "required": true
+            },
+            {
+              "name": "startDate",
+              "source": "REQUIREMENT",
+              "sourceId": "startDate",
+              "output": null,
+              "kind": "TEXT",
+              "required": true
+            },
+            {
+              "name": "endDate",
+              "source": "REQUIREMENT",
+              "sourceId": "endDate",
+              "output": null,
+              "kind": "TEXT",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "batches",
+          "presetId": "history.plan",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "source",
+              "source": "NODE",
+              "sourceId": "source",
+              "output": "source",
+              "kind": "DOCUMENT",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "review",
+          "presetId": "history.review",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "source",
+              "source": "NODE",
+              "sourceId": "source",
+              "output": "source",
+              "kind": "DOCUMENT",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "contribution",
+          "presetId": "history.contribution",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "source",
+              "source": "NODE",
+              "sourceId": "source",
+              "output": "source",
+              "kind": "DOCUMENT",
+              "required": true
+            },
+            {
+              "name": "review",
+              "source": "NODE",
+              "sourceId": "review",
+              "output": "analysis",
+              "kind": "JSON",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "report",
+          "presetId": "history.contribution-report",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "source",
+              "source": "NODE",
+              "sourceId": "source",
+              "output": "source",
+              "kind": "DOCUMENT",
+              "required": true
+            },
+            {
+              "name": "review",
+              "source": "NODE",
+              "sourceId": "review",
+              "output": "analysis",
+              "kind": "JSON",
+              "required": true
+            },
+            {
+              "name": "contribution",
+              "source": "NODE",
+              "sourceId": "contribution",
+              "output": "analysis",
+              "kind": "JSON",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "id": "e_source_batches",
+          "from": "source",
+          "to": "batches",
+          "outcome": null
+        },
+        {
+          "id": "e_batches_review",
+          "from": "batches",
+          "to": "review",
+          "outcome": null
+        },
+        {
+          "id": "e_review_contribution",
+          "from": "review",
+          "to": "contribution",
+          "outcome": null
+        },
+        {
+          "id": "e_contribution_report",
+          "from": "contribution",
+          "to": "report",
+          "outcome": null
+        }
+      ],
+      "inputs": [
+        {
+          "name": "branch",
+          "title": "代码分支",
+          "kind": "TEXT",
+          "required": true
+        },
+        {
+          "name": "startDate",
+          "title": "开始日期（YYYY-MM-DD）",
+          "kind": "TEXT",
+          "required": true
+        },
+        {
+          "name": "endDate",
+          "title": "结束日期（YYYY-MM-DD）",
+          "kind": "TEXT",
+          "required": true
+        }
+      ],
+      "layout": {
+        "positions": {
+          "source": {
+            "x": 40,
+            "y": 0
+          },
+          "batches": {
+            "x": 40,
+            "y": 190
+          },
+          "review": {
+            "x": 40,
+            "y": 380
+          },
+          "contribution": {
+            "x": 40,
+            "y": 570
+          },
+          "report": {
+            "x": 40,
+            "y": 760
+          }
+        },
+        "x": 32,
+        "y": 36,
+        "zoom": 0.7
+      }
+    },
+    {
+      "id": "builtin.workflow.snapshot-review",
+      "title": "日期增量版本审查",
+      "description": "固定所选版本，经用户确认完整分批后分析；仅对候选问题独立复核，汇总可下载的报告。可复制调整角色或取消复核。",
+      "nodes": [
+        {
+          "id": "source",
+          "presetId": "review.snapshot",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "branch",
+              "source": "REQUIREMENT",
+              "sourceId": "branch",
+              "output": null,
+              "kind": "TEXT",
+              "required": true
+            },
+            {
+              "name": "startDate",
+              "source": "REQUIREMENT",
+              "sourceId": "startDate",
+              "output": null,
+              "kind": "TEXT",
+              "required": true
+            },
+            {
+              "name": "endDate",
+              "source": "REQUIREMENT",
+              "sourceId": "endDate",
+              "output": null,
+              "kind": "TEXT",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "batches",
+          "presetId": "snapshot.plan",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "source",
+              "source": "NODE",
+              "sourceId": "source",
+              "output": "source",
+              "kind": "DOCUMENT",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "analysis",
+          "presetId": "snapshot.analyze",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "source",
+              "source": "NODE",
+              "sourceId": "source",
+              "output": "source",
+              "kind": "DOCUMENT",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "review",
+          "presetId": "snapshot.review",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "source",
+              "source": "NODE",
+              "sourceId": "source",
+              "output": "source",
+              "kind": "DOCUMENT",
+              "required": true
+            },
+            {
+              "name": "analysis",
+              "source": "NODE",
+              "sourceId": "analysis",
+              "output": "analysis",
+              "kind": "JSON",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "report",
+          "presetId": "snapshot.report",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "source",
+              "source": "NODE",
+              "sourceId": "source",
+              "output": "source",
+              "kind": "DOCUMENT",
+              "required": true
+            },
+            {
+              "name": "analysis",
+              "source": "NODE",
+              "sourceId": "analysis",
+              "output": "analysis",
+              "kind": "JSON",
+              "required": true
+            },
+            {
+              "name": "review",
+              "source": "NODE",
+              "sourceId": "review",
+              "output": "analysis",
+              "kind": "JSON",
+              "required": false
+            }
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "id": "e_source_batches",
+          "from": "source",
+          "to": "batches",
+          "outcome": null
+        },
+        {
+          "id": "e_batches_analysis",
+          "from": "batches",
+          "to": "analysis",
+          "outcome": null
+        },
+        {
+          "id": "e_analysis_review",
+          "from": "analysis",
+          "to": "review",
+          "outcome": "HAS_FINDINGS"
+        },
+        {
+          "id": "e_analysis_report",
+          "from": "analysis",
+          "to": "report",
+          "outcome": "NO_FINDINGS"
+        },
+        {
+          "id": "e_review_report",
+          "from": "review",
+          "to": "report",
+          "outcome": null
+        }
+      ],
+      "inputs": [
+        {
+          "name": "branch",
+          "title": "代码分支",
+          "kind": "TEXT",
+          "required": true
+        },
+        {
+          "name": "startDate",
+          "title": "开始日期（YYYY-MM-DD）",
+          "kind": "TEXT",
+          "required": true
+        },
+        {
+          "name": "endDate",
+          "title": "结束日期（YYYY-MM-DD）",
+          "kind": "TEXT",
+          "required": true
+        }
+      ],
+      "layout": {
+        "positions": {
+          "source": {
+            "x": 40,
+            "y": 0
+          },
+          "batches": {
+            "x": 40,
+            "y": 190
+          },
+          "analysis": {
+            "x": 40,
+            "y": 380
+          },
+          "review": {
+            "x": 40,
+            "y": 570
+          },
+          "report": {
+            "x": 40,
+            "y": 760
+          }
+        },
+        "x": 32,
+        "y": 36,
+        "zoom": 0.7
+      }
+    },
+    {
+      "id": "builtin.workflow.snapshot-full",
+      "title": "当前版本全面审查",
+      "description": "固定所选版本，经用户确认完整分批后分析；仅对候选问题独立复核，汇总可下载的报告。可复制调整角色或取消复核。",
+      "nodes": [
+        {
+          "id": "source",
+          "presetId": "review.snapshot-full",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "branch",
+              "source": "REQUIREMENT",
+              "sourceId": "branch",
+              "output": null,
+              "kind": "TEXT",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "batches",
+          "presetId": "snapshot.plan",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "source",
+              "source": "NODE",
+              "sourceId": "source",
+              "output": "source",
+              "kind": "DOCUMENT",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "analysis",
+          "presetId": "snapshot.analyze",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "source",
+              "source": "NODE",
+              "sourceId": "source",
+              "output": "source",
+              "kind": "DOCUMENT",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "review",
+          "presetId": "snapshot.review",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "source",
+              "source": "NODE",
+              "sourceId": "source",
+              "output": "source",
+              "kind": "DOCUMENT",
+              "required": true
+            },
+            {
+              "name": "analysis",
+              "source": "NODE",
+              "sourceId": "analysis",
+              "output": "analysis",
+              "kind": "JSON",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "report",
+          "presetId": "snapshot.report",
+          "presetVersion": 1,
+          "inputs": [
+            {
+              "name": "source",
+              "source": "NODE",
+              "sourceId": "source",
+              "output": "source",
+              "kind": "DOCUMENT",
+              "required": true
+            },
+            {
+              "name": "analysis",
+              "source": "NODE",
+              "sourceId": "analysis",
+              "output": "analysis",
+              "kind": "JSON",
+              "required": true
+            },
+            {
+              "name": "review",
+              "source": "NODE",
+              "sourceId": "review",
+              "output": "analysis",
+              "kind": "JSON",
+              "required": false
+            }
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "id": "e_source_batches",
+          "from": "source",
+          "to": "batches",
+          "outcome": null
+        },
+        {
+          "id": "e_batches_analysis",
+          "from": "batches",
+          "to": "analysis",
+          "outcome": null
+        },
+        {
+          "id": "e_analysis_review",
+          "from": "analysis",
+          "to": "review",
+          "outcome": "HAS_FINDINGS"
+        },
+        {
+          "id": "e_analysis_report",
+          "from": "analysis",
+          "to": "report",
+          "outcome": "NO_FINDINGS"
+        },
+        {
+          "id": "e_review_report",
+          "from": "review",
+          "to": "report",
+          "outcome": null
+        }
+      ],
+      "inputs": [
+        {
+          "name": "branch",
+          "title": "代码分支",
+          "kind": "TEXT",
+          "required": true
+        }
+      ],
+      "layout": {
+        "positions": {
+          "source": {
+            "x": 40,
+            "y": 0
+          },
+          "batches": {
+            "x": 40,
+            "y": 190
+          },
+          "analysis": {
+            "x": 40,
+            "y": 380
+          },
+          "review": {
+            "x": 40,
+            "y": 570
+          },
+          "report": {
+            "x": 40,
+            "y": 760
+          }
+        },
+        "x": 32,
+        "y": 36,
+        "zoom": 0.7
+      }
+    }
+  ]
+}

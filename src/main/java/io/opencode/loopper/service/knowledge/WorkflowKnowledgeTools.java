@@ -50,6 +50,9 @@ public final class WorkflowKnowledgeTools {
         }
         return body;
     }
+    public boolean completeNodeEvidence(AssistScopeService.Scope scope,String id,String content,String now) {
+        return access.completeNodeEvidence(scope,id,content,now);
+    }
     @SuppressWarnings("unchecked")
     private static void citeBatch(Map<String,Object> body, String receipt) {
         var items = new ArrayList<Map<String,Object>>();

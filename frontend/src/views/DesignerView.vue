@@ -38,6 +38,7 @@ import {
 } from '@/utils/displayLabels'
 
 const store = useTaskStore()
+const props = defineProps<{ historyOnly?: boolean }>()
 const router = useRouter()
 const route = useRoute()
 const draft = ref<LoopDraft>()
@@ -1112,6 +1113,7 @@ async function restartDesigner() {
       }
     }
     clearDesignerWorkspace()
+    if (props.historyOnly) { await router.push({ path: '/requirements/new', query: selectedProjectId.value ? { projectId: selectedProjectId.value } : {} }); return }
     ElMessage.success('所有远端会话已停止，可以开始新设计')
   } catch (error) {
     await refreshDesignerSession()
@@ -1540,7 +1542,8 @@ async function redesignPackage(packageId: string) {
     <div v-if="dragActive" class="designer-drop-overlay" role="status">
       <Icon icon="lucide:file-up" /><strong>放到当前输入框</strong><span>文件会暂存，点击发送后才交给 OpenCode</span>
     </div>
-    <section v-if="!draft && !store.usingDemo && !store.loading && !store.projects.length" class="card designer-onboarding" aria-labelledby="designer-onboarding-title">
+    <section v-if="!draft && props.historyOnly" class="card card-pad"><h2>继续历史设计</h2><p>正在读取指定的历史设计。若读取失败，可回到历史列表重新打开。</p><RouterLink to="/designs">查看历史设计</RouterLink> · <RouterLink to="/requirements/new">新增需求任务</RouterLink></section>
+    <section v-else-if="!draft && !store.usingDemo && !store.loading && !store.projects.length" class="card designer-onboarding" aria-labelledby="designer-onboarding-title">
       <span class="designer-onboarding-icon"><Icon icon="lucide:folder-plus" aria-hidden="true" /></span>
       <div><p class="eyebrow">需要项目</p><h2 id="designer-onboarding-title">先登记项目，再开始设计</h2></div>
       <el-button type="primary" size="large" @click="router.push('/projects')">前往登记项目<Icon icon="lucide:arrow-right" aria-hidden="true" /></el-button>

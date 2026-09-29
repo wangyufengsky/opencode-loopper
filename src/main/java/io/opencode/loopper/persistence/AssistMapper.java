@@ -68,6 +68,8 @@ public interface AssistMapper {
     void startCall(String id, String owner, String session, String tool, String time);
     @Update("UPDATE assist_call SET state=#{state},result_json=#{result},completed_at=#{time} WHERE id=#{id} AND state='RUNNING'")
     int finishCall(String id, String state, String result, String time);
+    @Update("UPDATE assist_call SET state='SUCCEEDED',result_json=#{result},completed_at=#{time} WHERE id=#{id} AND owner_key=#{owner} AND external_session_id=#{session} AND state='RUNNING'")
+    int finishScopedCall(String id,String owner,String session,String result,String time);
     @Select("SELECT id,tool_name,state,created_at,completed_at FROM assist_call WHERE owner_key=#{owner} AND created_at<=#{before} AND external_session_id NOT IN (SELECT external_session_id FROM assist_session WHERE profile LIKE '%JUDGE%' OR profile LIKE '%REVIEWER%') AND (created_at,id) > (#{time},#{id}) ORDER BY created_at,id LIMIT #{limit}")
     List<Map<String,Object>> calls(String owner, String time, String id, int limit,String before);
     @Select("SELECT result_json FROM assist_call WHERE id=#{id} AND owner_key=#{owner} AND state IN ('SUCCEEDED','FAILED')")

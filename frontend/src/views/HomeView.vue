@@ -9,11 +9,12 @@ const homeArtwork = computed(() => new URL(`../assets/${currentSkin.value.homeAr
 
 const workspaceLinks = [
   { to: '/projects', icon: 'lucide:folder-kanban', title: '项目', description: '登记代码仓库，管理项目上下文。', step: '01', hint: '准备工作区', tone: 'blue' },
-  { to: '/designer', icon: 'lucide:sparkles', title: '设计与执行规范', description: '从需求出发，梳理设计与验收标准。', step: '02', hint: '把想法变成方案', tone: 'violet' },
+  { to: '/requirements', icon: 'lucide:git-branch', title: '需求任务', description: '选择流程，在画布上规划、执行与检查。', step: '02', hint: '从需求到交付', tone: 'violet' },
   { to: '/tasks', icon: 'lucide:orbit', title: '任务', description: '跟进执行过程，查看产物与评审。', step: '03', hint: '推进交付', tone: 'cyan' },
   { to: '/inbox', icon: 'lucide:inbox', title: '待处理中心', description: '集中处理问题、权限与待确认事项。', step: '04', hint: '处理关键决定', tone: 'blue' },
 ]
 const moreLinks = [
+  { to: '/workflows', icon: 'lucide:workflow', title: '流程', description: '创作、复制和管理可复用流程' },
   { to: '/designs', icon: 'lucide:history', title: '历史设计', description: '回到已有的讨论与方案' },
   { to: '/insights', icon: 'lucide:chart-no-axes-combined', title: '质量与用量', description: '查看验收结果与模型用量' },
   { to: '/template-tasks', icon: 'lucide:workflow', title: '模板任务', description: '选择模板，快速开始任务' },
@@ -35,7 +36,7 @@ const systemLinks = [
         <h2 id="home-headline">从一个想法，<br />到可验证的交付<span>。</span></h2>
         <p class="home-intro">将需求、设计、执行与验收，<br class="home-copy-break" />连接在同一个工作区。</p>
         <div class="home-actions">
-          <RouterLink class="home-action home-action-primary" to="/designer">开始设计 <Icon icon="lucide:arrow-right" aria-hidden="true" /></RouterLink>
+          <RouterLink class="home-action home-action-primary" to="/requirements/new">新增需求 <Icon icon="lucide:arrow-right" aria-hidden="true" /></RouterLink>
           <RouterLink class="home-action" to="/tasks"><Icon icon="lucide:orbit" aria-hidden="true" /> 查看任务</RouterLink>
         </div>
         <p class="home-hero-caption">OpenCode Loopper <span aria-hidden="true">/</span> 本地 AI 开发工作区</p>

@@ -94,6 +94,10 @@ public final class ConfiguredRoleRuntime {
         return tools.stream().filter(tool -> allowed(frozen.get().permissionPolicy(), server + "_" + tool)).toList();
     }
     /** Rechecks a direct MCP request against the immutable Session policy after owner/scope authorization. */
+    public void requireFrozenInternalTool(String sessionId, String server, String tool) {
+        if (roles.sessionSnapshot(sessionId).isEmpty()) throw mismatch();
+        requireInternalTool(sessionId, server, tool);
+    }
     public void requireInternalTool(String sessionId, String server, String tool) {
         if (sessionId == null || sessionId.isBlank() || server == null || server.isBlank()
                 || tool == null || !tool.matches("[a-z][a-z0-9_]{0,127}"))
@@ -102,7 +106,7 @@ public final class ConfiguredRoleRuntime {
         if (frozen.isPresent() && !allowed(frozen.get().permissionPolicy(), server + "_" + tool))
             throw new ConflictException("ROLE_INTERNAL_MCP_DENIED", "当前会话没有此 MCP 工具的冻结许可");
     }
-    static boolean allowed(List<SessionPermissionRule> policy, String name) {
+    public static boolean allowed(List<SessionPermissionRule> policy, String name) {
         String action = "deny";
         for (var rule : policy) {
             String permission = rule.permission();

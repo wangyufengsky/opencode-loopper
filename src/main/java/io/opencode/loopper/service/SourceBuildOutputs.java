@@ -18,15 +18,15 @@ public final class SourceBuildOutputs {
         if (git.exitCode() != 0) return;
         var outputs = new TreeSet<String>();
         for (var path : configurationPaths) {
-            String parent = SourceTestProfileService.parent(path);
-            if (path.endsWith("pom.xml")) outputs.add(SourceTestProfileService.join(parent, "target"));
+            String parent = SourceTestProfiles.parent(path);
+            if (path.endsWith("pom.xml")) outputs.add(SourceTestProfiles.join(parent, "target"));
             if (path.endsWith("build.gradle") || path.endsWith("build.gradle.kts")) {
-                outputs.add(SourceTestProfileService.join(parent, "build"));
-                outputs.add(SourceTestProfileService.join(parent, ".gradle"));
+                outputs.add(SourceTestProfiles.join(parent, "build"));
+                outputs.add(SourceTestProfiles.join(parent, ".gradle"));
             }
         }
         for (var module : profile.modules()) if (Set.of("jest", "vitest").contains(module.framework()))
-            outputs.add(SourceTestProfileService.join(module.root(), "coverage"));
+            outputs.add(SourceTestProfiles.join(module.root(), "coverage"));
         if (outputs.size() > 128) throw unavailable("构建输出目录超过本次安全预检容量，请登记更小的项目范围");
         for (var output : outputs) {
             var tracked = runner.run(root, List.of("git", "ls-files", "-z", "--", output), Duration.ofSeconds(10));

@@ -348,21 +348,11 @@ public class DirectWorkspaceLeaseCoordinator {
             throw new TaskFailure("DIRECT_QUEUE_NOT_ADMITTED", "Only an admitted task can release a direct workspace");
         }
         updateQueue(queue(current, TaskQueueState.FINISHED.name(), current.admittedAt(), now()));
-        Optional<TaskQueueRow> next = mapper.nextQueuedTask(workspace.canonicalRoot());
-        String timestamp = now();
-        if (next.isEmpty()) {
-            updateLease(new WorkspaceLeaseRow(lease.canonicalRoot(), lease.rootFingerprint(), MODE_DIRECT,
-                    null, null, WorkspaceLeaseState.RELEASED.name(), lease.acquiredAt(), timestamp, timestamp,
-                    reason == null || reason.isBlank() ? "WRITER_STOPPED" : bounded(reason), lease.version()));
-            return new Release(snapshot(mapper.findWorkspaceLease(workspace.canonicalRoot()).orElseThrow(), workspace, queue(taskId)), null);
-        }
-        TaskQueueRow admitted = next.get();
-        requireSameWorkspace(admitted, workspace);
-        updateQueue(queue(admitted, TaskQueueState.ADMITTED.name(), timestamp, null));
-        updateLease(new WorkspaceLeaseRow(lease.canonicalRoot(), lease.rootFingerprint(), MODE_DIRECT,
-                admitted.taskId(), null, WorkspaceLeaseState.HELD.name(), timestamp, timestamp, null, null, lease.version()));
-        return new Release(snapshot(mapper.findWorkspaceLease(workspace.canonicalRoot()).orElseThrow(), workspace, queue(taskId)),
-                queueSnapshot(mapper.findTaskQueue(admitted.taskId()).orElseThrow()));
+        var transferred = new WorkspaceWriterQueue(mapper, lifecycle).transfer(lease, workspace,
+                reason == null || reason.isBlank() ? "WRITER_STOPPED" : bounded(reason));
+        return new Release(snapshot(transferred.lease(), workspace, queue(taskId)),
+                transferred.task() == null ? null : queueSnapshot(transferred.task()),
+                transferred.workflow() == null ? null : transferred.workflow().attemptId());
     }
 
     private WorkspaceLeaseRow holder(WorkspaceIdentity workspace, String taskId) {
@@ -526,7 +516,9 @@ public class DirectWorkspaceLeaseCoordinator {
     public record LeaseSnapshot(String canonicalRoot, String rootFingerprint, String holderTaskId, String writerSessionId,
                                 String state, long queuePosition, String queueState, String heartbeatAt, String releaseReason) { }
     public record QueueSnapshot(String taskId, String canonicalRoot, String rootFingerprint, long position, String state) { }
-    public record Release(LeaseSnapshot releasedHolder, QueueSnapshot admittedNext) { }
+    public record Release(LeaseSnapshot releasedHolder, QueueSnapshot admittedNext, String admittedWorkflowAttemptId) {
+        public Release(LeaseSnapshot releasedHolder, QueueSnapshot admittedNext) { this(releasedHolder, admittedNext, null); }
+    }
     public record BlockingLease(String canonicalRoot, String persistedFingerprint, String observedFingerprint,
                                 boolean rootAvailable, boolean fingerprintMatches, String holderTaskId,
                                 String writerSessionId, String state, String heartbeatAt, String releaseReason) { }

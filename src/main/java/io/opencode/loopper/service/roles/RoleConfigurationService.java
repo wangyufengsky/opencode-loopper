@@ -61,7 +61,15 @@ public class RoleConfigurationService {
     public record ResolvedRole(String roleId, String revisionId, String contentSha256, String slot,
                                String adapterProfile, Map<String, String> fragments,
                                String permissionMode, List<String> nativeTools, List<String> mcpTools,
-                               List<String> requiredMcpTools, String modelPolicy, String runtimePolicy, List<RoleCapabilities.Capability> capabilities) {
+                               List<String> requiredMcpTools, String modelPolicy, String runtimePolicy, List<RoleCapabilities.Capability> capabilities,
+                               String workInstructions) {
+        public ResolvedRole(String roleId, String revisionId, String contentSha256, String slot,
+                            String adapterProfile, Map<String, String> fragments, String permissionMode,
+                            List<String> nativeTools, List<String> mcpTools, List<String> requiredMcpTools,
+                            String modelPolicy, String runtimePolicy, List<RoleCapabilities.Capability> capabilities) {
+            this(roleId, revisionId, contentSha256, slot, adapterProfile, fragments, permissionMode,
+                    nativeTools, mcpTools, requiredMcpTools, modelPolicy, runtimePolicy, capabilities, null);
+        }
         public ResolvedRole(String roleId, String revisionId, String contentSha256, String slot,
                             String adapterProfile, Map<String, String> fragments, String permissionMode,
                             List<String> nativeTools, List<String> mcpTools, List<String> requiredMcpTools,
@@ -145,6 +153,36 @@ public class RoleConfigurationService {
         if (knowledgeBindings != null) knowledgeBindings.freeze(owner, optionalParent);
     }
 
+    /** Explicit selection for one configurable node; never falls back to the latest or active revision. */
+    @Transactional
+    public ResolvedRole freezeSelection(OwnerRef owner, String slot, String roleId, String revisionId) {
+        Objects.requireNonNull(owner);
+        new RoleContext(owner, slot);
+        if (roleId == null || roleId.isBlank() || revisionId == null || revisionId.isBlank())
+            throw invalid("节点必须明确选择角色及修订");
+        if (publishing != null) publishing.ensureBootstrapForOwner();
+        var selected = resolveRevision(revisionId, slot);
+        if (!selected.roleId().equals(roleId))
+            throw new ConflictException("ROLE_SELECTION_MISMATCH", "选择的修订不属于此角色");
+        var snapshot = mapper.ownerSnapshot(owner.type(), owner.id());
+        var rows = mapper.ownerBindings(owner.type(), owner.id());
+        if (snapshot != null) {
+            requireComplete(snapshot, rows);
+            if (snapshot.parentType() != null || rows.size() != 1 || !rows.getFirst().slot().equals(slot)
+                    || !rows.getFirst().revisionId().equals(revisionId))
+                throw new ConflictException("ROLE_OWNER_BINDING_CONFLICT", "节点已冻结不同角色，不能更换执行身份");
+            return selected;
+        }
+        if (!rows.isEmpty()) throw new ConflictException("ROLE_OWNER_BINDING_PARTIAL", "节点角色缺少完整快照");
+        String now = Instant.now().toString();
+        var binding = new RoleConfigurationMapper.OwnerBinding(owner.type(), owner.id(), slot, revisionId, null, null, now);
+        if (mapper.insertOwnerBinding(binding) != 1 || mapper.insertOwnerSnapshot(new RoleConfigurationMapper.OwnerSnapshot(
+                owner.type(), owner.id(), null, null, 1, bindingsDigest(List.of(binding)), now)) != 1)
+            throw new ConflictException("ROLE_OWNER_BINDING_CONFLICT", "节点角色冻结失败");
+        if (knowledgeBindings != null) knowledgeBindings.freeze(owner, null);
+        return selected;
+    }
+
     private void markLegacy(OwnerRef owner, OwnerRef parent) {
         if (!mapper.ownerBindings(owner.type(), owner.id()).isEmpty())
             throw new ConflictException("ROLE_OWNER_BINDING_PARTIAL", "历史 Owner 标记与角色绑定冲突");
@@ -203,7 +241,7 @@ public class RoleConfigurationService {
         Map<String, String> fragments = json.readValue(row.promptFragmentsJson(), new TypeReference<>() { });
         return new ResolvedRole(row.roleId(), row.revisionId(), row.contentSha256(), slot,
                 binding.adapterProfile(), fragments, role.permissionMode(), role.nativeTools(), role.mcpTools(),
-                role.requiredMcpTools(), role.modelPolicy(), role.runtimePolicy(), role.capabilities());
+                role.requiredMcpTools(), role.modelPolicy(), role.runtimePolicy(), role.capabilities(), role.workInstructions());
     }
 
     /** Required declarations are checked only against tools discovered for this exact new Session. */
@@ -307,6 +345,9 @@ public class RoleConfigurationService {
     }
 
     private static boolean mandatory(String name, String internal, String required) {
+        if (java.util.Objects.equals(required, internal + io.opencode.loopper.runtime.WorkflowModelProfile.SUBMIT)
+                && !internal.isEmpty() && io.opencode.loopper.runtime.WorkflowModelProfile.TOOLS.stream()
+                .anyMatch(tool -> name.equals(internal + tool))) return true;
         return name.equals(required) || !internal.isEmpty()
                 && name.equals(internal + InternalMcpContractCatalog.DESCRIBE_TOOL) && required != null;
     }

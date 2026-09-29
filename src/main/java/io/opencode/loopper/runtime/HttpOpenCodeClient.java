@@ -25,6 +25,8 @@ public class HttpOpenCodeClient implements OpenCodeClient {
     @Override public boolean supportsRoleConfiguration() { return roles != null; }
     private AssistRuntimeSupport assist;
     private PptRuntimeSupport ppt;
+    private WorkflowRuntimeSupport workflow;
+    void installWorkflow(WorkflowRuntimeSupport support) { this.workflow=support; }
     void installPpt(PptRuntimeSupport support) { this.ppt = support; }
     void installAssist(AssistRuntimeSupport support) { this.assist=support; exactRecovery.assist=support; }
     private final Supplier<OpenCodeConnectionDetails> connectionSupplier;
@@ -228,6 +230,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
                     Boolean.TRUE.equals(managedSessions.get(session.id())), sessionModels.get(session.id()), files);
             if (assist != null) assist.enrich(session.id(),body,profile);
             if (ppt != null) ppt.enrich(session.id(), body, profile);
+            if (workflow != null) workflow.enrich(session.id(), body, profile);
             if (storyAccounting != null && !storyAccounting.accountingMessageIds(session.id()).isEmpty()) OpenCodePromptBody.restoreBusinessContext(body, sessionModels.get(session.id()));
             pending.dispatch(() -> client(session).post().uri(uri -> sessionUri(uri, "/session/{id}/prompt_async", session)).contentType(MediaType.APPLICATION_JSON)
                     .body(body).retrieve().toBodilessEntity());
@@ -250,7 +253,9 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         PromptRequest effective = roles == null ? expectedRequest : roles.prompt(session.id(), expectedRequest);
         MessageLookup found = exactRecovery.findPrompt(session, effective, OpenCodeClient.promptRequestSha256(effective), body ->
                 ppt != null && Boolean.TRUE.equals(managedSessions.get(session.id())) && sessionProfiles.get(session.id()) == SessionProfile.PPT_AGENT
-                        ? ppt.verifyIdentityNotice(session.id(), effective, body) : body);
+                        ? ppt.verifyIdentityNotice(session.id(), effective, body)
+                        : workflow != null && WorkflowModelProfile.contains(sessionProfiles.get(session.id()))
+                            ? workflow.verifyIdentityNotice(session.id(), effective, body) : body);
         return found.exists() ? new MessageLookup(found.supported(), true, persistedRequestSha256) : found;
     }
     @Override public KnowledgeObservation observeKnowledgeSession(OpenCodeSession session, boolean interactive) {

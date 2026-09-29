@@ -23,6 +23,19 @@ class TemplateTaskControllerTest {
     private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new TemplateTaskController(admission, branches, reads, tasks, retries, states, coordinator))
             .setControllerAdvice(new ApiExceptionHandler()).build();
 
+    @Test void catalogKeepsExistingTemplatesAndDescribesModulesWithoutStartingWork() throws Exception {
+        when(admission.catalog()).thenCallRealMethod();
+        mvc.perform(get("/api/template-tasks/catalog"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.templates.length()").value(7))
+                .andExpect(jsonPath("$.workModules.length()").value(8))
+                .andExpect(jsonPath("$.workModules[0].id").value("source.design"))
+                .andExpect(jsonPath("$.workModules[0].roleBinding").value("SOURCE_DETAILED_DESIGN_NO_TOOLS"))
+                .andExpect(jsonPath("$.workModules[0].resultContract").value("SOURCE_DETAILED_DESIGN_V1"))
+                .andExpect(jsonPath("$.workModules[0].completion").value("ACCEPTED_RESULT_AND_STOPPED"));
+        verifyNoInteractions(tasks, coordinator, branches, retries, states);
+    }
+
     @Test void batchRetryRequiresLocalAuthorityBeforeStartingAnyWork() throws Exception {
         mvc.perform(post("/api/template-tasks/task/batches/batch/retry").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"expectedVersion\":4}"))

@@ -95,6 +95,22 @@ class RolePublishingIntegrationTest {
                 .hasMessageContaining("缺少请求的工作流槽位");
     }
 
+    @Test void workflowDefaultIsExplicitAndReseedingRetainsExistingChoicesAndFrozenOwners() {
+        String slot = "WORKFLOW_READ_ONLY";
+        assertThat(roles.resolveActive(slot).orElseThrow().roleId()).isEqualTo("builtin.designer");
+        var owner = new RoleConfigurationService.OwnerRef("WORKFLOW_NODE", "before-reseed");
+        roles.freezeOwner(owner, null);
+        var frozen = roles.resolveFrozen(owner, slot).orElseThrow();
+        var chosen = mapper.latest("builtin.knowledge");
+        var binding = mapper.binding(slot);
+        assertThat(mapper.activate(slot, chosen.revisionId(), binding.version(), "selected")).isEqualTo(1);
+        var marker = mapper.bootstrap();
+        assertThat(mapper.updateBootstrap("0".repeat(64), marker.bindingsSha256(), marker.bindingCount(), "old-source", marker.sourceSha256())).isEqualTo(1);
+        publishing.seedBuiltin();
+        assertThat(roles.resolveActive(slot).orElseThrow().revisionId()).isEqualTo(chosen.revisionId());
+        assertThat(roles.resolveFrozen(owner, slot).orElseThrow()).isEqualTo(frozen);
+    }
+
     @Test
     void upgradedPromptOwnershipPublishesOverOldBindingAndHistoricalExportsKeepTheirHash() {
         String roleId = "builtin.snapshot-review", slot = "SNAPSHOT_CODE_REVIEW_NO_TOOLS";
@@ -240,6 +256,26 @@ class RolePublishingIntegrationTest {
                 Map.of("custom.designer", Map.of("machine-role.designer",
                         RolePromptResources.read("machine-role.designer"))));
         assertThat(publishing.validate(literal).valid()).isTrue();
+    }
+
+    @Test void optionalToolsMayServeOneDeclaredSlotButRequiredToolsMustServeEverySlot() {
+        String tool="@loopper-internal/get_development_task_guide";
+        for(boolean required:List.of(false,true)) {
+            var role=new RoleManifest.Role("custom.multi", "多种工作", "", "general", "通用",
+                    List.of("IMPLEMENTATION","WORKFLOW_WRITE"),"INTERSECT",List.of(),List.of(tool),required?List.of(tool):List.of(),
+                    "INHERIT_WORKFLOW","WORKFLOW_ADAPTER",Map.of(),List.of(RoleCapabilities.Capability.NATIVE_TOOLS));
+            var parsed=new RoleArchive.Parsed("a".repeat(64),new RoleManifest.Document(2,List.of(),List.of(role),List.of()),Map.of());
+            var codes=publishing.validate(parsed).diagnostics().stream().map(RolePublishingService.Diagnostic::code).toList();
+            if(required)assertThat(codes).contains("ROLE_MCP_TOOL_UNAVAILABLE");
+            else assertThat(codes).doesNotContain("ROLE_MCP_TOOL_UNAVAILABLE");
+        }
+        var profile=io.opencode.loopper.runtime.OpenCodeClient.SessionProfile.WORKFLOW_WRITE;
+        var baseline=io.opencode.loopper.runtime.OpenCodePermissionPolicy.previewRules(profile,List.of(),"internal");
+        var compiled=roles.compileNarrowedPermissions(roles.resolveActive("WORKFLOW_WRITE").orElseThrow(),baseline,
+                java.util.Set.of("internal_get_development_task_guide","internal_assist_read_document"),"internal");
+        assertThat(compiled.stream().filter(rule->rule.action().equals("allow")).map(io.opencode.loopper.runtime.OpenCodeClient.SessionPermissionRule::permission))
+                .doesNotContain("internal_get_development_task_guide","internal_assist_read_document")
+                .contains("internal_submit_workflow_node_result");
     }
 
     @Test

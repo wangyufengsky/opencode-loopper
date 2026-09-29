@@ -77,6 +77,44 @@ final class GitWorkspaceCheckpointManager {
         }
     }
 
+    /** New workflow capture never replaces a ref left by an interrupted capture. */
+    synchronized WorkspaceCheckpoint freezePinned(Path projectRoot,String owner,String attempt,String branch,String expectedHead) {
+        GitProjectScope scope=GitProjectScope.require(runner,projectRoot);
+        DirtyWorkspace current=dirtyWorkspaces.inspect(projectRoot);
+        if (!branch.equals(current.branch()) || !expectedHead.equals(current.head()))
+            throw new TaskFailure("WORKFLOW_CHECKPOINT_BASE_CHANGED","节点分支或基准已变化，未保存或清理工作区");
+        String ref="refs/loopper/checkpoints/"+owner+"/"+attempt;
+        String commit=optionalOutput(scope.repository(),List.of("git","rev-parse","--verify",ref+"^{commit}"));
+        if (commit==null) {
+            var frozen=freeze(projectRoot,owner,attempt,branch);
+            if (!expectedHead.equals(frozen.workspace().head())) throw new TaskFailure("WORKFLOW_CHECKPOINT_BASE_CHANGED","保存期间基准发生变化，请检查冻结记录");
+            return frozen;
+        }
+        String parent=requiredOutput(scope.repository(),List.of("git","rev-parse",commit+"^"),"WORKFLOW_CHECKPOINT_INVALID","无法确认检查点基准");
+        String tree=requiredOutput(scope.repository(),List.of("git","rev-parse",commit+"^{tree}"),"WORKFLOW_CHECKPOINT_INVALID","无法确认检查点文件树");
+        if (!expectedHead.equals(parent)) throw new TaskFailure("WORKFLOW_CHECKPOINT_BASE_CHANGED","原检查点不属于此基准");
+        if (!current.clean()) {
+            if (!matches(projectRoot,branch,ref,commit,tree)) throw new TaskFailure("WORKFLOW_CHECKPOINT_DRIFT","保存中断后工作区已变化，原检查点与当前文件均已保留");
+            scope.requireContainedChanges(runner,"HEAD",null);
+            cleanWithRecoveryStash(scope.repository(),current,owner,attempt,scope);
+            current=dirtyWorkspaces.inspect(projectRoot);
+            if (!current.clean()) throw new TaskFailure("WORKFLOW_CHECKPOINT_DIRTY","检查点已保留，但不能证明工作区已清理");
+        }
+        return recoverCleanCheckpoint(scope.repository(),current,ref,owner,attempt,scope);
+    }
+
+    synchronized boolean matchesTree(Path projectRoot,String branch,String tree) {
+        Path index=null;
+        try {
+            var scope=GitProjectScope.require(runner,projectRoot);
+            if (!branch.equals(dirtyWorkspaces.inspect(projectRoot).branch())) return false;
+            scope.requireContainedChanges(runner,"HEAD",null);
+            index=temporaryIndex("workflow-match-");
+            return tree.equals(workspaceTree(scope.repository(),index,"WORKFLOW_WORKSPACE_DRIFT","无法验证节点输入代码"));
+        } catch (java.io.IOException failure) { throw new TaskFailure("WORKFLOW_WORKSPACE_DRIFT","无法验证节点输入代码"); }
+        finally { deleteIndex(index); }
+    }
+
     synchronized DirtyWorkspace restore(Path projectRoot, String taskBranch, String sourceBranch,
                                         String baselineCommit, String checkpointRef,
                                         String checkpointCommit, String checkpointTree) {

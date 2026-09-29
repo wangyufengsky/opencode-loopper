@@ -5,6 +5,18 @@ import { rolePrompt } from './rolePrompt'
 import type { RoleRevision } from '@/types/domain'
 const base: RoleRevision = { roleId: 'role', revisionId: 'revision', revisionNumber: 1, contentSha256: '', manifest: {}, promptFragments: {} }
 describe('role prompt reading view', () => {
+  it('shows professional instructions separately without interpreting or substituting their content', async () => {
+    const text = '设计任务：保留 ${requirement} 示例。<script>unsafe</script>'
+    const wrapper = mount(RolePromptView, { props: { revision: { ...base,
+      manifest: { workInstructions: text }, promptFragments: { old: '现有流程提交格式' } } } })
+    expect(wrapper.get('[aria-label="工作节点专业说明"]').text()).toBe(text)
+    expect(wrapper.findAll('pre').map(item => item.text())).toEqual([text, '现有流程提交格式'])
+    expect(wrapper.find('script').exists()).toBe(false)
+    expect(wrapper.find('dl').exists()).toBe(false)
+    await wrapper.setProps({ revision: base })
+    expect(wrapper.find('[aria-label="工作节点专业说明"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('此版本没有静态 Prompt 内容')
+  })
   it('joins complete static content in natural order and preserves JSON examples', () => {
     const result = rolePrompt({ ...base, promptFragments: { 'segment-10': '最后', 'segment-2': '{"answer": "{value}"}', 'segment-1': '开头' } })
     expect(result.text).toBe('开头\n\n{"answer": "{value}"}\n\n最后')

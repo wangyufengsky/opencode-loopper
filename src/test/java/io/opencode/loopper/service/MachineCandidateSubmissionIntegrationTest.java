@@ -78,6 +78,7 @@ class MachineCandidateSubmissionIntegrationTest {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private LoopperMapper mapper;
     @Autowired private MachineCandidateSubmission submissions;
+    @Autowired private AcceptedWorkResults workResults;
     @Autowired private CandidatePromptDispatchService promptDispatches;
     @Autowired private DesignerTerminationService designerTermination;
     @Autowired private AcceptanceCandidateProofService acceptanceCandidateProofs;
@@ -130,6 +131,84 @@ class MachineCandidateSubmissionIntegrationTest {
                     .hasMessageContaining("immutable");
             assertThat(jdbc.queryForList("PRAGMA foreign_key_check")).isEmpty();
         } finally { ((PersistentMachineCandidateSubmission) submissions).configureCorrectionLimits(new io.opencode.loopper.config.LoopperProperties()); }
+    }
+
+    @Test
+    void sharedWorkResultPersistsOnlyAcceptedCanonicalBytesAndReplaysTheSameReference() {
+        var command = decomposerRun("shared-result", 5);
+        submissions.open(command);
+        submissions.submit(new MachineCandidateSubmission.SubmitCommand("shared-result", "invalid", INVALID, 0, LEGACY));
+        assertThat(workResults.find(command.scope(), command.owner(), command.runId())).isEmpty();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM accepted_work_result", Integer.class)).isZero();
+        var request = new MachineCandidateSubmission.SubmitCommand("shared-result", "accepted", "{\"valid\":true}", 1, LEGACY);
+        var response = submissions.submit(request);
+        var output = workResults.find(command.scope(), command.owner(), command.runId()).orElseThrow();
+        assertThat(output.reference().sha256()).isEqualTo(response.canonicalResultSha256());
+        assertThat(output.producerRunId()).isEqualTo(command.runId());
+        assertThat(output.producerId()).isEqualTo(command.owner().id());
+        assertThat(output.submissionRevision()).isEqualTo(2);
+        assertThat(output.content()).doesNotContain("secretCandidate", "must-not-persist");
+        assertThat(submissions.submit(request)).isEqualTo(response);
+        assertThat(workResults.find(command.scope(), command.owner(), command.runId())).contains(output);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM accepted_work_result", Integer.class)).isEqualTo(1);
+        assertThatThrownBy(() -> jdbc.update("UPDATE accepted_work_result SET content='{}' WHERE run_id='shared-result'"))
+                .hasMessageContaining("immutable");
+        assertThatThrownBy(() -> jdbc.update("UPDATE ai_candidate_submission_run SET result_storage_version=0 WHERE id='shared-result'"))
+                .hasMessageContaining("immutable");
+        assertThatThrownBy(() -> workResults.find(MachineCandidateSubmission.CandidateScope.project("s"),
+                command.owner(), command.runId())).isInstanceOf(NotFoundException.class);
+        assertThatThrownBy(() -> workResults.find(command.scope(),
+                MachineCandidateSubmission.CandidateOwnerRef.taskDecomposition("other"), command.runId()))
+                .isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void sharedWorkResultFailureRollsBackAttemptAndRunTogether() {
+        var command = decomposerRun("result-write-failure", 5);
+        submissions.open(command);
+        jdbc.execute("CREATE TRIGGER reject_work_result BEFORE INSERT ON accepted_work_result "
+                + "BEGIN SELECT RAISE(ABORT,'simulated result write failure'); END");
+        try {
+            assertThatThrownBy(() -> submissions.submit(new MachineCandidateSubmission.SubmitCommand(command.runId(),
+                    "accepted", "{\"valid\":true}", 0, LEGACY))).hasStackTraceContaining("simulated result write failure");
+            assertThat(submissions.find(command.runId()).orElseThrow().state()).isEqualTo(MachineCandidateRunState.OPEN);
+            assertThat(mapper.listCandidateSubmissionAttempts(command.runId())).isEmpty();
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM accepted_work_result", Integer.class)).isZero();
+        } finally { jdbc.execute("DROP TRIGGER reject_work_result"); }
+        assertThat(submissions.submit(new MachineCandidateSubmission.SubmitCommand(command.runId(),
+                "accepted", "{\"valid\":true}", 0, LEGACY)).outcome()).isEqualTo(MachineCandidateOutcome.ACCEPTED);
+    }
+
+    @Test
+    void missingOrMismatchedNewOutputCannotFallBackToLegacyBusinessColumns() {
+        var command = decomposerRun("result-integrity", 5);
+        submissions.open(command);
+        assertThatThrownBy(() -> workResults.verifyNative(command.scope(), command.owner(), command.runId(), "{}", "a".repeat(64)))
+                .isInstanceOf(ConflictException.class);
+        submissions.submit(new MachineCandidateSubmission.SubmitCommand(command.runId(), "accepted", "{\"valid\":true}", 0, LEGACY));
+        var result = workResults.find(command.scope(), command.owner(), command.runId()).orElseThrow();
+        workResults.verifyNative(command.scope(), command.owner(), command.runId(), result.content(), result.reference().sha256());
+        assertThatThrownBy(() -> workResults.verifyNative(command.scope(), command.owner(), command.runId(),
+                result.content() + " ", result.reference().sha256())).isInstanceOf(ConflictException.class);
+        jdbc.update("DELETE FROM accepted_work_result WHERE run_id=?", command.runId());
+        assertThatThrownBy(() -> workResults.find(command.scope(), command.owner(), command.runId()))
+                .isInstanceOf(ConflictException.class);
+    }
+
+    @Test
+    void historicalStorageContractStillUsesItsFrozenBusinessResult() {
+        var command = decomposerRun("legacy-result", 5);
+        // The legacy constructor represents a run persisted before shared output storage existed.
+        mapper.insertCandidateSubmissionRun(new io.opencode.loopper.persistence.CandidateSubmissionRunRow(
+                command.runId(), command.scope().id(), null, null, command.owner().type().name(),
+                command.owner().id(), command.candidateKind().name(), command.workflowStep(),
+                command.sourceRevision(), command.ownerVersion(), command.submissionChannel().name(),
+                command.contractVersion(), command.runtimeGenerationId(), command.externalSessionId(),
+                "OPEN", command.maxAttempts(), 0, null, "now", "now", 0, null, null));
+        submissions.submit(new MachineCandidateSubmission.SubmitCommand(command.runId(), "accepted", "{\"valid\":true}", 0, LEGACY));
+        assertThat(workResults.find(command.scope(), command.owner(), command.runId())).isEmpty();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM accepted_work_result", Integer.class)).isZero();
+        workResults.verifyNative(command.scope(), command.owner(), command.runId(), "legacy-business-result", "legacy-hash");
     }
 
     @Test

@@ -49,6 +49,12 @@ class DocumentAssessmentValidationTest {
         assertThat(report.files().getFirst().content()).contains("已完成静态分析", "无法判断", "未运行构建、测试");
         assertThat(report.files().get(1).content()).contains("测试执行：本次未执行");
     }
+    @Test void customReportWithOnlySkippedChaptersDoesNotInventSatisfiedRequirementsOrReview() {
+        var report=RequirementReportCompiler.review("背景资料", "a".repeat(40),List.of(),List.of(),List.of(),"没有要求独立复核",true);
+        assertThat(report.allRequirementsSatisfied()).isFalse();assertThat(report.files()).hasSize(1);
+        assertThat(report.files().getFirst().content()).contains("未提取可评审需求","没有要求独立复核").doesNotContain("已完成静态分析与独立复核");
+        assertThatThrownBy(()->RequirementReportCompiler.review("旧合同","a".repeat(40),List.of(),List.of(),List.of())).isInstanceOf(IllegalArgumentException.class);
+    }
     private void receipt() {
         when(code.evidence("model", "Service.java", 2, 2)).thenReturn(Optional.of(new DocumentCodeMapper.Read(
                 "model", "Service.java", reference.blobSha(), 1, 3, "void run() {\ncheckPermission();\n}", "hash", "now")));

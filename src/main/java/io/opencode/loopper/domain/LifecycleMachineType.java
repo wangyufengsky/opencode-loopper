@@ -1,6 +1,17 @@
 package io.opencode.loopper.domain;
 
 public enum LifecycleMachineType implements DescribedEnum {
+    WORKFLOW_WRITEBACK("流程成果回填"), WORKFLOW_WRITEBACK_QUEUE("流程成果回填队列"),
+    WORKFLOW_PUSH("流程成果推送"),
+    WORKFLOW_PUBLICATION("流程成果提交"),
+    WORKFLOW_PLAN_CANDIDATE("流程候选计划"),
+    WORKFLOW_REQUIREMENT("流程需求任务"),
+    WORKFLOW_CONTROL("流程执行控制"),
+    WORKFLOW_COMMAND("流程命令验证"),
+    WORKFLOW_MODEL("流程模型会话"),
+    WORKFLOW_WRITER_QUEUE("流程节点写入队列"),
+    WORKFLOW_WORKSPACE("流程节点工作区"),
+    WORKFLOW_NODE("流程节点"), WORKFLOW_ATTEMPT("流程节点尝试"),
     PPT_DOCUMENT("PPT 作品"), PPT_JOB("PPT 制作作业"), PPT_AGENT_RUN("PPT 助手运行"), PPT_GENERATION("PPT 自动生成"),
     KNOWLEDGE_CONVERSATION("知识问答会话"), KNOWLEDGE_TURN("知识问答回合"),
     TASK("任务状态机"), STAGE("阶段状态机"), ATTEMPT("执行尝试状态机"),

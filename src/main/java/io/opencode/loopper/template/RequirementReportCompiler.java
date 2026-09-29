@@ -13,12 +13,17 @@ public final class RequirementReportCompiler {
             List<RequirementCodeAssessment.Finding> findings, List<String> limitations) {
         if (rows.isEmpty() || rows.stream().anyMatch(row -> row.assessment() == null))
             throw new IllegalArgumentException("Requirement report requires a conclusion for every requirement");
+        return review(title,sha,rows,findings,limitations,"已完成静态分析与独立复核。",false);
+    }
+    public static Result review(String title,String sha,List<Row> rows,List<RequirementCodeAssessment.Finding> findings,
+            List<String> limitations,String reviewStatus,boolean flatPaths) {
+        if(rows.stream().anyMatch(row->row.assessment()==null))throw new IllegalArgumentException("Missing conclusion");
         var counts = rows.stream().collect(Collectors.groupingBy(row -> row.assessment().conclusion().name(), TreeMap::new, Collectors.counting()));
-        boolean satisfied = rows.stream().allMatch(row -> row.assessment().conclusion() == RequirementCodeAssessment.Conclusion.SATISFIED);
+        boolean satisfied = !rows.isEmpty() && rows.stream().allMatch(row -> row.assessment().conclusion() == RequirementCodeAssessment.Conclusion.SATISFIED);
         var files = new ArrayList<File>();
         var main = new StringBuilder("# " + text(title) + "\n\n")
-                .append("评审状态：已完成静态分析与独立复核。\n\n")
-                .append("需求满足情况：").append(satisfied ? "全部需求均有符合需求的静态证据。" : "存在未完全满足或无法判断的需求，详见逐项矩阵。")
+                .append("评审状态：").append(text(reviewStatus)).append("\n\n")
+                .append("需求满足情况：").append(rows.isEmpty()?"本次未提取可评审需求，不能据此认定全部满足。":satisfied ? "全部需求均有符合需求的静态证据。" : "存在未完全满足或无法判断的需求，详见逐项矩阵。")
                 .append("\n\n冻结提交：`").append(sha).append("`\n\n")
                 .append("测试执行：本次未运行构建、测试或项目脚本。测试源码覆盖不代表执行通过。\n\n")
                 .append("| 需求 | 功能组 | 结论 | 详情 |\n| --- | --- | --- | --- |\n");
@@ -27,12 +32,12 @@ public final class RequirementReportCompiler {
             if (!key.matches("RQ-[1-9][0-9]{0,8}")) throw new IllegalArgumentException("Invalid report requirement key");
             main.append("| ").append(key).append(" ").append(cell(row.requirement().title())).append(" | ")
                     .append(cell(row.requirement().group())).append(" | ").append(label(row.assessment().conclusion()))
-                    .append(" | [逐项证据](requirements/").append(key).append(".md) |\n");
-            files.add(new File("requirements/" + key + ".md", detail(row)));
+                    .append(" | [逐项证据](").append(flatPaths?"":"requirements/").append(key).append(".md) |\n");
+            files.add(new File((flatPaths?"":"requirements/") + key + ".md", detail(row)));
         }
         main.append("\n问题明细：").append(findings.size()).append(" 项。\n\n");
         for (int i = 0; i < findings.size(); i++) {
-            var finding = findings.get(i); String path = "issues/F-" + (i + 1) + ".md";
+            var finding = findings.get(i); String path = (flatPaths?"":"issues/")+"F-" + (i + 1) + ".md";
             main.append("- [").append(cell(finding.title())).append("](").append(path).append(")（")
                     .append(finding.kind()).append(" / ").append(finding.severity()).append("）\n");
             files.add(new File(path, finding(finding)));

@@ -32,7 +32,7 @@ public final class SourceTemplateCandidatePolicy implements CandidatePolicy {
             Object value;
             if (context.candidateKind() == MachineCandidateKind.SOURCE_DETAILED_DESIGN_V1)
                 value = SourceDesignValidation.design(input, json.readValue(candidateJson, SourceDesign.Candidate.class),
-                        path -> models.reads(model.id(), path));
+                        path -> sourceReads(model.id(), path));
             else {
                 var draft = models.find(input.draftModelId()).orElseThrow(SourceTemplateAdmission::conflict);
                 if (!draft.runId().equals(model.runId()) || !draft.state().equals("VALIDATED")
@@ -42,7 +42,7 @@ public final class SourceTemplateCandidatePolicy implements CandidatePolicy {
                             != SourceModelReads.partCount(contextDraft.outputJson()))
                         throw new BadRequestException("SOURCE_DRAFT_NOT_READ", "请完整读取本轮全部模块文档，核对跨模块一致性后再提交复核结论");
                 value = SourceDesignValidation.review(input, json.readValue(candidateJson, SourceDesign.Review.class),
-                        path -> models.reads(model.id(), path));
+                        path -> sourceReads(model.id(), path));
             }
             return Decision.accepted(json.writeValueAsString(value));
         } catch (DocumentCandidateProblem invalid) {
@@ -57,5 +57,8 @@ public final class SourceTemplateCandidatePolicy implements CandidatePolicy {
         if (!SourceTreeCapture.hash(model.inputJson().getBytes(StandardCharsets.UTF_8)).equals(model.inputSha256()))
             throw new ConflictException("SOURCE_MODEL_INPUT_CHANGED", "冻结模型输入校验失败");
         return json.readValue(model.inputJson(), SourceDesign.Input.class);
+    }
+    private List<SourceDesign.Read> sourceReads(String id,String path) {
+        return models.reads(id,path).stream().map(row->new SourceDesign.Read(row.sha256(),row.startLine(),row.endLine(),row.totalLines(),row.content())).toList();
     }
 }

@@ -13,7 +13,16 @@ public final class RoleManifest {
                        String groupKey, String groupLabel, List<String> allowedSlots,
                        String permissionMode, List<String> nativeTools, List<String> mcpTools,
                        List<String> requiredMcpTools, String modelPolicy, String runtimePolicy,
-                       Map<String, String> prompts, List<RoleCapabilities.Capability> capabilities) {
+                       Map<String, String> prompts, List<RoleCapabilities.Capability> capabilities,
+                       @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+                       String workInstructions) {
+        public Role(String roleId, String displayName, String description, String groupKey, String groupLabel,
+                    List<String> allowedSlots, String permissionMode, List<String> nativeTools, List<String> mcpTools,
+                    List<String> requiredMcpTools, String modelPolicy, String runtimePolicy, Map<String, String> prompts,
+                    List<RoleCapabilities.Capability> capabilities) {
+            this(roleId, displayName, description, groupKey, groupLabel, allowedSlots, permissionMode,
+                    nativeTools, mcpTools, requiredMcpTools, modelPolicy, runtimePolicy, prompts, capabilities, null);
+        }
         public Role(String roleId, String displayName, String description, String groupKey, String groupLabel,
                     List<String> allowedSlots, String permissionMode, List<String> nativeTools, List<String> mcpTools,
                     List<String> requiredMcpTools, String modelPolicy, String runtimePolicy, Map<String, String> prompts) {
@@ -21,6 +30,8 @@ public final class RoleManifest {
                     nativeTools, mcpTools, requiredMcpTools, modelPolicy, runtimePolicy, prompts, null);
         }
         public Role {
+            if (workInstructions != null && (workInstructions.isBlank() || workInstructions.length() > 32_000))
+                throw new IllegalArgumentException("角色专业说明必须为非空文本且不超过 32000 字符");
             capabilities = capabilities == null ? null : List.copyOf(capabilities);
             allowedSlots = allowedSlots == null ? List.of() : List.copyOf(allowedSlots);
             nativeTools = nativeTools == null ? List.of() : List.copyOf(nativeTools);

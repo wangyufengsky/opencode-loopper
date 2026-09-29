@@ -8,8 +8,20 @@ public record CandidateSubmissionRunRow(
         String contractVersion,
         String runtimeGenerationId, String externalSessionId, String state, int maxAttempts,
         int attemptsUsed, String terminalAttemptId, String createdAt, String updatedAt, long version,
-        String closeReason, Integer correctionLimit) {
+        String closeReason, Integer correctionLimit, int resultStorageVersion) {
     @AutomapConstructor public CandidateSubmissionRunRow { }
+
+    public CandidateSubmissionRunRow(
+            String id, String designerSessionId, String taskId, String projectId, String ownerType, String ownerId,
+            String candidateKind, String workflowStep, long sourceRevision, long ownerVersion, String submissionChannel,
+            String contractVersion, String runtimeGenerationId, String externalSessionId, String state, int maxAttempts,
+            int attemptsUsed, String terminalAttemptId, String createdAt, String updatedAt, long version,
+            String closeReason, Integer correctionLimit) {
+        this(id, designerSessionId, taskId, projectId, ownerType, ownerId, candidateKind, workflowStep,
+                sourceRevision, ownerVersion, submissionChannel, contractVersion, runtimeGenerationId,
+                externalSessionId, state, maxAttempts, attemptsUsed, terminalAttemptId, createdAt, updatedAt,
+                version, closeReason, correctionLimit, 0);
+    }
 
     public CandidateSubmissionRunRow(
             String id, String designerSessionId, String taskId, String projectId, String ownerType, String ownerId,

@@ -50,9 +50,24 @@ class SpaFallbackControllerTest {
     }
 
     @Test
+    void servesBuiltInWorkflowBookmarksWithoutTreatingTheirIdsAsFileExtensions() throws Exception {
+        for (String template : new String[]{
+                "analysis", "design", "file-work", "development", "source-design", "source-unit-test",
+                "document-review", "knowledge", "history-review", "history-contribution",
+                "snapshot-review", "snapshot-full"
+        }) {
+            mvc.perform(get("/workflows/builtin.workflow." + template))
+                    .andExpect(status().isOk())
+                    .andExpect(forwardedUrl("/index.html"));
+        }
+    }
+
+    @Test
     void doesNotTurnMissingApiResourcesIntoHtml() throws Exception {
         for (String path : new String[]{
-                "/api/tasks/missing", "/actuator/missing", "/assets/missing.js", "/missing/app.js"
+                "/api/tasks/missing", "/actuator/missing", "/assets/missing.js", "/missing/app.js",
+                "/workflows/missing.js", "/workflows/builtin.workflow.development.js",
+                "/assets/builtin.workflow.development", "/missing/builtin.workflow.development"
         }) {
             mvc.perform(get(path))
                     .andExpect(status().isNotFound());

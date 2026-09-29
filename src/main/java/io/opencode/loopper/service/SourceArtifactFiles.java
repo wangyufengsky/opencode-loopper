@@ -17,9 +17,11 @@ public final class SourceArtifactFiles {
     private final SourceArtifactMapper artifacts;
     private final SourceSnapshotStorage storage;
     private final ObjectMapper json;
+    private final SourceWorkDeliveries deliveries;
     public SourceArtifactFiles(SourceTemplateAdmission admission, SourceArtifactMapper artifacts,
-            SourceSnapshotStorage storage, ObjectMapper json) {
+            SourceSnapshotStorage storage, ObjectMapper json, SourceWorkDeliveries deliveries) {
         this.admission = admission; this.artifacts = artifacts; this.storage = storage; this.json = json;
+        this.deliveries = deliveries;
     }
     public Path directory(String id) {
         var run = admission.require(id);
@@ -28,6 +30,7 @@ public final class SourceArtifactFiles {
     }
     public void materialize(String id) {
         if (!admission.require(id).state().equals("REPORTING")) throw SourceTemplateAdmission.conflict();
+        deliveries.freeze(id);
         Path root = directory(id);
         try {
             TemplateDocumentPaths.requireSafeDirectory(root); Files.createDirectories(root);

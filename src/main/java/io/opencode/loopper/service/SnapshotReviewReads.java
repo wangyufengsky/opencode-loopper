@@ -103,17 +103,11 @@ public class SnapshotReviewReads {
                 "sha256", TemplateGitEvidenceCollector.hash(row.outputJson()));
     }
     public void evidence(String batchId, List<SnapshotReview.Reference> refs, boolean targetRequired) {
-        var row = snapshotsForBatch(batchId); String target = store.snapshot(row.taskId()).targetSha(); boolean targetFound = false;
-        if (refs == null || refs.size() > 64) throw invalid("证据数量无效");
-        for (var ref : refs) {
-            if (ref == null || ref.startLine() < 1 || ref.endLine() < ref.startLine() || ref.quote() == null || ref.quote().isBlank())
-                throw invalid("引用缺少版本、位置或原文");
-            var content = initialContent(input(row), ref).or(() -> snapshots.receiptContent(batchId, ref))
-                    .orElseThrow(() -> invalid("引用必须来自本批初始证据或本角色实际读取的同版本同位置代码"));
-            if (!content.contains(ref.quote())) throw invalid("引用原文与冻结读取内容不匹配");
-            if (target.equals(ref.version())) targetFound = true;
-        }
-        if (targetRequired && !targetFound) throw invalid("当前缺陷必须引用目标版本代码证据");
+        var row = snapshotsForBatch(batchId);
+        try {
+            io.opencode.loopper.template.SnapshotReviewClaims.evidence(store.snapshot(row.taskId()).targetSha(), refs, targetRequired,
+                    ref -> initialContent(input(row), ref).or(() -> snapshots.receiptContent(batchId, ref)));
+        } catch (IllegalArgumentException failure) { throw invalid(failure.getMessage()); }
     }
     private void contextRequest(TemplateTaskBatchRow row, Object... arguments) {
         if (!input(row).compact()) return;
@@ -122,19 +116,14 @@ public class SnapshotReviewReads {
             throw invalid("本批 12 次关联读取边界已到达；请使用已交付证据提交结果，将无法确认的疑点写入 limitations，不要继续扩展读取");
     }
     static Optional<String> initialContent(SnapshotReview.Input input, SnapshotReview.Reference ref) {
-        if (!input.compact()) return Optional.empty();
-        return input.units().stream().flatMap(u -> u.initialEvidence().stream())
-                .filter(r -> Objects.equals(r.version(), ref.version()) && Objects.equals(r.path(), ref.path())
-                        && Objects.equals(r.blob(), ref.blob()) && r.startLine() <= ref.startLine() && r.endLine() >= ref.endLine())
-                .map(r -> String.join("\n", Arrays.copyOfRange(r.quote().split("\n", -1),
-                        ref.startLine() - r.startLine(), ref.endLine() - r.startLine() + 1))).findFirst();
+        return io.opencode.loopper.template.SnapshotReviewClaims.initialContent(input, ref);
     }
     private TemplateTaskBatchRow snapshotsForBatch(String id) { return batches.findBatch(id).orElseThrow(() -> invalid("批次不存在")); }
     private SnapshotReview.Input input(TemplateTaskBatchRow row) { return json.readValue(row.inputJson(), TemplateBatchExecution.Input.class).snapshot(); }
     private SnapshotReview.File file(String task, String version, String path, String blob) {
         version(task, version);
         var file = snapshots.fileAt(task, version, path).orElseThrow(() -> invalid("文件不属于冻结版本"));
-        if (!file.blob().equals(blob) || file.limitation() != null || DocumentCodeSnapshotService.protectedPath(path))
+        if (!file.blob().equals(blob) || file.limitation() != null || GitSnapshotInventory.protectedPath(path))
             throw invalid("文件身份不符或不允许读取");
         return file;
     }

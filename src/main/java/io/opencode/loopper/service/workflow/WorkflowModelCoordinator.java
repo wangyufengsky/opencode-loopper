@@ -1,0 +1,47 @@
+package io.opencode.loopper.service.workflow;
+
+import io.opencode.loopper.domain.SessionFailure;
+import io.opencode.loopper.persistence.WorkflowModelMapper;
+import java.util.*;
+import java.util.concurrent.*;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
+
+/** Bounded workers serialize each attempt's I/O; a cursor prevents long-running sessions starving later ones. */
+@Component
+@ConditionalOnProperty(name="loopper.workflow-monitor-enabled",havingValue="true",matchIfMissing=true)
+public final class WorkflowModelCoordinator implements org.springframework.beans.factory.DisposableBean {
+    private final WorkflowModelMapper mapper;
+    private final WorkflowModelExecution execution;
+    private final WorkflowModelStore store;
+    private final Set<String> pending=ConcurrentHashMap.newKeySet();
+    private final Semaphore capacity=new Semaphore(4);
+    private final ExecutorService workers=Executors.newFixedThreadPool(4,Thread.ofPlatform().daemon().name("workflow-model-",0).factory());
+    private String cursor="";
+    public WorkflowModelCoordinator(WorkflowModelMapper mapper,WorkflowModelExecution execution,WorkflowModelStore store) {
+        this.mapper=mapper; this.execution=execution; this.store=store;
+    }
+    @Scheduled(fixedDelayString="${loopper.workflow-monitor-delay:${loopper.monitor-delay:2s}}",
+            initialDelayString="${loopper.workflow-monitor-delay:${loopper.monitor-delay:2s}}")
+    public synchronized void tick() {
+        if (capacity.availablePermits()==0) return;
+        var ids=mapper.active(cursor,32);
+        if (ids.isEmpty()) { cursor=""; return; }
+        for (String id:ids) {
+            if (!capacity.tryAcquire()) break;
+            cursor=id;
+            if (!pending.add(id)) { capacity.release(); continue; }
+            try { workers.submit(()->advance(id)); }
+            catch (RejectedExecutionException stopped) { pending.remove(id); capacity.release(); }
+        }
+    }
+    private void advance(String id) {
+        try { execution.advance(id); }
+        catch (RuntimeException failure) {
+            try { store.suspend(id,WorkflowFailures.code(failure)); }
+            catch (RuntimeException changed) { /* A concurrent cancellation owns the new state; reread on the next tick. */ }
+        } finally { pending.remove(id); capacity.release(); }
+    }
+    @Override public void destroy() { workers.shutdownNow(); }
+}

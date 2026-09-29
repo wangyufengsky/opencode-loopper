@@ -33,7 +33,7 @@ class RoleCapabilitiesTest {
             boolean shared = !name.startsWith("KNOWLEDGE_") && !excluded.contains(name);
             assertThat(WorkflowKnowledgePolicy.supports(name)).as(name).isEqualTo(shared);
             boolean oldEvidenceOnly = name.contains("JUDGE") || name.contains("REVIEWER") || name.contains("NO_TOOLS") || name.startsWith("PROJECT_CONVENTION_");
-            if (shared) assertThat(WorkflowKnowledgePolicy.evidenceOnly(name)).as(name).isEqualTo(oldEvidenceOnly);
+            if (shared) assertThat(WorkflowKnowledgePolicy.evidenceOnly(name)).as(name).isEqualTo(oldEvidenceOnly || io.opencode.loopper.runtime.WorkflowModelProfile.contains(profile));
             var expected = AssistToolCatalog.tools().stream().filter(tool -> {
                 if (RoleCapabilities.assist(tool.name()) == PROJECT_KNOWLEDGE)
                     return shared || name.startsWith("KNOWLEDGE_");
@@ -42,8 +42,9 @@ class RoleCapabilitiesTest {
                 return (!tool.writes() || name.equals("IMPLEMENTATION"))
                         && (!(name.contains("JUDGE") || name.contains("REVIEWER")) || RoleCapabilities.assist(tool.name()) == TASK_EVIDENCE);
             }).map(AssistToolCatalog.Tool::name).toList();
-            // PPT has a private protocol and never exposes auxiliary tools at runtime.
             if (profile == OpenCodeClient.SessionProfile.PPT_AGENT) expected = List.of();
+            if (io.opencode.loopper.runtime.WorkflowModelProfile.contains(profile)) expected = AssistToolCatalog.tools().stream()
+                    .map(AssistToolCatalog.Tool::name).filter(AssistToolCatalog::knowledgeTool).toList();
             assertThat(AssistToolCatalog.allowed(name)).as(name).containsExactlyElementsOf(expected);
         }
         assertThat(AssistToolCatalog.tools()).allSatisfy(tool -> assertThat(RoleCapabilities.assist(tool.name())).as(tool.name()).isNotNull());
@@ -65,8 +66,18 @@ class RoleCapabilitiesTest {
                 if (profile.equals("ACCOUNTING_COMMAND")) continue;
                 var baseline = OpenCodePermissionPolicy.previewRules(OpenCodeClient.SessionProfile.valueOf(profile), List.of(), "internal");
                 if (role.permissionMode().equals("BASELINE")) {
-                    assertThat(RoleCapabilities.narrow(baseline, profile, role.capabilities(), "internal")).as(slot).isEqualTo(baseline);
-                    assertThat(RoleCapabilities.effective(profile, role.capabilities())).as(slot).containsAll(RoleCapabilities.profile(profile));
+                    var narrowed = RoleCapabilities.narrow(baseline, profile, role.capabilities(), "internal");
+                    if (io.opencode.loopper.runtime.WorkflowModelProfile.contains(OpenCodeClient.SessionProfile.valueOf(profile))
+                            && !role.capabilities().contains(NATIVE_TOOLS)) {
+                        // Specialist workflow roles deliberately use only fixed-input MCP, without native file access.
+                        assertThat(narrowed.stream().filter(rule -> rule.action().equals("allow")).map(OpenCodeClient.SessionPermissionRule::permission))
+                                .allMatch(name -> name.startsWith("internal_"));
+                        assertThat(narrowed).contains(new OpenCodeClient.SessionPermissionRule("read", "*", "deny"),
+                                new OpenCodeClient.SessionPermissionRule("internal_submit_workflow_node_result", "*", "allow"));
+                    } else {
+                        assertThat(narrowed).as(slot).isEqualTo(baseline);
+                        assertThat(RoleCapabilities.effective(profile, role.capabilities())).as(slot).containsAll(RoleCapabilities.profile(profile));
+                    }
                 }
             }
         }

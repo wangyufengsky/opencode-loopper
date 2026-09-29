@@ -50,6 +50,7 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
     private final List<CandidatePolicy> policies;
     private final List<AcceptedCandidateWriter> writers;
     private final List<CandidateRunGuard> guards;
+    private final AcceptedWorkResults workResults;
     private io.opencode.loopper.config.LoopperProperties properties = new io.opencode.loopper.config.LoopperProperties();
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -57,13 +58,15 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
 
     public PersistentMachineCandidateSubmission(
             LoopperMapper mapper, LifecycleTransitionService lifecycle, ObjectMapper json,
-            List<CandidatePolicy> policies, List<AcceptedCandidateWriter> writers, List<CandidateRunGuard> guards) {
+            List<CandidatePolicy> policies, List<AcceptedCandidateWriter> writers, List<CandidateRunGuard> guards,
+            AcceptedWorkResults workResults) {
         this.mapper = mapper;
         this.lifecycle = lifecycle;
         this.json = json;
         this.policies = List.copyOf(policies);
         this.writers = List.copyOf(writers);
         this.guards = List.copyOf(guards);
+        this.workResults = workResults;
     }
 
     @Override
@@ -85,7 +88,7 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
                 command.sourceRevision(), command.ownerVersion(), command.submissionChannel().name(),
                 command.contractVersion(), command.runtimeGenerationId(), command.externalSessionId(),
                 MachineCandidateRunState.OPEN.name(), command.maxAttempts(), 0, null, now, now, 0, null,
-                CandidateCorrectionPolicy.limit(command, properties));
+                CandidateCorrectionPolicy.limit(command, properties), 1);
         lifecycle.create(subject(row), row.state(), Map.of(
                         "candidateKind", row.candidateKind(), "workflowStep", row.workflowStep(),
                         "sourceRevision", row.sourceRevision(), "ownerVersion", row.ownerVersion(),
@@ -234,7 +237,10 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
         if (mapper.insertCandidateSubmissionAttempt(attempt) != 1) {
             throw new ConflictException("CANDIDATE_ATTEMPT_CONFLICT", "候选尝试无法持久化");
         }
-        return mapper.updateCandidateSubmissionRun(next);
+        int changed = mapper.updateCandidateSubmissionRun(next);
+        if (changed == 1 && decision != null && decision.accepted())
+            workResults.record(next, attempt, decision.canonicalCandidateJson());
+        return changed;
     }
 
     private SubmissionResult result(CandidateSubmissionRunRow run, MachineCandidateOutcome outcome,
@@ -503,7 +509,7 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
                 row.ownerVersion(), row.submissionChannel(), row.contractVersion(), row.runtimeGenerationId(),
                 row.externalSessionId(), state.name(), row.maxAttempts(), attemptsUsed, terminalAttemptId,
                 row.createdAt(), updatedAt, row.version(), closeReason == null ? row.closeReason() : closeReason.name(),
-                row.correctionLimit());
+                row.correctionLimit(), row.resultStorageVersion());
     }
 
     private LifecycleTransitionService.Subject subject(CandidateSubmissionRunRow row) {

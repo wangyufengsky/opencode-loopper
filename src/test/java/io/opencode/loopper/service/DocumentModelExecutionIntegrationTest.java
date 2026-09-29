@@ -33,6 +33,9 @@ class DocumentModelExecutionIntegrationTest {
     @Autowired DocumentTemplateCoordinator coordinator;
     @Autowired DocumentFrozenReadService reads;
     @Autowired MachineCandidateSubmission submissions;
+    @Autowired AcceptedWorkResults workResults;
+    @Autowired DocumentWorkInputs workInputs;
+    @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
     @Autowired ProjectService projects;
     @Autowired LoopperProperties properties;
     @Autowired OpenCodeClient client;
@@ -72,6 +75,12 @@ class DocumentModelExecutionIntegrationTest {
         assertThat(fake.promptCalls()).isEqualTo(1);
         var accepted = submit(model, candidate(model, false));
         assertThat(accepted.outcome()).isEqualTo(MachineCandidateOutcome.ACCEPTED);
+        var output = workResults.find(MachineCandidateSubmission.CandidateScope.project(run.projectId()),
+                new MachineCandidateSubmission.CandidateOwnerRef(
+                        MachineCandidateSubmission.CandidateOwnerType.DOCUMENT_TEMPLATE_MODEL_RUN, model.id()),
+                model.id()).orElseThrow();
+        assertThat(output.content()).isEqualTo(store.require(model.id()).outputJson());
+        assertThat(output.reference().sha256()).isEqualTo(accepted.canonicalResultSha256());
         assertThat(execution.advance(model.id(), contract).state()).isEqualTo("RUNNING");
         fake.setSessionState(model.externalSessionId(), "COMPLETED");
         assertThat(execution.advance(model.id(), contract).state()).isEqualTo("VALIDATED");
@@ -98,17 +107,28 @@ class DocumentModelExecutionIntegrationTest {
     }
     @Test void independentGoldReviewFindsSemanticOmissionThenRepairedLedgerPublishesOnce() {
         start(); complete(model, candidate(model, true)); // syntactically valid, but misses duplicate-payment rule
+        String firstExtraction = model.id();
         DocumentTemplateModelRow review = awaitRole("DOCUMENT_REQUIREMENT_REVIEW_V1", 0);
+        String firstReview = review.id();
         var reviewInput = json.readValue(review.inputJson(), DocumentModelInput.class);
+        assertThat(reviewInput.workResults()).hasSize(1);
+        assertThat(reviewInput.workResults().getFirst().producerRunId()).isEqualTo(firstExtraction);
+        String frozenReviewInput = review.inputJson();
         var ref = reviewInput.sections().getFirst();
         complete(review, new DocumentRequirements.Review(false, List.of("RQ-1"), reviewInput.requirements().coverage(),
                 List.of(new DocumentRequirements.Correction(null, "OMISSION", "漏掉不得重复付款的规则",
                         List.of(new DocumentRequirements.Source(ref.fileId(), ref.section(), "不得重复付款"))))));
         model = awaitRole("DOCUMENT_REQUIREMENTS_V1", 1);
         assertThat(model.inputJson()).contains("漏掉不得重复付款");
+        var repairedInput = json.readValue(model.inputJson(), DocumentModelInput.class);
+        assertThat(repairedInput.workResults()).extracting(value -> value.producerRunId())
+                .containsExactly(firstReview, firstExtraction);
+        workInputs.verify(run.id(), repairedInput);
         complete(model, candidate(model, false));
         review = awaitRole("DOCUMENT_REQUIREMENT_REVIEW_V1", 1);
         reviewInput = json.readValue(review.inputJson(), DocumentModelInput.class);
+        assertThat(reviewInput.workResults().getFirst().producerRunId()).isEqualTo(model.id()).isNotEqualTo(firstExtraction);
+        assertThat(store.require(firstReview).inputJson()).isEqualTo(frozenReviewInput);
         complete(review, new DocumentRequirements.Review(true, List.of("RQ-1", "RQ-2"), reviewInput.requirements().coverage(), List.of()));
         for (int i = 0; i < 12 && documents.find(run.id()).orElseThrow().requirementRevision() == 0; i++)
             workflow.advance(documents.find(run.id()).orElseThrow(), contract);
@@ -116,6 +136,60 @@ class DocumentModelExecutionIntegrationTest {
         assertThat(requirements.count(run.id(), 1)).isEqualTo(2);
         assertThat(workflow.advance(documents.find(run.id()).orElseThrow(), contract)).isTrue();
         assertThat(requirements.count(run.id(), 1)).isEqualTo(2);
+    }
+    @Test void downstreamCannotBindRunningProducerOrLaunchWithMissingPinnedOutput() throws Exception {
+        start();
+        var value = candidate(model, false);
+        var originalInput = json.readValue(model.inputJson(), DocumentModelInput.class);
+        // Omitting the new property preserves old immutable input JSON and its stored hash.
+        assertThat(json.writeValueAsString(originalInput)).doesNotContain("workResults");
+        var nextInput = new DocumentModelInput(originalInput.sections(), value, null, null, null, null);
+        assertThat(submit(model, value).outcome()).isEqualTo(MachineCandidateOutcome.ACCEPTED);
+        assertThatThrownBy(() -> workInputs.freeze(run.id(), nextInput, Map.of("requirements", model.id())))
+                .isInstanceOf(ConflictException.class);
+        fake.setSessionState(model.externalSessionId(), "COMPLETED");
+        execution.advance(model.id(), contract);
+        var frozen = workInputs.freeze(run.id(), nextInput, Map.of("requirements", model.id()));
+        var other = LegacyDocumentFixture.create(applicationContext,
+                new DocumentTemplateService.Request(UUID.randomUUID().toString(), "REQUIREMENT_DEVELOPMENT", "1", run.projectId(), null),
+                List.of(new DocumentTemplateStorage.Incoming("other.md", "另一个需求任务".getBytes(StandardCharsets.UTF_8))));
+        assertThatThrownBy(() -> workInputs.freeze(other.id(), nextInput, Map.of("requirements", model.id())))
+                .isInstanceOf(ConflictException.class);
+        var binding = frozen.workResults().getFirst();
+        var wrong = new io.opencode.loopper.workflow.WorkResult.Binding(binding.inputName(), binding.producerRunId(),
+                binding.producerType(), binding.producerId(), binding.kind(),
+                new io.opencode.loopper.workflow.WorkResult.Reference(binding.reference().id(), "0".repeat(64)));
+        assertThatThrownBy(() -> workInputs.verify(run.id(), frozen.withWorkResults(List.of(wrong))))
+                .isInstanceOf(ConflictException.class);
+        workflow.advance(documents.find(run.id()).orElseThrow(), contract);
+        workflow.advance(documents.find(run.id()).orElseThrow(), contract);
+        var reviewer = models.latest(run.id(), "DOCUMENT_REQUIREMENT_REVIEW_V1", 0).orElseThrow();
+        assertThat(reviewer.state()).isEqualTo("PREPARED");
+        int sessions = fake.createReadOnlySessionCalls();
+        jdbc.update("DELETE FROM accepted_work_result WHERE run_id=?", model.id());
+        assertThatThrownBy(() -> execution.advance(reviewer.id(), contract)).isInstanceOf(ConflictException.class);
+        assertThat(store.require(reviewer.id()).state()).isEqualTo("PREPARED");
+        assertThat(fake.createReadOnlySessionCalls()).isEqualTo(sessions);
+    }
+    @Test void retryPreservesPinnedInputsAndCannotStartUntilThePreviousSessionIsStopped() {
+        start(); complete(model, candidate(model, false));
+        var reviewer = awaitRole("DOCUMENT_REQUIREMENT_REVIEW_V1", 0);
+        String frozenInput = reviewer.inputJson();
+        assertThat(json.readValue(frozenInput, DocumentModelInput.class).workResults()).hasSize(1);
+        fake.failNextAborts(1);
+        assertThatThrownBy(() -> execution.stop(reviewer.id())).isInstanceOf(SessionFailure.class);
+        var stopping = store.require(reviewer.id());
+        assertThat(stopping.state()).isEqualTo("STOPPING");
+        assertThatThrownBy(() -> store.retry(stopping.id(), stopping.version(), true, contract))
+                .isInstanceOf(ConflictException.class);
+        assertThat(execution.stop(reviewer.id())).isTrue();
+        var stopped = store.require(reviewer.id());
+        var retried = store.retry(stopped.id(), stopped.version(), true, contract);
+        assertThat(retried.id()).isNotEqualTo(reviewer.id());
+        assertThat(retried.inputJson()).isEqualTo(frozenInput);
+        workInputs.verify(run.id(), json.readValue(retried.inputJson(), DocumentModelInput.class));
+        assertThat(execution.advance(retried.id(), contract).state()).isEqualTo("CREATING");
+        assertThat(store.require(reviewer.id()).inputJson()).isEqualTo(frozenInput);
     }
     @Test void cancellationWithLostCreateAcknowledgementRequiresStopProofAndReplaysOneCommand() {
         model = execution.advance(model.id(), contract);

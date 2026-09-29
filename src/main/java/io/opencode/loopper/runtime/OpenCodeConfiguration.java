@@ -55,7 +55,8 @@ class OpenCodeConfiguration {
     OpenCodeClient openCodeClient(LoopperProperties properties, OpenCodeRuntimeManager runtimeManager,
                                   OpenCodeCapabilityRegistry capabilities,
                                   OpenCodeSessionRuntimeBindings runtimeBindings, OpenCodeAttachmentResources resources,
-                                  StoryAccountingCoordinator storyAccounting, AssistRuntimeSupport assist, PptRuntimeSupport ppt, ConfiguredRoleRuntime roles, ConfiguredAccountingRole accountingRoles) {
+                                  StoryAccountingCoordinator storyAccounting, AssistRuntimeSupport assist, PptRuntimeSupport ppt,
+                                  WorkflowRuntimeSupport workflow, ConfiguredRoleRuntime roles, ConfiguredAccountingRole accountingRoles) {
         if ("fake".equalsIgnoreCase(properties.getOpenCode().getMode())) {
             var client = new FakeOpenCodeClient(runtimeBindings); client.installRoles(roles); return client;
         }
@@ -64,6 +65,7 @@ class OpenCodeConfiguration {
                 storyAccounting);
         client.installAssist(assist);
         client.installPpt(ppt);
+        client.installWorkflow(workflow);
         client.installRoles(roles);
         client.installAccountingRoles(accountingRoles);
         return client;

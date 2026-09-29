@@ -82,6 +82,9 @@ const errorCodeLabels: Record<string, string> = {
   GIT_PROJECT_OUTSIDE_CHANGES: '同一 Git 仓库的项目目录外存在变更，请先在对应模块处理后重试；本任务不会处理这些文件。',
   GIT_PROJECT_SCOPE_MISMATCH: '项目目录与所属 Git 仓库不匹配，请检查登记目录和 Git 配置。',
   GIT_PROJECT_SCOPE_UNAVAILABLE: '无法确认项目所属的 Git 仓库，请检查目录及访问权限。',
+  WORKFLOW_WRITEBACK_ACTIVE: '流程成果正在回填，请在对应需求任务中查看或恢复。',
+  WORKFLOW_WRITEBACK_CHANGED: '回填来源、目录或记录已变化，请刷新并检查原回填记录。',
+  WORKFLOW_WRITEBACK_EXISTS: '这项需求已有确认的回填，请查看或恢复原记录。',
   WORKSPACE_OVERLAPPING_LEASE: '同一仓库仍有旧目录任务占用，请待该任务安全结束后重试。',
   STAGE_WORKSPACE_BASELINE_CREATE_FAILED: '阶段文件基线创建失败',
   STAGE_WORKSPACE_BASELINE_UNSTABLE: '阶段文件基线采集期间文件持续变化',
@@ -223,6 +226,159 @@ const profileResolutionLabels: Record<string, string> = {
 export function statusLabel(value?: string) {
   if (!value) return '未知'
   return displayLabel(value)
+}
+
+export function workflowStateLabel(value?: string): string {
+  return ({ PLANNING: '规划中', PENDING_START: '待开始', PENDING: '未开始', ACTIVE: '执行中', RUNNING: '执行中',
+    PAUSED: '已暂停', STALLED: '流程停滞', WAITING: '等待确认', WAITING_INPUT: '等待人工填写',
+    SUCCEEDED: '已完成', COMPLETED: '已完成', FAILED: '执行失败', DONE: '已完成',
+    DISPATCHING: '确认消息送达' } as Record<string, string>)[value || ''] ?? statusLabel(value)
+}
+export function workflowCandidateStateLabel(value: string) { return ({ PENDING: '待确认', APPLIED: '已应用', REJECTED: '已退回' } as Record<string, string>)[value] || '未知' }
+export function workflowWritebackReason(value?: string | null) { return ({
+  WORKFLOW_WRITEBACK_PREPARATION_CHANGED: '原目录已变化或备份不可用，未开始回填；请检查目录后重试。',
+  WORKFLOW_WRITEBACK_APPLY_FAILED: '回填暂未完成，已保留现场、备份和写入权；请检查目录后重试。',
+  WORKFLOW_WRITEBACK_LOCK_UNAVAILABLE: '暂时无法确认回填写入者，已保留现场和写入权；请检查目录及权限后重试。',
+} as Record<string, string>)[value || ''] || '回填未完成，现场和写入权已保留，请检查目录后恢复。' }
+export function workflowWritebackStateLabel(value: string) { return ({ CONFIRMED: '已确认回填', APPLYING: '正在回填原目录', BLOCKED: '回填需处理', APPLIED: '已回填原目录' } as Record<string, string>)[value] || '状态待刷新' }
+export function workflowPublicationStateLabel(value: string) { return ({ CONFIRMED: '正在保存本地提交', BLOCKED: '提交需处理', COMMITTED: '已保存本地提交' } as Record<string, string>)[value] || '状态待刷新' }
+export function workflowPushStateLabel(value: string) { return ({ PREPARING: '准备推送', RUNNING: '正在核对推送', BLOCKED: '推送需处理', PUSHED: '已确认推送' } as Record<string, string>)[value] || '状态待刷新' }
+export function workflowPushReason(value?: string | null) { return ({
+  WORKFLOW_PUSH_TARGET_CHANGED: '项目的推送地址已变化。请恢复确认时的远端配置，再核对原推送。',
+  WORKFLOW_PUSH_REF_CONFLICT: '远端成果分支已有不同提交，原分支已保留。请核对远端内容，恢复操作不会覆盖它。',
+  WORKFLOW_PUSH_STOP_UNCONFIRMED: '原推送进程的停止尚未得到证明。重新核对仍使用原执行身份，不启动第二次推送。',
+  WORKFLOW_PUSH_SOURCE_CHANGED: '本地成果分支或仓库归属已变化。请恢复确认的成果分支和原仓库后重试。',
+  TEMPLATE_GIT_AUTH_FAILED: 'Git 认证失败。请检查项目或全局 Git 账号；SSH 地址请检查系统 SSH 配置，然后核对原推送。',
+  TEMPLATE_GIT_REMOTE_UNAVAILABLE: 'Git 网络连接失败。请恢复连接后核对原推送。',
+  WORKFLOW_PUSH_RESULT_UNCONFIRMED: '远端结果尚未确认。请检查连接后核对原推送；已存在的相同提交会直接登记。',
+} as Record<string, string>)[value || ''] || '推送记录需要继续核对。请检查原仓库、远端连接和账号后恢复原操作。' }
+export function workflowPublicationReason(value?: string | null) { return ({
+  WORKFLOW_PUBLICATION_PROJECT_UNAVAILABLE: '原项目目录不可用或身份已变化。请恢复原目录并检查访问权限，再恢复原提交。',
+  WORKFLOW_PUBLICATION_SOURCE_UNAVAILABLE: '保存的代码、基线或 Git 对象缺失或不一致。请恢复原始保存数据，再恢复原提交。',
+  WORKFLOW_PUBLICATION_COMMIT_UNCONFIRMED: '本地提交对象尚未确认。请检查 Git 仓库及写入权限，再恢复原提交。',
+  WORKFLOW_PUBLICATION_BRANCH_UNCONFIRMED: '成果分支尚未确认，可能存在其他提交或引用冲突。请核对该分支；恢复时只接受原定提交，不覆盖其他内容。',
+  WORKFLOW_PUBLICATION_RECEIPT_UNCONFIRMED: '成果分支已创建，但提交回执保存失败。恢复原提交将核对已有分支并补记结果。',
+} as Record<string, string>)[value || ''] || '原提交需要检查。请确认原项目目录、保存的代码和成果分支可用，再恢复同一提交。' }
+export function workflowFinishLabel(value: string): string {
+  return ({ COMPLETED: '人工认定成功', FAILED: '人工认定失败', CANCELLED: '用户取消' } as Record<string, string>)[value] || '人工结束'
+}
+export function workflowTestCoverageLabel(value: string) {
+  return ({ COVERED: '评审认为已覆盖', MISSING: '缺少对应测试', INSUFFICIENT: '断言覆盖不足', FAILED: '关联测试失败', NOT_EXECUTED: '关联测试未执行', EVIDENCE_INCOMPLETE: '固定版本证据不足' } as Record<string, string>)[value] || '证据无法识别'
+}
+export function workflowReasonLabel(value?: string | null): string {
+  if (!value) return ''
+  return ({ WORKFLOW_NOT_STARTED: '确认计划后可开始执行。', WORKFLOW_CHECKPOINT: '请检查节点交付物并确认后继续。',
+    WORKFLOW_SNAPSHOT_PLAN_INVALID: '版本分批配置不完整，请检查分析、条件复核、报告及固定输入。',
+    WORKFLOW_SNAPSHOT_PLAN_LIMIT: '完整版本分批超过容量，请明确缩小范围；资料已保留，没有截断代码。',
+    WORKFLOW_SNAPSHOT_REPORT_INVALID: '版本报告缺少分析或适用复核，或绑定了不同版本，请检查完整范围和完成策略。',
+    WORKFLOW_HISTORY_PLAN_INVALID: '历史分批配置不完整，请按分批、审查、可选的贡献评价、报告顺序连接并检查输入。',
+    WORKFLOW_HISTORY_PLAN_LIMIT: '完整历史分批超过容量，请按明确日期范围拆分需求；资料已保留，未截断提交或人员。',
+    WORKFLOW_HISTORY_REPORT_INVALID: '历史报告尚未覆盖全部批次或人员，或绑定了不同版本的评价依据，请检查输入后重试。',
+    WORKFLOW_SNAPSHOT_WORK_INVALID: '版本审查输入、引用或候选不完整，请按节点诊断补齐本批证据后重试。',
+    WORKFLOW_HISTORY_ANALYSIS_INVALID: '历史分析输入或候选不完整，请检查批次、贡献者及上游审查范围，按节点诊断修正后重试。',
+    WORKFLOW_HISTORY_INVALID: '历史采集配置不完整，请选择明确分支并填写有效日期，结束日期不能早于开始日期。',
+    WORKFLOW_REVIEW_SOURCE_PARAMETERS: '请选择明确分支及审查模式。日期增量需有效日期，全面审查不使用日期输入。',
+  WORKFLOW_REVIEW_SOURCE_INVALID: '原版本审查资料缺失或不一致，请保留现场后恢复原采集节点。',
+  WORKFLOW_REVIEW_BINDING_INVALID: '版本审查资料与原生产节点不一致，请检查固定输入。',
+  WORKFLOW_REVIEW_CAPTURE_FAILED: '版本审查资料采集失败，可恢复或重试原节点；已定位的提交和审查范围保持不变。',
+  WORKFLOW_HISTORY_CAPTURE_FAILED: 'Git 历史未能完整采集，请查看仓库连接、凭据及执行记录后重试；已定位的提交和日期范围保持不变。',
+    WORKFLOW_HISTORY_EVIDENCE_INVALID: '原历史证据缺失或不一致，请保留现场并恢复原采集节点。',
+    WORKFLOW_HISTORY_BINDING_INVALID: '这份历史资料不属于本节点的固定输入，请检查前置交付物。',
+    WORKFLOW_REPOSITORY_INVALID: '分支采集配置不完整，请选择明确分支并保留固定代码、报告和说明三个交付物。',
+    WORKFLOW_REPOSITORY_CAPTURE_FAILED: '分支代码未能采集，请检查仓库连接、Git 凭据与执行记录后重试；已定位的提交保持不变。',
+    WORKFLOW_REPOSITORY_EVIDENCE_INVALID: '原代码快照或采集记录缺失、损坏，请保留现场并检查数据目录后恢复原尝试。',
+    TEMPLATE_SHALLOW_SOURCE: '所选仓库历史不完整，请补齐历史后新增采集节点，或明确选择可读取完整历史的远程分支。',
+    TEMPLATE_EVIDENCE_LIMIT: '历史证据超过完整保存上限，请缩小日期范围后新增采集节点。',
+    TEMPLATE_OCTOPUS_MERGE: '范围内包含多父合并，当前无法完整重建其独有变更，请调整日期范围或分支后新增节点。',
+    TEMPLATE_GIT_TIMEOUT: '读取 Git 超过时限，请检查连接后重试。重试保留原提交；需要新版本时新增节点。',
+    WORKFLOW_SOURCE_INCOMPLETE: '目标文件未能完整读取，不能作为成功资料。请查看原因；需要读取修复后的源码时，修改计划并新增采集节点。',
+    WORKFLOW_SOURCE_CHANGED: '原快照正文尚未保存完整，项目已变化。请恢复原源码后重试，或修改计划并新增节点采集新版本。',
+    WORKFLOW_SOURCE_STORAGE_INVALID: '冻结正文缺失或损坏，请保留现场并检查数据目录后重试。',
+    WORKFLOW_SOURCE_INVALID: '源码节点配置不完整，请重新选择预设并绑定源码路径。',
+    WORKFLOW_SOURCE_DESIGN_INVALID: '源码设计配置、覆盖或设计稿来源不一致，请检查本批路径与输入绑定。',
+    WORKFLOW_TEST_PLAN_INVALID: '单测分批配置不完整，请核对场景、编写、最终测试、复核与汇总的输入及连接；删除复核时同步调整策略。',
+    WORKFLOW_TEST_PLAN_LIMIT: '完整单测计划超过容量，请按明确源码子目录拆分需求；原源码和配置已保留。',
+    WORKFLOW_UPLOAD_INVALID: '文档未完整保存或不属于当前需求，请重新选择已保存的资料。',
+    WORKFLOW_UPLOAD_UNAVAILABLE: '计划已变化或资料已经固定，请检查当前计划后重新上传。',
+    WORKFLOW_UPLOAD_BUSY: '同一次上传仍在保存，请稍后查看上传记录。',
+    WORKFLOW_UPLOAD_LIMIT: '解析内容超过容量限制，请拆分文档后上传。',
+    WORKFLOW_TEST_SUMMARY_INVALID: '单测汇总的来源不一致，请绑定同一份最终代码、各模块测试和对应场景复核。',
+    WORKFLOW_DOCUMENT_PLAN_INVALID: '原文分批配置不完整，请检查评审、可选复核与汇总的连接，以及同版原文和代码绑定。',
+    WORKFLOW_DOCUMENT_PLAN_LIMIT: '完整原文分批超过容量，请按明确业务范围拆分需求；原文已保留，未截断章节。',
+    WORKFLOW_ASSESSMENT_REPORT_INVALID: '报告范围或来源不完整，请绑定全部原文章节对应的评审稿及同版复核。',
+    WORKFLOW_ASSESSMENT_REVIEW_INCOMPLETE: '尚未全部独立复核通过，请补齐复核，或明确调整汇总策略。',
+    WORKFLOW_ASSESSMENT_REPORT_LIMIT: '完整报告超过存储上限，请按明确业务范围拆分需求；已有评审稿保留。',
+    WORKFLOW_SOURCE_PLAN_INVALID: '分批配置不完整或存在其他消费者，请检查编写、可选复核与汇总的连接及同版源码绑定。',
+    WORKFLOW_SOURCE_PLAN_LIMIT: '完整分批计划超过容量，请按明确源码子目录建立独立流程；原源码和配置已保留。',
+    WORKFLOW_KNOWLEDGE_BUNDLE_INVALID: '来源证据选择不完整或不属于本次执行，请查看原文记录、补充缺口说明并重新提交。',
+    WORKFLOW_INPUT_CORRUPT: '固定输入与原交付版本不一致，请保留记录并检查来源交付物。',
+    WORKFLOW_INPUT_PAGE_INVALID: '正文读取位置无效，请从起始位置重新读取。',
+    WORKFLOW_SYSTEM_MODULE_UNAVAILABLE: '此程序工作模块不可执行，请选择受支持的模块版本。',
+    WORKFLOW_SOURCE_BATCH_REQUIRED: '源码超过单批范围，请拆分编写与复核节点的目标路径，确认计划后执行。',
+    SOURCE_DESIGN_INVALID: '设计或复核未满足完整读取、精确引用及覆盖要求，请查看节点交付与任务说明。',
+    SOURCE_CANDIDATE_JSON_INVALID: '设计或复核结构不完整，请按本节点工作信息修正后重新提交。',
+    WORKFLOW_DOCUMENT_INVALID: '文档汇总配置不完整，请检查冻结源码、设计稿及完成策略。',
+    WORKFLOW_DOCUMENT_INPUT_INVALID: '设计稿与复核来源不对应，请绑定本需求同一版源码及准确的稿件。',
+    WORKFLOW_DOCUMENT_BINDING_INVALID: '固定文档缺失或不属于本次交付，请检查输入和数据完整性后重试。',
+    SOURCE_REVIEW_INCOMPLETE: '尚未全部独立复核通过，请补齐对应意见，或明确修改文档的复核策略。',
+    SOURCE_COVERAGE_INCOMPLETE: '设计稿未完整覆盖所选源码，请补齐遗漏批次及引用后重新汇总。',
+    SOURCE_ARTIFACT_LIMIT: '文档超过存储上限，请保留已有成果并调整汇总范围。',
+    SOURCE_DRAFT_NOT_READ: '本次绑定的设计稿尚未完整读取，请完成阅读后重新提交复核意见。',
+    SOURCE_READ_PARAMETERS_INVALID: '源码读取参数不符合本节点合同，请按工作信息使用冻结哈希和行号读取。',
+    SOURCE_READ_LIMIT: '所选源码段过长，请减少每次读取的行数。',
+    SOURCE_MARKDOWN_LINK_INVALID: '专业设计正文不能包含 HTML、图片或自建链接，请修正正文后重新提交。',
+    SOURCE_WORKSPACE_BUSY: '项目有活动写入或停止待确认，请处理后重试。',
+    SOURCE_PATH_INVALID: '源码路径不可用、超出项目或包含符号链接，请检查项目内文件或目录后重新规划。',
+    SOURCE_SNAPSHOT_UNSTABLE: '采集期间源码发生变化，请停止修改后重试。',
+    SOURCE_NO_APPLICABLE_FILES: '所选路径没有适用源码，请查看排除项并调整采集节点。',
+    SOURCE_SNAPSHOT_LIMIT: '采集超过文件、正文或时间上限，请缩小项目范围后重新规划。',
+    SOURCE_SNAPSHOT_READ_FAILED: '项目目录无法完整读取，请检查权限后重试。',
+    WORKFLOW_HUMAN_INPUT: '请选择正在等待的人工节点，填写结果后继续。', WORKFLOW_USER_PAUSED: '已暂停后续派发，已开始的节点继续收尾。',
+    WORKFLOW_FINISHING: '正在收束活动节点，确认停止后记录用户选择的结束结果。', WORKFLOW_USER_FINISHED: '用户已结束需求，原始节点结论和交付物保留。',
+    WORKFLOW_FINISH_INVALID: '请选择结束结果并填写原因。',
+    WORKFLOW_SCOPE_COMPLETE: '本次选定范围已执行完毕，可以选择下一步。', WORKFLOW_RETRY_EXHAUSTED: '自动重试已耗尽，请查看失败节点并决定是否重试。',
+    WORKFLOW_NODE_CANCELLED: '有节点已取消，请调整后续计划。', WORKFLOW_NODE_STOP_REQUESTED: '正在处理停止请求，后续节点已暂停。',
+    WORKFLOW_MODEL_RECOVERY_REQUIRED: '请查看需要恢复的节点，处理原尝试后再继续。', WORKFLOW_DIRECTORY_UNAVAILABLE: '项目目录不可访问，请恢复目录或检查项目登记。',
+    WORKFLOW_DIRECTORY_SNAPSHOT_INVALID: '项目文件或保存的目录快照发生变化，已保留现场。请核对文件与目录权限，处理冲突后恢复原尝试。',
+    WORKFLOW_DIRECTORY_PREPARATION_CHANGED: '目录准备记录或写入许可已变化，请保留项目文件并恢复原尝试。',
+    WORKFLOW_SOURCE_PURPOSE_MISMATCH: '请选择单元测试用途的冻结源码，以包含构建配置和已有测试资料。',
+    SOURCE_TEST_INPUT_DRIFT: '工作区与固定源码或测试基线已不一致，请核对原输入及目录后恢复；需要新源码时重新规划。',
+    SOURCE_TEST_SCOPE_UNVERIFIED: '测试范围尚无法完整核验，已保留现场。请检查原文件、保存的正文及目录权限后恢复原尝试。',
+    SOURCE_TEST_WRITE_RANGE_VIOLATION: '修改超出测试范围或改变了已有测试，请查看本次范围报告和固定代码，再调整或重试节点。',
+    WORKFLOW_TEST_SCOPE_SERVER_OWNED: '范围报告由程序生成，请从模型候选中移除这项输出后重新提交。',
+    WORKFLOW_TEST_REVIEW_INVALID: '场景复核的固定输入、测试关联或阅读依据不完整，请按工作信息检查后重新提交。',
+    WORKFLOW_TEST_RUN_INPUT_INVALID: '原生单测输入不匹配，请核对固定源码、配置、场景、代码及模块路径。',
+    WORKFLOW_TEST_CODE_LINEAGE_INVALID: '代码未实际继承所选批次的成果，请检查工作区代码输入和场景来源。',
+  WORKFLOW_TEST_EVIDENCE_INVALID: '本次测试证据不一致，请保留执行记录并检查数据。',
+  WORKFLOW_TEST_REPORT_NOT_FRESH: '报告位置已有内容或不可读取，请保留现场并重新准备测试节点。',
+  WORKFLOW_TEST_INPUT_MISMATCH: '测试配置与冻结源码来源不一致，请重新选择同版输入。',
+    WORKFLOW_TEST_DESIGN_INVALID: '单测场景设计尚不完整，请检查本批源码、配置阅读和具体场景。',
+    WORKFLOW_TEST_PROFILE_INVALID: '测试配置无法完整识别，请查看识别报告并核对冻结源码和测试目录。',
+    WORKFLOW_CODE_BASE_CHANGED: '上游代码成果与当前项目基准不一致，请明确合并方式或调整输入后继续。',
+    WORKFLOW_REVIEW_INVALID: '评审配置或交付格式不完整，请核对固定输入和报告内容。',
+  WORKFLOW_REVIEW_EVIDENCE_MISMATCH: '两份评审未使用同一批设计、代码和程序验证报告，请核对输入绑定。',
+  WORKFLOW_COMMAND_INVALID: '检查命令配置不完整，请调整代码输入、程序参数和时限。',
+    WORKFLOW_COMMAND_PREPARATION_FAILED: '检查执行记录无法准备，请检查数据目录后恢复原尝试。',
+    WORKFLOW_COMMAND_WORKSPACE_INVALID: '检查目录与固定交付物不一致，请保留现场并处理目录问题。',
+    WORKFLOW_COMMAND_START_UNKNOWN: '监督进程启动回执未确认，请恢复原尝试以核对执行记录。',
+    WORKFLOW_COMMAND_GRANT_UNKNOWN: '命令启动许可尚未确认，请恢复原尝试以核对执行记录。',
+    WORKFLOW_COMMAND_STOP_UNCONFIRMED: '尚未取得可靠的停止证明，后续执行保持阻断。请先检查原命令的执行记录。',
+    WORKFLOW_COMMAND_EVIDENCE_INVALID: '命令记录缺失或不一致，请保留现场并检查数据目录。',
+    WORKFLOW_COMMAND_RECOVERY_REQUIRED: '命令检查需要恢复，请查看执行记录并处理原尝试后继续。',
+    WORKFLOW_COMMAND_STOPPING: '正在停止原检查命令，确认停止前不会启动下一次尝试。',
+    COMMAND_START_FAILED: '命令未能启动，请检查程序路径、安装情况与执行权限。',
+    COMMAND_PREPARATION_FAILED: '依赖准备未完成，检查命令没有启动。请查看准备步骤的结果并处理后重试。',
+    WORKFLOW_TEST_ENVIRONMENT_INVALID: '测试环境或依赖配置不可用，请检查项目依赖声明、解释器和执行记录后重新准备。',
+    WORKFLOW_TEST_DEPENDENCIES_REQUIRED: 'Python 项目尚未声明测试依赖。请在 requirements.txt、requirements-test.txt、requirements-dev.txt 或包配置中声明 pytest 等依赖，再创建新的测试尝试。',
+    WORKFLOW_TEST_PYTHON_UNAVAILABLE: '未找到 Python 3。请安装并加入 Loopper 进程的 PATH，再恢复原尝试。',
+    WORKFLOW_TEST_WRAPPER_UNEXECUTABLE: '项目测试启动脚本没有执行权限。请修正项目中的脚本权限并重新交付代码，再创建新的测试尝试。',
+    WORKFLOW_TEST_ENVIRONMENT_EXISTS: '本次私有依赖目录已有内容。请保留执行记录并创建新的测试尝试，程序不会覆盖旧环境。',
+    COMMAND_OUTPUT_INCOMPLETE: '命令输出未能完整读取，请查看执行记录后决定是否重试。',
+    COMMAND_STOP_UNCONFIRMED: '尚未确认命令及已观察子进程全部停止。',
+    GRANT_NOT_RECEIVED: '本次监督进程未收到执行许可，检查命令没有启动。',
+    WORKFLOW_VERIFICATION_INVALID: '交付物检查配置不完整，请调整该节点的代码输入、检查项目与完成规则。',
+    WORKFLOW_DEPENDENCY_BLOCKED: '前置条件尚未满足，请检查节点依赖和业务结果。', WORKFLOW_PLAN_CHANGED: '计划已变化，请查看新版本后继续。', WORKFLOW_PLAN_REVIEW_REQUIRED: '有候选计划等待查看，确认或退回后才能继续派发。',
+  } as Record<string, string>)[value] ?? userFacingError(value, '执行需要处理，请查看节点详情与运行环境后重试。')
 }
 
 export function displayLabel(value?: string) {
@@ -384,6 +540,12 @@ export function requirementConclusionLabel(value: string | null | undefined): st
     NOT_IMPLEMENTED: '未实现', UNDETERMINED: '无法判断' }
   return value ? labels[value] ?? '结论待确认' : '尚未形成结论'
 }
+export function documentFindingKindLabel(value: string): string {
+  return ({ DEFECT: '确认缺陷', VALIDATION_GAP: '验证缺口', SUGGESTION: '改进建议' } as Record<string, string>)[value] ?? '问题类型待确认'
+}
+export function documentFindingSeverityLabel(value: string): string {
+  return ({ CRITICAL: '严重', HIGH: '高', MEDIUM: '中', LOW: '低', INFO: '提示' } as Record<string, string>)[value] ?? '影响待确认'
+}
 export function requirementKindLabel(value: string): string {
   const labels: Record<string, string> = { FUNCTION: '功能', RULE: '规则', PERMISSION: '权限', EXCEPTION: '异常', ACCEPTANCE: '验收场景', CONSTRAINT: '约束' }
   return labels[value] ?? '需求'
@@ -397,7 +559,7 @@ export function knowledgeStateLabel(state: string): string {
   return ({ READY: '可用', PREPARED: '准备中', CREATING: '连接中', CREATE_UNKNOWN: '核对会话', SENDING: '发送中', UNKNOWN: '核对发送', RUNNING: '生成中', STOPPING: '停止确认中', COMPLETED: '已完成', STOPPED: '已停止 · 未完成', FAILED: '未完成', REMOVED: '已移除', IDLE: '可以提问', DISCONNECTED: '连接待恢复', SUCCEEDED: '已读取' } as Record<string, string>)[state] ?? '状态待核对'
 }
 export function knowledgeToolLabel(tool: string): string {
-  return ({ read: '读取项目文件', glob: '搜索项目文件', grep: '搜索代码内容', todowrite: '更新调查进度', todoread: '查看调查进度', list_knowledge_sources: '查看资料来源', browse_knowledge_source: '浏览资料目录', search_knowledge: '检索项目资料', search_project_knowledge: '统一检索项目资料', read_knowledge_source: '读取原文片段', inspect_knowledge_git: '查看仓库', list_knowledge_git_authors: '查找作者', search_knowledge_git_commits: '查询提交', read_knowledge_git_commit: '读取提交', read_knowledge_git_file: '读取历史文件', blame_knowledge_git_lines: '查询最后修改记录', list_database_connections: '查看数据库连接', inspect_database_schema: '查看数据库结构', query_database_readonly: '只读查询数据库' } as Record<string, string>)[tool] ?? '读取资料'
+  return ({ inspect_knowledge_project: '查看项目概览', list_knowledge_evidence: '查看保存证据', read_knowledge_evidence: '回读保存证据', read_knowledge_sources: '批量读取原文', find_knowledge_symbol: '查找代码符号', search_knowledge_git_content: '检索历史正文', search_knowledge_git_patches: '检索提交差异', compare_knowledge_git_versions: '比较代码版本', read: '读取项目文件', glob: '搜索项目文件', grep: '搜索代码内容', todowrite: '更新调查进度', todoread: '查看调查进度', list_knowledge_sources: '查看资料来源', browse_knowledge_source: '浏览资料目录', search_knowledge: '检索项目资料', search_project_knowledge: '统一检索项目资料', read_knowledge_source: '读取原文片段', inspect_knowledge_git: '查看仓库', list_knowledge_git_authors: '查找作者', search_knowledge_git_commits: '查询提交', read_knowledge_git_commit: '读取提交', read_knowledge_git_file: '读取历史文件', blame_knowledge_git_lines: '查询最后修改记录', list_database_connections: '查看数据库连接', inspect_database_schema: '查看数据库结构', query_database_readonly: '只读查询数据库' } as Record<string, string>)[tool] ?? '读取资料'
 }
 export const knowledgeSearchStateLabel = (state: string) => ({ NOT_SEARCHED: '尚未检索', PARTIAL: '待继续检索', COMPLETE: '已查完', LIMITED: '范围未完整覆盖', FAILED: '检索失败', TIMED_OUT: '检索超时', SKIPPED: '本次未查询' } as Record<string, string>)[state] || '状态待确认'
 export const knowledgeMatchLabel = (type: string) => ({ EXACT: '原词匹配', PHRASE: '原句匹配', FIELD: '字段匹配', NAME: '名称匹配', EXPANDED: '扩展词线索' } as Record<string, string>)[type] || '相关片段'
@@ -439,4 +601,19 @@ export function pptToolLabel(tool: string): string {
 
 export function nativeToolLabel(tool: string): string | undefined {
   return toolLabels[tool]
+}
+
+export function workflowCodeChangeLabel(kind: string): string {
+  return ({ ADD: '新增', MODIFY: '修改', DELETE: '删除' } as Record<string, string>)[kind] ?? '文件改动'
+}
+
+export function workflowHistorySideLabel(value: string): string {
+  return ({ BEFORE: '变更前', AFTER: '变更后' } as Record<string, string>)[value] ?? '位置待确认'
+}
+
+export function workflowSnapshotVerdictLabel(value: string): string {
+  return ({ SUPPORTED: '证据支持', UNDETERMINED: '待确认', DISMISSED: '不成立', DUPLICATE: '重复问题' } as Record<string, string>)[value] || '结论待核对'
+}
+export function workflowSnapshotAttributionLabel(value: string): string {
+  return ({ CHANGE_RELATED: '与变化相关', EXISTING: '附带存量问题', UNDETERMINED: '归因未确定' } as Record<string, string>)[value] || '归因待核对'
 }

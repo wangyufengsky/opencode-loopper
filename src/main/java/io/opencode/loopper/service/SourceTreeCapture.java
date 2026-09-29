@@ -104,7 +104,7 @@ public final class SourceTreeCapture {
             return result;
         }
     }
-    static boolean unresolved(String exclusion) {
+    public static boolean unresolved(String exclusion) {
         return exclusion != null && (exclusion.startsWith("无法解析") || exclusion.startsWith("文件不可读取")
                 || exclusion.equals("文件超过源码读取上限"));
     }

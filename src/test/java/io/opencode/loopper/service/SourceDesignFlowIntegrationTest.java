@@ -30,8 +30,10 @@ class SourceDesignFlowIntegrationTest {
     @Autowired SourceModelExecution execution;
     @Autowired SourceModelReads reads;
     @Autowired SourceArtifactFiles artifacts;
+    @Autowired SourceWorkDeliveries deliveries;
     @Autowired SourceTemplateControl control;
     @Autowired MachineCandidateSubmission submissions;
+    @Autowired AcceptedWorkResults workResults;
     @Autowired ProjectService projects;
     @Autowired LoopperProperties properties;
     @Autowired OpenCodeClient client;
@@ -65,6 +67,8 @@ class SourceDesignFlowIntegrationTest {
         coordinator.advance(id); coordinator.advance(id);
     }
     @Test void completeFlowRequiresIndependentReadsThenPublishesExactPreviewAndDownloadBytes() throws Exception {
+        assertThatThrownBy(() -> deliveries.manifest(run().projectId(), id)).isInstanceOf(ConflictException.class)
+                .hasMessageContaining("工作尚未完成");
         var writer = awaitRole("SOURCE_DETAILED_DESIGN_V1", 0);
         var candidate = candidate(writer);
         complete(writer, candidate);
@@ -82,6 +86,17 @@ class SourceDesignFlowIntegrationTest {
             var item = artifacts.read(id, metadata.id());
             assertThat(Files.readString(artifacts.directory(id).resolve(item.name()))).isEqualTo(item.content());
         }
+        var manifest = deliveries.manifest(run().projectId(), id);
+        assertThat(manifest.files()).extracting(io.opencode.loopper.workflow.WorkFileManifest.Entry::id)
+                .containsExactlyElementsOf(listed.stream().map(SourceArtifactMapper.Metadata::id).toList());
+        assertThatThrownBy(() -> deliveries.manifest("another-project", id)).isInstanceOf(NotFoundException.class);
+        var pinned = manifest.files().getFirst();
+        assertThatThrownBy(() -> deliveries.read(run().projectId(), id, "0".repeat(64), pinned.id()))
+                .isInstanceOf(ConflictException.class);
+        // The user-facing export is mutable; an input bound to this delivery must retain the published bytes.
+        Files.writeString(artifacts.directory(id).resolve(pinned.name()), "用户修改的副本");
+        assertThat(deliveries.read(run().projectId(), id, manifest.sha256(), pinned.id()))
+                .isEqualTo(artifacts.read(id, pinned.id()).content().getBytes(java.nio.charset.StandardCharsets.UTF_8));
         var names = new ArrayList<String>();
         try (var zip = new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(artifacts.bundle(id)))) {
             java.util.zip.ZipEntry entry;
@@ -110,6 +125,32 @@ class SourceDesignFlowIntegrationTest {
         fake.setSessionState(row.externalSessionId(), "COMPLETED");
         assertThat(execution.advance(row.id(), contract).state()).isEqualTo("VALIDATED");
     }
+    @Test void failedSharedOutputInsertRollsBackTheRealRoleWriteAndCanBeRetried() {
+        var writer = awaitRole("SOURCE_DETAILED_DESIGN_V1", 0);
+        var value = candidate(writer);
+        jdbc.execute("CREATE TRIGGER reject_work_result BEFORE INSERT ON accepted_work_result "
+                + "BEGIN SELECT RAISE(ABORT,'simulated result write failure'); END");
+        try {
+            assertThatThrownBy(() -> submit(writer, value)).hasStackTraceContaining("simulated result write failure");
+            assertThat(store.require(writer.id()).outputJson()).isNull();
+            assertThat(store.require(writer.id()).acceptedAt()).isNull();
+            assertThat(submissions.find(writer.id()).orElseThrow().state()).isEqualTo(MachineCandidateRunState.OPEN);
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM ai_candidate_submission_attempt WHERE run_id=?",
+                    Integer.class, writer.id())).isZero();
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM accepted_work_result", Integer.class)).isZero();
+        } finally { jdbc.execute("DROP TRIGGER reject_work_result"); }
+        var accepted = submit(writer, value);
+        assertThat(accepted.outcome()).isEqualTo(MachineCandidateOutcome.ACCEPTED);
+        var output = workResults.find(MachineCandidateSubmission.CandidateScope.project(run().projectId()),
+                new MachineCandidateSubmission.CandidateOwnerRef(
+                        MachineCandidateSubmission.CandidateOwnerType.SOURCE_TEMPLATE_MODEL_RUN, writer.id()),
+                writer.id()).orElseThrow();
+        assertThat(output.content()).isEqualTo(store.require(writer.id()).outputJson());
+        assertThat(output.reference().sha256()).isEqualTo(accepted.canonicalResultSha256());
+        assertThat(execution.advance(writer.id(), contract).state()).isEqualTo("RUNNING");
+        fake.setSessionState(writer.externalSessionId(), "COMPLETED");
+        assertThat(execution.advance(writer.id(), contract).state()).isEqualTo("VALIDATED");
+    }
     @Test void importedSourceRoleChangesOnlyNewFrozenModelPromptAndMcpPolicy() throws Exception {
         var oldWriter = models.current(id, "SOURCE_DETAILED_DESIGN_V1", 1).getFirst();
         var oldPrompt = json.readValue(oldWriter.promptJson(), DocumentModelStore.FrozenPrompt.class).text();
@@ -120,12 +161,21 @@ class SourceDesignFlowIntegrationTest {
         byte[] exported = roleReads.export("builtin.source-design-author", null);
         String replacement = "请逐份读取冻结源码，并以可核验的引用编写详细设计。\n";
         var imported = roleArchives.parse(rewriteRoleArchive(exported, (name, text) -> {
-            if (name.equals("manifest.yaml")) return text.replace("builtin.source-design-author", "custom.source-design-author")
-                    .replace("permissionMode: BASELINE", "permissionMode: INTERSECT")
-                    .replace("mcpTools: []", "mcpTools: ['@loopper-internal/get_source_design_work']");
+            if (name.equals("manifest.yaml")) {
+                var yaml = new org.yaml.snakeyaml.Yaml();
+                Map<String,Object> manifest = yaml.load(text.replace("builtin.source-design-author", "custom.source-design-author"));
+                var role = new LinkedHashMap<String,Object>();
+                ((Map<?,?>)((List<?>)manifest.get("roles")).getFirst()).forEach((key,value)->role.put((String)key,value));
+                // This imported role deliberately grants only the legacy source adapter's tools.
+                role.put("allowedSlots",List.of("SOURCE_DETAILED_DESIGN_NO_TOOLS"));
+                role.put("permissionMode","INTERSECT");role.put("mcpTools",List.of("@loopper-internal/get_source_design_work"));
+                manifest.put("bindings",List.of(Map.of("slot","SOURCE_DETAILED_DESIGN_NO_TOOLS","roleId","custom.source-design-author")));
+                manifest.put("roles",List.of(role));return yaml.dump(manifest);
+            }
             return name.endsWith("source.design.author.instructions.md") ? replacement : text;
         }));
         assertThat(imported.manifest().roles().getFirst().permissionMode()).isEqualTo("INTERSECT");
+        assertThat(imported.manifest().roles().getFirst().allowedSlots()).containsExactly("SOURCE_DETAILED_DESIGN_NO_TOOLS");
         assertThat(imported.manifest().roles().getFirst().mcpTools())
                 .containsExactly("@loopper-internal/get_source_design_work");
         var preview = rolePublishing.validate(imported);

@@ -46,6 +46,7 @@ public class InternalMcpServerConfiguration {
             io.opencode.loopper.service.DocumentReviewGuideService reviewGuide,
             io.opencode.loopper.service.SnapshotReviewReads snapshotReads,
             io.opencode.loopper.service.ppt.agent.PptAgentTools pptTools,
+            io.opencode.loopper.service.workflow.WorkflowModelTools workflowTools,
             InternalRoleToolAuthority roleToolAuthority,
             @Value("${spring.ai.mcp.server.version:unknown}") String version) {
         WebMvcStreamableServerTransportProvider transport = WebMvcStreamableServerTransportProvider.builder()
@@ -62,6 +63,7 @@ public class InternalMcpServerConfiguration {
         tools.addAll(DocumentReviewGuideMcpTools.specifications(reviewGuide, roleToolAuthority, json));
         tools.addAll(SnapshotReviewMcpTools.specifications(snapshotReads, json));
         tools.addAll(PptMcpTools.specifications(pptTools, json));
+        tools.addAll(WorkflowMcpTools.specifications(workflowTools, json));
         tools.add(SubmissionContractMcpTool.specification(contractReads, tools, json));
         McpSyncServer server = McpServer.sync(transport)
                 .serverInfo("opencode-loopper-internal", version)

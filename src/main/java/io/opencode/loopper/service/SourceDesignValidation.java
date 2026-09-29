@@ -1,15 +1,14 @@
 package io.opencode.loopper.service;
 
-import io.opencode.loopper.persistence.SourceTemplateModelMapper;
 import io.opencode.loopper.template.SourceDesign;
 import java.util.*;
 import java.util.function.Function;
 
 /** Pure candidate semantics over frozen identities and this role's independently recorded reads. */
-final class SourceDesignValidation {
+public final class SourceDesignValidation {
     private SourceDesignValidation() { }
-    static SourceDesign.Candidate design(SourceDesign.Input input, SourceDesign.Candidate value,
-            Function<String, List<SourceTemplateModelMapper.Read>> reads) {
+    public static SourceDesign.Candidate design(SourceDesign.Input input, SourceDesign.Candidate value,
+            Function<String, List<SourceDesign.Read>> reads) {
         if (value == null) throw invalid("/", "请提交完整的详细设计");
         text(value.title(), 200, "/title"); text(value.summary(), 4000, "/summary");
         if (value.sections() == null || value.sections().isEmpty() || value.sections().size() > 32)
@@ -34,8 +33,8 @@ final class SourceDesignValidation {
         fullReads(input.paths(), reads);
         return value;
     }
-    static SourceDesign.Review review(SourceDesign.Input input, SourceDesign.Review value,
-            Function<String, List<SourceTemplateModelMapper.Read>> reads) {
+    public static SourceDesign.Review review(SourceDesign.Input input, SourceDesign.Review value,
+            Function<String, List<SourceDesign.Read>> reads) {
         if (value == null || !Set.of("PASS", "REVISE").contains(Objects.toString(value.verdict(), "")))
             throw invalid("/verdict", "复核结论必须是 PASS 或 REVISE");
         text(value.reason(), 4000, "/reason");
@@ -54,8 +53,8 @@ final class SourceDesignValidation {
         }
         return value;
     }
-    private static void references(List<SourceDesign.Reference> references, List<String> paths,
-            Function<String, List<SourceTemplateModelMapper.Read>> reads, String pointer) {
+    public static void references(List<SourceDesign.Reference> references, List<String> paths,
+            Function<String, List<SourceDesign.Read>> reads, String pointer) {
         if (references == null || references.isEmpty() || references.size() > 100) throw invalid(pointer, "请提供实际读取的源码引用");
         var referenced = new HashSet<String>();
         for (var ref : references) {
@@ -73,9 +72,9 @@ final class SourceDesignValidation {
         }
         if (!referenced.containsAll(paths)) throw invalid(pointer, "每个关联源码文件至少需要一条有效引用");
     }
-    private static void fullReads(List<String> paths, Function<String, List<SourceTemplateModelMapper.Read>> reads) {
+    public static void fullReads(List<String> paths, Function<String, List<SourceDesign.Read>> reads) {
         for (String path : paths) {
-            var intervals = reads.apply(path).stream().sorted(Comparator.comparingInt(SourceTemplateModelMapper.Read::startLine)).toList();
+            var intervals = reads.apply(path).stream().sorted(Comparator.comparingInt(SourceDesign.Read::startLine)).toList();
             int next = 1, total = -1; String hash = null;
             for (var read : intervals) {
                 if (total < 0) { total = read.totalLines(); hash = read.sha256(); }

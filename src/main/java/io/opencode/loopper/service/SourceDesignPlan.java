@@ -3,7 +3,6 @@ package io.opencode.loopper.service;
 import io.opencode.loopper.domain.MachineCandidateKind;
 import io.opencode.loopper.persistence.*;
 import io.opencode.loopper.template.*;
-import java.nio.file.Path;
 import java.time.Instant;
 import java.util.*;
 import org.springframework.stereotype.Service;
@@ -25,17 +24,7 @@ public class SourceDesignPlan {
         var previous = models.progress(run.id());
         if (previous.isPresent()) return require(run.id());
         var files = runs.files(run.id()).stream().filter(f -> f.target() == 1 && f.exclusion() == null).toList();
-        var batches = new ArrayList<SourceDesign.Batch>();
-        var batch = new ArrayList<String>();
-        String directory = null; long bytes = 0;
-        for (var file : files) {
-            String parent = Objects.toString(Path.of(file.path()).getParent(), ".");
-            if (!batch.isEmpty() && (batch.size() >= 12 || bytes + file.sizeBytes() > 160000 || !parent.equals(directory))) {
-                batches.add(new SourceDesign.Batch(batches.size(), directory, List.copyOf(batch))); batch.clear(); bytes = 0;
-            }
-            directory = parent; batch.add(file.path()); bytes += file.sizeBytes();
-        }
-        if (!batch.isEmpty()) batches.add(new SourceDesign.Batch(batches.size(), directory, List.copyOf(batch)));
+        var batches = SourceDesignBatches.partition(files.stream().map(file->new SourceDesignBatches.File(file.path(),file.sizeBytes())).toList()).batches();
         if (batches.isEmpty()) throw new BadRequestException("SOURCE_NO_APPLICABLE_FILES", "没有适用源码，不能标记为编写成功");
         String body = json.writeValueAsString(new SourceDesign.Plan(List.copyOf(batches)));
         if (models.insertProgress(new SourceTemplateModelMapper.Progress(run.id(), 1, body, DocumentModelStore.hash(body),

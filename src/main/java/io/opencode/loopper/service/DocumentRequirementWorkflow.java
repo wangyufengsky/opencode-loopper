@@ -57,8 +57,9 @@ public final class DocumentRequirementWorkflow {
         var review = models.exact(run.id(), MachineCandidateKind.DOCUMENT_REQUIREMENT_REVIEW_V1.name(), ordinal,
                 extraction.generation()).orElse(null);
         if (review == null) {
-            store.create(run.id(), MachineCandidateKind.DOCUMENT_REQUIREMENT_REVIEW_V1, ordinal, extraction.generation(),
-                    new DocumentModelInput(sections, candidate(extraction), null, null, null, null, answers));
+            store.createFrom(run.id(), MachineCandidateKind.DOCUMENT_REQUIREMENT_REVIEW_V1, ordinal, extraction.generation(),
+                    new DocumentModelInput(sections, candidate(extraction), null, null, null, null, answers),
+                    Map.of("requirements", extraction.id()));
             return;
         }
         if (!review.state().equals("VALIDATED")) { advanceModel(review, contract); return; }
@@ -66,8 +67,9 @@ public final class DocumentRequirementWorkflow {
         if (verdict.approved()) { ledger.accept(extraction.id(), review.id(), round); return; }
         if (extraction.generation() - firstGeneration + 1 >= contract.maxStageAttempts())
             throw new BadRequestException("DOCUMENT_REQUIREMENT_REPAIR_EXHAUSTED", "独立复核仍发现需求遗漏或误读，本批修正预算已耗尽，请检查待处理事项后恢复");
-        store.create(run.id(), MachineCandidateKind.DOCUMENT_REQUIREMENTS_V1, ordinal, extraction.generation() + 1,
-                new DocumentModelInput(sections, candidate(extraction), verdict, null, null, null, answers));
+        store.createFrom(run.id(), MachineCandidateKind.DOCUMENT_REQUIREMENTS_V1, ordinal, extraction.generation() + 1,
+                new DocumentModelInput(sections, candidate(extraction), verdict, null, null, null, answers),
+                Map.of("requirements", extraction.id(), "requirementFeedback", review.id()));
         admission.transition(admission.require(run.id()), DocumentTemplateState.ANALYZING,
                 LifecycleEvent.ANALYZE_DOCUMENT_REQUIREMENTS, null, null);
     }

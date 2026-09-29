@@ -305,6 +305,44 @@ field update: it is rejected unless the machine declares an explicit business
 self-transition event. Projection/content/heartbeat updates use the audit-free
 `mutateWithoutTransition` path and mapper statements that do not write state.
 
+Workflow dispatch control is an independent `WORKFLOW_CONTROL` lifecycle, scoped
+to its requirement's project. Its active, paused, waiting, stalled and done states
+do not replace node, attempt, model or workspace states. A control permit binds
+the plan revision and control version; admission rechecks it in the same short
+transaction that creates an attempt. Pausing dispatch leaves already admitted
+attempts intact. Successful work checkpoints and their acknowledgements persist
+separately, and a completed final node does not complete the requirement while a
+checkpoint remains unacknowledged. Pre-control histories retain their original
+manual execution semantics; upgrade grants no implicit continuous authorization.
+
+Native workflow command verification owns an independent `WORKFLOW_COMMAND`
+lifecycle and immutable request/worker/result identities. The supervisor's PID and
+start time are persisted before granting effects; duplicate supervisor launches
+cannot launch the same command twice. A detached JDK supervisor survives a main
+service exit and publishes a bounded receipt. Missing receipts or unproven stop
+retain the original attempt and block dispatch. Private test trees are prepared
+from accepted CODE versions outside transactions. A short transaction stores the
+report, process proof, node/command terminal states and control settlement together.
+Recovery reuses the original receipt rather than rerunning external effects.
+This is owned-process supervision, not an operating-system sandbox.
+
+Workflow plan proposals use an independent `WORKFLOW_PLAN_CANDIDATE` lifecycle:
+PENDING can become APPLIED or REJECTED only through an explicit local user command.
+Candidate content and its source attempt/base revision are immutable. Proposal
+acceptance pauses dispatch but does not apply a graph or finish the source node.
+Applying a reviewed plan atomically writes its revision, retained/new node bindings,
+frozen public inputs, paused control and candidate decision with the command receipt.
+A removed execution target keeps its old paused scope until a new explicit Start;
+late completion of retained attempts must still be recorded against their frozen inputs.
+
+Pure workflow file verification uses the existing node/attempt ledger with a
+versioned SYSTEM adapter and no role or external session. It reads immutable CODE
+objects outside transactions; a short transaction atomically saves its report,
+NO_EXTERNAL_WORK proof, terminal state and control/checkpoint settlement. A lost
+computation may repeat against the same frozen input. The stop-proof exception is
+restricted to this exact adapter/version and cannot authorize model, process or
+network completion. Existing model creation/absence guards remain in force.
+
 External process, Git/filesystem, OpenCode HTTP, model-usage and verifier I/O
 never runs while a SQLite transaction is active. Task confirmation performs only
 read-only project/rework validation, then atomically commits the Task, Stages,
@@ -319,6 +357,12 @@ enters `VERIFYING` in a short transaction, runs process/HTTP/browser checks
 outside the database lock, and commits their results plus the next lifecycle
 decision in a second short transaction. Restart recovery handles the deliberate
 post-commit gaps, and final evidence capture is idempotent.
+
+Transaction synchronization is enabled only for an actual database transaction.
+`NOT_SUPPORTED` orchestration must not retain a MyBatis SqlSession and its local
+query cache across inner committed transactions: a later stop-proof, workspace,
+or Task-state read must observe the newly committed state. Commit-failure rollback
+remains enabled, and actual transactional events still publish after commit.
 
 Every new Task terminal transition is guarded by one aggregate consistency
 boundary. Before `COMPLETED`, `SUPERSEDED`, or `CANCELLED` commits, all package
@@ -1417,6 +1461,17 @@ reason. No reconciliation path stashes, commits, deletes, force-switches, or det
 an active holder. Archive first reconciles and otherwise returns
 `TASK_ARCHIVE_WORKSPACE_LEASE_ACTIVE`; permanent deletion independently rejects both
 active lease ownership and an `ADMITTED` row.
+New workflow writer attempts share this canonical lease rather than creating an
+independent lock or a synthetic Task. V145 adds an optional workflow-attempt holder
+and a separate immutable-identity node queue. `WorkspaceWriterQueue` performs one
+short-transaction FIFO transfer across the legacy, node, and explicitly confirmed
+directory-writeback queues. V190 adds the independent writeback holder and queue;
+a lease may name exactly one of these owner types. Directory publication never
+reopens a terminal node or creates a synthetic Task. Legacy writer-stop and checkout-restoration checks still
+precede transfer. Node queue admission alone is not a writable Session or a completed
+workspace preparation; its adapter must first implement checkpoint capture and safe
+restoration before it can call the shared release primitive. Integration status is
+tracked in the [workflow adapter inventory](workflow-module-adapters.md#共用写入排队与租约).
 The local Task branch is not pushed until the post-success human publication action.
 Branch checkout has its own bounded
 10-minute timeout rather than the short Git-inspection timeout, suppresses

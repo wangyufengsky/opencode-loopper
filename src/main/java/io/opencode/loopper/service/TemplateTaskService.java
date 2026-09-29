@@ -44,7 +44,8 @@ public class TemplateTaskService {
                         .map(io.opencode.loopper.template.SourceTemplateDefinition::view)).toList();
         return new Catalog(entries,
                 TemplateDateRange.ZONE.getId(), dates.startDate().toString(), dates.endDate().toString(),
-                ContributionScore.VERSION, ContributionScore.FORMULA, ContributionScore.DIMENSIONS);
+                ContributionScore.VERSION, ContributionScore.FORMULA, ContributionScore.DIMENSIONS,
+                io.opencode.loopper.workflow.BuiltinWorkModules.all());
     }
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -106,5 +107,6 @@ public class TemplateTaskService {
         }
     }
     public record Catalog(List<TemplateCatalogEntry> templates, String timezone, String defaultStartDate,
-                           String defaultEndDate, String scoringVersion, String scoreFormula, List<ContributionScore.Dimension> dimensions) { }
+                           String defaultEndDate, String scoringVersion, String scoreFormula, List<ContributionScore.Dimension> dimensions,
+                           List<io.opencode.loopper.workflow.WorkModule> workModules) { }
 }

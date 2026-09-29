@@ -3,7 +3,6 @@ package io.opencode.loopper.service;
 import io.opencode.loopper.domain.SourceTemplateState;
 import io.opencode.loopper.persistence.*;
 import io.opencode.loopper.template.*;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.*;
 import org.springframework.stereotype.Service;
@@ -36,10 +35,7 @@ public final class SourceDesignArtifacts {
         var drafts = models.current(run.id(), "SOURCE_DETAILED_DESIGN_V1", generation);
         var reviews = models.current(run.id(), "SOURCE_DESIGN_REVIEW_V1", generation);
         if (drafts.size() != plan.batches().size() || reviews.size() != drafts.size()) throw SourceTemplateAdmission.conflict();
-        var output = new LinkedHashMap<String, String>();
-        var coverage = new TreeMap<String, List<String>>();
-        var index = new StringBuilder("# 详细设计总览\n\n源码快照：`")
-                .append(json.readValue(run.snapshotJson(), SourceSnapshot.class).manifestSha256()).append("`\n\n");
+        var documents = new ArrayList<SourceDesignDocuments.Draft>();
         for (var draft : drafts) {
             var review = reviews.stream().filter(r -> r.ordinal() == draft.ordinal()).findFirst().orElseThrow();
             var reviewInput = json.readValue(review.inputJson(), SourceDesign.Input.class);
@@ -47,45 +43,11 @@ public final class SourceDesignArtifacts {
                     || !reviewInput.draftModelId().equals(draft.id()) || !reviewInput.draftSha256().equals(draft.outputSha256())
                     || !json.readValue(review.outputJson(), SourceDesign.Review.class).verdict().equals("PASS"))
                 throw new BadRequestException("SOURCE_REVIEW_INCOMPLETE", "文档尚未全部通过独立复核");
-            var document = json.readValue(draft.outputJson(), SourceDesign.Candidate.class);
-            index.append("## ").append(SourceDesignMarkdown.text(document.title())).append("\n\n")
-                    .append(SourceDesignMarkdown.text(document.summary())).append("\n\n");
-            for (var section : document.sections()) {
-                String name = "module-" + (draft.ordinal() + 1) + "-" + section.key() + ".md";
-                var body = new StringBuilder("# ").append(SourceDesignMarkdown.text(section.title())).append("\n\n")
-                        .append(section.markdown()).append("\n\n## 源码依据\n\n");
-                for (var ref : section.references()) {
-                    body.append("- `").append(SourceDesignMarkdown.text(ref.path())).append("`，行 ")
-                            .append(ref.startLine()).append("–").append(ref.endLine()).append("，SHA-256：`")
-                            .append(ref.sha256()).append("`\n\n");
-                    ref.quote().lines().forEach(line -> body.append("    ").append(line).append("\n"));
-                    body.append("\n");
-                }
-                if (!document.limitations().isEmpty()) {
-                    body.append("## 未知事项与局限\n\n");
-                    document.limitations().forEach(item -> body.append("- ").append(SourceDesignMarkdown.text(item)).append("\n"));
-                }
-                body.append("\n[返回总览](overview.md)\n");
-                output.put(name, body.toString());
-                index.append("- [").append(SourceDesignMarkdown.text(section.title())).append("](").append(name).append(")\n");
-                section.paths().forEach(path -> coverage.computeIfAbsent(path, ignored -> new ArrayList<>()).add(name));
-            }
-            index.append("\n");
+            documents.add(new SourceDesignDocuments.Draft(draft.ordinal(),json.readValue(draft.outputJson(),SourceDesign.Candidate.class),"PASS"));
         }
-        var expected = source.stream().filter(f -> f.target() == 1 && f.exclusion() == null).map(SourceTemplateMapper.File::path).toList();
-        if (!coverage.keySet().equals(new HashSet<>(expected))) throw SourceTemplateAdmission.conflict();
-        var list = new StringBuilder("# 源码覆盖清单\n\n| 源码 | 结果 | 文档或原因 |\n| --- | --- | --- |\n");
-        for (var file : source) if (file.target() == 1) {
-            list.append("| ").append(SourceDesignMarkdown.text(file.path())).append(" | ");
-            if (file.exclusion() != null) list.append("排除 | ").append(SourceDesignMarkdown.text(file.exclusion()));
-            else list.append("已复核 | ").append(String.join("、", coverage.get(file.path()).stream().map(name -> "[" + name + "](" + name + ")").toList()));
-            list.append(" |\n");
-        }
-        list.append("\n[返回总览](overview.md)\n");
-        index.append("[源码覆盖清单](coverage.md)\n");
-        output.put("overview.md", index.toString()); output.put("coverage.md", list.toString());
-        if (output.values().stream().mapToLong(text -> text.getBytes(StandardCharsets.UTF_8).length).sum() > 64L * 1024 * 1024)
-            throw new BadRequestException("SOURCE_ARTIFACT_LIMIT", "文档包超过 64 MiB，保留已复核结果等待处理");
+        var rendered = SourceDesignDocuments.render(json.readValue(run.snapshotJson(),SourceSnapshot.class).manifestSha256(),
+                source.stream().map(f->new SourceManifest.File(f.path(),f.target()==1,f.sizeBytes(),f.sha256(),f.exclusion())).toList(),documents);
+        var output=rendered.files();var coverage=rendered.coverage();
         transactions.executeWithoutResult(ignored -> {
             var current = admission.require(run.id());
             if (!current.state().equals("REPORTING") || current.version() != run.version()) throw SourceTemplateAdmission.conflict();

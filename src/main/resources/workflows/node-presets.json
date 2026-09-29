@@ -1,0 +1,2745 @@
+{
+  "schemaVersion": 1,
+  "presets": [
+    {
+      "id": "design.questions",
+      "version": 1,
+      "title": "需求提问",
+      "description": "设计师梳理缺失的信息，列出需要用户回答的问题。",
+      "inputs": [
+        {
+          "name": "context",
+          "title": "参考资料",
+          "kind": "TEXT",
+          "required": false
+        }
+      ],
+      "node": {
+        "id": "preset",
+        "title": "需求提问",
+        "kind": "WORK",
+        "moduleId": "free.readonly",
+        "moduleVersion": 1,
+        "roleId": "builtin.designer",
+        "task": "结合本次需求目标和已绑定资料，识别影响设计或实施的关键信息缺口。交付有编号的澄清问题及提出原因；已有信息充分时明确说明，不虚构用户回答。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "questions",
+            "title": "澄清问题",
+            "kind": "TEXT",
+            "required": true
+          }
+        ],
+        "outcomes": [],
+        "completion": {
+          "kind": "DELIVERABLES",
+          "criterion": "按任务要求提交完整且有依据的交付物",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "design.questions",
+          "presetVersion": "1"
+        }
+      }
+    },
+    {
+      "id": "design.plan",
+      "version": 1,
+      "title": "设计与阶段规划",
+      "description": "设计师交付方案，并提出需要用户确认的后续节点安排。",
+      "inputs": [
+        {
+          "name": "requirements",
+          "title": "已确认需求",
+          "kind": "TEXT",
+          "required": false
+        }
+      ],
+      "node": {
+        "id": "preset",
+        "title": "设计与阶段规划",
+        "kind": "WORK",
+        "moduleId": "free.readonly",
+        "moduleVersion": 1,
+        "roleId": "builtin.designer",
+        "task": "阅读本次需求及已绑定的资料，交付设计方案、阶段目标、交付物和可验证的完成条件。读取 planning 的完整基准，在允许的后继区域组织实施阶段及依赖、输入和输出；不能修改来源节点和范围外内容。通过 PLAN 交付候选计划，用户确认后才生效。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "design",
+            "title": "设计方案",
+            "kind": "TEXT",
+            "required": true
+          },
+          {
+            "name": "plan",
+            "title": "候选阶段计划",
+            "kind": "PLAN",
+            "required": true
+          }
+        ],
+        "outcomes": [],
+        "completion": {
+          "kind": "DELIVERABLES",
+          "criterion": "按任务要求提交完整且有依据的交付物",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "design.plan",
+          "presetVersion": "1"
+        }
+      }
+    },
+    {
+      "id": "development.implement",
+      "version": 1,
+      "title": "开发与修改文件",
+      "description": "开发工程师完成当前任务，并交付固定代码版本与工作说明。",
+      "inputs": [
+        {
+          "name": "design",
+          "title": "设计方案",
+          "kind": "TEXT",
+          "required": false
+        },
+        {
+          "name": "source",
+          "title": "作为基础的代码",
+          "kind": "CODE",
+          "required": false
+        }
+      ],
+      "node": {
+        "id": "preset",
+        "title": "开发与修改文件",
+        "kind": "WORK",
+        "moduleId": "free.write",
+        "moduleVersion": 1,
+        "roleId": "builtin.implementation",
+        "task": "按本次节点任务和绑定的设计资料修改已授权项目。若有 CODE 输入，以程序提供的工作区基础版本为准。执行适用检查，如实记录命令、实际结果及未完成项；不把未执行的测试写成通过。交付工作说明和检查记录，CODE 由程序确认停止后捕获。不得自行提交、推送或发布。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "result",
+            "title": "工作说明",
+            "kind": "TEXT",
+            "required": true
+          },
+          {
+            "name": "checks",
+            "title": "实际检查记录",
+            "kind": "TEXT",
+            "required": true
+          },
+          {
+            "name": "code",
+            "title": "代码交付",
+            "kind": "CODE",
+            "required": true
+          }
+        ],
+        "outcomes": [],
+        "completion": {
+          "kind": "DELIVERABLES",
+          "criterion": "按任务要求提交完整且有依据的交付物",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "development.implement",
+          "presetVersion": "1"
+        }
+      }
+    },
+    {
+      "id": "analysis.read",
+      "version": 1,
+      "title": "资料分析",
+      "description": "只读助手根据指定资料完成分析，并说明依据和不确定项。",
+      "inputs": [
+        {
+          "name": "material",
+          "title": "分析资料",
+          "kind": "TEXT",
+          "required": false
+        }
+      ],
+      "node": {
+        "id": "preset",
+        "title": "资料分析",
+        "kind": "WORK",
+        "moduleId": "free.readonly",
+        "moduleVersion": 1,
+        "roleId": "builtin.general",
+        "task": "根据本次需求及绑定输入完成分析，交付结论、证据来源、限制与待确认事项。只有真正读取的资料才能作为依据；不要以当前项目文件冒充上游固定交付物。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "result",
+            "title": "分析结论",
+            "kind": "TEXT",
+            "required": true
+          }
+        ],
+        "outcomes": [],
+        "completion": {
+          "kind": "DELIVERABLES",
+          "criterion": "按任务要求提交完整且有依据的交付物",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "analysis.read",
+          "presetVersion": "1"
+        }
+      }
+    },
+    {
+      "id": "human.confirm",
+      "version": 1,
+      "title": "人工检查",
+      "description": "由用户核对输入的工作成果，填写确认结果。",
+      "inputs": [
+        {
+          "name": "material",
+          "title": "待检查说明",
+          "kind": "TEXT",
+          "required": false
+        },
+        {
+          "name": "code",
+          "title": "待检查代码",
+          "kind": "CODE",
+          "required": false
+        }
+      ],
+      "node": {
+        "id": "preset",
+        "title": "人工检查",
+        "kind": "HUMAN",
+        "moduleId": null,
+        "moduleVersion": 0,
+        "roleId": null,
+        "task": "检查绑定的资料和成果，记录发现的问题与确认结论。仅确认实际已检查的内容。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "result",
+            "title": "检查结果",
+            "kind": "TEXT",
+            "required": true
+          }
+        ],
+        "outcomes": [],
+        "completion": {
+          "kind": "HUMAN",
+          "criterion": "用户核对成果并提交确认记录",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "human.confirm",
+          "presetVersion": "1"
+        }
+      }
+    },
+    {
+      "id": "verification.files",
+      "version": 1,
+      "title": "交付物内容检查",
+      "description": "程序检查上游固定代码中的文件内容、哈希或移除结果。",
+      "inputs": [
+        {
+          "name": "code",
+          "title": "待检查代码",
+          "kind": "CODE",
+          "required": true
+        }
+      ],
+      "node": {
+        "id": "preset",
+        "title": "交付物内容检查",
+        "kind": "SYSTEM",
+        "moduleId": "system.verify.files",
+        "moduleVersion": 1,
+        "roleId": null,
+        "task": "按配置检查上游固定交付物，并保存程序生成的报告。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "summary",
+            "title": "检查说明",
+            "kind": "TEXT",
+            "required": true
+          },
+          {
+            "name": "report",
+            "title": "程序检查报告",
+            "kind": "JSON",
+            "required": true
+          }
+        ],
+        "outcomes": [
+          "PASS",
+          "FAIL"
+        ],
+        "completion": {
+          "kind": "VERIFIED",
+          "criterion": "所有配置的交付物检查通过",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "verification.files",
+          "presetVersion": "1",
+          "verification": "{\"version\":1,\"inputName\":\"code\",\"checks\":[]}",
+          "outcomeTitles": "{\"PASS\":\"检查通过\",\"FAIL\":\"检查未通过\"}"
+        }
+      }
+    },
+    {
+      "id": "verification.command",
+      "version": 1,
+      "title": "运行测试或检查命令",
+      "description": "对上游固定代码运行直接命令，保存结果和停止证明。",
+      "inputs": [
+        {
+          "name": "code",
+          "title": "待检查代码",
+          "kind": "CODE",
+          "required": true
+        }
+      ],
+      "node": {
+        "id": "preset",
+        "title": "运行测试或检查命令",
+        "kind": "SYSTEM",
+        "moduleId": "system.verify.command",
+        "moduleVersion": 1,
+        "roleId": null,
+        "task": "对输入的固定代码运行配置的测试或检查命令，保存程序生成的报告。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "summary",
+            "title": "检查说明",
+            "kind": "TEXT",
+            "required": true
+          },
+          {
+            "name": "report",
+            "title": "程序检查报告",
+            "kind": "JSON",
+            "required": true
+          }
+        ],
+        "outcomes": [
+          "PASS",
+          "FAIL"
+        ],
+        "completion": {
+          "kind": "VERIFIED",
+          "criterion": "命令完整执行、正常退出并满足配置的输出要求",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "verification.command",
+          "presetVersion": "1",
+          "commandVerification": "{\"version\":1,\"inputName\":\"code\",\"argv\":[],\"timeoutSeconds\":300,\"purpose\":\"TEST\",\"outputContains\":null}",
+          "outcomeTitles": "{\"PASS\":\"检查通过\",\"FAIL\":\"检查未通过\"}"
+        }
+      }
+    },
+    {
+      "id": "review.requirement",
+      "version": 1,
+      "title": "需求独立评审",
+      "description": "独立阅读已确认设计、固定代码和程序验证报告，逐项核对需求与可验证的完成标准。给出 PASS 或 BLOCKED、真实原因及依据。缺少证据时明确阻断，不接受其他评审员的结论作为自身依据。",
+      "inputs": [
+        {
+          "name": "design",
+          "title": "已确认设计",
+          "kind": "TEXT",
+          "required": true
+        },
+        {
+          "name": "code",
+          "title": "固定代码",
+          "kind": "CODE",
+          "required": true
+        },
+        {
+          "name": "verification",
+          "title": "程序验证报告",
+          "kind": "JSON",
+          "required": true
+        }
+      ],
+      "node": {
+        "id": "preset",
+        "title": "需求独立评审",
+        "kind": "WORK",
+        "moduleId": "review.requirement",
+        "moduleVersion": 1,
+        "roleId": "builtin.judge-requirement",
+        "task": "独立阅读已确认设计、固定代码和程序验证报告，逐项核对需求与可验证的完成标准。给出 PASS 或 BLOCKED、真实原因及依据。缺少证据时明确阻断，不接受其他评审员的结论作为自身依据。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "review",
+            "title": "独立评审意见",
+            "kind": "DECISION",
+            "required": true
+          }
+        ],
+        "outcomes": [
+          "PASS",
+          "BLOCKED"
+        ],
+        "completion": {
+          "kind": "DELIVERABLES",
+          "criterion": "提交有明确依据的独立评审意见，阻断意见同样是有效交付",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "review.requirement",
+          "presetVersion": "1",
+          "outcomeTitles": "{\"PASS\": \"评审通过\", \"BLOCKED\": \"评审未通过\"}"
+        }
+      }
+    },
+    {
+      "id": "review.risk",
+      "version": 1,
+      "title": "风险独立评审",
+      "description": "独立阅读已确认设计、固定代码和程序验证报告，检查异常路径、回归影响、边界及未覆盖风险。给出 PASS 或 BLOCKED、真实原因及依据；不要为了结束流程而给出通过结论。",
+      "inputs": [
+        {
+          "name": "design",
+          "title": "已确认设计",
+          "kind": "TEXT",
+          "required": true
+        },
+        {
+          "name": "code",
+          "title": "固定代码",
+          "kind": "CODE",
+          "required": true
+        },
+        {
+          "name": "verification",
+          "title": "程序验证报告",
+          "kind": "JSON",
+          "required": true
+        }
+      ],
+      "node": {
+        "id": "preset",
+        "title": "风险独立评审",
+        "kind": "WORK",
+        "moduleId": "review.risk",
+        "moduleVersion": 1,
+        "roleId": "builtin.judge-risk",
+        "task": "独立阅读已确认设计、固定代码和程序验证报告，检查异常路径、回归影响、边界及未覆盖风险。给出 PASS 或 BLOCKED、真实原因及依据；不要为了结束流程而给出通过结论。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "review",
+            "title": "独立评审意见",
+            "kind": "DECISION",
+            "required": true
+          }
+        ],
+        "outcomes": [
+          "PASS",
+          "BLOCKED"
+        ],
+        "completion": {
+          "kind": "DELIVERABLES",
+          "criterion": "提交有明确依据的独立评审意见，阻断意见同样是有效交付",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "review.risk",
+          "presetVersion": "1",
+          "outcomeTitles": "{\"PASS\": \"评审通过\", \"BLOCKED\": \"评审未通过\"}"
+        }
+      }
+    },
+    {
+      "id": "review.dual",
+      "version": 1,
+      "title": "双评审验收",
+      "description": "程序核对需求与风险评审使用同批证据，并汇总程序验证和两份独立结论。",
+      "inputs": [
+        {
+          "name": "requirementReview",
+          "title": "需求评审意见",
+          "kind": "DECISION",
+          "required": true
+        },
+        {
+          "name": "riskReview",
+          "title": "风险评审意见",
+          "kind": "DECISION",
+          "required": true
+        }
+      ],
+      "node": {
+        "id": "preset",
+        "title": "双评审验收",
+        "kind": "SYSTEM",
+        "moduleId": "system.review.dual",
+        "moduleVersion": 1,
+        "roleId": null,
+        "task": "程序核对需求与风险评审使用同批证据，并汇总程序验证和两份独立结论。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "summary",
+            "title": "检查说明",
+            "kind": "TEXT",
+            "required": true
+          },
+          {
+            "name": "report",
+            "title": "程序检查报告",
+            "kind": "JSON",
+            "required": true
+          }
+        ],
+        "outcomes": [
+          "PASS",
+          "FAIL"
+        ],
+        "completion": {
+          "kind": "VERIFIED",
+          "criterion": "同批代码的程序验证通过，需求与风险评审均通过",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "review.dual",
+          "presetVersion": "1",
+          "outcomeTitles": "{\"PASS\": \"验收通过\", \"FAIL\": \"验收未通过\"}"
+        }
+      }
+    },
+    {
+      "id": "source.snapshot",
+      "version": 1,
+      "title": "冻结源码",
+      "description": "采集项目内指定源码和只读依赖，保存固定版本供后续设计、分析或单测节点读取；支持非 Git 项目。",
+      "inputs": [
+        {
+          "name": "path",
+          "title": "源码文件或目录",
+          "kind": "TEXT",
+          "required": true
+        }
+      ],
+      "node": {
+        "id": "preset",
+        "title": "冻结源码",
+        "kind": "SYSTEM",
+        "moduleId": "system.source.snapshot",
+        "moduleVersion": 1,
+        "roleId": null,
+        "task": "完整采集指定路径的源码，保留排除原因并冻结正文。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "source",
+            "title": "冻结源码资料",
+            "kind": "DOCUMENT",
+            "required": false
+          },
+          {
+            "name": "report",
+            "title": "采集报告",
+            "kind": "JSON",
+            "required": true
+          },
+          {
+            "name": "summary",
+            "title": "采集说明",
+            "kind": "TEXT",
+            "required": true
+          }
+        ],
+        "outcomes": [],
+        "completion": {
+          "kind": "VERIFIED",
+          "criterion": "全部适用目标均已完整采集并冻结",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "source.snapshot",
+          "presetVersion": "1",
+          "sourcePurpose": "DESIGN"
+        }
+      }
+    },
+    {
+      "id": "source.design",
+      "version": 1,
+      "title": "编写源码详细设计",
+      "description": "完整读取指定批次的冻结源码，交付覆盖全部目标并包含精确源码引用的结构化详细设计。",
+      "inputs": [
+        {
+          "name": "source",
+          "title": "冻结源码资料",
+          "kind": "DOCUMENT",
+          "required": true
+        }
+      ],
+      "node": {
+        "id": "preset",
+        "title": "编写源码详细设计",
+        "kind": "WORK",
+        "moduleId": "source.design",
+        "moduleVersion": 1,
+        "roleId": "builtin.source-design-author",
+        "task": "完整阅读本批源码，组织模块详细设计和可核验的引用。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "design",
+            "title": "结构化详细设计",
+            "kind": "JSON",
+            "required": true
+          },
+          {
+            "name": "summary",
+            "title": "设计说明",
+            "kind": "TEXT",
+            "required": true
+          }
+        ],
+        "outcomes": [],
+        "completion": {
+          "kind": "DELIVERABLES",
+          "criterion": "完整覆盖本批源码并提交有效设计",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "source.design",
+          "presetVersion": "1"
+        }
+      }
+    },
+    {
+      "id": "source.design-review",
+      "version": 1,
+      "title": "复核源码详细设计",
+      "description": "完整读取本批冻结源码及绑定设计稿，独立核对引用、覆盖与内容，交付通过或返修意见。",
+      "inputs": [
+        {
+          "name": "source",
+          "title": "冻结源码资料",
+          "kind": "DOCUMENT",
+          "required": true
+        },
+        {
+          "name": "draft",
+          "title": "本批设计稿",
+          "kind": "JSON",
+          "required": true
+        }
+      ],
+      "node": {
+        "id": "preset",
+        "title": "复核源码详细设计",
+        "kind": "WORK",
+        "moduleId": "source.design-review",
+        "moduleVersion": 1,
+        "roleId": "builtin.source-design-review",
+        "task": "完整复核本批源码与设计稿，检查正确性、覆盖及跨模块一致性。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "review",
+            "title": "独立复核意见",
+            "kind": "DECISION",
+            "required": true
+          },
+          {
+            "name": "summary",
+            "title": "复核说明",
+            "kind": "TEXT",
+            "required": true
+          }
+        ],
+        "outcomes": [
+          "PASS",
+          "REVISE"
+        ],
+        "completion": {
+          "kind": "OUTCOME",
+          "criterion": "独立复核通过",
+          "expectedOutcome": "PASS"
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "source.design-review",
+          "presetVersion": "1",
+          "outcomeTitles": "{\"PASS\": \"通过\", \"REVISE\": \"需要返修\"}"
+        }
+      }
+    },
+    {
+      "id": "source.design-document",
+      "version": 1,
+      "title": "汇总详细设计文档",
+      "description": "核对冻结源码覆盖及明确选择的复核策略，生成可下载的固定 Markdown 文档。",
+      "inputs": [
+        {
+          "name": "source",
+          "title": "冻结源码资料",
+          "kind": "DOCUMENT",
+          "required": true
+        },
+        {
+          "name": "draft",
+          "title": "设计稿",
+          "kind": "JSON",
+          "required": true
+        },
+        {
+          "name": "review",
+          "title": "独立复核意见",
+          "kind": "DECISION",
+          "required": false
+        }
+      ],
+      "node": {
+        "id": "preset",
+        "title": "汇总详细设计文档",
+        "kind": "SYSTEM",
+        "moduleId": "system.source.design-document",
+        "moduleVersion": 1,
+        "roleId": null,
+        "task": "汇总明确绑定的设计稿，检查完整源码覆盖并生成 Markdown 文件，按实际复核情况标记文档。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "document",
+            "title": "详细设计文档",
+            "kind": "DOCUMENT",
+            "required": false
+          },
+          {
+            "name": "report",
+            "title": "文档汇总报告",
+            "kind": "JSON",
+            "required": true
+          },
+          {
+            "name": "summary",
+            "title": "生成说明",
+            "kind": "TEXT",
+            "required": true
+          }
+        ],
+        "outcomes": [],
+        "completion": {
+          "kind": "DELIVERABLES",
+          "criterion": "源码覆盖完整并满足所选复核策略后生成固定文档",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "reviewPolicy": "REQUIRED",
+          "presetId": "source.design-document",
+          "presetVersion": "1"
+        },
+        "roleRevisionId": null
+      }
+    },
+    {
+      "id": "source.design-plan",
+      "version": 1,
+      "title": "源码设计分批规划",
+      "description": "根据固定源码的目录、文件数和大小细化后续编写、复核与汇总配置，先由用户确认候选计划。",
+      "inputs": [
+        {
+          "name": "source",
+          "title": "冻结源码资料",
+          "kind": "DOCUMENT",
+          "required": true
+        }
+      ],
+      "node": {
+        "id": "sourcePlan",
+        "title": "源码设计分批规划",
+        "kind": "SYSTEM",
+        "moduleId": "system.source.design-plan",
+        "moduleVersion": 1,
+        "roleId": null,
+        "task": "完整划分冻结源码批次，继承后续编写、可选复核及汇总节点的配置，生成候选计划供用户查看确认。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "plan",
+            "title": "分批候选计划",
+            "kind": "PLAN",
+            "required": false
+          },
+          {
+            "name": "report",
+            "title": "源码分批报告",
+            "kind": "JSON",
+            "required": true
+          },
+          {
+            "name": "summary",
+            "title": "规划说明",
+            "kind": "TEXT",
+            "required": true
+          }
+        ],
+        "outcomes": [],
+        "completion": {
+          "kind": "DELIVERABLES",
+          "criterion": "完整生成候选计划；应用与执行须由用户另行确认。",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {}
+      }
+    },
+    {
+      "id": "source.test-profile",
+      "version": 1,
+      "title": "识别测试配置",
+      "description": "从单测用途的冻结源码识别原生测试框架、测试和夹具目录及命令，提供后续节点的固定输入。",
+      "inputs": [
+        {
+          "name": "source",
+          "title": "单测用途的冻结源码",
+          "kind": "DOCUMENT",
+          "required": true
+        }
+      ],
+      "node": {
+        "id": "testProfile",
+        "title": "识别测试配置",
+        "kind": "SYSTEM",
+        "moduleId": "system.source.test-profile",
+        "moduleVersion": 1,
+        "roleId": null,
+        "task": "依据冻结构建配置与已有测试，识别测试范围和原生命令；不安装依赖、不修改项目，不把配置识别当作测试通过。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "profile",
+            "title": "固定测试配置",
+            "kind": "JSON",
+            "required": false
+          },
+          {
+            "name": "report",
+            "title": "配置识别报告",
+            "kind": "JSON",
+            "required": true
+          },
+          {
+            "name": "summary",
+            "title": "识别说明",
+            "kind": "TEXT",
+            "required": true
+          }
+        ],
+        "outcomes": [],
+        "completion": {
+          "kind": "DELIVERABLES",
+          "criterion": "全部目标源码找到明确的原生测试配置后完成。",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {}
+      }
+    },
+    {
+      "id": "source.test-design",
+      "version": 1,
+      "title": "设计单测场景",
+      "description": "读取固定源码与原生测试配置，为本批全部目标设计具体场景、步骤、期望和源码依据。",
+      "inputs": [
+        {
+          "name": "source",
+          "title": "冻结源码资料",
+          "kind": "DOCUMENT",
+          "required": true
+        },
+        {
+          "name": "profile",
+          "title": "固定测试配置",
+          "kind": "JSON",
+          "required": true
+        }
+      ],
+      "node": {
+        "id": "preset",
+        "title": "设计单测场景",
+        "kind": "WORK",
+        "moduleId": "source.test-design",
+        "moduleVersion": 1,
+        "roleId": "builtin.designer",
+        "task": "完整读取本批源码与固定测试配置，为正常、边界、异常或关键分支设计具体测试场景、步骤和可观察期望，保留已有有效测试。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "design",
+            "title": "单测场景设计",
+            "kind": "JSON",
+            "required": true
+          },
+          {
+            "name": "summary",
+            "title": "设计说明",
+            "kind": "TEXT",
+            "required": true
+          }
+        ],
+        "outcomes": [],
+        "completion": {
+          "kind": "DELIVERABLES",
+          "criterion": "完整阅读并覆盖本批全部源码，提交有效测试场景设计",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": true,
+        "parameters": {
+          "presetId": "source.test-design",
+          "presetVersion": "1"
+        }
+      }
+    },
+    {
+      "id": "source.test-write",
+      "version": 1,
+      "title": "编写单元测试",
+      "description": "依据固定源码、原生配置和场景设计补齐测试；程序检查测试范围并在停止后保存固定代码，实际测试由独立节点验证。",
+      "inputs": [
+        {
+          "name": "source",
+          "title": "冻结源码资料",
+          "kind": "DOCUMENT",
+          "required": true
+        },
+        {
+          "name": "profile",
+          "title": "固定测试配置",
+          "kind": "JSON",
+          "required": true
+        },
+        {
+          "name": "design",
+          "title": "单测场景设计",
+          "kind": "JSON",
+          "required": true
+        }
+      ],
+      "node": {
+        "id": "preset",
+        "title": "编写单元测试",
+        "kind": "WORK",
+        "moduleId": "source.test-write",
+        "moduleVersion": 1,
+        "roleId": "builtin.implementation",
+        "task": "按已检查的场景补齐测试，只修改原生测试和夹具目录，保留已有有效测试，不改变业务代码、配置或依赖。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "code",
+            "title": "固定测试代码",
+            "kind": "CODE",
+            "required": true
+          },
+          {
+            "name": "scope",
+            "title": "测试范围检查",
+            "kind": "JSON",
+            "required": true
+          },
+          {
+            "name": "summary",
+            "title": "编写说明",
+            "kind": "TEXT",
+            "required": true
+          }
+        ],
+        "outcomes": [],
+        "completion": {
+          "kind": "DELIVERABLES",
+          "criterion": "停止后保存固定代码并通过测试文件范围检查；实际测试由后续节点验证",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "source.test-write",
+          "presetVersion": "1"
+        }
+      }
+    },
+    {
+      "id": "source.test-run",
+      "version": 1,
+      "title": "运行原生单测",
+      "description": "使用同版原生测试配置检查已完成的单测代码，保存实际测试数量和失败证据。每个节点执行一个明确模块。",
+      "inputs": [
+        {
+          "name": "source",
+          "title": "冻结源码",
+          "kind": "DOCUMENT",
+          "required": true
+        },
+        {
+          "name": "profile",
+          "title": "原生测试配置",
+          "kind": "JSON",
+          "required": true
+        },
+        {
+          "name": "design",
+          "title": "单测场景",
+          "kind": "JSON",
+          "required": true
+        },
+        {
+          "name": "code",
+          "title": "单测代码",
+          "kind": "CODE",
+          "required": true
+        }
+      ],
+      "node": {
+        "id": "preset",
+        "title": "运行原生单测",
+        "kind": "SYSTEM",
+        "moduleId": "system.source.test-run",
+        "moduleVersion": 1,
+        "roleId": null,
+        "task": "根据固定配置执行所选模块的原生测试，保存本次报告和实际执行数量。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "summary",
+            "title": "测试说明",
+            "kind": "TEXT",
+            "required": true
+          },
+          {
+            "name": "report",
+            "title": "原生测试报告",
+            "kind": "JSON",
+            "required": true
+          }
+        ],
+        "outcomes": [
+          "PASS",
+          "FAIL"
+        ],
+        "completion": {
+          "kind": "VERIFIED",
+          "criterion": "实际执行测试并通过",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "source.test-run",
+          "presetVersion": "1",
+          "testModuleRoot": ".",
+          "testTimeoutSeconds": "600",
+          "outcomeTitles": "{\"PASS\":\"测试通过\",\"FAIL\":\"测试未通过\"}"
+        }
+      }
+    },
+    {
+      "id": "source.test-review",
+      "version": 1,
+      "title": "复核单测场景覆盖",
+      "description": "逐场景独立核对固定测试代码与本次真实执行记录，保留缺失、未执行和失败。",
+      "inputs": [
+        {
+          "name": "source",
+          "title": "冻结源码资料",
+          "kind": "DOCUMENT",
+          "required": true
+        },
+        {
+          "name": "profile",
+          "title": "固定测试配置",
+          "kind": "JSON",
+          "required": true
+        },
+        {
+          "name": "design",
+          "title": "单测场景设计",
+          "kind": "JSON",
+          "required": true
+        },
+        {
+          "name": "code",
+          "title": "固定测试代码",
+          "kind": "CODE",
+          "required": true
+        },
+        {
+          "name": "test",
+          "title": "原生测试报告",
+          "kind": "JSON",
+          "required": true
+        }
+      ],
+      "node": {
+        "id": "test-review",
+        "title": "复核单测场景覆盖",
+        "kind": "WORK",
+        "moduleId": "source.test-review",
+        "moduleVersion": 1,
+        "roleId": "builtin.judge-requirement",
+        "task": "独立阅读固定源码、场景设计、测试代码和实际测试记录，逐场景核对断言是否验证预期，明确证据缺口。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "review",
+            "title": "场景覆盖复核",
+            "kind": "DECISION",
+            "required": true
+          },
+          {
+            "name": "summary",
+            "title": "复核说明",
+            "kind": "TEXT",
+            "required": true
+          }
+        ],
+        "outcomes": [
+          "PASS",
+          "REVISE"
+        ],
+        "completion": {
+          "kind": "OUTCOME",
+          "criterion": "场景复核通过",
+          "expectedOutcome": "PASS"
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "source.test-review",
+          "presetVersion": "1",
+          "outcomeTitles": "{\"PASS\": \"场景复核通过\", \"REVISE\": \"场景需要修订\"}"
+        }
+      }
+    },
+    {
+      "id": "source.test-snapshot",
+      "version": 1,
+      "title": "冻结单测源码",
+      "description": "采集单测目标源码、构建配置和已有测试，固定范围供完整单测流程使用。",
+      "inputs": [
+        {
+          "name": "path",
+          "title": "源码文件或目录",
+          "kind": "TEXT",
+          "required": true
+        }
+      ],
+      "node": {
+        "id": "preset",
+        "title": "冻结单测源码",
+        "kind": "SYSTEM",
+        "moduleId": "system.source.snapshot",
+        "moduleVersion": 1,
+        "roleId": null,
+        "task": "完整采集指定路径的源码，保留排除原因并冻结正文。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "source",
+            "title": "冻结源码资料",
+            "kind": "DOCUMENT",
+            "required": false
+          },
+          {
+            "name": "report",
+            "title": "采集报告",
+            "kind": "JSON",
+            "required": true
+          },
+          {
+            "name": "summary",
+            "title": "采集说明",
+            "kind": "TEXT",
+            "required": true
+          }
+        ],
+        "outcomes": [],
+        "completion": {
+          "kind": "VERIFIED",
+          "criterion": "全部适用目标均已完整采集并冻结",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "source.test-snapshot",
+          "presetVersion": "1",
+          "sourcePurpose": "UNIT_TEST"
+        }
+      }
+    },
+    {
+      "id": "source.test-plan",
+      "version": 1,
+      "title": "单测分批规划",
+      "description": "按固定源码和测试模块细化场景、代码继承、最终回归与复核，生成候选计划供用户确认。",
+      "inputs": [
+        {
+          "name": "source",
+          "title": "冻结源码资料",
+          "kind": "DOCUMENT",
+          "required": true
+        },
+        {
+          "name": "profile",
+          "title": "原生测试配置",
+          "kind": "JSON",
+          "required": true
+        }
+      ],
+      "node": {
+        "id": "sourcePlan",
+        "title": "单测分批规划",
+        "kind": "SYSTEM",
+        "moduleId": "system.source.test-plan",
+        "moduleVersion": 1,
+        "roleId": null,
+        "task": "完整划分单测批次，保留角色、任务和复核策略；按批继承代码，全部编写后回归最终代码，提交候选计划供用户确认。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "plan",
+            "title": "分批候选计划",
+            "kind": "PLAN",
+            "required": false
+          },
+          {
+            "name": "report",
+            "title": "单测分批报告",
+            "kind": "JSON",
+            "required": true
+          },
+          {
+            "name": "summary",
+            "title": "规划说明",
+            "kind": "TEXT",
+            "required": true
+          }
+        ],
+        "outcomes": [],
+        "completion": {
+          "kind": "DELIVERABLES",
+          "criterion": "完整生成候选计划；应用与执行须由用户另行确认。",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "source.test-plan",
+          "presetVersion": "1"
+        }
+      }
+    },
+    {
+      "id": "source.test-final-run",
+      "version": 1,
+      "title": "回归最终单测代码",
+      "description": "在全部批次编写后的同一份固定代码上执行一个模块，核对本模块的全部场景批次。",
+      "inputs": [
+        {
+          "name": "source",
+          "title": "冻结源码",
+          "kind": "DOCUMENT",
+          "required": true
+        },
+        {
+          "name": "profile",
+          "title": "原生测试配置",
+          "kind": "JSON",
+          "required": true
+        },
+        {
+          "name": "design",
+          "title": "单测场景",
+          "kind": "JSON",
+          "required": true
+        },
+        {
+          "name": "code",
+          "title": "单测代码",
+          "kind": "CODE",
+          "required": true
+        }
+      ],
+      "node": {
+        "id": "preset",
+        "title": "回归最终单测代码",
+        "kind": "SYSTEM",
+        "moduleId": "system.source.test-run",
+        "moduleVersion": 2,
+        "roleId": null,
+        "task": "根据固定配置执行所选模块的原生测试，保存本次报告和实际执行数量。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "summary",
+            "title": "测试说明",
+            "kind": "TEXT",
+            "required": true
+          },
+          {
+            "name": "report",
+            "title": "原生测试报告",
+            "kind": "JSON",
+            "required": true
+          }
+        ],
+        "outcomes": [
+          "PASS",
+          "FAIL"
+        ],
+        "completion": {
+          "kind": "VERIFIED",
+          "criterion": "实际执行测试并通过",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "source.test-final-run",
+          "presetVersion": "1",
+          "testModuleRoot": ".",
+          "testTimeoutSeconds": "600",
+          "outcomeTitles": "{\"PASS\":\"测试通过\",\"FAIL\":\"测试未通过\"}"
+        }
+      }
+    },
+    {
+      "id": "source.test-final-review",
+      "version": 1,
+      "title": "复核最终场景覆盖",
+      "description": "依据最终代码和该模块的实际测试报告，独立复核本批设计场景。",
+      "inputs": [
+        {
+          "name": "source",
+          "title": "冻结源码资料",
+          "kind": "DOCUMENT",
+          "required": true
+        },
+        {
+          "name": "profile",
+          "title": "固定测试配置",
+          "kind": "JSON",
+          "required": true
+        },
+        {
+          "name": "design",
+          "title": "单测场景设计",
+          "kind": "JSON",
+          "required": true
+        },
+        {
+          "name": "code",
+          "title": "固定测试代码",
+          "kind": "CODE",
+          "required": true
+        },
+        {
+          "name": "test",
+          "title": "原生测试报告",
+          "kind": "JSON",
+          "required": true
+        }
+      ],
+      "node": {
+        "id": "test-review",
+        "title": "复核最终场景覆盖",
+        "kind": "WORK",
+        "moduleId": "source.test-review",
+        "moduleVersion": 2,
+        "roleId": "builtin.judge-requirement",
+        "task": "独立阅读固定源码、场景设计、测试代码和实际测试记录，逐场景核对断言是否验证预期，明确证据缺口。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "review",
+            "title": "场景覆盖复核",
+            "kind": "DECISION",
+            "required": true
+          },
+          {
+            "name": "summary",
+            "title": "复核说明",
+            "kind": "TEXT",
+            "required": true
+          }
+        ],
+        "outcomes": [
+          "PASS",
+          "REVISE"
+        ],
+        "completion": {
+          "kind": "OUTCOME",
+          "criterion": "场景复核通过",
+          "expectedOutcome": "PASS"
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "source.test-final-review",
+          "presetVersion": "1",
+          "outcomeTitles": "{\"PASS\": \"场景复核通过\", \"REVISE\": \"场景需要修订\"}"
+        }
+      }
+    },
+    {
+      "id": "source.test-final-risk",
+      "version": 1,
+      "title": "复核最终测试风险",
+      "description": "独立检查最终测试的断言、边界和异常场景，绑定同一份最终代码及实际测试报告。",
+      "inputs": [
+        {
+          "name": "source",
+          "title": "冻结源码资料",
+          "kind": "DOCUMENT",
+          "required": true
+        },
+        {
+          "name": "profile",
+          "title": "固定测试配置",
+          "kind": "JSON",
+          "required": true
+        },
+        {
+          "name": "design",
+          "title": "单测场景设计",
+          "kind": "JSON",
+          "required": true
+        },
+        {
+          "name": "code",
+          "title": "固定测试代码",
+          "kind": "CODE",
+          "required": true
+        },
+        {
+          "name": "test",
+          "title": "原生测试报告",
+          "kind": "JSON",
+          "required": true
+        }
+      ],
+      "node": {
+        "id": "test-review",
+        "title": "复核最终测试风险",
+        "kind": "WORK",
+        "moduleId": "source.test-review",
+        "moduleVersion": 2,
+        "roleId": "builtin.judge-risk",
+        "task": "独立阅读本批源码、场景、最终测试代码与实际执行记录，重点检查边界、异常、弱断言和遗漏风险，逐场景说明证据。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "review",
+            "title": "场景覆盖复核",
+            "kind": "DECISION",
+            "required": true
+          },
+          {
+            "name": "summary",
+            "title": "复核说明",
+            "kind": "TEXT",
+            "required": true
+          }
+        ],
+        "outcomes": [
+          "PASS",
+          "REVISE"
+        ],
+        "completion": {
+          "kind": "OUTCOME",
+          "criterion": "场景复核通过",
+          "expectedOutcome": "PASS"
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "source.test-final-risk",
+          "presetVersion": "1",
+          "outcomeTitles": "{\"PASS\": \"场景复核通过\", \"REVISE\": \"场景需要修订\"}"
+        }
+      }
+    },
+    {
+      "id": "source.test-summary",
+      "version": 1,
+      "title": "汇总单测结果",
+      "description": "核对完整源码覆盖、各模块对同一份最终代码的测试及用户选择的复核策略。",
+      "inputs": [
+        {
+          "name": "source",
+          "title": "冻结源码",
+          "kind": "DOCUMENT",
+          "required": true
+        },
+        {
+          "name": "profile",
+          "title": "固定测试配置",
+          "kind": "JSON",
+          "required": true
+        },
+        {
+          "name": "code",
+          "title": "最终代码",
+          "kind": "CODE",
+          "required": true
+        },
+        {
+          "name": "test_1",
+          "title": "模块测试报告",
+          "kind": "JSON",
+          "required": true
+        },
+        {
+          "name": "review_1",
+          "title": "需求复核意见",
+          "kind": "DECISION",
+          "required": true
+        },
+        {
+          "name": "review_2",
+          "title": "风险复核意见",
+          "kind": "DECISION",
+          "required": true
+        }
+      ],
+      "node": {
+        "id": "preset",
+        "title": "汇总单测结果",
+        "kind": "SYSTEM",
+        "moduleId": "system.source.test-summary",
+        "moduleVersion": 1,
+        "roleId": null,
+        "task": "汇总完整源码范围的最终回归及固定复核意见，按明确策略判断完成结果。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "summary",
+            "title": "汇总说明",
+            "kind": "TEXT",
+            "required": true
+          },
+          {
+            "name": "report",
+            "title": "单测汇总报告",
+            "kind": "JSON",
+            "required": true
+          }
+        ],
+        "outcomes": [
+          "PASS",
+          "FAIL"
+        ],
+        "completion": {
+          "kind": "VERIFIED",
+          "criterion": "完整源码覆盖、最终代码测试通过并满足所选复核策略",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "source.test-summary",
+          "presetVersion": "1",
+          "reviewPolicy": "DUAL",
+          "outcomeTitles": "{\"PASS\": \"汇总通过\", \"FAIL\": \"汇总未通过\"}"
+        }
+      }
+    },
+    {
+      "id": "repository.snapshot",
+      "version": 1,
+      "title": "固定分支代码",
+      "description": "采集指定 Git 分支的一次提交，保存固定文件清单供后续只读分析；重试沿用原提交。",
+      "inputs": [
+        {
+          "name": "branch",
+          "title": "代码分支",
+          "kind": "TEXT",
+          "required": true
+        }
+      ],
+      "node": {
+        "id": "preset",
+        "title": "固定分支代码",
+        "kind": "SYSTEM",
+        "moduleId": "system.repository.snapshot",
+        "moduleVersion": 1,
+        "roleId": null,
+        "task": "读取指定分支的固定提交，保存项目内文件清单和读取限制。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "source",
+            "title": "固定代码资料",
+            "kind": "DOCUMENT",
+            "required": false
+          },
+          {
+            "name": "report",
+            "title": "采集报告",
+            "kind": "JSON",
+            "required": true
+          },
+          {
+            "name": "summary",
+            "title": "采集说明",
+            "kind": "TEXT",
+            "required": true
+          }
+        ],
+        "outcomes": [],
+        "completion": {
+          "kind": "VERIFIED",
+          "criterion": "指定提交和完整文件清单均已保存，采集进程确认停止",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "repository.snapshot",
+          "presetVersion": "1",
+          "repositoryTimeoutSeconds": "180"
+        }
+      }
+    },
+    {
+      "id": "document.direct-review",
+      "version": 1,
+      "title": "对照原文评审代码",
+      "description": "逐章读取固定原文，对照同一提交的代码形成可核对的结论、问题和局限；静态评审不运行测试。",
+      "inputs": [
+        {
+          "name": "documents",
+          "title": "需求原文",
+          "kind": "DOCUMENT",
+          "required": true
+        },
+        {
+          "name": "code",
+          "title": "固定分支代码",
+          "kind": "DOCUMENT",
+          "required": true
+        }
+      ],
+      "node": {
+        "id": "preset",
+        "title": "对照原文评审代码",
+        "kind": "WORK",
+        "moduleId": "document.direct-review",
+        "moduleVersion": 1,
+        "roleId": "builtin.document",
+        "task": "完整阅读本批原文，逐项对照固定代码；提交真实代码引用，保留业务歧义与阅读局限，无要求的章节给出跳过理由。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "summary",
+            "title": "评审说明",
+            "kind": "TEXT",
+            "required": true
+          },
+          {
+            "name": "assessment",
+            "title": "需求代码评审",
+            "kind": "JSON",
+            "required": true
+          }
+        ],
+        "outcomes": [],
+        "completion": {
+          "kind": "DELIVERABLES",
+          "criterion": "全部分配章节已覆盖，结论与原文和代码证据对应",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "document.direct-review",
+          "presetVersion": "1",
+          "documentBatchOrdinal": "0",
+          "documentSections": ""
+        }
+      }
+    },
+    {
+      "id": "document.direct-review-check",
+      "version": 1,
+      "title": "独立复核需求代码评审",
+      "description": "独立读取本批原文、评审稿和代码引用，检查遗漏及结论；复核策略由用户选择。",
+      "inputs": [
+        {
+          "name": "documents",
+          "title": "需求原文",
+          "kind": "DOCUMENT",
+          "required": true
+        },
+        {
+          "name": "code",
+          "title": "固定分支代码",
+          "kind": "DOCUMENT",
+          "required": true
+        },
+        {
+          "name": "draft",
+          "title": "本批评审稿",
+          "kind": "JSON",
+          "required": true
+        }
+      ],
+      "node": {
+        "id": "preset",
+        "title": "独立复核需求代码评审",
+        "kind": "WORK",
+        "moduleId": "document.direct-review-check",
+        "moduleVersion": 1,
+        "roleId": "builtin.document",
+        "task": "完整阅读绑定评审稿，并独立读取原文和代码；核对每条结论、遗漏及跨批次冲突，给出通过或返修意见。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "summary",
+            "title": "复核说明",
+            "kind": "TEXT",
+            "required": true
+          },
+          {
+            "name": "review",
+            "title": "复核意见",
+            "kind": "DECISION",
+            "required": true
+          }
+        ],
+        "outcomes": [
+          "PASS",
+          "REVISE"
+        ],
+        "completion": {
+          "kind": "OUTCOME",
+          "criterion": "复核通过",
+          "expectedOutcome": "PASS"
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "document.direct-review-check",
+          "presetVersion": "1",
+          "documentBatchOrdinal": "0",
+          "documentSections": "",
+          "outcomeTitles": "{\"PASS\": \"复核通过\", \"REVISE\": \"需要返修\"}"
+        }
+      }
+    },
+    {
+      "id": "document.review-plan",
+      "version": 1,
+      "title": "原文评审分批规划",
+      "description": "完整划分固定原文章节，继承评审、可选复核和汇总配置，生成待用户确认的候选计划。",
+      "inputs": [
+        {
+          "name": "documents",
+          "title": "需求原文",
+          "kind": "DOCUMENT",
+          "required": true
+        },
+        {
+          "name": "code",
+          "title": "固定分支代码",
+          "kind": "DOCUMENT",
+          "required": true
+        }
+      ],
+      "node": {
+        "id": "sourcePlan",
+        "title": "原文评审分批规划",
+        "kind": "SYSTEM",
+        "moduleId": "system.document.review-plan",
+        "moduleVersion": 1,
+        "roleId": null,
+        "task": "完整划分固定原文章节，继承评审、可选复核和汇总配置，生成待用户确认的候选计划。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "plan",
+            "title": "分批候选计划",
+            "kind": "PLAN",
+            "required": false
+          },
+          {
+            "name": "report",
+            "title": "原文分批报告",
+            "kind": "JSON",
+            "required": true
+          },
+          {
+            "name": "summary",
+            "title": "规划说明",
+            "kind": "TEXT",
+            "required": true
+          }
+        ],
+        "outcomes": [],
+        "completion": {
+          "kind": "DELIVERABLES",
+          "criterion": "完整划分固定原文章节，继承评审、可选复核和汇总配置，生成待用户确认的候选计划。",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "document.review-plan",
+          "presetVersion": "1"
+        }
+      }
+    },
+    {
+      "id": "document.review-report",
+      "version": 1,
+      "title": "汇总需求代码评审报告",
+      "description": "核对全部原文章节及明确复核策略，生成固定报告、需求矩阵和问题明细；本流程不运行测试。",
+      "inputs": [
+        {
+          "name": "documents",
+          "title": "需求原文",
+          "kind": "DOCUMENT",
+          "required": true
+        },
+        {
+          "name": "code",
+          "title": "固定分支代码",
+          "kind": "DOCUMENT",
+          "required": true
+        },
+        {
+          "name": "draft",
+          "title": "评审稿",
+          "kind": "JSON",
+          "required": true
+        },
+        {
+          "name": "review",
+          "title": "独立复核意见",
+          "kind": "DECISION",
+          "required": false
+        }
+      ],
+      "node": {
+        "id": "preset",
+        "title": "汇总需求代码评审报告",
+        "kind": "SYSTEM",
+        "moduleId": "system.document.review-report",
+        "moduleVersion": 1,
+        "roleId": null,
+        "task": "核对全部原文章节及明确复核策略，生成固定报告、需求矩阵和问题明细；本流程不运行测试。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "document",
+            "title": "需求代码评审报告",
+            "kind": "DOCUMENT",
+            "required": false
+          },
+          {
+            "name": "report",
+            "title": "文档汇总报告",
+            "kind": "JSON",
+            "required": true
+          },
+          {
+            "name": "summary",
+            "title": "生成说明",
+            "kind": "TEXT",
+            "required": true
+          }
+        ],
+        "outcomes": [],
+        "completion": {
+          "kind": "DELIVERABLES",
+          "criterion": "核对全部原文章节及明确复核策略，生成固定报告、需求矩阵和问题明细；本流程不运行测试。",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "document.review-report",
+          "presetVersion": "1",
+          "reviewPolicy": "REQUIRED"
+        },
+        "roleRevisionId": null
+      }
+    },
+    {
+      "id": "knowledge.research",
+      "version": 1,
+      "title": "查阅知识并交付证据",
+      "description": "知识库助手查询获准资料，主动选择保存证据交给后续节点。",
+      "inputs": [
+        {
+          "name": "context",
+          "title": "补充要求",
+          "kind": "TEXT",
+          "required": false
+        }
+      ],
+      "node": {
+        "id": "preset",
+        "title": "查阅知识并交付证据",
+        "kind": "WORK",
+        "moduleId": "knowledge.research",
+        "moduleVersion": 1,
+        "roleId": "builtin.knowledge",
+        "task": "围绕本次需求及补充资料查询获准的项目知识，读取原文并形成有来源的结论。按工作信息中的 knowledgeEvidence 合同选择本次真实调用引用；说明覆盖、未查范围和无法核实的事项。检索无命中不能推断资料不存在，搜索线索不能替代实际原文。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "result",
+            "title": "检索结论",
+            "kind": "TEXT",
+            "required": true
+          },
+          {
+            "name": "evidence",
+            "title": "固定来源证据",
+            "kind": "JSON",
+            "required": true
+          }
+        ],
+        "outcomes": [],
+        "completion": {
+          "kind": "DELIVERABLES",
+          "criterion": "按任务要求交付结论、固定来源与真实局限",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "knowledge.research",
+          "presetVersion": "1"
+        }
+      }
+    },
+    {
+      "id": "knowledge.summarize",
+      "version": 1,
+      "title": "整理资料形成说明",
+      "description": "读取上游固定结论和证据，整理为带来源与局限的 Markdown 说明。",
+      "inputs": [
+        {
+          "name": "findings",
+          "title": "检索结论",
+          "kind": "TEXT",
+          "required": true
+        },
+        {
+          "name": "evidence",
+          "title": "固定来源证据",
+          "kind": "JSON",
+          "required": true
+        }
+      ],
+      "node": {
+        "id": "preset",
+        "title": "整理资料形成说明",
+        "kind": "WORK",
+        "moduleId": "free.readonly",
+        "moduleVersion": 1,
+        "roleId": "builtin.designer",
+        "task": "完整读取上游检索结论和固定来源证据，按当前需求整理可复用的 Markdown 说明。区分保存的原文与检索线索；每项结论引用证据中的实际文件位置、内容摘要和采集时间。不能核实的内容明确说明，不编造证据，不把资料说明当成执行或测试结果。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "result",
+            "title": "资料说明",
+            "kind": "TEXT",
+            "required": true
+          }
+        ],
+        "outcomes": [],
+        "completion": {
+          "kind": "DELIVERABLES",
+          "criterion": "按任务要求交付结论、固定来源与真实局限",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "knowledge.summarize",
+          "presetVersion": "1"
+        }
+      }
+    },
+    {
+      "id": "git.history",
+      "version": 1,
+      "title": "采集 Git 历史",
+      "description": "固定明确分支和日期范围的提交证据，供历史审查、贡献分析及报告节点读取。",
+      "inputs": [
+        {
+          "name": "branch",
+          "title": "代码分支",
+          "kind": "TEXT",
+          "required": true
+        },
+        {
+          "name": "startDate",
+          "title": "开始日期（YYYY-MM-DD）",
+          "kind": "TEXT",
+          "required": true
+        },
+        {
+          "name": "endDate",
+          "title": "结束日期（YYYY-MM-DD）",
+          "kind": "TEXT",
+          "required": true
+        }
+      ],
+      "node": {
+        "id": "preset",
+        "title": "采集 Git 历史",
+        "kind": "SYSTEM",
+        "moduleId": "system.git.history",
+        "moduleVersion": 1,
+        "roleId": null,
+        "task": "采集指定分支及北京时间日期范围内的完整 Git 提交证据，保留作者、共同作者、差异与排除依据。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "source",
+            "title": "固定历史资料",
+            "kind": "DOCUMENT",
+            "required": false
+          },
+          {
+            "name": "report",
+            "title": "采集报告",
+            "kind": "JSON",
+            "required": true
+          },
+          {
+            "name": "summary",
+            "title": "采集说明",
+            "kind": "TEXT",
+            "required": true
+          }
+        ],
+        "outcomes": [],
+        "completion": {
+          "kind": "VERIFIED",
+          "criterion": "历史证据完整保存，采集进程确认停止；空范围保留无提交说明",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "git.history",
+          "presetVersion": "1",
+          "historyTimeoutSeconds": "600"
+        }
+      }
+    },
+    {
+      "id": "history.review",
+      "version": 1,
+      "title": "审查历史变更",
+      "description": "逐项审查固定历史中的一个批次，校验覆盖范围和问题行号；静态审查不代表测试已通过。",
+      "inputs": [
+        {
+          "name": "source",
+          "title": "固定 Git 历史",
+          "kind": "DOCUMENT",
+          "required": true
+        }
+      ],
+      "node": {
+        "id": "preset",
+        "title": "审查历史变更",
+        "kind": "WORK",
+        "moduleId": "history.review",
+        "moduleVersion": 1,
+        "roleId": "builtin.template",
+        "task": "逐项审查固定历史中的一个批次，校验覆盖范围和问题行号；静态审查不代表测试已通过。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "summary",
+            "title": "分析说明",
+            "kind": "TEXT",
+            "required": true
+          },
+          {
+            "name": "analysis",
+            "title": "历史变更审查",
+            "kind": "JSON",
+            "required": true
+          }
+        ],
+        "outcomes": [],
+        "completion": {
+          "kind": "DELIVERABLES",
+          "criterion": "完整读取固定分析输入，证据覆盖与归属校验通过，并独立确认模型停止",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "history.review",
+          "presetVersion": "1",
+          "historyBatchOrdinal": "0"
+        }
+      }
+    },
+    {
+      "id": "history.contribution",
+      "version": 1,
+      "title": "评价个人贡献",
+      "description": "依据固定身份、本人变更及已完成审查给出四维评价；最终分数与排名由报告程序计算。",
+      "inputs": [
+        {
+          "name": "source",
+          "title": "固定 Git 历史",
+          "kind": "DOCUMENT",
+          "required": true
+        },
+        {
+          "name": "review",
+          "title": "历史审查结果",
+          "kind": "JSON",
+          "required": true
+        }
+      ],
+      "node": {
+        "id": "preset",
+        "title": "评价个人贡献",
+        "kind": "WORK",
+        "moduleId": "history.contribution",
+        "moduleVersion": 1,
+        "roleId": "builtin.template",
+        "task": "依据固定身份、本人变更及已完成审查给出四维评价；最终分数与排名由报告程序计算。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "summary",
+            "title": "分析说明",
+            "kind": "TEXT",
+            "required": true
+          },
+          {
+            "name": "analysis",
+            "title": "个人贡献评价",
+            "kind": "JSON",
+            "required": true
+          }
+        ],
+        "outcomes": [],
+        "completion": {
+          "kind": "DELIVERABLES",
+          "criterion": "完整读取固定分析输入，证据覆盖与归属校验通过，并独立确认模型停止",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "history.contribution",
+          "presetVersion": "1",
+          "historyContributorEmail": ""
+        }
+      }
+    },
+    {
+      "id": "history.plan",
+      "version": 1,
+      "title": "历史分析分批规划",
+      "description": "完整划分固定历史审查批次与适用贡献者，继承角色配置，生成待用户确认的流程。",
+      "inputs": [
+        {
+          "name": "source",
+          "title": "固定 Git 历史",
+          "kind": "DOCUMENT",
+          "required": true
+        }
+      ],
+      "node": {
+        "id": "sourcePlan",
+        "title": "历史分析分批规划",
+        "kind": "SYSTEM",
+        "moduleId": "system.history.plan",
+        "moduleVersion": 1,
+        "roleId": null,
+        "task": "完整划分固定历史审查批次与适用贡献者，继承角色配置，生成待用户确认的流程。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "plan",
+            "title": "分批候选计划",
+            "kind": "PLAN",
+            "required": false
+          },
+          {
+            "name": "report",
+            "title": "历史分批报告",
+            "kind": "JSON",
+            "required": true
+          },
+          {
+            "name": "summary",
+            "title": "规划说明",
+            "kind": "TEXT",
+            "required": true
+          }
+        ],
+        "outcomes": [],
+        "completion": {
+          "kind": "DELIVERABLES",
+          "criterion": "完整生成待确认的分批候选",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "history.plan",
+          "presetVersion": "1"
+        }
+      }
+    },
+    {
+      "id": "history.report",
+      "version": 1,
+      "title": "汇总历史提交审查",
+      "description": "核对完整固定历史及全部分析，以确认时固定的格式生成主报告和明细；贡献分数由程序计算。",
+      "inputs": [
+        {
+          "name": "source",
+          "title": "固定 Git 历史",
+          "kind": "DOCUMENT",
+          "required": true
+        },
+        {
+          "name": "review",
+          "title": "历史审查结果",
+          "kind": "JSON",
+          "required": false
+        }
+      ],
+      "node": {
+        "id": "preset",
+        "title": "汇总历史提交审查",
+        "kind": "SYSTEM",
+        "moduleId": "system.history.report",
+        "moduleVersion": 1,
+        "roleId": null,
+        "task": "核对完整固定历史及全部分析，以确认时固定的格式生成主报告和明细；贡献分数由程序计算。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "document",
+            "title": "完整历史报告",
+            "kind": "DOCUMENT",
+            "required": false
+          },
+          {
+            "name": "report",
+            "title": "文档汇总报告",
+            "kind": "JSON",
+            "required": true
+          },
+          {
+            "name": "summary",
+            "title": "生成说明",
+            "kind": "TEXT",
+            "required": true
+          }
+        ],
+        "outcomes": [],
+        "completion": {
+          "kind": "DELIVERABLES",
+          "criterion": "全部适用分析完整覆盖，固定报告原子保存",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "history.report",
+          "presetVersion": "1",
+          "historyReportKind": "CODE_REVIEW"
+        },
+        "roleRevisionId": null
+      }
+    },
+    {
+      "id": "history.contribution-report",
+      "version": 1,
+      "title": "汇总项目贡献周报",
+      "description": "核对完整固定历史及全部分析，以确认时固定的格式生成主报告和明细；贡献分数由程序计算。",
+      "inputs": [
+        {
+          "name": "source",
+          "title": "固定 Git 历史",
+          "kind": "DOCUMENT",
+          "required": true
+        },
+        {
+          "name": "review",
+          "title": "历史审查结果",
+          "kind": "JSON",
+          "required": false
+        }
+      ],
+      "node": {
+        "id": "preset",
+        "title": "汇总项目贡献周报",
+        "kind": "SYSTEM",
+        "moduleId": "system.history.report",
+        "moduleVersion": 1,
+        "roleId": null,
+        "task": "核对完整固定历史及全部分析，以确认时固定的格式生成主报告和明细；贡献分数由程序计算。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "document",
+            "title": "完整历史报告",
+            "kind": "DOCUMENT",
+            "required": false
+          },
+          {
+            "name": "report",
+            "title": "文档汇总报告",
+            "kind": "JSON",
+            "required": true
+          },
+          {
+            "name": "summary",
+            "title": "生成说明",
+            "kind": "TEXT",
+            "required": true
+          }
+        ],
+        "outcomes": [],
+        "completion": {
+          "kind": "DELIVERABLES",
+          "criterion": "全部适用分析完整覆盖，固定报告原子保存",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "history.contribution-report",
+          "presetVersion": "1",
+          "historyReportKind": "CONTRIBUTION_REPORT"
+        },
+        "roleRevisionId": null
+      }
+    },
+    {
+      "id": "review.snapshot",
+      "version": 1,
+      "title": "固定日期增量代码",
+      "description": "按北京时间选择边界版本，固定最终代码差异和证据；不逐条审查提交。",
+      "inputs": [
+        {
+          "name": "branch",
+          "title": "代码分支",
+          "kind": "TEXT",
+          "required": true
+        },
+        {
+          "name": "startDate",
+          "title": "开始日期（YYYY-MM-DD）",
+          "kind": "TEXT",
+          "required": true
+        },
+        {
+          "name": "endDate",
+          "title": "结束日期（YYYY-MM-DD）",
+          "kind": "TEXT",
+          "required": true
+        }
+      ],
+      "node": {
+        "id": "preset",
+        "title": "固定日期增量代码",
+        "kind": "SYSTEM",
+        "moduleId": "system.review.snapshot",
+        "moduleVersion": 1,
+        "roleId": null,
+        "task": "按北京时间选择边界版本，固定最终代码差异和证据；不逐条审查提交。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "source",
+            "title": "固定版本审查资料",
+            "kind": "DOCUMENT",
+            "required": false
+          },
+          {
+            "name": "report",
+            "title": "采集报告",
+            "kind": "JSON",
+            "required": true
+          },
+          {
+            "name": "summary",
+            "title": "采集说明",
+            "kind": "TEXT",
+            "required": true
+          }
+        ],
+        "outcomes": [],
+        "completion": {
+          "kind": "VERIFIED",
+          "criterion": "完整版本证据保存，采集进程确认停止；资料固定不代表审查通过",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "review.snapshot",
+          "presetVersion": "1",
+          "reviewMode": "DATE_INCREMENTAL",
+          "reviewTimeoutSeconds": "600"
+        }
+      }
+    },
+    {
+      "id": "review.snapshot-full",
+      "version": 1,
+      "title": "固定全面审查代码",
+      "description": "固定所选分支的当前提交与完整项目代码，供后续静态审查。",
+      "inputs": [
+        {
+          "name": "branch",
+          "title": "代码分支",
+          "kind": "TEXT",
+          "required": true
+        }
+      ],
+      "node": {
+        "id": "preset",
+        "title": "固定全面审查代码",
+        "kind": "SYSTEM",
+        "moduleId": "system.review.snapshot",
+        "moduleVersion": 1,
+        "roleId": null,
+        "task": "固定所选分支的当前提交与完整项目代码，供后续静态审查。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "source",
+            "title": "固定版本审查资料",
+            "kind": "DOCUMENT",
+            "required": false
+          },
+          {
+            "name": "report",
+            "title": "采集报告",
+            "kind": "JSON",
+            "required": true
+          },
+          {
+            "name": "summary",
+            "title": "采集说明",
+            "kind": "TEXT",
+            "required": true
+          }
+        ],
+        "outcomes": [],
+        "completion": {
+          "kind": "VERIFIED",
+          "criterion": "完整版本证据保存，采集进程确认停止；资料固定不代表审查通过",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "review.snapshot-full",
+          "presetVersion": "1",
+          "reviewMode": "FULL",
+          "reviewTimeoutSeconds": "600"
+        }
+      }
+    },
+    {
+      "id": "snapshot.analyze",
+      "version": 1,
+      "title": "固定版本代码分析",
+      "description": "按 V3 固定批次分析代码，区分有候选问题与无候选问题。",
+      "inputs": [
+        {
+          "name": "source",
+          "title": "固定版本审查资料",
+          "kind": "DOCUMENT",
+          "required": true
+        }
+      ],
+      "node": {
+        "id": "preset",
+        "title": "固定版本代码分析",
+        "kind": "WORK",
+        "moduleId": "snapshot.analyze",
+        "moduleVersion": 1,
+        "roleId": "builtin.snapshot-review",
+        "task": "按 V3 固定批次分析代码，区分有候选问题与无候选问题。完整读取工作查询的专业输入，按实际初始代码或本人读取证据提交结论；静态审查不能证明测试通过。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "summary",
+            "title": "分析说明",
+            "kind": "TEXT",
+            "required": true
+          },
+          {
+            "name": "analysis",
+            "title": "固定版本分析",
+            "kind": "JSON",
+            "required": true
+          }
+        ],
+        "outcomes": [
+          "HAS_FINDINGS",
+          "NO_FINDINGS"
+        ],
+        "completion": {
+          "kind": "DELIVERABLES",
+          "criterion": "完整读取固定分析输入，证据覆盖与归属校验通过，并独立确认模型停止",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "snapshot.analyze",
+          "presetVersion": "1",
+          "snapshotBatchOrdinal": "0",
+          "outcomeTitles": "{\"HAS_FINDINGS\":\"存在候选问题\",\"NO_FINDINGS\":\"没有候选问题\"}"
+        }
+      }
+    },
+    {
+      "id": "snapshot.review",
+      "version": 1,
+      "title": "候选问题独立复核",
+      "description": "读取同一资料及已完成分析，只复核本批候选问题。",
+      "inputs": [
+        {
+          "name": "source",
+          "title": "固定版本审查资料",
+          "kind": "DOCUMENT",
+          "required": true
+        },
+        {
+          "name": "analysis",
+          "title": "已完成代码分析",
+          "kind": "JSON",
+          "required": true
+        }
+      ],
+      "node": {
+        "id": "preset",
+        "title": "候选问题独立复核",
+        "kind": "WORK",
+        "moduleId": "snapshot.review",
+        "moduleVersion": 1,
+        "roleId": "builtin.snapshot-review",
+        "task": "读取同一资料及已完成分析，只复核本批候选问题。完整读取工作查询的专业输入，按实际初始代码或本人读取证据提交结论；静态审查不能证明测试通过。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "summary",
+            "title": "分析说明",
+            "kind": "TEXT",
+            "required": true
+          },
+          {
+            "name": "analysis",
+            "title": "候选问题复核",
+            "kind": "JSON",
+            "required": true
+          }
+        ],
+        "outcomes": [],
+        "completion": {
+          "kind": "DELIVERABLES",
+          "criterion": "完整读取固定分析输入，证据覆盖与归属校验通过，并独立确认模型停止",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "snapshot.review",
+          "presetVersion": "1"
+        }
+      }
+    },
+    {
+      "id": "snapshot.plan",
+      "version": 1,
+      "title": "版本审查分批规划",
+      "description": "按全部固定版本资料生成分析和条件复核批次，保留角色、任务及检查点，先由用户确认。",
+      "inputs": [
+        {
+          "name": "source",
+          "title": "固定版本审查资料",
+          "kind": "DOCUMENT",
+          "required": true
+        }
+      ],
+      "node": {
+        "id": "sourcePlan",
+        "title": "版本审查分批规划",
+        "kind": "SYSTEM",
+        "moduleId": "system.snapshot.plan",
+        "moduleVersion": 1,
+        "roleId": null,
+        "task": "按全部固定版本资料生成分析和条件复核批次，保留角色、任务及检查点，先由用户确认。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "plan",
+            "title": "分批候选计划",
+            "kind": "PLAN",
+            "required": false
+          },
+          {
+            "name": "report",
+            "title": "版本分批报告",
+            "kind": "JSON",
+            "required": true
+          },
+          {
+            "name": "summary",
+            "title": "规划说明",
+            "kind": "TEXT",
+            "required": true
+          }
+        ],
+        "outcomes": [],
+        "completion": {
+          "kind": "DELIVERABLES",
+          "criterion": "完整生成待确认的分批候选",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "snapshot.plan",
+          "presetVersion": "1"
+        }
+      }
+    },
+    {
+      "id": "snapshot.report",
+      "version": 1,
+      "title": "汇总版本审查报告",
+      "description": "汇总全部分析及适用的独立复核，保存主报告、问题、覆盖清单和局限；可明确取消复核要求。",
+      "inputs": [
+        {
+          "name": "source",
+          "title": "固定版本审查资料",
+          "kind": "DOCUMENT",
+          "required": true
+        },
+        {
+          "name": "analysis",
+          "title": "代码分析结果",
+          "kind": "JSON",
+          "required": false
+        },
+        {
+          "name": "review",
+          "title": "候选问题复核（仅适用分支）",
+          "kind": "JSON",
+          "required": false
+        }
+      ],
+      "node": {
+        "id": "preset",
+        "title": "汇总版本审查报告",
+        "kind": "SYSTEM",
+        "moduleId": "system.snapshot.report",
+        "moduleVersion": 1,
+        "roleId": null,
+        "task": "汇总全部分析及适用的独立复核，保存主报告、问题、覆盖清单和局限；可明确取消复核要求。",
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "document",
+            "title": "完整版本审查报告",
+            "kind": "DOCUMENT",
+            "required": false
+          },
+          {
+            "name": "report",
+            "title": "文档汇总报告",
+            "kind": "JSON",
+            "required": true
+          },
+          {
+            "name": "summary",
+            "title": "生成说明",
+            "kind": "TEXT",
+            "required": true
+          }
+        ],
+        "outcomes": [],
+        "completion": {
+          "kind": "DELIVERABLES",
+          "criterion": "全部可审查代码分析完整，适用复核符合所选策略，报告保存成功",
+          "expectedOutcome": null
+        },
+        "maxRetries": 0,
+        "pauseAfter": false,
+        "parameters": {
+          "presetId": "snapshot.report",
+          "presetVersion": "1",
+          "reviewPolicy": "REQUIRED"
+        },
+        "roleRevisionId": null
+      }
+    }
+  ]
+}

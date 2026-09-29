@@ -53,6 +53,33 @@ class AssistRuntimeSupportTest {
         assertThat(AssistToolCatalog.allowed("IMPLEMENTATION")).contains("search_project_knowledge", "read_knowledge_source", "read_knowledge_evidence");
         verifyNoInteractions(inventory);
     }
+    @Test void workflowTransportUsesOnlyFrozenKnowledgeToolsAndRefusesDisconnectedMcp() {
+        var mapper=mock(AssistMapper.class);var policy=mock(AssistToolPolicyService.class);var inventory=mock(OpenCodeToolInventory.class);
+        var scopes=mock(AssistScopeService.class);var json=new ObjectMapper();Path directory=Path.of("/project");
+        var support=new AssistRuntimeSupport(mapper,policy,inventory,scopes,json,mock(io.opencode.loopper.service.DocumentDevelopmentScope.class));
+        when(policy.catalog(anyString(),eq(AssistToolCatalog.SERVER),anyList(),eq(true)))
+                .thenReturn(AssistToolCatalog.tools().stream().map(tool->setting(tool.name(),true)).toList());
+        for(var profile:List.of(OpenCodeClient.SessionProfile.WORKFLOW_READ_ONLY,OpenCodeClient.SessionProfile.WORKFLOW_WRITE)) {
+            var permissions=support.permissions(directory,profile,List.of("external","private"),"private",true);
+            assertThat(permissions.stream().filter(rule->rule.get("action").equals("allow")&&rule.get("permission").contains("_assist_")).map(rule->rule.get("permission")))
+                    .isNotEmpty().allMatch(AssistToolCatalog::knowledgeTool);
+            assertThat(permissions).noneMatch(rule->rule.get("permission").startsWith("external_")&&rule.get("action").equals("allow"));
+            String id=profile.name();support.remember(id,"g",directory,profile,permissions,"private");
+            var captured=org.mockito.ArgumentCaptor.forClass(AssistMapper.Session.class);verify(mapper).insertSession(captured.capture());
+            assertThat(captured.getValue().profile()).isEqualTo(id);
+            when(scopes.grant(id)).thenReturn("lpa_transport-only");
+            when(scopes.resolve(id)).thenReturn(new AssistScopeService.Scope(id,"WORKFLOW_ATTEMPT:a","p",null,null,"a",null,id,directory,List.of("read_knowledge_source"),List.of()));
+            when(inventory.inventory(directory)).thenReturn(new OpenCodeToolInventory.Inventory(List.of(new OpenCodeToolInventory.Server(AssistToolCatalog.SERVER,"知识","connected","http")),"now",true));
+            var body=new HashMap<String,Object>(Map.of("system","节点任务"));support.enrich(id,body,profile);
+            assertThat(body.get("system").toString()).contains("节点任务","read_knowledge_source","scope=lpa_transport-only","知识资料是补充背景","不能读取另一评审员");
+            assertThat(body.get("system").toString()).doesNotContain("可用工具：query_database_readonly");
+            when(inventory.inventory(directory)).thenReturn(new OpenCodeToolInventory.Inventory(List.of(),"now",true));
+            assertThatThrownBy(()->support.enrich(id,new HashMap<>(),profile)).isInstanceOfSatisfying(io.opencode.loopper.domain.SessionFailure.class,
+                    failure->assertThat(failure.code()).isEqualTo("ASSIST_MCP_UNAVAILABLE"));
+            clearInvocations(mapper);
+        }
+        verify(inventory,never()).tools(any(),any());
+    }
     private static AssistToolPolicyService.View setting(String name,boolean enabled){return new AssistToolPolicyService.View(name,true,false,true,"INHERIT",enabled,"GLOBAL",0,-1,"");}
     @Test void nativeFallbackRespectsNarrowedPermissionsAndDisabledRequestTools() {
         var mapper = mock(AssistMapper.class); var scopes = mock(AssistScopeService.class);

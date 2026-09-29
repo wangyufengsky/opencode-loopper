@@ -1418,6 +1418,55 @@ class HttpOpenCodeClientTest {
                 failure -> assertThat(failure.code()).isEqualTo("OPENCODE_PROMPT_LOOKUP_INVALID_RESPONSE"));
     }
 
+    @ParameterizedTest
+    @EnumSource(value=OpenCodeClient.SessionProfile.class,names={"WORKFLOW_READ_ONLY","WORKFLOW_WRITE"})
+    void workflowIdentityStaysOutOfFrozenPromptAndExactRecoveryRejectsChangedOrMissingIdentity(OpenCodeClient.SessionProfile profile) {
+        var json=new tools.jackson.databind.ObjectMapper();
+        var credentials=new InternalMcpCredentialProvider(()->8080).issue();
+        var runtime=new InternalMcpRuntimeAccess(); runtime.activate(credentials);
+        var mapper=org.mockito.Mockito.mock(io.opencode.loopper.persistence.WorkflowModelMapper.class);
+        var nodes=org.mockito.Mockito.mock(io.opencode.loopper.persistence.WorkflowExecutionMapper.class);
+        var support=new WorkflowRuntimeSupport(mapper,nodes,runtime,org.mockito.Mockito.mock(ConfiguredRoleRuntime.class),json);
+        mcpBody.set(json.writeValueAsString(Map.of(credentials.serverName(),Map.of("status","connected"))));
+        var connection=new OpenCodeRuntimeManager.Connection(endpoint(),null,null,true,credentials.generation(),credentials.serverName());
+        var client=new HttpOpenCodeClient(RestClient.builder(),()->connection); client.installWorkflow(support);
+        var session=client.createSession(worktree,"流程节点",null,profile);
+        String attemptId="attempt-1", messageId="msg_attempt1";
+        var attempt=new io.opencode.loopper.persistence.WorkflowExecutionRows.Attempt(attemptId,"node",1,1,"RUNNING",
+                "{}","0".repeat(64),"{}",WorkflowModelProfile.ADAPTER,session.id(),1,"now","now");
+        String plan=json.writeValueAsString(Map.of("runtimeGenerationId",credentials.generation(),"internalMcpServer",credentials.serverName()));
+        var run=new io.opencode.loopper.persistence.WorkflowModelMapper.Launch(attemptId,"requirement","DISPATCHING",worktree.toString(),
+                "{}",plan,"{}","0".repeat(64),false,null,1,"now","now");
+        org.mockito.Mockito.when(mapper.session(session.id())).thenReturn(Optional.of(run));
+        org.mockito.Mockito.when(nodes.attempt(attemptId)).thenReturn(Optional.of(attempt));
+        var expected=new OpenCodeClient.PromptRequest("读取本节点的固定输入", "工作协议",null,new OpenCodeClient.ResponseFormat.Text(),messageId,List.of());
+        String digest=OpenCodeClient.promptRequestSha256(expected);
+        client.promptAsync(session,expected);
+        var wire=json.readTree(promptBody.get());
+        assertThat(wire.path("parts").size()).isEqualTo(2);
+        assertThat(wire.path("parts").get(0).path("text").asText()).isEqualTo(expected.text());
+        assertThat(wire.path("parts").get(1).path("text").asText()).contains("attemptId="+attemptId,"scope=lpw_");
+        assertThat(wire.path("parts").get(1).path("synthetic").asBoolean()).isTrue();
+        assertThat(json.writeValueAsString(expected)).doesNotContain("lpw_",credentials.bearerToken());
+        assertThat(OpenCodeClient.promptRequestSha256(expected)).isEqualTo(digest);
+        var accepted=json.createObjectNode(); accepted.putObject("info").put("id",messageId).put("role","user");
+        accepted.set("parts",wire.get("parts")); exactMessageBody.set(json.writeValueAsString(accepted));
+        assertThat(client.findPromptMessage(session,expected,digest)).isEqualTo(new OpenCodeClient.MessageLookup(true,true,digest));
+        var malformed=new java.util.ArrayList<tools.jackson.databind.JsonNode>();
+        var changed=accepted.deepCopy(); ((tools.jackson.databind.node.ObjectNode)changed.path("parts").get(0)).put("text","另一个任务"); malformed.add(changed);
+        var identity=accepted.deepCopy(); ((tools.jackson.databind.node.ObjectNode)identity.path("parts").get(1)).put("text",
+                wire.path("parts").get(1).path("text").asText().replace("attemptId="+attemptId,"attemptId=other")); malformed.add(identity);
+        var notSynthetic=accepted.deepCopy(); ((tools.jackson.databind.node.ObjectNode)notSynthetic.path("parts").get(1)).put("synthetic",false); malformed.add(notSynthetic);
+        var duplicate=accepted.deepCopy(); ((tools.jackson.databind.node.ArrayNode)duplicate.get("parts")).add(wire.path("parts").get(1)); malformed.add(duplicate);
+        var missing=accepted.deepCopy(); ((tools.jackson.databind.node.ArrayNode)missing.get("parts")).remove(1); malformed.add(missing);
+        for (var value:malformed) {
+            exactMessageBody.set(json.writeValueAsString(value));
+            assertThatThrownBy(()->client.findPromptMessage(session,expected,digest)).isInstanceOfSatisfying(SessionFailure.class,
+                    failure->assertThat(failure.code()).isEqualTo("OPENCODE_PROMPT_LOOKUP_INVALID_RESPONSE"));
+        }
+        assertThat(promptRequests.get()).isEqualTo(1);
+    }
+
     private void session(HttpExchange exchange) throws IOException {
         lastPathAndQuery.set(exchange.getRequestURI().getPath() + "?" + exchange.getRequestURI().getRawQuery());
         sleep(responseDelayMillis.get());

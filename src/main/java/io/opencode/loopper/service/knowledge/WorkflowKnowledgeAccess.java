@@ -22,11 +22,13 @@ public final class WorkflowKnowledgeAccess {
     private final MachineCandidateSubmission submissions;
     private final List<CandidateRunGuard> guards;
     private final ObjectMapper json;
+    private final io.opencode.loopper.service.workflow.WorkflowNodeKnowledgeAccess nodeKnowledge;
     public WorkflowKnowledgeAccess(WorkflowKnowledgeMapper mapper, RoleConfigurationMapper roles,
-            WorkflowKnowledgeBindings bindings, MachineCandidateSubmission submissions, List<CandidateRunGuard> guards, ObjectMapper json) {
-        this.mapper = mapper; this.roles = roles; this.bindings = bindings; this.submissions = submissions; this.guards = guards; this.json = json;
+            WorkflowKnowledgeBindings bindings, MachineCandidateSubmission submissions, List<CandidateRunGuard> guards, ObjectMapper json, io.opencode.loopper.service.workflow.WorkflowNodeKnowledgeAccess nodeKnowledge) {
+        this.mapper = mapper; this.roles = roles; this.bindings = bindings; this.submissions = submissions; this.guards = guards; this.json = json; this.nodeKnowledge = nodeKnowledge;
     }
     public WorkflowKnowledgeMapper.Binding require(AssistScopeService.Scope scope) {
+        if (io.opencode.loopper.service.workflow.WorkflowNodeKnowledgeAccess.supports(scope.profile())) nodeKnowledge.require(scope);
         var role = roles.sessionSnapshot(scope.externalSessionId());
         if (role == null || !role.adapterProfile().equals(scope.profile())
                 || !capabilities(scope).contains(Capability.PROJECT_KNOWLEDGE)) throw denied();
@@ -47,6 +49,7 @@ public final class WorkflowKnowledgeAccess {
     }
     public Optional<AssistScopeService.Scope> specialized(AssistMapper.Session session) {
         if (!WorkflowKnowledgePolicy.supports(session.profile()) || !WorkflowKnowledgePolicy.evidenceOnly(session.profile())) return Optional.empty();
+        if (io.opencode.loopper.service.workflow.WorkflowNodeKnowledgeAccess.supports(session.profile())) return Optional.of(nodeKnowledge.resolve(session));
         String id = mapper.candidate(session.externalSessionId());
         var role = roles.sessionSnapshot(session.externalSessionId());
         if (role == null) return Optional.empty();
@@ -66,6 +69,10 @@ public final class WorkflowKnowledgeAccess {
         return Optional.of(new AssistScopeService.Scope(session.externalSessionId(), "WORKFLOW:" + role.ownerType() + ":" + role.ownerId(),
                 binding.projectId(), null, null, null, null, session.profile(), Path.of(session.directory()),
                 tools.stream().filter(AssistToolCatalog::knowledgeTool).toList(), List.of()));
+    }
+    public boolean completeNodeEvidence(AssistScopeService.Scope scope,String id,String content,String now) {
+        if (!io.opencode.loopper.service.workflow.WorkflowNodeKnowledgeAccess.supports(scope.profile())) return false;
+        nodeKnowledge.complete(scope,id,content,now);return true;
     }
     private MachineCandidateSubmission.RunSnapshot validate(String id, String session) {
         var run = submissions.find(id).orElseThrow(WorkflowKnowledgeAccess::denied);

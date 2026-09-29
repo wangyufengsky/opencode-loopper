@@ -314,11 +314,11 @@ public interface LoopperMachineCandidateMapper extends CandidateRepairHistoryMap
               id,designer_session_id,task_id,project_id,owner_type,owner_id,candidate_kind,workflow_step,
               source_revision,owner_version,submission_channel,contract_version,runtime_generation_id,
               external_session_id,state,max_attempts,
-              attempts_used,terminal_attempt_id,created_at,updated_at,version,close_reason,correction_limit)
+              attempts_used,terminal_attempt_id,created_at,updated_at,version,close_reason,correction_limit,result_storage_version)
             VALUES(#{id},#{designerSessionId},#{taskId},#{projectId},#{ownerType},#{ownerId},#{candidateKind},
               #{workflowStep},#{sourceRevision},#{ownerVersion},#{submissionChannel},#{contractVersion},
               #{runtimeGenerationId},#{externalSessionId},#{state},#{maxAttempts},#{attemptsUsed},
-              #{terminalAttemptId},#{createdAt},#{updatedAt},#{version},#{closeReason},#{correctionLimit})
+              #{terminalAttemptId},#{createdAt},#{updatedAt},#{version},#{closeReason},#{correctionLimit},#{resultStorageVersion})
             """)
     int insertCandidateSubmissionRun(CandidateSubmissionRunRow row);
 

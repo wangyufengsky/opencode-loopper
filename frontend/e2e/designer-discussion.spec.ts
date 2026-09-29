@@ -41,7 +41,7 @@ const acceptanceAssessment = {
 }
 
 function draft(status = 'DRAFT_READY') {
-  return { id: 'draft-e2e', status, updatedAt: now, spec: finalSpec }
+  return { id: 'draft-e2e', version: 1, status, updatedAt: now, spec: finalSpec }
 }
 
 function question(id: string, scope: string, prompt: string, discussionRevision: number) {
@@ -162,12 +162,9 @@ async function installDesignerApi(page: Page) {
   })
 }
 
-test('需求提问后逐包讨论并确认为 PENDING_START 任务', async ({ page }) => {
+test('历史设计继续需求提问与逐包讨论，再确认为 PENDING_START 任务', async ({ page }) => {
   await installDesignerApi(page)
-  await page.goto('/designer')
-
-  await page.getByLabel('草案设计目标').fill('通过两个可独立验证的工作包完成用户功能')
-  await page.getByRole('button', { name: '开始设计' }).click()
+  await page.goto('/designer?sessionId=designer-e2e')
 
   await expect(page.getByText('应优先保证哪个设计目标？')).toBeVisible()
   await page.getByRole('button', { name: '采用全部推荐项' }).click()
@@ -247,7 +244,7 @@ test('附件设计投递失败时展示具体原因并在刷新后保留附件�
   await expect(page.getByText('接口设计规范.docx', { exact: true })).toBeVisible()
 })
 
-test('只开启全自动后无需人工审批即可进入已启动任务', async ({ page }) => {
+test('已开启全自动的历史设计继续原冻结流程进入已启动任务', async ({ page }) => {
   let poll = 0
   await page.route('http://127.0.0.1:41773/api/**', async (route) => {
     const request = route.request()
@@ -290,11 +287,7 @@ test('只开启全自动后无需人工审批即可进入已启动任务', async
     return fulfill({})
   })
 
-  await page.goto('/designer')
-  await page.locator('.designer-auto-create .el-switch').click()
-  await page.getByRole('button', { name: '确认开启' }).click()
-  await page.getByLabel('草案设计目标').fill('自动完成设计并启动任务')
-  await page.getByRole('button', { name: '开始设计' }).click()
+  await page.goto('/designer?sessionId=designer-e2e')
 
   await expect(page).toHaveURL(/\/tasks\/task-auto-e2e$/, { timeout: 10_000 })
   await expect(page.getByText('全自动设计任务')).toBeVisible()

@@ -25,6 +25,21 @@ public class SnapshotReviewAuthors {
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public String render(String taskId, Snapshot snapshot, List<Reference> references) {
+        return renderReferences("snapshot-authors:"+taskId,snapshot,references,ref->load(taskId,ref));
+    }
+
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public String renderFrozen(String identity,Path repository,String prefix,Snapshot snapshot,List<Reference> references) {
+        return renderReferences("workflow-snapshot-authors:"+identity,snapshot,references,ref->{
+            try {
+                if(Files.isSymbolicLink(repository)||Files.isSymbolicLink(repository.getParent())
+                    ||!repository.toRealPath().equals(repository.toAbsolutePath().normalize())||Files.exists(repository.resolve("shallow")))
+                    throw new IOException("Missing complete fixed history");
+                return loadFixed(repository,prefix,ref);
+            }catch(IOException failure){throw new IllegalStateException("Frozen repository unavailable",failure);}
+        });
+    }
+    private String renderReferences(String identity,Snapshot snapshot,List<Reference> references,java.util.function.Function<Reference,String> loader) {
         if (references.isEmpty()) return "";
         StringBuilder out = new StringBuilder("代码最后修改记录（Git 作者信息；不等于问题引入者或责任认定）：\n\n");
         for (var ref : new LinkedHashSet<>(references)) {
@@ -36,7 +51,7 @@ public class SnapshotReviewAuthors {
             try {
                 validate(snapshot, ref);
                 String key = TemplateGitEvidenceCollector.hash(ref.path() + "\n" + ref.blob() + "\n" + ref.startLine() + ":" + ref.endLine());
-                out.append(cache.read("snapshot-authors:" + taskId, ref.version(), key, () -> load(taskId, ref)));
+                out.append(cache.read(identity, ref.version(), key, () -> loader.apply(ref)));
             } catch (TaskFailure failure) {
                 // A missing optional annotation is recoverable; an unconfirmed process stop is not.
                 if (failure.code().equals("TEMPLATE_GIT_STOP_UNCONFIRMED") || failure.code().equals("TEMPLATE_GIT_INTERRUPTED")) throw failure;
@@ -55,7 +70,7 @@ public class SnapshotReviewAuthors {
             throw new IllegalArgumentException("Invalid reference");
         boolean allowed = snapshot.files().stream().anyMatch(f -> f.version().equals(ref.version()) && f.path().equals(ref.path())
                 && f.blob().equals(ref.blob()) && f.limitation() == null && (f.mode().equals("100644") || f.mode().equals("100755")));
-        if (!allowed || DocumentCodeSnapshotService.protectedPath(ref.path())) throw new IllegalArgumentException("Unregistered file");
+        if (!allowed || GitSnapshotInventory.protectedPath(ref.path())) throw new IllegalArgumentException("Unregistered file");
     }
 
     private String load(String taskId, Reference ref) {
@@ -67,15 +82,18 @@ public class SnapshotReviewAuthors {
             Path prefixFile = workspace.resolve("project-prefix.txt");
             if (Files.isSymbolicLink(prefixFile) || Files.exists(prefixFile) && Files.size(prefixFile) > 4096) throw new IOException("Invalid scope");
             String prefix = Files.exists(prefixFile) ? Files.readString(prefixFile) : "";
-            if (!prefix.isEmpty() && (!prefix.endsWith("/") || !safePath(prefix.substring(0, prefix.length() - 1))))
-                throw new IOException("Invalid scope");
-            String path = prefix + ref.path();
-            String actual = run(repository, List.of("rev-parse", "--verify", ref.version() + ":" + path)).strip();
-            if (!actual.equals(ref.blob())) throw new IllegalArgumentException("Frozen blob mismatch");
-            String output = run(repository, List.of("blame", "--line-porcelain", "--root", "--no-textconv", "--encoding=UTF-8", "--ignore-revs-file=",
-                    "-L", ref.startLine() + "," + ref.endLine(), ref.version(), "--", path));
-            return formatRange(repository, ref, output);
+            return loadFixed(repository,prefix,ref);
         } catch (IOException failure) { throw new IllegalStateException("Frozen repository unavailable", failure); }
+    }
+    private String loadFixed(Path repository,String prefix,Reference ref) {
+        if (prefix==null || !prefix.isEmpty() && (!prefix.endsWith("/") || !safePath(prefix.substring(0, prefix.length() - 1))))
+            throw new IllegalArgumentException("Invalid scope");
+        String path = prefix + ref.path();
+        String actual = run(repository, List.of("rev-parse", "--verify", ref.version() + ":" + path)).strip();
+        if (!actual.equals(ref.blob())) throw new IllegalArgumentException("Frozen blob mismatch");
+        String output = run(repository, List.of("blame", "--line-porcelain", "--root", "--no-textconv", "--encoding=UTF-8", "--ignore-revs-file=",
+                "-L", ref.startLine() + "," + ref.endLine(), ref.version(), "--", path));
+        return formatRange(repository, ref, output);
     }
 
     private String formatRange(Path repository, Reference ref, String output) {

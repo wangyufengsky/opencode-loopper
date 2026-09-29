@@ -301,6 +301,8 @@ final class OpenCodeResponseParser {
             String label = firstText(part.path("tool"), part.path("name"), state.path("title"));
             String content = toolContent(firstNode(state.path("input"), part.path("input"), part.path("arguments")),
                     firstNode(state.path("output"), part.path("output"), part.path("text")));
+            String failure = displayValue(firstNode(state.path("error"), part.path("error")));
+            if (!failure.isBlank()) content = "工具错误\n" + failure + (content.isBlank() ? "" : "\n\n" + content);
             String status = firstText(state.path("status"), part.path("status"));
             return new SessionPart(id, "TOOL", label.isBlank() ? "工具调用" : bounded(label),
                     bounded(content), bounded(status), startedAt);

@@ -5,6 +5,7 @@ test.beforeEach(async ({ page }) => {
     const path = new URL(route.request().url()).pathname
     const payload = path === '/api/template-tasks/catalog' ? { templates: [], dimensions: [], defaultStartDate: '2026-09-05', defaultEndDate: '2026-09-11' }
       : (path === '/api/template-tasks/projects' || path === '/api/template-tasks') ? { items: [], nextCursor: null }
+      : (path === '/api/workflows/requirements' || path === '/api/workflows/templates') ? { items: [], nextCursor: null }
       : path === '/api/tasks/summaries' ? { tasks: [], facets: {} }
       : path === '/api/runtime/opencode' ? { status: 'OFFLINE', managed: false, checkedAt: '2026-09-10T00:00:00Z' }
         : []
@@ -12,12 +13,12 @@ test.beforeEach(async ({ page }) => {
   })
 })
 
-test('默认主页、十个入口、品牌返回、后退与刷新', async ({ page }) => {
+test('默认主页、需求与流程入口、品牌返回、后退与刷新', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByRole('heading', { name: '主页', exact: true })).toBeVisible()
   await expect(page.locator('.home-artwork')).toBeVisible()
   await expect.poll(() => page.locator('.home-artwork').evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBeTruthy()
-  const destinations = ['/projects', '/designer', '/tasks', '/inbox', '/designs', '/insights', '/template-tasks', '/runtime', '/tools', '/settings']
+  const destinations = ['/projects', '/requirements', '/requirements/new', '/workflows', '/tasks', '/inbox', '/designs', '/insights', '/template-tasks', '/runtime', '/tools', '/settings']
   for (const path of destinations) {
     await page.locator(`main a[href="${path}"]`).first().click()
     await expect(page).toHaveURL(new RegExp(`${path}$`))
@@ -36,16 +37,16 @@ test('默认主页、十个入口、品牌返回、后退与刷新', async ({ pa
   await expect(page).toHaveURL(/\/$/)
 })
 
-test('键盘可跳过导航并进入设计', async ({ page }) => {
+test('键盘可跳过导航并进入需求任务', async ({ page }) => {
   await page.goto('/')
   await page.keyboard.press('Tab')
   await expect(page.getByRole('link', { name: '跳到主内容' })).toBeFocused()
   await page.keyboard.press('Enter')
   await expect(page.locator('#main-content')).toBeFocused()
   await page.keyboard.press('Tab')
-  await expect(page.getByRole('link', { name: '开始设计', exact: true })).toBeFocused()
+  await expect(page.getByRole('link', { name: '新增需求', exact: true })).toBeFocused()
   await page.keyboard.press('Enter')
-  await expect(page).toHaveURL(/\/designer$/)
+  await expect(page).toHaveURL(/\/requirements\/new$/)
 })
 
 for (const width of [1440, 1280, 390]) {
@@ -55,7 +56,7 @@ for (const width of [1440, 1280, 390]) {
     await page.setViewportSize({ width, height: 1000 })
     await page.emulateMedia({ reducedMotion: 'reduce' })
     await page.goto('/')
-    await expect(page.getByRole('link', { name: '开始设计', exact: true })).toBeVisible()
+    await expect(page.getByRole('link', { name: '新增需求', exact: true })).toBeVisible()
     await expect(page.locator('.home-artwork')).toHaveJSProperty('complete', true)
     expect(await page.locator('body').evaluate(element => element.scrollWidth <= window.innerWidth)).toBeTruthy()
     for (const card of await page.locator('.home-workspace-link, .home-more-link').all()) {

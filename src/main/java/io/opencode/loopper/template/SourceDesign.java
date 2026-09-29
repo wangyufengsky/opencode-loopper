@@ -15,4 +15,5 @@ public final class SourceDesign {
     public record Issue(String sectionKey, String detail, String recommendation) { }
     public record Plan(List<Batch> batches) { }
     public record Batch(int ordinal, String title, List<String> paths) { }
+    public record Read(String sha256,int startLine,int endLine,int totalLines,String content) { }
 }

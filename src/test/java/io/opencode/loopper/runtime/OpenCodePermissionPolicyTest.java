@@ -5,6 +5,37 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 
 class OpenCodePermissionPolicyTest {
+    @Test void workflowReadOnlyOpensOnlyReadToolsAndItsOwnProtocolWithoutAccountingOrOtherCandidates() {
+        var profile=OpenCodeClient.SessionProfile.WORKFLOW_READ_ONLY;
+        var rules=OpenCodePermissionPolicy.previewRules(profile,java.util.List.of("external","private-old"),"private");
+        assertThat(rules).contains(new OpenCodeClient.SessionPermissionRule("*","*","deny"),
+                new OpenCodeClient.SessionPermissionRule("read",".env","deny"),
+                new OpenCodeClient.SessionPermissionRule("external_directory","*","deny"));
+        assertThat(rules.stream().filter(rule->rule.action().equals("allow")).map(OpenCodeClient.SessionPermissionRule::permission))
+                .containsExactly("read","glob","grep","read","private_get_workflow_node_work","private_read_workflow_node_input","private_list_workflow_input_files","private_read_workflow_input_file","private_submit_workflow_node_result");
+        var configurations=new io.opencode.loopper.service.roles.RoleConfigurationService(
+                org.mockito.Mockito.mock(io.opencode.loopper.persistence.RoleConfigurationMapper.class),new tools.jackson.databind.ObjectMapper(),null);
+        var role=new io.opencode.loopper.service.roles.RoleConfigurationService.ResolvedRole("custom.reader","revision","sha",
+                "WORKFLOW_READ_ONLY","WORKFLOW_READ_ONLY",java.util.Map.of(),"INTERSECT",java.util.List.of(),java.util.List.of(),
+                java.util.List.of(),"INHERIT_WORKFLOW","WORKFLOW_ADAPTER",java.util.List.of(),"专业说明");
+        var narrowed=configurations.compileNarrowedPermissions(role,rules,java.util.Set.of(),"private");
+        assertThat(narrowed.stream().filter(rule->rule.action().equals("allow")).map(OpenCodeClient.SessionPermissionRule::permission))
+                .containsExactly("private_get_workflow_node_work","private_read_workflow_node_input","private_list_workflow_input_files","private_read_workflow_input_file","private_submit_workflow_node_result");
+        assertThat(OpenCodeAgentPolicy.stepLimit(profile)).isZero();
+    }
+    @Test void workflowWriterAllowsLocalWorkButRetainsGitAndExternalToolLimits() {
+        var profile=OpenCodeClient.SessionProfile.WORKFLOW_WRITE;
+        var rules=OpenCodePermissionPolicy.previewRules(profile,java.util.List.of("external"),"private");
+        assertThat(rules).contains(new OpenCodeClient.SessionPermissionRule("bash","*","allow"),
+                new OpenCodeClient.SessionPermissionRule("bash","*git*push*","deny"),
+                new OpenCodeClient.SessionPermissionRule("bash","*git*checkout*","deny"),
+                new OpenCodeClient.SessionPermissionRule("external_directory","*","deny"));
+        assertThat(rules.stream().filter(rule->rule.action().equals("allow")).map(OpenCodeClient.SessionPermissionRule::permission))
+                .contains("write","edit","private_submit_workflow_node_result")
+                .doesNotContain("external_*","aicoding_*","private_submit_candidate","question");
+        assertThat(OpenCodeAgentPolicy.stepLimit(profile)).isZero();
+        assertThat(OpenCodeAgentPolicy.promptAgent(null,profile,true)).isEqualTo(WorkflowModelProfile.WRITE_AGENT);
+    }
     @Test
     void v2PackageProfileOpensOnlyItsMatchingSubmissionTool() {
         var rules = OpenCodePermissionPolicy.rules(OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_V2_READ_ONLY,
@@ -248,6 +279,7 @@ class OpenCodePermissionPolicyTest {
         for (OpenCodeClient.SessionProfile profile : OpenCodeClient.SessionProfile.values()) {
             if (profile.name().startsWith("KNOWLEDGE_") || DocumentTemplateProfiles.contains(profile) || SourceTemplateProfiles.contains(profile)
                     || profile == OpenCodeClient.SessionProfile.PPT_AGENT
+                    || WorkflowModelProfile.contains(profile)
                     || profile == OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS
                     || profile == OpenCodeClient.SessionProfile.SNAPSHOT_CODE_REVIEW_NO_TOOLS
                     || profile == OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS

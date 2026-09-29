@@ -15,6 +15,7 @@ final class OpenCodeHttpClientSemantics {
     }
 
     static boolean machineResponseProfile(OpenCodeClient.SessionProfile profile) {
+        if (WorkflowModelProfile.contains(profile)) return true;
         return SourceTemplateProfiles.contains(profile) || DocumentTemplateProfiles.contains(profile) || profile == OpenCodeClient.SessionProfile.DECOMPOSER_CANDIDATE_READ_ONLY
                 || profile == OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_READ_ONLY
                     || profile == OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_V2_READ_ONLY
@@ -40,6 +41,7 @@ final class OpenCodeHttpClientSemantics {
     }
 
     static boolean candidateProfile(OpenCodeClient.SessionProfile profile) {
+        if (WorkflowModelProfile.contains(profile)) return true;
         return SourceTemplateProfiles.contains(profile) || DocumentTemplateProfiles.contains(profile) || (profile == OpenCodeClient.SessionProfile.TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS || profile == OpenCodeClient.SessionProfile.SNAPSHOT_CODE_REVIEW_NO_TOOLS)
                 || profile == OpenCodeClient.SessionProfile.DECOMPOSER_CANDIDATE_READ_ONLY
                 || profile == OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_READ_ONLY

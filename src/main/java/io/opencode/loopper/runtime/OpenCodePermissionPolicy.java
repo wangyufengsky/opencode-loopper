@@ -28,6 +28,24 @@ public final class OpenCodePermissionPolicy {
         if (profile != OpenCodeClient.SessionProfile.IMPLEMENTATION) {
             List<Map<String, String>> rules = new ArrayList<>();
             rules.add(rule("*", "*", "deny"));
+            if (WorkflowModelProfile.contains(profile)) {
+                for (String tool : List.of("read", "glob", "grep")) rules.add(rule(tool, "*", "allow"));
+                if (profile == OpenCodeClient.SessionProfile.WORKFLOW_WRITE) {
+                    for (String tool : List.of("edit", "write", "patch", "apply_patch", "bash", "todoread", "todowrite"))
+                        rules.add(rule(tool, "*", "allow"));
+                    // Share the existing implementation's Git/service/deletion limits, without granting its MCP tools.
+                    rules.addAll(rules(OpenCodeClient.SessionProfile.IMPLEMENTATION, List.of(), null).stream()
+                            .filter(rule -> rule.get("action").equals("deny")).toList());
+                }
+                rules.add(rule("read", ".env", "deny"));
+                rules.add(rule("read", ".env.*", "deny"));
+                rules.add(rule("read", ".env.example", "allow"));
+                rules.add(rule("external_directory", "*", "deny"));
+                if (internalMcpServer != null && !internalMcpServer.isBlank())
+                    for (String tool : WorkflowModelProfile.TOOLS)
+                        rules.add(rule(sanitize(internalMcpServer) + "_" + tool, "*", "allow"));
+                return List.copyOf(rules);
+            }
             if (profile == OpenCodeClient.SessionProfile.PPT_AGENT) {
                 rules.add(rule("external_directory", "*", "deny"));
                 if (internalMcpServer != null && !internalMcpServer.isBlank()) PptAgentProfile.TOOLS.forEach(

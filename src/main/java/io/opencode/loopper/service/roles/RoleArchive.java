@@ -93,7 +93,7 @@ public final class RoleArchive {
         for (Object raw : list(root.get("roles"), 100)) {
             Map<String, Object> node = map(raw, Set.of("roleId", "displayName", "description", "groupKey",
                     "groupLabel", "allowedSlots", "permissionMode", "nativeTools", "mcpTools",
-                    "requiredMcpTools", "modelPolicy", "runtimePolicy", "prompts", "capabilities"));
+                    "requiredMcpTools", "modelPolicy", "runtimePolicy", "prompts", "capabilities", "workInstructions"));
             String mode = text(node, "permissionMode", 20);
             if (!Set.of("BASELINE", "INTERSECT").contains(mode)) throw bad("角色权限模式无效");
             List<String> nativeTools = strings(node.get("nativeTools"), 100, "[a-z][a-z0-9_]{0,63}");
@@ -118,7 +118,8 @@ public final class RoleArchive {
             roles.add(new RoleManifest.Role(roleId(node), text(node, "displayName", 100),
                     optionalText(node, "description", 1000), text(node, "groupKey", 80),
                     text(node, "groupLabel", 100), strings(node.get("allowedSlots"), 100, "[A-Z][A-Z0-9_]{0,95}"),
-                    mode, nativeTools, mcpTools, requiredMcpTools, modelPolicy, runtimePolicy, prompts, capabilities(node, version)));
+                    mode, nativeTools, mcpTools, requiredMcpTools, modelPolicy, runtimePolicy, prompts, capabilities(node, version),
+                    node.containsKey("workInstructions") ? text(node, "workInstructions", 32_000) : null));
         }
         if (roles.isEmpty()) throw bad("角色清单没有角色");
         if (roles.stream().map(RoleManifest.Role::roleId).distinct().count() != roles.size()

@@ -7,6 +7,7 @@ import java.util.Set;
 
 /** Canonical project containment and explicit source exclusions, shared by preview, capture and reads. */
 public final class SourcePathPolicy {
+    private static final Set<String> PROTECTED_SEGMENTS = Set.of(".codex", ".gnupg", ".kube");
     private static final Set<String> OMIT = Set.of(".git", "node_modules", "target", "dist", "build",
             ".gradle", ".idea", ".vscode", "__pycache__", ".venv", "venv", "coverage", ".next", "vendor");
     private static final Set<String> EXTENSIONS = Set.of("java", "kt", "kts", "scala", "groovy", "js", "jsx",
@@ -44,9 +45,9 @@ public final class SourcePathPolicy {
         return value.isEmpty() ? "." : value;
     }
     public static String exclusion(String relative, boolean directory) {
-        if (DocumentCodeSnapshotService.protectedPath(relative)) return "受保护文件不提供读取";
+        if (GitSnapshotInventory.protectedPath(relative)) return "受保护文件不提供读取";
         for (String part : relative.split("/")) {
-            if (Set.of(".codex", ".gnupg", ".kube").contains(part.toLowerCase(Locale.ROOT))) return "受保护文件不提供读取";
+            if (PROTECTED_SEGMENTS.contains(part.toLowerCase(Locale.ROOT))) return "受保护文件不提供读取";
             if (OMIT.contains(part.toLowerCase(Locale.ROOT))) return "依赖、构建或工具生成内容";
             if (part.equalsIgnoreCase("generated") || part.equalsIgnoreCase("generated-sources")) return "自动生成的源码";
         }
@@ -57,6 +58,12 @@ public final class SourcePathPolicy {
         if (name.equals("dockerfile") || name.equals("makefile") || name.equals("gradlew") || name.equals("mvnw")) return null;
         String extension = name.contains(".") ? name.substring(name.lastIndexOf('.') + 1) : "";
         return EXTENSIONS.contains(extension) ? null : "非支持的文本源码或配置文件";
+    }
+    /** Code deliveries include binary assets and lockfiles, but keep the shared secret-path boundary. */
+    public static boolean protectedPath(String relative) {
+        return GitSnapshotInventory.protectedPath(relative)
+                || java.util.Arrays.stream(relative.split("/"))
+                .anyMatch(part -> PROTECTED_SEGMENTS.contains(part.toLowerCase(Locale.ROOT)));
     }
     public static boolean testPath(String relative) {
         String value = "/" + relative.toLowerCase(Locale.ROOT);

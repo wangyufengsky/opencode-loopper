@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { designerEntry } from './designerEntry'
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -10,7 +11,13 @@ export const router = createRouter({
     { path: '/ppt/:id', component: () => import('@/views/PptStudioView.vue') },
     { path: '/knowledge/history', component: () => import('@/views/KnowledgeHistoryView.vue') },
     { path: '/knowledge/:conversationId?', component: () => import('@/views/KnowledgeView.vue') },
-    { path: '/designer', component: () => import('@/views/DesignerView.vue') },
+    { path: '/designer', beforeEnter: designerEntry, props: { historyOnly: true }, component: () => import('@/views/DesignerView.vue') },
+    { path: '/requirements', component: () => import('@/views/WorkflowRequirementListView.vue') },
+    { path: '/requirements/new', component: () => import('@/views/WorkflowRequirementNewView.vue') },
+    { path: '/requirements/:id', component: () => import('@/views/WorkflowRequirementView.vue') },
+    { path: '/workflows', component: () => import('@/views/WorkflowLibraryView.vue') },
+    { path: '/workflows/new', component: () => import('@/views/WorkflowEditorView.vue') },
+    { path: '/workflows/:id', component: () => import('@/views/WorkflowEditorView.vue') },
     { path: '/designs', component: () => import('@/views/DesignerHistoryView.vue') },
     { path: '/tasks', component: () => import('@/views/TasksView.vue') },
     { path: '/inbox', component: () => import('@/views/InboxView.vue') },

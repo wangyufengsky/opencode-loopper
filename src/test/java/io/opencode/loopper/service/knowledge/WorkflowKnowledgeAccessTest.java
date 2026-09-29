@@ -16,7 +16,7 @@ class WorkflowKnowledgeAccessTest {
         var roles = mock(RoleConfigurationMapper.class);
         var binding = mock(WorkflowKnowledgeBindings.class);
         var json = new ObjectMapper();
-        var access = new WorkflowKnowledgeAccess(mapper, roles, binding, mock(MachineCandidateSubmission.class), List.of(), json);
+        var access = new WorkflowKnowledgeAccess(mapper, roles, binding, mock(MachineCandidateSubmission.class), List.of(), json, mock(io.opencode.loopper.service.workflow.WorkflowNodeKnowledgeAccess.class));
         var snapshot = mock(RoleConfigurationMapper.SessionSnapshot.class);
         when(snapshot.revisionId()).thenReturn("frozen");
         when(snapshot.adapterProfile()).thenReturn("GENERAL_READ_ONLY");
@@ -38,7 +38,7 @@ class WorkflowKnowledgeAccessTest {
         var mapper=mock(WorkflowKnowledgeMapper.class);var roles=mock(RoleConfigurationMapper.class);
         var bindings=mock(WorkflowKnowledgeBindings.class);var submissions=mock(MachineCandidateSubmission.class);
         var guard=mock(CandidateRunGuard.class);
-        var access=new WorkflowKnowledgeAccess(mapper,roles,bindings,submissions,List.of(guard),new ObjectMapper());
+        var access=new WorkflowKnowledgeAccess(mapper,roles,bindings,submissions,List.of(guard),new ObjectMapper(),mock(io.opencode.loopper.service.workflow.WorkflowNodeKnowledgeAccess.class));
         var session=new AssistMapper.Session("session","generation","/scratch","SOURCE_DESIGN_REVIEW_NO_TOOLS","[]",
                 "[\"search_project_knowledge\",\"query_database_readonly\"]","t");
         var role=mock(RoleConfigurationMapper.SessionSnapshot.class);

@@ -1,5 +1,16 @@
 schemaVersion: 2
+bindings:
+  - slot: WORKFLOW_READ_ONLY
+    roleId: builtin.designer
 slots:
+  - slot: WORKFLOW_WRITE
+    adapterProfile: WORKFLOW_WRITE
+    displayName: 流程文件工作
+    purpose: WORKFLOW
+  - slot: WORKFLOW_READ_ONLY
+    adapterProfile: WORKFLOW_READ_ONLY
+    displayName: 流程只读工作
+    purpose: WORKFLOW
   - slot: SOURCE_DETAILED_DESIGN_NO_TOOLS
     adapterProfile: SOURCE_DETAILED_DESIGN_NO_TOOLS
     displayName: 源码详细设计编写
@@ -209,38 +220,6 @@ slots:
     displayName: 统计辅助命令
     purpose: ACCOUNTING
 roles:
-  - roleId: builtin.source-design-author
-    displayName: 源码详细设计作者
-    description: 按选定的源码文件逐一阅读，编写包含模块职责、接口、流程和来源依据的详细设计。
-    groupKey: source-design
-    groupLabel: 源码详细设计
-    allowedSlots:
-      - SOURCE_DETAILED_DESIGN_NO_TOOLS
-    capabilities: [PROJECT_KNOWLEDGE]
-    permissionMode: BASELINE
-    nativeTools: []
-    mcpTools: []
-    requiredMcpTools: []
-    modelPolicy: INHERIT_WORKFLOW
-    runtimePolicy: WORKFLOW_ADAPTER
-    prompts:
-      source.design.author.instructions: source.design.author.instructions
-  - roleId: builtin.source-design-review
-    displayName: 源码详细设计复核员
-    description: 独立核对源码与详细设计，找出遗漏、错误及跨模块矛盾，提出返修意见。
-    groupKey: source-design
-    groupLabel: 源码详细设计
-    allowedSlots:
-      - SOURCE_DESIGN_REVIEW_NO_TOOLS
-    capabilities: [PROJECT_KNOWLEDGE]
-    permissionMode: BASELINE
-    nativeTools: []
-    mcpTools: []
-    requiredMcpTools: []
-    modelPolicy: INHERIT_WORKFLOW
-    runtimePolicy: WORKFLOW_ADAPTER
-    prompts:
-      source.design.reviewer.instructions: source.design.reviewer.instructions
   - roleId: builtin.ppt
     displayName: PPT 制作助手
     description: 围绕制作目标和提供的资料讨论内容，按确认的要求生成、修改并交付演示文稿。
@@ -266,16 +245,18 @@ roles:
       ppt.discussion-boundary: ppt.discussion-boundary
       ppt.manual-authorization: ppt.manual-authorization
   - roleId: builtin.knowledge
+    workInstructions: 根据本节点目标检索已授权项目知识，先定位再读取原文，保存并引用真实证据。交付有来源位置、内容版本与局限的结论；区分补充背景和本节点固定输入，不把无命中或未读完的分页说成资料不存在。
     displayName: 知识库助手
     description: 从项目授权资料中检索并阅读原文，回答问题、继续追问并给出可核对的引用。
     groupKey: knowledge
     groupLabel: 知识库助手
     allowedSlots:
+      - WORKFLOW_READ_ONLY
       - KNOWLEDGE_READ_ONLY
       - KNOWLEDGE_INTERACTIVE_READ_ONLY
       - KNOWLEDGE_RESEARCH_READ_ONLY
       - KNOWLEDGE_RESEARCH_INTERACTIVE_READ_ONLY
-    capabilities: [DATABASE_READ, KNOWLEDGE_CONVERSATION, NATIVE_TOOLS]
+    capabilities: [DATABASE_READ, KNOWLEDGE_CONVERSATION, NATIVE_TOOLS, PROJECT_KNOWLEDGE]
     permissionMode: BASELINE
     nativeTools: []
     mcpTools: []
@@ -284,26 +265,6 @@ roles:
     runtimePolicy: WORKFLOW_ADAPTER
     prompts:
       knowledge.research: knowledge.research
-  - roleId: builtin.document
-    displayName: 文档模板角色
-    description: 阅读上传文档，提取并复核需求；需要评估代码时，逐项核对实现与原文依据。
-    groupKey: document
-    groupLabel: 文档模板角色
-    allowedSlots:
-      - DOCUMENT_CODE_ASSESSMENT_V2_NO_TOOLS
-      - DOCUMENT_CODE_REVIEW_V2_NO_TOOLS
-      - DOCUMENT_REQUIREMENTS_NO_TOOLS
-      - DOCUMENT_REQUIREMENT_REVIEW_NO_TOOLS
-      - REQUIREMENT_CODE_ASSESSMENT_NO_TOOLS
-      - REQUIREMENT_ASSESSMENT_REVIEW_NO_TOOLS
-    capabilities: [PROJECT_KNOWLEDGE]
-    permissionMode: BASELINE
-    nativeTools: []
-    mcpTools: []
-    requiredMcpTools: []
-    modelPolicy: INHERIT_WORKFLOW
-    runtimePolicy: WORKFLOW_ADAPTER
-    prompts: {}
   - roleId: builtin.router
     displayName: 任务分类器
     description: 根据用户需求提出任务类型、主要交付物和复杂度分类，帮助选择后续工作流程。
@@ -322,11 +283,13 @@ roles:
   - roleId: builtin.template
     displayName: 模板分析角色
     description: 按批次分析代码变化和贡献证据，形成代码评审或贡献报告的依据。
+    workInstructions: 完整读取本批冻结历史证据，按变更片段逐项审查并提交可定位的问题和局限；贡献评价只依据固定身份及本人证据给出四维等级，不自行计算分数或排名。排除的正文和静态分析无法证明的结果须如实说明。
     groupKey: template
     groupLabel: 模板分析角色
     allowedSlots:
       - TEMPLATE_ANALYSIS_NO_TOOLS
       - TEMPLATE_ANALYSIS_CANDIDATE_NO_TOOLS
+      - WORKFLOW_READ_ONLY
     capabilities: [DATABASE_READ, DOCUMENT_READ, GITLAB_READ, PROJECT_KNOWLEDGE, TASK_EVIDENCE]
     permissionMode: BASELINE
     nativeTools: []
@@ -338,10 +301,12 @@ roles:
   - roleId: builtin.snapshot-review
     displayName: 源码评审角色
     description: 审查指定版本的代码变化与上下文，提出有源码证据支持的问题和复核结论。
+    workInstructions: 审查本批固定版本的完整代码资料，聚焦有触发条件、错误行为和实际源码引用的缺陷。遵守 V3 容量与关联读取边界，不运行项目命令、不修改代码。独立复核仅逐项判定绑定分析中的候选问题，不自行扩展另一轮全面搜索；证据不足时明确记录局限。节点工作查询持有专用输入、引用和提交结构。
     groupKey: snapshot-review
     groupLabel: 源码评审角色
     allowedSlots:
       - SNAPSHOT_CODE_REVIEW_NO_TOOLS
+      - WORKFLOW_READ_ONLY
     capabilities: [PROJECT_KNOWLEDGE]
     permissionMode: BASELINE
     nativeTools: []
@@ -467,6 +432,7 @@ roles:
     prompts:
       machine-role.judge: machine-role.judge
   - roleId: builtin.designer
+    workInstructions: 根据本节点的任务和资料，说明设计依据、方案、交付物与可验证的完成条件。需要拆解工作时明确阶段及依赖；将不确定事项如实标出，不把候选计划视为用户已确认的安排。
     displayName: 设计师
     description: 根据已确认的需求设计工作阶段、交付物和验收目标，并在讨论中完善方案。
     groupKey: designer
@@ -475,6 +441,7 @@ roles:
       - DESIGNER_INTERACTIVE_READ_ONLY
       - GENERAL_READ_ONLY_DESIGNER
       - DESIGNER_INTERACTIVE_READ_ONLY_DESIGNER
+      - WORKFLOW_READ_ONLY
     capabilities: [DATABASE_READ, DOCUMENT_READ, EXTERNAL_MCP, GITLAB_READ, KNOWLEDGE_DATABASE_METADATA, NATIVE_TOOLS, PROJECT_KNOWLEDGE, TASK_EVIDENCE]
     permissionMode: BASELINE
     nativeTools: []
@@ -484,6 +451,28 @@ roles:
     runtimePolicy: WORKFLOW_ADAPTER
     prompts:
       machine-role.designer: machine-role.designer
+  - roleId: builtin.document
+    displayName: 文档模板角色
+    description: 阅读上传文档，提取并复核需求；需要评估代码时，逐项核对实现与原文依据。
+    groupKey: document
+    groupLabel: 文档模板角色
+    workInstructions: 按本节点指定的冻结原文与代码评估需求实现。逐项提供原文位置、实际读取的代码证据、实现结论与局限；有业务歧义时保留无法判断。独立复核须重新阅读原文、代码和本次关联稿，检查遗漏与跨批次矛盾。静态评审不运行测试，不把代码中存在测试视为本次测试通过。
+    allowedSlots:
+      - WORKFLOW_READ_ONLY
+      - DOCUMENT_CODE_ASSESSMENT_V2_NO_TOOLS
+      - DOCUMENT_CODE_REVIEW_V2_NO_TOOLS
+      - DOCUMENT_REQUIREMENTS_NO_TOOLS
+      - DOCUMENT_REQUIREMENT_REVIEW_NO_TOOLS
+      - REQUIREMENT_CODE_ASSESSMENT_NO_TOOLS
+      - REQUIREMENT_ASSESSMENT_REVIEW_NO_TOOLS
+    capabilities: [PROJECT_KNOWLEDGE]
+    permissionMode: BASELINE
+    nativeTools: []
+    mcpTools: []
+    requiredMcpTools: []
+    modelPolicy: INHERIT_WORKFLOW
+    runtimePolicy: WORKFLOW_ADAPTER
+    prompts: {}
   - roleId: builtin.compiler
     displayName: 设计编译器
     description: 在设计方案的阶段或验收条件存在歧义时，提出明确选择或修正建议，供后续执行准备。
@@ -521,12 +510,14 @@ roles:
     runtimePolicy: WORKFLOW_ADAPTER
     prompts: {}
   - roleId: builtin.general
+    workInstructions: 阅读本节点授权的资料，按指定任务给出有依据的分析和交付物。区分事实、推断和待确认事项；不虚构来源、执行记录或验证结果。
     displayName: 通用只读助手
     description: 在指定项目中阅读材料并回答问题或提出建议，适用于无需直接修改文件的辅助任务。
     groupKey: general
     groupLabel: 通用只读助手
     allowedSlots:
       - GENERAL_READ_ONLY
+      - WORKFLOW_READ_ONLY
     capabilities: [DATABASE_READ, DOCUMENT_READ, EXTERNAL_MCP, GITLAB_READ, KNOWLEDGE_DATABASE_METADATA, NATIVE_TOOLS, PROJECT_KNOWLEDGE, TASK_EVIDENCE]
     permissionMode: BASELINE
     nativeTools: []
@@ -536,12 +527,14 @@ roles:
     runtimePolicy: WORKFLOW_ADAPTER
     prompts: {}
   - roleId: builtin.implementation
+    workInstructions: 按本节点任务修改已授权项目文件，执行适用检查并如实报告。只完成当前工作；不提交或推送代码，不改变分支，不替用户确认后续计划。
     displayName: 开发工程师
     description: 按照已确认的阶段方案修改项目文件，执行相应测试并如实报告结果。
     groupKey: implementation
     groupLabel: 开发工程师
     allowedSlots:
       - IMPLEMENTATION
+      - WORKFLOW_WRITE
     capabilities: [DATABASE_READ, DOCUMENT_READ, DOCUMENT_WRITE, EXTERNAL_MCP, GITLAB_READ, KNOWLEDGE_DATABASE_METADATA, NATIVE_TOOLS, PROJECT_KNOWLEDGE, TASK_EVIDENCE]
     permissionMode: INTERSECT
     nativeTools: [read, glob, grep, edit, write, patch, apply_patch, bash, question, todoread, todowrite]
@@ -606,7 +599,9 @@ roles:
     description: 独立核对实现是否满足已确认的需求与验收条件，并指出未满足之处。
     groupKey: judge-requirement
     groupLabel: 需求评审员
+    workInstructions: 独立核对本节点固定设计、代码与程序验证证据是否满足已确认需求。只依据实际读取的证据说明结论，缺少证据或仍有缺口时如实给出阻断意见。
     allowedSlots:
+      - WORKFLOW_READ_ONLY
       - JUDGE_REQUIREMENT_CANDIDATE
       - JUDGE_REQUIREMENT_LEGACY
       - JUDGE_REQUIREMENT_FINALIZER
@@ -624,7 +619,9 @@ roles:
     description: 独立检查异常路径、变更影响及验证证据，判断仍存在的风险并说明原因。
     groupKey: judge-risk
     groupLabel: 风险评审员
+    workInstructions: 独立检查本节点固定代码的异常路径、变更影响与程序验证覆盖。指出仍存在的风险和证据限制，不以其他角色的判断或交付摘要代替自己的核对。
     allowedSlots:
+      - WORKFLOW_READ_ONLY
       - JUDGE_RISK_CANDIDATE
       - JUDGE_RISK_LEGACY
       - JUDGE_RISK_FINALIZER
@@ -701,3 +698,39 @@ roles:
     runtimePolicy: ACCOUNTING_COMMAND
     prompts:
       accounting.instructions: accounting.instructions
+  - roleId: builtin.source-design-author
+    workInstructions: 按本节点分配的冻结源码逐文件完整阅读并编写详细设计。覆盖职责、接口、数据结构、核心流程、持久化与事务、状态与并发、异常与权限；不适用时说明。按职责组织章节，必要流程使用 Mermaid，关联全部目标源码及精确引用；事实、推断、未知项和建议分开。
+    displayName: 源码详细设计作者
+    description: 按选定的源码文件逐一阅读，编写包含模块职责、接口、流程和来源依据的详细设计。
+    groupKey: source-design
+    groupLabel: 源码详细设计
+    allowedSlots:
+      - SOURCE_DETAILED_DESIGN_NO_TOOLS
+      - WORKFLOW_READ_ONLY
+    capabilities: [PROJECT_KNOWLEDGE]
+    permissionMode: BASELINE
+    nativeTools: []
+    mcpTools: []
+    requiredMcpTools: []
+    modelPolicy: INHERIT_WORKFLOW
+    runtimePolicy: WORKFLOW_ADAPTER
+    prompts:
+      source.design.author.instructions: source.design.author.instructions
+  - roleId: builtin.source-design-review
+    workInstructions: 独立完整读取本批冻结源码和本次绑定的全部设计稿，检查覆盖遗漏、设计错误、图文差异及跨模块矛盾。结论必须有源码依据；存在问题时列明章节、问题与修订建议并要求返修，不能用作者声明代替自己的阅读与判断。
+    displayName: 源码详细设计复核员
+    description: 独立核对源码与详细设计，找出遗漏、错误及跨模块矛盾，提出返修意见。
+    groupKey: source-design
+    groupLabel: 源码详细设计
+    allowedSlots:
+      - SOURCE_DESIGN_REVIEW_NO_TOOLS
+      - WORKFLOW_READ_ONLY
+    capabilities: [PROJECT_KNOWLEDGE]
+    permissionMode: BASELINE
+    nativeTools: []
+    mcpTools: []
+    requiredMcpTools: []
+    modelPolicy: INHERIT_WORKFLOW
+    runtimePolicy: WORKFLOW_ADAPTER
+    prompts:
+      source.design.reviewer.instructions: source.design.reviewer.instructions

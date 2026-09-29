@@ -33,10 +33,16 @@ for (const skin of ['spdb', 'github-white', 'tech-blue']) {
       })
       await page.goto('/template-tasks?projectId=p')
       const form = page.getByRole('form', { name: '模板任务参数' })
-      // A short form must not stretch to the height of the seven-item catalog.
+      await page.getByRole('button', { name: /^单元测试开发/ }).click()
+      // Filtering the adjacent catalog must not change the selected form's height.
       if (width > 1100) {
         const formBounds = await form.boundingBox(), catalogBounds = await page.getByLabel('模板目录', { exact: true }).boundingBox()
-        expect(formBounds!.height).toBeLessThan(catalogBounds!.height)
+        await page.getByRole('textbox', { name: '搜索模板' }).fill('单元测试开发')
+        await expect(page.getByLabel('选择模板任务', { exact: true }).getByRole('button')).toHaveCount(1)
+        const filteredForm = await form.boundingBox(), filteredCatalog = await page.getByLabel('模板目录', { exact: true }).boundingBox()
+        expect(filteredCatalog!.height).toBeLessThan(catalogBounds!.height)
+        expect(Math.abs(filteredForm!.height - formBounds!.height)).toBeLessThan(1)
+        await page.getByRole('textbox', { name: '搜索模板' }).fill('')
       }
       for (const title of ['单元测试开发', '详细设计编写']) {
         await page.getByRole('button', { name: new RegExp(`^${title}`) }).click()

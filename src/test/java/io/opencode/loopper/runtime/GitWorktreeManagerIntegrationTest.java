@@ -17,6 +17,34 @@ class GitWorktreeManagerIntegrationTest {
     @TempDir Path temp;
 
     @Test
+    void pinnedCaptureRecoversAnExistingRefBeforeCleanupWithoutReplacingItsCommit() throws Exception {
+        Path project=initializedProject("pinned-recovery");
+        String head=run(project,"git","rev-parse","HEAD").strip();
+        var once=new java.util.concurrent.atomic.AtomicBoolean(true);
+        SafeProcessRunner runner=new SafeProcessRunner() {
+            @Override public ProcessResult run(Path directory,List<String> argv,Duration timeout,Map<String,String> environment) {
+                if (argv.contains("stash") && argv.contains("push") && once.getAndSet(false))
+                    return new ProcessResult(1,"simulated interruption before cleanup",false);
+                return super.run(directory,argv,timeout,environment);
+            }
+        };
+        var properties=new LoopperProperties();properties.setDataDir(temp.resolve("pinned-data"));
+        var manager=new GitWorktreeManager(runner,properties,null);
+        Files.writeString(project.resolve("README.md"),"pinned result\n");
+        Files.writeString(project.resolve("new.txt"),"untracked result\n");
+        assertThatThrownBy(()->manager.freezePinnedWorkspace(project,"requirement","attempt","main",head)).isInstanceOf(TaskFailure.class);
+        String ref="refs/loopper/checkpoints/requirement/attempt";
+        String firstCommit=run(project,"git","rev-parse",ref).strip();
+        assertThat(run(project,"git","status","--porcelain")).isNotBlank();
+        var recovered=manager.freezePinnedWorkspace(project,"requirement","attempt","main",head);
+        assertThat(recovered.checkpointCommit()).isEqualTo(firstCommit);
+        assertThat(run(project,"git","status","--porcelain")).isBlank();
+        assertThat(run(project,"git","show",firstCommit+":README.md")).isEqualTo("pinned result\n");
+        assertThat(run(project,"git","show",firstCommit+":new.txt")).isEqualTo("untracked result\n");
+        assertThat(manager.freezePinnedWorkspace(project,"requirement","attempt","main",head).checkpointCommit()).isEqualTo(firstCommit);
+    }
+
+    @Test
     void materializesTheExactPackageTreeAndRejectsAChangedDesignSnapshot() throws Exception {
         Path project = initializedProject("package-design-snapshot-project");
         String tree = run(project, "git", "rev-parse", "HEAD^{tree}").strip();

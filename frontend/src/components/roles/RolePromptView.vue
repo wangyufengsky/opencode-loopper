@@ -4,10 +4,16 @@ import type { RoleRevision } from '@/types/domain'
 import { rolePrompt } from '@/utils/rolePrompt'
 const props = defineProps<{ revision: RoleRevision }>()
 const prompt = computed(() => rolePrompt(props.revision))
+const workInstructions = computed(() => typeof props.revision.manifest.workInstructions === 'string'
+  ? props.revision.manifest.workInstructions : '')
 </script>
 
 <template>
   <section class="prompt-document" aria-label="Prompt 全文">
+    <template v-if="workInstructions">
+      <header class="prompt-caption"><strong>工作节点专业说明</strong><span>用于可配置流程中的任务节点</span></header>
+      <pre class="prompt-body" aria-label="工作节点专业说明">{{ workInstructions }}</pre>
+    </template>
     <header class="prompt-caption"><strong>Prompt 配置全文</strong><span>静态内容合并展示 · 按工作流选用</span></header>
     <dl v-if="prompt.variables.length" class="prompt-variables" aria-label="模板变量说明">
       <div v-for="variable in prompt.variables" :key="variable.name"><dt><code>{{ '{' + variable.name + '}' }}</code></dt><dd>{{ variable.description }}</dd></div>

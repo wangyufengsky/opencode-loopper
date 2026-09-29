@@ -1,13 +1,24 @@
 package io.opencode.loopper.template;
 
 import java.util.List;
+import io.opencode.loopper.workflow.WorkResult;
 
 /** Immutable DB-only input identity; text is fetched through explicit scoped section references. */
 public record DocumentModelInput(List<SectionRef> sections, DocumentRequirements.Candidate requirements,
         DocumentRequirements.Review requirementFeedback, String snapshotSha,
         RequirementCodeAssessment.Candidate assessment, RequirementCodeAssessment.Review assessmentFeedback,
         List<Clarification> clarifications, DirectDocumentAssessment.Candidate directAssessment,
-        DirectDocumentAssessment.Review directFeedback, int sourceRevision, int interactionVersion) {
+        DirectDocumentAssessment.Review directFeedback, int sourceRevision, int interactionVersion,
+        @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_EMPTY)
+        List<WorkResult.Binding> workResults) {
+    public DocumentModelInput(List<SectionRef> sections, DocumentRequirements.Candidate requirements,
+            DocumentRequirements.Review requirementFeedback, String snapshotSha,
+            RequirementCodeAssessment.Candidate assessment, RequirementCodeAssessment.Review assessmentFeedback,
+            List<Clarification> clarifications, DirectDocumentAssessment.Candidate directAssessment,
+            DirectDocumentAssessment.Review directFeedback, int sourceRevision, int interactionVersion) {
+        this(sections, requirements, requirementFeedback, snapshotSha, assessment, assessmentFeedback,
+                clarifications, directAssessment, directFeedback, sourceRevision, interactionVersion, List.of());
+    }
     public DocumentModelInput(List<SectionRef> sections, DocumentRequirements.Candidate requirements,
             DocumentRequirements.Review requirementFeedback, String snapshotSha,
             RequirementCodeAssessment.Candidate assessment, RequirementCodeAssessment.Review assessmentFeedback,
@@ -16,7 +27,15 @@ public record DocumentModelInput(List<SectionRef> sections, DocumentRequirements
         this(sections, requirements, requirementFeedback, snapshotSha, assessment, assessmentFeedback,
                 clarifications, directAssessment, directFeedback, sourceRevision, 0);
     }
-    public DocumentModelInput { clarifications = clarifications == null ? List.of() : List.copyOf(clarifications); }
+    public DocumentModelInput {
+        clarifications = clarifications == null ? List.of() : List.copyOf(clarifications);
+        workResults = workResults == null ? List.of() : List.copyOf(workResults);
+    }
+    public DocumentModelInput withWorkResults(List<WorkResult.Binding> bindings) {
+        return new DocumentModelInput(sections, requirements, requirementFeedback, snapshotSha, assessment,
+                assessmentFeedback, clarifications, directAssessment, directFeedback, sourceRevision,
+                interactionVersion, bindings);
+    }
     public DocumentModelInput(List<SectionRef> sections, DocumentRequirements.Candidate requirements,
             DocumentRequirements.Review requirementFeedback, String snapshotSha,
             RequirementCodeAssessment.Candidate assessment, RequirementCodeAssessment.Review assessmentFeedback,

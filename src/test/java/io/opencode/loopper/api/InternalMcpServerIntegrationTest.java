@@ -50,6 +50,9 @@ class InternalMcpServerIntegrationTest {
     private final io.opencode.loopper.service.DocumentReviewGuideService documentGuide =
             org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewGuideService.class);
 
+    private final io.opencode.loopper.service.workflow.WorkflowModelTools workflowTools =
+            org.mockito.Mockito.mock(io.opencode.loopper.service.workflow.WorkflowModelTools.class);
+
     private DocumentSourceResources documentResources() {
         return new DocumentSourceResources(org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentDevelopmentReads.class),
                 frozenDocuments, roleAuthority, new ObjectMapper());
@@ -60,7 +63,7 @@ class InternalMcpServerIntegrationTest {
         credentials = new InternalMcpCredentialProvider(() -> 18083).issue();
         access.activate(credentials);
         InternalMcpServerConfiguration configuration = new InternalMcpServerConfiguration();
-        runtime = configuration.internalMcpServerRuntime(submissions(), new ObjectMapper(), resources, templateSubmissions, frozenDocuments, frozenSources, developmentSources, org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewContextService.class), developmentDocuments, documentResources(), org.mockito.Mockito.mock(io.opencode.loopper.service.SubmissionContractReadService.class), documentGuide, org.mockito.Mockito.mock(io.opencode.loopper.service.SnapshotReviewReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.ppt.agent.PptAgentTools.class), roleAuthority, "test");
+        runtime = configuration.internalMcpServerRuntime(submissions(), new ObjectMapper(), resources, templateSubmissions, frozenDocuments, frozenSources, developmentSources, org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewContextService.class), developmentDocuments, documentResources(), org.mockito.Mockito.mock(io.opencode.loopper.service.SubmissionContractReadService.class), documentGuide, org.mockito.Mockito.mock(io.opencode.loopper.service.SnapshotReviewReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.ppt.agent.PptAgentTools.class), workflowTools, roleAuthority, "test");
         mvc = MockMvcBuilders.routerFunctions(runtime.routerFunction())
                 .addFilters(new InternalMcpStreamableBearerFilter(access))
                 .build();
@@ -166,7 +169,7 @@ class InternalMcpServerIntegrationTest {
     void unexpectedSubmissionFailureReturnsOnlyTheStablePublicError() throws Exception {
         runtime.close();
         runtime = new InternalMcpServerConfiguration().internalMcpServerRuntime(
-                failingSubmissions(), new ObjectMapper(), resources, templateSubmissions, org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentFrozenReadService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SourceModelReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SourceDevelopmentReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewContextService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentDevelopmentReads.class), documentResources(), org.mockito.Mockito.mock(io.opencode.loopper.service.SubmissionContractReadService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewGuideService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SnapshotReviewReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.ppt.agent.PptAgentTools.class), roleAuthority, "test");
+                failingSubmissions(), new ObjectMapper(), resources, templateSubmissions, org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentFrozenReadService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SourceModelReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SourceDevelopmentReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewContextService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentDevelopmentReads.class), documentResources(), org.mockito.Mockito.mock(io.opencode.loopper.service.SubmissionContractReadService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewGuideService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SnapshotReviewReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.ppt.agent.PptAgentTools.class), org.mockito.Mockito.mock(io.opencode.loopper.service.workflow.WorkflowModelTools.class), roleAuthority, "test");
         mvc = MockMvcBuilders.routerFunctions(runtime.routerFunction())
                 .addFilters(new InternalMcpStreamableBearerFilter(access))
                 .build();
@@ -232,7 +235,7 @@ class InternalMcpServerIntegrationTest {
     void missingRunReturnsAnExactTerminalReferenceDiagnostic() throws Exception {
         runtime.close();
         runtime = new InternalMcpServerConfiguration().internalMcpServerRuntime(
-                notFoundSubmissions(), new ObjectMapper(), resources, templateSubmissions, org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentFrozenReadService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SourceModelReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SourceDevelopmentReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewContextService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentDevelopmentReads.class), documentResources(), org.mockito.Mockito.mock(io.opencode.loopper.service.SubmissionContractReadService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewGuideService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SnapshotReviewReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.ppt.agent.PptAgentTools.class), roleAuthority, "test");
+                notFoundSubmissions(), new ObjectMapper(), resources, templateSubmissions, org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentFrozenReadService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SourceModelReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SourceDevelopmentReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewContextService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentDevelopmentReads.class), documentResources(), org.mockito.Mockito.mock(io.opencode.loopper.service.SubmissionContractReadService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewGuideService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SnapshotReviewReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.ppt.agent.PptAgentTools.class), org.mockito.Mockito.mock(io.opencode.loopper.service.workflow.WorkflowModelTools.class), roleAuthority, "test");
         mvc = MockMvcBuilders.routerFunctions(runtime.routerFunction())
                 .addFilters(new InternalMcpStreamableBearerFilter(access))
                 .build();
@@ -337,6 +340,51 @@ class InternalMcpServerIntegrationTest {
         return mvc.perform(asyncDispatch(call)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
     }
 
+    @Test
+    void workflowToolsExposeScopedPayloadsAndActionableErrorsWithoutLeakingRuntimeFailures() throws Exception {
+        String session=initialize();
+        assertThat(result(rpc(2,"tools/list","{}"),session)).contains("get_workflow_node_work","read_workflow_node_input","submit_workflow_node_result","list_workflow_input_files","read_workflow_input_file","catalog","presetId","presetVersion");
+        var json=new ObjectMapper();
+        for(var specification:WorkflowMcpTools.specifications(workflowTools,json)) {
+            var schema=json.valueToTree(specification.tool().inputSchema()).path("properties").path("args").path("properties");
+            if(specification.tool().name().equals("get_workflow_node_work")) {
+                assertThat(schema.has("analysis")).isTrue();assertThat(schema.has("testCases")).isTrue();assertThat(schema.has("offset")).isTrue();
+                assertThat(schema.path("limit").path("maximum").asInt()).isEqualTo(12000);
+            }
+            if(specification.tool().name().equals("read_workflow_input_file")) {
+                assertThat(schema.has("sha256")).isTrue();assertThat(schema.has("blobSha")).isTrue();assertThat(schema.has("startLine")).isTrue();
+                assertThat(schema.has("version")).isTrue();assertThat(schema.has("query")).isTrue();assertThat(schema.has("afterLine")).isTrue();
+                assertThat(schema.path("lineCount").path("maximum").asInt()).isEqualTo(200);
+            }
+        }
+        var pageArguments=java.util.Map.<String,Object>of("scope","test-scope","attemptId","attempt-1","args",java.util.Map.of("analysis",true,"offset",12000,"limit",12000));
+        org.mockito.Mockito.when(workflowTools.call("get_workflow_node_work",pageArguments)).thenReturn(java.util.Map.of("text","固定历史片段","offset",12000));
+        assertThat(result(rpc(29,"tools/call",json.writeValueAsString(java.util.Map.of("name","get_workflow_node_work","arguments",pageArguments))),session)).contains("固定历史片段");
+        org.mockito.Mockito.verify(workflowTools).call("get_workflow_node_work",pageArguments);
+        var arguments=java.util.Map.<String,Object>of("scope","test-scope","attemptId","attempt-1","args",java.util.Map.of());
+        org.mockito.Mockito.when(workflowTools.call("get_workflow_node_work",arguments)).thenReturn(java.util.Map.of("task","当前工作"));
+        assertThat(result(rpc(3,"tools/call",json.writeValueAsString(java.util.Map.of("name","get_workflow_node_work","arguments",arguments))),session))
+                .contains("当前工作");
+        var presetArguments=java.util.Map.<String,Object>of("scope","test-scope","attemptId","attempt-1","args",java.util.Map.of("presetId","analysis.read","presetVersion",1));
+        org.mockito.Mockito.when(workflowTools.call("get_workflow_node_work",presetArguments)).thenReturn(java.util.Map.of("title","资料分析","version",1));
+        assertThat(result(rpc(30,"tools/call",json.writeValueAsString(java.util.Map.of("name","get_workflow_node_work","arguments",presetArguments))),session)).contains("资料分析");
+        org.mockito.Mockito.verify(workflowTools).call("get_workflow_node_work",presetArguments);
+        org.mockito.Mockito.when(workflowTools.call("submit_workflow_node_result",arguments))
+                .thenThrow(new io.opencode.loopper.service.BadRequestException("WORKFLOW_DELIVERY_INVALID","缺少必需输出"))
+                .thenThrow(new io.opencode.loopper.service.ConflictException("WORKFLOW_MODEL_NOT_ACTIVE","等待恢复"))
+                .thenThrow(new io.opencode.loopper.domain.SessionFailure("WORKFLOW_SCOPE_DENIED","身份不匹配"))
+                .thenThrow(new IllegalStateException("do-not-leak-runtime-details"));
+        String request=json.writeValueAsString(java.util.Map.of("name","submit_workflow_node_result","arguments",arguments));
+        assertThat(result(rpc(4,"tools/call",request),session)).contains("WORKFLOW_DELIVERY_INVALID","缺少必需输出","FIX_AND_RESUBMIT");
+        assertThat(result(rpc(5,"tools/call",request),session)).contains("READ_WORK_OR_WAIT_FOR_RECOVERY");
+        assertThat(result(rpc(6,"tools/call",request),session)).contains("STOP_AND_WAIT_FOR_RECOVERY");
+        assertThat(result(rpc(7,"tools/call",request),session)).contains("WORKFLOW_TOOL_FAILED").doesNotContain("do-not-leak-runtime-details");
+        org.mockito.Mockito.when(workflowTools.call("read_workflow_input_file",arguments))
+                .thenThrow(new io.opencode.loopper.service.NotFoundException("冻结代码清单中不存在此文件"));
+        assertThat(result(rpc(8,"tools/call",json.writeValueAsString(java.util.Map.of("name","read_workflow_input_file","arguments",arguments))),session))
+                .contains("WORKFLOW_RESOURCE_NOT_FOUND","READ_WORK_OR_INPUT_FILES").doesNotContain("STOP_AND_WAIT_FOR_RECOVERY");
+    }
+
     private String initialize() throws Exception {
         MvcResult initialized = mvc.perform(internal(rpc(1, "initialize",
                         "{\"protocolVersion\":\"2025-03-26\",\"capabilities\":{},"
@@ -359,7 +407,7 @@ class InternalMcpServerIntegrationTest {
         org.mockito.Mockito.when(submission.find("run-1")).thenReturn(Optional.of(run));
         org.mockito.Mockito.doThrow(new io.opencode.loopper.domain.SessionFailure("ATTACHMENT_MCP_NOT_READ", "Attachment not verified"))
                 .when(gated).awaitDelivery("ses-unverified");
-        runtime = new InternalMcpServerConfiguration().internalMcpServerRuntime(submission, new ObjectMapper(), gated, templateSubmissions, org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentFrozenReadService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SourceModelReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SourceDevelopmentReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewContextService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentDevelopmentReads.class), documentResources(), org.mockito.Mockito.mock(io.opencode.loopper.service.SubmissionContractReadService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewGuideService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SnapshotReviewReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.ppt.agent.PptAgentTools.class), roleAuthority, "test");
+        runtime = new InternalMcpServerConfiguration().internalMcpServerRuntime(submission, new ObjectMapper(), gated, templateSubmissions, org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentFrozenReadService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SourceModelReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SourceDevelopmentReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewContextService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentDevelopmentReads.class), documentResources(), org.mockito.Mockito.mock(io.opencode.loopper.service.SubmissionContractReadService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewGuideService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SnapshotReviewReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.ppt.agent.PptAgentTools.class), org.mockito.Mockito.mock(io.opencode.loopper.service.workflow.WorkflowModelTools.class), roleAuthority, "test");
         mvc = MockMvcBuilders.routerFunctions(runtime.routerFunction()).addFilters(new InternalMcpStreamableBearerFilter(access)).build();
         String sessionId = mvc.perform(internal(rpc(1, "initialize",
                 "{\"protocolVersion\":\"2025-03-26\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test\",\"version\":\"1\"}}"), null))
@@ -378,7 +426,7 @@ class InternalMcpServerIntegrationTest {
         org.mockito.Mockito.when(run.candidateKind()).thenReturn(MachineCandidateKind.PACKAGE_DESIGN_V1);
         org.mockito.Mockito.when(run.contractVersion()).thenReturn("PACKAGE_DESIGN_V2");
         org.mockito.Mockito.when(submission.find("run-1")).thenReturn(Optional.of(run));
-        runtime = new InternalMcpServerConfiguration().internalMcpServerRuntime(submission, new ObjectMapper(), resources, templateSubmissions, org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentFrozenReadService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SourceModelReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SourceDevelopmentReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewContextService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentDevelopmentReads.class), documentResources(), org.mockito.Mockito.mock(io.opencode.loopper.service.SubmissionContractReadService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewGuideService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SnapshotReviewReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.ppt.agent.PptAgentTools.class), roleAuthority, "test");
+        runtime = new InternalMcpServerConfiguration().internalMcpServerRuntime(submission, new ObjectMapper(), resources, templateSubmissions, org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentFrozenReadService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SourceModelReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SourceDevelopmentReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewContextService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentDevelopmentReads.class), documentResources(), org.mockito.Mockito.mock(io.opencode.loopper.service.SubmissionContractReadService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.DocumentReviewGuideService.class), org.mockito.Mockito.mock(io.opencode.loopper.service.SnapshotReviewReads.class), org.mockito.Mockito.mock(io.opencode.loopper.service.ppt.agent.PptAgentTools.class), org.mockito.Mockito.mock(io.opencode.loopper.service.workflow.WorkflowModelTools.class), roleAuthority, "test");
         mvc = MockMvcBuilders.routerFunctions(runtime.routerFunction()).addFilters(new InternalMcpStreamableBearerFilter(access)).build();
         String session = initialize();
         for (String tool : List.of("submit_candidate", "submit_package_design")) {

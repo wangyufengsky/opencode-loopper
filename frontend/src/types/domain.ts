@@ -1867,3 +1867,8 @@ export interface KnowledgeCreate { id: string; projectId: string; title: string;
 export interface KnowledgeQuestion { id: string; state: 'PENDING' | 'PREPARED' | 'SENDING' | 'ANSWERED' | 'UNKNOWN' | 'CLOSED'; questions: TaskSessionPendingQuestion['questions']; answers: string[][]; version: number }
 export interface KnowledgeRange { unit: 'L' | 'R'; first: number; last: number }
 export * from './ppt'
+export * from './workflow'
+
+export * from './workflowPublication'
+export * from './workflowPush'
+export * from './workflowWriteback'

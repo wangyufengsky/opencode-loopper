@@ -111,7 +111,7 @@ public class DocumentFrozenReadService {
     }
     private DocumentCodeMapper.File file(DocumentTemplateModelRow model, String path, String sha) {
         var file = code.file(model.runId(), path).orElseThrow(() -> invalid("源码不属于冻结快照"));
-        if (!file.blobSha().equals(sha) || file.limitation() != null || DocumentCodeSnapshotService.protectedPath(path))
+        if (!file.blobSha().equals(sha) || file.limitation() != null || GitSnapshotInventory.protectedPath(path))
             throw invalid("该源码内容身份不符或存在读取限制");
         return file;
     }

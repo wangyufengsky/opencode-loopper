@@ -12,5 +12,5 @@ public interface LoopperMapper extends DesignerTimeoutMapper, AutomationMapper, 
         LoopperAcceptanceCandidateLaunchMapper, LoopperAcceptanceCandidateTerminationMapper,
         LoopperGenericCandidateLaunchMapper, LoopperGenericCandidateTerminationMapper,
         LoopperJudgeCandidateMapper, ModelTokenUsageMapper, StoryBindingMapper, DesignerConversationMapper,
-        PackageDesignEvidenceMapper {
+        PackageDesignEvidenceMapper, WorkflowWriterMapper {
 }

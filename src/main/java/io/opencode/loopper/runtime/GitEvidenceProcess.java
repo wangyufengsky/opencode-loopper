@@ -65,21 +65,32 @@ public final class GitEvidenceProcess {
 
     /** Overrides are server-owned scratch paths or scoped credentials, never arbitrary model/user environment. */
     public Result run(Path directory, Duration timeout, List<String> arguments, Map<String, String> environment) {
-        List<String> argv = new ArrayList<>(List.of("git", "-c", "core.safecrlf=false", "-c", "color.ui=false",
-                "-c", "core.quotePath=false", "-c", "core.hooksPath=" + nullDevice(),
-                "-c", "protocol.ext.allow=never", "-c", "core.attributesFile=" + nullDevice(),
-                "-c", "mailmap.file=" + nullDevice(), "-c", "mailmap.blob="));
-        argv.addAll(arguments);
-        var resolution = runner.resolve(directory, argv);
+        BinaryResult result = bytes(directory, timeout, arguments, environment);
+        return new Result(result.exitCode(), new String(result.output(), StandardCharsets.UTF_8), result.diagnostic());
+    }
+
+    /** Binary objects must not round-trip through a text decoder. Shares the same process and output bounds. */
+    public BinaryResult bytes(Path directory, Duration timeout, List<String> arguments) {
+        return bytes(directory, timeout, arguments, Map.of());
+    }
+
+    private BinaryResult bytes(Path directory, Duration timeout, List<String> arguments, Map<String, String> environment) {
+        return exchange(directory, timeout, arguments, environment, null);
+    }
+
+    /** Raw object/index input, bounded like output. Writing concurrently keeps the process deadline effective. */
+    public BinaryResult input(Path directory, Duration timeout, List<String> arguments,
+                              Map<String, String> environment, byte[] input) {
+        if (input == null || input.length > OUTPUT_LIMIT) throw new IllegalArgumentException("Git input exceeds transport bound");
+        return exchange(directory, timeout, arguments, environment, input.clone());
+    }
+
+    private BinaryResult exchange(Path directory, Duration timeout, List<String> arguments,
+                                  Map<String, String> environment, byte[] input) {
         ProcessScope scope = null;
         try {
-            ProcessBuilder builder = new ProcessBuilder(resolution.argv()).directory(directory.toFile());
-            builder.environment().keySet().removeIf(key -> key.startsWith("GIT_") && !key.equals("GIT_SSH_COMMAND"));
-            if (environment.containsKey("GIT_CONFIG_PARAMETERS")) builder.environment().remove("SSH_ASKPASS");
-            builder.environment().putAll(ENVIRONMENT);
-            builder.environment().putAll(environment);
-            scope = new ProcessScope(ChildProcessEnvironment.start(builder));
-            return collect(scope, timeout, arguments);
+            scope = start(directory,arguments,environment);
+            return collect(scope, timeout, arguments, input);
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
             throw new TaskFailure("TEMPLATE_GIT_INTERRUPTED", "Git 证据读取已中断");
@@ -90,24 +101,56 @@ public final class GitEvidenceProcess {
         }
     }
 
-    private Result collect(ProcessScope scope, Duration timeout, List<String> arguments) throws InterruptedException, IOException {
+    private ProcessScope start(Path directory,List<String> arguments,Map<String,String> environment)throws IOException {
+        List<String> argv = new ArrayList<>(List.of("git", "-c", "core.safecrlf=false", "-c", "color.ui=false",
+                "-c", "core.quotePath=false", "-c", "core.hooksPath=" + nullDevice(),
+                "-c", "protocol.ext.allow=never", "-c", "core.attributesFile=" + nullDevice(),
+                "-c", "mailmap.file=" + nullDevice(), "-c", "mailmap.blob="));
+        argv.addAll(arguments);
+        var resolution = runner.resolve(directory, argv);
+        ProcessBuilder builder = new ProcessBuilder(resolution.argv()).directory(directory.toFile());
+        builder.environment().keySet().removeIf(key -> key.startsWith("GIT_") && !key.equals("GIT_SSH_COMMAND"));
+        if (environment.containsKey("GIT_CONFIG_PARAMETERS")) builder.environment().remove("SSH_ASKPASS");
+        builder.environment().putAll(ENVIRONMENT);
+        builder.environment().putAll(environment);
+        return new ProcessScope(ChildProcessEnvironment.start(builder));
+    }
+
+    Result createReference(Path directory,Duration timeout,String ref,String commit,Map<String,String> environment,Runnable guard) {
+        ProcessScope scope=null;
+        try {
+            scope=start(directory,List.of("update-ref","--stdin"),environment);
+            return GitReferenceTransaction.create(scope,timeout,ref,commit,guard);
+        }catch(InterruptedException interrupted){Thread.currentThread().interrupt();throw new TaskFailure("TEMPLATE_GIT_INTERRUPTED","Git 引用保存已中断，请重试原操作");}
+        catch(IOException failure){throw new TaskFailure("TEMPLATE_GIT_UNAVAILABLE","无法运行 Git，请检查本机 Git 安装和仓库权限");}
+        finally{if(scope!=null&&!scope.stopConfirmed())throw new TaskFailure("TEMPLATE_GIT_STOP_UNCONFIRMED","无法确认 Git 引用操作已停止，请保留原操作并重新检查");}
+    }
+
+    private BinaryResult collect(ProcessScope scope, Duration timeout, List<String> arguments, byte[] input) throws InterruptedException, IOException {
         Process process = scope.process;
         var output = new ByteArrayOutputStream();
         var errors = new ByteArrayOutputStream();
         var exceeded = new AtomicBoolean();
         Thread stdout = drain(process.getInputStream(), output, exceeded, scope);
         Thread stderr = drain(process.getErrorStream(), errors, exceeded, scope);
-        process.getOutputStream().close();
+        var inputFailed = new AtomicBoolean();
+        Thread stdin = Thread.ofVirtual().name("template-git-input").start(() -> {
+            try (var stream = process.getOutputStream()) { if (input != null) stream.write(input); }
+            catch (IOException failure) { inputFailed.set(true); }
+        });
         boolean done = process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS);
         if (!done) scope.stop();
         stdout.join(2000);
         stderr.join(2000);
+        stdin.join(2000);
         if (!done) throw new TaskFailure("TEMPLATE_GIT_TIMEOUT", "Git 操作超时（操作：git " + GitEvidenceDiagnostic.operation(arguments)
                 + "；时限：" + timeout.toSeconds() + " 秒），请检查该操作的仓库访问或本地处理耗时后重试");
-        if (exceeded.get() || stdout.isAlive() || stderr.isAlive()) {
+        if (exceeded.get() || stdout.isAlive() || stderr.isAlive() || stdin.isAlive()) {
             throw new TaskFailure("TEMPLATE_GIT_EVIDENCE_LIMIT", "单次 Git 证据超过读取上限，未生成完整报告");
         }
-        return new Result(process.exitValue(), output.toString(StandardCharsets.UTF_8),
+        if (process.exitValue() == 0 && inputFailed.get())
+            throw new TaskFailure("TEMPLATE_GIT_INPUT_INCOMPLETE", "Git 未完整接收固定输入，未生成完整结果");
+        return new BinaryResult(process.exitValue(), output.toByteArray(),
                 GitEvidenceDiagnostic.classify(errors.toString(StandardCharsets.UTF_8)));
     }
 
@@ -156,6 +199,11 @@ public final class GitEvidenceProcess {
     }
 
     public record Result(int exitCode, String output, GitEvidenceDiagnostic diagnostic) {
+        public void requireSuccess(List<String> arguments) {
+            if (exitCode != 0) throw diagnostic.failure(arguments, exitCode);
+        }
+    }
+    public record BinaryResult(int exitCode, byte[] output, GitEvidenceDiagnostic diagnostic) {
         public void requireSuccess(List<String> arguments) {
             if (exitCode != 0) throw diagnostic.failure(arguments, exitCode);
         }

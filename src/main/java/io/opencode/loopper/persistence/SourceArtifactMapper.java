@@ -16,6 +16,11 @@ public interface SourceArtifactMapper {
         WHERE run_id=#{run} AND name>#{after} ORDER BY name LIMIT #{limit}
         """)
     List<Metadata> list(String run, String after, int limit);
+    @Select("""
+        SELECT id,name,kind,sha256,length(CAST(content AS BLOB)) AS size_bytes FROM source_template_artifact
+        WHERE run_id=#{run} ORDER BY name LIMIT 4097
+        """)
+    List<Metadata> manifest(String run);
     @Insert("""
         INSERT INTO source_template_artifact(id,run_id,name,kind,content,sha256,created_at)
         VALUES(#{id},#{runId},#{name},#{kind},#{content},#{sha256},#{createdAt})

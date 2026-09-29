@@ -24,11 +24,13 @@ public class SourceModelExecution {
     private final SourceModelPrompt prompts;
     private final SourceSnapshotStorage storage;
     private final ObjectMapper json;
+    private final AcceptedWorkResults workResults;
     public SourceModelExecution(SourceModelStore store, OpenCodeClient runtime,
             org.springframework.beans.factory.ObjectProvider<CandidateRuntimeBindingService> bindings, MachineCandidateSubmission submissions,
-            SourceModelPrompt prompts, SourceSnapshotStorage storage, ObjectMapper json) {
+            SourceModelPrompt prompts, SourceSnapshotStorage storage, ObjectMapper json, AcceptedWorkResults workResults) {
         this.store = store; this.runtime = runtime; this.bindings = bindings; this.submissions = submissions;
         this.prompts = prompts; this.storage = storage; this.json = json;
+        this.workResults = workResults;
     }
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public SourceTemplateModelRow advance(String id, io.opencode.loopper.template.SourceTemplateContract contract) {
@@ -104,6 +106,7 @@ public class SourceModelExecution {
             var current = store.require(row.id());
             if (current.acceptedAt() == null || Instant.now().isBefore(Instant.parse(current.acceptedAt()).plusSeconds(60))) return current;
             runtime.abortWithConfirmation(remote);
+            verifyOutput(current);
             return store.transition(current, VALIDATED, LifecycleEvent.COMPLETE, "SOURCE_ACCEPTED_SESSION_STOPPED");
         }
         row = store.require(row.id());
@@ -116,7 +119,13 @@ public class SourceModelExecution {
         }
         if (status.failed()) throw failure("SOURCE_MODEL_FAILED", "分析会话失败，已保留本次输入和输出证据");
         if (row.outputJson() == null) throw failure("SOURCE_SUBMISSION_MISSING", "模型已结束但没有提交有效候选，请检查预算或模型配置后恢复");
+        verifyOutput(row);
         return store.transition(row, VALIDATED, LifecycleEvent.COMPLETE, null);
+    }
+    private void verifyOutput(SourceTemplateModelRow row) {
+        workResults.verifyNative(MachineCandidateSubmission.CandidateScope.project(store.requireActive(row.runId()).projectId()),
+                new MachineCandidateSubmission.CandidateOwnerRef(MachineCandidateSubmission.CandidateOwnerType.SOURCE_TEMPLATE_MODEL_RUN, row.id()),
+                row.id(), row.outputJson(), row.outputSha256());
     }
     /** Caller serializes local I/O before this method; unknown stop retains the blocking state. */
     @Transactional(propagation = Propagation.NOT_SUPPORTED)

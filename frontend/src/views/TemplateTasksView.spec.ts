@@ -23,28 +23,25 @@ beforeEach(() => {
   vi.mocked(api.templateBranches).mockResolvedValue({ page: { items: [branch], facets: {}, nextCursor: null }, defaultBranch: branch, defaultBranchId: branch.id, remoteAvailable: true } as Awaited<ReturnType<typeof api.templateBranches>>)
 })
 async function render() {
-  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/template-tasks', component: TemplateTasksView }, { path: '/template-tasks/document-runs/:id', component: { template: '<div />' } }, { path: '/template-tasks/source-runs/:id', component: { template: '<div />' } }] })
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/template-tasks', component: TemplateTasksView }, { path: '/requirements/new', component: { template: '<div />' } }, { path: '/template-tasks/document-runs/:id', component: { template: '<div />' } }, { path: '/template-tasks/source-runs/:id', component: { template: '<div />' } }] })
   await router.push('/template-tasks?projectId=inherited'); await router.isReady()
   const wrapper = mount(TemplateTasksView, { global: { plugins: [ElementPlus, router], stubs: { Icon: true, PageHeader: true, DirectoryPathInput: true } } })
   await flushPromises(); return { wrapper, router }
 }
-it('inherits the project and starts development with files alone; review adds only a branch', async () => {
+it('需求开发转入默认流程，保持入口项目且不调用旧创建协议', async () => {
   const start = vi.spyOn(useDocumentTemplateStore(), 'start').mockResolvedValue('created')
   const { wrapper, router } = await render()
-  expect(api.templateProject).toHaveBeenCalledWith('inherited'); expect(api.templateBranches).not.toHaveBeenCalled()
-  expect(wrapper.find('[aria-label="开始日期"]').exists()).toBe(false); expect(wrapper.find('[aria-label="分支"]').exists()).toBe(false)
-  const file = new File(['# 需求\n必须鉴权'], '需求.md', { type: 'text/markdown' })
-  Object.defineProperty(wrapper.get('#requirement-files').element, 'files', { configurable: true, value: [file] })
-  await wrapper.get('#requirement-files').trigger('change')
-  await wrapper.get('form').trigger('submit'); await flushPromises()
-  expect(start).toHaveBeenCalledWith({ templateId: 'REQUIREMENT_DEVELOPMENT', templateVersion: '1', projectId: 'inherited' }, [file])
-  expect(router.currentRoute.value.path).toBe('/template-tasks/document-runs/created')
+  expect(wrapper.findAll('.template-choice').some(item => item.text().includes('从文档开发'))).toBe(false)
+  await wrapper.get('a[href*="/requirements/new"]').trigger('click'); await flushPromises()
+  expect(router.currentRoute.value.path).toBe('/requirements/new')
+  expect(router.currentRoute.value.query).toEqual({ template: 'builtin.workflow.development', projectId: 'inherited' })
+  expect(start).not.toHaveBeenCalled(); expect(api.createTemplateTask).not.toHaveBeenCalled()
   wrapper.unmount()
 })
 it('shows branch selection without dates for review and rejects an unsupported file', async () => {
   const start = vi.spyOn(useDocumentTemplateStore(), 'start').mockResolvedValue('created')
   const { wrapper } = await render()
-  await wrapper.findAll('.template-choice')[1]!.trigger('click'); await flushPromises()
+  await wrapper.findAll('.template-choice').find(item => item.text().includes('需求代码评审'))!.trigger('click'); await flushPromises()
   expect(api.templateBranches).toHaveBeenCalledWith('inherited', '', undefined)
   expect(wrapper.find('[aria-label="分支"]').exists()).toBe(true); expect(wrapper.find('[aria-label="开始日期"]').exists()).toBe(false)
   Object.defineProperty(wrapper.get('#requirement-files').element, 'files', { configurable: true, value: [new File(['old'], '旧需求.doc')] })

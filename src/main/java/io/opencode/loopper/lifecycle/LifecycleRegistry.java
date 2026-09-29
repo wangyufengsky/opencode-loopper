@@ -16,6 +16,30 @@ public final class LifecycleRegistry {
     private final Map<LifecycleMachineType, RegisteredMachine<?>> machines = new EnumMap<>(LifecycleMachineType.class);
 
     public LifecycleRegistry() {
+        register(LifecycleMachineType.WORKFLOW_WRITEBACK, io.opencode.loopper.workflow.WorkflowWritebackState.class,
+                WorkflowWritebackTopology.machine(), set(io.opencode.loopper.workflow.WorkflowWritebackState.CONFIRMED), Set.of());
+        register(LifecycleMachineType.WORKFLOW_WRITEBACK_QUEUE, TaskQueueState.class, WorkflowModelTopology.writerQueue(LifecycleMachineType.WORKFLOW_WRITEBACK_QUEUE),
+                set(TaskQueueState.QUEUED, TaskQueueState.ADMITTED), Set.of());
+        register(LifecycleMachineType.WORKFLOW_PUSH, io.opencode.loopper.workflow.WorkflowPushState.class,
+                WorkflowPushTopology.machine(), set(io.opencode.loopper.workflow.WorkflowPushState.PREPARING), Set.of());
+        register(LifecycleMachineType.WORKFLOW_PUBLICATION, io.opencode.loopper.workflow.WorkflowPublicationState.class,
+                WorkflowPublicationTopology.machine(), set(io.opencode.loopper.workflow.WorkflowPublicationState.CONFIRMED), Set.of());
+        register(LifecycleMachineType.WORKFLOW_COMMAND, io.opencode.loopper.workflow.WorkflowCommandState.class,
+                WorkflowCommandTopology.machine(), set(io.opencode.loopper.workflow.WorkflowCommandState.PREPARING), Set.of());
+        register(LifecycleMachineType.WORKFLOW_PLAN_CANDIDATE, io.opencode.loopper.workflow.WorkflowPlanCandidateState.class,
+                WorkflowPlanCandidateTopology.machine(), set(io.opencode.loopper.workflow.WorkflowPlanCandidateState.PENDING), Set.of());
+        register(LifecycleMachineType.WORKFLOW_CONTROL, io.opencode.loopper.workflow.WorkflowControlState.class,
+                WorkflowControlTopology.machine(), set(io.opencode.loopper.workflow.WorkflowControlState.ACTIVE), Set.of());
+        register(LifecycleMachineType.WORKFLOW_WORKSPACE, io.opencode.loopper.workflow.WorkflowWorkspaceState.class,
+                WorkflowWorkspaceTopology.machine(), set(io.opencode.loopper.workflow.WorkflowWorkspaceState.PREPARING), Set.of());
+        register(LifecycleMachineType.WORKFLOW_NODE, io.opencode.loopper.workflow.WorkflowNodeState.class,
+                WorkflowNodeTopology.node(), set(io.opencode.loopper.workflow.WorkflowNodeState.PENDING), Set.of());
+        register(LifecycleMachineType.WORKFLOW_MODEL, io.opencode.loopper.workflow.WorkflowModelState.class,
+                WorkflowModelTopology.model(), set(io.opencode.loopper.workflow.WorkflowModelState.PREPARING), Set.of());
+        register(LifecycleMachineType.WORKFLOW_ATTEMPT, io.opencode.loopper.workflow.WorkflowAttemptState.class,
+                WorkflowNodeTopology.attempt(), set(io.opencode.loopper.workflow.WorkflowAttemptState.PREPARING), Set.of());
+        register(LifecycleMachineType.WORKFLOW_REQUIREMENT, io.opencode.loopper.workflow.WorkflowState.class,
+                WorkflowTopology.requirement(), set(io.opencode.loopper.workflow.WorkflowState.PLANNING), Set.of());
         register(LifecycleMachineType.PPT_GENERATION, io.opencode.loopper.service.ppt.generation.PptGenerationState.class,
                 PptGenerationTopology.machine(), set(io.opencode.loopper.service.ppt.generation.PptGenerationState.PLANNING,
                         io.opencode.loopper.service.ppt.generation.PptGenerationState.PRODUCING), Set.of());
@@ -68,6 +92,8 @@ public final class LifecycleRegistry {
         register(LifecycleMachineType.WORKSPACE_LEASE, WorkspaceLeaseState.class, lease(),
                 set(WorkspaceLeaseState.HELD), Set.of());
         register(LifecycleMachineType.TASK_QUEUE, TaskQueueState.class, queue(),
+                set(TaskQueueState.QUEUED, TaskQueueState.ADMITTED), Set.of());
+        register(LifecycleMachineType.WORKFLOW_WRITER_QUEUE, TaskQueueState.class, WorkflowModelTopology.writerQueue(),
                 set(TaskQueueState.QUEUED, TaskQueueState.ADMITTED), Set.of());
         register(LifecycleMachineType.LOOPSPEC_TEMPLATE, LoopSpecTemplateState.class, template(),
                 set(LoopSpecTemplateState.ACTIVE), Set.of());

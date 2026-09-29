@@ -237,7 +237,7 @@ async function confirmDelete(task: TaskListItem) {
     <template #actions>
       <el-button plain @click="refreshAll"><Icon icon="lucide:refresh-cw" aria-hidden="true" />刷新状态</el-button>
       <el-button v-if="noRegisteredProject" type="primary" @click="router.push('/projects')"><Icon icon="lucide:folder-plus" aria-hidden="true" />登记项目</el-button>
-      <el-button v-else type="primary" @click="router.push('/designer')"><Icon icon="lucide:sparkles" aria-hidden="true" />新建设计</el-button>
+      <el-button v-else type="primary" @click="router.push({ path: '/requirements/new', query: typeof route.query.projectId === 'string' ? { projectId: route.query.projectId } : {} })"><Icon icon="lucide:sparkles" aria-hidden="true" />新增需求</el-button>
     </template>
   </PageHeader>
   <main id="main-content" class="content" tabindex="-1">
@@ -294,7 +294,7 @@ async function confirmDelete(task: TaskListItem) {
         </section>
       </div>
       <div v-if="store.taskNextCursor" class="load-more-row"><el-button plain :loading="store.loading" @click="reloadTasks(true)">加载更多</el-button></div>
-      <section v-if="!store.loading && !visibleTasks.length" class="card empty-state"><div><Icon icon="lucide:search-x" width="30" aria-hidden="true" /><strong>{{ store.tasks.length ? '没有匹配的任务' : '还没有任务' }}</strong><el-button v-if="store.tasks.length" plain @click="resetFilters">清除筛选</el-button><el-button v-else type="primary" @click="router.push('/designer')">开始设计</el-button></div></section>
+      <section v-if="!store.loading && !visibleTasks.length" class="card empty-state"><div><Icon icon="lucide:search-x" width="30" aria-hidden="true" /><strong>{{ store.tasks.length ? '没有匹配的任务' : '还没有任务' }}</strong><el-button v-if="store.tasks.length" plain @click="resetFilters">清除筛选</el-button><el-button v-else type="primary" @click="router.push({ path: '/requirements/new', query: typeof route.query.projectId === 'string' ? { projectId: route.query.projectId } : {} })">新增需求</el-button></div></section>
     </template>
   </main>
 </template>

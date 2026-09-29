@@ -43,7 +43,7 @@ class PersistentMachineCandidateSubmissionTest {
                 List.of(new MachineCandidateSubmission.Problem(
                         "VALUE_INVALID", "/contractVersion", "Use the active role contract version"))));
         var submissions = new PersistentMachineCandidateSubmission(mapper, mock(LifecycleTransitionService.class),
-                JsonMapper.builder().build(), List.of(policy), List.of(), List.of());
+                JsonMapper.builder().build(), List.of(policy), List.of(), List.of(), mock(AcceptedWorkResults.class));
 
         var result = submissions.submit(new MachineCandidateSubmission.SubmitCommand(
                 "run", "next", "{\"contractVersion\":\"WRONG\"}",
@@ -95,7 +95,7 @@ class PersistentMachineCandidateSubmissionTest {
         when(policy.evaluate(any(), anyString())).thenReturn(
                 CandidatePolicy.Decision.rejected(true, false, largeProblemSet, true));
         var submissions = new PersistentMachineCandidateSubmission(mapper, mock(LifecycleTransitionService.class),
-                JsonMapper.builder().build(), List.of(policy), List.of(), List.of());
+                JsonMapper.builder().build(), List.of(policy), List.of(), List.of(), mock(AcceptedWorkResults.class));
 
         var result = submissions.submit(new MachineCandidateSubmission.SubmitCommand(
                 "run", "next", "{}", 0, MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP));
@@ -123,7 +123,7 @@ class PersistentMachineCandidateSubmissionTest {
                 List.of(new MachineCandidateSubmission.Problem(
                         "PACKAGE_DESIGN_SEMANTIC_INVALID", "/candidate", "Correct the candidate semantics"))));
         var submissions = new PersistentMachineCandidateSubmission(mapper, mock(LifecycleTransitionService.class),
-                JsonMapper.builder().build(), List.of(policy), List.of(), List.of());
+                JsonMapper.builder().build(), List.of(policy), List.of(), List.of(), mock(AcceptedWorkResults.class));
         String candidate = JsonMapper.builder().build().writeValueAsString(
                 "中文设计说明🙂".repeat(180));
 
@@ -167,7 +167,7 @@ class PersistentMachineCandidateSubmissionTest {
                         MachineCandidateSubmission.ProblemCategory.VALUE, "预期结果🙂".repeat(240),
                         "实际结果🙂".repeat(240), "修复方式🙂".repeat(240)))));
         var submissions = new PersistentMachineCandidateSubmission(mapper, mock(LifecycleTransitionService.class),
-                JsonMapper.builder().build(), List.of(policy), List.of(), List.of());
+                JsonMapper.builder().build(), List.of(policy), List.of(), List.of(), mock(AcceptedWorkResults.class));
 
         var result = submissions.submit(new MachineCandidateSubmission.SubmitCommand(
                 "run", "next", "{\"title\":\"审查\",\"summary\":\"短值\",\"findings\":[],\"limitations\":[]}", 0,

@@ -566,8 +566,8 @@ public class TaskService {
                 .orElseThrow(() -> new ConflictException("TASK_QUEUE_LEASE_INVARIANT_VIOLATION",
                         "排队任务对应的项目写租约不存在"));
         if (lease.holderTaskId() == null) {
-            throw new ConflictException("TASK_QUEUE_LEASE_INVARIANT_VIOLATION",
-                    "活动项目写租约缺少 holder，拒绝猜测或强制转移");
+            throw new ConflictException(lease.holderWritebackId() != null ? "WORKFLOW_WRITEBACK_ACTIVE" : lease.holderWorkflowAttemptId() == null ? "TASK_QUEUE_LEASE_INVARIANT_VIOLATION" : "WORKFLOW_WRITER_ACTIVE",
+                    lease.holderWritebackId() != null ? "流程成果正在回填，请在对应需求任务中查看或恢复" : lease.holderWorkflowAttemptId() == null ? "活动项目写租约缺少 holder，拒绝猜测或强制转移" : "流程节点正在使用工作区，请在对应需求任务中恢复或停止");
         }
         WorkspaceLeaseReconciliationService.Result result = leaseReconciliation.reconcileHolder(
                 lease.holderTaskId(), WorkspaceLeaseReconciliationService.TRIGGER_MANUAL, "MANUAL_QUEUE_RECONCILIATION");
@@ -2519,14 +2519,13 @@ public class TaskService {
 
     public void continueAfterLeaseReconciliation(WorkspaceLeaseReconciliationService.Result result) {
         if (result == null) return;
-        if (result.released() || result.alreadySettled()) {
-            rollingPackages.afterLeaseReconciliation(result.holderTaskId());
-        }
+        if (result.released() || result.alreadySettled()) rollingPackages.afterLeaseReconciliation(result.holderTaskId());
         if (!result.released() || result.admittedNext() == null) return;
-        String nextTaskId = result.admittedNext().taskId();
-        events.emit(nextTaskId, "task.admitted", Map.of("state", TaskState.QUEUED.name(),
-                "queuePosition", result.admittedNext().position()));
-        prepareAdmittedTaskAndContinue(nextTaskId);
+        continueAdmittedTask(result.admittedNext().taskId(), result.admittedNext().position());
+    }
+    public void continueAdmittedTask(String taskId, long position) {
+        events.emit(taskId, "task.admitted", Map.of("state", TaskState.QUEUED.name(), "queuePosition", position));
+        prepareAdmittedTaskAndContinue(taskId);
     }
 
     private void rehydrateDirectLeases() {
@@ -2587,13 +2586,8 @@ public class TaskService {
     private long queuePosition(String taskId) {
         TaskQueueRow target = mapper.findTaskQueue(taskId)
                 .orElseThrow(() -> new NotFoundException("Task queue entry not found: " + taskId));
-        long position = 0;
-        for (TaskQueueRow row : mapper.listTaskQueue(target.canonicalRoot())) {
-            if (!TaskQueueState.QUEUED.name().equals(row.state())) continue;
-            position++;
-            if (taskId.equals(row.taskId())) return position;
-        }
-        return 0;
+        return TaskQueueState.QUEUED.name().equals(target.state())
+                ? mapper.writerQueuePosition(target.canonicalRoot(), target.position()) : 0;
     }
 
     private LoopSpec spec(TaskRow task) {
