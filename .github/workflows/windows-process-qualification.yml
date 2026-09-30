@@ -1,0 +1,37 @@
+name: Windows process qualification
+on:
+  push:
+    branches: [codex/workflow-studio]
+    paths: [.github/workflows/windows-process-qualification.yml, .github/diagnostics/windows-process.ps1]
+permissions:
+  contents: read
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, windows-2022]
+        reuse: ["true", "false"]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - run: python .github/diagnostics/windows-shards.py prepare 0
+      - name: Reproduce the failed class group with direct console output
+        shell: pwsh
+        env:
+          LOOPPER_PROBE_REUSE: ${{ matrix.reuse }}
+        run: ./.github/diagnostics/windows-process.ps1
+      - name: Preserve diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: process-${{ matrix.os }}-${{ matrix.reuse }}
+          path: |
+            windows-process.log
+            target/backend-dev/surefire-reports/
