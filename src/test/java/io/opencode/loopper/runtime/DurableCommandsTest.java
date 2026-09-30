@@ -134,10 +134,12 @@ class DurableCommandsTest {
         assertThat(receipt.preparations()).hasSize(1); assertThat(Files.readAllLines(data.resolve("effects"))).containsExactly("sleep");
     }
     @Test void globalTimeoutIncludesEarlierPreparationsInsteadOfResettingForTheNextOne() throws Exception {
-        var job = prepare("normal", 1, "short-delay", "short-delay"); commands.ensureSupervisor(job); commands.grant(job, registered(job));
+        var job = prepare("normal", 4, "short-delay", "short-delay"); commands.ensureSupervisor(job); commands.grant(job, registered(job));
         var receipt = finished(job); assertThat(receipt.timedOut()).isTrue(); assertThat(receipt.launched()).isFalse(); assertThat(receipt.stopConfirmed()).isTrue();
         assertThat(receipt.preparations()).hasSize(2); assertThat(receipt.preparations().getFirst().successful()).isTrue();
-        assertThat(Files.readAllLines(data.resolve("effects"))).containsExactly("short-delay", "short-delay");
+        assertThat(receipt.preparations().get(1).timedOut()).isTrue();
+        // A shared deadline can stop the second process before its main method writes the marker.
+        assertThat(Files.readAllLines(data.resolve("effects"))).hasSizeBetween(1, 2).allMatch("short-delay"::equals);
     }
     @Test void outputBudgetIsSharedAcrossPreparationsInsteadOfResetForEveryProcess() throws Exception {
         var job = prepare("normal", 10, "bounded-noise", "bounded-noise"); commands.ensureSupervisor(job); commands.grant(job, registered(job));
@@ -196,9 +198,9 @@ class DurableCommandsTest {
             }
             if (args[0].equals("sleep")) Thread.sleep(60_000);
             if (args[0].equals("delayed")) Thread.sleep(3000);
-            if (args[0].equals("short-delay")) Thread.sleep(700);
+            if (args[0].equals("short-delay")) Thread.sleep(2400);
             if (args[0].equals("noise")) for (int i = 0; i < 20; i++) System.out.print("x".repeat(8192));
-            System.out.println("检查通过");
+            System.out.write("检查通过\n".getBytes(java.nio.charset.StandardCharsets.UTF_8));
         }
     }
     public static class Application {

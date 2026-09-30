@@ -468,7 +468,7 @@ class OpenCodeRuntimeManagerTest {
     }
 
     private Path executable() throws IOException {
-        Path executable = temporaryDirectory.resolve("opencode-test");
+        Path executable = temporaryDirectory.resolve("opencode-test.exe");
         Files.writeString(executable, "#!/bin/sh\nexit 0\n", StandardCharsets.UTF_8);
         executable.toFile().setExecutable(true);
         return executable;
