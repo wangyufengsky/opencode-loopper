@@ -3,7 +3,6 @@ package io.opencode.loopper.persistence;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.zaxxer.hikari.HikariDataSource;
 import java.nio.file.Path;
 import java.sql.DriverManager;
 import java.sql.Statement;
@@ -12,6 +11,7 @@ import java.util.Map;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 
 class SourceTemplateMigrationTest {
     @TempDir Path directory;
@@ -87,25 +87,24 @@ class SourceTemplateMigrationTest {
 
     @Test void upgradeRejectsOldCrossScopeCandidateInsteadOfLosingItsEvidence() throws Exception {
         String url = "jdbc:sqlite:" + directory.resolve("invalid-owner.db") + "?foreign_keys=on";
-        // The fixture owns even connections retained by Flyway's failed-migration path.
-        try (var source = new HikariDataSource()) {
-            source.setJdbcUrl(url);
-            source.setMaximumPoolSize(2);
-            source.setMinimumIdle(0);
-            Flyway.configure().dataSource(source).target("128").load().migrate();
-            try (var db = DriverManager.getConnection(url); var sql = db.createStatement()) {
-                sql.execute("INSERT INTO project(id,name,root_path,created_at,updated_at) VALUES('p','p','/tmp/p','t','t')");
-                sql.execute("INSERT INTO designer_session(id,project_id,state,access_mode,created_at,updated_at) VALUES('s','p','RUNNING','READ_ONLY','t','t')");
-                sql.execute("INSERT INTO open_code_session_runtime_binding(external_session_id,runtime_generation_id,ownership_mode,endpoint_fingerprint,created_at) VALUES('remote','gen','MANAGED','" + "a".repeat(64) + "','t')");
-                sql.execute("DROP TRIGGER trg_candidate_owner_scope_insert");
-                sql.execute("INSERT INTO ai_candidate_submission_run(id,designer_session_id,owner_type,owner_id,candidate_kind,workflow_step,source_revision,owner_version,submission_channel,contract_version,runtime_generation_id,external_session_id,state,max_attempts,created_at,updated_at) VALUES('invalid','s','TASK_DECOMPOSITION','missing','DECOMPOSITION_PLAN_V2','PLANNING',1,0,'INTERNAL_MCP','DECOMPOSITION_PLAN_V2','gen','remote','OPEN',5,'t','t')");
-            }
+        Flyway.configure().dataSource(url, null, null).target("128").load().migrate();
+        try (var db = DriverManager.getConnection(url); var sql = db.createStatement()) {
+            sql.execute("INSERT INTO project(id,name,root_path,created_at,updated_at) VALUES('p','p','/tmp/p','t','t')");
+            sql.execute("INSERT INTO designer_session(id,project_id,state,access_mode,created_at,updated_at) VALUES('s','p','RUNNING','READ_ONLY','t','t')");
+            sql.execute("INSERT INTO open_code_session_runtime_binding(external_session_id,runtime_generation_id,ownership_mode,endpoint_fingerprint,created_at) VALUES('remote','gen','MANAGED','" + "a".repeat(64) + "','t')");
+            sql.execute("DROP TRIGGER trg_candidate_owner_scope_insert");
+            sql.execute("INSERT INTO ai_candidate_submission_run(id,designer_session_id,owner_type,owner_id,candidate_kind,workflow_step,source_revision,owner_version,submission_channel,contract_version,runtime_generation_id,external_session_id,state,max_attempts,created_at,updated_at) VALUES('invalid','s','TASK_DECOMPOSITION','missing','DECOMPOSITION_PLAN_V2','PLANNING',1,0,'INTERNAL_MCP','DECOMPOSITION_PLAN_V2','gen','remote','OPEN',5,'t','t')");
+        }
+        // A failed non-transactional migration can bypass Flyway's connection cleanup.
+        // Own the physical connection so the failed startup releases its file handle before recovery reads.
+        try (var migrationConnection = DriverManager.getConnection(url)) {
+            var source = new SingleConnectionDataSource(migrationConnection, true);
             assertThatThrownBy(() -> Flyway.configure().dataSource(source).target("129").load().migrate())
                     .hasStackTraceContaining("candidate owner scope mismatch");
-            try (var db = DriverManager.getConnection(url); var sql = db.createStatement();
-                 var row = sql.executeQuery("SELECT id,owner_id FROM ai_candidate_submission_run")) {
-                assertThat(row.next()).isTrue(); assertThat(row.getString(1)).isEqualTo("invalid"); assertThat(row.getString(2)).isEqualTo("missing");
-            }
+        }
+        try (var db = DriverManager.getConnection(url); var sql = db.createStatement();
+             var row = sql.executeQuery("SELECT id,owner_id FROM ai_candidate_submission_run")) {
+            assertThat(row.next()).isTrue(); assertThat(row.getString(1)).isEqualTo("invalid"); assertThat(row.getString(2)).isEqualTo("missing");
         }
     }
 

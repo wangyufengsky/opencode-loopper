@@ -26,3 +26,41 @@ jobs:
             .\mvnw.cmd -B -Pbackend-dev "-Dtest=DurableCommandsTest#globalTimeoutIncludesEarlierPreparationsInsteadOfResettingForTheNextOne" test
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
+  backend:
+    needs: focused
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Qualify all backend tests with isolated test classes
+        shell: pwsh
+        run: |
+          $sample = Start-Job -ScriptBlock {
+            while ($true) {
+              $os = Get-CimInstance Win32_OperatingSystem
+              $java = @(Get-Process java -ErrorAction SilentlyContinue)
+              $sample = [ordered]@{
+                time = (Get-Date).ToUniversalTime().ToString("o")
+                freeMemoryMiB = [math]::Round($os.FreePhysicalMemory / 1024)
+                javaWorkingSetMiB = [math]::Round(($java | Measure-Object WorkingSet64 -Sum).Sum / 1MB)
+                javaHandles = ($java | Measure-Object HandleCount -Sum).Sum
+                freeDiskGiB = [math]::Round((Get-PSDrive C).Free / 1GB, 2)
+              }
+              $sample | ConvertTo-Json -Compress | Write-Output
+              Start-Sleep -Seconds 30
+            }
+          }
+          try {
+            .\mvnw.cmd -B -Pbackend-dev "-DreuseForks=false" test
+            $result = $LASTEXITCODE
+          } finally {
+            Stop-Job $sample
+            Receive-Job $sample
+            Remove-Job $sample
+          }
+          exit $result
