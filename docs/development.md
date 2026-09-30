@@ -40,7 +40,9 @@ JDK 缓存位于 `~/.cache/opencode-loopper/jdk21`，每次复核大小和 SHA-2
 
 正式 `verify.sh` 显式关闭 `backend-dev`，恢复前端构建并执行 `clean verify`。CI 与 Release 均使用 Maven `clean verify` 执行完整门禁，不调用平台包组装工具。完整门禁还需要 Python 3.12+ 执行离线打包回归（macOS/Linux 为 `python3`，Windows 为 `python`）；这不下载真实 JDK，也不生成六个平台成品。运行发行 JAR 不需要 Python。Maven 完整链路包含：工具链安装、`npm ci`、项目文档/工具检查、`vue-tsc -b && vite build`、Vitest、Node 工具测试和全部 Java 测试。类型检查已包含在 `build` 中，不再单独重复执行一次。
 
-Windows CI 为每个 Java 测试类创建独立的 Surefire JVM（`-DreuseForks=false`），使 Spring 上下文、SQLite 连接与测试进程资源在类边界释放。仍执行全部测试与完整 `clean verify`，不改变产品运行时配置。Windows 通过 `scripts/verify-windows-ci.ps1` 将完整 Maven 输出保存为 `windows-verify.log`，每 30 秒独立报告资源和已完成测试类数量；日志停滞 3 分钟时采集有界的 Java 线程栈，最后传播 Maven 退出码。原始日志、Surefire 报告与线程栈作为 CI 附件保留 7 天，发布交付时另行下载保存需要的长期证据。
+Windows CI 通过 `scripts/windows-ci-tests.py` 从当前源码发现 Surefire 默认命名规则下的全部测试类，自动分配到 8 个独立 runner，沿用 Maven 默认的 JVM 复用设置。每组执行完整 `clean verify`（包括前端及 JAR），只限制本组 Java 测试选择；逐组校验 XML 的准确类集合和结果，汇总任务要求同一提交、全部分组齐备、类集合完整且无重叠，任何缺失或失败均不能通过。新增测试自动进入分组，不维护固定版本的测试清单。现有 `TestJvm` 是名称匹配默认规则的子进程工具类，明确排除并检查其没有新增 JUnit 测试。
+
+Windows 通过 `scripts/verify-windows-ci.ps1` 将完整 Maven 输出保存为 `windows-verify.log`，每 30 秒报告资源和已完成测试类数量；日志停滞 3 分钟时采集有界的 Java 线程栈，最后传播 Maven 退出码。原始日志、Surefire 报告、覆盖结果与线程栈作为各组 CI 附件保留 7 天，发布交付时另行下载保存需要的长期证据。分组减少单个 runner 的执行范围，不将基础设施错误转换为通过，也不替代失败后的调查。
 
 `check-project.mjs` 的机械覆盖范围是：三份公约的 UTF-8 字节上限、它们直接链接到的 Markdown 文档及这些文档中的相对文件链接、指定发布字段的一致性。它不验证 Markdown 锚点、反引号中的路径、远端 URL 或合同语义，不递归遍历历史。源码的依赖方向由 `CodeStructureContractTest` 的指定字节码规则补充验证；规模门禁继续保持 600 行和既有债务上限。检查不是对整体架构正确性的证明。
 

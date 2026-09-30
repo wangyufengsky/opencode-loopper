@@ -84,3 +84,9 @@ test('instruction size and routed file links fail closed', t => {
   writeFileSync(join(root, 'AGENTS.md'), '中'.repeat(6000));
   assert.throws(() => checkInstructions(root), /exceeds/);
 });
+
+
+test('Windows CI discovers new tests and rejects incomplete or mixed coverage', () => {
+  execFileSync(process.platform === 'win32' ? 'python' : 'python3',
+    ['scripts/test-windows-ci-tests.py'], { cwd: projectRoot, stdio: 'inherit', timeout: 30000 });
+});

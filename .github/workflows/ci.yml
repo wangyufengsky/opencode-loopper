@@ -18,8 +18,6 @@ jobs:
             command: ./mvnw
           - os: macos-latest
             command: ./mvnw
-          - os: windows-latest
-            command: .\mvnw.cmd
     runs-on: ${{ matrix.os }}
     timeout-minutes: 180
     steps:
@@ -30,20 +28,48 @@ jobs:
           java-version: "21"
           cache: maven
       - name: Verify
-        if: runner.os != 'Windows'
         run: ${{ matrix.command }} -B clean verify
-      - name: Verify Windows
-        if: runner.os == 'Windows'
+  windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Discover and partition all Java test classes
+        run: python scripts/windows-ci-tests.py prepare ${{ matrix.shard }}
+      - name: Verify complete build and selected Java tests
         shell: pwsh
         run: .\scripts\verify-windows-ci.ps1
+      - name: Verify exact test coverage
+        run: python scripts/windows-ci-tests.py verify ${{ matrix.shard }}
       - name: Preserve Windows verification diagnostics
-        if: always() && runner.os == 'Windows'
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: windows-verification
+          name: windows-verification-${{ matrix.shard }}
           retention-days: 7
           path: |
             windows-verify.log
             windows-threads-*.log
             windows-threads-*.err
+            windows-test-result.json
             target/surefire-reports/
+  windows-coverage:
+    needs: windows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: windows-verification-*
+          path: windows-results
+      - name: Require complete non-overlapping Windows test coverage
+        run: python3 scripts/windows-ci-tests.py aggregate

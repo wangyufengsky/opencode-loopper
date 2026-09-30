@@ -4,7 +4,9 @@ $build = Start-Job -ArgumentList $env:GITHUB_WORKSPACE -ScriptBlock {
   Set-Location $workspace
   $ErrorActionPreference = 'Stop'
   $PSNativeCommandUseErrorActionPreference = $false
-  .\mvnw.cmd -B "-DreuseForks=false" clean verify *> windows-verify.log
+  $arguments = @('-B', 'clean', 'verify')
+  if ($env:LOOPPER_CI_TEST_INCLUDES) { $arguments += "-Dsurefire.includesFile=$env:LOOPPER_CI_TEST_INCLUDES" }
+  .\mvnw.cmd @arguments *> windows-verify.log
   [pscustomobject]@{ ExitCode = $LASTEXITCODE }
 }
 $dumpCaptured = $false
