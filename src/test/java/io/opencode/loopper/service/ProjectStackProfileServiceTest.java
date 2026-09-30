@@ -6,6 +6,8 @@ import io.opencode.loopper.LoopperApplication;
 import io.opencode.loopper.domain.ProjectStackProfileState;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.ProjectRow;
+import io.opencode.loopper.persistence.ProjectStackProfileRow;
+import io.opencode.loopper.persistence.ReadModelMapper;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -13,6 +15,8 @@ import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
@@ -23,9 +27,32 @@ class ProjectStackProfileServiceTest {
     @Autowired private ProjectService projects;
     @Autowired private ProjectStackProfileService profiles;
     @Autowired private LoopperMapper mapper;
+    @Autowired private ReadModelMapper reads;
     @TempDir Path temporary;
 
     @BeforeEach void reset() { flyway.clean(); flyway.migrate(); }
+
+    @ParameterizedTest
+    @CsvSource({
+            "2030-01-01T00:00:00Z,2030-01-01T00:00:00Z",
+            "2030-01-01T00:00:00Z,2030-01-01T00:00:00.001Z",
+            "2030-01-01T00:00:00.123Z,2030-01-01T00:00:00.123456Z"
+    })
+    void currentAndListSelectTheLastPersistedSnapshot(String olderTime, String newerTime) {
+        String projectId = "snapshot-order";
+        mapper.insertProject(new ProjectRow(projectId, "Snapshots", temporary.toString(), "",
+                olderTime, olderTime, 1, 0));
+        mapper.insertProjectStackProfile(new ProjectStackProfileRow("z-older", projectId, "READY", "java",
+                "[\"java\"]", "[\"java\"]", "[]", 1, 0, null, null, olderTime, olderTime));
+        mapper.insertProjectStackProfile(new ProjectStackProfileRow("a-newer", projectId, "READY", "node",
+                "[\"node\"]", "[\"node\"]", "[]", 1, 0, null, null, newerTime, newerTime));
+
+        org.assertj.core.api.SoftAssertions.assertSoftly(soft -> {
+            soft.assertThat(profiles.current(projectId).technologyFamilies()).containsExactly("node");
+            soft.assertThat(reads.projectSummaries().getFirst().stackTechnologyFamiliesJson()).isEqualTo("[\"node\"]");
+            soft.assertThat(profiles.get(projectId, "z-older").technologyFamilies()).containsExactly("java");
+        });
+    }
 
     @Test void newAndReRegisteredProjectsAreAnalyzedAutomatically() throws Exception {
         Path root = Files.createDirectory(temporary.resolve("managed"));

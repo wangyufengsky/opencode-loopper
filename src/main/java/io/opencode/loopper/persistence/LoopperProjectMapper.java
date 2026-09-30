@@ -44,10 +44,11 @@ public interface LoopperProjectMapper {
             INSERT INTO project_stack_profile(
               id,project_id,analysis_state,manifest_fingerprint,technology_families_json,
               technologies_json,evidence_json,files_scanned,component_count,error_code,error_detail,
-              analyzed_at,created_at)
+              analyzed_at,created_at,ordinal)
             VALUES(#{id},#{projectId},#{analysisState},#{manifestFingerprint},#{technologyFamiliesJson},
               #{technologiesJson},#{evidenceJson},#{filesScanned},#{componentCount},#{errorCode},#{errorDetail},
-              #{analyzedAt},#{createdAt})
+              #{analyzedAt},#{createdAt},
+              (SELECT COALESCE(MAX(ordinal),0)+1 FROM project_stack_profile WHERE project_id=#{projectId}))
             """)
     int insertProjectStackProfile(ProjectStackProfileRow row);
     @Insert("""
@@ -62,7 +63,7 @@ public interface LoopperProjectMapper {
     Optional<ProjectStackProfileRow> findProjectStackProfile(String id);
     @Select("""
             SELECT * FROM project_stack_profile WHERE project_id=#{projectId}
-            ORDER BY analyzed_at DESC,id DESC LIMIT 1
+            ORDER BY ordinal DESC LIMIT 1
             """)
     Optional<ProjectStackProfileRow> findCurrentProjectStackProfile(String projectId);
     @Select("SELECT * FROM project_stack_component WHERE profile_id=#{profileId} ORDER BY relative_root,component_key")

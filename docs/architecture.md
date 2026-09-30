@@ -1018,6 +1018,10 @@ bounded deterministic analysis after the registration transaction commits. Exist
 projects are not backfilled: they project as `UNANALYZED` until their first convention update
 or new Designer creation. Project list SQL joins only the latest persisted snapshot and never
 walks registered roots, so historical projects cannot create an N+1 filesystem scan.
+V191 assigns persisted snapshot ordinals inside the insert statement and selects the current
+snapshot by that order in both detail and project-list reads. Equal or differently formatted
+timestamps and random IDs cannot return an older snapshot. Upgrade freezes the existing
+insertion order without changing snapshot content or the IDs referenced by historical tasks.
 
 The analyzer follows at most 2,000 regular non-symbolic-link files to depth five, skips generated
 directories, and recognizes Maven/Gradle as Java, `package.json` as Node, Python configuration or

@@ -358,7 +358,7 @@ public interface ReadModelMapper {
             LEFT JOIN open_designer_counts designs ON designs.project_id=p.id
             LEFT JOIN project_stack_profile stack ON stack.id=(
               SELECT current.id FROM project_stack_profile current
-              WHERE current.project_id=p.id ORDER BY current.analyzed_at DESC,current.id DESC LIMIT 1
+              WHERE current.project_id=p.id ORDER BY current.ordinal DESC LIMIT 1
             )
             WHERE p.managed=1 ORDER BY p.created_at DESC
             """)

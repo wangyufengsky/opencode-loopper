@@ -5,6 +5,14 @@ import java.util.*;
 import org.junit.jupiter.api.Test;
 
 class SourceDesignBatchesTest {
+    @Test void batchTitlesUseFrozenManifestPathsOnEveryHost() {
+        var files=List.of(new SourceDesignBatches.File("src/Main.java",1),
+                new SourceDesignBatches.File("src/feature/Other.java",1),new SourceDesignBatches.File("Root.java",1));
+        var plan=SourceDesignBatches.partition(files);
+        assertThat(plan.batches()).extracting(SourceDesign.Batch::title).containsExactly("src","src/feature",".");
+        assertThat(plan.batches().stream().flatMap(batch->batch.paths().stream()).toList())
+                .isEqualTo(files.stream().map(SourceDesignBatches.File::path).toList());
+    }
     @Test void allTargetsRetainTheirFrozenOrderAcrossFileAndDirectoryBoundaries() {
         var files=new ArrayList<SourceDesignBatches.File>();
         for(int i=0;i<13;i++)files.add(new SourceDesignBatches.File("src/File"+i+".java",1));
