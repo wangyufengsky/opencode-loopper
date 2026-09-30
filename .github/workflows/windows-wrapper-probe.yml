@@ -31,7 +31,7 @@ jobs:
               [IO.File]::WriteAllText((Join-Path $probe 'mvnw.cmd'), "@echo off`r`necho [DEBUG-windows-wrapper] native command probe`r`nexit /b $expected`r`n")
               $env:GITHUB_WORKSPACE = $probe
               Set-Location $probe
-              & pwsh -NoProfile -Command '$ErrorActionPreference = "Stop"; & $env:LOOPPER_CI_PROBE_SCRIPT'
+              & pwsh -NoProfile -Command '$ErrorActionPreference = "Stop"; & $env:LOOPPER_CI_PROBE_SCRIPT; exit $LASTEXITCODE'
               if ($LASTEXITCODE -ne $expected) { throw "Expected exit $expected, got $LASTEXITCODE" }
               Write-Output "[DEBUG-windows-wrapper] verified native exit $expected"
             }
