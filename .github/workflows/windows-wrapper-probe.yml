@@ -1,0 +1,41 @@
+name: Windows CI wrapper probe
+
+on:
+  push:
+    branches: [codex/workflow-studio]
+    paths: [.github/workflows/windows-wrapper-probe.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Check wrapper termination and native exit-code propagation
+        shell: pwsh
+        run: |
+          $repository = $env:GITHUB_WORKSPACE
+          $env:LOOPPER_CI_PROBE_SCRIPT = Join-Path $repository 'scripts/verify-windows-ci.ps1'
+          $PSNativeCommandUseErrorActionPreference = $false
+          try {
+            foreach ($expected in @(0, 7)) {
+              $probe = Join-Path $env:RUNNER_TEMP "loopper-wrapper-probe-$expected"
+              New-Item -ItemType Directory -Path $probe | Out-Null
+              [IO.File]::WriteAllText((Join-Path $probe 'mvnw.cmd'), "@echo off`r`necho [DEBUG-windows-wrapper] native command probe`r`nexit /b $expected`r`n")
+              $env:GITHUB_WORKSPACE = $probe
+              Set-Location $probe
+              & pwsh -NoProfile -Command '$ErrorActionPreference = "Stop"; & $env:LOOPPER_CI_PROBE_SCRIPT'
+              if ($LASTEXITCODE -ne $expected) { throw "Expected exit $expected, got $LASTEXITCODE" }
+              Write-Output "[DEBUG-windows-wrapper] verified native exit $expected"
+            }
+          } finally {
+            $env:GITHUB_WORKSPACE = $repository
+            Set-Location $repository
+          }
