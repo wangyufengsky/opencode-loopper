@@ -39,3 +39,4 @@ jobs:
             $env:GITHUB_WORKSPACE = $repository
             Set-Location $repository
           }
+          exit 0
