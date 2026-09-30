@@ -16,10 +16,13 @@ jobs:
         include:
           - os: ubuntu-latest
             command: ./mvnw
+            testArgs: ""
           - os: macos-latest
             command: ./mvnw
+            testArgs: ""
           - os: windows-latest
             command: .\mvnw.cmd
+            testArgs: '"-DreuseForks=false"'
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -29,4 +32,4 @@ jobs:
           java-version: "21"
           cache: maven
       - name: Verify
-        run: ${{ matrix.command }} -B clean verify
+        run: ${{ matrix.command }} -B ${{ matrix.testArgs }} clean verify

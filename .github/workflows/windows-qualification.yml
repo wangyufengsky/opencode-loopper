@@ -26,7 +26,7 @@ jobs:
             .\mvnw.cmd -B -Pbackend-dev "-Dtest=DurableCommandsTest#globalTimeoutIncludesEarlierPreparationsInsteadOfResettingForTheNextOne" test
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
-  backend:
+  full:
     needs: focused
     runs-on: windows-latest
     timeout-minutes: 120
@@ -37,7 +37,7 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: maven
-      - name: Qualify all backend tests with isolated test classes
+      - name: Qualify full JAR with isolated test classes
         shell: pwsh
         run: |
           $sample = Start-Job -ScriptBlock {
@@ -56,7 +56,7 @@ jobs:
             }
           }
           try {
-            .\mvnw.cmd -B -Pbackend-dev "-DreuseForks=false" test
+            .\mvnw.cmd -B "-DreuseForks=false" clean verify
             $result = $LASTEXITCODE
           } finally {
             Stop-Job $sample
