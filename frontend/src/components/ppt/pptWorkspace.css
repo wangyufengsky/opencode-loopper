@@ -11,10 +11,18 @@
   align-items: center;
   gap: 15px;
   flex: none;
-  min-height: 83px;
-  padding: 18px 24px;
+  min-height: 72px;
+  padding: 14px 24px;
   border-bottom: 1px solid var(--color-border-muted);
   background: var(--color-bg-elevated);
+}
+
+.canvas-shell .ppt-studio {
+  height: 100dvh;
+}
+
+.canvas-shell .ppt-studio-header {
+  padding-left: 72px;
 }
 
 .ppt-page .ppt-back-icon {
@@ -214,10 +222,14 @@
 
 .ppt-review-workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 5px var(--ppt-right-width, 340px);
+  grid-template-columns: minmax(0, 1fr);
   flex: 1;
   min-height: 0;
   position: relative;
+}
+
+.ppt-review-workspace.assistant-open {
+  grid-template-columns: minmax(0, 1fr) 4px var(--ppt-right-width, 340px);
 }
 
 .ppt-presentation-panel {
@@ -234,7 +246,8 @@
   justify-content: space-between;
   gap: 16px;
   flex: none;
-  padding: 22px 28px 10px;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--color-border-muted);
 }
 
 .ppt-presentation-heading > div:first-child {
@@ -257,6 +270,7 @@
   gap: 5px;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
+  font-family: var(--font-code);
   color: var(--color-text-primary);
 }
 
@@ -265,16 +279,19 @@
 }
 
 .ppt-presentation-scroll {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
-  padding: 12px 28px 20px;
+  padding: 12px 20px;
   overflow: auto;
 }
 
 .ppt-main-slide {
+  display: flex;
+  flex: 1;
+  min-height: 260px;
   width: 100%;
-  max-width: 1120px;
-  margin: 0 auto;
 }
 
 .ppt-review-separator {
@@ -297,24 +314,43 @@
   background: var(--color-bg-elevated);
 }
 
-.ppt-page .ppt-open-assistant,
+.ppt-page .ppt-open-assistant {
+  display: inline-flex;
+  font-size: 12px;
+}
+
+.ppt-page .ppt-open-assistant[aria-expanded='true'] {
+  color: var(--color-action-primary);
+  background: var(--color-bg-hover);
+}
+
 .ppt-page .ppt-close-assistant {
-  display: none;
+  display: inline-flex;
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  z-index: 2;
+}
+
+.ppt-assistant-panel > .ppt-tabs,
+.ppt-assistant-panel .ppt-chat-heading {
+  padding-right: 30px;
 }
 
 .ppt-page-rail {
   display: flex;
   align-items: stretch;
   flex: none;
-  gap: 13px;
+  gap: 14px;
   overflow-x: auto;
-  padding: 15px 28px 20px;
+  padding: 14px 24px;
   border-top: 1px solid var(--color-border-muted);
+  background: var(--color-bg-elevated);
 }
 
 .ppt-page .ppt-page-thumbnail {
   display: block;
-  width: 126px;
+  width: 108px;
   flex: none;
   border: 0;
   background: transparent;
@@ -707,7 +743,7 @@
 }
 
 @media (max-width: 1200px) {
-  .ppt-review-workspace {
+  .ppt-review-workspace.assistant-open {
     grid-template-columns: minmax(0, 1fr) 5px 310px;
   }
 
@@ -885,7 +921,7 @@
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  margin-top: 18px;
+  margin-top: 8px;
 }
 .ppt-manual-footer small {
   margin-left: auto;

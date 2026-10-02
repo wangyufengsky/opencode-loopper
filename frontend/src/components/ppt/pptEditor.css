@@ -1,13 +1,15 @@
+.ppt-manual-tools {
+  position: relative;
+  flex: none;
+  margin-bottom: 10px;
+  z-index: 5;
+}
+
 .ppt-editor-toolbar {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 6px;
-  margin-bottom: 12px;
-  padding: 10px;
-  border: 1px solid var(--color-border-muted);
-  border-radius: var(--radius-card);
-  background: var(--color-bg-elevated);
 }
 
 .ppt-editor-toolbar button {
@@ -35,15 +37,148 @@
 
 .ppt-canvas-wrap {
   width: 100%;
-  max-width: 1280px;
-  margin: auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-.ppt-canvas-wrap > small {
-  display: block;
-  padding: 12px 0 4px;
+.ppt-canvas-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0 0;
+  flex: none;
   font-size: 11px;
-  text-align: center;
+}
+
+.ppt-canvas-viewport {
+  flex: 1;
+  min-height: 220px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--color-border-muted);
+  border-radius: var(--radius-card);
+  background-color: var(--color-bg-surface);
+  background-image: radial-gradient(var(--color-border-default) 0.7px, transparent 0.7px);
+  background-size: 20px 20px;
+}
+
+.ppt-canvas-stage {
+  display: grid;
+  place-items: center;
+  min-width: 100%;
+  min-height: 100%;
+  padding: 24px;
+}
+
+.ppt-zoom-controls {
+  display: flex;
+  flex: none;
+  align-items: center;
+  padding: 2px;
+  border: 1px solid var(--color-border-muted);
+  border-radius: var(--radius-control);
+  background: var(--color-bg-elevated);
+}
+
+.ppt-page .ppt-zoom-controls button {
+  height: 28px;
+  min-width: 28px;
+  padding: 4px;
+  border: 0;
+  background: transparent;
+}
+
+.ppt-page .ppt-zoom-controls .ppt-zoom-value {
+  min-width: 48px;
+  font-family: var(--font-code);
+  font-size: 11px;
+}
+
+.ppt-insert-menu,
+.ppt-page-settings {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  max-width: 100%;
+  padding: 12px;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-card);
+  background: var(--color-bg-elevated);
+  box-shadow: var(--shadow-card);
+}
+
+.ppt-insert-menu {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  width: 250px;
+}
+
+.ppt-page-settings {
+  width: 470px;
+}
+
+.ppt-page-setting-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ppt-page-setting-actions + .ppt-page-setting-actions:not(:empty) {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border-muted);
+}
+
+.ppt-page-setting-actions select {
+  width: auto;
+  max-width: 100%;
+}
+
+.ppt-tool-hint {
+  margin-left: auto;
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.ppt-selection-bar,
+.ppt-selection-bar > span,
+.ppt-selection-bar > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ppt-selection-bar {
+  flex: none;
+  justify-content: space-between;
+  padding: 6px 10px;
+  margin-bottom: 10px;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-control);
+  background: var(--color-bg-elevated);
+  font-size: 12px;
+}
+
+.ppt-selection-bar > span {
+  min-width: 0;
+}
+
+.ppt-selection-bar small {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.ppt-selection-bar > div {
+  flex: none;
+}
+
+.ppt-selection-bar button {
+  padding: 6px 8px;
+  font-size: 12px;
 }
 
 .ppt-canvas {
@@ -53,7 +188,7 @@
   overflow: visible;
   background: var(--color-bg-surface);
   box-shadow: var(--shadow-card);
-  touch-action: none;
+  touch-action: pan-x pan-y;
   border: 1px solid var(--color-border-muted);
 }
 
@@ -323,6 +458,18 @@
 }
 
 @media (max-width: 640px) {
+  .ppt-selection-bar small,
+  .ppt-tool-hint {
+    display: none;
+  }
+
+  .ppt-selection-bar {
+    padding: 4px 6px;
+  }
+
+  .ppt-canvas-footer small {
+    max-width: 55%;
+  }
   .ppt-editor-toolbar {
     padding: 6px;
     gap: 4px;

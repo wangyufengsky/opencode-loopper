@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import { usePptStore } from '@/stores/pptStore'
 import { pptApi } from '@/api/ppt'
@@ -37,6 +37,8 @@ const slideId = ref('')
 const elementId = ref('')
 const scopeKind = ref<PptScope['kind']>('DOCUMENT')
 const propertyDirty = ref(false)
+const assistantTrigger = ref<HTMLButtonElement>()
+const workspaceRoot = ref<HTMLElement>()
 const historical = ref<{
   revision: number
   deck: PptDeck
@@ -117,6 +119,9 @@ watch(
     elementId.value = ''
     scopeKind.value = 'DOCUMENT'
     manual.value = false
+    assistantOpen.value = false
+    moreOpen.value = false
+    propertyDirty.value = false
     details.value = null
     rightTab.value = 'chat'
     await store.load(String(value))
@@ -145,30 +150,73 @@ watch(slideId, (value) => {
       /* Optional position preference. */
     }
 })
+watch(() => store.agent?.questions.some(question => question.state === 'PENDING'), (pending) => {
+  if (pending && ready.value) openAssistant()
+})
+watch(propertyDirty, (dirty) => {
+  if (!dirty && localError.value.startsWith('修改尚未保存')) localError.value = ''
+})
+function protectDraft() {
+  if (!propertyDirty.value) return true
+  localError.value = '修改尚未保存，请先在属性中保存或处理冲突，再切换选择。'
+  assistantOpen.value = true
+  rightTab.value = 'properties'
+  return false
+}
+function beforeUnload(event: BeforeUnloadEvent) {
+  if (!propertyDirty.value) return
+  event.preventDefault()
+  event.returnValue = ''
+}
+function closeMoreOutside(event: PointerEvent) {
+  if (!(event.target as Element).closest('.ppt-more')) moreOpen.value = false
+}
+onMounted(() => {
+  window.addEventListener('beforeunload', beforeUnload)
+  document.addEventListener('pointerdown', closeMoreOutside)
+})
+function canLeaveDraft() {
+  return !propertyDirty.value || window.confirm('属性修改尚未保存。确定离开？未保存的输入会保留在此浏览器中。')
+}
+onBeforeRouteLeave(canLeaveDraft)
+onBeforeRouteUpdate((to, from) => to.params.id === from.params.id || canLeaveDraft())
 const timer = setInterval(() => {
   if (store.active || store.jobsActive || store.disconnected) void store.refresh()
 }, 4000)
 onBeforeUnmount(() => {
   ticket++
   clearInterval(timer)
+  window.removeEventListener('beforeunload', beforeUnload)
+  document.removeEventListener('pointerdown', closeMoreOutside)
   store.close()
 })
 
 function selectSlide(id: string) {
+  if (!protectDraft()) return
   slideId.value = id
   elementId.value = ''
   scopeKind.value = 'SLIDE'
   propertyDirty.value = false
+  if (rightTab.value === 'properties') assistantOpen.value = false
 }
 
 function selectElement(id: string) {
+  if (id && id === elementId.value) return
+  if (!protectDraft()) return
   elementId.value = id
-  scopeKind.value = id ? 'ELEMENT' : 'SLIDE'
-  if (manual.value && id) rightTab.value = 'properties'
+  scopeKind.value = id ? 'ELEMENT' : 'DOCUMENT'
+  if (manual.value && id) {
+    rightTab.value = 'properties'
+    assistantOpen.value = true
+  } else if (!id) {
+    assistantOpen.value = false
+    void nextTick(() => workspaceRoot.value?.querySelector<HTMLElement>('.ppt-canvas-viewport')?.focus({ preventScroll: true }))
+  }
   propertyDirty.value = false
 }
 
 function changeScope(kind: PptScope['kind']) {
+  if (!protectDraft()) return
   scopeKind.value = kind
   if (kind === 'DOCUMENT') elementId.value = ''
 }
@@ -211,11 +259,12 @@ async function addElement(type: string, assetId?: string) {
     elementId.value = created.id
     scopeKind.value = 'ELEMENT'
     rightTab.value = 'properties'
+    assistantOpen.value = true
     await store.createJob('PREVIEW', slide.value?.id)
   }
 }
 async function insertImage(id: string) {
-  if (!ready.value) return
+  if (!ready.value || !protectDraft()) return
   details.value = null
   manual.value = true
   await addElement('image', id)
@@ -294,6 +343,7 @@ async function theme(value: string) {
     await store.createJob('PREVIEW')
 }
 async function inspectRevision(value: number) {
+  if (!protectDraft()) return
   if (!store.document) return
   const id = store.document.id
   try {
@@ -312,6 +362,7 @@ async function inspectRevision(value: number) {
   }
 }
 async function restoreRevision(value: number) {
+  if (!protectDraft()) return
   if (!window.confirm(`将版本 ${value} 恢复为新版本？当前内容会保留在历史记录中。`)) return
   if (
     await store.action('restore', {
@@ -331,13 +382,23 @@ async function archive() {
   moreOpen.value = false
 }
 function closePanels() {
+  if (details.value) return
+  if (!protectDraft()) return
   moreOpen.value = false
   assistantOpen.value = false
+  elementId.value = ''
+  scopeKind.value = 'DOCUMENT'
+  void nextTick(() => assistantTrigger.value?.focus({ preventScroll: true }))
+}
+function openAssistant(tab: 'chat' | 'properties' = 'chat') {
+  rightTab.value = tab
+  assistantOpen.value = true
 }
 function toggleManual() {
+  if (!protectDraft()) return
   manual.value = !manual.value
-  rightTab.value = manual.value ? 'properties' : 'chat'
-  if (manual.value) assistantOpen.value = true
+  rightTab.value = manual.value && element.value ? 'properties' : 'chat'
+  assistantOpen.value = manual.value && !!element.value
 }
 function recheck() {
   localError.value = ''
@@ -352,6 +413,7 @@ function locateIssue(slide: string, element: string) {
 
 <template>
   <main
+    ref="workspaceRoot"
     id="main-content"
     class="ppt-page ppt-studio"
     :class="{ 'is-ready': ready, 'is-editing': manual }"
@@ -374,7 +436,7 @@ function locateIssue(slide: string, element: string) {
                 : pptPhaseLabel(store.document.phase)
           }}
           <span v-if="store.busy">· 正在保存</span>
-          <span v-else-if="propertyDirty">· 修改已保留</span>
+          <span v-else-if="propertyDirty">· 尚未保存</span>
         </p>
       </div>
       <div class="ppt-studio-actions">
@@ -469,16 +531,24 @@ function locateIssue(slide: string, element: string) {
           <button @click="historical = null">返回当前版本</button>
         </p>
         <section
-          v-if="store.generation && store.generation.state !== 'COMPLETED'"
+          v-if="(store.generation && store.generation.state !== 'COMPLETED') || store.active"
           class="ppt-revision-status"
           aria-live="polite"
         >
           <div>
-            <strong>{{ pptGenerationLabel(store.generation.state) }}</strong>
-            <p v-if="store.generation.detail">{{ store.generation.detail }}</p>
+            <strong>{{ store.generation ? pptGenerationLabel(store.generation.state) : 'PPT 助手正在处理' }}</strong>
+            <p v-if="store.generation?.detail">{{ store.generation.detail }}</p>
           </div>
           <button
-            v-if="store.generation.canResume"
+            v-if="store.active && !assistantOpen"
+            :disabled="store.busy || store.agent?.state === 'STOPPING' || store.generation?.state === 'STOPPING'"
+            @click="store.stop"
+          >
+            <Icon icon="lucide:square" />
+            暂停
+          </button>
+          <button
+            v-if="store.generation?.canResume"
             class="ppt-primary"
             :disabled="store.busy || !!store.pending"
             @click="store.resume"
@@ -519,7 +589,7 @@ function locateIssue(slide: string, element: string) {
             >
               <Icon icon="lucide:chevron-right" />
             </button>
-            <button class="ppt-open-assistant" @click="assistantOpen = !assistantOpen">
+            <button ref="assistantTrigger" class="ppt-open-assistant" :aria-expanded="assistantOpen" aria-controls="ppt-assistant" @click="assistantOpen ? closePanels() : openAssistant()">
               <Icon icon="lucide:message-circle" />
               提修改意见
             </button>
@@ -531,12 +601,21 @@ function locateIssue(slide: string, element: string) {
             :deck="scene"
             :slide="slide"
             :element="element"
-            :disabled="!editable"
+            :disabled="!editable || propertyDirty"
             @add="addElement"
             @image="openDetails('sources')"
             @page="slideAction"
             @theme="theme"
+            @properties="openAssistant('properties')"
           />
+          <div v-if="element" class="ppt-selection-bar" role="region" aria-label="当前选择">
+            <span><Icon :icon="element.locked ? 'lucide:lock' : 'lucide:mouse-pointer-2'" />{{ pptElementLabel(element.type) }}<small>{{ element.text?.slice(0, 36) || slide?.title }}</small></span>
+            <div>
+              <button @click="openAssistant()"><Icon icon="lucide:sparkles" />修改这个对象</button>
+              <button v-if="manual" aria-label="编辑对象属性" @click="openAssistant('properties')"><Icon icon="lucide:sliders-horizontal" /></button>
+              <button class="ppt-icon-button" aria-label="取消选择" @click="selectElement('')"><Icon icon="lucide:x" /></button>
+            </div>
+          </div>
           <div v-if="slide && scene" class="ppt-main-slide">
             <PptCanvas
               v-if="preview || manual"
@@ -544,7 +623,7 @@ function locateIssue(slide: string, element: string) {
               :slide="slide"
               :selected="elementId"
               :revision="revision"
-              :disabled="!manual || !editable"
+              :disabled="!manual || !editable || propertyDirty"
               :editing="manual"
               :preview="
                 preview ? pptApi.artifactUrl(store.document.id, preview.artifact.id) : undefined
@@ -603,12 +682,13 @@ function locateIssue(slide: string, element: string) {
           :selected="slide?.id || ''"
           :revision="revision"
           :manual="manual"
-          :disabled="!editable"
+          :disabled="!editable || propertyDirty"
           @select="selectSlide"
           @add="addSlide"
         />
       </section>
       <div
+        v-show="assistantOpen"
         class="ppt-review-separator"
         role="separator"
         aria-label="调整助手栏宽度"
@@ -620,19 +700,19 @@ function locateIssue(slide: string, element: string) {
         @pointerdown="panels.start($event, 'right')"
         @keydown="panels.keyboard($event, 'right')"
       />
-      <aside class="ppt-assistant-panel">
+      <aside id="ppt-assistant" v-show="assistantOpen" class="ppt-assistant-panel" aria-label="PPT 助手与属性">
         <div v-if="manual" class="ppt-tabs">
           <button :class="{ active: rightTab === 'chat' }" @click="rightTab = 'chat'">
             修改意见
           </button>
           <button :class="{ active: rightTab === 'properties' }" @click="rightTab = 'properties'">
-            对象属性
+            {{ element ? '对象属性' : '页面属性' }}
           </button>
         </div>
         <button
           class="ppt-close-assistant ppt-icon-button"
           aria-label="收起助手"
-          @click="assistantOpen = false"
+          @click="closePanels"
         >
           <Icon icon="lucide:x" />
         </button>
@@ -640,7 +720,7 @@ function locateIssue(slide: string, element: string) {
           v-show="!manual || rightTab === 'chat'"
           :scope="scope"
           :scope-label="scopeLabel"
-          :disabled="store.document.archived || !!historical"
+          :disabled="store.document.archived || !!historical || propertyDirty"
           @change-scope="changeScope"
         />
         <PptSlideProperties

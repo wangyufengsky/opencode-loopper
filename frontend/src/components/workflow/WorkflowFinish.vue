@@ -5,7 +5,7 @@ import { useWorkflowCommand } from './command'
 import { userFacingError, workflowFinishLabel } from '@/utils/displayLabels'
 import type { WorkflowFinish, WorkflowFinishTarget, WorkflowRequirementState } from '@/types/domain'
 
-const props = defineProps<{ requirement: string; version: number; state: WorkflowRequirementState; disabled: boolean; beforeOpen?: () => boolean }>()
+const props = withDefaults(defineProps<{ requirement: string; version: number; state: WorkflowRequirementState; disabled: boolean; beforeOpen?: () => boolean; controlsVisible?: boolean }>(), { controlsVisible: true })
 const emit = defineEmits<{ busy: [value: boolean]; changed: [] }>()
 const command = useWorkflowCommand(), value = ref<WorkflowFinish | null>(null), open = ref(false), target = ref<WorkflowFinishTarget>('CANCELLED'), reason = ref(''), error = ref(''), reading = ref(false)
 let alive = true, ticket = 0, timer: ReturnType<typeof setTimeout> | undefined
@@ -40,10 +40,10 @@ async function submit() {
 function canLeave() { return !(command.pending.value || open.value && reason.value.trim()) || window.confirm('结束需求的原因或操作结果尚未确认，仍要离开？') }
 watch(() => [props.requirement, props.version, props.state], () => { if (!command.locked.value) void refresh() }, { immediate: true })
 onBeforeUnmount(() => { alive = false; ticket++; clearTimeout(timer); emit('busy', false) })
-defineExpose({ canLeave })
+defineExpose({ canLeave, show, available, editable })
 </script>
 <template>
-  <section v-if="intent || open || available || error || command.error.value" class="workflow-finish" aria-label="结束需求">
+  <section v-if="intent || open || available && controlsVisible !== false || error || command.error.value" class="workflow-finish" aria-label="结束需求">
     <div v-if="intent" role="status" class="workflow-finish-summary">
       <strong>{{ ending ? '正在结束需求' : workflowFinishLabel(intent.targetState) }}</strong>
       <p v-if="ending">已选择{{ workflowFinishLabel(intent.targetState) }}，正在确认活动节点停止并归还工作目录。停止状态未确认前会保留在此状态。</p>

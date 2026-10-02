@@ -4,12 +4,13 @@ import { workflowRuns } from '@/api/workflowRuns'
 import { ApiError } from '@/api/client'
 import type { WorkflowTemplatePreview } from '@/types/domain'
 import { requirement } from './workflowRunTestFixtures'
+import WorkflowCanvas from './WorkflowCanvas.vue'
 import WorkflowSaveTemplate from './WorkflowSaveTemplate.vue'
 vi.mock('@/api/workflowRuns', () => ({ workflowRuns: { previewTemplate: vi.fn(), saveTemplate: vi.fn() } }))
 const api = vi.mocked(workflowRuns), source = requirement()
 const preview = (extra: Partial<WorkflowTemplatePreview> = {}): WorkflowTemplatePreview => ({ mode: 'CURRENT', sourceRevision: 2, initialAvailable: true, graph: structuredClone(source.graph), layout: structuredClone(source.layout), fixedPlanningNodes: [], sha256: 'a'.repeat(64), diagnostics: [], ...extra })
 let wrapper: VueWrapper | undefined
-async function render() { wrapper = mount(WorkflowSaveTemplate, { props: { requirement: source.id, revision: 2, title: source.title, graph: source.graph, layout: source.layout }, global: { stubs: { RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' }, WorkflowCanvas: true, WorkflowNodeEditor: true } } }); await flushPromises() }
+async function render() { wrapper = mount(WorkflowSaveTemplate, { props: { requirement: source.id, revision: 2, title: source.title, graph: source.graph, layout: source.layout }, global: { stubs: { RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' }, WorkflowCanvas: { template: '<section />', methods: { focus: () => undefined } }, WorkflowNodeEditor: true } } }); await flushPromises() }
 const button = (text: string) => wrapper!.findAll('button').find(value => value.text() === text)!
 beforeEach(() => { vi.resetAllMocks(); api.previewTemplate.mockResolvedValue(preview()); api.saveTemplate.mockResolvedValue({ id: 'new-template', revision: 1, version: 0, layoutVersion: 0, state: 'ACTIVE' }) })
 afterEach(() => wrapper?.unmount())
@@ -45,4 +46,14 @@ describe('save a requirement plan as a template', () => {
     api.previewTemplate.mockResolvedValue(preview({ initialAvailable: false })); await render()
     expect(wrapper!.get('option[value=INITIAL]').attributes('disabled')).toBeDefined(); expect(wrapper!.text()).toContain('任务尚未执行')
   })
+  it('dismisses preview selection without closing or losing an uncertain save operation', async () => {
+    await render(); wrapper!.getComponent(WorkflowCanvas).vm.$emit('select', source.graph.nodes[0]!.id); await flushPromises()
+    expect(wrapper!.find('[aria-label="预览节点"]').exists()).toBe(true)
+    api.saveTemplate.mockRejectedValueOnce(new Error('offline')); await button('确认保存为新流程').trigger('click'); await flushPromises()
+    await wrapper!.get('[aria-label="关闭预览节点"]').trigger('click'); await flushPromises()
+    expect(wrapper!.find('[aria-label="预览节点"]').exists()).toBe(false); expect(wrapper!.emitted('close')).toBeUndefined()
+    expect(button('返回任务画布').attributes('disabled')).toBeDefined()
+    await button('重试原保存操作').trigger('click'); await flushPromises(); expect(api.saveTemplate.mock.calls[1]).toEqual(api.saveTemplate.mock.calls[0])
+  })
+
 })

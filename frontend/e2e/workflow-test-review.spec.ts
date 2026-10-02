@@ -1,3 +1,4 @@
+import { selectWorkflowNode } from './fixtures/workflowNavigation'
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { execution, requirement, attempt } from '../src/components/workflow/workflowRunTestFixtures'
@@ -28,8 +29,8 @@ for (const failed of [false, true]) test(`场景复核${failed ? '保留未执�
     return route.fulfill({ json: [] })
   })
   await page.setViewportSize({ width: 1600, height: 1000 }); await page.goto('/requirements/review-run')
-  await page.locator('.workflow-module-rail button').filter({ hasText: node.title }).click(); expect(reads).toBe(0)
-  await page.getByRole('button', { name: '交付物', exact: true }).click(); expect(reads).toBe(1)
+  await selectWorkflowNode(page, node.title); expect(reads).toBe(0)
+  await page.getByRole('button', { name: '交付物', exact: true }).click(); await expect.poll(() => reads).toBe(1)
   const content = page.locator('.workflow-test-review')
   await expect(content).toContainText(failed ? '需要修订' : '复核通过'); await expect(content).toContainText('覆盖判断来自本节点的独立评审'); await expect(content).not.toContainText('private-')
   if (failed) { await expect(content).toContainText('关联测试未执行'); await expect(content).toContainText('缺少对应测试'); await expect(content).not.toContainText('评审认为已覆盖') }

@@ -1,3 +1,4 @@
+import { selectWorkflowNode } from './fixtures/workflowNavigation'
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { requirement, execution, attempt } from '../src/components/workflow/workflowRunTestFixtures'
@@ -28,7 +29,7 @@ for (const mode of ['plan', 'reviewed', 'unreviewed', 'local-review']) test(`完
     return route.fulfill({ json: [] })
   })
   await page.setViewportSize({ width: 1600, height: 1000 }); await page.goto('/requirements/document-combination')
-  await page.locator('.workflow-module-rail button').filter({ hasText: node.title }).click(); expect(reads).toBe(0)
+  await selectWorkflowNode(page, node.title); expect(reads).toBe(0)
   await page.getByRole('button', { name: '交付物', exact: true }).click()
   const details = page.locator(planning ? '.workflow-document-plan-report' : '.workflow-document-report')
   await expect(details).toContainText(planning ? '确认后再选择执行方式' : '本次未运行构建、测试或项目脚本'); expect(reads).toBe(1)

@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import { workflowApi } from '@/api/workflow'
 import { ApiError } from '@/api/client'
+import WorkflowContextPanel from '@/components/workflow/WorkflowContextPanel.vue'
+import WorkflowNodeList from '@/components/workflow/WorkflowNodeList.vue'
+import WorkflowAddMenu from '@/components/workflow/WorkflowAddMenu.vue'
 import WorkflowCanvas from '@/components/workflow/WorkflowCanvas.vue'
 import WorkflowPresetPicker from '@/components/workflow/WorkflowPresetPicker.vue'
 import { replaceReviewSource } from '@/components/workflow/reviewSource'
@@ -14,6 +17,7 @@ import { prepareCopy, prepareSave, saveDraft, type WorkflowDraft, type WorkflowS
 import { userFacingError } from '@/utils/displayLabels'
 import type { WorkflowGraph, WorkflowDiagnostic, WorkflowLayout, WorkflowNode, WorkflowTemplate } from '@/types/domain'
 import '@/components/workflow/workflow.css'
+import '@/components/workflow/studio.css'
 
 const presetsOpen = ref(false)
 const route = useRoute(), router = useRouter()
@@ -22,7 +26,7 @@ const draft = ref(fresh()), base = ref<WorkflowTemplate | null>(null), baseline 
 const ready = ref(false), loading = ref(false), busy = ref(false), error = ref(''), notice = ref(''), selected = ref(''), selectedEdge = ref(''), connecting = ref('')
 const pending = ref<WorkflowSave | null>(null), conflict = ref(false), diagnostics = ref<WorkflowDiagnostic[]>([])
 const undo = ref<WorkflowDraft[]>([]), redo = ref<WorkflowDraft[]>([]), roleNames = ref<Record<string, string>>({})
-const canvas = ref<InstanceType<typeof WorkflowCanvas>>(), inspecting = ref<'flow' | 'node' | 'edge'>('flow')
+const canvas = ref<InstanceType<typeof WorkflowCanvas>>(), inspecting = ref<'none' | 'flow' | 'node' | 'edge' | 'add' | 'tools' | 'nodes'>('none')
 const builtin = computed(() => base.value?.builtin ?? false), locked = computed(() => !ready.value || loading.value || busy.value || !!pending.value || builtin.value)
 const dirty = computed(() => !!pending.value || !builtin.value && JSON.stringify(draft.value) !== baseline.value)
 const node = computed(() => draft.value.graph.nodes.find(n => n.id === selected.value))
@@ -34,7 +38,7 @@ function accept(value: WorkflowTemplate) {
   diagnostics.value = value.diagnostics; pending.value = null; conflict.value = false; undo.value = []; redo.value = []
 }
 async function load() {
-  const ticket = ++generation; presetsOpen.value = false; busy.value = false; ready.value = false; loading.value = true; error.value = ''; notice.value = ''; selected.value = ''; selectedEdge.value = ''; connecting.value = ''
+  const ticket = ++generation; inspecting.value = 'none'; presetsOpen.value = false; busy.value = false; ready.value = false; loading.value = true; error.value = ''; notice.value = ''; selected.value = ''; selectedEdge.value = ''; connecting.value = ''
   try {
     const id = typeof route.params.id === 'string' ? route.params.id : null
     if (id) { const value = await workflowApi.get(id); if (ticket === generation) accept(value) }
@@ -54,15 +58,32 @@ function history(back: boolean) {
   if (value) { destination.value.push(clone(draft.value)); draft.value = value; diagnostics.value = [] }
 }
 function add(module: 'free.readonly' | 'free.write' | 'human') {
+  if (locked.value) return
   const next = newNode(module), graph = { ...draft.value.graph, nodes: [...draft.value.graph.nodes, next] }
   change({ ...draft.value, graph, layout: { ...draft.value.layout, positions: { ...draft.value.layout.positions, [next.id]: { x: (graph.nodes.length - 1) * 40, y: (graph.nodes.length - 1) * 150 } } } })
-  select(next.id)
+  locate(next.id)
 }
 function addPreset(graph: WorkflowGraph, node: WorkflowNode) {
   if (locked.value) return
-  change({ ...draft.value, graph, layout: { ...draft.value.layout, positions: { ...draft.value.layout.positions, [node.id]: autoLayout(graph)[node.id]! } } }); select(node.id); presetsOpen.value = false
+  change({ ...draft.value, graph, layout: { ...draft.value.layout, positions: { ...draft.value.layout.positions, [node.id]: autoLayout(graph)[node.id]! } } }); locate(node.id); presetsOpen.value = false
 }
-function select(id: string) { selected.value = id; inspecting.value = 'node'; selectedEdge.value = '' }
+function select(id: string) { selected.value = id; inspecting.value = 'node'; selectedEdge.value = ''; presetsOpen.value = false }
+function selectEdge(id: string) { selectedEdge.value = id; selected.value = ''; connecting.value = ''; inspecting.value = 'edge'; presetsOpen.value = false }
+function dismiss() {
+  const previous = selected.value
+  selected.value = ''; selectedEdge.value = ''; connecting.value = ''; inspecting.value = 'none'; presetsOpen.value = false
+  void nextTick(() => canvas.value?.focus(previous))
+}
+function toggle(panel: 'flow' | 'add' | 'tools' | 'nodes') {
+  const next = inspecting.value === panel ? 'none' : panel
+  selected.value = ''; selectedEdge.value = ''; connecting.value = ''; presetsOpen.value = false; inspecting.value = next
+}
+function locate(key: string) { select(key); if (selected.value === key) void nextTick(() => { canvas.value?.reveal(key); canvas.value?.focus(key) }) }
+function openPresets() { inspecting.value = 'none'; presetsOpen.value = true }
+watch(() => draft.value.graph, graph => {
+  if (selected.value && !graph.nodes.some(item => item.id === selected.value) || selectedEdge.value && !graph.edges.some(item => item.id === selectedEdge.value)) dismiss()
+  if (connecting.value && !graph.nodes.some(item => item.id === connecting.value)) connecting.value = ''
+})
 function join(id: string) {
   if (locked.value) return
   if (!connecting.value) { connecting.value = id; return }
@@ -71,14 +92,14 @@ function join(id: string) {
 }
 function remove(id: string) {
   if (locked.value || !window.confirm('删除这个节点及其连接？已绑定它的输入需要先调整。')) return
-  try { const graph = removeNode(draft.value.graph, id), layout = clone(draft.value.layout); delete layout.positions[id]; change({ ...draft.value, graph, layout }); selected.value = ''; inspecting.value = 'flow'; error.value = '' }
+  try { const graph = removeNode(draft.value.graph, id), layout = clone(draft.value.layout); delete layout.positions[id]; change({ ...draft.value, graph, layout }); dismiss(); error.value = '' }
   catch (failure) { error.value = userFacingError(failure, '节点仍被使用，请先调整输入。') }
 }
 function patchNode(value: WorkflowNode) { change({ ...draft.value, graph: replaceReviewSource(draft.value.graph, value) }) }
 function layout(value: WorkflowLayout) { if (builtin.value) draft.value.layout = value; else change({ ...draft.value, layout: value }) }
 function removeEdge() {
-  if (!edge.value || !window.confirm('删除这条连接？请确认依赖它的输入仍有有效来源。')) return
-  change({ ...draft.value, graph: { ...draft.value.graph, edges: draft.value.graph.edges.filter(e => e.id !== selectedEdge.value) } }); inspecting.value = 'flow'
+  if (locked.value || !edge.value || !window.confirm('删除这条连接？请确认依赖它的输入仍有有效来源。')) return
+  change({ ...draft.value, graph: { ...draft.value.graph, edges: draft.value.graph.edges.filter(e => e.id !== selectedEdge.value) } }); dismiss()
 }
 async function validate() {
   const ticket = generation
@@ -112,20 +133,33 @@ onBeforeUnmount(() => { generation++; window.removeEventListener('beforeunload',
 watch(() => route.params.id, () => { if (!navigatingAfterSave) void load() }, { immediate: true })
 </script>
 <template>
-  <main id="main-content" class="workflow-editor workflow-page">
-    <header class="workflow-editor-header"><RouterLink to="/workflows" class="workflow-back"><Icon icon="lucide:arrow-left" />流程库</RouterLink><div><p class="eyebrow">{{ builtin ? '程序内置流程' : '流程创作' }}</p><h1>{{ draft.title }}</h1></div><span class="workflow-save-state">{{ builtin ? '复制后可修改' : dirty ? '有未保存修改' : base ? `版本 ${base.revision}` : '新流程' }}</span><div class="workflow-inline"><button :disabled="busy || loading || !ready" @click="validate">检查流程</button><button v-if="builtin" class="primary-button" :disabled="busy" @click="save(!pending)">{{ pending ? '重试复制' : '复制为自定义流程' }}</button><button v-else class="primary-button" :disabled="busy || loading || !ready" @click="save()">{{ busy ? '处理中…' : pending ? '重试保存' : '保存流程' }}</button></div></header>
+  <main id="main-content" class="workflow-editor workflow-page" @keydown.esc="dismiss">
+    <header class="workflow-editor-header">
+      <RouterLink to="/workflows" class="workflow-back" aria-label="返回流程库"><Icon icon="lucide:arrow-left" /></RouterLink>
+      <div class="workflow-title"><p class="eyebrow">{{ builtin ? '内置流程' : '流程创作' }}</p><h1>{{ draft.title }}</h1></div>
+      <span class="workflow-save-state" :class="{ 'is-dirty': dirty }">{{ builtin ? '只读 · 复制后可修改' : dirty ? '未保存' : base ? `版本 ${base.revision}` : '新流程' }}</span>
+      <button v-if="builtin" class="primary-button" :disabled="busy || loading || !ready" @click="save(!pending)">{{ pending ? '重试复制' : '复制为自定义流程' }}</button>
+      <button v-else class="primary-button" :disabled="busy || loading || !ready" @click="save()"><Icon icon="lucide:check" />{{ busy ? '处理中…' : pending ? '重试保存' : '保存流程' }}</button>
+    </header>
     <div v-if="error" class="workflow-error" role="alert">{{ error }}<button :disabled="busy" @click="reload">重新加载</button><button v-if="conflict" :disabled="busy" @click="save(true)">草稿另存为新流程</button></div>
     <p v-if="notice" class="workflow-notice" role="status">{{ notice }}</p>
     <p v-if="loading" role="status">正在读取流程…</p>
-    <WorkflowPresetPicker v-if="presetsOpen && ready" :graph="draft.graph" :disabled="locked" @insert="addPreset" @close="presetsOpen = false" />
     <div v-if="ready" class="workflow-studio">
-      <aside class="workflow-module-rail" aria-label="工作模块"><h2>添加节点</h2><button :disabled="locked" :aria-expanded="presetsOpen" @click="presetsOpen = !presetsOpen">预设工作模块</button><p>选择工作方式，再配置角色和任务。</p><button class="workflow-module-choice" :disabled="locked" @click="add('free.readonly')"><Icon icon="lucide:scan-text" /><strong>只读分析</strong><span>阅读资料、分析与设计</span></button><button class="workflow-module-choice" :disabled="locked" @click="add('free.write')"><Icon icon="lucide:code-xml" /><strong>文件工作</strong><span>编写代码与修改文件</span></button><button class="workflow-module-choice" :disabled="locked" @click="add('human')"><Icon icon="lucide:user-round-check" /><strong>人工检查</strong><span>由你补充结果并确认</span></button><div class="workflow-rail-footer"><Icon icon="lucide:mouse-pointer-2" /><p>拖动节点调整位置。点击节点下方的 ＋，再选择后续节点建立连接。</p></div></aside>
-      <section class="workflow-center"><div class="workflow-toolbar"><button :disabled="locked || !undo.length" aria-label="撤销修改" @click="history(true)"><Icon icon="lucide:undo-2" /></button><button :disabled="locked || !redo.length" aria-label="重做修改" @click="history(false)"><Icon icon="lucide:redo-2" /></button><span>{{ draft.graph.nodes.length }} 个节点 · {{ draft.graph.edges.length }} 条连接</span><button :disabled="locked" @click="layout({ ...draft.layout, positions: autoLayout(draft.graph) })">自动排列</button><button @click="inspecting = 'flow'">流程设置</button></div>
-        <WorkflowCanvas ref="canvas" :graph="draft.graph" :layout="draft.layout" :selected="selected" :readonly="locked" :connecting="connecting" :role-names="roleNames" @select="select" @edge="id => { selectedEdge = id; inspecting = 'edge' }" @connect="join" @layout="layout" @remove="remove" @cancel="connecting = ''" />
-      </section>
-      <WorkflowNodeEditor v-if="inspecting === 'node' && node" :node="node" :graph="draft.graph" :disabled="locked" @change="patchNode" @remove="remove(node.id)" @role-label="(id, label) => roleNames[id] = label" />
-      <aside v-else-if="inspecting === 'edge' && edge" class="workflow-inspector" aria-label="连接设置"><h2>连接设置</h2><p>{{ parent?.title }} → {{ draft.graph.nodes.find(n => n.id === edge?.to)?.title }}</p><fieldset :disabled="locked" class="workflow-fields"><label>执行条件<select :value="edge.outcome || ''" @change="change({ ...draft, graph: { ...draft.graph, edges: draft.graph.edges.map(e => e.id === edge?.id ? { ...e, outcome: ($event.target as HTMLSelectElement).value || null } : e) } })"><option value="">前置节点成功完成</option><option v-for="outcome in parent?.outcomes" :key="outcome" :value="outcome">{{ outcomeTitle(parent, outcome) }}</option></select></label><p>条件依据前置节点交付的业务结果。</p><button class="danger" @click="removeEdge">删除连接</button></fieldset></aside>
-      <aside v-else class="workflow-inspector" aria-label="流程设置"><h2>流程设置</h2><fieldset :disabled="locked" class="workflow-fields"><label>流程名称<input :value="draft.title" maxlength="120" @input="change({ ...draft, title: ($event.target as HTMLInputElement).value })" /></label><label>流程说明<textarea :value="draft.description" rows="4" @input="change({ ...draft, description: ($event.target as HTMLTextAreaElement).value })" /></label></fieldset><WorkflowPublicInputs :graph="draft.graph" :disabled="locked" @change="graph => change({ ...draft, graph })" /><p class="workflow-inspector-hint">节点可引用这些资料，也可绑定前置节点的交付物。执行顺序由画布连接决定。</p></aside>
+      <div class="workflow-toolbar" aria-label="画布工具">
+        <button :disabled="locked" :aria-expanded="inspecting === 'add'" @click="toggle('add')"><Icon icon="lucide:plus" />添加节点</button>
+        <span class="workflow-tool-divider" />
+        <button :aria-expanded="inspecting === 'flow'" @click="toggle('flow')"><Icon icon="lucide:sliders-horizontal" />流程设置</button>
+        <template v-if="undo.length || redo.length"><span class="workflow-tool-divider" /><button :disabled="locked || !undo.length" aria-label="撤销修改" title="撤销修改" @click="history(true)"><Icon icon="lucide:undo-2" /></button><button :disabled="locked || !redo.length" aria-label="重做修改" title="重做修改" @click="history(false)"><Icon icon="lucide:redo-2" /></button></template>
+        <button aria-label="更多工具" title="更多工具" :aria-expanded="inspecting === 'tools'" @click="toggle('tools')"><Icon icon="lucide:ellipsis" /></button>
+      </div>
+      <WorkflowCanvas ref="canvas" :graph="draft.graph" :layout="draft.layout" :selected="selected" :selected-edge="selectedEdge" :readonly="locked" :connecting="connecting" :role-names="roleNames" @select="select" @edge="selectEdge" @connect="join" @layout="layout" @remove="remove" @cancel="dismiss" />
+      <WorkflowContextPanel v-if="inspecting === 'add'" title="添加节点" class="workflow-tools-panel" @close="dismiss"><WorkflowAddMenu :disabled="locked" @add="add" @presets="openPresets" /></WorkflowContextPanel>
+      <WorkflowContextPanel v-else-if="inspecting === 'tools'" title="更多工具" class="workflow-tools-panel" @close="dismiss"><div class="workflow-tool-actions"><button @click="toggle('nodes')"><Icon icon="lucide:list-tree" />节点列表</button><button :disabled="busy || loading || !ready" @click="validate"><Icon icon="lucide:list-checks" />检查流程</button><button :disabled="locked" @click="layout({ ...draft.layout, positions: autoLayout(draft.graph) })"><Icon icon="lucide:network" />自动排列</button><p>拖动空白处平移，Ctrl + 滚轮缩放。选中节点后可用方向键移动，Delete 删除，Esc 取消选择。</p></div></WorkflowContextPanel>
+    <WorkflowContextPanel v-if="inspecting === 'nodes'" title="节点列表" class="workflow-tools-panel" @close="dismiss"><WorkflowNodeList :nodes="draft.graph.nodes" @select="locate" /></WorkflowContextPanel>
+      <WorkflowContextPanel v-if="presetsOpen" title="预设工作模块" class="workflow-preset-panel" @close="dismiss"><WorkflowPresetPicker :graph="draft.graph" :disabled="locked" @insert="addPreset" @close="dismiss" /></WorkflowContextPanel>
+      <WorkflowContextPanel v-else-if="inspecting === 'node' && node" :key="node.id" title="节点详情" :focus-on-open="false" @close="dismiss"><WorkflowNodeEditor :node="node" :graph="draft.graph" :disabled="locked" @change="patchNode" @remove="remove(node.id)" @role-label="(id, label) => roleNames[id] = label" /></WorkflowContextPanel>
+      <WorkflowContextPanel v-else-if="inspecting === 'edge' && edge" title="连接设置" @close="dismiss"><aside class="workflow-inspector" aria-label="连接设置"><p class="workflow-edge-route">{{ parent?.title }} <Icon icon="lucide:arrow-right" /> {{ draft.graph.nodes.find(n => n.id === edge?.to)?.title }}</p><fieldset :disabled="locked" class="workflow-fields"><label>执行条件<select :value="edge.outcome || ''" @change="change({ ...draft, graph: { ...draft.graph, edges: draft.graph.edges.map(e => e.id === edge?.id ? { ...e, outcome: ($event.target as HTMLSelectElement).value || null } : e) } })"><option value="">前置节点成功完成</option><option v-for="outcome in parent?.outcomes" :key="outcome" :value="outcome">{{ outcomeTitle(parent, outcome) }}</option></select></label><p>条件依据前置节点交付的业务结果。</p><button class="danger" @click="removeEdge">删除连接</button></fieldset></aside></WorkflowContextPanel>
+      <WorkflowContextPanel v-else-if="inspecting === 'flow'" title="流程设置" @close="dismiss"><aside class="workflow-inspector" aria-label="流程设置"><fieldset :disabled="locked" class="workflow-fields"><label>流程名称<input :value="draft.title" maxlength="120" @input="change({ ...draft, title: ($event.target as HTMLInputElement).value })" /></label><label>流程说明<textarea :value="draft.description" rows="3" @input="change({ ...draft, description: ($event.target as HTMLTextAreaElement).value })" /></label></fieldset><WorkflowPublicInputs :graph="draft.graph" :disabled="locked" @change="graph => change({ ...draft, graph })" /></aside></WorkflowContextPanel>
     </div>
     <details v-if="diagnostics.length" class="workflow-diagnostics" open><summary>{{ diagnostics.length }} 项需要处理</summary><ul><li v-for="(item, index) in diagnostics" :key="index">{{ userFacingError(item.message, '节点配置需要补充，请检查角色、输入和完成标准。') }}</li></ul></details>
   </main>

@@ -1,3 +1,4 @@
+import { selectWorkflowNode } from './fixtures/workflowNavigation'
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { requirement, execution, attempt } from '../src/components/workflow/workflowRunTestFixtures'
@@ -29,7 +30,7 @@ test('取消后按需读取阶段报告、刷新下载及桌面窄屏', async ({
     return route.fulfill({ json: [] })
   })
   await page.setViewportSize({ width: 1600, height: 1000 }); await page.goto('/requirements/snapshot-partial')
-  await page.locator('.workflow-module-rail button').filter({ hasText: node.title }).click()
+  await selectWorkflowNode(page, node.title)
   await page.getByRole('button', { name: '阶段报告', exact: true }).click(); const report = page.getByRole('region', { name: '版本审查阶段报告' })
   expect(reads).toBe(0); await report.getByRole('button', { name: '查看阶段报告' }).click()
   await expect(report).toContainText('已分析 1 · 未完成 3 · 排除 1'); await expect(report).toContainText('尚未独立复核（仅候选）')

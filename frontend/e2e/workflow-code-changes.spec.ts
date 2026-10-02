@@ -1,3 +1,4 @@
+import { selectWorkflowNode } from './fixtures/workflowNavigation'
 import { expect, test } from '@playwright/test'
 import { execution, requirement, attempt } from '../src/components/workflow/workflowRunTestFixtures'
 import { newNode } from '../src/components/workflow/graph'
@@ -38,7 +39,7 @@ for (const width of [1600, 390]) test(`固定代码的累计改动和删除文�
     return route.fulfill({ json: [] })
   })
   await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 }); await page.goto('/requirements/code-changes')
-  await page.locator('.workflow-module-rail button').filter({ hasText: node.title }).click()
+  await selectWorkflowNode(page, node.title)
   await page.getByRole('button', { name: '交付物', exact: true }).click(); expect(changes).toBe(0); expect(files).toBe(0)
   await page.getByRole('button', { name: '查看改动文件', exact: true }).click()
   const list = page.getByRole('region', { name: '代码改动文件' })

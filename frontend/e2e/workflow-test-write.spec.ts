@@ -1,3 +1,4 @@
+import { selectWorkflowNode } from './fixtures/workflowNavigation'
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { execution, requirement, attempt } from '../src/components/workflow/workflowRunTestFixtures'
@@ -39,7 +40,7 @@ for (const passed of [true, false]) test(`单测编写${passed ? '范围通过�
     return route.fulfill({ json: [] })
   })
   await page.setViewportSize({ width: 1600, height: 1000 }); await page.goto('/requirements/test-write')
-  await page.locator('.workflow-module-rail button').filter({ hasText: node.title }).click(); expect(resultReads).toBe(0)
+  await selectWorkflowNode(page, node.title); expect(resultReads).toBe(0)
   await page.getByRole('button', { name: '交付物', exact: true }).click()
   const report = page.locator('.workflow-test-scope-report')
   await expect(report).toContainText(passed ? '范围检查通过' : '范围检查未通过'); await expect(report).toContainText('实际测试结果请查看后续验证节点')

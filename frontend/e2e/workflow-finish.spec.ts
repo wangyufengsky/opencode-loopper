@@ -1,3 +1,4 @@
+import { workflowTool } from './fixtures/workflowNavigation'
 import { expect, test, type Page } from '@playwright/test'
 import { commandPreset } from '../src/components/workflow/workflowTestFixtures'
 import { attempt, execution, requirement } from '../src/components/workflow/workflowRunTestFixtures'
@@ -44,7 +45,7 @@ async function fixture(page: Page, loseReceipt = false) {
 }
 test('画布明确确认人工成功，停止未知时仍可查看原节点并在重开后恢复结束记录', async ({ page }) => {
   const data = await fixture(page); await page.setViewportSize({ width: 1600, height: 1000 }); await page.goto('/requirements/req')
-  await page.getByRole('button', { name: '提前结束需求', exact: true }).click()
+  await workflowTool(page, '提前结束需求')
   await expect(page.getByRole('button', { name: '确认结束需求', exact: true })).toBeDisabled()
   await page.getByLabel('结束结果', { exact: true }).selectOption('COMPLETED'); await page.getByLabel('结束原因', { exact: true }).fill('已保存阶段成果，本次按人工决定结束。')
   await expect(page.getByRole('button', { name: '连续执行', exact: true })).toBeDisabled()
@@ -62,7 +63,7 @@ test('画布明确确认人工成功，停止未知时仍可查看原节点并�
 })
 test('结束回执丢失后重试同一操作，用户决定不会重复应用', async ({ page }) => {
   const data = await fixture(page, true); await page.goto('/requirements/req')
-  await page.getByRole('button', { name: '提前结束需求', exact: true }).click(); await page.getByLabel('结束原因', { exact: true }).fill('取消本次需求')
+  await workflowTool(page, '提前结束需求'); await page.getByLabel('结束原因', { exact: true }).fill('取消本次需求')
   await page.getByRole('button', { name: '确认结束需求', exact: true }).click(); await page.getByRole('button', { name: '重试原结束操作', exact: true }).click()
   await expect(page.getByRole('region', { name: '结束需求', exact: true })).toContainText('正在结束需求')
   expect(data.mutations).toHaveLength(2); expect(data.mutations[1]).toEqual(data.mutations[0])

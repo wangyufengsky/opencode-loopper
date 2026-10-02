@@ -1,3 +1,4 @@
+import { selectWorkflowNode } from './fixtures/workflowNavigation'
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { requirement, execution, attempt } from '../src/components/workflow/workflowRunTestFixtures'
@@ -22,6 +23,7 @@ test('开始前显式选择分支，启动请求保持完整来源身份', async
     return route.fulfill({ json: [] })
   })
   await page.setViewportSize({ width: 1600, height: 1000 }); await page.goto('/requirements/choose-branch')
+  await page.getByRole('button', { name: '需求与资料', exact: true }).click()
   const inspector = page.getByRole('complementary', { name: '需求与资料' }); await expect(inspector).toContainText('尚未选择分支'); expect(branchReads).toBe(0)
   await page.getByRole('button', { name: '选择代码分支', exact: true }).click(); await expect(page.getByRole('combobox', { name: '代码分支', exact: true })).toHaveValue('')
   await page.getByRole('button', { name: '更多分支', exact: true }).click(); await expect(page.getByRole('combobox', { name: '代码分支', exact: true }).locator('option')).toHaveCount(3)
@@ -62,7 +64,7 @@ for (const failed of [false, true]) test(`分支采集${failed ? '未完成可�
     return route.fulfill({ json: [] })
   })
   await page.setViewportSize({ width: 1600, height: 1000 }); await page.goto('/requirements/source-fixture')
-  await page.locator('.workflow-module-rail button').filter({ hasText: '固定分支代码' }).click(); await page.getByRole('button', { name: '交付物', exact: true }).click()
+  await selectWorkflowNode(page, '固定分支代码'); await page.getByRole('button', { name: '交付物', exact: true }).click()
   const report = page.locator('.workflow-repository-report'); await expect(report).toContainText(failed ? '采集未完成' : '分支代码已固定')
   expect(fileReads).toBe(0); await expect(page.getByRole('complementary', { name: '节点执行详情' })).not.toContainText('private-source-id')
   if (failed) { await expect(report).toContainText('已定位的提交保持不变'); await expect(report).not.toContainText('WORKFLOW_REPOSITORY_CAPTURE_FAILED') }

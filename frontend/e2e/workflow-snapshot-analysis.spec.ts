@@ -1,3 +1,4 @@
+import { selectWorkflowNode } from './fixtures/workflowNavigation'
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { requirement, execution, attempt } from '../src/components/workflow/workflowRunTestFixtures'
@@ -28,7 +29,7 @@ for (const mode of ['analysis', 'review', 'reuse']) test(`版本${mode === 'revi
     return route.fulfill({ json: [] })
   })
   await page.setViewportSize({ width: 1600, height: 1000 }); await page.goto('/requirements/snapshot-analysis')
-  await page.locator('.workflow-module-rail button').filter({ hasText: node.title }).click(); expect(bodyReads).toBe(0)
+  await selectWorkflowNode(page, node.title); expect(bodyReads).toBe(0)
   await page.getByRole('button', { name: '交付物', exact: true }).click(); const report = page.locator('.workflow-snapshot-report')
   if (review) { await expect(report).toContainText('候选问题独立复核'); await expect(report).toContainText('证据支持') }
   else if (reused) { await expect(report).toContainText('本次没有创建模型会话'); await expect(report.getByRole('link', { name: '上周固定版本审查' })).toHaveAttribute('href', '/requirements/private-source') }

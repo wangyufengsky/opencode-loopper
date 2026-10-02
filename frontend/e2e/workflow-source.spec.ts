@@ -1,3 +1,4 @@
+import { selectWorkflowNode } from './fixtures/workflowNavigation'
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { requirement, execution, attempt } from '../src/components/workflow/workflowRunTestFixtures'
@@ -34,7 +35,7 @@ for (const failed of [false, true]) test(`源码采集${failed ? '未完成可�
     return route.fulfill({ json: [] })
   })
   await page.setViewportSize({ width: 1600, height: 1000 }); await page.goto('/requirements/source-fixture')
-  await page.locator('.workflow-module-rail button').filter({ hasText: '冻结源码' }).click(); await page.getByRole('button', { name: '交付物', exact: true }).click()
+  await selectWorkflowNode(page, '冻结源码'); await page.getByRole('button', { name: '交付物', exact: true }).click()
   const report = page.locator('.workflow-source-report'); await expect(report).toContainText(failed ? '采集未完成' : '源码已冻结')
   expect(fileReads).toBe(0); await expect(page.getByRole('complementary', { name: '节点执行详情' })).not.toContainText('private-source-id')
   if (failed) { await expect(report).toContainText('未完整读取 1 项'); await expect(report).toContainText('新增采集节点'); await expect(report).toContainText('src/Legacy.java') }

@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { workflowRuns } from '@/api/workflowRuns'
 import { userFacingError } from '@/utils/displayLabels'
 import type { WorkflowGraph, WorkflowLayout, WorkflowReceipt, WorkflowTemplateMode, WorkflowTemplatePreview } from '@/types/domain'
 import WorkflowCanvas from './WorkflowCanvas.vue'
 import WorkflowNodeEditor from './WorkflowNodeEditor.vue'
+import WorkflowContextPanel from './WorkflowContextPanel.vue'
 import WorkflowPlanDiff from './WorkflowPlanDiff.vue'
-import { autoLayout, clone } from './graph'
+import { autoLayout, clone, outcomeTitle } from './graph'
 import { useWorkflowCommand } from './command'
 
 const props = defineProps<{ requirement: string; revision: number; title: string; graph: WorkflowGraph; layout: WorkflowLayout }>()
@@ -15,13 +16,15 @@ const emit = defineEmits<{ close: [] }>()
 const mode = ref<WorkflowTemplateMode>('CURRENT'), title = ref(`${props.title} · 流程`.slice(0, 120)), description = ref('')
 const preview = ref<WorkflowTemplatePreview | null>(null), initialAvailable = ref(true), reading = ref(false), error = ref(''), selected = ref(''), saved = ref<WorkflowReceipt | null>(null)
 const command = useWorkflowCommand(), roleNames = ref<Record<string, string>>({})
+const canvas = ref<InstanceType<typeof WorkflowCanvas>>(), selectedEdge = ref('')
 let alive = true, ticket = 0
 const selection = () => ({ expectedRevision: props.revision, mode: mode.value, graph: clone(props.graph), layout: clone(props.layout) })
 const node = computed(() => preview.value?.graph.nodes.find(value => value.id === selected.value))
+const edge = computed(() => preview.value?.graph.edges.find(value => value.id === selectedEdge.value))
 const layout = computed(() => preview.value ? { ...preview.value.layout, positions: { ...autoLayout(preview.value.graph), ...preview.value.layout.positions } } : props.layout)
 async function read() {
   if (command.locked.value || saved.value) return
-  const current = ++ticket; reading.value = true; preview.value = null; selected.value = ''; error.value = ''; command.error.value = ''
+  const current = ++ticket; reading.value = true; preview.value = null; selected.value = ''; selectedEdge.value = ''; error.value = ''; command.error.value = ''
   try { const value = await workflowRuns.previewTemplate(props.requirement, selection()); if (alive && current === ticket) { preview.value = value; initialAvailable.value = value.initialAvailable } }
   catch (failure) { if (alive && current === ticket) error.value = userFacingError(failure, '暂时无法预览，请重试。') }
   finally { if (alive && current === ticket) reading.value = false }
@@ -34,12 +37,13 @@ async function save() {
 }
 function canLeave() { return !command.locked.value }
 function close() { if (canLeave()) emit('close') }
+function clearSelection() { const previous = selected.value; selected.value = ''; selectedEdge.value = ''; void nextTick(() => canvas.value?.focus(previous)) }
 watch(mode, read, { immediate: true })
 onBeforeUnmount(() => { alive = false; ticket++ })
 defineExpose({ canLeave })
 </script>
 <template>
-  <section class="workflow-save-template" role="dialog" aria-modal="false" aria-label="另存为流程模板">
+  <section class="workflow-save-template" role="dialog" aria-modal="false" aria-label="另存为流程模板" @keydown.esc.stop="clearSelection">
     <header><div><h2>另存为流程模板</h2><p>保留角色、任务和输入设置，新任务重新提供资料。</p></div><button :disabled="command.locked.value" @click="close">返回任务画布</button></header>
     <div v-if="saved" role="status" class="workflow-notice">已保存为自定义流程。<RouterLink :to="`/workflows/${encodeURIComponent(saved.id)}`">打开新流程</RouterLink><p>原任务及画布中的未保存修改仍然保留。</p></div>
     <div v-else>
@@ -55,7 +59,7 @@ defineExpose({ canLeave })
       <template v-if="preview">
         <p v-if="preview.fixedPlanningNodes.length" class="workflow-notice">已展开的程序规划将改为人工确认固定步骤，避免下次重复分批：{{ preview.fixedPlanningNodes.join('、') }}。</p>
         <WorkflowPlanDiff :before="graph" :after="preview.graph" />
-        <div class="workflow-template-preview"><WorkflowCanvas :graph="preview.graph" :layout="layout" :selected="selected" :readonly="true" :role-names="roleNames" @select="value => selected = value" /><WorkflowNodeEditor v-if="node" :node="node" :graph="preview.graph" :disabled="true" :remove-disabled="true" readonly-reason="这是将要保存的模板。保存后可打开新流程继续编辑。" @role-label="(key, value) => roleNames[key] = value" /></div>
+        <div class="workflow-template-preview"><WorkflowCanvas ref="canvas" :graph="preview.graph" :layout="layout" :selected="selected" :selected-edge="selectedEdge" :readonly="true" :role-names="roleNames" @select="value => { selected = value; selectedEdge = '' }" @edge="value => { selectedEdge = value; selected = '' }" @cancel="clearSelection" /><WorkflowContextPanel v-if="node" :key="node.id" title="预览节点" :focus-on-open="false" @close="clearSelection"><WorkflowNodeEditor :node="node" :graph="preview.graph" :disabled="true" :remove-disabled="true" readonly-reason="这是将要保存的模板。保存后可打开新流程继续编辑。" @role-label="(key, value) => roleNames[key] = value" /></WorkflowContextPanel><WorkflowContextPanel v-else-if="edge" title="预览连接" @close="clearSelection"><div class="workflow-inspector"><p>{{ preview.graph.nodes.find(item => item.id === edge?.from)?.title }} → {{ preview.graph.nodes.find(item => item.id === edge?.to)?.title }}</p><p>{{ edge.outcome ? outcomeTitle(preview.graph.nodes.find(item => item.id === edge?.from), edge.outcome) : '前置节点成功完成' }}</p></div></WorkflowContextPanel></div>
         <p v-if="preview.graph.inputs.length">新任务需要提供：{{ preview.graph.inputs.map(value => value.title).join('、') }}。</p>
         <details v-if="preview.diagnostics.length"><summary>模板还有 {{ preview.diagnostics.length }} 项配置待补充</summary><ul><li v-for="(item, index) in preview.diagnostics" :key="index">{{ item.message }}</li></ul></details>
       </template>
@@ -69,7 +73,8 @@ defineExpose({ canLeave })
 .workflow-save-template header { display: flex; flex-wrap: wrap; align-items: start; justify-content: space-between; gap: 12px; }
 .workflow-save-template h2 { margin: 0; }.workflow-save-template p { line-height: 1.6; color: var(--color-text-secondary); overflow-wrap: anywhere; }
 .workflow-save-template fieldset { border: 0; padding: 0; max-width: 720px; }
-.workflow-template-preview { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 340px); height: 430px; margin: 14px 0; overflow: hidden; border: 1px solid var(--color-border-default); }
-.workflow-template-preview:has(> :only-child) { grid-template-columns: minmax(0, 1fr); }
-@media (max-width: 760px) { .workflow-template-preview { display: flex; flex-direction: column; height: auto; }.workflow-template-preview :deep(.workflow-canvas) { min-height: 300px; }.workflow-template-preview :deep(.workflow-inspector) { max-height: 400px; width: 100%; } }
+.workflow-template-preview { position: relative; display: flex; height: 430px; margin: 14px 0; overflow: hidden; border: 1px solid var(--color-border-default); border-radius: var(--radius-card); }
+.workflow-template-preview :deep(.workflow-canvas) { margin-top: 0; }
+.workflow-template-preview :deep(.workflow-context-panel) { top: 12px; right: 12px; max-height: calc(100% - 76px); }
+@media (max-width: 760px) { .workflow-template-preview { height: 460px; }.workflow-template-preview :deep(.workflow-context-panel) { width: calc(100% - 24px); } }
 </style>

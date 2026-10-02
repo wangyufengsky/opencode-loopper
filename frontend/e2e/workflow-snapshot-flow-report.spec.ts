@@ -1,3 +1,4 @@
+import { selectWorkflowNode } from './fixtures/workflowNavigation'
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { requirement, execution, attempt } from '../src/components/workflow/workflowRunTestFixtures'
@@ -32,7 +33,7 @@ test('完整版本报告按需预览、明细跳转、返回缓存及桌面窄�
     return route.fulfill({ json: [] })
   })
   await page.setViewportSize({ width: 1600, height: 1000 }); await page.goto('/requirements/snapshot-flow-report')
-  await page.locator('.workflow-module-rail button').filter({ hasText: node.title }).click(); await page.getByRole('button', { name: '交付物', exact: true }).click()
+  await selectWorkflowNode(page, node.title); await page.getByRole('button', { name: '交付物', exact: true }).click()
   await expect(page.locator('.workflow-snapshot-summary')).toContainText('完整报告已生成'); expect(fileReads).toBe(0); expect(bodyReads).toBe(0)
   await expect(page.getByRole('link', { name: '下载全部文档（ZIP）' })).toBeVisible()
   await page.getByRole('button', { name: '查看固定版本文件' }).click(); expect(bodyReads).toBe(0)

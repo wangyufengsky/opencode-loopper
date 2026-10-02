@@ -1,3 +1,4 @@
+import { selectWorkflowNode } from './fixtures/workflowNavigation'
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { createServer, request } from 'node:http'
@@ -49,7 +50,7 @@ for (const mode of ['reviewed', 'unreviewed', 'incomplete']) test(`文档汇总 
     return route.fulfill({ json: [] })
   })
   await page.setViewportSize({ width: 1600, height: 1000 }); await page.goto(`${origin}/requirements/document-fixture`)
-  await page.locator('.workflow-module-rail button').filter({ hasText: node.title }).click(); expect(resultReads).toBe(0)
+  await selectWorkflowNode(page, node.title); expect(resultReads).toBe(0)
   await page.getByRole('button', { name: '交付物', exact: true }).click()
   const report = page.locator('.workflow-document-report'); await expect(report).toContainText(failed ? '文档未生成' : '文档已生成'); expect(resultReads).toBe(1)
   if (failed) { await expect(report).toContainText('补齐遗漏批次'); await expect(page.getByRole('link', { name: '下载全部文档（ZIP）', exact: true })).toHaveCount(0) }

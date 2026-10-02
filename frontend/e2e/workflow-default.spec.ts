@@ -1,3 +1,4 @@
+import { selectWorkflowNode } from './fixtures/workflowNavigation'
 import { expect, test, type Page } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { template } from '../src/components/workflow/workflowTestFixtures'
@@ -45,6 +46,7 @@ test('内置默认流程显示八个模块，新需求读取默认流程版本',
   await fixture(page); await page.setViewportSize({ width: 1600, height: 1000 }); await page.goto('/workflows/builtin.workflow.development')
   await expect(page.locator('.workflow-node')).toHaveCount(8); await expect(page.locator('.workflow-node').filter({ hasText: '需求独立评审' })).toHaveCount(1)
   await expect(page.locator('.workflow-node').filter({ hasText: '风险独立评审' })).toHaveCount(1)
+  await page.getByRole('button', { name: '流程设置', exact: true }).click()
   await expect(page.getByRole('combobox', { name: '内容类型', exact: true })).toHaveValue('DOCUMENT')
   await expect(page.getByRole('combobox', { name: '内容类型', exact: true }).locator('option:checked')).toHaveText('上传文档')
   await expect(page.getByRole('combobox', { name: '内容类型', exact: true })).toBeDisabled()
@@ -57,7 +59,7 @@ test('内置默认流程显示八个模块，新需求读取默认流程版本',
 })
 for (const failed of [false, true]) test(`验收报告${failed ? '保留阻断意见' : '显示同批通过'}且窄屏可读`, async ({ page }) => {
   await fixture(page, failed); await page.setViewportSize({ width: 1600, height: 1000 }); await page.goto('/requirements/review-fixture')
-  await page.locator('.workflow-module-rail button').filter({ hasText: '双评审验收' }).click()
+  await selectWorkflowNode(page, '双评审验收')
   await page.getByRole('button', { name: '交付物', exact: true }).click(); const report = page.locator('.workflow-review-report')
   await expect(report).toContainText(failed ? '验收未通过' : '验收通过'); await expect(report).toContainText('需求评审'); await expect(report).toContainText('风险评审'); await expect(report).not.toContainText('private-')
   if (failed) await expect(report).toContainText('并发重复退款路径缺少验证')

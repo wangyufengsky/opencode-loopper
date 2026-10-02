@@ -1,3 +1,4 @@
+import { selectWorkflowNode } from './fixtures/workflowNavigation'
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { requirement, execution, attempt } from '../src/components/workflow/workflowRunTestFixtures'
@@ -29,7 +30,7 @@ for (const mode of ['assessment', 'pass', 'revise']) test(`需求代码评审 ${
     return route.fulfill({ json: [] })
   })
   await page.setViewportSize({ width: 1600, height: 1000 }); await page.goto('/requirements/document-review-fixture')
-  await page.locator('.workflow-module-rail button').filter({ hasText: node.title }).click(); expect(resultReads).toBe(0)
+  await selectWorkflowNode(page, node.title); expect(resultReads).toBe(0)
   await page.getByRole('button', { name: '交付物', exact: true }).click(); const report = page.locator('.workflow-document-review-report')
   await expect(report).toContainText(review ? approved ? '复核通过' : '需要返修' : '金额正数校验'); expect(resultReads).toBe(1)
   if (!review) { await expect(report).toContainText('静态代码评审 · 未运行测试'); await report.getByText('依据与局限', { exact: true }).click(); await expect(report.locator('pre')).toContainText('amount > 0') }

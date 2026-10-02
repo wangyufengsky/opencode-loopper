@@ -1,3 +1,4 @@
+import { selectWorkflowNode } from './fixtures/workflowNavigation'
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { requirement, execution, attempt } from '../src/components/workflow/workflowRunTestFixtures'
@@ -32,7 +33,7 @@ for (const contribution of [false, true]) test(`历史${contribution ? '贡献�
     return route.fulfill({ json: [] })
   })
   await page.setViewportSize({ width: 1600, height: 1000 }); await page.goto('/requirements/history-analysis')
-  await page.locator('.workflow-module-rail button').filter({ hasText: node.title }).click(); expect(bodyReads).toBe(0)
+  await selectWorkflowNode(page, node.title); expect(bodyReads).toBe(0)
   await page.getByRole('button', { name: '交付物', exact: true }).click(); const report = page.locator('.workflow-history-analysis-report')
   if (contribution) { await expect(report).toContainText('开发者 · 个人贡献评价'); await expect(report).toContainText('质量与验证证据 · 2 / 4') }
   else { await expect(report).toContainText('第 2 / 3 批历史审查'); await report.locator('summary').click(); await expect(report).toContainText('变更后第 24 行'); await expect(report).toContainText('静态审查，未运行测试') }

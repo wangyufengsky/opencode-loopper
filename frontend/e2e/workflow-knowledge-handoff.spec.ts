@@ -1,3 +1,4 @@
+import { selectWorkflowNode } from './fixtures/workflowNavigation'
 import { expect, test } from '@playwright/test'
 import { execution, requirement, attempt } from '../src/components/workflow/workflowRunTestFixtures'
 import { newNode } from '../src/components/workflow/graph'
@@ -36,12 +37,12 @@ for (const width of [1600, 390]) test(`固定知识交付及后继输入 ${width
     return route.fulfill({ json: [] })
   })
   await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 }); await page.goto('/requirements/knowledge-handoff')
-  await page.locator('.workflow-module-rail button').filter({ hasText: research.title }).click(); expect(results).toBe(0)
+  await selectWorkflowNode(page, research.title); expect(results).toBe(0)
   await page.getByRole('button', { name: '交付物', exact: true }).click()
   let evidence = page.getByRole('region', { name: '交付的来源证据' })
   await expect(evidence).toContainText('尚未查询历史提交'); await expect(evidence).not.toContainText('private-')
   await evidence.getByRole('button').click(); await expect(evidence).toContainText('退款申请需要核对订单状态')
-  await page.locator('.workflow-module-rail button').filter({ hasText: summary.title }).click()
+  await selectWorkflowNode(page, summary.title)
   await page.getByRole('button', { name: '固定输入', exact: true }).click(); expect(inputReads).toBe(0)
   await page.getByRole('button', { name: '查看固定版本正文' }).click(); await expect(page.getByRole('status').filter({ hasText: '正文尚未读完' })).toBeVisible()
   await expect(page.getByRole('region', { name: '交付的来源证据' })).toHaveCount(0)

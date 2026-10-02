@@ -4,8 +4,9 @@
 .workflow-page button:hover:not(:disabled) { border-color: var(--color-action-primary); color: var(--color-action-primary); }
 .workflow-page button:disabled { opacity: .48; cursor: default; }
 .workflow-page :focus-visible { outline: 2px solid var(--color-action-primary); outline-offset: 3px; }
-.workflow-page .primary-button { background: var(--color-action-primary); color: var(--color-on-emphasis); border-color: var(--color-action-primary); }
-.workflow-page .primary-button:hover:not(:disabled) { color: var(--color-on-emphasis); filter: brightness(1.06); }
+.workflow-page .primary-button { background: var(--skin-primary-background); color: var(--skin-primary-text); border-color: var(--skin-primary-border); }
+.workflow-page .primary-button:hover:not(:disabled) { background: var(--skin-primary-hover-background); color: var(--skin-primary-hover-text); border-color: var(--skin-primary-hover-border); }
+.workflow-page .primary-button:active:not(:disabled) { background: var(--skin-primary-active-background); color: var(--skin-primary-active-text); border-color: var(--skin-primary-active-border); }
 .workflow-page .danger { color: var(--color-task-danger); }
 .workflow-page input:not([type=checkbox]), .workflow-page select, .workflow-page textarea { min-width: 0; width: 100%; padding: 9px 10px; border: 1px solid var(--color-border-default); border-radius: var(--radius-control); background: var(--color-bg-canvas); color: var(--color-text-primary); box-sizing: border-box; }
 .workflow-page textarea { resize: vertical; }
@@ -64,7 +65,7 @@
 .workflow-wire-hit { stroke: transparent; stroke-width: 16px; fill: none; cursor: pointer; }
 .workflow-wire-hit:hover + .workflow-wire, .workflow-wire-hit:focus-visible + .workflow-wire { stroke: var(--color-action-primary); stroke-width: 3px; }
 .workflow-edge-label { fill: var(--color-text-secondary); font-size: 12px; text-anchor: middle; paint-order: stroke; stroke: var(--color-bg-canvas); stroke-width: 5px; pointer-events: none; }
-.workflow-node { box-sizing: border-box; position: absolute; width: 224px; height: 118px; border: 1px solid var(--color-border-default); border-radius: calc(var(--radius-control) + 4px); background: var(--color-bg-surface); padding: 14px; box-shadow: var(--shadow-card); user-select: none; cursor: grab; }
+.workflow-node { box-sizing: border-box; position: absolute; width: 224px; height: 118px; border: 1px solid var(--color-border-default); border-radius: var(--radius-card); background: var(--color-bg-surface); padding: 14px; box-shadow: var(--shadow-card); user-select: none; cursor: grab; }
 .workflow-node.selected, .workflow-node.connect-source { border-color: var(--color-action-primary); box-shadow: 0 0 0 1px var(--color-action-primary); }
 .workflow-node header { display: flex; gap: 10px; align-items: center; }
 .workflow-node strong { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

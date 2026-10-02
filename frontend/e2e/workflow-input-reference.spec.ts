@@ -1,3 +1,4 @@
+import { selectWorkflowNode } from './fixtures/workflowNavigation'
 import { expect, test } from '@playwright/test'
 import { requirement, execution, attempt } from '../src/components/workflow/workflowRunTestFixtures'
 
@@ -36,7 +37,7 @@ test('固定正文按需分页、断线重读、历史内联输入与窄屏显�
     return route.fulfill({ json: [] })
   })
   await page.setViewportSize({ width: 1600, height: 1000 }); await page.goto(`/requirements/${req.id}`)
-  await page.locator('.workflow-module-rail button').filter({ hasText: node.title }).click()
+  await selectWorkflowNode(page, node.title)
   expect(metadataReads).toBe(0); expect(offsets).toEqual([])
   await page.getByRole('button', { name: '固定输入', exact: true }).click(); await expect(page.getByRole('button', { name: '查看固定版本正文', exact: true })).toBeVisible()
   expect(offsets).toEqual([]); await page.getByRole('button', { name: '查看固定版本正文', exact: true }).click()

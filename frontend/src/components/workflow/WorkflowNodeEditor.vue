@@ -42,9 +42,10 @@ function bind(index: number, selected: string) {
 <template>
   <aside class="workflow-inspector" aria-label="节点设置"><header><h2>节点设置</h2><button :disabled="removeDisabled ?? disabled" class="danger" @click="emit('remove')">删除节点</button></header><p v-if="readonlyReason" class="workflow-inspector-hint">{{ readonlyReason }}</p>
     <fieldset :disabled="disabled" class="workflow-fields"><label>名称<input :value="node.title" maxlength="120" @input="patch({ title: ($event.target as HTMLInputElement).value })" /></label>
-      <label>任务说明<textarea :value="node.task" rows="5" placeholder="描述这个节点要完成的具体工作" @input="patch({ task: ($event.target as HTMLTextAreaElement).value })" /></label>
+      <label>任务说明<textarea :value="node.task" rows="3" placeholder="描述这个节点要完成的具体工作" @input="patch({ task: ($event.target as HTMLTextAreaElement).value })" /></label>
     </fieldset>
     <WorkflowRolePicker v-if="node.kind === 'WORK'" :node="node" :disabled="disabled" @change="(roleId, roleRevisionId) => patch({ roleId, roleRevisionId })" @label="(id, label) => emit('roleLabel', id, label)" />
+    <details class="workflow-node-advanced"><summary>更多节点设置<span>输入、交付物与完成规则</span></summary>
     <fieldset :disabled="disabled" class="workflow-fields"><legend>输入来源</legend>
       <div v-for="(item, index) in node.inputs" :key="index" class="workflow-binding">
         <label>输入名称<input :value="item.name" @input="input(index, { name: ($event.target as HTMLInputElement).value })" /></label>
@@ -89,5 +90,6 @@ function bind(index: number, selected: string) {
       <label>失败自动重试次数<input type="number" min="0" max="10" :value="node.maxRetries" @change="patch({ maxRetries: Number(($event.target as HTMLInputElement).value) })" /></label>
       <label><input type="checkbox" :checked="node.pauseAfter" @change="patch({ pauseAfter: ($event.target as HTMLInputElement).checked })" />执行后暂停检查</label>
     </fieldset>
+    </details>
   </aside>
 </template>

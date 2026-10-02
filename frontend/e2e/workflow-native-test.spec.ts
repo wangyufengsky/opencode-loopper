@@ -1,3 +1,4 @@
+import { selectWorkflowNode } from './fixtures/workflowNavigation'
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { execution, requirement, attempt } from '../src/components/workflow/workflowRunTestFixtures'
@@ -47,7 +48,7 @@ for (const scenario of ['passed', 'failed', 'input-changed', 'final-passed', 'fi
     return route.fulfill({ json: [] })
   })
   await page.setViewportSize({ width: 1600, height: 1000 }); await page.goto('/requirements/test-run')
-  await page.locator('.workflow-module-rail button').filter({ hasText: node.title }).click(); expect(resultReads).toBe(0)
+  await selectWorkflowNode(page, node.title); expect(resultReads).toBe(0)
   await page.getByRole('button', { name: '交付物', exact: true }).click()
   const report = page.locator('.workflow-native-test-report')
   await expect(page.locator('.workflow-result').filter({ has: report }).getByRole('heading', { name: '原生测试报告', exact: true })).toBeVisible()

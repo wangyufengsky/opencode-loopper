@@ -38,6 +38,10 @@
   background: var(--color-bg-hover);
 }
 
+.ppt-page button:active:not(:disabled) {
+  border-color: var(--color-action-primary);
+}
+
 .ppt-page button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
@@ -49,18 +53,25 @@
   justify-content: center;
   gap: 8px;
   padding: 10px 16px;
-  border: 1px solid var(--color-action-primary);
+  border: 1px solid var(--skin-primary-border);
   border-radius: var(--radius-control);
-  color: var(--color-on-emphasis);
-  background: var(--color-action-primary);
+  color: var(--skin-primary-text);
+  background: var(--skin-primary-background);
   font-size: 13px;
   font-weight: 600;
   text-decoration: none;
 }
 
 .ppt-page .ppt-primary:hover:not(:disabled) {
-  background: var(--color-action-primary);
-  filter: brightness(1.08);
+  color: var(--skin-primary-hover-text);
+  background: var(--skin-primary-hover-background);
+  border-color: var(--skin-primary-hover-border);
+}
+
+.ppt-page .ppt-primary:active:not(:disabled) {
+  color: var(--skin-primary-active-text);
+  background: var(--skin-primary-active-background);
+  border-color: var(--skin-primary-active-border);
 }
 
 .ppt-page :focus-visible {

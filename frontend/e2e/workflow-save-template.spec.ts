@@ -1,3 +1,4 @@
+import { addWorkflowNode, workflowTool } from './fixtures/workflowNavigation'
 import { expect, test } from '@playwright/test'
 import { requirement, execution } from '../src/components/workflow/workflowRunTestFixtures'
 import type { WorkflowSaveTemplate, WorkflowTemplateSelection } from '../src/types/workflow'
@@ -26,8 +27,8 @@ for (const width of [1600, 390]) test(`另存流程先预览、保留当前步�
     return route.fulfill({ json: [] })
   })
   await page.setViewportSize({ width, height: 1000 }); await page.goto('/requirements/req')
-  await page.getByRole('button', { name: '人工检查', exact: true }).click()
-  await page.getByRole('button', { name: '另存为流程模板', exact: true }).click()
+  await addWorkflowNode(page, '人工检查')
+  await workflowTool(page, '另存为流程模板')
   const dialog = page.getByRole('dialog', { name: '另存为流程模板' })
   await expect(dialog.getByLabel('保存结构')).toHaveValue('CURRENT'); await expect(dialog.locator('.workflow-node')).toHaveCount(2)
   await dialog.getByRole('button', { name: '适应画布', exact: true }).click(); expect(saves).toHaveLength(0)
@@ -46,5 +47,5 @@ for (const width of [1600, 390]) test(`另存流程先预览、保留当前步�
   await expect(dialog.getByRole('link', { name: '打开新流程' })).toHaveAttribute('href', '/workflows/saved-flow')
   expect(saves).toHaveLength(2); expect(saves[0]).toEqual(saves[1]); expect(selections.map(value => value.mode)).toEqual(['CURRENT', 'INITIAL', 'CURRENT'])
   await dialog.getByRole('button', { name: '返回任务画布', exact: true }).click()
-  await expect(page.locator('.workflow-save-state')).toContainText('有未保存修改'); await expect(page.locator('.workflow-node')).toHaveCount(2)
+  await expect(page.locator('.workflow-save-state')).toContainText('未保存'); await expect(page.locator('.workflow-node')).toHaveCount(2)
 })

@@ -8,7 +8,7 @@ import WorkflowPublicationCommit from './WorkflowPublicationCommit.vue'
 import WorkflowWritebackPreview from './WorkflowWritebackPreview.vue'
 import WorkflowWriteback from './WorkflowWriteback.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
-const props = defineProps<{ requirement: string; revision: number; disabled?: boolean }>()
+const props = withDefaults(defineProps<{ requirement: string; revision: number; disabled?: boolean; controlsVisible?: boolean }>(), { controlsVisible: true })
 const emit = defineEmits<{ busy: [value: boolean] }>()
 const commitBusy = ref(false), commitPanel = ref<InstanceType<typeof WorkflowPublicationCommit>>()
 const writebackBusy = ref(false), writebackRecorded = ref(false), writebackPanel = ref<InstanceType<typeof WorkflowWriteback>>(), checked = ref<WritebackPreview | null>(null)
@@ -42,12 +42,12 @@ async function choose(source: WorkflowPublicationSource) {
   finally { if (current === generation && chosen === selection) reading.value = false }
 }
 function toggle() { if (props.disabled || publicationBusy.value) return; opened.value = !opened.value; if (opened.value) void load(); else reset() }
-defineExpose({ canLeave: () => (!commitPanel.value || commitPanel.value.canLeave()) && (!writebackPanel.value || writebackPanel.value.canLeave()) })
+defineExpose({ toggle, canLeave: () => (!commitPanel.value || commitPanel.value.canLeave()) && (!writebackPanel.value || writebackPanel.value.canLeave()) })
 watch(() => [props.requirement, props.revision], () => { reset(); if (opened.value) void load() })
 onBeforeUnmount(reset)
 </script>
 <template>
-  <section class="workflow-publication" aria-label="需求代码成果">
+  <section v-if="controlsVisible !== false || opened" class="workflow-publication" aria-label="需求代码成果">
     <button :disabled="disabled || publicationBusy" :aria-expanded="opened" @click="toggle">{{ opened ? '收起代码成果' : '查看代码成果' }}</button>
     <div v-if="opened" class="publication-panel">
       <header><div><h2>选择代码成果</h2><p>查看当前计划中已停止节点保存的代码。每份成果包含继承的上游改动，不自动合并多个版本。</p></div><button :disabled="disabled || listing || publicationBusy" @click="load()">刷新成果</button></header>

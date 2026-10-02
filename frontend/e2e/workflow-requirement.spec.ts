@@ -1,3 +1,4 @@
+import { addWorkflowNode } from './fixtures/workflowNavigation'
 import { expect, test, type Page } from '@playwright/test'
 import { requirement, execution, attempt } from '../src/components/workflow/workflowRunTestFixtures'
 import { preset, template, summary, verificationPreset } from '../src/components/workflow/workflowTestFixtures'
@@ -67,7 +68,7 @@ test('重新打开检查点仍需明确确认交付物后才可继续', async ({
 
 test('需求规划从预设添加任务、保存并重开，不自动确认或执行', async ({ page }) => {
   const data = await fixture(page); await page.goto('/requirements/req')
-  await page.getByRole('button', { name: '预设工作模块', exact: true }).click(); await page.locator('.workflow-preset-list button').filter({ hasText: '资料分析' }).click()
+  await addWorkflowNode(page, '预设工作模块'); await page.locator('.workflow-preset-list button').filter({ hasText: '资料分析' }).click()
   await page.getByLabel('参考资料来源', { exact: true }).selectOption({ label: '人工验收 · 检查结果' }); await page.getByRole('button', { name: '添加到画布', exact: true }).click()
   await expect(page.locator('.workflow-node')).toHaveCount(2); await expect(page.locator('.workflow-wire')).toHaveCount(1)
   await page.getByRole('button', { name: '保存计划', exact: true }).click(); await expect(page.getByText('计划已保存。', { exact: true })).toBeVisible()

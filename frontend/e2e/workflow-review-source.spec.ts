@@ -1,3 +1,4 @@
+import { expandWorkflowNodeSettings, selectWorkflowNode } from './fixtures/workflowNavigation'
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { requirement, execution, attempt } from '../src/components/workflow/workflowRunTestFixtures'
@@ -22,6 +23,7 @@ test('开始前显式选择分支，启动请求保持完整来源身份', async
     return route.fulfill({ json: [] })
   })
   await page.setViewportSize({ width: 1600, height: 1000 }); await page.goto('/requirements/choose-branch')
+  await page.getByRole('button', { name: '需求与资料', exact: true }).click()
   const inspector = page.getByRole('complementary', { name: '需求与资料' }); await expect(inspector).toContainText('尚未选择分支'); expect(branchReads).toBe(0)
   await page.getByRole('button', { name: '选择代码分支', exact: true }).click(); await expect(page.getByRole('combobox', { name: '代码分支', exact: true })).toHaveValue('')
   await page.getByRole('button', { name: '更多分支', exact: true }).click(); await expect(page.getByRole('combobox', { name: '代码分支', exact: true }).locator('option')).toHaveCount(3)
@@ -62,7 +64,7 @@ for (const failed of [false, true]) test(`分支采集${failed ? '未完成可�
     return route.fulfill({ json: [] })
   })
   await page.setViewportSize({ width: 1600, height: 1000 }); await page.goto('/requirements/source-fixture')
-  await page.locator('.workflow-module-rail button').filter({ hasText: '固定日期增量代码' }).click(); await page.getByRole('button', { name: '交付物', exact: true }).click()
+  await selectWorkflowNode(page, '固定日期增量代码'); await page.getByRole('button', { name: '交付物', exact: true }).click()
   const report = page.locator('.workflow-review-source-report'); await expect(report).toContainText(failed ? '采集未完成' : '审查资料已固定')
   expect(fileReads).toBe(0); await expect(page.getByRole('complementary', { name: '节点执行详情' })).not.toContainText('private-source-id')
   if (failed) { await expect(report).toContainText('已定位的提交和审查范围保持不变'); await expect(report).not.toContainText('WORKFLOW_REVIEW_CAPTURE_FAILED') }
@@ -83,7 +85,7 @@ test('切换版本审查范围同步公共日期并保存配置', async ({ page 
     inputs: [{ name: 'branch', source: 'REQUIREMENT', sourceId: 'branch', output: null, kind: 'TEXT', required: true }] }
   let saved = { id: 'edit-source', title: '版本审查流程', description: '', builtin: false, archived: false, revision: 1, headRevision: 1, version: 0, layoutVersion: 0,
     graph: { schemaVersion: 1, nodes: [node], edges: [], inputs: [{ name: 'branch', title: '代码分支', kind: 'TEXT', required: true }] },
-    layout: { version: 1, positions: { source: { x: 50, y: 50 } }, viewport: { x: 0, y: 0, zoom: 1 } }, diagnostics: [], sourceTemplateId: null, sourceRevision: null }
+    layout: { positions: { source: { x: 50, y: 50 } }, x: 0, y: 0, zoom: 1 }, diagnostics: [], sourceTemplateId: null, sourceRevision: null }
   const bodies: Array<{ graph: typeof saved.graph }> = []
   await page.route('http://127.0.0.1:41773/api/**', async route => {
     const path = new URL(route.request().url()).pathname
@@ -100,7 +102,7 @@ test('切换版本审查范围同步公共日期并保存配置', async ({ page 
     return route.fulfill({ json: [] })
   })
   await page.setViewportSize({ width: 1600, height: 1000 }); await page.goto('/workflows/edit-source')
-  await page.locator('.workflow-node').filter({ hasText: '版本审查资料' }).click()
+  await page.locator('.workflow-node').filter({ hasText: '版本审查资料' }).click(); await expandWorkflowNodeSettings(page)
   await page.getByRole('combobox', { name: '版本审查范围', exact: true }).selectOption('DATE_INCREMENTAL')
   await page.getByRole('button', { name: '保存流程', exact: true }).click()
   await expect.poll(() => bodies.length).toBe(1); expect(bodies[0]!.graph.inputs.map(i => i.name)).toEqual(['branch', 'startDate', 'endDate'])

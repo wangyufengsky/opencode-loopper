@@ -1,3 +1,4 @@
+import { selectWorkflowNode } from './fixtures/workflowNavigation'
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { execution, requirement, attempt } from '../src/components/workflow/workflowRunTestFixtures'
@@ -36,7 +37,7 @@ for (const mode of ['passed', 'none', 'failed']) test(`完整单测汇总 ${mode
     return route.fulfill({ json: [] })
   })
   await page.setViewportSize({ width: 1600, height: 1000 }); await page.goto('/requirements/test-summary')
-  await page.locator('.workflow-module-rail button').filter({ hasText: node.title }).click(); expect(reads).toBe(0)
+  await selectWorkflowNode(page, node.title); expect(reads).toBe(0)
   await page.getByRole('button', { name: '交付物', exact: true }).click(); expect(reads).toBe(1)
   const content = page.locator('.workflow-test-summary-report')
   await expect(content).toContainText(failed ? '单测汇总未通过' : '单测汇总通过'); await expect(content).toContainText('同一份最终代码'); await expect(content).not.toContainText('private-')

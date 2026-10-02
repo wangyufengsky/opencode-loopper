@@ -34,7 +34,7 @@ async function fixture(page: Page, interrupted = false) {
 }
 const file = { name: '审批需求.md', mimeType: 'text/markdown', buffer: Buffer.from('# 审批权限\n审批人必须拥有本部门的审批权限。') }
 test('上传固定原文、预览并将其绑定到执行请求', async ({ page }) => {
-  const data = await fixture(page); await page.setViewportSize({ width: 1600, height: 1000 }); await page.goto('/requirements/upload-demo')
+  const data = await fixture(page); await page.setViewportSize({ width: 1600, height: 1000 }); await page.goto('/requirements/upload-demo'); await page.getByRole('button', { name: '需求与资料', exact: true }).click()
   await page.getByLabel('选择需求文档').setInputFiles(file); await page.getByRole('button', { name: '上传并选用', exact: true }).click()
   await expect(page.getByText('已选 1 份文档', { exact: true })).toBeVisible(); expect(data.starts).toHaveLength(0)
   await page.getByRole('button', { name: '查看解析内容', exact: true }).click(); await page.getByRole('button', { name: '文档 1 · 第 1 节', exact: true }).click()
@@ -45,9 +45,9 @@ test('上传固定原文、预览并将其绑定到执行请求', async ({ page 
   await page.getByRole('button', { name: '连续执行', exact: true }).click(); await expect(page.getByText('本次资料已固定，可在节点详情查看实际输入。')).toBeVisible(); expect(data.starts).toHaveLength(1)
 })
 test('上传失败后刷新页面，选择原记录补传并保留幂等身份', async ({ page }) => {
-  const data = await fixture(page, true); await page.goto('/requirements/upload-demo'); await page.getByLabel('选择需求文档').setInputFiles(file)
+  const data = await fixture(page, true); await page.goto('/requirements/upload-demo'); await page.getByRole('button', { name: '需求与资料', exact: true }).click(); await page.getByLabel('选择需求文档').setInputFiles(file)
   await page.getByRole('button', { name: '上传并选用', exact: true }).click(); await expect(page.locator('.workflow-document-input [role=alert]')).toContainText('保存中断')
-  await page.reload(); await page.getByRole('button', { name: '选择已上传资料', exact: true }).click(); await page.getByRole('button', { name: '补传原文件', exact: true }).click()
+  await page.reload(); await page.getByRole('button', { name: '需求与资料', exact: true }).click(); await page.getByRole('button', { name: '选择已上传资料', exact: true }).click(); await page.getByRole('button', { name: '补传原文件', exact: true }).click()
   await page.getByLabel('选择需求文档').setInputFiles(file); await page.getByRole('button', { name: '上传并选用', exact: true }).click(); await expect(page.getByText('已选 1 份文档', { exact: true })).toBeVisible()
   expect(data.posts.map(body => JSON.parse(body.match(/\{[^\r\n]*"requestKey"[^\r\n]*\}/)![0]))[1]).toEqual(JSON.parse(data.posts[0]!.match(/\{[^\r\n]*"requestKey"[^\r\n]*\}/)![0])); expect(data.starts).toHaveLength(0)
 })

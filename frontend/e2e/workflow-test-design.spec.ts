@@ -1,3 +1,4 @@
+import { selectWorkflowNode } from './fixtures/workflowNavigation'
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { execution, requirement, attempt } from '../src/components/workflow/workflowRunTestFixtures'
@@ -33,7 +34,7 @@ for (const malformed of [false, true]) test(`单测场景${malformed ? '损坏�
     return route.fulfill({ json: [] })
   })
   await page.setViewportSize({ width: 1600, height: 1000 }); await page.goto('/requirements/test-design')
-  await page.locator('.workflow-module-rail button').filter({ hasText: '设计单测场景' }).click(); expect(resultReads).toBe(0)
+  await selectWorkflowNode(page, '设计单测场景'); expect(resultReads).toBe(0)
   await page.getByRole('button', { name: '交付物', exact: true }).click()
   const report = page.locator('.workflow-test-design-report')
   if (malformed) await expect(report.getByRole('alert')).toContainText('无法读取')

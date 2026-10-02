@@ -1,3 +1,4 @@
+import { workflowTool } from './fixtures/workflowNavigation'
 import { expect, test } from '@playwright/test'
 import { requirement, execution } from '../src/components/workflow/workflowRunTestFixtures'
 import { newNode } from '../src/components/workflow/graph'
@@ -44,7 +45,7 @@ test('普通目录成果先检查冲突，明确确认后支持未知回执、�
   })
   await page.setViewportSize({ width: 1600, height: 1000 }); await page.goto(`/requirements/${req.id}`)
   const panel = page.getByRole('region', { name: '需求代码成果' }); expect(lists).toBe(0)
-  await panel.getByRole('button', { name: '查看代码成果', exact: true }).click(); await expect(panel).toContainText('开发与修正 · 代码成果'); expect(previews).toBe(0)
+  await workflowTool(page, '查看代码成果'); await expect(panel).toContainText('开发与修正 · 代码成果'); expect(previews).toBe(0)
   await panel.getByRole('button', { name: /开发与修正 · 代码成果/ }).click(); await expect(panel).toContainText('该节点执行失败'); expect(changes).toBe(0)
   await panel.getByRole('button', { name: '查看改动文件' }).click(); await expect(panel).toContainText('继承的上游代码'); await expect(panel).toContainText('旧版订单处理说明.md')
   await expect(panel.getByRole('link', { name: 'docs/旧版订单处理说明.md' })).toHaveCount(0); await expect(panel).not.toContainText('private-')
@@ -56,7 +57,7 @@ test('普通目录成果先检查冲突，明确确认后支持未知回执、�
   expect([writes, checks]).toEqual([2, 2]); await panel.screenshot({ path: 'test-results/workflow-writeback-desktop.png' })
   await page.setViewportSize({ width: 390, height: 844 }); expect(await page.locator('body').evaluate(el => el.scrollWidth <= innerWidth + 1)).toBe(true)
   await panel.screenshot({ path: 'test-results/workflow-writeback-mobile.png' })
-  await page.reload(); await panel.getByRole('button', { name: '查看代码成果', exact: true }).click(); await panel.getByRole('button', { name: /开发与修正 · 代码成果/ }).click(); await expect(directory.getByRole('button', { name: '检查原目录', exact: true })).toBeVisible(); expect(checks).toBe(2)
+  await page.reload(); await workflowTool(page, '查看代码成果'); await panel.getByRole('button', { name: /开发与修正 · 代码成果/ }).click(); await expect(directory.getByRole('button', { name: '检查原目录', exact: true })).toBeVisible(); expect(checks).toBe(2)
   await directory.getByRole('button', { name: '检查原目录', exact: true }).click(); await expect(directory).toContainText('预计新增');
   // The newest explicit check must remain the consent reference.
   directoryPreview.sha256 = 'check-3'
@@ -71,6 +72,6 @@ test('普通目录成果先检查冲突，明确确认后支持未知回执、�
   await writeback.getByRole('button', { name: '刷新回填状态' }).click(); await expect(writeback).toContainText('已回填原目录'); await expect(writeback).toContainText('原执行结果为失败'); expect(confirms).toBe(2)
   await panel.screenshot({ path: 'test-results/workflow-writeback-applied.png' }); await page.setViewportSize({ width: 390, height: 844 }); expect(await page.locator('body').evaluate(el => el.scrollWidth <= innerWidth + 1)).toBe(true)
   await writeback.screenshot({ path: 'test-results/workflow-writeback-applied-mobile.png' })
-  await page.reload(); await panel.getByRole('button', { name: '查看代码成果', exact: true }).click(); await expect(writeback).toContainText('已回填原目录'); expect(confirms).toBe(2); expect(checks).toBe(3)
+  await page.reload(); await workflowTool(page, '查看代码成果'); await expect(writeback).toContainText('已回填原目录'); expect(confirms).toBe(2); expect(checks).toBe(3)
 
 })

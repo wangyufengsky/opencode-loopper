@@ -1,3 +1,4 @@
+import { selectWorkflowNode, workflowTool } from './fixtures/workflowNavigation'
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { candidate, execution, requirement, attempt } from '../src/components/workflow/workflowRunTestFixtures'
@@ -50,7 +51,7 @@ for (const failed of [false, true]) test(`源码分批${failed ? '超限保留�
     return route.fulfill({ json: [] })
   })
   await page.setViewportSize({ width: 1600, height: 1000 }); await page.goto('/requirements/source-plan')
-  await page.locator('.workflow-module-rail button').filter({ hasText: '源码设计分批规划' }).click(); expect(resultReads).toBe(0)
+  await selectWorkflowNode(page, '源码设计分批规划'); expect(resultReads).toBe(0)
   await page.getByRole('button', { name: '交付物', exact: true }).click()
   const report = page.locator('.workflow-source-plan-report'); await expect(report).toContainText(failed ? '分批计划未生成' : '2 个源码文件，分为 2 批')
   if (failed) await expect(report).toContainText('原源码和配置已保留')
@@ -63,7 +64,7 @@ for (const failed of [false, true]) test(`源码分批${failed ? '超限保留�
   await page.setViewportSize({ width: 390, height: 844 }); expect(await page.locator('body').evaluate(el => el.scrollWidth <= innerWidth + 1)).toBe(true)
   await page.screenshot({ path: `test-results/workflow-source-plan-${failed ? 'limit' : 'report'}-mobile.png`, fullPage: true })
   if (failed) { expect(applies).toBe(0); expect(starts).toBe(0); return }
-  await page.setViewportSize({ width: 1600, height: 1000 }); await page.getByRole('button', { name: '候选计划', exact: true }).click(); await page.locator('.workflow-candidate-list button').first().click()
+  await page.setViewportSize({ width: 1600, height: 1000 }); await workflowTool(page, '候选计划'); await page.locator('.workflow-candidate-list button').first().click()
   await expect(page.getByText('源码设计分批规划 提出的计划', { exact: true })).toBeVisible(); await page.getByRole('button', { name: '在画布中查看', exact: true }).click()
   await expect(page.locator('.workflow-proposal-banner')).toContainText('尚未生效'); await expect(page.locator('.workflow-node')).toHaveCount(7); expect(applies).toBe(0); expect(starts).toBe(0)
   await page.getByRole('button', { name: '适应画布', exact: true }).click(); await page.screenshot({ path: 'test-results/workflow-source-plan-preview.png', fullPage: true })
