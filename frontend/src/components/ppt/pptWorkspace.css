@@ -320,7 +320,7 @@
 }
 
 .ppt-page .ppt-open-assistant[aria-expanded='true'] {
-  color: var(--color-action-primary);
+  color: var(--color-text-primary);
   background: var(--color-bg-hover);
 }
 
@@ -384,14 +384,14 @@
   padding: 12px;
   font-size: 9px;
   line-height: 1.4;
-  color: var(--color-text-muted);
+  color: var(--color-text-secondary);
 }
 
 .ppt-thumbnail-caption {
   display: flex;
   gap: 7px;
   margin-top: 8px;
-  color: var(--color-text-muted);
+  color: var(--color-text-secondary);
   font-size: 10px;
 }
 

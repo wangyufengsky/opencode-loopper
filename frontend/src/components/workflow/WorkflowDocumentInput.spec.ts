@@ -21,8 +21,9 @@ describe('固定需求原文', () => {
     vi.mocked(workflowDocuments.upload).mockRejectedValueOnce(new Error('连接中断'))
     const wrapper = component(); await choose(wrapper); await button(wrapper, '上传并选用').trigger('click'); await flushPromises()
     expect(wrapper.emitted('change')).toBeUndefined(); expect(wrapper.get('[role=alert]').text()).toContain('连接中断')
+    expect(wrapper.emitted('pending')?.at(-1)).toEqual([true]); expect(button(wrapper, '上传并选用').attributes('disabled')).toBeUndefined()
     await button(wrapper, '上传并选用').trigger('click'); await flushPromises()
-    const calls = vi.mocked(workflowDocuments.upload).mock.calls; expect(calls[1]).toEqual(calls[0]); wrapper.unmount()
+    const calls = vi.mocked(workflowDocuments.upload).mock.calls; expect(calls[1]).toEqual(calls[0]); expect(wrapper.emitted('pending')?.at(-1)).toEqual([false]); wrapper.unmount()
   })
   it('历史资料由用户选择，未完成上传可用原身份补传', async () => {
     const pending = { ...source, id: 'pending', ready: false, resume: { requestKey: 'original-request', expectedVersion: 1, expectedRevision: 2 } }
@@ -49,4 +50,12 @@ describe('固定需求原文', () => {
     const wrapper = mount(WorkflowValueFields, { props: { fields, values: {} }, global: { stubs: { CodeMergeEditor: true } } })
     expect(wrapper.findComponent(WorkflowDocumentInput).exists()).toBe(false); expect(wrapper.find('code-merge-editor-stub').exists()).toBe(true); wrapper.unmount()
   })
+  it('聚合每份公共文档的未确认状态，单项完成不释放其他上传的保护', async () => {
+    const fields = ['first', 'second'].map(name => ({ name, title: name, kind: 'DOCUMENT' as const, required: false }))
+    const wrapper = mount(WorkflowValueFields, { props: { fields, values: {}, uploadContext: { requirement: 'owner', revision: 2, version: 3 } } })
+    const documents = wrapper.findAllComponents(WorkflowDocumentInput)
+    documents[0]!.vm.$emit('pending', true); documents[1]!.vm.$emit('pending', true); documents[0]!.vm.$emit('pending', false)
+    expect(wrapper.emitted('pending')?.at(-1)).toEqual([true]); documents[1]!.vm.$emit('pending', false); expect(wrapper.emitted('pending')?.at(-1)).toEqual([false]); wrapper.unmount()
+  })
+
 })

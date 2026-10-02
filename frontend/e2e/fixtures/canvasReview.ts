@@ -44,7 +44,7 @@ export async function canvasReviewFixture(page: Page, running = false) {
     if (path.endsWith('/finish')) return route.fulfill({ json: { requirementId: req.id, state: req.state, version: req.version, intent: null, pending: { attempts: 0, resources: 0 } } })
     if (path.endsWith('/publication') || path.endsWith('/writeback') || path.endsWith('/push')) return route.fulfill({ json: null })
     if (path.endsWith('/attempts') || path.endsWith('/candidates') || path.startsWith('/api/roles') || path.endsWith('/node-presets')) return route.fulfill({ json: { items: [], nextCursor: null } })
-    if (path === '/api/settings') return route.fulfill({ json: { runtime: {}, openCode: {}, limits: {}, retryWait: {}, publication: {} } })
+    if (path === '/api/settings') return route.fulfill({ json: { runtime: {}, openCode: { provider: 'preview-provider', model: 'simulated-model' }, limits: {}, retryWait: {}, publication: {} } })
     return route.fulfill({ json: [] })
   })
   return { flow, req, snapshot, mutations, errors }

@@ -139,7 +139,7 @@
 
 .ppt-tool-hint {
   margin-left: auto;
-  color: var(--color-text-muted);
+  color: var(--color-text-secondary);
   font-size: 11px;
 }
 
@@ -167,6 +167,7 @@
 }
 
 .ppt-selection-bar small {
+  color: var(--color-text-secondary);
   white-space: nowrap;
   text-overflow: ellipsis;
   overflow: hidden;
@@ -511,4 +512,9 @@
 }
 .ppt-edit-more[open] > summary {
   margin-bottom: 10px;
+}
+
+.ppt-canvas-footer .ppt-muted {
+  color: var(--color-text-secondary);
+  font-size: 11px;
 }

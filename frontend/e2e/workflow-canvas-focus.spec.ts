@@ -180,3 +180,24 @@ test('导航键盘闭环、搜索画布外节点与高级设置保持可达且�
   expect(data.mutations).toEqual([])
   expect(data.errors).toEqual([])
 })
+
+
+test('不展开需求与资料也会使用配置的默认模型，且不预读模型目录', async ({ page }) => {
+  const data = await canvasReviewFixture(page)
+  data.req.state = 'PENDING_START'; data.snapshot.execution.state = 'PENDING_START'
+  const starts: Array<{ model: unknown }> = [], catalogReads: string[] = []
+  page.on('request', request => { if (new URL(request.url()).pathname === '/api/settings/models') catalogReads.push(request.url()) })
+  await page.route('**/api/workflows/requirements/req/control/start', async route => {
+    const body = route.request().postDataJSON(); starts.push(body)
+    data.snapshot.control = { ...data.snapshot.control, configured: true, model: body.model }
+    await route.fulfill({ json: data.snapshot.control })
+  })
+  await page.goto('/requirements/req')
+  await expect(page.locator('.workflow-context-panel')).toHaveCount(0)
+  await page.getByRole('button', { name: '连续执行', exact: true }).click()
+  await expect.poll(() => starts.length).toBe(1)
+  expect(starts[0]!.model).toEqual({ providerId: 'preview-provider', modelId: 'simulated-model', thinking: null })
+  await expect(page.locator('.workflow-context-panel')).toHaveCount(0)
+  expect(catalogReads).toEqual([])
+  expect(data.errors).toEqual([])
+})

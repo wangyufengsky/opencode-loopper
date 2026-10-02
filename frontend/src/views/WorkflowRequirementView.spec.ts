@@ -2,6 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createMemoryHistory, createRouter, RouterView } from 'vue-router'
 import { workflowRuns } from '@/api/workflowRuns'
+import { api as clientApi } from '@/api/client'
+import type { AppSettings } from '@/types/domain'
+import { workflowDocuments } from '@/api/workflowDocuments'
+import WorkflowDocumentInput from '@/components/workflow/WorkflowDocumentInput.vue'
+import WorkflowModelChoice from '@/components/workflow/WorkflowModelChoice.vue'
+import { newNode } from '@/components/workflow/graph'
 import { workflowApi } from '@/api/workflow'
 import { preset } from '@/components/workflow/workflowTestFixtures'
 import WorkflowNodeRun from '@/components/workflow/WorkflowNodeRun.vue'
@@ -9,10 +15,11 @@ import WorkflowValueFields from '@/components/workflow/WorkflowValueFields.vue'
 import WorkflowRequirementView from './WorkflowRequirementView.vue'
 import { candidate, execution, requirement } from '@/components/workflow/workflowRunTestFixtures'
 vi.mock('@/api/workflowRuns', () => ({ workflowRuns: { get: vi.fn(), previewTemplate: vi.fn(), saveTemplate: vi.fn(), finishStatus: vi.fn(), finish: vi.fn(), execution: vi.fn(), confirm: vi.fn(), start: vi.fn(), pause: vi.fn(), applyPlan: vi.fn(), applyCandidate: vi.fn(), candidates: vi.fn(), candidate: vi.fn(), rejectCandidate: vi.fn(), revise: vi.fn(), layout: vi.fn() } }))
+vi.mock('@/api/workflowDocuments', () => ({ workflowDocuments: { upload: vi.fn(), get: vi.fn(), fileUrl: vi.fn(() => '/download') } }))
 vi.mock('@/api/workflow', () => ({ workflowApi: { presets: vi.fn(), preset: vi.fn() } }))
 const nodeCanLeave = vi.fn(() => true)
 const api = vi.mocked(workflowRuns); let wrapper: VueWrapper | undefined
-beforeEach(() => { vi.resetAllMocks(); nodeCanLeave.mockReturnValue(true); vi.spyOn(window, 'confirm').mockReturnValue(true); api.finishStatus.mockResolvedValue({ requirementId: 'req', state: 'PLANNING', version: 7, intent: null, pending: { attempts: 0, resources: 0 } }); api.get.mockResolvedValue(requirement()); api.execution.mockResolvedValue(execution()) })
+beforeEach(() => { vi.resetAllMocks(); nodeCanLeave.mockReturnValue(true); vi.spyOn(clientApi, 'getSettings').mockResolvedValue({ openCode: { provider: 'configured', model: 'default' } } as AppSettings); vi.spyOn(clientApi, 'getSettingsModels').mockResolvedValue([]); vi.spyOn(window, 'confirm').mockReturnValue(true); api.finishStatus.mockResolvedValue({ requirementId: 'req', state: 'PLANNING', version: 7, intent: null, pending: { attempts: 0, resources: 0 } }); api.get.mockResolvedValue(requirement()); api.execution.mockResolvedValue(execution()) })
 afterEach(() => { wrapper?.unmount(); wrapper = undefined; vi.restoreAllMocks() })
 async function render() {
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/workflows/:id', component: { template: '<div />' } }, { path: '/requirements/:id', component: WorkflowRequirementView }, { path: '/requirements', component: { template: '<div />' } }] })
@@ -143,6 +150,70 @@ describe('requirement canvas', () => {
     fields.vm.$emit('busy', true); await flushPromises(); await wrapper!.get('.workflow-canvas').trigger('click'); await wrapper!.get('.workflow-node').trigger('click')
     expect(wrapper!.getComponent(WorkflowValueFields).vm.$el).toBe(fields.vm.$el); expect(button('关闭需求与资料').attributes('disabled')).toBeDefined()
     fields.vm.$emit('busy', false); await flushPromises(); await wrapper!.get('.workflow-canvas').trigger('keydown', { key: 'Escape' }); expect(wrapper!.findComponent(WorkflowValueFields).exists()).toBe(false)
+  })
+
+  it('starts directly from the clean canvas with the default model without opening settings', async () => {
+    const value = requirement({ state: 'PENDING_START' }); value.graph.nodes = [newNode('free.readonly')]
+    api.get.mockResolvedValue(value); api.execution.mockResolvedValue(execution('PENDING_START')); await render()
+    expect(wrapper!.findComponent(WorkflowModelChoice).exists()).toBe(false)
+    await clickButton('连续执行'); await flushPromises()
+    expect(api.start.mock.calls[0]![1].model).toEqual({ providerId: 'configured', modelId: 'default', thinking: null })
+    expect(clientApi.getSettingsModels).not.toHaveBeenCalled()
+  })
+  it('waits for defaults before enabling execution and retains a manual choice over a late response', async () => {
+    let resolve!: (value: AppSettings) => void
+    vi.mocked(clientApi.getSettings).mockImplementation(() => new Promise(done => { resolve = done }))
+    const value = requirement({ state: 'PENDING_START' }); value.graph.nodes = [newNode('free.readonly')]
+    api.get.mockResolvedValue(value); api.execution.mockResolvedValue(execution('PENDING_START')); await render()
+    expect(button('连续执行').attributes('disabled')).toBeDefined(); await clickButton('连续执行'); expect(api.start).not.toHaveBeenCalled()
+    await clickButton('需求与资料'); wrapper!.getComponent(WorkflowModelChoice).vm.$emit('update:modelValue', { providerId: 'user', modelId: 'manual', thinking: null }); await flushPromises()
+    resolve({ openCode: { provider: 'configured', model: 'late' } } as AppSettings); await flushPromises(); expect(api.start).not.toHaveBeenCalled()
+    await clickButton('连续执行'); await flushPromises()
+    expect(api.start.mock.calls[0]![1].model).toEqual({ providerId: 'user', modelId: 'manual', thinking: null })
+  })
+  it('uses persisted execution settings and keeps failures recoverable without forcing a model on a human-only execution scope', async () => {
+    const value = requirement({ state: 'PENDING_START' }); value.graph.nodes.push(newNode('free.readonly'))
+    const snapshot = execution('PENDING_START'); snapshot.control.model = { providerId: 'saved', modelId: 'frozen', thinking: null }
+    api.get.mockResolvedValue(value); api.execution.mockResolvedValue(snapshot); await render()
+    expect(clientApi.getSettings).not.toHaveBeenCalled(); await clickButton('连续执行'); await flushPromises(); expect(api.start.mock.calls[0]![1].model).toEqual(snapshot.control.model)
+    wrapper!.unmount(); wrapper = undefined; snapshot.control.model = null; vi.mocked(clientApi.getSettings).mockRejectedValueOnce(new Error('offline')); await render()
+    expect(wrapper!.text()).toContain('默认执行模型暂时无法读取'); expect(wrapper!.find('.workflow-context-panel').exists()).toBe(false)
+    await wrapper!.get('.workflow-node').trigger('click'); await clickButton('执行所选节点'); await flushPromises()
+    expect(api.start.mock.calls.at(-1)![1]).toMatchObject({ mode: 'SINGLE', targetKey: 'review', model: null })
+    await clickButton('重试默认模型'); await flushPromises(); expect(wrapper!.text()).not.toContain('默认执行模型暂时无法读取')
+  })
+  it('discards the previous default response when the requirement route changes', async () => {
+    const resolves: Array<(value: AppSettings) => void> = []
+    vi.mocked(clientApi.getSettings).mockImplementation(() => new Promise(done => resolves.push(done)))
+    const value = requirement({ state: 'PENDING_START' }); value.graph.nodes = [newNode('free.readonly')]
+    api.get.mockResolvedValue(value); api.execution.mockResolvedValue(execution('PENDING_START')); const router = await render()
+    await clickButton('连续执行'); await router.push('/requirements/next'); await flushPromises()
+    resolves[0]!({ openCode: { provider: 'old', model: 'old' } } as AppSettings); await flushPromises(); expect(api.start).not.toHaveBeenCalled()
+    resolves[1]!({ openCode: { provider: 'next', model: 'next' } } as AppSettings); await flushPromises()
+    await clickButton('连续执行'); await flushPromises(); expect(api.start.mock.calls[0]).toMatchObject(['next', { model: { providerId: 'next', modelId: 'next' } }])
+  })
+  it('keeps failed uploads, original files and request identity through Escape, close, navigation and execution attempts', async () => {
+    const value = requirement({ state: 'PENDING_START' }); value.graph.inputs = [{ name: 'document', title: '原文', kind: 'DOCUMENT', required: false }]
+    api.get.mockResolvedValue(value); api.execution.mockResolvedValue(execution('PENDING_START')); vi.mocked(workflowDocuments.upload).mockRejectedValue(new Error('连接中断'))
+    const router = await render(); await clickButton('需求与资料'); const document = wrapper!.getComponent(WorkflowDocumentInput), input = document.get('input[type=file]')
+    Object.defineProperty(input.element, 'files', { configurable: true, value: [new File(['original'], '需求.md')] }); await input.trigger('change')
+    await clickButton('上传并选用'); await flushPromises(); const original = vi.mocked(workflowDocuments.upload).mock.calls[0]
+    expect(button('关闭需求与资料').attributes('disabled')).toBeDefined(); expect(button('上传并选用').attributes('disabled')).toBeUndefined()
+    await wrapper!.get('.workflow-canvas').trigger('keydown', { key: 'Escape' }); await wrapper!.get('.workflow-canvas').trigger('click'); await router.push('/requirements')
+    expect(router.currentRoute.value.path).toBe('/requirements/req'); expect(wrapper!.getComponent(WorkflowDocumentInput).vm.$el).toBe(document.vm.$el)
+    expect(button('连续执行').attributes('disabled')).toBeDefined(); expect(api.start).not.toHaveBeenCalled(); expect(wrapper!.text()).toContain('连接中断')
+    await clickButton('上传并选用'); await flushPromises(); expect(vi.mocked(workflowDocuments.upload).mock.calls[1]).toEqual(original)
+    await clickButton('改为新上传'); await clickButton('关闭需求与资料'); expect(wrapper!.findComponent(WorkflowDocumentInput).exists()).toBe(false)
+    expect(button('连续执行').attributes('disabled')).toBeUndefined()
+  })
+
+  it.each(['HUMAN', 'SYSTEM'] as const)('does not wait for a default model to execute a SINGLE %s target', async kind => {
+    vi.mocked(clientApi.getSettings).mockReturnValue(new Promise(() => undefined))
+    const value = requirement({ state: 'PENDING_START' }); value.graph.nodes[0]!.kind = kind; value.graph.nodes.push(newNode('free.readonly'))
+    api.get.mockResolvedValue(value); api.execution.mockResolvedValue(execution('PENDING_START')); await render()
+    expect(button('连续执行').attributes('disabled')).toBeDefined(); await wrapper!.get('.workflow-node').trigger('click')
+    expect(button('执行所选节点').attributes('disabled')).toBeUndefined(); await clickButton('执行所选节点'); await flushPromises()
+    expect(api.start.mock.calls[0]![1]).toMatchObject({ mode: 'SINGLE', targetKey: 'review', model: null })
   })
 
 })

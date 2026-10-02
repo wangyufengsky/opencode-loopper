@@ -5,11 +5,12 @@ import type { WorkflowFile, WorkflowUpload, WorkflowUploadRequest } from '@/type
 import { userFacingError } from '@/utils/displayLabels'
 import MarkdownDocument from '@/components/MarkdownDocument.vue'
 const props = defineProps<{ requirement: string; version: number; revision: number; value: string; title: string; disabled?: boolean }>()
-const emit = defineEmits<{ change: [value: string]; busy: [value: boolean] }>()
+const emit = defineEmits<{ change: [value: string]; busy: [value: boolean]; pending: [value: boolean] }>()
 const chosen = ref<WorkflowUpload | null>(null), history = ref<WorkflowUpload[]>([]), cursor = ref<string | null>(null)
 const busy = ref(false), error = ref(''), pending = ref<WorkflowUploadRequest | null>(null), incoming = ref<File[]>([])
 const paths = ref<WorkflowFile[]>([]), pathCursor = ref<string | null>(null), preview = ref(''), previewPath = ref(''), nextOffset = ref<number | null>(null)
 const selectedId = computed(() => { try { return String(JSON.parse(props.value || '{}').uploadId || '') } catch { return '' } })
+watch(() => !!pending.value, value => emit('pending', value), { immediate: true, flush: 'sync' })
 let alive = true, generation = 0
 async function run(action: () => Promise<void>) {
   if (busy.value) return
@@ -24,7 +25,9 @@ function select(value: WorkflowUpload) {
 }
 function chooseFiles(event: Event) {
   if (props.disabled || busy.value) return
-  incoming.value = Array.from((event.target as HTMLInputElement).files || [])
+  const files = Array.from((event.target as HTMLInputElement).files || [])
+  if (!files.length) return
+  incoming.value = files
   ;(event.target as HTMLInputElement).value = ''
   if (!pending.value) pending.value = { requestKey: crypto.randomUUID(), expectedVersion: props.version, expectedRevision: props.revision }
 }
@@ -63,7 +66,7 @@ watch(() => [props.requirement, selectedId.value], async () => {
   try { const result = await workflowDocuments.get(owner, id); if (alive && ticket === generation) chosen.value = result }
   catch (failure) { if (alive && ticket === generation) error.value = userFacingError(failure, '已选文档无法读取，请重新选择。') }
 }, { immediate: true })
-onBeforeUnmount(() => { alive = false; generation++; emit('busy', false) })
+onBeforeUnmount(() => { alive = false; generation++; emit('busy', false); emit('pending', false) })
 </script>
 <template>
   <div class="workflow-document-input">
@@ -72,6 +75,7 @@ onBeforeUnmount(() => { alive = false; generation++; emit('busy', false) })
     <ul v-if="chosen"><li v-for="file in chosen.originals" :key="file.path"><a :href="workflowDocuments.fileUrl(requirement, chosen.id, file.path)" download>{{ file.filename }}</a> · {{ file.sections }} 个章节<small v-for="limitation in file.limitations" :key="limitation">{{ limitation }}</small></li></ul>
     <label>选择{{ title }}<input type="file" accept=".docx,.md,.markdown,.pdf" multiple :disabled="disabled || busy" @change="chooseFiles" /></label>
     <p v-if="incoming.length">待上传：{{ incoming.map(file => file.name).join('、') }}</p>
+    <p v-if="pending && !busy" role="status">本次上传尚未完成，文件与请求已保留。请上传并选用，或明确改为新上传后再关闭面板、离开或执行。</p>
     <small>DOCX、Markdown、文本 PDF；单份 20 MiB，合计 50 MiB。</small>
     <div class="workflow-document-actions"><button type="button" :disabled="disabled || busy || !incoming.length" @click="upload">{{ busy ? '处理中…' : '上传并选用' }}</button><button v-if="pending" type="button" :disabled="disabled || busy" @click="newUpload">改为新上传</button><button type="button" :disabled="busy" @click="load()">选择已上传资料</button></div>
     <p v-if="error" role="alert">{{ error }}</p>
