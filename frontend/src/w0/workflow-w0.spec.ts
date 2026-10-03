@@ -10,6 +10,7 @@ import { workflowPush } from '@/api/workflowPush'
 import { workflowWriteback } from '@/api/workflowWriteback'
 import { template, summary, commandPreset } from '@/components/workflow/workflowTestFixtures'
 import { attempt, candidate, execution, requirement } from '@/components/workflow/workflowRunTestFixtures'
+import { workflowLibraryW0Contract } from '@/pages/w2/workflow/workflow-library-w0-contract'
 import { createAcknowledgedOperation } from '@/domain/acknowledgedOperation'
 import WorkflowRequirementNewView from '@/views/WorkflowRequirementNewView.vue'
 import WorkflowLibraryView from '@/views/WorkflowLibraryView.vue'
@@ -121,21 +122,12 @@ describe('B1.1 New unresolved create navigation', () => {
   })
 })
 describe('B1.2 Library unresolved copy/archive navigation', () => {
-  for (const action of ['copy', 'archive'] as const) for (const phase of ['sending', 'unknown']) it(`${action}/${phase} must block route leave`, async () => {
-    const pending = deferred<never>(); flows[action].mockImplementation(() => pending.promise)
-    const { view, router } = await routeView(WorkflowLibraryView, '/workflows')
-    await view.get('[data-action-trigger]').trigger('click'); await click(view, action === 'copy' ? '复制' : '删除')
-    if (phase === 'unknown') { pending.reject(new Error('lost acknowledgement')); await flushPromises() }
-    const original = flows[action].mock.calls[0]; expect(original).toBeDefined()
-    await router.push('/away'); await flushPromises(); trace('B1.2', { action, phase, route: router.currentRoute.value.path, request: original })
-    expect(router.currentRoute.value.path).toBe('/workflows')
+  // Original five contracts now run the real React production island plus the sole Vue Router.
+  for (const action of ['copy', 'archive'] as const) for (const phase of ['sending', 'unknown'] as const) it(`${action}/${phase} must block route leave`, async () => {
+    await workflowLibraryW0Contract({ action, phase }, { receipt, proof: trace })
   })
   it('unknown copy keeps its original body/key while actual list filters change', async () => {
-    flows.copy.mockRejectedValueOnce(new Error('lost')).mockResolvedValue({ ...receipt, state: 'ACTIVE' })
-    const { view } = await routeView(WorkflowLibraryView, '/workflows')
-    await view.get('[data-action-trigger]').trigger('click'); await click(view, '复制'); const original = flows.copy.mock.calls[0]
-    await click(view, '我的流程'); await click(view, '重试原操作')
-    trace('B1.2', { original, retry: flows.copy.mock.calls[1] }); expect(flows.copy.mock.calls[1]).toEqual(original)
+    await workflowLibraryW0Contract({ filters: true }, { receipt: { ...receipt, state: 'ACTIVE' }, proof: trace })
   })
 })
 describe('B1.3 accepted New receipt survives failed handoff', () => {

@@ -1,0 +1,648 @@
+{
+  "source": "W2 final Vitest result",
+  "total": 111,
+  "passed": 35,
+  "failed": 76,
+  "skipped": 0,
+  "redToGreen": 8,
+  "greenContracts": [
+    "B1.2",
+    "B8.1"
+  ],
+  "remainingByWave": {
+    "W5": 41,
+    "W3": 31,
+    "W4": 4
+  },
+  "groups": {
+    "B1.1": {
+      "failed": 6,
+      "passed": 1
+    },
+    "B1.2": {
+      "passed": 5
+    },
+    "B1.3": {
+      "failed": 2,
+      "passed": 1
+    },
+    "B1.4": {
+      "passed": 2
+    },
+    "B2.1": {
+      "failed": 13
+    },
+    "B2.2": {
+      "failed": 1
+    },
+    "B2.3": {
+      "failed": 1
+    },
+    "B3.1": {
+      "failed": 9
+    },
+    "B3.2": {
+      "passed": 2,
+      "failed": 4
+    },
+    "B3.3": {
+      "failed": 4
+    },
+    "B3.4": {
+      "failed": 4,
+      "passed": 1
+    },
+    "B4.1": {
+      "failed": 1,
+      "passed": 2
+    },
+    "B4.2": {
+      "passed": 2
+    },
+    "B5.1": {
+      "failed": 4,
+      "passed": 1
+    },
+    "B5.2": {
+      "failed": 4
+    },
+    "B5.3": {
+      "failed": 2
+    },
+    "B6.1": {
+      "failed": 1,
+      "passed": 1
+    },
+    "B6.2": {
+      "failed": 2
+    },
+    "B6.3": {
+      "failed": 2
+    },
+    "B7.1": {
+      "failed": 1
+    },
+    "B7.2": {
+      "failed": 1
+    },
+    "B7.3": {
+      "failed": 1,
+      "passed": 1
+    },
+    "B8.1": {
+      "passed": 4
+    },
+    "B8.2": {
+      "failed": 4
+    },
+    "B8.3": {
+      "failed": 5,
+      "passed": 1
+    },
+    "B9.1": {
+      "passed": 6
+    },
+    "B9.2": {
+      "failed": 1,
+      "passed": 3
+    },
+    "B9.3": {
+      "passed": 2,
+      "failed": 3
+    }
+  },
+  "failures": [
+    {
+      "group": "B5.1",
+      "wave": "W5",
+      "file": "frontend/src/w0/designer-w0.spec.ts",
+      "title": "B5.1 ordinary Designer drafts require real route confirmation initial-text: declining leave preserves draft",
+      "status": "failed"
+    },
+    {
+      "group": "B5.1",
+      "wave": "W5",
+      "file": "frontend/src/w0/designer-w0.spec.ts",
+      "title": "B5.1 ordinary Designer drafts require real route confirmation followup-text: declining leave preserves draft",
+      "status": "failed"
+    },
+    {
+      "group": "B5.1",
+      "wave": "W5",
+      "file": "frontend/src/w0/designer-w0.spec.ts",
+      "title": "B5.1 ordinary Designer drafts require real route confirmation initial-file: declining leave preserves draft",
+      "status": "failed"
+    },
+    {
+      "group": "B5.1",
+      "wave": "W5",
+      "file": "frontend/src/w0/designer-w0.spec.ts",
+      "title": "B5.1 ordinary Designer drafts require real route confirmation followup-file: declining leave preserves draft",
+      "status": "failed"
+    },
+    {
+      "group": "B5.2",
+      "wave": "W5",
+      "file": "frontend/src/w0/designer-w0.spec.ts",
+      "title": "B5.2 unresolved Designer writes forbid route leave initial/sending retains File owner",
+      "status": "failed"
+    },
+    {
+      "group": "B5.2",
+      "wave": "W5",
+      "file": "frontend/src/w0/designer-w0.spec.ts",
+      "title": "B5.2 unresolved Designer writes forbid route leave initial/unknown retains File owner",
+      "status": "failed"
+    },
+    {
+      "group": "B5.2",
+      "wave": "W5",
+      "file": "frontend/src/w0/designer-w0.spec.ts",
+      "title": "B5.2 unresolved Designer writes forbid route leave followup/sending retains File owner",
+      "status": "failed"
+    },
+    {
+      "group": "B5.2",
+      "wave": "W5",
+      "file": "frontend/src/w0/designer-w0.spec.ts",
+      "title": "B5.2 unresolved Designer writes forbid route leave followup/unknown retains File owner",
+      "status": "failed"
+    },
+    {
+      "group": "B5.3",
+      "wave": "W5",
+      "file": "frontend/src/w0/designer-w0.spec.ts",
+      "title": "B5.3 accepted Task handoff retains original identity guard-false: confirmed Task retains an explicit navigation-only recovery",
+      "status": "failed"
+    },
+    {
+      "group": "B5.3",
+      "wave": "W5",
+      "file": "frontend/src/w0/designer-w0.spec.ts",
+      "title": "B5.3 accepted Task handoff retains original identity reject: confirmed Task retains an explicit navigation-only recovery",
+      "status": "failed"
+    },
+    {
+      "group": "B6.1",
+      "wave": "W5",
+      "file": "frontend/src/w0/designer-w0.spec.ts",
+      "title": "B6.1 retired question callbacks stay with original owner reply accepted after retirement must not launch a new A refresh or alter independent B",
+      "status": "failed"
+    },
+    {
+      "group": "B6.2",
+      "wave": "W5",
+      "file": "frontend/src/w0/designer-w0.spec.ts",
+      "title": "B6.2 profile preview/modal await scope preview: retirement invalidates profile action before mutation",
+      "status": "failed"
+    },
+    {
+      "group": "B6.2",
+      "wave": "W5",
+      "file": "frontend/src/w0/designer-w0.spec.ts",
+      "title": "B6.2 profile preview/modal await scope modal: retirement invalidates profile action before mutation",
+      "status": "failed"
+    },
+    {
+      "group": "B6.3",
+      "wave": "W5",
+      "file": "frontend/src/w0/designer-w0.spec.ts",
+      "title": "B6.3 follow-up immutable multipart operation and later draft unknown recovery uses original body/File and leaves later reachable edits unsent",
+      "status": "failed"
+    },
+    {
+      "group": "B6.3",
+      "wave": "W5",
+      "file": "frontend/src/w0/designer-w0.spec.ts",
+      "title": "B6.3 follow-up immutable multipart operation and later draft typing while a real send is in-flight remains an unsent draft after original acknowledgement",
+      "status": "failed"
+    },
+    {
+      "group": "B7.1",
+      "wave": "W5",
+      "file": "frontend/src/w0/designer-w0.spec.ts",
+      "title": "B7.1 owned terminal retry timeout immediate retirement first snapshot clears active retry before any natural callback completes",
+      "status": "failed"
+    },
+    {
+      "group": "B7.2",
+      "wave": "W5",
+      "file": "frontend/src/w0/designer-w0.spec.ts",
+      "title": "B7.2 owned composer focus RAF immediate retirement retirement cancels queued composer focus before it can focus another page",
+      "status": "failed"
+    },
+    {
+      "group": "B7.3",
+      "wave": "W5",
+      "file": "frontend/src/w0/designer-w0.spec.ts",
+      "title": "B7.3 storage failures cannot discard accepted identity accepted initial File receipt stays recoverable when workspace persistence fails",
+      "status": "failed"
+    },
+    {
+      "group": "B9.2",
+      "wave": "W3",
+      "file": "frontend/src/w0/endpoint-w0.spec.ts",
+      "title": "W0 B9 endpoint contracts B9.2 report external-owner negative control: changing then restoring unknown draft cannot replace original key",
+      "status": "failed"
+    },
+    {
+      "group": "B9.3",
+      "wave": "W3",
+      "file": "frontend/src/w0/endpoint-w0.spec.ts",
+      "title": "W0 B9 endpoint contracts B9.3 accepted Task/start unknown changed then restored draft must never create another Task",
+      "status": "failed"
+    },
+    {
+      "group": "B9.3",
+      "wave": "W3",
+      "file": "frontend/src/w0/endpoint-w0.spec.ts",
+      "title": "W0 B9 endpoint contracts B9.3 batch unknown GET advances CAS: original retry cannot silently become new version",
+      "status": "failed"
+    },
+    {
+      "group": "B9.3",
+      "wave": "W3",
+      "file": "frontend/src/w0/endpoint-w0.spec.ts",
+      "title": "W0 B9 endpoint contracts B9.3 diagnostic accepted response followed by read failure must never rePOST receipt",
+      "status": "failed"
+    },
+    {
+      "group": "B3.1",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.1 report: real create in flight must block route leave; disabled inputs cannot be mutated",
+      "status": "failed"
+    },
+    {
+      "group": "B3.1",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.1 source: real create in flight must block route leave; disabled inputs cannot be mutated",
+      "status": "failed"
+    },
+    {
+      "group": "B3.1",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.1 document: real create in flight must block route leave; disabled inputs cannot be mutated",
+      "status": "failed"
+    },
+    {
+      "group": "B3.1",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.1 document: hashing really active before any POST must block leave",
+      "status": "failed"
+    },
+    {
+      "group": "B3.1",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.1 report: unknown receipt cannot replace original intent via editable UI",
+      "status": "failed"
+    },
+    {
+      "group": "B3.1",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.1 source: unknown receipt cannot replace original intent via editable UI",
+      "status": "failed"
+    },
+    {
+      "group": "B3.1",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.1 document: unknown receipt cannot replace original intent via editable UI",
+      "status": "failed"
+    },
+    {
+      "group": "B3.1",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.1 report/start-inflight: accepted Task identity blocks leave and survives real editable draft",
+      "status": "failed"
+    },
+    {
+      "group": "B3.1",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.1 report/start-unknown: accepted Task identity blocks leave and survives real editable draft",
+      "status": "failed"
+    },
+    {
+      "group": "B3.2",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.2 source/inflight: same-record and exit navigation preserve pending scope",
+      "status": "failed"
+    },
+    {
+      "group": "B3.2",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.2 source/unknown: same-record and exit navigation preserve pending scope",
+      "status": "failed"
+    },
+    {
+      "group": "B3.2",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.2 document/inflight: same-record and exit navigation preserve pending scope",
+      "status": "failed"
+    },
+    {
+      "group": "B3.2",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.2 document/unknown: same-record and exit navigation preserve pending scope",
+      "status": "failed"
+    },
+    {
+      "group": "B3.3",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.3 source/cancel: refresh version and batch selection must not mint a new unknown command",
+      "status": "failed"
+    },
+    {
+      "group": "B3.3",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.3 source/retry: refresh version and batch selection must not mint a new unknown command",
+      "status": "failed"
+    },
+    {
+      "group": "B3.3",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.3 document/resume: refresh version and batch selection must not mint a new unknown command",
+      "status": "failed"
+    },
+    {
+      "group": "B3.3",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.3 document/cancel: refresh version and batch selection must not mint a new unknown command",
+      "status": "failed"
+    },
+    {
+      "group": "B3.4",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.4 report: denied get/set storage retains in-memory original identity and blocks leave",
+      "status": "failed"
+    },
+    {
+      "group": "B3.4",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.4 source: denied get/set storage retains in-memory original identity and blocks leave",
+      "status": "failed"
+    },
+    {
+      "group": "B3.4",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.4 document: denied get/set storage retains in-memory original identity and blocks leave",
+      "status": "failed"
+    },
+    {
+      "group": "B3.4",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.4 document: by-request 404 remains unknown; actual File bytes/order cannot replace original operation",
+      "status": "failed"
+    },
+    {
+      "group": "B4.1",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B4 document cancellation scope B4.1 pending confirm A followed by real route B must never POST stale cancellation",
+      "status": "failed"
+    },
+    {
+      "group": "B8.2",
+      "wave": "W4",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B8 history and child retirement B8.2 frozen record A arriving after real route B cannot overwrite B",
+      "status": "failed"
+    },
+    {
+      "group": "B8.2",
+      "wave": "W4",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B8 history and child retirement B8.2 attachment A late with same file ID cannot populate B cache",
+      "status": "failed"
+    },
+    {
+      "group": "B8.2",
+      "wave": "W4",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B8 history and child retirement B8.2 cached A same attachment ID must be invalidated when route becomes B",
+      "status": "failed"
+    },
+    {
+      "group": "B8.2",
+      "wave": "W4",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B8 history and child retirement B8.2 retired record error must not clear old busy or add error",
+      "status": "failed"
+    },
+    {
+      "group": "B8.3",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B8 history and child retirement B8.3 sources/directory: late response after root unmount cannot mutate retired refs",
+      "status": "failed"
+    },
+    {
+      "group": "B8.3",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B8 history and child retirement B8.3 sources/body: late response after root unmount cannot mutate retired refs",
+      "status": "failed"
+    },
+    {
+      "group": "B8.3",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B8 history and child retirement B8.3 clarification sent POST after forced root retirement cannot emit updated or clear draft",
+      "status": "failed"
+    },
+    {
+      "group": "B8.3",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B8 history and child retirement B8.3 supplement options read after unmount cannot open retired form",
+      "status": "failed"
+    },
+    {
+      "group": "B8.3",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B8 history and child retirement B8.3 supplement sent upload after forced root retirement cannot emit updated",
+      "status": "failed"
+    },
+    {
+      "group": "B1.1",
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B1.1 New unresolved create navigation sending/push must retain original owner",
+      "status": "failed"
+    },
+    {
+      "group": "B1.1",
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B1.1 New unresolved create navigation sending/replace must retain original owner",
+      "status": "failed"
+    },
+    {
+      "group": "B1.1",
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B1.1 New unresolved create navigation sending/back must retain original owner",
+      "status": "failed"
+    },
+    {
+      "group": "B1.1",
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B1.1 New unresolved create navigation unknown/push must retain original owner",
+      "status": "failed"
+    },
+    {
+      "group": "B1.1",
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B1.1 New unresolved create navigation unknown/replace must retain original owner",
+      "status": "failed"
+    },
+    {
+      "group": "B1.1",
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B1.1 New unresolved create navigation unknown/back must retain original owner",
+      "status": "failed"
+    },
+    {
+      "group": "B1.3",
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B1.3 accepted New receipt survives failed handoff guard-false retains receipt and offers navigation-only recovery",
+      "status": "failed"
+    },
+    {
+      "group": "B1.3",
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B1.3 accepted New receipt survives failed handoff cancelled retains receipt and offers navigation-only recovery",
+      "status": "failed"
+    },
+    {
+      "group": "B2.1",
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B2.1 real nested command guards human/sending refuses leaving actual command panel",
+      "status": "failed"
+    },
+    {
+      "group": "B2.1",
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B2.1 real nested command guards human/unknown refuses leaving actual command panel",
+      "status": "failed"
+    },
+    {
+      "group": "B2.1",
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B2.1 real nested command guards candidate/sending refuses leaving actual command panel",
+      "status": "failed"
+    },
+    {
+      "group": "B2.1",
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B2.1 real nested command guards candidate/unknown refuses leaving actual command panel",
+      "status": "failed"
+    },
+    {
+      "group": "B2.1",
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B2.1 real nested command guards finish/sending refuses leaving actual command panel",
+      "status": "failed"
+    },
+    {
+      "group": "B2.1",
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B2.1 real nested command guards finish/unknown refuses leaving actual command panel",
+      "status": "failed"
+    },
+    {
+      "group": "B2.1",
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B2.1 real nested command guards commit/sending refuses leaving actual command panel",
+      "status": "failed"
+    },
+    {
+      "group": "B2.1",
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B2.1 real nested command guards commit/unknown refuses leaving actual command panel",
+      "status": "failed"
+    },
+    {
+      "group": "B2.1",
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B2.1 real nested command guards push/sending refuses leaving actual command panel",
+      "status": "failed"
+    },
+    {
+      "group": "B2.1",
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B2.1 real nested command guards push/unknown refuses leaving actual command panel",
+      "status": "failed"
+    },
+    {
+      "group": "B2.1",
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B2.1 real nested command guards writeback/sending refuses leaving actual command panel",
+      "status": "failed"
+    },
+    {
+      "group": "B2.1",
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B2.1 real nested command guards writeback/unknown refuses leaving actual command panel",
+      "status": "failed"
+    },
+    {
+      "group": "B2.1",
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B2.1 real nested command guards actual Requirement parent refuses route leave while its Finish child is unknown",
+      "status": "failed"
+    },
+    {
+      "group": "B2.2",
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B2.2 original process stop identity retains command version/attempt on explicit retry and blocks leaving unknown stop",
+      "status": "failed"
+    },
+    {
+      "group": "B2.3",
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B2.3 accepted write/readback split actual Finish child retains accepted readback and only rereads on recovery",
+      "status": "failed"
+    }
+  ]
+}

@@ -6,7 +6,7 @@
   "integrity": "sha512-74oXI0Rgm1Eu33cHQAd74J6oVgCH9mbFyTVQbsGgp2kmWwh0HdtBr2VP04z8mbPD+M/xO69nqG5dDEt7/EN2rQ==",
   "packageJsonSha256": "92d35db4281bb51c2b755b26b9d479957273d48e8c17e5d7faceab704aee58cb",
   "upstreamSource": "https://github.com/xyflow/xyflow/blob/%40xyflow%2Freact%4012.12.0/packages/react/src/hooks/useResizeHandler.ts",
-  "reason": "The renderer ref is cleared before effect cleanup. Disconnect the ResizeObserver owned by this effect without depending on the cleared ref; retain window.resize listener removal. The UMD/CJS distribution also inlines XYPanZoom, so its returned final destroy releases the inlined extent observer while retaining the lexical selection pause.",
+  "reason": "The renderer ref is cleared before effect cleanup. Disconnect the ResizeObserver owned by this effect without depending on the cleared ref; retain window.resize listener removal. The UMD/CJS distribution also inlines XYPanZoom, so its returned final destroy releases the inlined extent observer while retaining the lexical selection pause. W2 also unbinds the same final instance pane .zoom listeners using the documented D3 selection.on API; the inlined selection variable is p, while lexical selection pause stays unchanged.",
   "files": [
     {
       "path": "dist/esm/index.mjs",
@@ -33,7 +33,7 @@
     {
       "path": "dist/umd/index.js",
       "originalSha256": "c418896c3d0cc63498e724df7ed9698532c58523c04d30ebcd3ff7fa0bf3ecff",
-      "patchedSha256": "59024a279059ea7dec0530d2f9cf50e284da3707be89e3a360220892a32de53b",
+      "patchedSha256": "d26b3dbd2e88c7fc6a036cd5c9838d197876a4261906c000f9a42d9fe243a806",
       "replacements": [
         {
           "before": "window.removeEventListener(\"resize\",n),t&&e.current&&t.unobserve(e.current)",
@@ -41,7 +41,7 @@
         },
         {
           "before": "destroy:x,setViewport:async function",
-          "after": "destroy:()=>{x();f?.disconnect()},setViewport:async function"
+          "after": "destroy:()=>{x();p.on(\".zoom\",null);f?.disconnect()},setViewport:async function"
         }
       ]
     }

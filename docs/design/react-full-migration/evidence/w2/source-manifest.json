@@ -1,0 +1,346 @@
+{
+  "baseline": "6ffc7dbef1302450e900979d5484d4f3b3ebfa80",
+  "scope": "W2 changed implementation, tests, tooling and dependency manifests; screenshot hashes separately in verification.json",
+  "files": [
+    {
+      "file": "frontend/e2e/w2/playwright.config.ts",
+      "sha256": "e71b101245368a119be7df78700ddd57bc6409bfb7c94d02aff87cd5f1bcd294"
+    },
+    {
+      "file": "frontend/e2e/w2/product-routes.spec.ts",
+      "sha256": "9bc85ee190d691620bdcd61de6b037907ca4806bd10bb501ef67c6afb9be4d48"
+    },
+    {
+      "file": "frontend/e2e/w2/productFixture.ts",
+      "sha256": "eab47ab702c008b2d9f79f7a36d495d546ee8dba9d0fc5b0445fa6680ac4e864"
+    },
+    {
+      "file": "frontend/e2e/w2/resources.ts",
+      "sha256": "51983279d16f852171953b35a2b0ec8174e74bb4858785a597175ad8bc1c2c1f"
+    },
+    {
+      "file": "frontend/package.json",
+      "sha256": "2aa3a7679a4a4ba165fdc03e8bcc76d8130f401da50682183298f5602dd373ef"
+    },
+    {
+      "file": "frontend/src/foundation/ownership.spec.ts",
+      "sha256": "e3b27ca770ad764e21fbe54269d4eaca8640aefa5a7deefd6c5afad745343f20"
+    },
+    {
+      "file": "frontend/src/foundation/semantic-glyphs.json",
+      "sha256": "06166576829e2842b7dd9c7178d54c30a41b36a10bc0637dd051c6d3217992f2"
+    },
+    {
+      "file": "frontend/src/foundation/semantic-registry-data.json",
+      "sha256": "0178a6b21aeed5a6458a8431e87783dde9e3ea3eaa672fe909f8ea521539e36e"
+    },
+    {
+      "file": "frontend/src/migration/W2RouteBridge.vue",
+      "sha256": "b60bcccc5380ef2ad26a9ed847dd03fd07a19cce312b681a1fd21b1952d70d3b"
+    },
+    {
+      "file": "frontend/src/migration/w2Bridge.spec.tsx",
+      "sha256": "e41b18c5ddb3682a4916e536181d631a59069e6e99be070142938e56ae629900"
+    },
+    {
+      "file": "frontend/src/migration/w2BridgeView.tsx",
+      "sha256": "f87a425b2e7df034cd7d8b4561059e43e83e736ca2f65645a215a99bb7895490"
+    },
+    {
+      "file": "frontend/src/migration/w2Routes.ts",
+      "sha256": "fe429a79a30ac838f311d2bb1726bdeda92b87f0d10906a5b2b7df0216c32dc6"
+    },
+    {
+      "file": "frontend/src/migration/w2TaskPort.spec.ts",
+      "sha256": "f9c429d8253e29d1804db860139773a43218193e480a396214afc5084f835acb"
+    },
+    {
+      "file": "frontend/src/migration/w2TaskPort.ts",
+      "sha256": "f75321821e2e4d398212b9df9eb9d937222124857ae82f7ebdf50b2b0721b3eb"
+    },
+    {
+      "file": "frontend/src/pages/w2/core/CoreUi.tsx",
+      "sha256": "b55c45deb815213ec61c5e66417c70efff88dcb3c7832ec8a7d79fc020459d7e"
+    },
+    {
+      "file": "frontend/src/pages/w2/core/CredentialsForm.tsx",
+      "sha256": "b89d1c87739b78aa2865777c17959f0218241b291b3b57c958098c468f2b44ae"
+    },
+    {
+      "file": "frontend/src/pages/w2/core/ProjectsPage.tsx",
+      "sha256": "aa2e46736e046eaa9c6c9f3ec14eb65a1ec3bb88eab0670af9007ffde8137dc3"
+    },
+    {
+      "file": "frontend/src/pages/w2/core/SettingsPage.tsx",
+      "sha256": "a87219774eb6a8145db60ff890bbf8008d801aaea609226fbd6dd7ad091b3c8d"
+    },
+    {
+      "file": "frontend/src/pages/w2/core/TasksPage.tsx",
+      "sha256": "7460414f302aad68ef27446bfb143558108a4326fb55b5fef2cb79bedd1eed15"
+    },
+    {
+      "file": "frontend/src/pages/w2/core/controllers.spec.ts",
+      "sha256": "b2e204679c6664ccec62dddf6153b6e3c6b0fad4fba940888b52e28a269fed6b"
+    },
+    {
+      "file": "frontend/src/pages/w2/core/core.css",
+      "sha256": "2b74891654edb71d05400ea74ed5fb1a578aae1da33a47722808b2b4eee1dfa1"
+    },
+    {
+      "file": "frontend/src/pages/w2/core/coreTestHelpers.tsx",
+      "sha256": "7d7bc47aad64dcfda6a8f010ce243c1f5277a94efd86da0c0f65d027244027eb"
+    },
+    {
+      "file": "frontend/src/pages/w2/core/credentialsController.ts",
+      "sha256": "d802a5d32b8a3633dc5c6633eeda8c136e82ff1674c3967e20c563f3737daf06"
+    },
+    {
+      "file": "frontend/src/pages/w2/core/index.tsx",
+      "sha256": "bb1cbd57dd7580b96433ec411b6419e5b0117c4aedcc2c083e71d0521b296caa"
+    },
+    {
+      "file": "frontend/src/pages/w2/core/owner.ts",
+      "sha256": "2802f5d4c980333aeb10cbd95150d8d0af300d6eb7ed52f64200c7cdeec80533"
+    },
+    {
+      "file": "frontend/src/pages/w2/core/pages.spec.tsx",
+      "sha256": "bb70da395a170f9db573dc4614555fed8f6317835f7b456a3758983d7356cb13"
+    },
+    {
+      "file": "frontend/src/pages/w2/core/projectsController.ts",
+      "sha256": "ac415c8a354928f37b4e9e8d87ea9077c0f01cd4ec2ea24b333b7ebb9ff81a4e"
+    },
+    {
+      "file": "frontend/src/pages/w2/core/settingsController.ts",
+      "sha256": "175364131f22b8e5ff9ce7d144580755204a877a493e4e17afd97d27734d0cbe"
+    },
+    {
+      "file": "frontend/src/pages/w2/core/tasksController.ts",
+      "sha256": "3250e3a7a2f3266de0d43ff901f5195fd46e06f84510793b22f8ca686d1a22da"
+    },
+    {
+      "file": "frontend/src/pages/w2/core/useCoreOwner.ts",
+      "sha256": "423786fca50b69afa9f2acc725da36c572f9407279ec6ab0a93ca5682938582c"
+    },
+    {
+      "file": "frontend/src/pages/w2/roles/RoleManagementPage.tsx",
+      "sha256": "761add75da39330dd141ce0ad6f20fc208faf45554695e86250afc73761157c3"
+    },
+    {
+      "file": "frontend/src/pages/w2/roles/index.tsx",
+      "sha256": "dcf89ba3cc65af5bca78e28ecc7d7c9de30e6673a94ec54dd0a3bc45139091a1"
+    },
+    {
+      "file": "frontend/src/pages/w2/roles/roleManagementController.ts",
+      "sha256": "17851ee04e069b585df4eeba5af7aa74622e995f215b2ec4467149b02c066958"
+    },
+    {
+      "file": "frontend/src/pages/w2/roles/rolePresentation.ts",
+      "sha256": "68dbe21227009c1ae11c7670663d193e70443c01a4dad546ec9ea4d8b0ffca4f"
+    },
+    {
+      "file": "frontend/src/pages/w2/roles/rolesPages.spec.tsx",
+      "sha256": "9aa3129103291fbed831de3afd31db494b2859205cffeed3305415678e586de0"
+    },
+    {
+      "file": "frontend/src/pages/w2/secondary/DatabasePage.tsx",
+      "sha256": "581e772a995a1a82ed49530142fa789d1a6b3c19cf3d7acf2de24880bb47d378"
+    },
+    {
+      "file": "frontend/src/pages/w2/secondary/HomePage.tsx",
+      "sha256": "fd375e8ef717884c22cfbb9dfa516f69000f639977a3a886397f088fdbbb61f7"
+    },
+    {
+      "file": "frontend/src/pages/w2/secondary/InsightsPage.tsx",
+      "sha256": "acdfc579787f2ac7f72f2b8fe59ebb73aa8831e74d9a01cc67a81ad1426d788f"
+    },
+    {
+      "file": "frontend/src/pages/w2/secondary/KnowledgeHistoryPage.tsx",
+      "sha256": "794f6b684244a02eede6967a3cc68ae3c8b4d9369ff3e72542acd1f587f2bdde"
+    },
+    {
+      "file": "frontend/src/pages/w2/secondary/PptListPage.tsx",
+      "sha256": "3148e32dea75989f814d9aa5b346798071ed8c5a4d4648a756931d0d74d0ee86"
+    },
+    {
+      "file": "frontend/src/pages/w2/secondary/RuntimePage.tsx",
+      "sha256": "f36a6c448cdf2489221ed023f0a05326a296cf278a341d116ddea5cb858a09ea"
+    },
+    {
+      "file": "frontend/src/pages/w2/secondary/SkillMarkdown.tsx",
+      "sha256": "871a7706b16f8496b033488da1cee5bf58f1308a9a80c77e6d2f65ba21ee12ab"
+    },
+    {
+      "file": "frontend/src/pages/w2/secondary/ToolsPage.tsx",
+      "sha256": "58e7baffd97680142c31f71c5b9fcf7b2eaa7f7ed636a2efb6dd292f33bf5d5c"
+    },
+    {
+      "file": "frontend/src/pages/w2/secondary/databaseDraft.spec.ts",
+      "sha256": "0d548fed02e563de79003ef942c3d5728e998617c46ad3d8d0576c904a59072f"
+    },
+    {
+      "file": "frontend/src/pages/w2/secondary/databaseDraft.ts",
+      "sha256": "760ace94c756da5d6da7e3e130fb2bc4c93cf26dafc0db8b58ba378dc711e2e0"
+    },
+    {
+      "file": "frontend/src/pages/w2/secondary/feedback.tsx",
+      "sha256": "5af9be87a2098a944c6a0448b1f7a0c843ab8837490e3f31ead3178c4b545044"
+    },
+    {
+      "file": "frontend/src/pages/w2/secondary/index.tsx",
+      "sha256": "fdfa223baa1215a003c14a7567ab22df2c38d6113735c5252535350c08e421b3"
+    },
+    {
+      "file": "frontend/src/pages/w2/secondary/ports.ts",
+      "sha256": "ea9f2fb0317a020840e592581d79103f630e4f4be4e792d07adac6b7fe930af0"
+    },
+    {
+      "file": "frontend/src/pages/w2/secondary/pptCreation.spec.ts",
+      "sha256": "c7a4ec871f653315d1f02ddaf15e36acca069f97d3b4d7d1b98f3942d7a78243"
+    },
+    {
+      "file": "frontend/src/pages/w2/secondary/pptCreation.ts",
+      "sha256": "e1b3ad38e2f512a30afb0effcb1c2f32599e30d961cd8696b70bde6a6e584886"
+    },
+    {
+      "file": "frontend/src/pages/w2/secondary/recovery.ts",
+      "sha256": "e6059e8233ddeb4e0c2b06ff444425a8975ef1008e6aaf18937ed472d7d368f5"
+    },
+    {
+      "file": "frontend/src/pages/w2/secondary/secondary.css",
+      "sha256": "a1fd7b8faac63b64abdd0497407466fd2f0dcc1bec1037a40e491b6ae137c55f"
+    },
+    {
+      "file": "frontend/src/pages/w2/secondary/secondary.spec.tsx",
+      "sha256": "da758b8280c5a755dd1da3df7823e46e9ebddbfcaf0bb05ca9dadd22ae66b969"
+    },
+    {
+      "file": "frontend/src/pages/w2/secondary/state.spec.tsx",
+      "sha256": "680e5b3765e6c9c7ae30a96a768ce201079cd4df34896f459324c16c172628f1"
+    },
+    {
+      "file": "frontend/src/pages/w2/secondary/state.ts",
+      "sha256": "021235c26371a25d4715bfebb6f781fc1cdd5332237e5d1b013b1ce62ddd62f2"
+    },
+    {
+      "file": "frontend/src/pages/w2/shared/index.tsx",
+      "sha256": "bc969f1d7ebc7b2393a8c72277c4adcccb557e8d83414aecf2c2aded213e8a97"
+    },
+    {
+      "file": "frontend/src/pages/w2/shared/leave.spec.ts",
+      "sha256": "790433919f0a1fee7983417ead8feb0244dcfc5b62f38e77d4e5c4c9886f3e4d"
+    },
+    {
+      "file": "frontend/src/pages/w2/shared/leave.ts",
+      "sha256": "972e8d250b3ab7674b099225eebb970bdf833c4e5b677b55a88bf3f8a485e392"
+    },
+    {
+      "file": "frontend/src/pages/w2/shared/page.css",
+      "sha256": "7ea1c80edfefaadfc0a4ba3c76c875b417ff12e0d3ad2ee40ebcdeee33f5c83d"
+    },
+    {
+      "file": "frontend/src/pages/w2/shared/types.ts",
+      "sha256": "a5a2a9b553c6c2a90d155529847d2813184f29fb60b4df46f1996b320beab759"
+    },
+    {
+      "file": "frontend/src/pages/w2/workflow/DesignerHistoryPage.tsx",
+      "sha256": "f6dfdd6147a7e6bf5f4db508fc225d8b44f6341cd1efbf6b7768068bcf62a85f"
+    },
+    {
+      "file": "frontend/src/pages/w2/workflow/RequirementListPage.tsx",
+      "sha256": "02e2defa15511604e74e86c6d37ec8228660eb0b114082cb56f8000cc0ff0e5d"
+    },
+    {
+      "file": "frontend/src/pages/w2/workflow/WorkflowLibraryPage.tsx",
+      "sha256": "128bfcae50fc053ac1e6b9c402b75d6529d11b1826c12e69253002014d9596b4"
+    },
+    {
+      "file": "frontend/src/pages/w2/workflow/controllerCore.ts",
+      "sha256": "8589bde85e05f877caf5ac1eedc49a0120fd1afb8e9e8dbb7ad8fe4244b954d1"
+    },
+    {
+      "file": "frontend/src/pages/w2/workflow/designer-history-w0-contract.tsx",
+      "sha256": "3fcfa1f0e4fe82bcaf3cea5a4c63e4db58eb83f57247a58250b6fa7159d97ad9"
+    },
+    {
+      "file": "frontend/src/pages/w2/workflow/designerHistoryController.ts",
+      "sha256": "19e674da7f2cdf7154935a4a59c52cc95ceab4d97ece6e0e26c186fd7ec38076"
+    },
+    {
+      "file": "frontend/src/pages/w2/workflow/index.tsx",
+      "sha256": "f7b5cfaae337197d202abc8fa2e55e24a7f3148eb62734f69320e842c014056d"
+    },
+    {
+      "file": "frontend/src/pages/w2/workflow/page.test-support.tsx",
+      "sha256": "968e59b59d3bad9aafb5e656807ed9f5cddcae00ef2c064b44057dc567701d34"
+    },
+    {
+      "file": "frontend/src/pages/w2/workflow/pageParts.tsx",
+      "sha256": "9416a855ac72ec667ccfb8750eb9d6a7f1ba01e90793daee6dd19e2890766e11"
+    },
+    {
+      "file": "frontend/src/pages/w2/workflow/requirementListController.ts",
+      "sha256": "bc4571edc70e4dffff48a123f3ad52fb81f40a62c83e9bbac641b788cd211a98"
+    },
+    {
+      "file": "frontend/src/pages/w2/workflow/workflow-library-w0-contract.tsx",
+      "sha256": "08db17fd70880e4f6e68d343996a9553d532a6f274b8661f92e745734392b44a"
+    },
+    {
+      "file": "frontend/src/pages/w2/workflow/workflow-pages.css",
+      "sha256": "a08010f1c5a7c574f60ef92968a7bab72596aa1588d12fccdbb680d3ce0ecb61"
+    },
+    {
+      "file": "frontend/src/pages/w2/workflow/workflowLibraryController.ts",
+      "sha256": "fc3439e4e55668cbb57998c2ed8835c482cc213cd19044b13b08a744a58840e1"
+    },
+    {
+      "file": "frontend/src/pages/w2/workflow/workflowPages.spec.tsx",
+      "sha256": "f0c5700d780c44d7a72668e03b00b45540ace6bb382949c8445bd86b91fd60b3"
+    },
+    {
+      "file": "frontend/src/pages/w2/workflow/workflowRouteContracts.spec.tsx",
+      "sha256": "6dd899235e340114d69a1bcb19308a5a5520dee7a2fc012038a371b1b43b3f93"
+    },
+    {
+      "file": "frontend/src/react/bridge.ts",
+      "sha256": "82ffbe4f6f52da40dd1a5bf5910ca1b188d7e8b3d26bd4359466c35f8540eabc"
+    },
+    {
+      "file": "frontend/src/router/index.ts",
+      "sha256": "25a4b8c23215ebe36cc62cd514755d3f6fc80a11402f2f8f392b7418e528def0"
+    },
+    {
+      "file": "frontend/src/views/HomeView.spec.ts",
+      "sha256": "dbe271a10cb0ef0ac3bd6ce92090a30063608a80c26e8596e88c0fe1bf6f7895"
+    },
+    {
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "sha256": "414541186c5709936224d7dbd88635c1ee9a615e03748d51aa70fac0652dd2b5"
+    },
+    {
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "sha256": "1a64cc629728321e8fb942575535c2f3ff88030c7680824b6af6d7a57f06a050"
+    },
+    {
+      "file": "scripts/generate-semantic-registry.mjs",
+      "sha256": "ff7631776355e2d0b9d9f7e4dced1b81e736ea54b4fcdcd0bda49024f5e76ccc"
+    },
+    {
+      "file": "scripts/patches/xyflow-react-12.12.0-resize-cleanup.json",
+      "sha256": "2253d8b0a3b57fc8d50a5784837ce81d8c7f0a8e7017001fe4362fc55dc4c802"
+    },
+    {
+      "file": "scripts/patches/xyflow-system-0.0.83-resize-cleanup.json",
+      "sha256": "47a935ef5a8cd603bcf16b9723cf31573d072699bef49c9d3db18f2b826b2981"
+    },
+    {
+      "file": "scripts/tests/xyflow-pane-lifecycle.test.mjs",
+      "sha256": "623360ccf022b5158054af0ba7c46d67ec921a7fbd2ea969f59a2b68ca015c34"
+    },
+    {
+      "file": "scripts/tests/xyflow-react-patch.test.mjs",
+      "sha256": "f6f5296427723d9d911308f01fbf43a71b52d08187c2e0a3c6169b604a17bfa6"
+    }
+  ]
+}

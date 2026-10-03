@@ -7,40 +7,41 @@
   "integrity": "sha512-a//eDjez3WZF47aaPTfVUDD0OINOq+WVwBZCRTqG+m0a5euX8EwlJ4jMY1Wxz0Ocj4xOeekJ70V22Pq0ll8RJw==",
   "packageJsonSha256": "d93a60ac2e8c633349515a84f576a9629a40de4f501508dda026f4c43c91533b",
   "upstreamSource": "https://github.com/xyflow/xyflow/blob/%40xyflow%2Fsystem%400.0.83/packages/system/src/xypanzoom/XYPanZoom.ts",
-  "reason": "Disconnect the extent ResizeObserver only in the returned destroy method used by final owner cleanup. Preserve the lexical destroy used by update to pause zoom during selection, so the live extent cache continues to update.",
+  "reason": "Final public instance destruction disconnects its extent ResizeObserver and unbinds only its own pane .zoom listeners through the documented D3 selection.on API. Keep lexical destroy used by update/user selection pause unchanged, preserving live extent and zoom behavior. No global events, foreign listeners or private runtime state are changed.",
   "files": [
     {
       "path": "dist/esm/index.mjs",
       "originalSha256": "ba3932f6ceab1529c9f3587695b43bdae84e31d356eb153473df5f5c38e6bd5c",
-      "patchedSha256": "95abafcc992c8a018327f6582496c6d8145404d923352ca6a64f888885d66c3a",
+      "patchedSha256": "babf80196985150328e1cd50a720e134848f3c0ba8f4faf589ab62a5b0244d68",
       "replacements": [
         {
           "before": "        update,\n        destroy,\n        setViewport,",
-          "after": "        update,\n        destroy: () => {\n            destroy();\n            extentResizeObserver?.disconnect();\n        },\n        setViewport,"
+          "after": "        update,\n        destroy: () => {\n            destroy();\n            d3Selection.on('.zoom', null);\n            extentResizeObserver?.disconnect();\n        },\n        setViewport,"
         }
       ]
     },
     {
       "path": "dist/esm/index.js",
       "originalSha256": "ba3932f6ceab1529c9f3587695b43bdae84e31d356eb153473df5f5c38e6bd5c",
-      "patchedSha256": "95abafcc992c8a018327f6582496c6d8145404d923352ca6a64f888885d66c3a",
+      "patchedSha256": "babf80196985150328e1cd50a720e134848f3c0ba8f4faf589ab62a5b0244d68",
       "replacements": [
         {
           "before": "        update,\n        destroy,\n        setViewport,",
-          "after": "        update,\n        destroy: () => {\n            destroy();\n            extentResizeObserver?.disconnect();\n        },\n        setViewport,"
+          "after": "        update,\n        destroy: () => {\n            destroy();\n            d3Selection.on('.zoom', null);\n            extentResizeObserver?.disconnect();\n        },\n        setViewport,"
         }
       ]
     },
     {
       "path": "dist/umd/index.js",
       "originalSha256": "9b497bee5404b095145a776b23f18cb7649f886a68c7a9c5aedea81eba1f5ac5",
-      "patchedSha256": "541a27546d058217763b99d69871f60cca042c8648ed6bbf0e750bb2572e9abb",
+      "patchedSha256": "be625475b0cf01e58b129a5b0fb283bbdc86cb3c5e2f3d5647a86faefd5c990a",
       "replacements": [
         {
           "before": "destroy:w,setViewport:async function",
-          "after": "destroy:()=>{w();f?.disconnect()},setViewport:async function"
+          "after": "destroy:()=>{w();g.on(\".zoom\",null);f?.disconnect()},setViewport:async function"
         }
       ]
     }
-  ]
+  ],
+  "supportedCleanupApi": "https://d3js.org/d3-zoom#zoom_selection"
 }

@@ -1,0 +1,849 @@
+{
+  "baseline": "6ffc7dbef1302450e900979d5484d4f3b3ebfa80",
+  "branch": "feat/react-full-migration",
+  "localOnly": true,
+  "productionRoutes": [
+    "/",
+    "/projects",
+    "/ppt",
+    "/knowledge/history",
+    "/requirements",
+    "/workflows",
+    "/designs",
+    "/tasks",
+    "/insights",
+    "/runtime",
+    "/tools",
+    "/databases",
+    "/settings",
+    "/roles"
+  ],
+  "componentMetric": "PascalCase production JSX function/arrow definitions; excludes test helpers, W1 and existing canvas",
+  "componentDefinitions": 34,
+  "reactPageDefinitions": 14,
+  "unit": {
+    "command": "npm test -- --maxWorkers=2 --reporter=json --outputFile=<local-evidence>/unit-final2.json",
+    "exitCode": 1,
+    "total": 1634,
+    "passed": 1558,
+    "failed": 76,
+    "skipped": 0,
+    "testFiles": 214,
+    "allFailuresArePreservedW0": true,
+    "W2": {
+      "total": 149,
+      "passed": 149,
+      "failed": 0,
+      "skipped": 0,
+      "files": [
+        {
+          "file": "src/migration/w2Bridge.spec.tsx",
+          "tests": 8,
+          "passed": 8
+        },
+        {
+          "file": "src/migration/w2TaskPort.spec.ts",
+          "tests": 5,
+          "passed": 5
+        },
+        {
+          "file": "src/pages/w2/core/controllers.spec.ts",
+          "tests": 35,
+          "passed": 35
+        },
+        {
+          "file": "src/pages/w2/core/pages.spec.tsx",
+          "tests": 23,
+          "passed": 23
+        },
+        {
+          "file": "src/pages/w2/shared/leave.spec.ts",
+          "tests": 5,
+          "passed": 5
+        },
+        {
+          "file": "src/pages/w2/secondary/databaseDraft.spec.ts",
+          "tests": 4,
+          "passed": 4
+        },
+        {
+          "file": "src/pages/w2/secondary/pptCreation.spec.ts",
+          "tests": 11,
+          "passed": 11
+        },
+        {
+          "file": "src/pages/w2/secondary/secondary.spec.tsx",
+          "tests": 20,
+          "passed": 20
+        },
+        {
+          "file": "src/pages/w2/secondary/state.spec.tsx",
+          "tests": 7,
+          "passed": 7
+        },
+        {
+          "file": "src/pages/w2/workflow/workflowPages.spec.tsx",
+          "tests": 12,
+          "passed": 12
+        },
+        {
+          "file": "src/pages/w2/workflow/workflowRouteContracts.spec.tsx",
+          "tests": 5,
+          "passed": 5
+        },
+        {
+          "file": "src/pages/w2/roles/rolesPages.spec.tsx",
+          "tests": 14,
+          "passed": 14
+        }
+      ]
+    },
+    "W0": {
+      "total": 111,
+      "passed": 35,
+      "failed": 76,
+      "redToGreen": 8,
+      "remainingByWave": {
+        "W3": 31,
+        "W4": 4,
+        "W5": 41
+      }
+    },
+    "rawSha256": "f091137810631b6e5369e89e593ad2a6501c12d182dd251932dde76befb70546"
+  },
+  "browser": {
+    "command": "PLAYWRIGHT_CHROME_EXECUTABLE=/usr/bin/chromium W2_EVIDENCE_DIR=<local-evidence>/production-final3 node node_modules/@playwright/test/cli.js test --config e2e/w2/playwright.config.ts --reporter=json --output <local-evidence>/production-final3/artifacts",
+    "exitCode": 0,
+    "passed": 49,
+    "failed": 0,
+    "skipped": 0,
+    "flaky": 0,
+    "sameDocumentStrictRouteExits": 42,
+    "activePanStrictExits": 9,
+    "actualProductionBuild": true,
+    "mockAPI": true,
+    "rawSha256": "77b5529a08224dd16c786eeb3226aff0c321e2b3b3ed76d2a88bc1d47d9ade06",
+    "earlierRuns": [
+      {
+        "label": "first complete",
+        "passed": 37,
+        "failed": 12
+      },
+      {
+        "label": "second complete",
+        "passed": 46,
+        "failed": 3
+      },
+      {
+        "label": "first harness correction pan subset",
+        "passed": 0,
+        "failed": 3
+      },
+      {
+        "label": "final pan subset",
+        "passed": 3,
+        "failed": 0
+      }
+    ],
+    "specSha256": "9bc85ee190d691620bdcd61de6b037907ca4806bd10bb501ef67c6afb9be4d48"
+  },
+  "checks": [
+    {
+      "name": "typecheck",
+      "command": "npm run typecheck",
+      "exitCode": 0,
+      "passedTests": null,
+      "logSha256": "d68d4967c7dcc37e3b03a518b6b3e155e239ef9b958ce6c46c7dfc458a38fa5f"
+    },
+    {
+      "name": "foundation types",
+      "command": "npm run typecheck:foundation",
+      "exitCode": 0,
+      "passedTests": null,
+      "logSha256": "dc6027aca3b5b19433c290e8b25ddb6ea9e803ef3a7c6d57fd6ba3150cda855a"
+    },
+    {
+      "name": "production build",
+      "command": "npm run build",
+      "exitCode": 0,
+      "passedTests": null,
+      "logSha256": "0726228d638df57ff54436f945082f64e4cfb58127a2160a9a6218ff0980be75"
+    },
+    {
+      "name": "tooling",
+      "command": "npm run test:tooling",
+      "exitCode": 0,
+      "passedTests": 33,
+      "logSha256": "cf56794ebca6732199167bdff073e037687a1e3d274f0f8901405810e11a017e"
+    },
+    {
+      "name": "accounting",
+      "command": "npm run test:accounting",
+      "exitCode": 0,
+      "passedTests": 13,
+      "logSha256": "e8ecd6be976a6678fc7aeb7af961f0adc6f87e234e2314d6f63c7b3ad2921137"
+    },
+    {
+      "name": "actual dependency lifecycle",
+      "command": "node --test ../scripts/tests/xyflow-pane-lifecycle.test.mjs",
+      "exitCode": 0,
+      "passedTests": 2,
+      "logSha256": "7629db3634fc7780171e8316b8680ad6ccd03ef237aa7f728d2ea75618b76bda"
+    },
+    {
+      "name": "semantic registry",
+      "command": "node scripts/generate-semantic-registry.mjs --check",
+      "exitCode": 0,
+      "passedTests": null,
+      "logSha256": "6c1da1dba323bd9dd15d1c6b4e37e512b3d47533063c9b63d070a4a97432da75"
+    },
+    {
+      "name": "local icons",
+      "command": "node scripts/generate-foundation-icons.mjs --check",
+      "exitCode": 0,
+      "passedTests": null,
+      "logSha256": "50684e2fca6e189f2746ec05e2a344cf094da0b0f5857a120527dd84f84ab1ce"
+    },
+    {
+      "name": "clean dependency reproduction",
+      "command": "npm ci --offline --cache /workspace/npm-cache --no-audit --no-fund",
+      "exitCode": 0,
+      "passedTests": null,
+      "logSha256": "d8f3e9fabdddf2f3b16743a8d774e7db18d19748cfe1f6b9fc07cbd0e9ebb8ea"
+    }
+  ],
+  "screenshots": [
+    {
+      "file": "screenshots/github-white-databases-default.png",
+      "sha256": "803c37a8e8a65ae926dd6891278243ea94d5491225652dc1662cc826fc601479",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/github-white-designs-default.png",
+      "sha256": "539fc3aad19d3e9003a8dff9246be7f68d3e06635033ec686152facf1c1cd49c",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/github-white-home-default.png",
+      "sha256": "21a5b96e9219f6c7b5055e3287faa1050a581dd74c17c0e078334a9142618aa0",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/github-white-insights-default.png",
+      "sha256": "e0ef6a3852ad5ec0c35ec465d3ba248965f5cba5ea82afd5846bbd1ad402966a",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/github-white-knowledge-history-default.png",
+      "sha256": "0b55728ca6ad23b73578d87421b03501f7bc299b31e37f5eccd5828da04e4934",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/github-white-ppt-default.png",
+      "sha256": "626ee6823b89c8c6e766ede2abb95db0b43fcd2c6e169d9c22666b97fe7a480c",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/github-white-projects-default.png",
+      "sha256": "233d49c1d9a5fdb82c21b5aa536f50cc67356ac9dbcc3bdc7f71bafdf11a888e",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/github-white-requirements-default.png",
+      "sha256": "8ef8b4489162e62ab49f1b4776fcacbb77e487fe53609297b2038a6253ab738e",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/github-white-roles-default.png",
+      "sha256": "33b756b86b589dbc5ab591a5922ec2eaa2e279181511c267cc627283d11b0201",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/github-white-roles-selected.png",
+      "sha256": "721c9c65a2d14b2462b7cd31636ca23fe12eb79be7abe459fc38449224a997d8",
+      "width": 1280,
+      "height": 900,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/github-white-runtime-default.png",
+      "sha256": "2fcc7991f126ca0d868093ca52f6ede9a8c21e85b56c6d411045b2c1c70c60cf",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/github-white-settings-default.png",
+      "sha256": "934f36479937aa146156f0cfd6d35ccc2e002f890e8355de28792a0c4d748d6b",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/github-white-tasks-default.png",
+      "sha256": "3fe20a7a263a4565e3cf7621954c2b5487a68e63ac1827d4403cad33da617357",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/github-white-tools-default.png",
+      "sha256": "6917b61c1fc35f05222673e55a6717a1eaefabcd555080d8f7f76354ee192faf",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/github-white-workflows-default.png",
+      "sha256": "a6aaa6511492a97d2ae82aa4b8024526ccf7b28a0dc82a524c1b86a71cd5c6ee",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/spdb-databases-default.png",
+      "sha256": "4df2687ce98fffb4ca75c9253cc1daf6884a47b611792ce83efff4540e3e6d07",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/spdb-databases-selected.png",
+      "sha256": "ae07a5d7e1d772360a39f451d0410af24bf4f8d7bdf92338c74b652bc1f0689f",
+      "width": 1280,
+      "height": 900,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/spdb-designs-default.png",
+      "sha256": "5fbf3a487fab8f37c6eb9225c0c0c0f8aa70023f2b3afa84cb3d144c96eb83f0",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/spdb-designs-selected.png",
+      "sha256": "5c389b112adfad71a41a8a0b64aee4230f463b3be510db755f85c36557f78b12",
+      "width": 1280,
+      "height": 900,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/spdb-home-default.png",
+      "sha256": "33abd2c797b54dfe3213372ca3412eb5803f188822c45aabc6a860ebc3edb2c8",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/spdb-home-selected.png",
+      "sha256": "5737b4dd396d8841f5b86181e7f7e86a1e6bc09253e20e28f41cf65e6501a49b",
+      "width": 1280,
+      "height": 900,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/spdb-insights-default.png",
+      "sha256": "8a2964899c87fa66c48fc123138ed2dc973e27c708b26462bbd877f00d74a737",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/spdb-insights-selected.png",
+      "sha256": "869889507b5bb4b9db70f16d5f494e53c5ea75131e5090d936684ff46d49de40",
+      "width": 1280,
+      "height": 900,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/spdb-knowledge-history-default.png",
+      "sha256": "1c84e48c84e0dfe283d23b2694080fede41b2433f03eb9e79141e2c0397d4813",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/spdb-knowledge-history-selected.png",
+      "sha256": "b4af4fc247eda6efd065ff4a4d9e28edd75a6d7a2526fcc0dc0c3d388eb24e17",
+      "width": 1280,
+      "height": 900,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/spdb-ppt-default.png",
+      "sha256": "be450a3cb914de5208d86e97dc25c43e9c434c35d6f4cc0991e75f160ec053f2",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/spdb-ppt-selected.png",
+      "sha256": "b7af917c3a235eab1a12dc64c410695fcb70118e0e19f899ef398e214b324c8a",
+      "width": 1280,
+      "height": 900,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/spdb-ppt-unknown.png",
+      "sha256": "8f52ede8ebaf98ffbbc45606fbba84d8ea147602694b4443ca79fb97b7de05a8",
+      "width": 1280,
+      "height": 720,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/spdb-projects-default.png",
+      "sha256": "c835cf16efa2090cdccb884e2a45f02d0a2ba33fcc2f27ae6892b099a59835fc",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/spdb-projects-selected.png",
+      "sha256": "3107bbd84cbbbb1f07079a601b360212e9126e191e81454111ff7f55c25e2b9b",
+      "width": 1280,
+      "height": 900,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/spdb-requirements-default.png",
+      "sha256": "53addbc583c3d039d6fee78b4a219203111f0a0f3763a12ede506e30bcea71f1",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/spdb-requirements-selected.png",
+      "sha256": "4a1ee3c92fdba5bf94147e28f8f4e3e7d5b60d6dd2b02ed31d299181a7ab2b82",
+      "width": 1280,
+      "height": 900,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/spdb-roles-default.png",
+      "sha256": "711d8544062cff4b52e9534629932763623f55f1fc33bde357987e38799c273a",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/spdb-roles-selected.png",
+      "sha256": "b3d92bb15e9076112a20ce97e787973dcea7fb7bb30c86e5b51d1b8be45698d7",
+      "width": 1280,
+      "height": 900,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/spdb-runtime-default.png",
+      "sha256": "347aa55b654f9966b91c12ed74aca4219ff64d7af447211e53df552cfc179739",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/spdb-settings-default.png",
+      "sha256": "a9728352ae605571ff1ca67544e3321b76c451e5d9e1318c2e4ec01d43348491",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/spdb-settings-dirty.png",
+      "sha256": "dae0a2c98957cbdfbc8eadf0c77c33531217fc96174c0658dd00709a3aeab92c",
+      "width": 1280,
+      "height": 720,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/spdb-tasks-default.png",
+      "sha256": "8a3178eb807fae29509a398656b6226b980111cbc9afc826f36f325854d4a2b1",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/spdb-tasks-selected.png",
+      "sha256": "f3011a78494c0c16b992a61582c0dcd619fe8afb1faacd375ee429926d17ef6f",
+      "width": 1280,
+      "height": 900,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/spdb-tools-default.png",
+      "sha256": "9f6fc651dc7767575c22752312a6c93c2511a21272199c3a725ee9149a342c8c",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/spdb-tools-selected.png",
+      "sha256": "779ef5a2b49cbc7387f1b79ed6c32433ca91344f0a9c0284c29d013102c991b3",
+      "width": 1280,
+      "height": 900,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/spdb-workflows-default.png",
+      "sha256": "cbb094a6a02ef40f1b3fb6e9013d405b124f76c11e95c430a87933f5cbb1c293",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/spdb-workflows-selected.png",
+      "sha256": "20d4f1313db9608e1b04c391df059c4fffa0f35996b6e0836856a5b658245b84",
+      "width": 1280,
+      "height": 900,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/tech-blue-databases-default.png",
+      "sha256": "50f4ad0661faf1e0ce2e3f31516daff1e1303054313af9b5cf95316e4def107e",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/tech-blue-designs-default.png",
+      "sha256": "4a5cdc8006bcbaa8c423c48e3df87bea996628fc0a689d13c7536caa5a335cff",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/tech-blue-home-default.png",
+      "sha256": "071549c1da7e645a252748dd12428255c465d257e07d7bdfaf749d41694aec43",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/tech-blue-insights-default.png",
+      "sha256": "ebb91e788f821fe45033d4df859370ee844d38c04da18c783cd5191def35accc",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/tech-blue-knowledge-history-default.png",
+      "sha256": "9d06f00924bf6eaa3d45a979b56cf8a792f4cf754e8c06c9d5a0ad9fb601600d",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/tech-blue-ppt-default.png",
+      "sha256": "e4634942cede948df67960ff6d60738cc4704ab2e747b0bc877fd00ec8baf268",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/tech-blue-projects-default.png",
+      "sha256": "0857032d4abfd2d4671094e62ccf2fddf03cce38e0603a985285a3731b4e9842",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/tech-blue-requirements-default.png",
+      "sha256": "7011d81c11d040cff060ffd398f5e8b8002588332196bbb656d14f430fa9a108",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/tech-blue-roles-default.png",
+      "sha256": "23f4b99a39379dcdfb61558afb35215acd8815d9c31759d54151ea35c5c8ffef",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/tech-blue-runtime-default.png",
+      "sha256": "c253b681161576031757c8cbf7b6b50ba300ce85ecbf3756ea387f093ee9599b",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/tech-blue-settings-default.png",
+      "sha256": "72c00e73a77c0165b1f55baef8e0986f37798c94faa0d099dd7c4cc3d26282e0",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/tech-blue-tasks-default.png",
+      "sha256": "9f53815bce1e31f5b07703bd343ff7c6bdbe2566231e7bb94519ebc3fde98160",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/tech-blue-tools-default.png",
+      "sha256": "46a391c0057166a78d135e77685f53cfc159c6a2ba5785bdcd97e176b782a63d",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/tech-blue-tools-selected.png",
+      "sha256": "e5cfe9a11c52422890e0b2113445723b43fe668594818c2b98883d11ccd9641d",
+      "width": 1280,
+      "height": 900,
+      "exactFinalPair": true,
+      "samples": 2
+    },
+    {
+      "file": "screenshots/tech-blue-workflows-default.png",
+      "sha256": "5f36ead2590adfa631f31460a4a4175141523490989a4fb4630c1549d98f0556",
+      "width": 1440,
+      "height": 1000,
+      "exactFinalPair": true,
+      "samples": 2
+    }
+  ],
+  "unverified": [
+    "No full original 305 product E2E run in W2; original historical 11 not rerun. W0 reproduction classified 10 passing and one Automations consumer gap; gap remains W3.",
+    "No full original 204 canvas Chromium rerun in W2. Prior evidence preserved; all unit tests rerun and impacted Roles production pan/cleanup tested.",
+    "Narrow screens explicitly outside current scope; existing mixed desktop contracts retained.",
+    "Real Java backend, model, file parsing, system folder picker, real credentials/database connection, multipart server idempotency and cross-refresh File recovery not verified.",
+    "Touch hardware/pinch and heap/complete GC reclamation not verified.",
+    "Vue/Pinia/router/old pages/fixtures remain by approved wave boundaries; W7 zero-Vue clean-room acceptance not performed.",
+    "No configured lint script; large bundle warnings retained, not threshold-suppressed.",
+    "No external push/PR/merge/deploy/Slack notification."
+  ],
+  "buildAssets": [
+    {
+      "file": "dist/assets/W2RouteBridge-DGllFm9p.js",
+      "sha256": "35f116311124b1745b54d5bef5a3297222507dc8c3c7c7c0e1ead930fb94eb45",
+      "bytes": 831981
+    },
+    {
+      "file": "dist/assets/index--_OnquYb.js",
+      "sha256": "01e3a847748c3fe464c2badea0ec9268f9e716a4303aed34ec24a5812b1a556c",
+      "bytes": 64741
+    },
+    {
+      "file": "dist/assets/index-8Iq8J2Ki.js",
+      "sha256": "694c6a4eb0082670e3b7fa3ba8713af032021549ee262bfe020ff7d171700c77",
+      "bytes": 11473
+    },
+    {
+      "file": "dist/assets/index-CGGyQdKc.js",
+      "sha256": "3b5d466729798d15162b26130cd6b72efb90790b05968d0cfd488f1440a53e2d",
+      "bytes": 1675993
+    },
+    {
+      "file": "dist/assets/index-CheVU8xX.js",
+      "sha256": "abff1bc80c423f0512834a16536ecc08f986997919e7b08387692e434ea89dc6",
+      "bytes": 107261
+    },
+    {
+      "file": "dist/assets/index-Cs60Nrv2.js",
+      "sha256": "f135a4a1a07632f08f8ee4da84cf991cced0697eab320d36cb87ea54f869d08e",
+      "bytes": 1852
+    },
+    {
+      "file": "dist/assets/index-DELKnDcB.js",
+      "sha256": "196c0bc42316a6c6ca9cd885f0ae1962e4798ca907160d5d1c40f49d0e5b0e96",
+      "bytes": 20410
+    },
+    {
+      "file": "dist/assets/index-gEHttZK3.js",
+      "sha256": "909a3becddb84fd034484b8dad6c6eedf5ccbb0b0e4ce8c56f92d10e53d9c50c",
+      "bytes": 1936
+    },
+    {
+      "file": "dist/assets/index-l1IvIsf9.js",
+      "sha256": "13f61fd635d8119bd5cc5d1b27ec5fe55ea0ce7dac67aea7a1cb241fc7e99923",
+      "bytes": 30713
+    }
+  ],
+  "dependencyPatches": [
+    {
+      "id": "xyflow-react-renderer-resize-cleanup",
+      "packageName": "@xyflow/react",
+      "version": "12.12.0",
+      "resolved": "https://registry.npmjs.org/@xyflow/react/-/react-12.12.0.tgz",
+      "integrity": "sha512-74oXI0Rgm1Eu33cHQAd74J6oVgCH9mbFyTVQbsGgp2kmWwh0HdtBr2VP04z8mbPD+M/xO69nqG5dDEt7/EN2rQ==",
+      "packageJsonSha256": "92d35db4281bb51c2b755b26b9d479957273d48e8c17e5d7faceab704aee58cb",
+      "upstreamSource": "https://github.com/xyflow/xyflow/blob/%40xyflow%2Freact%4012.12.0/packages/react/src/hooks/useResizeHandler.ts",
+      "reason": "The renderer ref is cleared before effect cleanup. Disconnect the ResizeObserver owned by this effect without depending on the cleared ref; retain window.resize listener removal. The UMD/CJS distribution also inlines XYPanZoom, so its returned final destroy releases the inlined extent observer while retaining the lexical selection pause. W2 also unbinds the same final instance pane .zoom listeners using the documented D3 selection.on API; the inlined selection variable is p, while lexical selection pause stays unchanged.",
+      "files": [
+        {
+          "path": "dist/esm/index.mjs",
+          "originalSha256": "f3dbde0ca152903c841ca95fe40360fea3f4cee9589adcfd01d3a9bc08b4c955",
+          "patchedSha256": "aab15420c38879ce7053591065c58a5e73e090507c3429010ca5f238be49c2a3",
+          "replacements": [
+            {
+              "before": "                if (resizeObserver && domNode.current) {\n                    resizeObserver.unobserve(domNode.current);\n                }",
+              "after": "                resizeObserver.disconnect();"
+            }
+          ]
+        },
+        {
+          "path": "dist/esm/index.js",
+          "originalSha256": "f3dbde0ca152903c841ca95fe40360fea3f4cee9589adcfd01d3a9bc08b4c955",
+          "patchedSha256": "aab15420c38879ce7053591065c58a5e73e090507c3429010ca5f238be49c2a3",
+          "replacements": [
+            {
+              "before": "                if (resizeObserver && domNode.current) {\n                    resizeObserver.unobserve(domNode.current);\n                }",
+              "after": "                resizeObserver.disconnect();"
+            }
+          ]
+        },
+        {
+          "path": "dist/umd/index.js",
+          "originalSha256": "c418896c3d0cc63498e724df7ed9698532c58523c04d30ebcd3ff7fa0bf3ecff",
+          "patchedSha256": "d26b3dbd2e88c7fc6a036cd5c9838d197876a4261906c000f9a42d9fe243a806",
+          "replacements": [
+            {
+              "before": "window.removeEventListener(\"resize\",n),t&&e.current&&t.unobserve(e.current)",
+              "after": "window.removeEventListener(\"resize\",n),t.disconnect()"
+            },
+            {
+              "before": "destroy:x,setViewport:async function",
+              "after": "destroy:()=>{x();p.on(\".zoom\",null);f?.disconnect()},setViewport:async function"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "xyflow-system-renderer-resize-cleanup",
+      "packageName": "@xyflow/system",
+      "parentPackage": "@xyflow/react",
+      "version": "0.0.83",
+      "resolved": "https://registry.npmjs.org/@xyflow/system/-/system-0.0.83.tgz",
+      "integrity": "sha512-a//eDjez3WZF47aaPTfVUDD0OINOq+WVwBZCRTqG+m0a5euX8EwlJ4jMY1Wxz0Ocj4xOeekJ70V22Pq0ll8RJw==",
+      "packageJsonSha256": "d93a60ac2e8c633349515a84f576a9629a40de4f501508dda026f4c43c91533b",
+      "upstreamSource": "https://github.com/xyflow/xyflow/blob/%40xyflow%2Fsystem%400.0.83/packages/system/src/xypanzoom/XYPanZoom.ts",
+      "reason": "Final public instance destruction disconnects its extent ResizeObserver and unbinds only its own pane .zoom listeners through the documented D3 selection.on API. Keep lexical destroy used by update/user selection pause unchanged, preserving live extent and zoom behavior. No global events, foreign listeners or private runtime state are changed.",
+      "files": [
+        {
+          "path": "dist/esm/index.mjs",
+          "originalSha256": "ba3932f6ceab1529c9f3587695b43bdae84e31d356eb153473df5f5c38e6bd5c",
+          "patchedSha256": "babf80196985150328e1cd50a720e134848f3c0ba8f4faf589ab62a5b0244d68",
+          "replacements": [
+            {
+              "before": "        update,\n        destroy,\n        setViewport,",
+              "after": "        update,\n        destroy: () => {\n            destroy();\n            d3Selection.on('.zoom', null);\n            extentResizeObserver?.disconnect();\n        },\n        setViewport,"
+            }
+          ]
+        },
+        {
+          "path": "dist/esm/index.js",
+          "originalSha256": "ba3932f6ceab1529c9f3587695b43bdae84e31d356eb153473df5f5c38e6bd5c",
+          "patchedSha256": "babf80196985150328e1cd50a720e134848f3c0ba8f4faf589ab62a5b0244d68",
+          "replacements": [
+            {
+              "before": "        update,\n        destroy,\n        setViewport,",
+              "after": "        update,\n        destroy: () => {\n            destroy();\n            d3Selection.on('.zoom', null);\n            extentResizeObserver?.disconnect();\n        },\n        setViewport,"
+            }
+          ]
+        },
+        {
+          "path": "dist/umd/index.js",
+          "originalSha256": "9b497bee5404b095145a776b23f18cb7649f886a68c7a9c5aedea81eba1f5ac5",
+          "patchedSha256": "be625475b0cf01e58b129a5b0fb283bbdc86cb3c5e2f3d5647a86faefd5c990a",
+          "replacements": [
+            {
+              "before": "destroy:w,setViewport:async function",
+              "after": "destroy:()=>{w();g.on(\".zoom\",null);f?.disconnect()},setViewport:async function"
+            }
+          ]
+        }
+      ],
+      "supportedCleanupApi": "https://d3js.org/d3-zoom#zoom_selection"
+    }
+  ],
+  "manualPixelReview": {
+    "count": 7,
+    "files": [
+      "spdb-home-default.png",
+      "tech-blue-home-default.png",
+      "github-white-home-default.png",
+      "spdb-tasks-selected.png",
+      "github-white-roles-selected.png",
+      "spdb-ppt-unknown.png",
+      "spdb-settings-dirty.png"
+    ],
+    "scope": "Lead opened these final browser PNGs; remaining images have capture/stability/behavior evidence, not a claim of exhaustive manual pixel review. Native task/settings filter/tab presentation remains follow-up polish."
+  }
+}

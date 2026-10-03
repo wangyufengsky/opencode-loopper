@@ -1,0 +1,176 @@
+{
+  "metric": "PascalCase production JSX function/arrow definitions; excludes test helpers, W1 and existing canvas",
+  "count": 34,
+  "entries": [
+    {
+      "file": "frontend/src/pages/w2/core/CoreUi.tsx",
+      "name": "CoreContextPanel",
+      "line": 15
+    },
+    {
+      "file": "frontend/src/pages/w2/core/CoreUi.tsx",
+      "name": "CoreStatus",
+      "line": 40
+    },
+    {
+      "file": "frontend/src/pages/w2/core/CoreUi.tsx",
+      "name": "Field",
+      "line": 54
+    },
+    {
+      "file": "frontend/src/pages/w2/core/CoreUi.tsx",
+      "name": "DirectoryField",
+      "line": 58
+    },
+    {
+      "file": "frontend/src/pages/w2/core/CoreUi.tsx",
+      "name": "CoreMarkdown",
+      "line": 69
+    },
+    {
+      "file": "frontend/src/pages/w2/core/CredentialsForm.tsx",
+      "name": "CredentialsForm",
+      "line": 8
+    },
+    {
+      "file": "frontend/src/pages/w2/core/ProjectsPage.tsx",
+      "name": "ProjectsPage",
+      "line": 14
+    },
+    {
+      "file": "frontend/src/pages/w2/core/SettingsPage.tsx",
+      "name": "CanvasPreferencesForm",
+      "line": 16
+    },
+    {
+      "file": "frontend/src/pages/w2/core/SettingsPage.tsx",
+      "name": "SettingsPage",
+      "line": 40
+    },
+    {
+      "file": "frontend/src/pages/w2/core/TasksPage.tsx",
+      "name": "TasksPage",
+      "line": 19
+    },
+    {
+      "file": "frontend/src/pages/w2/roles/RoleManagementPage.tsx",
+      "name": "PromptDocument",
+      "line": 17
+    },
+    {
+      "file": "frontend/src/pages/w2/roles/RoleManagementPage.tsx",
+      "name": "Changes",
+      "line": 26
+    },
+    {
+      "file": "frontend/src/pages/w2/roles/RoleManagementPage.tsx",
+      "name": "RoleManagementPage",
+      "line": 31
+    },
+    {
+      "file": "frontend/src/pages/w2/secondary/DatabasePage.tsx",
+      "name": "ProbeResult",
+      "line": 14
+    },
+    {
+      "file": "frontend/src/pages/w2/secondary/DatabasePage.tsx",
+      "name": "DatabasePage",
+      "line": 17
+    },
+    {
+      "file": "frontend/src/pages/w2/secondary/HomePage.tsx",
+      "name": "HomePage",
+      "line": 17
+    },
+    {
+      "file": "frontend/src/pages/w2/secondary/InsightsPage.tsx",
+      "name": "InsightsPage",
+      "line": 19
+    },
+    {
+      "file": "frontend/src/pages/w2/secondary/KnowledgeHistoryPage.tsx",
+      "name": "KnowledgeHistoryPage",
+      "line": 17
+    },
+    {
+      "file": "frontend/src/pages/w2/secondary/PptListPage.tsx",
+      "name": "PptListPage",
+      "line": 14
+    },
+    {
+      "file": "frontend/src/pages/w2/secondary/RuntimePage.tsx",
+      "name": "RuntimePage",
+      "line": 11
+    },
+    {
+      "file": "frontend/src/pages/w2/secondary/SkillMarkdown.tsx",
+      "name": "SkillMarkdown",
+      "line": 14
+    },
+    {
+      "file": "frontend/src/pages/w2/secondary/ToolsPage.tsx",
+      "name": "ToolsPage",
+      "line": 17
+    },
+    {
+      "file": "frontend/src/pages/w2/secondary/feedback.tsx",
+      "name": "ReadFeedback",
+      "line": 5
+    },
+    {
+      "file": "frontend/src/pages/w2/secondary/feedback.tsx",
+      "name": "MutationFeedback",
+      "line": 10
+    },
+    {
+      "file": "frontend/src/pages/w2/shared/index.tsx",
+      "name": "PageChrome",
+      "line": 22
+    },
+    {
+      "file": "frontend/src/pages/w2/shared/index.tsx",
+      "name": "SkinControl",
+      "line": 31
+    },
+    {
+      "file": "frontend/src/pages/w2/shared/index.tsx",
+      "name": "PageLink",
+      "line": 34
+    },
+    {
+      "file": "frontend/src/pages/w2/workflow/DesignerHistoryPage.tsx",
+      "name": "DesignerHistoryPage",
+      "line": 13
+    },
+    {
+      "file": "frontend/src/pages/w2/workflow/RequirementListPage.tsx",
+      "name": "RequirementListPage",
+      "line": 12
+    },
+    {
+      "file": "frontend/src/pages/w2/workflow/WorkflowLibraryPage.tsx",
+      "name": "WorkflowLibraryPage",
+      "line": 12
+    },
+    {
+      "file": "frontend/src/pages/w2/workflow/pageParts.tsx",
+      "name": "CommandNotice",
+      "line": 15
+    },
+    {
+      "file": "frontend/src/pages/w2/workflow/pageParts.tsx",
+      "name": "ReadNotice",
+      "line": 26
+    },
+    {
+      "file": "frontend/src/migration/w2BridgeView.tsx",
+      "name": "BridgeDialog",
+      "line": 14
+    },
+    {
+      "file": "frontend/src/migration/w2BridgeView.tsx",
+      "name": "W2BridgeView",
+      "line": 22
+    }
+  ]
+}

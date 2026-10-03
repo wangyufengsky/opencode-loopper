@@ -1,0 +1,156 @@
+{
+  "schemaVersion": 1,
+  "baseline": "6ffc7dbef1302450e900979d5484d4f3b3ebfa80",
+  "scope": "W2 actual existing actions; no design feature additions",
+  "objects": {
+    "field.updatedAt": {
+      "label": "更新于",
+      "name": "更新于",
+      "icon": "clock",
+      "domain": "field",
+      "description": "W2 保留原任务列表字段，同名跨页面共享语义"
+    },
+    "field.progress": {
+      "label": "进度",
+      "name": "进度",
+      "icon": "list-checks",
+      "domain": "field",
+      "description": "W2 保留原任务列表字段，同名跨页面共享语义"
+    }
+  },
+  "actions": {
+    "database.enable": {
+      "label": "启用连接",
+      "name": "启用连接",
+      "icon": "toggle-right",
+      "intent": "database.enable",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式保存原连接版本的启用状态"
+    },
+    "database.disable": {
+      "label": "停用连接",
+      "name": "停用连接",
+      "icon": "toggle-left",
+      "intent": "database.disable",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式保存原连接版本的停用状态"
+    },
+    "tools.disableSource": {
+      "label": "停用 MCP 来源",
+      "name": "停用 MCP 来源",
+      "icon": "plug",
+      "intent": "tools.disableSource",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅调用现行停用来源接口，不删除旧目录或执行工具"
+    },
+    "tools.rawSkill": {
+      "label": "带行号原文",
+      "name": "带行号原文",
+      "icon": "file-code",
+      "intent": "tools.rawSkill",
+      "scope": "local",
+      "guard": [],
+      "behavior": "显示已读取技能原文，不执行技能"
+    },
+    "tools.previewSkill": {
+      "label": "阅读视图",
+      "name": "阅读视图",
+      "icon": "book-open",
+      "intent": "tools.previewSkill",
+      "scope": "local",
+      "guard": [],
+      "behavior": "安全渲染已读取技能正文"
+    },
+    "project.configureAssist": {
+      "label": "Git 与 GitLab",
+      "name": "Git 与 GitLab",
+      "icon": "plug",
+      "intent": "project.configureAssist",
+      "scope": "local",
+      "guard": [],
+      "behavior": "打开当前项目绑定与辅助服务配置，不自动保存"
+    },
+    "project.discoverRepository": {
+      "label": "从 origin 识别",
+      "name": "从 origin 识别",
+      "icon": "git-fork",
+      "intent": "project.discoverRepository",
+      "scope": "read",
+      "guard": [],
+      "behavior": "读取原仓库绑定建议，不代替用户明确保存"
+    },
+    "project.checkRepository": {
+      "label": "检查已保存绑定",
+      "name": "检查已保存绑定",
+      "icon": "shield-check",
+      "intent": "project.checkRepository",
+      "scope": "read",
+      "guard": [],
+      "behavior": "核对当前已保存绑定，不生成新绑定"
+    },
+    "project.addEvidenceSource": {
+      "label": "添加来源",
+      "name": "添加来源",
+      "icon": "plus",
+      "intent": "project.addEvidenceSource",
+      "scope": "local",
+      "guard": [],
+      "behavior": "添加未保存规则草稿"
+    },
+    "project.removeEvidenceSource": {
+      "label": "移除此规则",
+      "name": "移除此规则",
+      "icon": "minus",
+      "intent": "project.removeEvidenceSource",
+      "scope": "local",
+      "guard": [],
+      "behavior": "移除当前未保存规则，完整草稿保留确认保护"
+    },
+    "settings.testCredentials": {
+      "label": "验证连接",
+      "name": "验证连接",
+      "icon": "network",
+      "intent": "settings.testCredentials",
+      "scope": "read",
+      "guard": [],
+      "behavior": "仅测试显式输入的连接，不能冒充凭据已保存"
+    },
+    "settings.disableCredentials": {
+      "label": "停用全局账号",
+      "name": "停用全局账号",
+      "icon": "key-round",
+      "intent": "settings.disableCredentials",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "明确确认后按原版本停用账号"
+    },
+    "designer.continue": {
+      "label": "继续设计",
+      "name": "继续设计",
+      "icon": "message-square-text",
+      "intent": "designer.continue",
+      "scope": "navigation",
+      "guard": [],
+      "behavior": "进入准确已有会话，不创建或重复投递命令"
+    }
+  }
+}

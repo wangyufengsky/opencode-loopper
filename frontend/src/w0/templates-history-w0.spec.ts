@@ -1,4 +1,4 @@
-/** W0 baseline probes: failing safety contracts intentionally remain red; no production patch. */
+/** W0 frozen contract probes. W2 retargets only B8.1 to the actual React production page; other waves remain red. */
 import { createHash, webcrypto } from 'node:crypto'
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import { defineComponent, h, type Component } from 'vue'
@@ -13,6 +13,8 @@ import TemplateTasksView from '@/views/TemplateTasksView.vue'
 import SourceTemplateView from '@/views/SourceTemplateView.vue'
 import DocumentTemplateView from '@/views/DocumentTemplateView.vue'
 import DesignerHistoryView from '@/views/DesignerHistoryView.vue'
+import { foundationDOM } from '@/pages/w2/workflow/page.test-support'
+import { designerHistoryW0Contract } from '@/pages/w2/workflow/designer-history-w0-contract'
 import TaskDesignHistoryView from '@/views/TaskDesignHistoryView.vue'
 import DocumentSourcesPanel from '@/components/DocumentSourcesPanel.vue'
 import DocumentClarificationForm from '@/components/DocumentClarificationForm.vue'
@@ -228,7 +230,7 @@ describe('W0 B4 document cancellation scope', () => {
     expect(state(b.view).run).toEqual(before.run); expect(state(b.view).error).toBe(before.error); expect(state(b.view).acting).toBe(before.acting); expect(write).toHaveBeenCalledTimes(1)
   })
 })
-const historyItem = (id: string) => ({ id, projectId: 'p', projectName: '项目', state: 'WAITING_INPUT', workflowPhase: 'FAILED', createdAt: '2026-09-01', updatedAt: '2026-09-01', draftId: `draft-${id}`, draftStatus: 'DRAFT_READY', goal: `设计${id}`, archived: false, resumable: true, stopRetryAvailable: false })
+const historyItem = (id: string) => ({ id, projectId: 'p', projectName: '项目', state: 'WAITING_INPUT' as const, workflowPhase: 'FAILED' as const, createdAt: '2026-09-01', updatedAt: '2026-09-01', draftId: `draft-${id}`, draftStatus: 'DRAFT_READY' as const, goal: `设计${id}`, archived: false, resumable: true, stopRetryAvailable: false })
 const historyPage = (id: string) => ({ items: [historyItem(id)], facets: { ARCHIVED_TOTAL: id === 'B' ? 7 : 1 }, nextCursor: `${id}-cursor` })
 const record = (id: string) => ({ taskId: id, taskTitle: `任务${id}`, projectName: `项目${id}`, draft: { id: `draft${id}`, status: 'CONFIRMED', updatedAt: '2026-09-01', spec: { projectId: 'p', goal: `冻结${id}`, stages: [], limits: {} } }, frozenAttachments: [{ id: 'same-file', filename: 'contract.md', mediaType: 'text/markdown', sizeBytes: 5, sha256: `hash${id}`, scopeKey: 'REQUIREMENT', extractorId: 'MARKDOWN', frozenAt: '2026-09-01' }] } as unknown as TaskDesignHistory)
 const section = { fileId: 'file', ordinal: 0, title: '章节', characters: 5, sha256: 'sectionhash' }
@@ -237,26 +239,16 @@ const withFile = (id = 'A') => ({ ...documentRun(id), files: [{ id: 'file', file
 
 describe('W0 B8 history and child retirement', () => {
   it('B8.1 search B resolves before A: list/facets/cursor must stay in B query', async () => {
-    const a = deferred<any>(); const read = mock('listDesignerHistoryPage').mockReturnValueOnce(a.promise).mockResolvedValue(historyPage('B'))
-    const page = await routeRoot(DesignerHistoryView, '/designs'); await page.view.get('input[aria-label="搜索历史设计"]').setValue('B'); await flushPromises(); await vi.advanceTimersByTimeAsync(180); await flushPromises()
-    expect(read.mock.calls[1]?.[0].q).toBe('B'); expect(state(page.view).designs[0].id).toBe('B')
-    a.resolve(historyPage('A')); await flushPromises(); proof('B8.1/query', { requests: read.mock.calls, route: page.router.currentRoute.value.fullPath, list: state(page.view).designs.map((d: any) => d.id), facets: state(page.view).historyFacets, cursor: state(page.view).nextCursor })
-    expect.soft(state(page.view).designs.map((d: any) => d.id)).toEqual(['B']); expect.soft(state(page.view).historyFacets.ARCHIVED_TOTAL).toBe(7); expect.soft(state(page.view).nextCursor).toBe('B-cursor')
+    foundationDOM(); mock('listDesignerHistoryPage')
+    await designerHistoryW0Contract('query', { read: api.listDesignerHistoryPage, page: historyPage, proof })
   })
   it('B8.1 old cursor append after new filter cannot append A into B', async () => {
-    const a = deferred<any>(); const read = mock('listDesignerHistoryPage').mockResolvedValueOnce(historyPage('A')).mockReturnValueOnce(a.promise).mockResolvedValue(historyPage('B'))
-    const page = await routeRoot(DesignerHistoryView, '/designs'); await button(page.view, '加载更多历史设计'); expect(read.mock.calls[1]?.[0].cursor).toBe('A-cursor')
-    await page.view.get('input[aria-label="搜索历史设计"]').setValue('B'); await flushPromises(); await vi.advanceTimersByTimeAsync(180); await flushPromises(); a.resolve(historyPage('A-next')); await flushPromises()
-    proof('B8.1/cursor', { requests: read.mock.calls, list: state(page.view).designs.map((d: any) => d.id), cursor: state(page.view).nextCursor })
-    expect(state(page.view).designs.map((d: any) => d.id)).toEqual(['B'])
+    foundationDOM(); mock('listDesignerHistoryPage')
+    await designerHistoryW0Contract('cursor', { read: api.listDesignerHistoryPage, page: historyPage, proof })
   })
   for (const outcome of ['success', 'error'] as const) it(`B8.1 ${outcome}: unmount prevents late retired-owner writes and debounce revival`, async () => {
-    const a = deferred<any>(); const read = mock('listDesignerHistoryPage').mockReturnValue(a.promise)
-    const page = await routeRoot(DesignerHistoryView, '/designs'); const retired = state(page.view); await page.view.get('input[aria-label="搜索历史设计"]').setValue('B'); await flushPromises(); page.root.unmount()
-    const before = { designs: clone(retired.designs), error: retired.error, loading: retired.loading }
-    if (outcome === 'success') a.resolve(historyPage('A')); else a.reject(new Error('A retired read failed')); await flushPromises(); await vi.advanceTimersByTimeAsync(200)
-    proof(`B8.1/retired-${outcome}`, { before, after: { designs: retired.designs, error: retired.error, loading: retired.loading }, readCalls: read.mock.calls.length })
-    expect.soft(retired.designs).toEqual(before.designs); expect.soft(retired.error).toBe(before.error); expect.soft(retired.loading).toBe(before.loading); expect(read).toHaveBeenCalledTimes(1)
+    foundationDOM(); mock('listDesignerHistoryPage')
+    await designerHistoryW0Contract(`retired-${outcome}`, { read: api.listDesignerHistoryPage, page: historyPage, proof })
   })
   it('B8.2 frozen record A arriving after real route B cannot overwrite B', async () => {
     const a = deferred<TaskDesignHistory>(); const read = mock('getTaskDesignHistory').mockReturnValueOnce(a.promise).mockResolvedValue(record('B'))

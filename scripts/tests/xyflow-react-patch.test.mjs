@@ -194,12 +194,20 @@ test('patched renderer hook disconnects its own observer after ref clearing and 
   callback(); assert.equal(updates, 1, 'a late measurement cannot write through the cleared ref');
 });
 
-test('public panZoom destroy disconnects extent; internal selection pause/resume keeps the live cache', t => {
+test('public panZoom destroy releases its own pane zoom listeners and extent; selection pause keeps both live', t => {
   const view = fixture(t); patchXyflowReact(view.root);
   const source = readFileSync(view.files[3].path, 'utf8'), start = source.indexOf('function XYPanZoom({');
   const implementation = source.slice(start, source.indexOf('\n/**\n * Used to determine the variant', start));
   let callback, disconnects = 0, extent, paused = 0; const targets = new Set();
-  const selection = { call() { return this; }, on() { return this; }, property() { return { x: 0, y: 0, k: 1 }; } };
+  const listeners = new Map([['wheel.zoom', () => {}], ['mousedown.zoom', () => {}], ['click.foreign', () => {}]]);
+  const foreign = listeners.get('click.foreign');
+  const selection = { call() { return this; }, on(type, handler) {
+    if (arguments.length === 1) return listeners.get(type);
+    if (type === '.zoom' && handler === null) { for (const key of listeners.keys()) if (key.endsWith('.zoom')) listeners.delete(key); }
+    else if (handler === null) listeners.delete(type);
+    else listeners.set(type, handler);
+    return this;
+  }, property() { return { x: 0, y: 0, k: 1 }; } };
   const zoom = { extent(fn) { extent = fn; return this; }, scaleExtent() { return this; }, translateExtent() { return this; },
     wheelDelta() { return this; }, interpolate() { return this; }, transform() { return this; }, constrain() { return value => value; },
     clickDistance() { return this; }, filter() { return this; }, on(type, fn) { if (type === 'zoom' && fn === null) paused++; return this; } };
@@ -213,8 +221,12 @@ test('public panZoom destroy disconnects extent; internal selection pause/resume
   const instance = runInNewContext(`${implementation}\nXYPanZoom({ domNode: node, minZoom: .2, maxZoom: 2, translateExtent: [[0,0],[800,600]], viewport: {x:0,y:0,zoom:1} });`, context);
   instance.update({ userSelectionActive: true });
   assert.equal(paused, 1); assert.equal(disconnects, 0); assert.equal(targets.has(node), true);
+  assert.equal(listeners.has('wheel.zoom'), true); assert.equal(listeners.has('mousedown.zoom'), true);
   callback([{ contentRect: { width: 390, height: 844 } }]);
   assert.equal(JSON.stringify(extent()), JSON.stringify([[0, 0], [390, 844]]));
   instance.update({ userSelectionActive: false }); assert.equal(disconnects, 0);
+  assert.equal(listeners.has('wheel.zoom'), true); assert.equal(listeners.has('mousedown.zoom'), true);
   instance.destroy(); assert.equal(paused, 2); assert.equal(disconnects, 1); assert.equal(targets.size, 0);
+  assert.equal(listeners.has('wheel.zoom'), false); assert.equal(listeners.has('mousedown.zoom'), false);
+  assert.equal(listeners.get('click.foreign'), foreign, 'a foreign namespace remains owned by its original listener');
 });

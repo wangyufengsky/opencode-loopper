@@ -1,0 +1,1911 @@
+{
+  "method": "First MutationObserver microtask after actual SPA route disconnects original root; no later release/move/cancel/window blur. Targets/callbacks/capture exact; detached targets included; unknown resources fail. No harness listener exclusion by stack.",
+  "scope": "W2 instance resources; existing app-level story-accounting SSE and exact Ant Modal module remain owned by their original owners. Not heap or GC proof. Ledger retains targets.",
+  "observerSourceSha256": "51983279d16f852171953b35a2b0ec8174e74bb4858785a597175ad8bc1c2c1f",
+  "routeFirstSnapshots": [
+    {
+      "route": "/databases",
+      "skin": "github-white",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 2,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "8be68057f886c9b6adf835cc050bb518ddc7bd510d56aba647f06d1aab69d3f0"
+    },
+    {
+      "route": "/designs",
+      "skin": "github-white",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 41,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "74c7d81938f995b9b9cb25726e0421f240d60533bc6fcede5c10c0abe1fd6988"
+    },
+    {
+      "route": "/",
+      "skin": "github-white",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 2,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "3a122a9eed798675142d29612213e4500fc5df6b27f61294b63b574d5136aeaa"
+    },
+    {
+      "route": "/insights",
+      "skin": "github-white",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 2,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "588e27f56afb0eb763780f54a3b0e37c822bbca345d7325986d68e357f242ff6"
+    },
+    {
+      "route": "/knowledge/history",
+      "skin": "github-white",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 2,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "1b89624b5582f83ba030f503b4e59d361358fe14c6a61ea63c12fa95d985e7a4"
+    },
+    {
+      "route": "/ppt",
+      "skin": "github-white",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 2,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "0958c9f33c7615a311aefe6ab5131e46e7c5710b10c366205a70d8935842693c"
+    },
+    {
+      "route": "/projects",
+      "skin": "github-white",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 2,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "17607adc19bf85359163cecaf119e7220ba9ebc5990bcc95cdd594f6fb6ab1d5"
+    },
+    {
+      "route": "/requirements",
+      "skin": "github-white",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 10,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "5b1f2d7294d112f996c61e2023948674a029289acd612b0f95f6312c6417901f"
+    },
+    {
+      "route": "/roles",
+      "skin": "github-white",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 9,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 0,
+        "externalAntModalTimers": 0
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "26c5581976bc3f5306d61ee3b79af1d115e9c223fd02598fb69962dc2875c5b3"
+    },
+    {
+      "route": "/runtime",
+      "skin": "github-white",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 2,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 0,
+        "externalAntModalTimers": 0
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "8b20aef8ad4b8cc7dead374988a34b58cc82b698556c60d64d00475dd865a7ef"
+    },
+    {
+      "route": "/settings",
+      "skin": "github-white",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 254,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 0,
+        "externalAntModalTimers": 0
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "86ff565dcdd94f95b9fc6035125230dfa9bdd4d7a1ddd92a9b7e68f0f76dc13d"
+    },
+    {
+      "route": "/tasks",
+      "skin": "github-white",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 9,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 1,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 0
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "b5721a4206856de89a7a6e941705f34503af487e7a4e4877a92a9228331c1c01"
+    },
+    {
+      "route": "/tools",
+      "skin": "github-white",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 2,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "7d77324fc8d8b438087644534c79a792d1d711dae6d62202801b0c391a4b6da2"
+    },
+    {
+      "route": "/workflows",
+      "skin": "github-white",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 17,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "b561b447e9d53c88f0dda59c8f198a165ff46aad988c3ba0171654359b1eb33f"
+    },
+    {
+      "route": "/databases",
+      "skin": "spdb",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 2,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 0,
+        "externalAntModalTimers": 0
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "f4dd58445319db725f765f2d0609ce0b0979690e7f3fdf1f0923ad65e2631fdc"
+    },
+    {
+      "route": "/designs",
+      "skin": "spdb",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 41,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 0,
+        "externalAntModalTimers": 0
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "d774e4cc4c7e4c49e71e145cf6f64b8d77143e5d60a98e48400c6c09d1cc2240"
+    },
+    {
+      "route": "/",
+      "skin": "spdb",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 2,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 0,
+        "externalAntModalTimers": 0
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "f12b75bf6470b1582d7b8e34169bf555072ce97903864046416565a8401d163a"
+    },
+    {
+      "route": "/insights",
+      "skin": "spdb",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 2,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 0,
+        "externalAntModalTimers": 0
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "d3148bb9eaca74fc7c23f5df8859642e00b3be0676e0353af13aca9d5ccc284d"
+    },
+    {
+      "route": "/knowledge/history",
+      "skin": "spdb",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 2,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 0,
+        "externalAntModalTimers": 0
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "59105461be506b2dfd1b5a5a8ac21cefc54d048dfbb0977556de73f93a370b9e"
+    },
+    {
+      "route": "/ppt",
+      "skin": "spdb",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 2,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 0,
+        "externalAntModalTimers": 0
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "a49fb8075a89b13505b34eebfb40dc83a8435decf802ba57189887471ea15ea5"
+    },
+    {
+      "route": "/projects",
+      "skin": "spdb",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 2,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 0,
+        "externalAntModalTimers": 0
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "3023c19177b71785e1a8a19e1fe501f92b08b88d1e707856fbff4270fa853ecc"
+    },
+    {
+      "route": "/requirements",
+      "skin": "spdb",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 10,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 0,
+        "externalAntModalTimers": 0
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "fe85d02fbb4c83a80347cb545e66724098c881aeeba32c528173fe0ee0a05a83"
+    },
+    {
+      "route": "/roles",
+      "skin": "spdb",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 9,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 0,
+        "externalAntModalTimers": 0
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "918ba0f300b8079bae224935cbe23f4117574af3cc098adce15b0b17d00a2d39"
+    },
+    {
+      "route": "/runtime",
+      "skin": "spdb",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 2,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 0,
+        "externalAntModalTimers": 0
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "e899b719be714c57735610a6ccc2e384f01d167a5669d5dbd2da872e42df1434"
+    },
+    {
+      "route": "/settings",
+      "skin": "spdb",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 254,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 0,
+        "externalAntModalTimers": 0
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "74599fde0e1c3731a62eb059d130844abb370b624c1c516df6ff4b2a2f0dfeb4"
+    },
+    {
+      "route": "/tasks",
+      "skin": "spdb",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 9,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 1,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 0
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "d4a85a39b1d926c68ec5b6e18f73b84105485b5ca3b48124411e97c6077ffe0a"
+    },
+    {
+      "route": "/tools",
+      "skin": "spdb",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 2,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 0,
+        "externalAntModalTimers": 0
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "417f6a68f8cb4886c84c17ccd9673e5f3f941b1a36619bd578677d3f575d7f6e"
+    },
+    {
+      "route": "/workflows",
+      "skin": "spdb",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 17,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 0,
+        "externalAntModalTimers": 0
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "a89754d3c7339c339b57d1641967fad1015841519cafbb7e16d9699005ca87ab"
+    },
+    {
+      "route": "/databases",
+      "skin": "tech-blue",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 2,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "7691c09d36ce54aba95f4711c47725d666a9a164915618e335f113c092402636"
+    },
+    {
+      "route": "/designs",
+      "skin": "tech-blue",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 41,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "635c54c7a60729dba6cf0dd4909d3abe4aeefe12d6c209a7ae97697274b91e71"
+    },
+    {
+      "route": "/",
+      "skin": "tech-blue",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 2,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "4cedddcd758d8d679b2b2737f158fb655e58a84dd6395abb9cacfe2a6cb15445"
+    },
+    {
+      "route": "/insights",
+      "skin": "tech-blue",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 2,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "196f2fa59b96bcf111cd9dd4333cebd1b6a8f161b1f4002a6ab27c1bd960c0ce"
+    },
+    {
+      "route": "/knowledge/history",
+      "skin": "tech-blue",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 2,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "25b7e868227856f18b4614071e47c685fc16aa5c71bd532895e6dc74fdffcff5"
+    },
+    {
+      "route": "/ppt",
+      "skin": "tech-blue",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 2,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "05506c93fffc241e002296a726d482da7504e60f9ff3fce2615641a6ccd1c9e1"
+    },
+    {
+      "route": "/projects",
+      "skin": "tech-blue",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 2,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 0,
+        "externalAntModalTimers": 0
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "e75d173fb3d4064c5d360f427a6aa5bdfb797564b6494cf7a327e54aa2101a13"
+    },
+    {
+      "route": "/requirements",
+      "skin": "tech-blue",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 10,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "4f32b6ff3b10b12f4a1f482de62047bc4b80a0456dd7cd63fb157bfa13dcde64"
+    },
+    {
+      "route": "/roles",
+      "skin": "tech-blue",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 9,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 0,
+        "externalAntModalTimers": 0
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "21fbd10c133a297ad8cd2b35d015a65c7863860756440669e23934219b10956a"
+    },
+    {
+      "route": "/runtime",
+      "skin": "tech-blue",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 2,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 0,
+        "externalAntModalTimers": 0
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "3feac2b53d2c762871a9934836fcc78bcc003732dbb136e9b11776e655d314f6"
+    },
+    {
+      "route": "/settings",
+      "skin": "tech-blue",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 254,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 0,
+        "externalAntModalTimers": 0
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "edd19b86fc006bae88dd7687653a9cf1f87ef9e008cc3f9e8bbe18369b9ee6d0"
+    },
+    {
+      "route": "/tasks",
+      "skin": "tech-blue",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 9,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 1,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 0
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "fcb1b7454eda0ceaf4bb01b207cb71c439b4737ab994d8af95d07799b5ef823b"
+    },
+    {
+      "route": "/tools",
+      "skin": "tech-blue",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 2,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 0,
+        "externalAntModalTimers": 0
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "b2252c9f560b3b57a64bac364242d186c042cde21ad6ac5594a78d6b33da237f"
+    },
+    {
+      "route": "/workflows",
+      "skin": "tech-blue",
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "before": {
+        "rootConnected": true,
+        "listeners": 17,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "implicitWrites": 0,
+      "pageErrors": 0,
+      "unexpectedRequests": 0,
+      "existingAppStreams": {
+        "opened": [
+          "/api/story-accounting/events"
+        ],
+        "closed": []
+      },
+      "rawSha256": "4f99b37b02d67a368e5b7ddbd86ffa506482e1718ffe7fd15a1d51106838183e"
+    }
+  ],
+  "activeRolesPanCycles": [
+    {
+      "skin": "github-white",
+      "cycle": 0,
+      "continuousHitPoints": 106,
+      "screenDisplacement": {
+        "x": 105,
+        "y": 20
+      },
+      "before": {
+        "rootConnected": true,
+        "listeners": 17,
+        "observerTargetRelations": 5,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 1,
+        "sentinelActive": true,
+        "allTimers": 0,
+        "externalAntModalTimers": 0
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "rawSha256": "d6cccccac0d6c6cf79b91dd792f9f7f469f895dd00443b6f1f50b6673ec2bc6f"
+    },
+    {
+      "skin": "github-white",
+      "cycle": 1,
+      "continuousHitPoints": 106,
+      "screenDisplacement": {
+        "x": 105,
+        "y": 20
+      },
+      "before": {
+        "rootConnected": true,
+        "listeners": 17,
+        "observerTargetRelations": 5,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 1,
+        "sentinelActive": true,
+        "allTimers": 0,
+        "externalAntModalTimers": 0
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "rawSha256": "d6cccccac0d6c6cf79b91dd792f9f7f469f895dd00443b6f1f50b6673ec2bc6f"
+    },
+    {
+      "skin": "github-white",
+      "cycle": 2,
+      "continuousHitPoints": 106,
+      "screenDisplacement": {
+        "x": 105,
+        "y": 20
+      },
+      "before": {
+        "rootConnected": true,
+        "listeners": 17,
+        "observerTargetRelations": 5,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 1,
+        "sentinelActive": true,
+        "allTimers": 0,
+        "externalAntModalTimers": 0
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "rawSha256": "d6cccccac0d6c6cf79b91dd792f9f7f469f895dd00443b6f1f50b6673ec2bc6f"
+    },
+    {
+      "skin": "spdb",
+      "cycle": 0,
+      "continuousHitPoints": 106,
+      "screenDisplacement": {
+        "x": 105,
+        "y": 20
+      },
+      "before": {
+        "rootConnected": true,
+        "listeners": 17,
+        "observerTargetRelations": 5,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 1,
+        "sentinelActive": true,
+        "allTimers": 0,
+        "externalAntModalTimers": 0
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "rawSha256": "5f456ed482b507b0b652666d82f38fdd5dae9ebe40dbd304441a9ffc41bca4be"
+    },
+    {
+      "skin": "spdb",
+      "cycle": 1,
+      "continuousHitPoints": 106,
+      "screenDisplacement": {
+        "x": 105,
+        "y": 20
+      },
+      "before": {
+        "rootConnected": true,
+        "listeners": 17,
+        "observerTargetRelations": 5,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 1,
+        "sentinelActive": true,
+        "allTimers": 0,
+        "externalAntModalTimers": 0
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "rawSha256": "5f456ed482b507b0b652666d82f38fdd5dae9ebe40dbd304441a9ffc41bca4be"
+    },
+    {
+      "skin": "spdb",
+      "cycle": 2,
+      "continuousHitPoints": 106,
+      "screenDisplacement": {
+        "x": 105,
+        "y": 20
+      },
+      "before": {
+        "rootConnected": true,
+        "listeners": 17,
+        "observerTargetRelations": 5,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 1,
+        "sentinelActive": true,
+        "allTimers": 0,
+        "externalAntModalTimers": 0
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "rawSha256": "5f456ed482b507b0b652666d82f38fdd5dae9ebe40dbd304441a9ffc41bca4be"
+    },
+    {
+      "skin": "tech-blue",
+      "cycle": 0,
+      "continuousHitPoints": 106,
+      "screenDisplacement": {
+        "x": 105,
+        "y": 20
+      },
+      "before": {
+        "rootConnected": true,
+        "listeners": 17,
+        "observerTargetRelations": 5,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 1,
+        "sentinelActive": true,
+        "allTimers": 0,
+        "externalAntModalTimers": 0
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "rawSha256": "db7ead758a78f8ddef14b91c366867aef6bae5437e855e0ebddb8ef55b357827"
+    },
+    {
+      "skin": "tech-blue",
+      "cycle": 1,
+      "continuousHitPoints": 106,
+      "screenDisplacement": {
+        "x": 105,
+        "y": 20
+      },
+      "before": {
+        "rootConnected": true,
+        "listeners": 17,
+        "observerTargetRelations": 5,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 1,
+        "sentinelActive": true,
+        "allTimers": 0,
+        "externalAntModalTimers": 0
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "rawSha256": "db7ead758a78f8ddef14b91c366867aef6bae5437e855e0ebddb8ef55b357827"
+    },
+    {
+      "skin": "tech-blue",
+      "cycle": 2,
+      "continuousHitPoints": 106,
+      "screenDisplacement": {
+        "x": 105,
+        "y": 20
+      },
+      "before": {
+        "rootConnected": true,
+        "listeners": 17,
+        "observerTargetRelations": 5,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 1,
+        "sentinelActive": true,
+        "allTimers": 0,
+        "externalAntModalTimers": 0
+      },
+      "firstSnapshot": {
+        "rootConnected": false,
+        "listeners": 0,
+        "observerTargetRelations": 0,
+        "pendingFrames": 0,
+        "timers": 0,
+        "captures": 0,
+        "sentinelActive": true,
+        "allTimers": 1,
+        "externalAntModalTimers": 1
+      },
+      "sameDocument": true,
+      "noLateReleaseInput": true,
+      "rawSha256": "db7ead758a78f8ddef14b91c366867aef6bae5437e855e0ebddb8ef55b357827"
+    }
+  ]
+}

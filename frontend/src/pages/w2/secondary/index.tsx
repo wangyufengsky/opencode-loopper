@@ -1,0 +1,7 @@
+export { HomePage } from './HomePage'
+export { PptListPage } from './PptListPage'
+export { KnowledgeHistoryPage } from './KnowledgeHistoryPage'
+export { RuntimePage } from './RuntimePage'
+export { ToolsPage } from './ToolsPage'
+export { DatabasePage } from './DatabasePage'
+export { InsightsPage } from './InsightsPage'

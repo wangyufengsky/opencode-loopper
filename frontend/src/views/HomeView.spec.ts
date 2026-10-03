@@ -5,6 +5,9 @@ import { describe, expect, it } from 'vitest'
 import { router as appRouter } from '@/router'
 import AppSidebar from '@/components/AppSidebar.vue'
 import HomeView from './HomeView.vue'
+import W2RouteBridge from '@/migration/W2RouteBridge.vue'
+import { w2PageLoaders } from '@/migration/w2Routes'
+import { HomePage } from '@/pages/w2/secondary/HomePage'
 
 describe('主页导航', () => {
   it('所有工作区与系统入口使用真实路由，点击后可通过品牌返回主页', async () => {
@@ -35,7 +38,8 @@ describe('主页导航', () => {
     const router = createRouter({ history: createMemoryHistory(), routes: appRouter.options.routes })
     await router.push('/')
     expect(router.currentRoute.value.path).toBe('/')
-    expect(router.currentRoute.value.matched[0]?.components?.default).toBe(HomeView)
+    expect(router.currentRoute.value.matched[0]?.components?.default).toBe(W2RouteBridge)
+    expect(await w2PageLoaders['/']!()).toBe(HomePage)
     await router.push('/unknown/deep/path')
     expect(router.currentRoute.value.path).toBe('/')
     expect(router.resolve('/tasks/example/recovery').matched[0]?.path).toBe('/tasks/:id/recovery')
