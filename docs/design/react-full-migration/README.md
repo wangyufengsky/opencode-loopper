@@ -1,16 +1,21 @@
 # 全站 React 迁移：第二阶段规划与设计审查
 
-**设计资料＋W0行为基线取证／尚未生产实施。** 设计发布授权已执行完毕；之后仅本地测试与文档。项目经理只批准 W0，未批准 W1 或全面生产开发，也没有新增 push/PR/merge/deploy 授权。直接查看[三皮肤、五类页面29图](prototype/README.md)及[本轮 W0 证据](evidence/w0/README.md)。
+**W0已冻结；当前仅本地W1基础工程＋桌面设计修订，W2及后续页面迁移未批准。** 设计发布授权已执行完毕，没有新增push/PR/merge/deploy授权。当前可看[桌面五类页×三皮肤28图与单HTML](prototype/desktop-v2/README.md)、[W0固定证据](evidence/w0/README.md)及[W1实现与验证](evidence/w1/README.md)。原[29图](prototype/README.md)保留历史。
 
 **结论：先按现代产品设计翻新壳、导航和信息层级，再按模块迁移页面与业务所有者，最后彻底移除 Vue。** 保留第一阶段已验证的 React Flow、PPT、Mermaid 画布，以及API／DTO和纯TypeScript协议；主要基础UI选择Ant Design，产品设计不会照搬库默认样式。临时路由／状态适配器只服务过渡，不作为最终交付。
 
-规划及设计已交付；项目经理实际预览五类页面与三皮肤代表状态，候选方向原则认可。本轮在设计基线 `008542f0bf02dc1c1b76f1e75429aab8452b797d` 执行 W0 取证，**尚未开始 W1–W7 生产开发**。第一阶段基线 `a3c692d38925206883f2b0a1255479108cfd439e`，独立分支 `feat/react-full-migration`，工作区 `/workspace/opencode-loopper-react-full`。第一阶段成果及原29图保留；未安装候选框架、修改生产实现、依赖、main、网络或凭据。正式 W1 要将原型占位 Unicode/emoji 统一为已选本地 Lucide，并另验真实 React/Ant。
+规划及设计已交付；项目经理实际预览五类页面与三皮肤代表状态，候选方向原则认可。本轮在设计基线 `008542f0bf02dc1c1b76f1e75429aab8452b797d` 执行 W0 取证，**W0取证冻结，项目经理现批准W1基础工程；W2+未批准**。第一阶段基线 `a3c692d38925206883f2b0a1255479108cfd439e`，独立分支 `feat/react-full-migration`，工作区 `/workspace/opencode-loopper-react-full`。第一阶段成果及原29图保留。W1已正式锁定Ant 6.6.5；新增隔离基础组件、纯TS owner和测试入口，没有修改既有页面、history owner、Vue/Pinia入口或已验收画布。main、网络和凭据未改。桌面原型与真实React/Ant测试入口分别验收。用户已撤回所有窄屏要求；旧窄屏方案/图/断言只保留历史，当前桌面与统一语义规范见下方新增入口。
 
 ## 1. 可审查报告入口
 
 | 文件 | 内容与责任人 |
 | --- | --- |
 | 本文 | 组长统一范围、所有权、波次、回退、门禁与项目经理决策 |
+| [最新桌面修订](desktop-redesign.md) | 简洁主体、按选择披露、低密度主页、五类旧→新及动效，覆盖旧窄屏与常驻详情方案 |
+| [统一词汇／图标／动作](semantic-ui-contract.md) | 全站本地Lucide registry、中文/a11y语义、公共API、合法变体及后续扫描/行为门槛 |
+| [当前桌面原型＋图索引](prototype/desktop-v2/README.md) | 最新五类页×三皮肤；自包含HTML、实际模拟截图，生产未实现 |
+| [窄屏退出范围](desktop-scope-exclusions.md) | 按旧测试子分支保留并标OUT_OF_SCOPE，桌面业务/键盘/资源断言继续 |
+| [W0最终实测](evidence/w0/README.md) | 独立提交3c848261；28组25红/3绿，原11前后、原身份恢复与后续准入 |
 | [核心 UI 与全站盘点](core-ui-inventory.md) | legacy：31 路由、页面／共享组件、系统与任务能力、Vue 残留与状态动作 |
 | [工作流与设计协议](workflow-protocol-design.md) | workflow：流程、需求、Designer、文档／源码模板、API 与恢复边界 |
 | [PPT 与全站验证设计](validation-and-ppt-design.md) | PPT：PPT／知识业务风险、测试分类、原 11 失败根因证据与最终验收矩阵 |
@@ -20,7 +25,7 @@
 | [Automations兼容映射](automations-compatibility-map.md) | legacy：真实现行消费者、历史读写边界、退役写接口与归档／整合缺项 |
 | [控制器与接口设计](controller-interfaces.md) | 组长：snapshot、operation、draft、navigation与资源的接口草案及交接门槛 |
 | [独立交叉审查](independent-review.md) | 三名原成员的非作者审查范围、发现、修正与证明边界 |
-| [单文件审查版](prototype/review-single.html)／[原29图索引](prototype/README.md) | 组长：五类页三皮肤、窄屏与原互动；独立模拟原型，完整浏览器证据和复现入口 |
+| [历史单文件](prototype/review-single.html)／[原29图索引](prototype/README.md) | 旧候选历史证据原样保留；窄屏已退出当前范围，当前方案使用desktop-v2 |
 | [完整静态源码索引](source-inventory.json) | 组长：所有 187 SFC、路由、状态模块、依赖引用与锁文件候选残留；词法索引不是行为证明 |
 
 涉及的源码链接均相对本报告指向当前基线；开发后行号可能移动。原型是独立模拟设计，不是正式React/Ant/API验收。第一阶段验证历史见[最终补丁审查](../../deliveries/react-canvas-all-cleanup/resize-observer-patch.md)。
@@ -125,7 +130,7 @@ flowchart TD
 
 ## 6. 开发波次及可验证里程碑
 
-P0（规划盘点）→D0（设计）及补充已交付。项目经理当前**仅放行 W0 测试／文档取证**；W1–W7 尚未执行，生产修复也未放行。W0结果、剩余红测与后续门禁见[本轮证据](evidence/w0/README.md)，不能边全面重写边补这些门槛。
+P0（规划盘点）→D0（设计）及补充已交付；W0真实证据已由项目经理认可为完成候选并冻结。当前明确放行W1基础工程，84项W0合同红测保留到对应页面波次修复，不扩展W0场景；W2–W7仍待项目经理门禁，不全面重写。
 
 | 波次 | 前置依赖与实现范围 | 退出门槛／负责人 |
 | --- | --- | --- |
@@ -152,12 +157,12 @@ W2–W5 的故障回退是下一次安全导航选择已验收视图，或回到
 
 1. 新 worktree／验证目录不含 node_modules、dist，基于固定 commit 和 lock 执行正常 `npm ci`，证明 XYFlow 两包六入口补丁自动复现、重入无写、源码不符明确失败。不能用旧预构建缓存或忽略 scripts 的安装当干净证明。
 2. 普通 `tsc -b`、React-only Vite production build、tooling/accounting 与全部 frontend unit 通过；新增代码／依赖按正式 Node/npm 与 Cloud工具链验证。没有 lint 配置时如实记录；若本阶段引入 lint，冻结规则后不能关闭规则换绿。
-3. 全站 E2E 以全发现清单运行：当前基线 **304 项／70文件** 加新增路由/行为矩阵；没有只跑204子集的豁免。原11失败必须根因处理且关联业务断言通过；发现实际bug就修本次明确授权的前端债务，环境问题改可复现夹具，过时预期按当前合同迁移但保留行为目的。
+3. 全站 E2E 以全发现清单运行：设计基线304项／70文件，W0新增redirect负控后当前发现**305项／70文件**，再加后续新增路由/行为矩阵；没有只跑204子集的豁免。原11失败必须根因处理且关联业务断言通过；发现实际bug就修本次明确授权的前端债务，环境问题改可复现夹具，过时预期按当前合同迁移但保留行为目的。
 4. 每个实际挂载 route 及3redirect、Designer条件入口逐一验证：直接URL、refresh、back/forward、query、id更新、loading/empty/error、权限、全部按钮菜单与表单动作；共享组件在真实页出现。验证操控真实 React DOM，不靠 marker或旧Vue夹具。
-5. File、未知回执、幂等key、accepted只重读、409/乱序、scope迟到、dirty/autosave与默认模型，按模块协议矩阵全部通过。键盘/焦点、三皮肤1440/390/320px、长表格/流程、读屏语义、脱网可达性有明确证据。
+5. File、未知回执、幂等key、accepted只重读、409/乱序、scope迟到、dirty/autosave与默认模型，按模块协议矩阵全部通过。键盘/焦点、三皮肤1440/1280桌面（窄屏已退出）、长表格/流程、读屏语义、脱网可达性有明确证据。
 6. 持续手势／modal／CodeMirror／Chart／SSE／轮询的 root卸载、route离开与多轮重入：监听、订阅、计时器、canvas RAF、capture、活动observer严格立即清零，不依赖自然mouseup，不误删他人资源。目的页资源按实际实例身份保留，未知资源 fail closed。显式清理与GC／堆保留路径分别记录。
 7. 正式 dependency tree、lock packages、source/transitive import graph、main/index.html、test/mock/setup、HTML夹具、build/type工具没有 Vue/Pinia/RouterVue/Element/IconifyVue/VueUse/compiler/Volar残留；所有`.vue`组件删除。历史文档可有解释文字，不能把可执行代码或fixture放进白名单。
-8. 真浏览器截图＋模拟数据按 route类别／皮肤／窄屏／pending/error/selected状态保存到仓库可审查docs，固定源码与图片hash。不能称真实后端、模型或文件解析已通过，除非有对应独立验证；本任务不做付费模型测试。
+8. 真浏览器截图＋模拟数据按 route类别／皮肤／桌面尺寸／pending/error/selected状态保存到仓库可审查docs，固定源码与图片hash。不能称真实后端、模型或文件解析已通过，除非有对应独立验证；本任务不做付费模型测试。
 
 第一阶段已通过204相关Chromium、1305unit、typecheck/build/tooling等，余100 E2E包含原11历史失败仍未跑；这些是基线事实，不是第二阶段执行结果。已断开observer与renderer仍存活的GC采样限制继续保留，不能在新报告中抹成全堆释放。
 
@@ -167,7 +172,7 @@ W2–W5 的故障回退是下一次安全导航选择已验收视图，或回到
 
 普通组件／token／接口取舍已在设计中作出，不再回问用户。项目经理审查并决定：
 
-- **阶段门禁：**W0测试／文档已批准；收到本轮真实证据后，由项目经理决定后续修复和 W1 准入。未自动进入基础 UI 或全面生产开发。
+- **阶段门禁：**W0冻结、W1基础工程已批准；W2及后续页面波次未批准。W1新增失败单列，不能用W0既知红测遮蔽，也不能以W0全绿作为禁止实现W1的循环条件。
 - **离开策略已决定，勿再回问普通取舍：**pending／unknown写入默认阻离开，直到用原身份核对或恢复到安全状态；accepted后只读／限定已知receipt目标交接。普通dirty／未发送File只能明确confirm后放弃，不自动重发write或换幂等身份。SPA硬阻断与beforeunload提示限制分别披露；无持久化／by-request能力不承诺跨刷新完整恢复。生产尚未改，实际恢复入口按endpoint能力实现，原型查询只是模拟。详见[设计合同](controller-interfaces.md#3-草稿file与视图的交接)。
 - **W0仍是生产前门禁：**[B1–B9计划](w0-evidence-ledger.md)保留设计时源码风险，[运行证据](evidence/w0/README.md)单列实测分类与原11根因；本轮不修生产，不用文档或截图当绿测。其它[核心基线差异](core-ui-inventory.md#现存基线差异和待验证合同)沿用同一门槛。
 - **Automations真实退役边界：**旧view不可达，后端旧写入口明确报LEGACY_AUTOMATION_RETIRED；历史GET／导出仍存在，但当前TemplateTasks不是其等价消费者。保留redirect、原数据和仍适用读取／安全断言；不复活已退役写入，不因去Vue删历史能力。逐项[兼容与归档映射](automations-compatibility-map.md)和消费者缺项在生产前结清。
@@ -192,4 +197,8 @@ W2–W5 的故障回退是下一次安全导航选择已验收视图，或回到
 
 ## 12. W0 本地行为证据
 
-当前结果、分类总数、请求身份、原11前后证据、Automations具体兼容落点、非作者复核与 W1 建议统一见[W0验收台账](evidence/w0/README.md)。生产与候选依赖保持008542f0原样；测试中确认的产品问题保留红测与最小修复建议，不在未授权范围内修运行代码。
+当前结果、分类总数、请求身份、原11前后证据、Automations具体兼容落点、非作者复核与 W1 建议统一见[W0验收台账](evidence/w0/README.md)。W0取证提交3c848261当时生产与依赖保持008542f0原样；随后W1基础授权单独实施。W0确认的页面问题继续保留红测与最小修复建议，不提前实施W2+。
+
+## 当前W1本地交付
+
+正式基础组件、纯TS契约、单一owner和独立React/Ant测试入口见[W1证据](evidence/w1/README.md)。下面原规划中“未安装/未运行”的结论仅代表对应历史阶段，不覆盖当前W1实测。桌面原型最终205/0、28图，与原29图分别保存；窄屏本轮范围外，桌面混合业务断言保留。

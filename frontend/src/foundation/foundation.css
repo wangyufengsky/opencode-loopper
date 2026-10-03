@@ -1,0 +1,35 @@
+/* Scoped shared foundation. Existing Vue app and validated canvases do not import this sheet. */
+.loopper-foundation { color: var(--color-text-primary); background: var(--color-bg-canvas); font-family: var(--font-ui); }
+.loopper-foundation *, .loopper-foundation *::before, .loopper-foundation *::after { box-sizing: border-box; }
+.loopper-foundation :focus-visible { outline: 2px solid var(--color-link); outline-offset: 3px; }
+.loopper-foundation svg[data-semantic-icon] { flex-shrink: 0; vertical-align: -.15em; }
+.loopper-foundation [hidden] { display: none !important; }
+.loopper-foundation .ui-shell { min-height: 100vh; background: var(--color-bg-canvas); }
+.loopper-foundation .ui-shell-navigation { background: var(--color-bg-surface); border-right: 1px solid var(--color-border-muted); padding: 24px 14px; }
+.loopper-foundation .ui-shell-workspace, .loopper-foundation .ui-shell-main { background: var(--color-bg-canvas); min-width: 0; }
+.loopper-foundation .ui-shell-header { background: var(--color-bg-canvas); color: var(--color-text-primary); border-bottom: 1px solid var(--color-border-muted); height: auto; min-height: 64px; line-height: 1.6; padding: 16px 28px; }
+.loopper-foundation .ui-shell-status { padding: 16px 28px 0; }
+.loopper-foundation .ui-shell-body { display: flex; flex: 1; min-width: 0; align-items: stretch; }
+.loopper-foundation .ui-shell-main { padding: 28px; }
+.loopper-foundation .ui-shell-footer { background: var(--color-bg-canvas); color: var(--color-text-secondary); font-size: 12px; padding: 12px 28px; }
+.loopper-foundation .ui-context-panel { flex: 0 0 320px; width: 320px; padding: 20px; background: var(--color-bg-surface); border-left: 1px solid var(--color-border-muted); }
+.loopper-foundation .ui-context-expanded { flex-basis: 420px; width: 420px; }
+.loopper-foundation .ui-context-header, .loopper-foundation .ui-context-actions, .loopper-foundation .ui-dialog-actions { display: flex; align-items: center; gap: 8px; }
+.loopper-foundation .ui-context-header { justify-content: space-between; margin-bottom: 20px; }
+.loopper-foundation .ui-context-header h2 { font-size: 16px; margin: 0; }
+.loopper-foundation .ui-dialog-actions { justify-content: flex-end; }
+.loopper-foundation .ui-policy-reason { color: var(--color-session-warning); font-size: 13px; }
+.loopper-foundation .ui-selectable-list { list-style: none; padding: 0; margin: 0; }
+.loopper-foundation .ui-selectable-list li { border-bottom: 1px solid var(--color-border-muted); }
+.loopper-foundation .ui-selectable-list li > button { display: flex; align-items: center; width: 100%; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--color-text-primary); font: inherit; text-align: left; padding: 16px; cursor: pointer; }
+.loopper-foundation .ui-selectable-list li > button:hover { background: var(--color-bg-hover); }
+.loopper-foundation .ui-selectable-list li > button[aria-pressed="true"], .loopper-foundation .ui-selectable-table tr[aria-selected="true"] > td { background: var(--color-bg-surface); box-shadow: inset 2px 0 var(--color-link); }
+.loopper-foundation .ui-disclosure > .ant-btn { padding-left: 0; }
+.loopper-foundation .ui-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.loopper-foundation .ui-skip-link { position: absolute; left: 16px; top: -80px; z-index: 100; padding: 8px 14px; background: var(--color-bg-elevated); color: var(--color-text-primary); border: 1px solid var(--color-link); }
+.loopper-foundation .ui-skip-link:focus { top: 8px; }
+.loopper-foundation .ant-btn-primary { background: var(--skin-primary-background); border-color: var(--skin-primary-border); color: var(--skin-primary-text); }
+.loopper-foundation .ant-btn-primary:not(:disabled):hover { background: var(--skin-primary-hover-background); border-color: var(--skin-primary-hover-border); color: var(--skin-primary-hover-text); }
+.loopper-foundation .ant-btn-primary:not(:disabled):active { background: var(--skin-primary-active-background); border-color: var(--skin-primary-active-border); color: var(--skin-primary-active-text); }
+.loopper-foundation[data-reduced-motion="true"] *, .loopper-foundation[data-reduced-motion="true"] *::before, .loopper-foundation[data-reduced-motion="true"] *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+@media (prefers-reduced-motion: reduce) { .loopper-foundation *, .loopper-foundation *::before, .loopper-foundation *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }

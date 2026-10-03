@@ -1,5 +1,7 @@
 # 全站验证与 PPT 全页迁移设计
 
+> 历史设计基线。用户最新已取消所有窄屏设计/适配/验收，并要求主体优先、选中按需详情及全站统一图标/动作。当前规范以[桌面修订](desktop-redesign.md)、[语义合同](semantic-ui-contract.md)、[范围索引](desktop-scope-exclusions.md)为准；下文旧窄屏方案与测试数只作历史，不再构成准入要求。生产尚未实施，W0结果独立见[实测报告](evidence/w0/README.md)。
+
 本文件是第二阶段的规划，不是实施或验收通过记录。基线为 `a3c692d38925206883f2b0a1255479108cfd439e`，工作分支 `feat/react-full-migration`。作者仍是原组员 `/root/react_ppt_canvas`；既有分工/启动记录显式指定 `model=gpt-6.1-sol`、`reasoning_effort=xhigh`，当前工具没有可读取的实时平台配置字段，因此这里只陈述记录证据，不把自述当作实时平台证明。本轮不新增人员、不安装依赖、不改运行代码、不提交或外发。
 
 ## 1. 已知事实与本轮设计结论

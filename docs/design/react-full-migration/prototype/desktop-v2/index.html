@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN" data-skin="github-white">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; font-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Loopper · 桌面设计原型</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="semantic-registry.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body data-prototype="desktop-v2">
+  <a id="skip-content" class="skip-link" href="#main-content"></a>
+  <div class="app-shell">
+    <aside class="navigation-rail" id="navigation-rail">
+      <a class="brand" data-page="home" href="?page=home"><span id="brand-icon"></span><span id="brand-name"></span></a>
+      <nav id="navigation"></nav>
+      <button id="navigation-index" class="navigation-index" data-action="navigation"></button>
+      <div class="rail-footer"><span class="local-indicator" aria-hidden="true"></span><span id="rail-note"></span></div>
+    </aside>
+    <div class="workspace">
+      <header class="workspace-bar">
+        <span id="workspace-name"></span>
+        <div class="workspace-tools"><span id="prototype-label" class="prototype-label"></span><label class="skin-control"><span id="skin-label"></span><select id="skin"><option value="spdb">spdb</option><option value="tech-blue">tech-blue</option><option value="github-white">github-white</option></select></label></div>
+      </header>
+      <div id="status-strip" class="status-strip" aria-live="polite" hidden></div>
+      <div id="page-layout" class="page-layout">
+        <main id="main-content" tabindex="-1"></main>
+        <aside id="context-panel" class="context-panel" tabindex="-1" hidden></aside>
+      </div>
+      <footer class="prototype-footer"><span id="prototype-note"></span><span id="scope-note"></span></footer>
+    </div>
+  </div>
+  <dialog id="confirm-dialog" aria-labelledby="confirmation-title"><header><h2 id="confirmation-title"></h2><button id="confirmation-close" class="icon-button" data-action="dialogClose"></button></header><div id="confirmation-body"></div></dialog>
+  <div id="feedback" class="feedback" role="status" aria-live="polite" hidden></div>
+  <noscript>该独立原型需要本地 JavaScript。没有业务请求。</noscript>
+</body>
+</html>

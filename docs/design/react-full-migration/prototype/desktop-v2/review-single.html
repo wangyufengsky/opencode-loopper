@@ -1,0 +1,4814 @@
+<!doctype html>
+<html lang="zh-CN" data-skin="github-white">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-YCY61xYHGMiewRDKFiuKmkqUjiMRHk39XLkl/FDJDJE=' 'sha256-Xr0sKLmJ1ypGWBzSY0zsyJgG5Qir/sCJtdp+dMWSgaQ='; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; font-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Loopper · 桌面设计原型</title>
+  <style>/* Independent desktop design preview. No production imports or external assets. */
+:root {
+  --canvas: #ffffff; --surface: #f6f8fa; --elevated: #ffffff; --hover: #eef2f6;
+  --text: #1f2328; --secondary: #59636e; --muted: #667380; --line: #d8dee5;
+  --divider: #e8ecf0; --primary: #1f883d; --link: #0969da; --accent: #0969da; --accent-soft: #eaf3ff; --on-primary: #fff;
+  --success: #1a7f37; --warning: #8b6200; --warning-bg: #fff8db;
+  --danger: #cf222e; --danger-bg: #fff0f1; --rail: #f7f8fa;
+  --radius: 8px; --shadow: 0 12px 48px rgb(31 35 40 / 9%);
+  --motion-fast: 120ms; --motion-panel: 180ms; --ease: cubic-bezier(.2, 0, 0, 1);
+  color-scheme: light;
+}
+:root[data-skin="spdb"] {
+  --surface: #f4f6fb; --hover: #edf1fa; --text: #202b43; --secondary: #53617a;
+  --muted: #66728a; --line: #d5dcea; --divider: #e5e9f2; --primary: #001e8c; --link: #004790; --accent: #002b87;
+  --accent-soft: #eef2ff; --rail: #f4f6fb; --warning: #855b00;
+}
+:root[data-skin="tech-blue"] {
+  --canvas: #0b1120; --surface: #10192a; --elevated: #131e32; --hover: #19273e;
+  --text: #e8effa; --secondary: #a6b5ca; --muted: #8fa1bb; --line: #2a3950;
+  --divider: #213046; --primary: #8bb8ff; --link: #7dd3fc; --accent: #8bb8ff; --accent-soft: #1c3150; --on-primary: #07162f;
+  --success: #7adba6; --warning: #f5cc70; --warning-bg: #302919;
+  --danger: #ff9caa; --danger-bg: #35212b; --rail: #0f1727;
+  --shadow: 0 12px 48px rgb(0 0 0 / 25%); color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--canvas); color: var(--text); font: 14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif; }
+button, input, select, textarea { font: inherit; }
+button, a { -webkit-tap-highlight-color: transparent; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .55; }
+a { color: inherit; text-decoration: none; }
+button, a, input, select, textarea, summary, [tabindex] { outline-offset: 4px; }
+:focus-visible { outline: 2px solid var(--accent); }
+h1, h2, h3, p { margin: 0; }
+h1 { font-size: 27px; font-weight: 620; line-height: 1.4; letter-spacing: -.025em; }
+h2 { font-size: 16px; font-weight: 620; }
+h3 { font-size: 14px; font-weight: 600; }
+p { color: var(--secondary); }
+small { color: var(--muted); font-size: 12px; }
+svg { width: 18px; height: 18px; flex: none; display: inline-block; vertical-align: middle; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+.skip-link { position: fixed; left: 12px; top: -80px; z-index: 100; background: var(--elevated); padding: 9px 14px; border: 1px solid var(--accent); }
+.skip-link:focus { top: 10px; }
+.app-shell { display: grid; grid-template-columns: 184px minmax(0, 1fr); min-height: 100vh; }
+.navigation-rail { position: sticky; top: 0; height: 100vh; padding: 28px 12px 18px; background: var(--rail); border-right: 1px solid var(--divider); display: flex; flex-direction: column; }
+.brand { display: flex; align-items: center; gap: 10px; padding: 0 13px 33px; font-size: 18px; font-weight: 650; letter-spacing: -.03em; }
+.brand svg { width: 23px; height: 23px; color: var(--accent); }
+nav { display: grid; gap: 5px; }
+.nav-item, .navigation-index { display: flex; align-items: center; gap: 11px; border: 0; background: transparent; color: var(--secondary); padding: 10px 13px; border-radius: 6px; text-align: left; }
+.nav-item[aria-current="page"] { color: var(--text); background: var(--hover); font-weight: 600; }
+.nav-item[aria-current="page"] svg { color: var(--accent); }
+.nav-item:hover, .navigation-index:hover { background: var(--hover); color: var(--text); }
+.navigation-index { margin-top: 18px; border-top: 1px solid var(--divider); border-radius: 0; padding-top: 20px; }
+.rail-footer { margin-top: auto; display: flex; gap: 8px; align-items: center; padding: 18px 13px 0; font-size: 11px; color: var(--muted); }
+.local-indicator { width: 5px; height: 5px; background: var(--success); border-radius: 50%; }
+.workspace { min-width: 0; display: flex; flex-direction: column; }
+.workspace-bar { height: 64px; padding: 0 36px; border-bottom: 1px solid var(--divider); display: flex; justify-content: space-between; align-items: center; color: var(--secondary); font-size: 12px; }
+.workspace-tools { display: flex; gap: 20px; align-items: center; }
+.prototype-label { color: var(--muted); }
+.skin-control { display: flex; gap: 7px; align-items: center; }
+.skin-control select { font-size: 11px; max-width: 124px; border: 0; background: transparent; color: var(--secondary); padding: 4px; }
+.page-layout { display: grid; grid-template-columns: minmax(0, 1fr); flex: 1; min-height: calc(100vh - 106px); align-items: stretch; }
+.page-layout.has-context { grid-template-columns: minmax(0, 1fr) 326px; }
+.page-layout.context-expanded { grid-template-columns: minmax(0, 1fr) 410px; }
+main { min-width: 0; padding: 38px 42px 54px; }
+.page-body { max-width: 1024px; margin: 0 auto; }
+.page-heading { display: flex; gap: 24px; justify-content: space-between; align-items: center; margin-bottom: 28px; }
+.page-heading p { margin-top: 7px; font-size: 13px; }
+.button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--line); background: var(--elevated); color: var(--text); border-radius: 6px; padding: 8px 13px; font-size: 13px; min-height: 36px; white-space: nowrap; }
+.button:hover:not(:disabled) { background: var(--hover); }
+.button.primary { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+.button.danger { color: var(--danger); }
+.button.subtle { background: transparent; border-color: transparent; color: var(--secondary); }
+.button-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.icon-button { width: 32px; height: 32px; padding: 5px; background: transparent; border: 0; color: var(--secondary); border-radius: 5px; display: inline-grid; place-items: center; }
+.icon-button:hover:not(:disabled) { background: var(--hover); color: var(--text); }
+.context-panel { border-left: 1px solid var(--divider); padding: 25px 24px 32px; min-width: 0; background: var(--surface); animation: enter-context var(--motion-panel) var(--ease); }
+.context-heading { display: flex; align-items: flex-start; gap: 12px; justify-content: space-between; padding-bottom: 22px; }
+.context-heading h2 { line-height: 1.6; overflow-wrap: anywhere; }
+.context-heading small { display: block; margin-bottom: 4px; }
+.context-controls { display: flex; gap: 2px; }
+.context-section { border-top: 1px solid var(--divider); padding: 21px 0; }
+.context-section > p { margin-top: 9px; font-size: 13px; line-height: 1.9; }
+.context-panel .button-row { margin-top: 20px; }
+.context-meta { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 12px 15px; font-size: 12px; }
+.context-meta dt { color: var(--muted); }
+.context-meta dd { margin: 0; overflow-wrap: anywhere; }
+.status-strip { margin: 22px 36px 0; display: grid; gap: 8px; }
+.state-message { display: flex; align-items: center; gap: 12px; padding: 11px 15px; border: 1px solid var(--line); background: var(--surface); border-radius: 6px; }
+.state-message .state-copy { flex: 1; min-width: 0; }
+.state-copy strong { font-size: 13px; display: block; }
+.state-copy p { font-size: 12px; line-height: 1.7; margin-top: 2px; }
+.state-message[data-severity="warning"] { background: var(--warning-bg); color: var(--warning); }
+.state-message[data-severity="error"] { background: var(--danger-bg); color: var(--danger); }
+.state-message .button { flex: none; }
+.state-message[data-state="dirty"] { background: var(--canvas); }
+.prototype-footer { display: flex; justify-content: space-between; gap: 18px; padding: 12px 36px; border-top: 1px solid var(--divider); font-size: 11px; color: var(--muted); }
+.home-body { max-width: 820px; padding-top: 20px; }
+.home-title { margin-bottom: 25px; }
+.home-title h1 { font-size: 32px; }
+.home-title p { margin-top: 10px; }
+.search-field { position: relative; }
+.search-field > svg { position: absolute; left: 15px; top: 14px; color: var(--muted); }
+.search-field input { width: 100%; background: var(--elevated); border: 1px solid var(--line); border-radius: var(--radius); padding: 13px 45px 13px 44px; color: var(--text); }
+.search-field .icon-button { position: absolute; right: 7px; top: 7px; }
+.search-disclosure { margin-top: 8px; font-size: 11px; color: var(--muted); }
+.home-section { margin-top: 38px; }
+.section-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 13px; }
+.section-heading h2 { font-size: 13px; color: var(--secondary); font-weight: 550; }
+.recent-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px 20px; }
+.recent-item { display: flex; align-items: center; gap: 12px; width: 100%; border: 1px solid transparent; background: transparent; border-radius: 7px; padding: 14px 12px; text-align: left; color: var(--text); }
+.recent-item:hover { background: var(--surface); }
+.recent-item[aria-pressed="true"] { border-color: var(--line); background: var(--surface); }
+.object-mark { width: 34px; height: 34px; border: 1px solid var(--divider); border-radius: 8px; display: grid; place-items: center; color: var(--secondary); background: var(--surface); flex: none; }
+.recent-copy { flex: 1; min-width: 0; }
+.recent-copy strong { display: block; font-size: 13px; font-weight: 570; overflow-wrap: anywhere; }
+.recent-copy small { display: block; font-size: 11px; margin-top: 3px; }
+.entry-links { display: flex; gap: 19px; padding-top: 5px; }
+.entry-link { display: inline-flex; gap: 7px; align-items: center; color: var(--secondary); font-size: 12px; background: transparent; border: 0; padding: 5px 0; }
+.entry-link:hover { color: var(--link); }
+.list-tools { display: flex; gap: 12px; align-items: center; margin-bottom: 18px; }
+.list-tools .search-field { flex: 1; max-width: 360px; }
+.list-tools .search-field input { padding-top: 9px; padding-bottom: 9px; font-size: 12px; }
+.list-tools .search-field > svg { top: 11px; width: 16px; height: 16px; }
+.list-tools select { padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--canvas); color: var(--secondary); font-size: 12px; }
+.task-table { border-top: 1px solid var(--line); }
+.table-head, .task-row { display: grid; grid-template-columns: minmax(210px, 1.8fr) minmax(92px, 1fr) 90px 78px; gap: 18px; align-items: center; }
+.table-head { color: var(--muted); font-size: 11px; padding: 12px 12px; border-bottom: 1px solid var(--divider); }
+.task-row { background: transparent; color: var(--text); border: 0; border-bottom: 1px solid var(--divider); width: 100%; padding: 18px 12px; text-align: left; border-radius: 0; min-height: 80px; }
+.task-row:hover { background: var(--surface); }
+.task-row[aria-pressed="true"] { background: var(--accent-soft); box-shadow: inset 2px 0 var(--accent); }
+.row-title { display: block; font-weight: 560; font-size: 13px; }
+.row-subtitle { display: block; margin-top: 3px; font-size: 11px; color: var(--muted); }
+.row-project, .row-time { font-size: 12px; color: var(--secondary); }
+.state-badge { display: inline-flex; gap: 6px; align-items: center; font-size: 11px; color: var(--secondary); white-space: nowrap; }
+.state-badge::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.state-badge[data-state="waiting"], .state-badge[data-state="recovery"] { color: var(--warning); }
+.state-badge[data-state="success"] { color: var(--success); }
+.empty-result { padding: 48px 12px; font-size: 13px; }
+.form-body { max-width: 770px; }
+.form-section { padding: 27px 0; border-bottom: 1px solid var(--divider); }
+.form-section:first-of-type { padding-top: 7px; }
+.form-section h2 { margin-bottom: 18px; font-size: 14px; }
+.field { display: grid; gap: 8px; margin-bottom: 20px; font-size: 12px; color: var(--secondary); }
+.field:last-child { margin-bottom: 0; }
+.field input, .field textarea, .field select { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--canvas); color: var(--text); min-width: 0; }
+.field textarea { resize: vertical; min-height: 145px; line-height: 1.8; }
+.field small { line-height: 1.7; font-size: 11px; }
+.field-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.advanced-row { display: flex; justify-content: space-between; align-items: center; padding: 23px 0; font-size: 12px; color: var(--secondary); }
+.form-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 26px; }
+.file-list { margin: 12px 0; padding: 0; list-style: none; font-size: 12px; }
+.file-list li { display: flex; gap: 8px; align-items: center; padding: 8px 0; overflow-wrap: anywhere; }
+.task-body { max-width: 950px; }
+.task-intro { display: flex; gap: 16px; align-items: center; margin-top: 12px; font-size: 12px; color: var(--secondary); }
+.task-question { border: 1px solid var(--line); border-radius: var(--radius); padding: 21px 22px; background: var(--surface); margin: 26px 0 30px; }
+.task-question > p { font-size: 13px; margin: 9px 0 17px; }
+.question-choice { display: flex; gap: 9px; align-items: center; font-size: 12px; margin: 9px 0; }
+.task-question .button-row { margin-top: 17px; }
+.task-timeline { position: relative; margin-top: 18px; }
+.timeline-item { display: flex; gap: 14px; align-items: flex-start; padding: 18px 14px; width: 100%; text-align: left; border: 1px solid transparent; color: var(--text); background: transparent; border-radius: 7px; }
+.timeline-item:hover { background: var(--surface); }
+.timeline-item[aria-pressed="true"] { border-color: var(--line); background: var(--surface); }
+.timeline-number { width: 29px; height: 29px; border: 1px solid var(--line); border-radius: 50%; display: grid; place-items: center; font-size: 11px; color: var(--secondary); flex: none; }
+.timeline-item > div { flex: 1; }
+.timeline-item p { font-size: 12px; margin-top: 5px; }
+.timeline-item .state-badge { margin-top: 4px; }
+.evidence-link { display: flex; align-items: center; gap: 9px; padding: 10px 0; border: 0; border-bottom: 1px solid var(--divider); background: transparent; color: var(--secondary); text-align: left; font-size: 12px; width: 100%; }
+.settings-body { max-width: 850px; }
+.settings-group { width: 100%; display: flex; gap: 16px; align-items: center; padding: 23px 16px; border: 0; border-bottom: 1px solid var(--divider); background: transparent; color: var(--text); text-align: left; }
+.settings-group:first-of-type { border-top: 1px solid var(--divider); }
+.settings-group:hover { background: var(--surface); }
+.settings-group[aria-pressed="true"] { background: var(--accent-soft); }
+.settings-group > div { flex: 1; }
+.settings-group p { margin-top: 5px; font-size: 12px; }
+.check-field { display: flex; align-items: flex-start; gap: 9px; font-size: 12px; line-height: 1.7; }
+input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
+.navigation-route { width: 100%; border: 0; background: transparent; padding: 10px 0; text-align: left; font-size: 12px; color: var(--secondary); display: flex; align-items: center; gap: 9px; }
+.navigation-route:hover { color: var(--accent); }
+.route-location { font: 12px/1.7 ui-monospace, SFMono-Regular, Consolas, monospace; color: var(--secondary); overflow-wrap: anywhere; background: var(--canvas); border: 1px solid var(--divider); border-radius: 5px; padding: 10px; margin: 14px 0; }
+.conflict-copy { border-left: 2px solid var(--warning); padding-left: 12px; font-size: 12px; margin: 14px 0; }
+dialog { width: 480px; max-width: calc(100vw - 80px); border: 1px solid var(--line); border-radius: 11px; padding: 25px 28px; background: var(--elevated); color: var(--text); box-shadow: var(--shadow); }
+dialog::backdrop { background: rgb(10 18 30 / 25%); }
+dialog > header { display: flex; justify-content: space-between; gap: 20px; align-items: center; margin-bottom: 15px; }
+dialog p { font-size: 13px; line-height: 1.9; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 25px; }
+.feedback { position: fixed; right: 30px; bottom: 25px; max-width: 440px; background: var(--elevated); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); padding: 12px 16px; font-size: 12px; z-index: 30; }
+@keyframes enter-context { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+</style>
+
+
+</head>
+<body data-prototype="desktop-v2">
+  <a id="skip-content" class="skip-link" href="#main-content"></a>
+  <div class="app-shell">
+    <aside class="navigation-rail" id="navigation-rail">
+      <a class="brand" data-page="home" href="?page=home"><span id="brand-icon"></span><span id="brand-name"></span></a>
+      <nav id="navigation"></nav>
+      <button id="navigation-index" class="navigation-index" data-action="navigation"></button>
+      <div class="rail-footer"><span class="local-indicator" aria-hidden="true"></span><span id="rail-note"></span></div>
+    </aside>
+    <div class="workspace">
+      <header class="workspace-bar">
+        <span id="workspace-name"></span>
+        <div class="workspace-tools"><span id="prototype-label" class="prototype-label"></span><label class="skin-control"><span id="skin-label"></span><select id="skin"><option value="spdb">spdb</option><option value="tech-blue">tech-blue</option><option value="github-white">github-white</option></select></label></div>
+      </header>
+      <div id="status-strip" class="status-strip" aria-live="polite" hidden></div>
+      <div id="page-layout" class="page-layout">
+        <main id="main-content" tabindex="-1"></main>
+        <aside id="context-panel" class="context-panel" tabindex="-1" hidden></aside>
+      </div>
+      <footer class="prototype-footer"><span id="prototype-note"></span><span id="scope-note"></span></footer>
+    </div>
+  </div>
+  <dialog id="confirm-dialog" aria-labelledby="confirmation-title"><header><h2 id="confirmation-title"></h2><button id="confirmation-close" class="icon-button" data-action="dialogClose"></button></header><div id="confirmation-body"></div></dialog>
+  <div id="feedback" class="feedback" role="status" aria-live="polite" hidden></div>
+  <noscript>该独立原型需要本地 JavaScript。没有业务请求。</noscript>
+<script>/* Design-only desktop registry. SVG bodies are copied from the locked local Lucide collection.
+ * This script makes no request and owns no command, listener, timer, subscription or framework root.
+ * It does not implement permission, route, receipt or dirty guards; the caller retains their owner.
+ */
+(function installLoopperUI(global) {
+  'use strict';
+  if (Object.prototype.hasOwnProperty.call(global, 'LoopperUI')) {
+    throw new Error('LoopperUI 已安装，不能覆盖既有语义注册表');
+  }
+  const data = {
+  "schemaVersion": 1,
+  "source": {
+    "kind": "design-only local semantic registry; no product/API implementation",
+    "baseline": "3c848261",
+    "iconPackage": "@iconify-json/lucide",
+    "iconVersion": "1.2.121",
+    "iconFile": "frontend/node_modules/@iconify-json/lucide/icons.json",
+    "iconFileSha256": "428633667745fc16b264451b5d9bab478e7a648720a7d40c01e756b21346fe97",
+    "iconLicense": "ISC",
+    "routing": "31 records / 27 independent mounted views / 3 redirects",
+    "skins": [
+      "spdb",
+      "tech-blue",
+      "github-white"
+    ],
+    "desktopViewports": [
+      "1280x900",
+      "1440x960"
+    ],
+    "guardStatus": "target contract; W0 baseline reproduced failures remain unimplemented"
+  },
+  "objects": {
+    "nav.home": {
+      "label": "主页",
+      "name": "主页",
+      "icon": "house",
+      "domain": "navigation",
+      "description": "打开真实路由；离开当前命令 owner 前执行统一守卫"
+    },
+    "nav.projects": {
+      "label": "项目",
+      "name": "项目",
+      "icon": "folder-kanban",
+      "domain": "navigation",
+      "description": "打开真实路由；离开当前命令 owner 前执行统一守卫"
+    },
+    "nav.knowledge": {
+      "label": "知识库",
+      "name": "知识库",
+      "icon": "book-open",
+      "domain": "navigation",
+      "description": "打开真实路由；离开当前命令 owner 前执行统一守卫"
+    },
+    "nav.ppt": {
+      "label": "PPT 制作",
+      "name": "PPT 制作",
+      "icon": "presentation",
+      "domain": "navigation",
+      "description": "打开真实路由；离开当前命令 owner 前执行统一守卫"
+    },
+    "nav.requirements": {
+      "label": "需求任务",
+      "name": "需求任务",
+      "icon": "git-branch",
+      "domain": "navigation",
+      "description": "打开真实路由；离开当前命令 owner 前执行统一守卫"
+    },
+    "nav.workflows": {
+      "label": "流程",
+      "name": "流程",
+      "icon": "workflow",
+      "domain": "navigation",
+      "description": "打开真实路由；离开当前命令 owner 前执行统一守卫"
+    },
+    "nav.designs": {
+      "label": "历史设计",
+      "name": "历史设计",
+      "icon": "history",
+      "domain": "navigation",
+      "description": "打开真实路由；离开当前命令 owner 前执行统一守卫"
+    },
+    "nav.tasks": {
+      "label": "任务",
+      "name": "任务",
+      "icon": "orbit",
+      "domain": "navigation",
+      "description": "打开真实路由；离开当前命令 owner 前执行统一守卫"
+    },
+    "nav.inbox": {
+      "label": "待处理中心",
+      "name": "待处理中心",
+      "icon": "inbox",
+      "domain": "navigation",
+      "description": "打开真实路由；离开当前命令 owner 前执行统一守卫"
+    },
+    "nav.insights": {
+      "label": "质量与用量",
+      "name": "质量与用量",
+      "icon": "chart-no-axes-combined",
+      "domain": "navigation",
+      "description": "打开真实路由；离开当前命令 owner 前执行统一守卫"
+    },
+    "nav.templateTasks": {
+      "label": "模板任务",
+      "name": "模板任务",
+      "icon": "workflow",
+      "domain": "navigation",
+      "description": "打开真实路由；离开当前命令 owner 前执行统一守卫"
+    },
+    "nav.runtime": {
+      "label": "运行环境",
+      "name": "运行环境",
+      "icon": "cpu",
+      "domain": "navigation",
+      "description": "打开真实路由；离开当前命令 owner 前执行统一守卫"
+    },
+    "nav.tools": {
+      "label": "工具与 Skill",
+      "name": "工具与 Skill",
+      "icon": "wrench",
+      "domain": "navigation",
+      "description": "打开真实路由；离开当前命令 owner 前执行统一守卫"
+    },
+    "nav.databases": {
+      "label": "数据库",
+      "name": "数据库",
+      "icon": "database",
+      "domain": "navigation",
+      "description": "打开真实路由；离开当前命令 owner 前执行统一守卫"
+    },
+    "nav.roles": {
+      "label": "角色管理",
+      "name": "角色管理",
+      "icon": "users-round",
+      "domain": "navigation",
+      "description": "打开真实路由；离开当前命令 owner 前执行统一守卫"
+    },
+    "nav.settings": {
+      "label": "设置",
+      "name": "设置",
+      "icon": "settings-2",
+      "domain": "navigation",
+      "description": "打开真实路由；离开当前命令 owner 前执行统一守卫"
+    },
+    "page.home": {
+      "label": "主页",
+      "name": "主页",
+      "icon": "house",
+      "domain": "page",
+      "description": "五类桌面代表页标题；原型只使用模拟数据"
+    },
+    "page.tasks": {
+      "label": "任务",
+      "name": "任务",
+      "icon": "orbit",
+      "domain": "page",
+      "description": "五类桌面代表页标题；原型只使用模拟数据"
+    },
+    "page.newRequirement": {
+      "label": "新建需求",
+      "name": "新建需求",
+      "icon": "plus",
+      "domain": "page",
+      "description": "五类桌面代表页标题；原型只使用模拟数据"
+    },
+    "page.taskDetail": {
+      "label": "任务详情",
+      "name": "任务详情",
+      "icon": "orbit",
+      "domain": "page",
+      "description": "五类桌面代表页标题；原型只使用模拟数据"
+    },
+    "page.settings": {
+      "label": "设置",
+      "name": "设置",
+      "icon": "settings-2",
+      "domain": "page",
+      "description": "五类桌面代表页标题；原型只使用模拟数据"
+    },
+    "object.project": {
+      "label": "项目",
+      "name": "项目",
+      "icon": "folder-kanban",
+      "domain": "project",
+      "description": "项目"
+    },
+    "object.task": {
+      "label": "任务",
+      "name": "任务",
+      "icon": "orbit",
+      "domain": "task",
+      "description": "任务"
+    },
+    "object.requirement": {
+      "label": "需求",
+      "name": "需求",
+      "icon": "git-branch",
+      "domain": "workflow",
+      "description": "需求"
+    },
+    "object.workflow": {
+      "label": "流程",
+      "name": "流程",
+      "icon": "workflow",
+      "domain": "workflow",
+      "description": "流程"
+    },
+    "object.node": {
+      "label": "节点",
+      "name": "节点",
+      "icon": "square",
+      "domain": "workflow",
+      "description": "节点"
+    },
+    "object.edge": {
+      "label": "连线",
+      "name": "连线",
+      "icon": "link",
+      "domain": "workflow",
+      "description": "连线"
+    },
+    "object.stage": {
+      "label": "阶段",
+      "name": "阶段",
+      "icon": "square-check",
+      "domain": "task",
+      "description": "阶段"
+    },
+    "object.attempt": {
+      "label": "尝试",
+      "name": "尝试",
+      "icon": "rotate-ccw",
+      "domain": "task",
+      "description": "尝试"
+    },
+    "object.session": {
+      "label": "会话",
+      "name": "会话",
+      "icon": "messages-square",
+      "domain": "session",
+      "description": "会话"
+    },
+    "object.conversation": {
+      "label": "知识对话",
+      "name": "知识对话",
+      "icon": "message-square-text",
+      "domain": "knowledge",
+      "description": "知识对话"
+    },
+    "object.source": {
+      "label": "资料来源",
+      "name": "资料来源",
+      "icon": "book-open",
+      "domain": "knowledge",
+      "description": "资料来源"
+    },
+    "object.citation": {
+      "label": "引用",
+      "name": "引用",
+      "icon": "file-search",
+      "domain": "knowledge",
+      "description": "引用"
+    },
+    "object.attachment": {
+      "label": "附件",
+      "name": "附件",
+      "icon": "file-text",
+      "domain": "document",
+      "description": "附件"
+    },
+    "object.document": {
+      "label": "文档",
+      "name": "文档",
+      "icon": "file-text",
+      "domain": "document",
+      "description": "文档"
+    },
+    "object.report": {
+      "label": "报告",
+      "name": "报告",
+      "icon": "file-text",
+      "domain": "template",
+      "description": "报告"
+    },
+    "object.template": {
+      "label": "模板",
+      "name": "模板",
+      "icon": "workflow",
+      "domain": "template",
+      "description": "模板"
+    },
+    "object.templateRun": {
+      "label": "模板运行",
+      "name": "模板运行",
+      "icon": "play",
+      "domain": "template",
+      "description": "模板运行"
+    },
+    "object.batch": {
+      "label": "批次",
+      "name": "批次",
+      "icon": "layers",
+      "domain": "template",
+      "description": "批次"
+    },
+    "object.role": {
+      "label": "角色",
+      "name": "角色",
+      "icon": "users-round",
+      "domain": "role",
+      "description": "角色"
+    },
+    "object.roleRevision": {
+      "label": "角色版本",
+      "name": "角色版本",
+      "icon": "file-clock",
+      "domain": "role",
+      "description": "角色版本"
+    },
+    "object.permission": {
+      "label": "权限",
+      "name": "权限",
+      "icon": "shield-check",
+      "domain": "permission",
+      "description": "权限"
+    },
+    "object.tool": {
+      "label": "工具",
+      "name": "工具",
+      "icon": "wrench",
+      "domain": "tool",
+      "description": "工具"
+    },
+    "object.skill": {
+      "label": "技能（Skill）",
+      "name": "技能（Skill）",
+      "icon": "book-open",
+      "domain": "tool",
+      "description": "Skill"
+    },
+    "object.connection": {
+      "label": "数据库连接",
+      "name": "数据库连接",
+      "icon": "database",
+      "domain": "database",
+      "description": "数据库连接"
+    },
+    "object.driver": {
+      "label": "数据库驱动",
+      "name": "数据库驱动",
+      "icon": "plug",
+      "domain": "database",
+      "description": "数据库驱动"
+    },
+    "object.deck": {
+      "label": "PPT 作品",
+      "name": "PPT 作品",
+      "icon": "presentation",
+      "domain": "ppt",
+      "description": "PPT 作品"
+    },
+    "object.slide": {
+      "label": "幻灯片",
+      "name": "幻灯片",
+      "icon": "square",
+      "domain": "ppt",
+      "description": "幻灯片"
+    },
+    "object.slideObject": {
+      "label": "画布对象",
+      "name": "画布对象",
+      "icon": "mouse-pointer-2",
+      "domain": "ppt",
+      "description": "画布对象"
+    },
+    "object.history": {
+      "label": "历史记录",
+      "name": "历史记录",
+      "icon": "history",
+      "domain": "history",
+      "description": "历史记录"
+    },
+    "object.evidence": {
+      "label": "验收证据",
+      "name": "验收证据",
+      "icon": "shield-check",
+      "domain": "task",
+      "description": "验收证据"
+    },
+    "object.recovery": {
+      "label": "恢复工作台",
+      "name": "恢复工作台",
+      "icon": "rotate-ccw",
+      "domain": "task",
+      "description": "恢复工作台"
+    },
+    "object.settings": {
+      "label": "设置",
+      "name": "设置",
+      "icon": "settings-2",
+      "domain": "settings",
+      "description": "设置"
+    },
+    "status.dirty": {
+      "label": "有未保存修改",
+      "name": "有未保存修改",
+      "icon": "pencil",
+      "domain": "status",
+      "description": "中文展示投影；不制造服务端状态或成功事实"
+    },
+    "status.sending": {
+      "label": "正在提交",
+      "name": "正在提交",
+      "icon": "loader-circle",
+      "domain": "status",
+      "description": "中文展示投影；不制造服务端状态或成功事实"
+    },
+    "status.unknown": {
+      "label": "结果尚未确认",
+      "name": "结果尚未确认",
+      "icon": "circle-question-mark",
+      "domain": "status",
+      "description": "中文展示投影；不制造服务端状态或成功事实"
+    },
+    "status.waiting": {
+      "label": "等待处理",
+      "name": "等待处理",
+      "icon": "clock",
+      "domain": "status",
+      "description": "中文展示投影；不制造服务端状态或成功事实"
+    },
+    "status.error": {
+      "label": "操作失败",
+      "name": "操作失败",
+      "icon": "circle-alert",
+      "domain": "status",
+      "description": "中文展示投影；不制造服务端状态或成功事实"
+    },
+    "status.recovery": {
+      "label": "可恢复",
+      "name": "可恢复",
+      "icon": "rotate-ccw",
+      "domain": "status",
+      "description": "中文展示投影；不制造服务端状态或成功事实"
+    },
+    "status.success": {
+      "label": "已完成",
+      "name": "已完成",
+      "icon": "circle-check",
+      "domain": "status",
+      "description": "中文展示投影；不制造服务端状态或成功事实"
+    },
+    "status.disconnected": {
+      "label": "连接已中断",
+      "name": "连接已中断",
+      "icon": "wifi-off",
+      "domain": "status",
+      "description": "中文展示投影；不制造服务端状态或成功事实"
+    },
+    "status.readonly": {
+      "label": "只读",
+      "name": "只读",
+      "icon": "lock-keyhole",
+      "domain": "status",
+      "description": "中文展示投影；不制造服务端状态或成功事实"
+    },
+    "status.idle": {
+      "label": "尚未开始",
+      "name": "尚未开始",
+      "icon": "circle",
+      "domain": "status",
+      "description": "中文展示投影；不制造服务端状态或成功事实"
+    },
+    "status.running": {
+      "label": "正在执行",
+      "name": "正在执行",
+      "icon": "play",
+      "domain": "status",
+      "description": "中文展示投影；不制造服务端状态或成功事实"
+    },
+    "status.stopping": {
+      "label": "正在停止",
+      "name": "正在停止",
+      "icon": "circle-stop",
+      "domain": "status",
+      "description": "中文展示投影；不制造服务端状态或成功事实"
+    },
+    "status.cancelled": {
+      "label": "已取消",
+      "name": "已取消",
+      "icon": "circle-x",
+      "domain": "status",
+      "description": "中文展示投影；不制造服务端状态或成功事实"
+    },
+    "status.archived": {
+      "label": "已归档",
+      "name": "已归档",
+      "icon": "archive",
+      "domain": "status",
+      "description": "中文展示投影；不制造服务端状态或成功事实"
+    },
+    "section.workspace": {
+      "label": "工作区",
+      "name": "工作区",
+      "icon": "folder-kanban",
+      "domain": "section",
+      "description": "工作区"
+    },
+    "section.recent": {
+      "label": "最近访问",
+      "name": "最近访问",
+      "icon": "history",
+      "domain": "section",
+      "description": "最近访问"
+    },
+    "section.localFilter": {
+      "label": "本页筛选",
+      "name": "本页筛选",
+      "icon": "list-filter",
+      "domain": "section",
+      "description": "本页筛选"
+    },
+    "section.summary": {
+      "label": "概览",
+      "name": "概览",
+      "icon": "chart-no-axes-combined",
+      "domain": "section",
+      "description": "概览"
+    },
+    "section.inputs": {
+      "label": "输入",
+      "name": "输入",
+      "icon": "file-text",
+      "domain": "section",
+      "description": "输入"
+    },
+    "section.evidence": {
+      "label": "验收证据",
+      "name": "验收证据",
+      "icon": "shield-check",
+      "domain": "section",
+      "description": "验收证据"
+    },
+    "section.activity": {
+      "label": "活动记录",
+      "name": "活动记录",
+      "icon": "history",
+      "domain": "section",
+      "description": "活动记录"
+    },
+    "section.advanced": {
+      "label": "高级操作",
+      "name": "高级操作",
+      "icon": "settings-2",
+      "domain": "section",
+      "description": "高级操作"
+    },
+    "section.context": {
+      "label": "当前上下文",
+      "name": "当前上下文",
+      "icon": "panel-right",
+      "domain": "section",
+      "description": "当前上下文"
+    },
+    "section.filters": {
+      "label": "筛选条件",
+      "name": "筛选条件",
+      "icon": "list-filter",
+      "domain": "section",
+      "description": "筛选条件"
+    },
+    "section.parameters": {
+      "label": "任务参数",
+      "name": "任务参数",
+      "icon": "settings-2",
+      "domain": "section",
+      "description": "任务参数"
+    },
+    "section.history": {
+      "label": "历史记录",
+      "name": "历史记录",
+      "icon": "history",
+      "domain": "section",
+      "description": "历史记录"
+    },
+    "section.sources": {
+      "label": "资料来源",
+      "name": "资料来源",
+      "icon": "book-open",
+      "domain": "section",
+      "description": "资料来源"
+    },
+    "section.settingsModel": {
+      "label": "模型与会话",
+      "name": "模型与会话",
+      "icon": "messages-square",
+      "domain": "section",
+      "description": "模型与会话"
+    },
+    "section.settingsLimits": {
+      "label": "执行限制",
+      "name": "执行限制",
+      "icon": "shield-check",
+      "domain": "section",
+      "description": "执行限制"
+    },
+    "section.settingsGit": {
+      "label": "Git 账号",
+      "name": "Git 账号",
+      "icon": "git-branch",
+      "domain": "section",
+      "description": "Git 账号"
+    },
+    "section.settingsPublication": {
+      "label": "发布网络",
+      "name": "发布网络",
+      "icon": "git-pull-request",
+      "domain": "section",
+      "description": "发布网络"
+    },
+    "section.settingsRuntime": {
+      "label": "运行设置",
+      "name": "运行设置",
+      "icon": "cpu",
+      "domain": "section",
+      "description": "运行设置"
+    },
+    "section.settingsAppearance": {
+      "label": "外观与画布",
+      "name": "外观与画布",
+      "icon": "settings-2",
+      "domain": "section",
+      "description": "外观与画布"
+    },
+    "field.search": {
+      "label": "搜索",
+      "name": "搜索",
+      "icon": "search",
+      "domain": "field",
+      "description": "搜索"
+    },
+    "field.project": {
+      "label": "项目",
+      "name": "项目",
+      "icon": "folder-kanban",
+      "domain": "field",
+      "description": "项目"
+    },
+    "field.status": {
+      "label": "状态",
+      "name": "状态",
+      "icon": "circle",
+      "domain": "field",
+      "description": "状态"
+    },
+    "field.title": {
+      "label": "标题",
+      "name": "标题",
+      "icon": "file-text",
+      "domain": "field",
+      "description": "标题"
+    },
+    "field.goal": {
+      "label": "目标与约束",
+      "name": "目标与约束",
+      "icon": "file-text",
+      "domain": "field",
+      "description": "目标与约束"
+    },
+    "field.model": {
+      "label": "模型",
+      "name": "模型",
+      "icon": "messages-square",
+      "domain": "field",
+      "description": "模型"
+    },
+    "field.template": {
+      "label": "流程模板",
+      "name": "流程模板",
+      "icon": "workflow",
+      "domain": "field",
+      "description": "流程模板"
+    },
+    "field.scope": {
+      "label": "范围",
+      "name": "范围",
+      "icon": "scan",
+      "domain": "field",
+      "description": "范围"
+    },
+    "field.archive": {
+      "label": "归档范围",
+      "name": "归档范围",
+      "icon": "archive",
+      "domain": "field",
+      "description": "归档范围"
+    },
+    "field.sort": {
+      "label": "排序",
+      "name": "排序",
+      "icon": "chevrons-up-down",
+      "domain": "field",
+      "description": "排序"
+    },
+    "field.branch": {
+      "label": "分支",
+      "name": "分支",
+      "icon": "git-branch",
+      "domain": "field",
+      "description": "分支"
+    },
+    "field.files": {
+      "label": "文档文件",
+      "name": "文档文件",
+      "icon": "file-text",
+      "domain": "field",
+      "description": "文档文件"
+    },
+    "field.query": {
+      "label": "问题",
+      "name": "问题",
+      "icon": "message-square-text",
+      "domain": "field",
+      "description": "问题"
+    },
+    "notice.simulated": {
+      "label": "独立桌面设计原型 · 模拟数据",
+      "name": "独立桌面设计原型 · 模拟数据",
+      "icon": "circle-alert",
+      "domain": "prototype",
+      "description": "不是生产页面，不代表接口、权限或恢复合同已验收"
+    },
+    "notice.unknown": {
+      "label": "结果尚未确认",
+      "name": "结果尚未确认",
+      "icon": "circle-question-mark",
+      "domain": "receipt",
+      "description": "先等待、核对原操作结果或重试原操作；不得销毁原身份"
+    },
+    "notice.dirty": {
+      "label": "有尚未保存的修改",
+      "name": "有尚未保存的修改",
+      "icon": "pencil",
+      "domain": "draft",
+      "description": "明确选择留在页面或放弃修改"
+    },
+    "notice.noKey": {
+      "label": "缺少原操作身份",
+      "name": "缺少原操作身份",
+      "icon": "lock-keyhole",
+      "domain": "receipt",
+      "description": "只能按真实只读入口核对；不可重新生成 key 或自动重发"
+    },
+    "object.settingsGroup": {
+      "label": "设置分区",
+      "name": "设置分区",
+      "icon": "settings-2",
+      "domain": "settings",
+      "description": "设置分区"
+    },
+    "object.skin": {
+      "label": "皮肤",
+      "name": "皮肤",
+      "icon": "palette",
+      "domain": "appearance",
+      "description": "皮肤"
+    },
+    "field.objective": {
+      "label": "目标与约束",
+      "name": "目标与约束",
+      "icon": "file-text",
+      "domain": "field",
+      "description": "目标与约束"
+    },
+    "field.provider": {
+      "label": "提供方",
+      "name": "提供方",
+      "icon": "messages-square",
+      "domain": "field",
+      "description": "提供方"
+    },
+    "field.localOnly": {
+      "label": "仅本页已加载数据",
+      "name": "仅本页已加载数据",
+      "icon": "search",
+      "domain": "field",
+      "description": "仅本页已加载数据"
+    },
+    "section.recentProjects": {
+      "label": "最近项目",
+      "name": "最近项目",
+      "icon": "folder-kanban",
+      "domain": "section",
+      "description": "最近项目"
+    },
+    "section.recentConversations": {
+      "label": "最近对话",
+      "name": "最近对话",
+      "icon": "message-square-text",
+      "domain": "section",
+      "description": "最近对话"
+    },
+    "section.entries": {
+      "label": "常用入口",
+      "name": "常用入口",
+      "icon": "folder-kanban",
+      "domain": "section",
+      "description": "常用入口"
+    },
+    "settings.execution": {
+      "label": "执行限制",
+      "name": "执行限制",
+      "icon": "shield-check",
+      "domain": "settings",
+      "description": "执行限制"
+    },
+    "settings.models": {
+      "label": "模型与会话",
+      "name": "模型与会话",
+      "icon": "messages-square",
+      "domain": "settings",
+      "description": "模型与会话"
+    },
+    "settings.privacy": {
+      "label": "凭据与连接",
+      "name": "凭据与连接",
+      "icon": "lock-keyhole",
+      "domain": "settings",
+      "description": "凭据与连接"
+    },
+    "app.prototype": {
+      "label": "独立桌面设计原型 · 模拟数据",
+      "name": "独立桌面设计原型 · 模拟数据",
+      "icon": "circle-alert",
+      "domain": "prototype",
+      "description": "独立桌面设计原型 · 模拟数据"
+    },
+    "app.navigation": {
+      "label": "全站导航",
+      "name": "全站导航",
+      "icon": "house",
+      "domain": "shell",
+      "description": "全站导航"
+    },
+    "app.workspace": {
+      "label": "工作区",
+      "name": "工作区",
+      "icon": "folder-kanban",
+      "domain": "shell",
+      "description": "工作区"
+    },
+    "app.context": {
+      "label": "当前上下文",
+      "name": "当前上下文",
+      "icon": "panel-right",
+      "domain": "shell",
+      "description": "当前上下文"
+    },
+    "app.scenarios": {
+      "label": "模拟状态",
+      "name": "模拟状态",
+      "icon": "circle-question-mark",
+      "domain": "prototype",
+      "description": "模拟状态"
+    },
+    "app.skipContent": {
+      "label": "跳到主内容",
+      "name": "跳到主内容",
+      "icon": "arrow-right",
+      "domain": "shell",
+      "description": "跳到主内容"
+    }
+  },
+  "actions": {
+    "ui.close": {
+      "label": "关闭面板",
+      "name": "关闭面板",
+      "icon": "x",
+      "intent": "ui.close",
+      "scope": "local",
+      "guard": [
+        "OWNER_RETAINED"
+      ],
+      "behavior": "只收起当前展示，保留 controller、File、原操作身份；销毁 owner 的关闭必须执行离开守卫"
+    },
+    "nav.back": {
+      "label": "返回",
+      "name": "返回",
+      "icon": "arrow-left",
+      "intent": "nav.back",
+      "scope": "navigation",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "CONFIRM_DIRTY"
+      ],
+      "behavior": "使用唯一导航口返回；未知或发送中阻止 owner 销毁"
+    },
+    "ui.save": {
+      "label": "保存",
+      "name": "保存",
+      "icon": "save",
+      "intent": "ui.save",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "明确保存当前 owner 的输入快照；不是确认执行或自动开始"
+    },
+    "ui.delete": {
+      "label": "删除",
+      "name": "删除",
+      "icon": "trash-2",
+      "intent": "ui.delete",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY",
+        "CONFIRM_DESTRUCTIVE"
+      ],
+      "behavior": "删除具体业务对象，确认必须说出目标和影响；归档、解绑、关闭不使用此动作"
+    },
+    "ui.expand": {
+      "label": "展开",
+      "name": "展开",
+      "icon": "chevron-down",
+      "intent": "ui.expand",
+      "scope": "local",
+      "guard": [],
+      "behavior": "展开受控 disclosure，设置 aria-expanded=true，不自动执行业务写"
+    },
+    "ui.collapse": {
+      "label": "收起",
+      "name": "收起",
+      "icon": "chevron-up",
+      "intent": "ui.collapse",
+      "scope": "local",
+      "guard": [],
+      "behavior": "收起受控 disclosure，设置 aria-expanded=false，不丢失草稿"
+    },
+    "selection.select": {
+      "label": "选择",
+      "name": "选择",
+      "icon": "square-check",
+      "intent": "selection.select",
+      "scope": "local",
+      "guard": [],
+      "behavior": "选择当前对象，更新选中上下文，不授予写权限"
+    },
+    "selection.deselect": {
+      "label": "取消选择",
+      "name": "取消选择",
+      "icon": "square",
+      "intent": "selection.deselect",
+      "scope": "local",
+      "guard": [],
+      "behavior": "清空选中上下文，不删除对象或取消服务端操作"
+    },
+    "ui.cancelEditing": {
+      "label": "放弃编辑",
+      "name": "放弃编辑",
+      "icon": "rotate-ccw",
+      "intent": "ui.cancelEditing",
+      "scope": "local",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "CONFIRM_DIRTY"
+      ],
+      "behavior": "只放弃本地编辑；有未保存内容需确认，不能取消未知服务端命令"
+    },
+    "ui.discardChanges": {
+      "label": "放弃修改",
+      "name": "放弃修改",
+      "icon": "trash-2",
+      "intent": "ui.discardChanges",
+      "scope": "local",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "EXPLICIT_DIRTY_DECISION"
+      ],
+      "behavior": "在明确 dirty 确认后丢弃本地草稿，不重发或取消业务写"
+    },
+    "ui.stay": {
+      "label": "留在当前页面",
+      "name": "留在当前页面",
+      "icon": "arrow-left",
+      "intent": "ui.stay",
+      "scope": "local",
+      "guard": [],
+      "behavior": "关闭离开确认并保留全部输入、File 和操作身份"
+    },
+    "dialog.dismiss": {
+      "label": "暂不操作",
+      "name": "暂不操作",
+      "icon": "x",
+      "intent": "dialog.dismiss",
+      "scope": "local",
+      "guard": [
+        "OWNER_RETAINED"
+      ],
+      "behavior": "关闭确认对话，不发服务端命令"
+    },
+    "ui.search": {
+      "label": "搜索",
+      "name": "搜索",
+      "icon": "search",
+      "intent": "ui.search",
+      "scope": "read",
+      "guard": [],
+      "behavior": "提交当前页面搜索条件；不是全站内容索引或模型调用"
+    },
+    "ui.clearSearch": {
+      "label": "清除搜索",
+      "name": "清除搜索",
+      "icon": "x",
+      "intent": "ui.clearSearch",
+      "scope": "local",
+      "guard": [],
+      "behavior": "清空本页关键词并按既定 URL/列表读取规则更新"
+    },
+    "ui.filter": {
+      "label": "筛选",
+      "name": "筛选",
+      "icon": "list-filter",
+      "intent": "ui.filter",
+      "scope": "local",
+      "guard": [],
+      "behavior": "打开或应用本页受控筛选，不改变业务状态"
+    },
+    "ui.resetFilters": {
+      "label": "清除筛选",
+      "name": "清除筛选",
+      "icon": "filter-x",
+      "intent": "ui.resetFilters",
+      "scope": "local",
+      "guard": [],
+      "behavior": "复位本页筛选并保留原列表恢复合同"
+    },
+    "ui.refresh": {
+      "label": "刷新",
+      "name": "刷新",
+      "icon": "refresh-cw",
+      "intent": "ui.refresh",
+      "scope": "read",
+      "guard": [],
+      "behavior": "按原身份重新读取权威结果；不重写已接受命令"
+    },
+    "ui.retry": {
+      "label": "重试读取",
+      "name": "重试读取",
+      "icon": "rotate-ccw",
+      "intent": "ui.retry",
+      "scope": "read",
+      "guard": [],
+      "behavior": "重新读取失败数据；写重试必须使用 receipt.retryOriginal"
+    },
+    "ui.copy": {
+      "label": "复制",
+      "name": "复制",
+      "icon": "copy",
+      "intent": "ui.copy",
+      "scope": "local",
+      "guard": [],
+      "behavior": "复制明确文本，不创建业务副本"
+    },
+    "ui.download": {
+      "label": "下载",
+      "name": "下载",
+      "icon": "download",
+      "intent": "ui.download",
+      "scope": "export",
+      "guard": [
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "显式下载既有制品/导出；不生成新任务"
+    },
+    "ui.open": {
+      "label": "查看",
+      "name": "查看",
+      "icon": "eye",
+      "intent": "ui.open",
+      "scope": "read",
+      "guard": [],
+      "behavior": "打开已有对象或上下文，不修改业务状态"
+    },
+    "ui.loadMore": {
+      "label": "加载更多",
+      "name": "加载更多",
+      "icon": "chevron-down",
+      "intent": "ui.loadMore",
+      "scope": "read",
+      "guard": [],
+      "behavior": "沿原查询游标读取更多，保留页面 owner generation"
+    },
+    "ui.previous": {
+      "label": "上一页",
+      "name": "上一页",
+      "icon": "arrow-left",
+      "intent": "ui.previous",
+      "scope": "read",
+      "guard": [],
+      "behavior": "沿原分页合同读取上一页"
+    },
+    "ui.next": {
+      "label": "下一页",
+      "name": "下一页",
+      "icon": "arrow-right",
+      "intent": "ui.next",
+      "scope": "read",
+      "guard": [],
+      "behavior": "沿原分页合同读取下一页"
+    },
+    "ui.keyboard": {
+      "label": "键盘操作",
+      "name": "键盘操作",
+      "icon": "keyboard",
+      "intent": "ui.keyboard",
+      "scope": "local",
+      "guard": [],
+      "behavior": "显示真实可用快捷键，不替代按钮的可访问名称"
+    },
+    "ui.focus": {
+      "label": "定位当前对象",
+      "name": "定位当前对象",
+      "icon": "focus",
+      "intent": "ui.focus",
+      "scope": "local",
+      "guard": [],
+      "behavior": "只改变焦点/展示视口，不保存布局或执行命令"
+    },
+    "receipt.readOriginal": {
+      "label": "核对原操作结果",
+      "name": "核对原操作结果",
+      "icon": "refresh-cw",
+      "intent": "receipt.readOriginal",
+      "scope": "read",
+      "guard": [
+        "SAME_IDENTITY"
+      ],
+      "behavior": "仅使用该接口真实支持的 GET/by-request/状态读恢复；无该能力时禁用"
+    },
+    "receipt.retryOriginal": {
+      "label": "重试原操作",
+      "name": "重试原操作",
+      "icon": "rotate-ccw",
+      "intent": "receipt.retryOriginal",
+      "scope": "server",
+      "guard": [
+        "SAME_IDENTITY",
+        "RETRY_UNKNOWN_ONLY",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅在尚未确认接受且完整原身份可用时复用原 key/body/version/File；已接受后仅读；只使用原接口实际字段，不虚构 CAS 或查询端点"
+    },
+    "project.select": {
+      "label": "选择项目",
+      "name": "选择项目",
+      "icon": "folder-kanban",
+      "intent": "project.select",
+      "scope": "local",
+      "guard": [],
+      "behavior": "切换明确项目上下文；已有冻结会话不变更所属项目"
+    },
+    "project.register": {
+      "label": "登记项目",
+      "name": "登记项目",
+      "icon": "plus",
+      "intent": "project.register",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "验证并登记原路径；不删除或创建项目文件"
+    },
+    "project.chooseDirectory": {
+      "label": "选择文件夹",
+      "name": "选择文件夹",
+      "icon": "folder-open",
+      "intent": "project.chooseDirectory",
+      "scope": "local",
+      "guard": [],
+      "behavior": "调用既有原生目录选择；取消保留手填值"
+    },
+    "project.unmanage": {
+      "label": "取消项目管理",
+      "name": "取消项目管理",
+      "icon": "archive",
+      "intent": "project.unmanage",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY",
+        "CONFIRM_DESTRUCTIVE"
+      ],
+      "behavior": "只取消管理关系，保留项目文件和历史"
+    },
+    "project.editDocumentPath": {
+      "label": "设置文档路径",
+      "name": "设置文档路径",
+      "icon": "file-text",
+      "intent": "project.editDocumentPath",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "明确保存项目文档路径"
+    },
+    "project.readConvention": {
+      "label": "查看项目公约",
+      "name": "查看项目公约",
+      "icon": "file-text",
+      "intent": "project.readConvention",
+      "scope": "read",
+      "guard": [],
+      "behavior": "读取 AGENTS.md 与现有规范活动"
+    },
+    "project.generateConvention": {
+      "label": "重新设计项目公约",
+      "name": "重新设计项目公约",
+      "icon": "messages-square",
+      "intent": "project.generateConvention",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "显式申请已有 AI 规范生成动作，不在展开时运行"
+    },
+    "project.stopConvention": {
+      "label": "停止生成",
+      "name": "停止生成",
+      "icon": "circle-stop",
+      "intent": "project.stopConvention",
+      "scope": "server",
+      "guard": [
+        "SAME_IDENTITY",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "调用既有规范停止协议；关闭面板不能代替停止"
+    },
+    "project.applyConvention": {
+      "label": "确认写入项目公约",
+      "name": "确认写入项目公约",
+      "icon": "check",
+      "intent": "project.applyConvention",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY",
+        "CONFIRM_DESTRUCTIVE"
+      ],
+      "behavior": "确认当前候选后才写 AGENTS.md"
+    },
+    "task.open": {
+      "label": "打开任务",
+      "name": "打开任务",
+      "icon": "eye",
+      "intent": "task.open",
+      "scope": "navigation",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "CONFIRM_DIRTY"
+      ],
+      "behavior": "打开精确 Task，当前页面离开需守卫"
+    },
+    "task.create": {
+      "label": "新增需求",
+      "name": "新增需求",
+      "icon": "plus",
+      "intent": "task.create",
+      "scope": "navigation",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "CONFIRM_DIRTY"
+      ],
+      "behavior": "进入现有新需求入口，不隐式 Start"
+    },
+    "task.start": {
+      "label": "开始执行",
+      "name": "开始执行",
+      "icon": "play",
+      "intent": "task.start",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅服务端允许且 PENDING_START 可执行；确认设计不是开始"
+    },
+    "task.pause": {
+      "label": "暂停",
+      "name": "暂停",
+      "icon": "pause",
+      "intent": "task.pause",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "执行既有暂停协议，不伪造停止终态"
+    },
+    "task.resume": {
+      "label": "继续",
+      "name": "继续",
+      "icon": "play",
+      "intent": "task.resume",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "沿服务端允许的当前生命周期继续"
+    },
+    "task.cancel": {
+      "label": "取消任务",
+      "name": "取消任务",
+      "icon": "circle-stop",
+      "intent": "task.cancel",
+      "scope": "server",
+      "guard": [
+        "SERVER_AUTHORITY",
+        "CONFIRM_DESTRUCTIVE",
+        "STOP_PROOF"
+      ],
+      "behavior": "调用既有 STOPPING 到 CANCELLED 协议；未知停止保留阻断"
+    },
+    "task.retryStop": {
+      "label": "重试停止",
+      "name": "重试停止",
+      "icon": "circle-stop",
+      "intent": "task.retryStop",
+      "scope": "server",
+      "guard": [
+        "SAME_IDENTITY",
+        "SERVER_AUTHORITY",
+        "STOP_PROOF"
+      ],
+      "behavior": "仅按原目标核对或重试未证明停止"
+    },
+    "task.retryLoop": {
+      "label": "继续一轮",
+      "name": "继续一轮",
+      "icon": "rotate-ccw",
+      "intent": "task.retryLoop",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "只有 loopRetryAvailable 和 waitingReasonCode 允许时显示"
+    },
+    "task.retryJudges": {
+      "label": "重试双评审",
+      "name": "重试双评审",
+      "icon": "shield-check",
+      "intent": "task.retryJudges",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "沿原同批双 Judge 合同重试，不修改原 verdict"
+    },
+    "task.relaunch": {
+      "label": "重新发起",
+      "name": "重新发起",
+      "icon": "rotate-ccw",
+      "intent": "task.relaunch",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "按现有重新发起协议，不替换未知操作"
+    },
+    "task.redo": {
+      "label": "新分支重做",
+      "name": "新分支重做",
+      "icon": "git-branch",
+      "intent": "task.redo",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY",
+        "CONFIRM_DESTRUCTIVE"
+      ],
+      "behavior": "创建既有派生任务，冻结原合同；创建不等于 Start"
+    },
+    "task.openRecovery": {
+      "label": "打开任务恢复",
+      "name": "打开任务恢复",
+      "icon": "rotate-ccw",
+      "intent": "task.openRecovery",
+      "scope": "navigation",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "CONFIRM_DIRTY"
+      ],
+      "behavior": "进入原恢复工作台，模式仍为原三种"
+    },
+    "task.createRecovery": {
+      "label": "创建恢复草稿",
+      "name": "创建恢复草稿",
+      "icon": "plus",
+      "intent": "task.createRecovery",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "按 FAILED/CANCELLED 和原三种模式创建派生恢复"
+    },
+    "task.openDesign": {
+      "label": "设计历史",
+      "name": "设计历史",
+      "icon": "history",
+      "intent": "task.openDesign",
+      "scope": "navigation",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "CONFIRM_DIRTY"
+      ],
+      "behavior": "读取 Task 绑定的冻结设计，不继续最新 Designer 会话"
+    },
+    "task.archive": {
+      "label": "归档任务",
+      "name": "归档任务",
+      "icon": "archive",
+      "intent": "task.archive",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "按当前版本归档，不永久删除历史"
+    },
+    "task.restoreArchive": {
+      "label": "恢复归档任务",
+      "name": "恢复归档任务",
+      "icon": "archive-restore",
+      "intent": "task.restoreArchive",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "取消归档，不等于恢复执行"
+    },
+    "task.delete": {
+      "label": "永久删除任务",
+      "name": "永久删除任务",
+      "icon": "trash-2",
+      "intent": "task.delete",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY",
+        "CONFIRM_DESTRUCTIVE"
+      ],
+      "behavior": "只对原合同允许对象显式永久删除"
+    },
+    "task.answer": {
+      "label": "回答问题",
+      "name": "回答问题",
+      "icon": "send",
+      "intent": "task.answer",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "提交当前真实 question/permission scope 的回答，不回答旧问题"
+    },
+    "task.allowScope": {
+      "label": "确认执行范围",
+      "name": "确认执行范围",
+      "icon": "shield-check",
+      "intent": "task.allowScope",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY",
+        "CONFIRM_DESTRUCTIVE"
+      ],
+      "behavior": "显式确认当前 scope，不扩大冻结权限"
+    },
+    "task.acceptEvidence": {
+      "label": "独立人工认定",
+      "name": "独立人工认定",
+      "icon": "shield-check",
+      "intent": "task.acceptEvidence",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY",
+        "CONFIRM_DESTRUCTIVE"
+      ],
+      "behavior": "保留独立人工认定，不能覆盖 AI verdict 或绕过确定性验收"
+    },
+    "task.publish": {
+      "label": "处置发布结果",
+      "name": "处置发布结果",
+      "icon": "git-pull-request",
+      "intent": "task.publish",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY",
+        "CONFIRM_DESTRUCTIVE"
+      ],
+      "behavior": "保留发布、冲突、提交/推送各原入口和许可；不是等待回答时授权发布"
+    },
+    "inbox.open": {
+      "label": "打开待处理事项",
+      "name": "打开待处理事项",
+      "icon": "inbox",
+      "intent": "inbox.open",
+      "scope": "navigation",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "CONFIRM_DIRTY"
+      ],
+      "behavior": "进入精确当前问题/权限/任务事项"
+    },
+    "inbox.reject": {
+      "label": "拒绝",
+      "name": "拒绝",
+      "icon": "shield-alert",
+      "intent": "inbox.reject",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "拒绝当前权限请求，不伪造任务取消"
+    },
+    "inbox.allowOnce": {
+      "label": "仅本次允许",
+      "name": "仅本次允许",
+      "icon": "check",
+      "intent": "inbox.allowOnce",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "只授权当前一次请求"
+    },
+    "inbox.allowSession": {
+      "label": "本会话允许",
+      "name": "本会话允许",
+      "icon": "shield-check",
+      "intent": "inbox.allowSession",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅当前服务端会话 scope"
+    },
+    "knowledge.newConversation": {
+      "label": "新建对话",
+      "name": "新建对话",
+      "icon": "plus",
+      "intent": "knowledge.newConversation",
+      "scope": "navigation",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "CONFIRM_DIRTY"
+      ],
+      "behavior": "进入新对话，显式发送后才创建；不自动模型调用"
+    },
+    "knowledge.openHistory": {
+      "label": "历史对话",
+      "name": "历史对话",
+      "icon": "history",
+      "intent": "knowledge.openHistory",
+      "scope": "navigation",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "CONFIRM_DIRTY"
+      ],
+      "behavior": "进入 URL 过滤、游标和滚动恢复的历史列表"
+    },
+    "knowledge.send": {
+      "label": "发送",
+      "name": "发送",
+      "icon": "send",
+      "intent": "knowledge.send",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "固定项目/模型/资料和原文本 key，显式发送"
+    },
+    "knowledge.stop": {
+      "label": "停止生成",
+      "name": "停止生成",
+      "icon": "circle-stop",
+      "intent": "knowledge.stop",
+      "scope": "server",
+      "guard": [
+        "SAME_IDENTITY",
+        "SERVER_AUTHORITY",
+        "STOP_PROOF"
+      ],
+      "behavior": "停止当前知识对话生成，不等于删除回答或关闭引用"
+    },
+    "knowledge.openSources": {
+      "label": "来源",
+      "name": "来源",
+      "icon": "panel-left",
+      "intent": "knowledge.openSources",
+      "scope": "read",
+      "guard": [],
+      "behavior": "打开默认关闭的资料上下文；展开仅读取，不发送问题"
+    },
+    "knowledge.openCitation": {
+      "label": "引用详情",
+      "name": "引用详情",
+      "icon": "file-search",
+      "intent": "knowledge.openCitation",
+      "scope": "read",
+      "guard": [],
+      "behavior": "按精确引用/行段读取证据，保持主内容与焦点合同"
+    },
+    "knowledge.selectModel": {
+      "label": "更换问答模型",
+      "name": "更换问答模型",
+      "icon": "messages-square",
+      "intent": "knowledge.selectModel",
+      "scope": "local",
+      "guard": [
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅新对话选择精确 provider/model，冻结会话不更换"
+    },
+    "knowledge.addSource": {
+      "label": "添加资料",
+      "name": "添加资料",
+      "icon": "upload",
+      "intent": "knowledge.addSource",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "登记原资料绑定，保持既有文件/API 权限"
+    },
+    "knowledge.removeSource": {
+      "label": "移除资料绑定",
+      "name": "移除资料绑定",
+      "icon": "unlink",
+      "intent": "knowledge.removeSource",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY",
+        "CONFIRM_DESTRUCTIVE"
+      ],
+      "behavior": "只移除绑定，原文件和历史引用保留"
+    },
+    "knowledge.archive": {
+      "label": "归档对话",
+      "name": "归档对话",
+      "icon": "archive",
+      "intent": "knowledge.archive",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "按会话 options.version 归档"
+    },
+    "knowledge.restoreArchive": {
+      "label": "恢复对话",
+      "name": "恢复对话",
+      "icon": "archive-restore",
+      "intent": "knowledge.restoreArchive",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "恢复归档可见性，不自动发送问题"
+    },
+    "knowledge.readingView": {
+      "label": "阅读视图",
+      "name": "阅读视图",
+      "icon": "book-open",
+      "intent": "knowledge.readingView",
+      "scope": "local",
+      "guard": [],
+      "behavior": "将已有文档文本切换到安全 Markdown 展示"
+    },
+    "knowledge.rawView": {
+      "label": "带行号原文",
+      "name": "带行号原文",
+      "icon": "file-code",
+      "intent": "knowledge.rawView",
+      "scope": "local",
+      "guard": [],
+      "behavior": "显示原文/范围高亮，不重新生成内容"
+    },
+    "knowledge.rawResult": {
+      "label": "原始结果",
+      "name": "原始结果",
+      "icon": "file-code",
+      "intent": "knowledge.rawResult",
+      "scope": "local",
+      "guard": [],
+      "behavior": "显式展开数据库/Git 原始只读结果"
+    },
+    "workflow.newRequirement": {
+      "label": "新建需求",
+      "name": "新建需求",
+      "icon": "plus",
+      "intent": "workflow.newRequirement",
+      "scope": "navigation",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "CONFIRM_DIRTY"
+      ],
+      "behavior": "进入真实需求创建页，不附加不存在的 File 上传"
+    },
+    "workflow.createRequirement": {
+      "label": "创建需求",
+      "name": "创建需求",
+      "icon": "check",
+      "intent": "workflow.createRequirement",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "固定 requestKey/project/templateRevision/title/goal，创建后不 Start"
+    },
+    "workflow.newDefinition": {
+      "label": "新建流程",
+      "name": "新建流程",
+      "icon": "plus",
+      "intent": "workflow.newDefinition",
+      "scope": "navigation",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "CONFIRM_DIRTY"
+      ],
+      "behavior": "进入独立流程定义编辑器"
+    },
+    "workflow.copyDefinition": {
+      "label": "复制流程",
+      "name": "复制流程",
+      "icon": "copy",
+      "intent": "workflow.copyDefinition",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "按原版本/key 创建流程副本；区别于 ui.copy 文本复制"
+    },
+    "workflow.deleteDefinition": {
+      "label": "删除流程",
+      "name": "删除流程",
+      "icon": "trash-2",
+      "intent": "workflow.deleteDefinition",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY",
+        "CONFIRM_DESTRUCTIVE"
+      ],
+      "behavior": "内置原定义不可改删；用户流程按原许可确认删除"
+    },
+    "workflow.save": {
+      "label": "保存流程",
+      "name": "保存流程",
+      "icon": "save",
+      "intent": "workflow.save",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "图和布局各有原版本/回执，不合并为一个写"
+    },
+    "workflow.undo": {
+      "label": "撤销修改",
+      "name": "撤销修改",
+      "icon": "undo-2",
+      "intent": "workflow.undo",
+      "scope": "local",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED"
+      ],
+      "behavior": "只撤销允许的本地图/布局修改"
+    },
+    "workflow.redo": {
+      "label": "重做修改",
+      "name": "重做修改",
+      "icon": "redo-2",
+      "intent": "workflow.redo",
+      "scope": "local",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED"
+      ],
+      "behavior": "只重做本地编辑，程序化 reveal 不写撤销"
+    },
+    "workflow.addNode": {
+      "label": "添加节点",
+      "name": "添加节点",
+      "icon": "plus",
+      "intent": "workflow.addNode",
+      "scope": "local",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "向可编辑定义加入真实节点，不虚构业务边"
+    },
+    "workflow.connect": {
+      "label": "连接节点",
+      "name": "连接节点",
+      "icon": "link",
+      "intent": "workflow.connect",
+      "scope": "local",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "保留端口方向、取消与一次保存合同"
+    },
+    "workflow.deleteSelection": {
+      "label": "删除所选内容",
+      "name": "删除所选内容",
+      "icon": "trash-2",
+      "intent": "workflow.deleteSelection",
+      "scope": "local",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅删当前可编辑节点/边，不影响只读流程"
+    },
+    "workflow.savePlanning": {
+      "label": "保存规划",
+      "name": "保存规划",
+      "icon": "save",
+      "intent": "workflow.savePlanning",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "保存当前需求规划草稿，不自动确认或执行"
+    },
+    "workflow.confirmPlan": {
+      "label": "确认计划",
+      "name": "确认计划",
+      "icon": "check",
+      "intent": "workflow.confirmPlan",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "确认有效 revision，与 Start 分离"
+    },
+    "workflow.start": {
+      "label": "开始执行",
+      "name": "开始执行",
+      "icon": "play",
+      "intent": "workflow.start",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "保留 SINGLE/UNTIL/整体执行模式和目标节点"
+    },
+    "workflow.pause": {
+      "label": "暂停执行",
+      "name": "暂停执行",
+      "icon": "pause",
+      "intent": "workflow.pause",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "调用原需求执行暂停入口"
+    },
+    "workflow.resume": {
+      "label": "恢复执行",
+      "name": "恢复执行",
+      "icon": "play",
+      "intent": "workflow.resume",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "调用原需求恢复入口"
+    },
+    "workflow.stop": {
+      "label": "停止执行",
+      "name": "停止执行",
+      "icon": "circle-stop",
+      "intent": "workflow.stop",
+      "scope": "server",
+      "guard": [
+        "SERVER_AUTHORITY",
+        "CONFIRM_DESTRUCTIVE",
+        "STOP_PROOF"
+      ],
+      "behavior": "核对当前停止协议，不能仅清本地 spinner"
+    },
+    "workflow.reviewCandidate": {
+      "label": "审核候选",
+      "name": "审核候选",
+      "icon": "shield-check",
+      "intent": "workflow.reviewCandidate",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "候选只读预览后明确审核，不把候选等同成功"
+    },
+    "workflow.applyCandidate": {
+      "label": "应用候选",
+      "name": "应用候选",
+      "icon": "check",
+      "intent": "workflow.applyCandidate",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY",
+        "CONFIRM_DESTRUCTIVE"
+      ],
+      "behavior": "仅当前 revision/candidate/许可允许时应用"
+    },
+    "workflow.upload": {
+      "label": "上传输入",
+      "name": "上传输入",
+      "icon": "upload",
+      "intent": "workflow.upload",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SAME_IDENTITY",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "File/bytes/order/hash/原请求身份必须保持"
+    },
+    "workflow.saveTemplate": {
+      "label": "另存流程模板",
+      "name": "另存流程模板",
+      "icon": "save",
+      "intent": "workflow.saveTemplate",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "保留先预览、再确认和原步骤冻结合同"
+    },
+    "workflow.writeback": {
+      "label": "写回结果",
+      "name": "写回结果",
+      "icon": "git-branch",
+      "intent": "workflow.writeback",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY",
+        "CONFIRM_DESTRUCTIVE"
+      ],
+      "behavior": "按真实许可写回，不自动继续提交或推送"
+    },
+    "workflow.commit": {
+      "label": "提交修改",
+      "name": "提交修改",
+      "icon": "git-commit-horizontal",
+      "intent": "workflow.commit",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY",
+        "CONFIRM_DESTRUCTIVE"
+      ],
+      "behavior": "按原 publication commit 合同确认提交"
+    },
+    "workflow.push": {
+      "label": "推送修改",
+      "name": "推送修改",
+      "icon": "git-pull-request",
+      "intent": "workflow.push",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY",
+        "CONFIRM_DESTRUCTIVE"
+      ],
+      "behavior": "按原推送目标/许可/未知外部投递合同处理"
+    },
+    "workflow.finish": {
+      "label": "结束需求",
+      "name": "结束需求",
+      "icon": "check",
+      "intent": "workflow.finish",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY",
+        "CONFIRM_DESTRUCTIVE"
+      ],
+      "behavior": "按服务端结束条件处置，不从 report 完成推断接受"
+    },
+    "designer.openHistory": {
+      "label": "查看历史设计",
+      "name": "查看历史设计",
+      "icon": "history",
+      "intent": "designer.openHistory",
+      "scope": "navigation",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "CONFIRM_DIRTY"
+      ],
+      "behavior": "sessionId 精确恢复；无 ID 按 designerEntry 转需求入口"
+    },
+    "designer.editSettings": {
+      "label": "修改任务设置",
+      "name": "修改任务设置",
+      "icon": "settings-2",
+      "intent": "designer.editSettings",
+      "scope": "local",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED"
+      ],
+      "behavior": "显示原隐藏高级任务设置，中文投影保持"
+    },
+    "designer.save": {
+      "label": "保存设计",
+      "name": "保存设计",
+      "icon": "save",
+      "intent": "designer.save",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "无损保存原 LoopSpec/workPackageId，不等于确认"
+    },
+    "designer.confirm": {
+      "label": "确认设计",
+      "name": "确认设计",
+      "icon": "check",
+      "intent": "designer.confirm",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "确认冻结设计；创建为 PENDING_START，不隐式执行"
+    },
+    "designer.stop": {
+      "label": "停止设计",
+      "name": "停止设计",
+      "icon": "circle-stop",
+      "intent": "designer.stop",
+      "scope": "server",
+      "guard": [
+        "SERVER_AUTHORITY",
+        "CONFIRM_DESTRUCTIVE",
+        "STOP_PROOF"
+      ],
+      "behavior": "按当前历史会话停止协议处理"
+    },
+    "designer.archive": {
+      "label": "归档设计",
+      "name": "归档设计",
+      "icon": "archive",
+      "intent": "designer.archive",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "归档历史设计，不清冻结 Task 设计"
+    },
+    "designer.restoreArchive": {
+      "label": "恢复设计",
+      "name": "恢复设计",
+      "icon": "archive-restore",
+      "intent": "designer.restoreArchive",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "恢复历史可见性，不自动复活旧会话"
+    },
+    "template.select": {
+      "label": "选择模板",
+      "name": "选择模板",
+      "icon": "workflow",
+      "intent": "template.select",
+      "scope": "local",
+      "guard": [],
+      "behavior": "按真实 catalog/kind/caps 显示对应表单"
+    },
+    "template.previewScope": {
+      "label": "预览范围",
+      "name": "预览范围",
+      "icon": "scan",
+      "intent": "template.previewScope",
+      "scope": "read",
+      "guard": [],
+      "behavior": "Source scope preview 仅读，不等于启动或确认执行"
+    },
+    "template.create": {
+      "label": "创建模板任务",
+      "name": "创建模板任务",
+      "icon": "plus",
+      "intent": "template.create",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SAME_IDENTITY",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "不同通用/Source/Document 创建协议和 owner 不混同"
+    },
+    "template.start": {
+      "label": "开始执行",
+      "name": "开始执行",
+      "icon": "play",
+      "intent": "template.start",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "Source 明确 Start；通用 create 得 Task ID 后不重复 create"
+    },
+    "template.resume": {
+      "label": "从冻结输入恢复",
+      "name": "从冻结输入恢复",
+      "icon": "rotate-ccw",
+      "intent": "template.resume",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SAME_IDENTITY",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "沿原 run 冻结输入/model/version 恢复"
+    },
+    "template.cancel": {
+      "label": "取消任务",
+      "name": "取消任务",
+      "icon": "circle-stop",
+      "intent": "template.cancel",
+      "scope": "server",
+      "guard": [
+        "SERVER_AUTHORITY",
+        "CONFIRM_DESTRUCTIVE",
+        "STOP_PROOF"
+      ],
+      "behavior": "按原 run 停止证明与 linked execution disposition 处置"
+    },
+    "template.supplement": {
+      "label": "补充文档",
+      "name": "补充文档",
+      "icon": "upload",
+      "intent": "template.supplement",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SAME_IDENTITY",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "保持原 File、bytes/hash/order 以及上传 key"
+    },
+    "template.clarify": {
+      "label": "回答澄清",
+      "name": "回答澄清",
+      "icon": "send",
+      "intent": "template.clarify",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SAME_IDENTITY",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "回答精确 run/版本澄清，迟到回执不得覆盖新 run"
+    },
+    "template.retryBatches": {
+      "label": "重试所选失败批次",
+      "name": "重试所选失败批次",
+      "icon": "rotate-ccw",
+      "intent": "template.retryBatches",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SAME_IDENTITY",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "按精确 batch 集合/CAS，先读状态安全恢复"
+    },
+    "template.openReport": {
+      "label": "查看报告",
+      "name": "查看报告",
+      "icon": "file-text",
+      "intent": "template.openReport",
+      "scope": "read",
+      "guard": [],
+      "behavior": "按需读取报告，不能把报告完成当开发已验收"
+    },
+    "template.openDiagnostics": {
+      "label": "会话诊断",
+      "name": "会话诊断",
+      "icon": "messages-square",
+      "intent": "template.openDiagnostics",
+      "scope": "read",
+      "guard": [],
+      "behavior": "只读精确 run/session 诊断"
+    },
+    "automation.readArchive": {
+      "label": "历史模板与自动化记录",
+      "name": "历史模板与自动化记录",
+      "icon": "archive",
+      "intent": "automation.readArchive",
+      "scope": "read",
+      "guard": [],
+      "behavior": "已结清的 TemplateTasks 只读归档目标，当前尚无消费者；不得冒称已实现",
+      "availability": "DESIGN_TARGET_NOT_IMPLEMENTED"
+    },
+    "automation.exportArchive": {
+      "label": "导出历史记录",
+      "name": "导出历史记录",
+      "icon": "download",
+      "intent": "automation.exportArchive",
+      "scope": "export",
+      "guard": [
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅复用仍公开的历史 GET/导出，不恢复十个已退役写入口",
+      "availability": "DESIGN_TARGET_NOT_IMPLEMENTED"
+    },
+    "ppt.create": {
+      "label": "新建作品",
+      "name": "新建作品",
+      "icon": "plus",
+      "intent": "ppt.create",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "创建作品并进入讨论，不授权生成"
+    },
+    "ppt.confirm": {
+      "label": "确认需求",
+      "name": "确认需求",
+      "icon": "check",
+      "intent": "ppt.confirm",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "确认当前需求，与生成分离"
+    },
+    "ppt.generate": {
+      "label": "开始生成",
+      "name": "开始生成",
+      "icon": "play",
+      "intent": "ppt.generate",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "明确生成当前版本作品"
+    },
+    "ppt.stop": {
+      "label": "停止生成",
+      "name": "停止生成",
+      "icon": "circle-stop",
+      "intent": "ppt.stop",
+      "scope": "server",
+      "guard": [
+        "SAME_IDENTITY",
+        "SERVER_AUTHORITY",
+        "STOP_PROOF"
+      ],
+      "behavior": "停止当前生成，保留已接受/未知回执"
+    },
+    "ppt.resume": {
+      "label": "恢复制作",
+      "name": "恢复制作",
+      "icon": "rotate-ccw",
+      "intent": "ppt.resume",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SAME_IDENTITY",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "沿原 key/revision 恢复，不创建重复 writer"
+    },
+    "ppt.send": {
+      "label": "发送给助手",
+      "name": "发送给助手",
+      "icon": "send",
+      "intent": "ppt.send",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "助手与人工对象 dirty 编辑互斥"
+    },
+    "ppt.savePlan": {
+      "label": "保存方案",
+      "name": "保存方案",
+      "icon": "save",
+      "intent": "ppt.savePlan",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "保存计划，不自动生成"
+    },
+    "ppt.editObject": {
+      "label": "编辑对象",
+      "name": "编辑对象",
+      "icon": "pencil",
+      "intent": "ppt.editObject",
+      "scope": "local",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "选中后展示人工对象属性，保留 revision"
+    },
+    "ppt.removeObject": {
+      "label": "删除对象",
+      "name": "删除对象",
+      "icon": "trash-2",
+      "intent": "ppt.removeObject",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅人工编辑许可允许对象，原业务回执不改"
+    },
+    "ppt.restoreRevision": {
+      "label": "恢复此版本",
+      "name": "恢复此版本",
+      "icon": "history",
+      "intent": "ppt.restoreRevision",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY",
+        "CONFIRM_DESTRUCTIVE"
+      ],
+      "behavior": "明确恢复服务器已存在版本"
+    },
+    "ppt.check": {
+      "label": "检查作品",
+      "name": "检查作品",
+      "icon": "shield-check",
+      "intent": "ppt.check",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "真实检查结果由服务端提供"
+    },
+    "ppt.download": {
+      "label": "下载作品",
+      "name": "下载作品",
+      "icon": "download",
+      "intent": "ppt.download",
+      "scope": "export",
+      "guard": [
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "下载真实现有输出"
+    },
+    "ppt.archive": {
+      "label": "归档作品",
+      "name": "归档作品",
+      "icon": "archive",
+      "intent": "ppt.archive",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "按作品版本归档"
+    },
+    "ppt.restoreArchive": {
+      "label": "恢复作品",
+      "name": "恢复作品",
+      "icon": "archive-restore",
+      "intent": "ppt.restoreArchive",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "恢复归档可见性，不启动生成"
+    },
+    "runtime.start": {
+      "label": "启动并检查连接",
+      "name": "启动并检查连接",
+      "icon": "play",
+      "intent": "runtime.start",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅 unmanaged+startupFailure 原条件；Local UI 身份，刷新 ONLINE 后才报成功"
+    },
+    "runtime.restart": {
+      "label": "重启 OpenCode",
+      "name": "重启 OpenCode",
+      "icon": "rotate-ccw",
+      "intent": "runtime.restart",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅 managed 原条件；保留进程所有权与 Local UI 标识"
+    },
+    "runtime.detect": {
+      "label": "重新检测",
+      "name": "重新检测",
+      "icon": "refresh-cw",
+      "intent": "runtime.detect",
+      "scope": "read",
+      "guard": [],
+      "behavior": "原第三动作，仅读权威 runtime 状态"
+    },
+    "tools.refresh": {
+      "label": "刷新工具",
+      "name": "刷新工具",
+      "icon": "refresh-cw",
+      "intent": "tools.refresh",
+      "scope": "read",
+      "guard": [],
+      "behavior": "读取当前 global/project 原工具目录"
+    },
+    "tools.openPolicy": {
+      "label": "工具策略",
+      "name": "工具策略",
+      "icon": "shield-check",
+      "intent": "tools.openPolicy",
+      "scope": "read",
+      "guard": [],
+      "behavior": "展开才读取原 scope/version 策略"
+    },
+    "tools.changePolicy": {
+      "label": "修改工具策略",
+      "name": "修改工具策略",
+      "icon": "shield-check",
+      "intent": "tools.changePolicy",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "原 global/project/inherit 与必需工具边界不变，409 保留原值"
+    },
+    "tools.readSkill": {
+      "label": "查看 Skill",
+      "name": "查看 Skill",
+      "icon": "book-open",
+      "intent": "tools.readSkill",
+      "scope": "read",
+      "guard": [],
+      "behavior": "按需读取目录与 Markdown，不自动执行工具"
+    },
+    "database.create": {
+      "label": "新增连接",
+      "name": "新增连接",
+      "icon": "plus",
+      "intent": "database.create",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "显式创建真实连接，秘密不进入 URL/storage"
+    },
+    "database.edit": {
+      "label": "编辑连接",
+      "name": "编辑连接",
+      "icon": "pencil",
+      "intent": "database.edit",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "按原 connection.version 保存；password=null 保留旧秘密"
+    },
+    "database.test": {
+      "label": "测试连接",
+      "name": "测试连接",
+      "icon": "plug",
+      "intent": "database.test",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "只匹配原表单快照的测试结果，不等于厂商验收"
+    },
+    "database.upgradeDriver": {
+      "label": "升级驱动",
+      "name": "升级驱动",
+      "icon": "download",
+      "intent": "database.upgradeDriver",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY",
+        "CONFIRM_DESTRUCTIVE"
+      ],
+      "behavior": "安装/升级 driver 与连接测试不同状态域"
+    },
+    "database.archive": {
+      "label": "归档连接",
+      "name": "归档连接",
+      "icon": "archive",
+      "intent": "database.archive",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "归档不修改旧 Task 冻结权限"
+    },
+    "settings.save": {
+      "label": "保存设置",
+      "name": "保存设置",
+      "icon": "save",
+      "intent": "settings.save",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "原 PUT，无新增 CAS 或自动保存；跨 section 保留 edits"
+    },
+    "settings.refreshModels": {
+      "label": "刷新模型",
+      "name": "刷新模型",
+      "icon": "refresh-cw",
+      "intent": "settings.refreshModels",
+      "scope": "read",
+      "guard": [],
+      "behavior": "读取精确 provider/model catalog"
+    },
+    "settings.saveCredentials": {
+      "label": "保存 Git 账号",
+      "name": "保存 Git 账号",
+      "icon": "save",
+      "intent": "settings.saveCredentials",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "独立原账号表单写，不混入 settings.save"
+    },
+    "settings.changeSkin": {
+      "label": "切换皮肤",
+      "name": "切换皮肤",
+      "icon": "settings-2",
+      "intent": "settings.changeSkin",
+      "scope": "local",
+      "guard": [],
+      "behavior": "只改视觉 tokens，不改变 labels、icons、guards、File/receipt 和当前 runtime 实例"
+    },
+    "settings.changeCanvasPreference": {
+      "label": "画布偏好",
+      "name": "画布偏好",
+      "icon": "workflow",
+      "intent": "settings.changeCanvasPreference",
+      "scope": "local",
+      "guard": [],
+      "behavior": "只影响下次进入实例，不热切换、不自动导航/刷新"
+    },
+    "settings.toggleDemo": {
+      "label": "演示数据",
+      "name": "演示数据",
+      "icon": "eye",
+      "intent": "settings.toggleDemo",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "显式调用原 demo 开关与刷新，不能与独立模拟原型混同"
+    },
+    "roles.import": {
+      "label": "选择角色配置 ZIP",
+      "name": "选择角色配置 ZIP",
+      "icon": "upload",
+      "intent": "roles.import",
+      "scope": "local",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED"
+      ],
+      "behavior": "保留真实 File，选择不等于校验或发布"
+    },
+    "roles.validate": {
+      "label": "重新校验",
+      "name": "重新校验",
+      "icon": "shield-check",
+      "intent": "roles.validate",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SAME_IDENTITY",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "对精确 ZIP bytes/sourceSha256 校验"
+    },
+    "roles.publish": {
+      "label": "发布并激活",
+      "name": "发布并激活",
+      "icon": "check",
+      "intent": "roles.publish",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SAME_IDENTITY",
+        "SERVER_AUTHORITY",
+        "CONFIRM_DESTRUCTIVE"
+      ],
+      "behavior": "明确确认原 key/activation expectedVersion；未知不换 File/key，409 重新校验"
+    },
+    "roles.previewPermissions": {
+      "label": "刷新权限预览",
+      "name": "刷新权限预览",
+      "icon": "shield-check",
+      "intent": "roles.previewPermissions",
+      "scope": "read",
+      "guard": [],
+      "behavior": "读取项目/slot/绑定 revision，不授予权限"
+    },
+    "roles.openRevision": {
+      "label": "查看此版本",
+      "name": "查看此版本",
+      "icon": "history",
+      "intent": "roles.openRevision",
+      "scope": "read",
+      "guard": [],
+      "behavior": "保留 latest published 与 actual bound revision 区别"
+    },
+    "roles.compareRevision": {
+      "label": "比较配置版本",
+      "name": "比较配置版本",
+      "icon": "git-branch",
+      "intent": "roles.compareRevision",
+      "scope": "read",
+      "guard": [],
+      "behavior": "读取当前版本差异，不发布或激活"
+    },
+    "roles.export": {
+      "label": "下载配置包",
+      "name": "下载配置包",
+      "icon": "download",
+      "intent": "roles.export",
+      "scope": "export",
+      "guard": [
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "导出精确已发布版本；Blob URL 生命周期按原合同清理"
+    },
+    "canvas.zoomIn": {
+      "label": "放大画布",
+      "name": "放大画布",
+      "icon": "plus",
+      "intent": "canvas.zoomIn",
+      "scope": "local",
+      "guard": [],
+      "behavior": "工作流原 1.2 缩放与 fit 保持；独立布局 owner 和撤销语义，不伪造节点写"
+    },
+    "canvas.zoomOut": {
+      "label": "缩小画布",
+      "name": "缩小画布",
+      "icon": "minus",
+      "intent": "canvas.zoomOut",
+      "scope": "local",
+      "guard": [],
+      "behavior": "工作流原 1.2 缩放与 fit 保持；独立布局 owner 和撤销语义，不伪造节点写"
+    },
+    "canvas.fit": {
+      "label": "适应画布",
+      "name": "适应画布",
+      "icon": "scan",
+      "intent": "canvas.fit",
+      "scope": "local",
+      "guard": [],
+      "behavior": "工作流原 1.2 缩放与 fit 保持；独立布局 owner 和撤销语义，不伪造节点写"
+    },
+    "diagram.zoomIn": {
+      "label": "放大流程图",
+      "name": "放大流程图",
+      "icon": "plus",
+      "intent": "diagram.zoomIn",
+      "scope": "local",
+      "guard": [],
+      "behavior": "流程公开 zoom/fit 合同保持；只读 0.2..2、fit padding .1；程序化定位不保存业务布局"
+    },
+    "diagram.zoomOut": {
+      "label": "缩小流程图",
+      "name": "缩小流程图",
+      "icon": "minus",
+      "intent": "diagram.zoomOut",
+      "scope": "local",
+      "guard": [],
+      "behavior": "流程公开 zoom/fit 合同保持；只读 0.2..2、fit padding .1；程序化定位不保存业务布局"
+    },
+    "diagram.fit": {
+      "label": "适应流程图",
+      "name": "适应流程图",
+      "icon": "scan",
+      "intent": "diagram.fit",
+      "scope": "local",
+      "guard": [],
+      "behavior": "流程公开 zoom/fit 合同保持；只读 0.2..2、fit padding .1；程序化定位不保存业务布局"
+    },
+    "pptCanvas.zoomIn": {
+      "label": "放大画布",
+      "name": "放大画布",
+      "icon": "plus",
+      "intent": "pptCanvas.zoomIn",
+      "scope": "local",
+      "guard": [],
+      "behavior": "PPT 原 0 快捷键恢复 zoom=1，范围 0.5..2；不改对象，不保存"
+    },
+    "pptCanvas.zoomOut": {
+      "label": "缩小画布",
+      "name": "缩小画布",
+      "icon": "minus",
+      "intent": "pptCanvas.zoomOut",
+      "scope": "local",
+      "guard": [],
+      "behavior": "PPT 原 0 快捷键恢复 zoom=1，范围 0.5..2；不改对象，不保存"
+    },
+    "pptCanvas.fit": {
+      "label": "适应画布",
+      "name": "适应画布",
+      "icon": "scan",
+      "intent": "pptCanvas.fit",
+      "scope": "local",
+      "guard": [],
+      "behavior": "PPT 原 0 快捷键恢复 zoom=1，范围 0.5..2；不改对象，不保存"
+    },
+    "canvas.toggleMinimap": {
+      "label": "流程缩略图",
+      "name": "流程缩略图",
+      "icon": "map",
+      "intent": "canvas.toggleMinimap",
+      "scope": "local",
+      "guard": [],
+      "behavior": "受控 aria-pressed，显示/隐藏缩略图，不改变图"
+    },
+    "canvas.cancelGesture": {
+      "label": "取消当前手势",
+      "name": "取消当前手势",
+      "icon": "x",
+      "intent": "canvas.cancelGesture",
+      "scope": "local",
+      "guard": [],
+      "behavior": "Escape/pointercancel/blur/lost capture 仅取消本岛手势与预览，不取消服务端任务"
+    },
+    "designer.retryStop": {
+      "label": "重试停止",
+      "name": "重试停止历史设计",
+      "icon": "circle-stop",
+      "intent": "designer.retryStop",
+      "scope": "server",
+      "guard": [
+        "SAME_IDENTITY",
+        "SERVER_AUTHORITY",
+        "STOP_PROOF"
+      ],
+      "behavior": "仅按原 Designer session 身份核对或重试停止，不能使用 Task 停止接口"
+    },
+    "designer.upload": {
+      "label": "上传附件",
+      "name": "上传设计附件",
+      "icon": "upload",
+      "intent": "designer.upload",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SAME_IDENTITY",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "Designer 精确 session/讨论修订的附件 File/bytes/hash/key 保持；不使用 Requirement 上传接口"
+    }
+  },
+  "icons": {
+    "archive": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><rect width=\"20\" height=\"5\" x=\"2\" y=\"3\" rx=\"1\"/><path d=\"M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8m-10 4h4\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "archive"
+    },
+    "archive-restore": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><rect width=\"20\" height=\"5\" x=\"2\" y=\"3\" rx=\"1\"/><path d=\"M4 8v11a2 2 0 0 0 2 2h2M20 8v11a2 2 0 0 1-2 2h-2m-7-6l3-3l3 3m-3-3v9\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "archive-restore"
+    },
+    "arrow-left": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"m12 19l-7-7l7-7m7 7H5\"/>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "arrow-left"
+    },
+    "arrow-right": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M5 12h14m-7-7l7 7l-7 7\"/>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "arrow-right"
+    },
+    "book-open": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 5v16m8.001-2A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2a5 5 0 0 1 4-2z\"/>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "book-open"
+    },
+    "chart-no-axes-combined": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 16v5m4-6.361V21m4-10.344V21m2-18l-8.646 8.646a.5.5 0 0 1-.708 0L9.354 8.354a.5.5 0 0 0-.707 0L2 15m2 3.463V21m4-6.344V21\"/>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "chart-no-axes-combined"
+    },
+    "check": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M20 6L9 17l-5-5\"/>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "check"
+    },
+    "chevron-down": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"m6 9l6 6l6-6\"/>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "chevron-down"
+    },
+    "chevron-up": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"m18 15l-6-6l-6 6\"/>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "chevron-up"
+    },
+    "chevrons-up-down": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"m7 15l5 5l5-5M7 9l5-5l5 5\"/>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "chevrons-up-down"
+    },
+    "circle": {
+      "body": "<circle cx=\"12\" cy=\"12\" r=\"10\" fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"/>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "circle"
+    },
+    "circle-alert": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 8v4m0 4h.01\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "circle-alert"
+    },
+    "circle-check": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"m9 12l2 2l4-4\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "circle-check"
+    },
+    "circle-question-mark": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3m.08 4h.01\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "circle-question-mark"
+    },
+    "circle-stop": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><rect width=\"6\" height=\"6\" x=\"9\" y=\"9\" rx=\"1\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "circle-stop"
+    },
+    "circle-x": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"m15 9l-6 6m0-6l6 6\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "circle-x"
+    },
+    "clock": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 6v6l4 2\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "clock"
+    },
+    "copy": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><rect width=\"14\" height=\"14\" x=\"8\" y=\"8\" rx=\"2\" ry=\"2\"/><path d=\"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "copy"
+    },
+    "cpu": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M12 20v2m0-20v2m5 16v2m0-20v2M2 12h2m-2 5h2M2 7h2m16 5h2m-2 5h2M20 7h2M7 20v2M7 2v2\"/><rect width=\"16\" height=\"16\" x=\"4\" y=\"4\" rx=\"2\"/><rect width=\"8\" height=\"8\" x=\"8\" y=\"8\" rx=\"1\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "cpu"
+    },
+    "database": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><ellipse cx=\"12\" cy=\"5\" rx=\"9\" ry=\"3\"/><path d=\"M3 5v14a9 3 0 0 0 18 0V5\"/><path d=\"M3 12a9 3 0 0 0 18 0\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "database"
+    },
+    "download": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M12 15V3m9 12v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\"/><path d=\"m7 10l5 5l5-5\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "download"
+    },
+    "eye": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M2.062 12.348a1 1 0 0 1 0-.696a10.75 10.75 0 0 1 19.876 0a1 1 0 0 1 0 .696a10.75 10.75 0 0 1-19.876 0\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "eye"
+    },
+    "file-clock": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M16 22h2a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v2.85\"/><path d=\"M14 2v5a1 1 0 0 0 1 1h5M8 14v2.2l1.6 1\"/><circle cx=\"8\" cy=\"16\" r=\"6\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "file-clock"
+    },
+    "file-code": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z\"/><path d=\"M14 2v5a1 1 0 0 0 1 1h5m-10 4.5L8 15l2 2.5m4-5l2 2.5l-2 2.5\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "file-code"
+    },
+    "file-search": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z\"/><path d=\"M14 2v5a1 1 0 0 0 1 1h5\"/><circle cx=\"11.5\" cy=\"14.5\" r=\"2.5\"/><path d=\"M13.3 16.3L15 18\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "file-search"
+    },
+    "file-text": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z\"/><path d=\"M14 2v5a1 1 0 0 0 1 1h5M10 9H8m8 4H8m8 4H8\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "file-text"
+    },
+    "filter-x": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M13.013 3H2l8 9.46V19l4 2v-8.54l.9-1.055M22 3l-5 5m0-5l5 5\"/>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "filter-x"
+    },
+    "focus": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M3 7V5a2 2 0 0 1 2-2h2m10 0h2a2 2 0 0 1 2 2v2m0 10v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "focus"
+    },
+    "folder-kanban": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2m4-10v4m4-4v2m4-2v6\"/>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "folder-kanban"
+    },
+    "folder-open": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"m6 14l1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2\"/>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "folder-open"
+    },
+    "git-branch": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M15 6a9 9 0 0 0-9 9V3\"/><circle cx=\"18\" cy=\"6\" r=\"3\"/><circle cx=\"6\" cy=\"18\" r=\"3\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "git-branch"
+    },
+    "git-commit-horizontal": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M3 12h6m6 0h6\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "git-commit-horizontal"
+    },
+    "git-pull-request": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><circle cx=\"18\" cy=\"18\" r=\"3\"/><circle cx=\"6\" cy=\"6\" r=\"3\"/><path d=\"M13 6h3a2 2 0 0 1 2 2v7M6 9v12\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "git-pull-request"
+    },
+    "history": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M3 12a9 9 0 1 0 9-9a9.75 9.75 0 0 0-6.74 2.74L3 8\"/><path d=\"M3 3v5h5m4-1v5l4 2\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "rotate-ccw-clock"
+    },
+    "house": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8\"/><path d=\"M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "house"
+    },
+    "inbox": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M22 12h-6l-2 3h-4l-2-3H2\"/><path d=\"M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "inbox"
+    },
+    "keyboard": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M10 8h.01M12 12h.01M14 8h.01M16 12h.01M18 8h.01M6 8h.01M7 16h10m-9-4h.01\"/><rect width=\"20\" height=\"16\" x=\"2\" y=\"4\" rx=\"2\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "keyboard"
+    },
+    "layers": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z\"/><path d=\"M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12\"/><path d=\"M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "layers"
+    },
+    "link": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71\"/><path d=\"M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "link"
+    },
+    "list-filter": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M2 5h20M6 12h12m-9 7h6\"/>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "list-filter"
+    },
+    "loader-circle": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M21 12a9 9 0 1 1-6.219-8.56\"/>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "loader-circle"
+    },
+    "lock-keyhole": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><circle cx=\"12\" cy=\"16\" r=\"1\"/><rect width=\"18\" height=\"12\" x=\"3\" y=\"10\" rx=\"2\"/><path d=\"M7 10V7a5 5 0 0 1 10 0v3\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "lock-keyhole"
+    },
+    "map": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0zm.894.211v15M9 3.236v15\"/>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "map"
+    },
+    "message-square-text": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2zM7 11h10M7 15h6M7 7h8\"/>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "message-square-text"
+    },
+    "messages-square": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M16 10a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 14.286V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2zm4-1a2 2 0 0 1 2 2v10.286a.71.71 0 0 1-1.212.502l-2.202-2.202A2 2 0 0 0 17.172 19H10a2 2 0 0 1-2-2v-1\"/>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "messages-square"
+    },
+    "minus": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M5 12h14\"/>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "minus"
+    },
+    "mouse-pointer-2": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z\"/>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "mouse-pointer-2"
+    },
+    "orbit": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M20.341 6.484A10 10 0 0 1 10.266 21.85m-6.607-4.334A10 10 0 0 1 13.74 2.152\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/><circle cx=\"19\" cy=\"5\" r=\"2\"/><circle cx=\"5\" cy=\"19\" r=\"2\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "orbit"
+    },
+    "panel-left": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><path d=\"M9 3v18\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "panel-left"
+    },
+    "panel-right": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><path d=\"M15 3v18\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "panel-right"
+    },
+    "pause": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><rect width=\"5\" height=\"18\" x=\"14\" y=\"3\" rx=\"1\"/><rect width=\"5\" height=\"18\" x=\"5\" y=\"3\" rx=\"1\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "pause"
+    },
+    "pencil": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497zM15 5l4 4\"/>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "pencil"
+    },
+    "play": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z\"/>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "play"
+    },
+    "plug": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 22v-5m3-9V2m2 6a1 1 0 0 1 1 1v4a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1zM9 8V2\"/>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "plug"
+    },
+    "plus": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M5 12h14m-7-7v14\"/>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "plus"
+    },
+    "presentation": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M2 3h20m-1 0v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3m4 18l5-5l5 5\"/>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "presentation"
+    },
+    "redo-2": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"m15 14l5-5l-5-5\"/><path d=\"M20 9H9.5A5.5 5.5 0 0 0 4 14.5A5.5 5.5 0 0 0 9.5 20H13\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "redo-2"
+    },
+    "refresh-cw": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M3 12a9 9 0 0 1 9-9a9.75 9.75 0 0 1 6.74 2.74L21 8\"/><path d=\"M21 3v5h-5m5 4a9 9 0 0 1-9 9a9.75 9.75 0 0 1-6.74-2.74L3 16\"/><path d=\"M8 16H3v5\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "refresh-cw"
+    },
+    "rotate-ccw": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M3 12a9 9 0 1 0 9-9a9.75 9.75 0 0 0-6.74 2.74L3 8\"/><path d=\"M3 3v5h5\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "rotate-ccw"
+    },
+    "save": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z\"/><path d=\"M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7M7 3v4a1 1 0 0 0 1 1h7\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "save"
+    },
+    "scan": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M3 7V5a2 2 0 0 1 2-2h2m10 0h2a2 2 0 0 1 2 2v2m0 10v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2\"/>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "scan"
+    },
+    "search": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"m21 21l-4.34-4.34\"/><circle cx=\"11\" cy=\"11\" r=\"8\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "search"
+    },
+    "send": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11zm7.318-19.539l-10.94 10.939\"/>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "send"
+    },
+    "settings-2": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M14 17H5M19 7h-9\"/><circle cx=\"17\" cy=\"17\" r=\"3\"/><circle cx=\"7\" cy=\"7\" r=\"3\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "settings-2"
+    },
+    "shield-alert": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1zm-8-5v4m0 4h.01\"/>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "shield-alert"
+    },
+    "shield-check": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z\"/><path d=\"m9 12l2 2l4-4\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "shield-check"
+    },
+    "square": {
+      "body": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" rx=\"2\"/>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "square"
+    },
+    "square-check": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><path d=\"m9 12l2 2l4-4\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "square-check"
+    },
+    "trash-2": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M10 11v6m4-6v6m5-11v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2\"/>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "trash-2"
+    },
+    "undo-2": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M9 14L4 9l5-5\"/><path d=\"M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "undo-2"
+    },
+    "unlink": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"m18.84 12.25l1.72-1.71h-.02a5.004 5.004 0 0 0-.12-7.07a5.006 5.006 0 0 0-6.95 0l-1.72 1.71m-6.58 6.57l-1.71 1.71a5.004 5.004 0 0 0 .12 7.07a5.006 5.006 0 0 0 6.95 0l1.71-1.71M8 2v3M2 8h3m11 11v3m3-6h3\"/>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "unlink"
+    },
+    "upload": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 3v12m5-7l-5-5l-5 5m14 7v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\"/>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "upload"
+    },
+    "users-round": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M18 21a8 8 0 0 0-16 0\"/><circle cx=\"10\" cy=\"8\" r=\"5\"/><path d=\"M22 20c0-3.37-2-6.5-4-8a5 5 0 0 0-.45-8.3\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "users-round"
+    },
+    "wifi-off": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M12 20h.01M8.5 16.429a5 5 0 0 1 7 0M5 12.859a10 10 0 0 1 5.17-2.69m8.83 2.69a10 10 0 0 0-2.007-1.523M2 8.82a15 15 0 0 1 4.177-2.643M22 8.82a15 15 0 0 0-11.288-3.764M2 2l20 20\"/>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "wifi-off"
+    },
+    "workflow": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><rect width=\"8\" height=\"8\" x=\"3\" y=\"3\" rx=\"2\"/><path d=\"M7 11v4a2 2 0 0 0 2 2h4\"/><rect width=\"8\" height=\"8\" x=\"13\" y=\"13\" rx=\"2\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "workflow"
+    },
+    "wrench": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z\"/>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "wrench"
+    },
+    "x": {
+      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M18 6L6 18M6 6l12 12\"/>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "x"
+    },
+    "palette": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M12 22a1 1 0 0 1 0-20a10 9 0 0 1 10 9a5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z\"/><circle cx=\"13.5\" cy=\"6.5\" r=\".5\" fill=\"currentColor\"/><circle cx=\"17.5\" cy=\"10.5\" r=\".5\" fill=\"currentColor\"/><circle cx=\"6.5\" cy=\"12.5\" r=\".5\" fill=\"currentColor\"/><circle cx=\"8.5\" cy=\"7.5\" r=\".5\" fill=\"currentColor\"/></g>",
+      "width": 24,
+      "height": 24,
+      "sourceName": "palette"
+    }
+  },
+  "guards": {
+    "BLOCK_PENDING": "SENDING/busy/UNKNOWN 顶层或子操作仍拥有 key/body/version/File 时，拒绝销毁 owner 或发不同新写；关闭保留 owner 的纯展示可以允许；原身份只读/受支持原操作恢复单列",
+    "CONFIRM_DIRTY": "普通未发送 dirty 草稿或 File 离开需显式确认；选择留在页面保持原输入，确认放弃才导航；不能覆盖 BLOCK_PENDING",
+    "OWNER_RETAINED": "只收起展示并保留操作 controller 及全部身份；若生命周期会销毁 owner，执行与路由离开相同的 BLOCK_PENDING/CONFIRM_DIRTY",
+    "SERVER_AUTHORITY": "生命周期/许可/能力/version/冻结范围由服务端持有；按钮可见不构成授权",
+    "CONFIRM_DESTRUCTIVE": "写出具体目标和不可逆/停止/覆盖影响后明确确认；确认本身不证明成功",
+    "SAME_IDENTITY": "固定原 route owner、key、endpoint、body、expectedVersion/model/revision、File 实例或已核实相同 bytes/hash/order；不以 metadata 代替 bytes",
+    "RETRY_UNKNOWN_ONLY": "仅未确认接受且原身份完整、原接口支持时重试原操作；已接受后读失败只读；无 key 不能补造 key 重发",
+    "STOP_PROOF": "abort true、精确不存在或独立终态才证明停止；未知保留阻断和租约，不能启动重叠 writer",
+    "EXPLICIT_DIRTY_DECISION": "由 dirty 确认明确选择放弃修改，仅丢弃本地未发送草稿",
+    "BLOCK_UNHANDED_ACCEPTED": "命令已接受但结果/导航目标尚未可靠交接给仍存活的 owner 时，先阻止销毁当前 owner；已接受后的读取失败仅重读，不重新 POST。只有真实支持的身份交接或安全读恢复可解除"
+  },
+  "components": {
+    "UiContextPanel": {
+      "purpose": "默认关闭的桌面选中上下文，主内容不被详情表单铺满",
+      "props": [
+        "id",
+        "titleKey",
+        "open",
+        "context.objectKey",
+        "context.entityName",
+        "mode:inspect|edit",
+        "dismissPolicy:retainOwner|confirmDirty|blockOperation",
+        "initialFocus",
+        "returnFocusRef"
+      ],
+      "events": [
+        "onOpenChange(next,reason)",
+        "onSelectContext"
+      ],
+      "variants": [
+        "inspect",
+        "edit"
+      ],
+      "ownership": "不创建命令 controller，不持有第二 writer；关闭只请求 owner 判断"
+    },
+    "ActionButton": {
+      "purpose": "所有对象/动作图标、中文文本、a11y名称统一",
+      "props": [
+        "actionKey",
+        "contextName?",
+        "appearance:primary|secondary|quiet|danger",
+        "iconOnly?",
+        "disabled?",
+        "busy?",
+        "reason?",
+        "availability"
+      ],
+      "events": [
+        "onAction(intent)"
+      ],
+      "variants": [
+        "close",
+        "back",
+        "save",
+        "delete",
+        "expand",
+        "collapse",
+        "select",
+        "deselect",
+        "cancelEditing"
+      ],
+      "ownership": "owner 提供权限/回执/草稿可用性；不接收 iconName/rawSvg 或自动执行 effect"
+    },
+    "ConfirmDialog": {
+      "purpose": "明确 dirty/destructive/permission/stop 决策",
+      "props": [
+        "open",
+        "kind:dirty|destructive|permission|stop",
+        "contextName",
+        "confirmActionKey",
+        "dismissActionKey",
+        "operationState",
+        "description"
+      ],
+      "events": [
+        "onConfirm",
+        "onDismiss"
+      ],
+      "variants": [
+        "dirtyLeave",
+        "deleteObject",
+        "permission",
+        "stopTask"
+      ],
+      "ownership": "UNKNOWN/SENDING 阻止 owner 销毁；无 key 不提供补造 key 或隐式重发按钮"
+    },
+    "UiDisclosure": {
+      "purpose": "高级操作和证据默认折叠，仍可发现",
+      "props": [
+        "id",
+        "titleKey",
+        "expanded"
+      ],
+      "events": [
+        "onExpandedChange"
+      ],
+      "variants": [
+        "advanced",
+        "evidence",
+        "history"
+      ],
+      "ownership": "aria-expanded/aria-controls；收起不丢输入、不执行写"
+    },
+    "UiSelectionContext": {
+      "purpose": "选中对象后出现相关属性和可用动作",
+      "props": [
+        "selection.kind",
+        "selection.entityName",
+        "selection.idInternal?",
+        "actions",
+        "readonly"
+      ],
+      "events": [
+        "onSelect",
+        "onDeselect"
+      ],
+      "variants": [
+        "task",
+        "workflowNode",
+        "workflowEdge",
+        "pptObject",
+        "role"
+      ],
+      "ownership": "内部ID不可当普通用户标题；deselect只清选中，不删除/取消"
+    },
+    "UiStatus": {
+      "purpose": "消费真实中文状态投影",
+      "props": [
+        "statusKey",
+        "description?",
+        "live:off|polite|assertive"
+      ],
+      "events": [],
+      "variants": [
+        "dirty",
+        "sending",
+        "unknown",
+        "waiting",
+        "error",
+        "recovery"
+      ],
+      "ownership": "status.dirty 不是 server status；图标/动画不伪造进度"
+    },
+    "UiKeyboardHint": {
+      "purpose": "仅显示当前真实可用键盘合同",
+      "props": [
+        "shortcut",
+        "actionKey",
+        "scope"
+      ],
+      "events": [],
+      "variants": [
+        "escape",
+        "enter",
+        "space",
+        "arrows",
+        "tab"
+      ],
+      "ownership": "不接管输入框/CodeMirror的文字编辑；每个焦点/事件只归当前实例"
+    }
+  },
+  "routes": [
+    {
+      "id": "home",
+      "path": "/",
+      "nav": "nav.home",
+      "view": "HomeView",
+      "routerLine": 8,
+      "actions": [
+        "project.select",
+        "workflow.newRequirement",
+        "task.open",
+        "knowledge.newConversation",
+        "inbox.open"
+      ],
+      "behavior": "主页入口不隐式发命令",
+      "evidence": [
+        "frontend/src/router/index.ts:8",
+        "frontend/src/views/HomeView.vue"
+      ]
+    },
+    {
+      "id": "projects",
+      "path": "/projects",
+      "nav": "nav.projects",
+      "view": "ProjectsView",
+      "routerLine": 9,
+      "actions": [
+        "project.register",
+        "project.chooseDirectory",
+        "project.unmanage",
+        "project.editDocumentPath",
+        "project.readConvention",
+        "project.generateConvention",
+        "project.stopConvention",
+        "project.applyConvention"
+      ],
+      "behavior": "?project 定位；原公约/文档/Git 隐藏入口保持",
+      "evidence": [
+        "frontend/src/router/index.ts:9",
+        "frontend/src/views/ProjectsView.vue"
+      ]
+    },
+    {
+      "id": "pptList",
+      "path": "/ppt",
+      "nav": "nav.ppt",
+      "view": "PptListView",
+      "routerLine": 10,
+      "actions": [
+        "ppt.create",
+        "ppt.archive",
+        "ppt.restoreArchive",
+        "ui.search",
+        "ui.loadMore"
+      ],
+      "behavior": "服务端查询/游标和归档范围",
+      "evidence": [
+        "frontend/src/router/index.ts:10",
+        "frontend/src/views/PptListView.vue"
+      ]
+    },
+    {
+      "id": "pptStudio",
+      "path": "/ppt/:id",
+      "nav": "nav.ppt",
+      "view": "PptStudioView",
+      "routerLine": 11,
+      "actions": [
+        "ppt.send",
+        "ppt.confirm",
+        "ppt.generate",
+        "ppt.stop",
+        "ppt.resume",
+        "ppt.savePlan",
+        "ppt.editObject",
+        "ppt.removeObject",
+        "ppt.restoreRevision",
+        "ppt.check",
+        "ppt.download",
+        "ppt.archive",
+        "ppt.restoreArchive",
+        "pptCanvas.zoomIn",
+        "pptCanvas.zoomOut",
+        "pptCanvas.fit"
+      ],
+      "behavior": "busy/pending/手动 dirty；助手与人工编辑互斥；原 SSE/4s 协调读",
+      "evidence": [
+        "frontend/src/router/index.ts:11",
+        "frontend/src/views/PptStudioView.vue"
+      ]
+    },
+    {
+      "id": "knowledgeHistory",
+      "path": "/knowledge/history",
+      "nav": "nav.knowledge",
+      "view": "KnowledgeHistoryView",
+      "routerLine": 12,
+      "actions": [
+        "knowledge.newConversation",
+        "knowledge.archive",
+        "knowledge.restoreArchive",
+        "ui.search",
+        "ui.filter",
+        "ui.loadMore"
+      ],
+      "behavior": "路由次序先于可选会话；过滤 URL/scroll/depth 恢复",
+      "evidence": [
+        "frontend/src/router/index.ts:12",
+        "frontend/src/views/KnowledgeHistoryView.vue"
+      ]
+    },
+    {
+      "id": "knowledge",
+      "path": "/knowledge/:conversationId?",
+      "nav": "nav.knowledge",
+      "view": "KnowledgeView",
+      "routerLine": 13,
+      "actions": [
+        "knowledge.newConversation",
+        "knowledge.openHistory",
+        "knowledge.send",
+        "knowledge.stop",
+        "knowledge.openSources",
+        "knowledge.openCitation",
+        "knowledge.selectModel",
+        "knowledge.addSource",
+        "knowledge.removeSource",
+        "knowledge.readingView",
+        "knowledge.rawView",
+        "knowledge.rawResult"
+      ],
+      "behavior": "模型/资料冻结；上下文默认隐藏；精确引用/文件预览；草稿与消息 owner 分开",
+      "evidence": [
+        "frontend/src/router/index.ts:13",
+        "frontend/src/views/KnowledgeView.vue"
+      ]
+    },
+    {
+      "id": "designer",
+      "path": "/designer",
+      "nav": "nav.designs",
+      "view": "DesignerView",
+      "routerLine": 14,
+      "actions": [
+        "designer.openHistory",
+        "designer.editSettings",
+        "designer.save",
+        "designer.confirm",
+        "designer.stop",
+        "workflow.newRequirement",
+        "designer.upload"
+      ],
+      "behavior": "sessionId 精确历史；无 ID 由 designerEntry 恢复或转 /requirements/new；不虚构独立画布",
+      "evidence": [
+        "frontend/src/router/index.ts:14",
+        "frontend/src/views/DesignerView.vue"
+      ]
+    },
+    {
+      "id": "requirements",
+      "path": "/requirements",
+      "nav": "nav.requirements",
+      "view": "WorkflowRequirementListView",
+      "routerLine": 15,
+      "actions": [
+        "workflow.newRequirement",
+        "ui.search",
+        "ui.loadMore"
+      ],
+      "behavior": "read generation/项目/query/cursor；打开精确需求",
+      "evidence": [
+        "frontend/src/router/index.ts:15",
+        "frontend/src/views/WorkflowRequirementListView.vue"
+      ]
+    },
+    {
+      "id": "requirementNew",
+      "path": "/requirements/new",
+      "nav": "nav.requirements",
+      "view": "WorkflowRequirementNewView",
+      "routerLine": 16,
+      "actions": [
+        "workflow.createRequirement",
+        "nav.back"
+      ],
+      "behavior": "project/templateRevision/title/goal；当前没有 File；新目标未知 BLOCK 是目标合同，W0 已复现基线差异",
+      "evidence": [
+        "frontend/src/router/index.ts:16",
+        "frontend/src/views/WorkflowRequirementNewView.vue"
+      ]
+    },
+    {
+      "id": "requirement",
+      "path": "/requirements/:id",
+      "nav": "nav.requirements",
+      "view": "WorkflowRequirementView",
+      "routerLine": 17,
+      "actions": [
+        "workflow.savePlanning",
+        "workflow.confirmPlan",
+        "workflow.start",
+        "workflow.pause",
+        "workflow.resume",
+        "workflow.stop",
+        "workflow.reviewCandidate",
+        "workflow.applyCandidate",
+        "workflow.upload",
+        "workflow.saveTemplate",
+        "workflow.writeback",
+        "workflow.commit",
+        "workflow.push",
+        "workflow.finish",
+        "receipt.retryOriginal",
+        "receipt.readOriginal",
+        "canvas.zoomIn",
+        "canvas.zoomOut",
+        "canvas.fit"
+      ],
+      "behavior": "顶层/子 owner 及 run/node scopes；confirm/start 分离；2.5s 原协调读",
+      "evidence": [
+        "frontend/src/router/index.ts:17",
+        "frontend/src/views/WorkflowRequirementView.vue"
+      ]
+    },
+    {
+      "id": "workflows",
+      "path": "/workflows",
+      "nav": "nav.workflows",
+      "view": "WorkflowLibraryView",
+      "routerLine": 18,
+      "actions": [
+        "workflow.newDefinition",
+        "workflow.copyDefinition",
+        "workflow.deleteDefinition",
+        "ui.search",
+        "ui.filter",
+        "receipt.retryOriginal"
+      ],
+      "behavior": "内置原定义不可改删；复制按原 key，菜单焦点恢复",
+      "evidence": [
+        "frontend/src/router/index.ts:18",
+        "frontend/src/views/WorkflowLibraryView.vue"
+      ]
+    },
+    {
+      "id": "workflowNew",
+      "path": "/workflows/new",
+      "nav": "nav.workflows",
+      "view": "WorkflowEditorView",
+      "routerLine": 19,
+      "actions": [
+        "workflow.save",
+        "workflow.undo",
+        "workflow.redo",
+        "workflow.addNode",
+        "workflow.connect",
+        "workflow.deleteSelection",
+        "canvas.zoomIn",
+        "canvas.zoomOut",
+        "canvas.fit",
+        "canvas.toggleMinimap"
+      ],
+      "behavior": "新定义，图/布局回执独立；unknown/busy 硬阻离开",
+      "evidence": [
+        "frontend/src/router/index.ts:19",
+        "frontend/src/views/WorkflowEditorView.vue"
+      ]
+    },
+    {
+      "id": "workflowEdit",
+      "path": "/workflows/:id",
+      "nav": "nav.workflows",
+      "view": "WorkflowEditorView",
+      "routerLine": 20,
+      "actions": [
+        "workflow.save",
+        "workflow.undo",
+        "workflow.redo",
+        "workflow.addNode",
+        "workflow.connect",
+        "workflow.deleteSelection",
+        "canvas.zoomIn",
+        "canvas.zoomOut",
+        "canvas.fit",
+        "canvas.toggleMinimap"
+      ],
+      "behavior": "编辑精确定义；105px/20px 首帧合同及程序化视口不污染撤销",
+      "evidence": [
+        "frontend/src/router/index.ts:20",
+        "frontend/src/views/WorkflowEditorView.vue"
+      ]
+    },
+    {
+      "id": "designs",
+      "path": "/designs",
+      "nav": "nav.designs",
+      "view": "DesignerHistoryView",
+      "routerLine": 21,
+      "actions": [
+        "designer.openHistory",
+        "workflow.newRequirement",
+        "designer.archive",
+        "designer.restoreArchive",
+        "designer.stop",
+        "designer.retryStop",
+        "ui.search",
+        "ui.filter",
+        "ui.loadMore"
+      ],
+      "behavior": "查询 URL/历史会话归档/停止，未被 task 冻结历史取代",
+      "evidence": [
+        "frontend/src/router/index.ts:21",
+        "frontend/src/views/DesignerHistoryView.vue"
+      ]
+    },
+    {
+      "id": "tasks",
+      "path": "/tasks",
+      "nav": "nav.tasks",
+      "view": "TasksView",
+      "routerLine": 22,
+      "actions": [
+        "task.open",
+        "task.create",
+        "project.register",
+        "task.archive",
+        "task.restoreArchive",
+        "task.delete",
+        "ui.search",
+        "ui.filter",
+        "ui.resetFilters",
+        "ui.loadMore"
+      ],
+      "behavior": "状态/项目/类型/归档/排序/分组与列表恢复",
+      "evidence": [
+        "frontend/src/router/index.ts:22",
+        "frontend/src/views/TasksView.vue"
+      ]
+    },
+    {
+      "id": "inbox",
+      "path": "/inbox",
+      "nav": "nav.inbox",
+      "view": "InboxView",
+      "routerLine": 23,
+      "actions": [
+        "inbox.open",
+        "inbox.reject",
+        "inbox.allowOnce",
+        "inbox.allowSession",
+        "task.answer"
+      ],
+      "behavior": "当前真实等待事项和权限 scope",
+      "evidence": [
+        "frontend/src/router/index.ts:23",
+        "frontend/src/views/InboxView.vue"
+      ]
+    },
+    {
+      "id": "insights",
+      "path": "/insights",
+      "nav": "nav.insights",
+      "view": "InsightsDashboardView",
+      "routerLine": 24,
+      "actions": [
+        "ui.filter",
+        "ui.resetFilters",
+        "ui.refresh",
+        "ui.loadMore",
+        "task.open"
+      ],
+      "behavior": "Task 用量/质量非伪进度，项目/状态/归档过滤",
+      "evidence": [
+        "frontend/src/router/index.ts:24",
+        "frontend/src/views/InsightsDashboardView.vue"
+      ]
+    },
+    {
+      "id": "automationsRedirect",
+      "path": "/automations",
+      "nav": "nav.templateTasks",
+      "view": null,
+      "routerLine": 25,
+      "actions": [],
+      "behavior": "redirect /template-tasks；旧 AutomationsView 不可达；9 GET/导出当前无消费者，10写退役",
+      "evidence": [
+        "frontend/src/router/index.ts:25"
+      ]
+    },
+    {
+      "id": "templateTasks",
+      "path": "/template-tasks",
+      "nav": "nav.templateTasks",
+      "view": "TemplateTasksView",
+      "routerLine": 26,
+      "actions": [
+        "template.select",
+        "template.previewScope",
+        "template.create",
+        "template.start",
+        "workflow.newRequirement",
+        "automation.readArchive",
+        "automation.exportArchive"
+      ],
+      "behavior": "通用、Source、Document 三家族非等价；legacy 单 templateTask controller；archive 为已结清目标，当前未实现",
+      "evidence": [
+        "frontend/src/router/index.ts:26",
+        "frontend/src/views/TemplateTasksView.vue"
+      ]
+    },
+    {
+      "id": "documentRun",
+      "path": "/template-tasks/document-runs/:id",
+      "nav": "nav.templateTasks",
+      "view": "DocumentTemplateView",
+      "routerLine": 27,
+      "actions": [
+        "template.cancel",
+        "template.resume",
+        "template.supplement",
+        "template.clarify",
+        "template.retryBatches",
+        "template.openReport",
+        "template.openDiagnostics",
+        "ui.refresh",
+        "receipt.retryOriginal"
+      ],
+      "behavior": "原 File/hash/order；SSE+10s/180ms，澄清/补传子 owner，UNKNOWN 离开 W0 基线差异",
+      "evidence": [
+        "frontend/src/router/index.ts:27",
+        "frontend/src/views/DocumentTemplateView.vue"
+      ]
+    },
+    {
+      "id": "sourceRun",
+      "path": "/template-tasks/source-runs/:id",
+      "nav": "nav.templateTasks",
+      "view": "SourceTemplateView",
+      "routerLine": 28,
+      "actions": [
+        "template.start",
+        "template.cancel",
+        "template.resume",
+        "template.retryBatches",
+        "template.openReport",
+        "template.openDiagnostics",
+        "ui.refresh",
+        "receipt.retryOriginal"
+      ],
+      "behavior": "Source 冻结范围/模型/expectedVersion；batch CAS 与 linked execution disposition 分开",
+      "evidence": [
+        "frontend/src/router/index.ts:28",
+        "frontend/src/views/SourceTemplateView.vue"
+      ]
+    },
+    {
+      "id": "taskDetail",
+      "path": "/tasks/:id",
+      "nav": "nav.tasks",
+      "view": "TaskDetailView",
+      "routerLine": 29,
+      "actions": [
+        "task.start",
+        "task.pause",
+        "task.resume",
+        "task.cancel",
+        "task.retryStop",
+        "task.retryLoop",
+        "task.retryJudges",
+        "task.relaunch",
+        "task.redo",
+        "task.openRecovery",
+        "task.openDesign",
+        "task.answer",
+        "task.allowScope",
+        "task.acceptEvidence",
+        "task.publish",
+        "diagram.zoomIn",
+        "diagram.zoomOut",
+        "diagram.fit"
+      ],
+      "behavior": "Task/Stage/Attempt/Session/Judge/Queue 独立；只按 server flags；单Task stream",
+      "evidence": [
+        "frontend/src/router/index.ts:29",
+        "frontend/src/views/TaskDetailView.vue"
+      ]
+    },
+    {
+      "id": "recovery",
+      "path": "/tasks/:id/recovery",
+      "nav": "nav.tasks",
+      "view": "RecoveryStudioView",
+      "routerLine": 30,
+      "actions": [
+        "task.createRecovery",
+        "ui.refresh",
+        "nav.back",
+        "task.open"
+      ],
+      "behavior": "FROM_FAILED_STAGE/ALL_STAGES/VERIFY_ONLY；FAILED/CANCELLED；创建不等于 Start",
+      "evidence": [
+        "frontend/src/router/index.ts:30",
+        "frontend/src/views/RecoveryStudioView.vue"
+      ]
+    },
+    {
+      "id": "taskDesign",
+      "path": "/tasks/:id/design",
+      "nav": "nav.tasks",
+      "view": "TaskDesignHistoryView",
+      "routerLine": 31,
+      "actions": [
+        "ui.open",
+        "nav.back",
+        "task.open"
+      ],
+      "behavior": "冻结 task 设计/LoopSpec/附件只读；不继续当前 Designer，会话不追新",
+      "evidence": [
+        "frontend/src/router/index.ts:31",
+        "frontend/src/views/TaskDesignHistoryView.vue"
+      ]
+    },
+    {
+      "id": "runtime",
+      "path": "/runtime",
+      "nav": "nav.runtime",
+      "view": "RuntimeView",
+      "routerLine": 32,
+      "actions": [
+        "runtime.restart",
+        "runtime.start",
+        "runtime.detect"
+      ],
+      "behavior": "只有原三条件动作；无 stop/kill 新入口；Loopper/CLI 版本分开",
+      "evidence": [
+        "frontend/src/router/index.ts:32",
+        "frontend/src/views/RuntimeView.vue"
+      ]
+    },
+    {
+      "id": "tools",
+      "path": "/tools",
+      "nav": "nav.tools",
+      "view": "ToolsView",
+      "routerLine": 33,
+      "actions": [
+        "tools.refresh",
+        "tools.openPolicy",
+        "tools.changePolicy",
+        "tools.readSkill",
+        "ui.search"
+      ],
+      "behavior": "MCP/Skills；global/project/inherit 与必需工具，按需展开",
+      "evidence": [
+        "frontend/src/router/index.ts:33",
+        "frontend/src/views/ToolsView.vue"
+      ]
+    },
+    {
+      "id": "databases",
+      "path": "/databases",
+      "nav": "nav.databases",
+      "view": "DatabaseView",
+      "routerLine": 34,
+      "actions": [
+        "database.create",
+        "database.edit",
+        "database.test",
+        "database.upgradeDriver",
+        "database.archive",
+        "ui.search",
+        "ui.filter",
+        "ui.loadMore"
+      ],
+      "behavior": "connection.version、表单 snapshot、秘密清理、driver/test/兼容验收分开",
+      "evidence": [
+        "frontend/src/router/index.ts:34",
+        "frontend/src/views/DatabaseView.vue"
+      ]
+    },
+    {
+      "id": "settings",
+      "path": "/settings",
+      "nav": "nav.settings",
+      "view": "SettingsView",
+      "routerLine": 35,
+      "actions": [
+        "settings.save",
+        "settings.refreshModels",
+        "settings.saveCredentials",
+        "settings.changeSkin",
+        "settings.changeCanvasPreference",
+        "settings.toggleDemo"
+      ],
+      "behavior": "原 PUT 无 CAS；跨 section 草稿；canvas 偏好只下次实例；demo 为真实接口非prototype",
+      "evidence": [
+        "frontend/src/router/index.ts:35",
+        "frontend/src/views/SettingsView.vue"
+      ]
+    },
+    {
+      "id": "rolesRedirect",
+      "path": "/settings/roles",
+      "nav": "nav.roles",
+      "view": null,
+      "routerLine": 36,
+      "actions": [],
+      "behavior": "redirect /roles；角色发布不并入 settings.save",
+      "evidence": [
+        "frontend/src/router/index.ts:36"
+      ]
+    },
+    {
+      "id": "roles",
+      "path": "/roles",
+      "nav": "nav.roles",
+      "view": "RoleManagementView",
+      "routerLine": 37,
+      "actions": [
+        "roles.import",
+        "roles.validate",
+        "roles.publish",
+        "roles.previewPermissions",
+        "roles.openRevision",
+        "roles.compareRevision",
+        "roles.export",
+        "ui.search",
+        "ui.loadMore",
+        "diagram.zoomIn",
+        "diagram.zoomOut",
+        "diagram.fit"
+      ],
+      "behavior": "ZIP/sourceSha256/key/activationVersion；current published/actual bound/history 分开；权限图只读",
+      "evidence": [
+        "frontend/src/router/index.ts:37",
+        "frontend/src/views/RoleManagementView.vue"
+      ]
+    },
+    {
+      "id": "fallback",
+      "path": "/:pathMatch(.*)*",
+      "nav": "nav.home",
+      "view": null,
+      "routerLine": 38,
+      "actions": [],
+      "behavior": "redirect /；未知 API 不能返回 HTML",
+      "evidence": [
+        "frontend/src/router/index.ts:38"
+      ]
+    }
+  ]
+};
+  function entry(key) {
+    if (typeof key !== 'string') throw new TypeError('界面语义 key 必须是字符串');
+    if (Object.prototype.hasOwnProperty.call(data.objects, key)) return data.objects[key];
+    if (Object.prototype.hasOwnProperty.call(data.actions, key)) return data.actions[key];
+    throw new RangeError('未登记的界面语义：' + key);
+  }
+  function icon(key) {
+    const value = entry(key), glyph = data.icons[value.icon];
+    if (!glyph) throw new RangeError('缺少本地图标：' + key);
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + glyph.width + ' ' + glyph.height + '" width="20" height="20" aria-hidden="true" focusable="false" data-semantic-icon="' + key + '">' + glyph.body + '</svg>';
+  }
+  function label(key) { return entry(key).label; }
+  function name(key) { return entry(key).name; }
+  function freeze(value) {
+    if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+      for (const child of Object.values(value)) freeze(child);
+      Object.freeze(value);
+    }
+    return value;
+  }
+  const registry = freeze({ ...data, icon, label, name });
+  Object.defineProperty(global, 'LoopperUI', { value: registry, writable: false, configurable: false, enumerable: true });
+})(window);
+</script>
+<script>/* Independent local mock. No API, model, production controller or framework is mounted here. */
+(function desktopPrototype() {
+  'use strict';
+  const UI = window.LoopperUI;
+  if (!UI || UI.schemaVersion !== 1) throw new Error('桌面原型缺少本地语义注册表');
+  const $ = selector => document.querySelector(selector);
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+  const text = key => esc(UI.label(key)), name = (key, entity = '') => esc(UI.name(key) + (entity ? `：${entity}` : ''));
+  const semantic = key => `data-semantic="${esc(key)}"`;
+  const pages = { home: 'page.home', list: 'page.tasks', form: 'page.newRequirement', task: 'page.taskDetail', settings: 'page.settings' };
+  const query = new URLSearchParams(location.search);
+  const normalizePage = value => value === 'detail' ? 'task' : Object.hasOwn(pages, value) ? value : 'home';
+  const skins = ['spdb', 'tech-blue', 'github-white'];
+  const projects = [
+    { id: 'project-orders', name: '订单服务', path: '/workspace/order-service', note: '最近读取的项目', type: 'object.project', route: '/projects' },
+    { id: 'project-console', name: '开发者控制台', path: '/workspace/developer-console', note: '最近读取的项目', type: 'object.project', route: '/projects' },
+  ];
+  const conversations = [
+    { id: 'conversation-auth', name: '登录状态在哪里校验？', project: '订单服务', note: '上次已读取的知识对话', type: 'object.conversation', route: '/knowledge/local-auth' },
+    { id: 'conversation-events', name: '任务事件如何恢复？', project: '开发者控制台', note: '上次已读取的知识对话', type: 'object.conversation', route: '/knowledge/local-events' },
+  ];
+  const tasks = [
+    { id: 'task-refund', title: '补充退款流程验证', project: '订单服务', state: 'waiting', time: '刚刚', note: '需要确认本次验证范围', type: 'object.task' },
+    { id: 'task-access', title: '整理权限边界', project: '开发者控制台', state: 'success', time: '今天', note: '已保存验收证据', type: 'object.task' },
+    { id: 'task-recovery', title: '恢复事件读取', project: '订单服务', state: 'recovery', time: '昨天', note: '恢复方案等待人工确认', type: 'object.task' },
+    { id: 'task-guide', title: '更新本地开发说明', project: '开发者控制台', state: 'success', time: '昨天', note: '保留设计与历史版本', type: 'object.task' },
+    { id: 'task-design', title: '核对会话隔离设计', project: '订单服务', state: 'readonly', time: '本周', note: '查看已冻结的设计记录', type: 'object.task' },
+  ];
+  const stages = [
+    { id: 'stage-scope', title: '确认业务范围', note: '原始目标与约束已保存', state: 'success', type: 'object.stage' },
+    { id: 'stage-change', title: '补充退款验证', note: '实现与校验记录可以按需查看', state: 'success', type: 'object.stage' },
+    { id: 'stage-review', title: '核对边界案例', note: '等待你确认本次执行范围', state: 'waiting', type: 'object.stage' },
+  ];
+  const settingsGroups = [
+    { id: 'setting-execution', semantic: 'settings.execution', description: '每阶段尝试次数、总尝试次数与等待上限。', type: 'object.settingsGroup' },
+    { id: 'setting-models', semantic: 'settings.models', description: '本地已读取的提供方与默认模型。', type: 'object.settingsGroup' },
+    { id: 'setting-privacy', semantic: 'settings.privacy', description: '凭据只显示状态；原型不会读取或发送秘密。', type: 'object.settingsGroup' },
+  ];
+  const initialForm = { title: '', objective: '', project: projects[0].id, template: 'delivery-v3' };
+  const settingsDefaults = {
+    'setting-execution': { attempts: '3', timeout: '30' },
+    'setting-models': { provider: '本地示例提供方', model: '本地示例模型' },
+    'setting-privacy': { localOnly: true },
+  };
+  const state = {
+    page: normalizePage(query.get('page')), skin: skins.includes(query.get('skin')) ? query.get('skin') : 'github-white',
+    selected: '', expanded: false, returnFocus: '', homeQuery: '', listQuery: '', listStatus: 'all',
+    form: { ...initialForm }, files: [], formBaseline: { ...initialForm },
+    settings: structuredClone(settingsDefaults), settingsBaseline: structuredClone(settingsDefaults),
+    dirtyOwner: null, operation: null, receipts: [], operationSequence: 0,
+    error: false, conflict: false, recovery: false, waiting: true, answer: 'current',
+    scenario: 'clean', dialog: null, dialogTrigger: null, feedback: '',
+  };
+  const dialog = $('#confirm-dialog');
+  const unresolved = () => !!state.operation && state.operation.phase !== 'settled';
+  const formLocked = () => unresolved() && state.operation.owner.page === 'form';
+  const objectById = id => [...projects, ...conversations, ...tasks, ...stages, ...settingsGroups].find(item => item.id === id);
+  const routeByPath = path => UI.routes.find(route => route.path === path);
+  const button = (key, action, options = {}) => `<button type="button" class="${options.iconOnly ? 'icon-button' : `button ${options.tone || ''}`}" ${semantic(key)} data-action="${esc(action)}" ${options.value ? `data-value="${esc(options.value)}"` : ''} aria-label="${name(key, options.entity)}" ${options.disabled ? 'disabled' : ''} ${options.extra?.includes('data-focus-id') ? '' : `data-focus-id="action-${esc(action)}-${esc(options.value || '')}"`} ${options.extra || ''}>${UI.icon(key)}${options.iconOnly ? '' : `<span>${text(key)}</span>`}</button>`;
+  const badge = status => `<span class="state-badge" data-state="${esc(status)}" ${semantic(`status.${status}`)}>${text(`status.${status}`)}</span>`;
+  function showFeedback(message) {
+    state.feedback = message; $('#feedback').textContent = message; $('#feedback').hidden = !message;
+  }
+  function updateAddress() {
+    const next = new URL(location.href); next.searchParams.set('page', state.page); next.searchParams.set('skin', state.skin); next.searchParams.delete('scenario');
+    history.replaceState(null, '', next);
+  }
+  function dirty(page, key) {
+    state.dirtyOwner = { page, key: page === 'settings' ? 'settings-page' : key }; renderStatus();
+  }
+  function restoreFocus(key = state.returnFocus) {
+    const target = key ? document.querySelector(`[data-focus-id="${CSS.escape(key)}"]`) : null;
+    (target || $('#main-content')).focus({ preventScroll: true });
+  }
+  function setSelection(id, trigger) {
+    if (unresolved() && state.selected && state.selected !== id) { showFeedback('本地模拟：原操作尚未核对，先处理页面上方的恢复入口。'); return; }
+    state.selected = id; state.expanded = false;
+    if (trigger?.dataset.focusId) state.returnFocus = trigger.dataset.focusId;
+    renderContext(); updateSelectionMarks(); $('#context-panel').focus({ preventScroll: true });
+  }
+  function closeContext() {
+    // This is presentation-only. The page owner, its draft/File and operation are retained.
+    state.selected = ''; state.expanded = false; renderContext(); updateSelectionMarks(); restoreFocus();
+  }
+  function updateSelectionMarks() {
+    document.querySelectorAll('[data-select]').forEach(element => element.setAttribute('aria-pressed', String(element.dataset.select === state.selected)));
+  }
+  function requestNavigation(page, trigger) {
+    const destination = normalizePage(page);
+    if (destination === state.page) { closeContext(); return; }
+    if (unresolved()) { renderStatus(); showFeedback('本地模拟：未确认操作禁止离开。面板可以收起，原操作仍由当前页面持有。'); $('#status-strip').querySelector('button')?.focus(); return; }
+    if (state.dirtyOwner) { openDialog('leave', trigger, { destination }); return; }
+    navigate(destination);
+  }
+  function navigate(page) {
+    state.page = page; state.selected = ''; state.expanded = false; state.returnFocus = ''; state.feedback = ''; state.error = false; state.conflict = false; state.recovery = false;
+    $('#feedback').hidden = true; updateAddress(); render(); $('#main-content').focus({ preventScroll: true });
+  }
+  function message(kind, copy, actionHtml = '') {
+    const severity = kind === 'error' ? 'error' : ['unknown', 'waiting', 'recovery'].includes(kind) ? 'warning' : 'neutral';
+    return `<div class="state-message" data-state="${kind}" data-severity="${severity}" role="${kind === 'error' || kind === 'unknown' ? 'alert' : 'status'}">${UI.icon(`status.${kind}`)}<div class="state-copy"><strong ${semantic(`status.${kind}`)}>${text(`status.${kind}`)}</strong><p>${esc(copy)}</p></div>${actionHtml}</div>`;
+  }
+  function renderStatus() {
+    const parts = [];
+    if (state.error) parts.push(message('error', '本地模拟：读取失败。当前草稿保留，可以重新读取。', button('ui.refresh', 'refresh')));
+    if (state.conflict) parts.push(message('recovery', '本地模拟：任务局部修改与新版本冲突。原输入保留，查看差异后决定。', button('ui.open', 'conflict')));
+    if (state.operation) {
+      const phase = state.operation.phase;
+      if (phase === 'sending') parts.push(message('sending', state.operation.owner.page === 'form' ? '本地模拟：创建请求仍在处理中。四字段与再次提交已锁定，不能离开。' : '本地模拟：回答仍在处理中。保留原任务、会话与问题，禁止再次提交或离开。', button('receipt.retryOriginal', 'recover', { disabled: true })));
+      else if (phase === 'unknown') parts.push(message('unknown', state.operation.owner.page === 'form' ? '本地模拟：结果未知。显式重试原创建 POST 的同一 body / key；没有自动重发或换 key。' : '本地模拟：回答结果未知。保留原任务、会话与问题身份，只核对原状态；不盲重发没有幂等键的回答。', button(state.operation.owner.page === 'form' ? 'receipt.retryOriginal' : 'receipt.readOriginal', 'recover')));
+      else if (phase === 'accepted-nav') parts.push(message('recovery', '本地模拟：确定回执已保留，恢复只打开原目标；不会再次创建。', button('ui.open', 'completeHandoff')));
+      else if (phase === 'accepted-read') parts.push(message('recovery', '本地模拟：操作已接受，恢复只重新读取原对象；不会重复写入。', button('receipt.readOriginal', 'recover')));
+    }
+    if (state.dirtyOwner) parts.push(message('dirty', '本地草稿尚未保存。收起面板不会丢失；离开前需要明确决定。', button('ui.save', 'save', { disabled: unresolved() }) + button('ui.cancelEditing', 'cancelEditing', { disabled: unresolved() })));
+    if (state.page === 'task' && state.waiting) parts.push(message('waiting', '当前模拟任务等待确认范围。详情可以收起，待处理问题持续可见。', button('task.answer', 'questionFocus')));
+    if (state.recovery && !state.operation && !state.conflict) parts.push(message('recovery', '本地模拟：已有恢复记录可供查看，尚未执行新的任务。', button('task.openRecovery', 'recovery')));
+    $('#status-strip').innerHTML = parts.join(''); $('#status-strip').hidden = parts.length === 0;
+    document.body.dataset.operationPhase = state.operation?.phase || 'none';
+    document.body.dataset.dirty = String(!!state.dirtyOwner);
+    const cancelEditing = $('#requirement-form [data-action="cancelEditing"]');
+    if (cancelEditing) cancelEditing.disabled = formLocked() || !state.dirtyOwner;
+  }
+  function heading(key, copy, action = '') {
+    return `<header class="page-heading"><div><h1 ${semantic(key)}>${text(key)}</h1><p>${esc(copy)}</p></div>${action}</header>`;
+  }
+  function recent(item) {
+    return `<button class="recent-item" ${semantic('selection.select')} data-select="${item.id}" data-focus-id="${item.id}" aria-label="${name('selection.select', item.name)}" aria-pressed="${state.selected === item.id}"><span class="object-mark">${UI.icon(item.type)}</span><span class="recent-copy"><strong>${esc(item.name)}</strong><small>${esc(item.project || item.path)}</small></span></button>`;
+  }
+  function home() {
+    const q = state.homeQuery.toLocaleLowerCase();
+    const matching = item => [item.name, item.project, item.path].filter(Boolean).some(value => value.toLocaleLowerCase().includes(q));
+    const ps = projects.filter(matching), cs = conversations.filter(matching);
+    return `<div class="page-body home-body" data-background><header class="home-title"><h1 ${semantic('page.home')}>${text('page.home')}</h1><p>从最近的项目与对话继续工作。</p></header><label class="search-field">${UI.icon('ui.search')}<span class="sr-only" ${semantic('field.search')}>${text('field.search')}</span><input id="home-search" name="localSearch" data-focus-id="home-search" ${semantic('ui.search')} aria-label="${name('ui.search')}" value="${esc(state.homeQuery)}" placeholder="${text('ui.search')} ${text('object.project')} / ${text('object.conversation')}" autocomplete="off">${button('ui.clearSearch', 'clearSearch', { iconOnly: true })}</label><p class="search-disclosure">仅筛选此原型已加载的项目与知识对话。不是全站搜索，也不是知识库原文检索。</p><section class="home-section"><div class="section-heading"><h2 ${semantic('section.recentProjects')}>${text('section.recentProjects')}</h2></div><div class="recent-grid" id="recent-projects">${ps.map(recent).join('') || '<p class="empty-result">当前已加载项目没有匹配项。</p>'}</div></section><section class="home-section"><div class="section-heading"><h2 ${semantic('section.recentConversations')}>${text('section.recentConversations')}</h2></div><div class="recent-grid" id="recent-conversations">${cs.map(recent).join('') || '<p class="empty-result">当前已加载对话没有匹配项。</p>'}</div></section><section class="home-section"><div class="section-heading"><h2 ${semantic('section.entries')}>${text('section.entries')}</h2></div><div class="entry-links">${routeEntry('nav.projects', '/projects')}${routeEntry('knowledge.newConversation', '/knowledge')}${button('workflow.newRequirement', 'page', { value: 'form', tone: 'subtle' })}</div></section></div>`;
+  }
+  function routeEntry(key, path) { return `<button class="entry-link" ${semantic(key)} data-action="route" data-value="${esc(path)}" data-focus-id="route-${esc(path)}" aria-label="${name(key)}">${UI.icon(key)}${text(key)}</button>`; }
+  function list() {
+    const rows = tasks.filter(row => (!state.listQuery || `${row.title} ${row.project}`.includes(state.listQuery)) && (state.listStatus === 'all' || state.listStatus === row.state));
+    return `<div class="page-body" data-background>${heading('page.tasks', '已加载任务的本地视图。选择一行，再查看它的上下文。', button('workflow.newRequirement', 'page', { value: 'form', tone: 'primary' }))}<div class="list-tools"><label class="search-field">${UI.icon('ui.search')}<input id="list-search" name="taskSearch" aria-label="${name('ui.search')}" placeholder="${text('ui.search')} ${text('object.task')}" value="${esc(state.listQuery)}"></label><select id="list-status" name="status" ${semantic('field.status')} aria-label="${name('field.status')}"><option value="all">${text('field.status')} · 全部</option>${['waiting', 'success', 'recovery', 'readonly'].map(status => `<option value="${status}" ${state.listStatus === status ? 'selected' : ''}>${text(`status.${status}`)}</option>`).join('')}</select></div><div class="task-table"><div class="table-head" aria-hidden="true"><span>${text('field.title')}</span><span>${text('field.project')}</span><span>${text('field.status')}</span><span>${text('section.recent')}</span></div><div id="task-rows">${rows.map(row => `<button class="task-row" ${semantic('selection.select')} data-select="${row.id}" data-focus-id="${row.id}" aria-label="${name('selection.select', row.title)}" aria-pressed="${state.selected === row.id}"><span><strong class="row-title">${esc(row.title)}</strong><small class="row-subtitle">${esc(row.note)}</small></span><span class="row-project">${esc(row.project)}</span>${badge(row.state)}<span class="row-time">${esc(row.time)}</span></button>`).join('') || '<p class="empty-result">本页已加载任务没有匹配项。</p>'}</div></div></div>`;
+  }
+  function field(label, nameValue, value, extra = '') { return `<label class="field" ${semantic(label)}><span>${text(label)}</span><input name="${esc(nameValue)}" value="${esc(value)}" ${extra}></label>`; }
+  function form() {
+    const locked = formLocked() ? 'disabled' : '';
+    return `<div class="page-body form-body" data-background>${heading('page.newRequirement', '先写清目标。更多上下文在需要时展开。', button('nav.back', 'back', { tone: 'subtle' }))}<form id="requirement-form"><section class="form-section"><h2 ${semantic('section.inputs')}>${text('section.inputs')}</h2>${field('field.title', 'title', state.form.title, `id="requirement-title" required maxlength="120" ${locked}`)}<label class="field" ${semantic('field.objective')}><span>${text('field.objective')}</span><textarea id="requirement-objective" name="objective" required ${locked}>${esc(state.form.objective)}</textarea></label></section><section class="form-section"><div class="field-pair"><label class="field" ${semantic('field.project')}><span>${text('field.project')}</span><select name="project" ${locked}>${projects.map(row => `<option value="${row.id}" ${state.form.project === row.id ? 'selected' : ''}>${esc(row.name)}</option>`).join('')}</select></label><label class="field" ${semantic('field.template')}><span>${text('field.template')}</span><select name="template" ${locked}><option value="delivery-v3">交付流程 · 版本 3</option><option value="review-v2" ${state.form.template === 'review-v2' ? 'selected' : ''}>审查流程 · 版本 2</option></select></label></div></section><div class="advanced-row"><span ${semantic('section.advanced')}>${text('section.advanced')}</span><button type="button" class="button subtle" ${semantic('ui.expand')} data-select="form-advanced" data-focus-id="form-advanced" aria-label="${name('ui.expand', UI.label('section.advanced'))}" aria-pressed="${state.selected === 'form-advanced'}" aria-expanded="${state.selected === 'form-advanced'}">${UI.icon('ui.expand')}${text('ui.expand')}</button></div><footer class="form-footer">${button('ui.cancelEditing', 'cancelEditing', { disabled: locked || !state.dirtyOwner })}<button class="button primary" type="submit" ${semantic('workflow.createRequirement')} aria-label="${name('workflow.createRequirement')}" ${locked}>${UI.icon('workflow.createRequirement')}${text('workflow.createRequirement')}</button></footer></form></div>`;
+  }
+  function task() {
+    return `<div class="page-body task-body" data-background>${heading('page.taskDetail', '补充退款流程验证', button('ui.expand', 'taskActions', { tone: 'subtle' }))}<div class="task-intro"><span>${esc(projects[0].name)}</span>${badge(state.waiting ? 'waiting' : 'readonly')}</div>${state.waiting ? `<section class="task-question" aria-label="${name('task.answer')}"><h2>确认本次验证范围</h2><p>保留原退款行为，并补充异常重试的边界验证。当前任务等待你的回答。</p><label class="question-choice"><input type="radio" name="answer" value="current" ${state.answer === 'current' ? 'checked' : ''} ${unresolved() ? 'disabled' : ''}>只验证现有退款与失败重试</label><label class="question-choice"><input type="radio" name="answer" value="extended" ${state.answer === 'extended' ? 'checked' : ''} ${unresolved() ? 'disabled' : ''}>另补充重复请求的边界案例</label><div class="button-row">${button('task.answer', 'answer', { tone: 'primary', disabled: unresolved() })}</div></section>` : '<p class="search-disclosure">本地回执演示已完成；不据此宣称真实任务正在执行。</p>'}<section><div class="section-heading"><h2 ${semantic('object.stage')}>${text('object.stage')}</h2></div><div class="task-timeline">${stages.map((row, index) => `<button class="timeline-item" ${semantic('selection.select')} data-select="${row.id}" data-focus-id="${row.id}" aria-label="${name('selection.select', row.title)}" aria-pressed="${state.selected === row.id}"><span class="timeline-number">${index + 1}</span><div><h3>${esc(row.title)}</h3><p>${esc(row.note)}</p></div>${badge(row.state)}</button>`).join('')}</div></section></div>`;
+  }
+  function settings() {
+    return `<div class="page-body settings-body" data-background>${heading('page.settings', '先选择分区。参数与高级设置在右侧按需打开。')}<section>${settingsGroups.map(group => `<button class="settings-group" ${semantic('selection.select')} data-select="${group.id}" data-focus-id="${group.id}" aria-label="${name('selection.select', UI.label(group.semantic))}" aria-pressed="${state.selected === group.id}"><span class="object-mark">${UI.icon(group.semantic)}</span><div><h2 ${semantic(group.semantic)}>${text(group.semantic)}</h2><p>${esc(group.description)}</p></div>${UI.icon('ui.expand')}</button>`).join('')}</section></div>`;
+  }
+  const renderers = { home, list, form, task, settings };
+  function settingsFields(group) {
+    const values = state.settings[group];
+    if (group === 'setting-execution') return `${field('section.settingsLimits', 'attempts', values.attempts, 'type="number" min="1" max="20"')}${field('section.parameters', 'timeout', values.timeout, 'type="number" min="1" max="120"')}<p>示例值仅保存在本页内存，没有写入真实配置。</p>`;
+    if (group === 'setting-models') return `${field('field.provider', 'provider', values.provider)}${field('field.model', 'model', values.model)}<p>来自本地示例目录，没有读取或调用真实模型。</p>`;
+    return `<label class="check-field" ${semantic('field.localOnly')}><input type="checkbox" name="localOnly" ${values.localOnly ? 'checked' : ''}><span>${text('field.localOnly')}</span></label><p>这是原型范围提示，不是生产网络权限开关。凭据不进入该原型。</p>`;
+  }
+  function contextContents() {
+    const item = objectById(state.selected);
+    if (state.selected === 'navigation') return { title: UI.label('app.navigation'), type: 'app.navigation', body: `<section class="context-section"><p>以下为现有生产路由索引。五类代表页之外只说明去向，不伪装已迁移。</p>${UI.routes.filter(route => route.view && !route.path.includes(':')).map(route => `<button class="navigation-route" ${semantic(route.nav)} data-action="route" data-value="${esc(route.path)}" aria-label="${name(route.nav)}">${UI.icon(route.nav)}${text(route.nav)}</button>`).join('')}</section>` };
+    if (state.selected.startsWith('route:')) {
+      const path = state.selected.slice(6), route = routeByPath(path);
+      return { title: route ? UI.label(route.nav) : UI.label('section.context'), type: 'section.context', body: `<section class="context-section"><p>入口保留。当前只展示独立设计原型，不进入真实业务页面。</p><div class="route-location">${esc(path)}</div><p>${esc(route?.behavior || '这是原操作回执的目标。原型不验证真实导航或后端协议。')}</p></section>` };
+    }
+    if (state.selected === 'form-advanced') return { title: UI.label('section.advanced'), type: 'object.requirement', body: `<section class="context-section"><h3 ${semantic('section.parameters')}>${text('section.parameters')}</h3><p>新建需求只有标题、目标、项目与流程四字段。进入规划画布后再调整节点与任务，确认计划后才开始执行。</p><p>这是呈现说明，没有新增附件、模型设置或业务写入口。</p></section>` };
+    if (state.selected === 'task-actions') return { title: UI.label('section.advanced'), type: 'object.task', body: `<section class="context-section"><p>当前模拟任务等待输入，不提供开始执行、继续一轮或发布入口。</p><div class="button-row">${button('task.openDesign', 'route', { value: '/tasks/local-task/design' })}${button('task.openRecovery', 'recovery')}${button('task.cancel', 'taskCancel', { value: 'task', tone: 'danger', disabled: unresolved() })}</div></section>` };
+    if (state.selected === 'conflict') return { title: UI.label('status.recovery'), type: 'object.task', body: `<section class="context-section"><h3>局部同步冲突 · 本地模拟</h3><p>这是独立的有版本任务局部修改示例，不能推导当前等待输入任务可发布，也不是 Settings CAS。</p><div class="conflict-copy">原输入：只验证现有失败重试。<br>新读取版本：增加了重复请求检查。</div>${button('receipt.readOriginal', 'resolveConflict')}</section>` };
+    if (state.selected === 'recovery') return { title: UI.label('object.recovery'), type: 'object.task', body: `<section class="context-section"><p>恢复草稿只供查看。没有执行新任务，也没有新建身份或自动重发。</p>${button('task.openDesign', 'route', { value: '/tasks/local-task/design' })}</section>` };
+    if (!item) return { title: UI.label('section.context'), type: 'section.context', body: '' };
+    const title = item.title || item.name || UI.label(item.semantic);
+    if (item.type === 'object.settingsGroup') return { title, type: item.type, body: `<form id="settings-form" data-group="${item.id}"><section class="context-section">${settingsFields(item.id)}</section><div class="button-row">${button('settings.save', 'save', { tone: 'primary', disabled: unresolved() })}${button('ui.cancelEditing', 'cancelEditing', { disabled: unresolved() })}</div></form>` };
+    if (item.type === 'object.project' || item.type === 'object.conversation') return { title, type: item.type, body: `<section class="context-section"><dl class="context-meta"><dt>${text(item.type)}</dt><dd>${esc(title)}</dd><dt>${text('field.project')}</dt><dd>${esc(item.project || item.name)}</dd></dl><p>${esc(item.note)}</p><div class="button-row">${button(item.type === 'object.project' ? 'project.select' : 'ui.open', 'route', { value: item.route })}</div></section><section class="context-section"><p>来自已加载的模拟对象；正式 Recent 可消费 Projects 与 KnowledgeHistory 的既有读取，不新增全站聚合接口。</p></section>` };
+    return { title, type: item.type, body: `<section class="context-section">${badge(item.state)}<p>${esc(item.note)}</p><dl class="context-meta"><dt>${text('field.project')}</dt><dd>${esc(item.project || projects[0].name)}</dd><dt>${text('field.scope')}</dt><dd>保留当前原始范围</dd></dl></section><section class="context-section"><h3 ${semantic('section.evidence')}>${text('section.evidence')}</h3><button class="evidence-link" ${semantic('ui.open')} data-action="evidence" data-focus-id="evidence-open" aria-label="${name('ui.open', '原始校验记录')}">${UI.icon('ui.open')}${text('ui.open')}<span>· 原始校验记录</span></button><button class="evidence-link" ${semantic('task.openDesign')} data-action="route" data-value="/tasks/local-task/design" data-focus-id="task-design" aria-label="${name('task.openDesign', title)}">${UI.icon('task.openDesign')}${text('task.openDesign')}</button><div class="button-row">${button('task.open', 'page', { value: 'task' })}${button('ui.delete', 'delete', { value: item.id, disabled: unresolved(), tone: 'danger' })}</div></section>` };
+  }
+  function renderContext() {
+    const panel = $('#context-panel'), layout = $('#page-layout');
+    panel.hidden = !state.selected; layout.classList.toggle('has-context', !!state.selected); layout.classList.toggle('context-expanded', !!state.selected && state.expanded);
+    if (!state.selected) { panel.innerHTML = ''; return; }
+    const context = contextContents();
+    panel.setAttribute('aria-label', UI.name('app.context') + '：' + context.title);
+    panel.innerHTML = `<header class="context-heading"><div><small ${semantic(context.type)}>${text(context.type)}</small><h2>${esc(context.title)}</h2></div><div class="context-controls">${button(state.expanded ? 'ui.collapse' : 'ui.expand', state.expanded ? 'collapse' : 'expand', { iconOnly: true, extra: `aria-expanded="${state.expanded}"` })}${button('ui.close', 'close', { iconOnly: true })}</div></header>${context.body}<div class="button-row">${button('selection.deselect', 'deselect', { tone: 'subtle' })}</div>`;
+  }
+  function render() {
+    document.documentElement.dataset.skin = state.skin; document.body.dataset.page = state.page; $('#skin').value = state.skin; $('#scenario').value = state.scenario;
+    const supported = supportedScenarios(state.page);
+    for (const option of $('#scenario').options) option.disabled = !supported.includes(option.value);
+    $('#scenario').title = state.page === 'form' ? '新建需求：四字段草稿与原创建身份恢复模拟' : state.page === 'task' ? '任务：回答状态核对与独立局部同步冲突模拟' : '此页仅支持本地读取状态；设置可演示普通草稿';
+    $('#navigation').innerHTML = Object.entries(pages).map(([page, key]) => `<a class="nav-item" href="?page=${page}&skin=${state.skin}" data-page="${page}" data-focus-id="nav-${page}" ${semantic(key)} aria-label="${name(key)}" ${page === state.page ? 'aria-current="page"' : ''}>${UI.icon(key)}${text(key)}</a>`).join('');
+    $('#main-content').innerHTML = renderers[state.page](); renderStatus(); renderContext(); updateSelectionMarks();
+  }
+  function renderFiltered() {
+    // Preserve the actual input and its caret while filtering only already-loaded objects.
+    const template = document.createElement('template'); template.innerHTML = state.page === 'home' ? home() : list();
+    for (const id of state.page === 'home' ? ['recent-projects', 'recent-conversations'] : ['task-rows']) $(`#${id}`).innerHTML = template.content.querySelector(`#${id}`).innerHTML;
+    updateSelectionMarks();
+  }
+  function openDialog(kind, trigger, detail = {}) {
+    state.dialog = { kind, ...detail }; state.dialogTrigger = trigger || document.activeElement;
+    $('#confirmation-title').textContent = UI.label(kind === 'delete' ? 'ui.delete' : kind === 'taskCancel' ? 'task.cancel' : 'ui.cancelEditing');
+    const copy = kind === 'delete' ? '本地模拟：该操作需要明确确认。历史与原始文件不会由此原型删除。' : kind === 'taskCancel' ? '本地模拟：取消服务端任务与收起面板不同。真实取消仍需停止证明；此原型只演示确认，不伪造任务已停止。' : '离开会放弃尚未保存的本地草稿。选择留在当前页面将保留输入。';
+    $('#confirmation-body').innerHTML = `<p>${copy}</p><div class="dialog-actions">${button('ui.stay', 'dialogClose')}${button(kind === 'delete' ? 'ui.delete' : kind === 'taskCancel' ? 'task.cancel' : 'ui.discardChanges', 'confirmDiscard', { tone: kind === 'delete' || kind === 'taskCancel' ? 'danger' : 'primary' })}</div>`;
+    dialog.showModal(); $('#confirmation-body').querySelector('[data-semantic="ui.stay"]')?.focus({ preventScroll: true });
+  }
+  function closeDialog() { dialog.close(); }
+  function discardOwner() {
+    const owner = state.dirtyOwner;
+    if (owner?.page === 'form') { state.form = { ...state.formBaseline }; state.files = []; }
+    if (owner?.page === 'settings') state.settings = structuredClone(state.settingsBaseline);
+    state.dirtyOwner = null;
+  }
+  function saveOwner() {
+    if (unresolved()) { renderStatus(); return; }
+    const owner = state.dirtyOwner;
+    if (owner?.page === 'form') state.formBaseline = { ...state.form };
+    if (owner?.page === 'settings') state.settingsBaseline = structuredClone(state.settings);
+    state.dirtyOwner = null; renderStatus(); showFeedback('本地模拟：保存到本页内存，没有业务写请求。');
+  }
+  function captureOperation(page, phase = 'unknown') {
+    if (unresolved()) return;
+    const key = `desktop-mock-${++state.operationSequence}`;
+    const body = page === 'form' ? { title: state.form.title, objective: state.form.objective, projectId: state.form.project, templateId: state.form.template, templateRevision: state.form.template === 'delivery-v3' ? 3 : 2, requestKey: key } : { answers: [[state.answer === 'current' ? '只验证现有退款与失败重试' : '另补充重复请求的边界案例']] };
+    state.operation = { owner: { page, id: page === 'form' ? 'local-requirement' : 'local-task', ...(page === 'task' ? { sessionKey: 'local-session', questionId: 'local-question' } : {}) }, key, body: Object.freeze(body), files: Object.freeze([...state.files]), phase, mutations: 1, reads: 0, navigationAttempts: 0, receipt: null };
+  }
+  function recoverOperation() {
+    const operation = state.operation;
+    if (!operation || operation.phase === 'sending') return;
+    if (operation.phase === 'unknown') {
+      if (operation.owner.page === 'form') {
+        operation.mutations++; operation.receipt = Object.freeze({ id: operation.owner.id, requestKey: operation.key }); operation.phase = 'accepted-nav';
+      } else {
+        operation.reads++; operation.phase = 'settled'; state.waiting = false;
+      }
+    } else if (operation.phase === 'accepted-read') {
+      operation.reads++; operation.phase = 'settled'; state.receipts.push(operation.receipt); state.waiting = false; state.dirtyOwner = null;
+    }
+    render(); showFeedback('本地恢复模拟已更新；没有查询服务或发送请求，不能作为真实协议验证。');
+  }
+  function supportedScenarios(page) {
+    return page === 'form' ? ['clean', 'dirty', 'sending', 'unknown', 'recovery', 'error'] : page === 'task' ? ['clean', 'sending', 'unknown', 'waiting', 'recovery', 'error', 'conflict'] : page === 'settings' ? ['clean', 'dirty', 'error'] : ['clean', 'error'];
+  }
+  function applyScenario(value) {
+    if (!supportedScenarios(state.page).includes(value)) { showFeedback('此页不支持该模拟情境。没有创建其他业务域的操作或版本。'); return; }
+    if (unresolved()) {
+      if (state.operation.phase === 'sending' && value === 'unknown') { state.operation.phase = 'unknown'; state.scenario = value; return; }
+      showFeedback('本地模拟：切换情境不能丢弃未确认操作，请先从原恢复入口处理。'); return;
+    }
+    state.scenario = value; state.error = false; state.conflict = false; state.recovery = false;
+    if (value === 'dirty') {
+      if (state.page === 'form') { state.form.title ||= '保留本地草稿'; state.form.objective ||= '原始目标与未提交内容'; dirty('form', 'form'); }
+      else { state.settings['setting-execution'].attempts = '4'; dirty('settings', 'settings-page'); }
+    } else if (['unknown', 'sending', 'recovery'].includes(value)) {
+      if (state.page === 'form') { state.form.title ||= '保留原创建身份'; state.form.objective ||= '恢复原请求，不换 key'; }
+      captureOperation(state.page, value === 'recovery' ? (state.page === 'form' ? 'accepted-nav' : 'accepted-read') : value);
+      if (value === 'recovery') state.operation.receipt = Object.freeze({ id: state.operation.owner.id, ...(state.page === 'form' ? { requestKey: state.operation.key } : {}) });
+    } else if (value === 'error') state.error = true;
+    else if (value === 'conflict') state.conflict = true;
+    else if (value === 'waiting') state.waiting = true;
+  }
+  document.addEventListener('click', event => {
+    const target = event.target instanceof Element ? event.target.closest('button,a') : null;
+    if (!target) { if (event.target instanceof Element && event.target.hasAttribute('data-background')) closeContext(); return; }
+    if (target.matches(':disabled')) return;
+    if (target.dataset.page) { event.preventDefault(); requestNavigation(target.dataset.page, target); return; }
+    if (target.dataset.select) { setSelection(target.dataset.select, target); return; }
+    const action = target.dataset.action, value = target.dataset.value;
+    if (!action) return;
+    if (action === 'page') requestNavigation(value, target);
+    else if (action === 'back') requestNavigation('list', target);
+    else if (action === 'close' || action === 'deselect') closeContext();
+    else if (action === 'expand' || action === 'collapse') { state.expanded = action === 'expand'; renderContext(); $('#context-panel').focus({ preventScroll: true }); }
+    else if (action === 'navigation') setSelection('navigation', target);
+    else if (action === 'route') setSelection(`route:${value}`, target);
+    else if (action === 'taskActions') setSelection('task-actions', target);
+    else if (action === 'conflict') setSelection('conflict', target);
+    else if (action === 'recovery') setSelection('recovery', target);
+    else if (action === 'delete' || action === 'taskCancel') { if (!unresolved()) openDialog(action, target, { object: value }); }
+    else if (action === 'cancelEditing') { if (!unresolved() && state.dirtyOwner) openDialog('discard', target); }
+    else if (action === 'dialogClose') closeDialog();
+    else if (action === 'confirmDiscard') {
+      if (unresolved()) { closeDialog(); renderStatus(); return; }
+      const intent = state.dialog;
+      if (!['delete', 'taskCancel'].includes(intent?.kind)) discardOwner();
+      closeDialog();
+      if (intent?.kind === 'leave') navigate(intent.destination);
+      else { render(); showFeedback(intent?.kind === 'delete' || intent?.kind === 'taskCancel' ? '本地模拟：明确确认已记录，没有删除业务数据或取消真实服务。' : '本地模拟：只放弃了该 owner 的未保存修改。'); }
+    } else if (action === 'save') saveOwner();
+    else if (action === 'recover') recoverOperation();
+    else if (action === 'completeHandoff') {
+      const operation = state.operation;
+      if (operation?.phase !== 'accepted-nav') return;
+      operation.navigationAttempts++; operation.phase = 'settled'; state.receipts.push(operation.receipt); state.dirtyOwner = null;
+      render(); setSelection(`route:/requirements/${operation.receipt.id}`, target);
+    } else if (action === 'refresh') { state.error = false; renderStatus(); showFeedback('本地模拟：读取错误已清除。未执行真实读取或业务写入。'); }
+    else if (action === 'resolveConflict') { state.conflict = false; renderStatus(); showFeedback('本地模拟：保留原输入并标记重新读取，没有发布当前等待输入任务。'); }
+    else if (action === 'answer') { captureOperation('task'); renderStatus(); render(); }
+    else if (action === 'questionFocus') $('.task-question input')?.focus();
+    else if (action === 'clearSearch') { state.homeQuery = ''; $('#home-search').value = ''; renderFiltered(); $('#home-search').focus(); }
+    else if (action === 'evidence') showFeedback('本地示例：原始校验记录保留。原型没有读取真实日志或文件。');
+  });
+  document.addEventListener('input', event => {
+    const input = event.target;
+    if (!(input instanceof HTMLElement) || input.matches(':disabled')) return;
+    if (input.id === 'home-search') { state.homeQuery = input.value; renderFiltered(); }
+    else if (input.id === 'list-search') { state.listQuery = input.value; renderFiltered(); }
+    else if (input.closest('#requirement-form') && ['title', 'objective'].includes(input.name) && !formLocked()) { state.form[input.name] = input.value; dirty('form', 'form'); }
+    else if (input.closest('#settings-form')) {
+      const group = input.closest('#settings-form').dataset.group;
+      state.settings[group][input.name] = input.type === 'checkbox' ? input.checked : input.value; dirty('settings', group);
+    }
+  });
+  document.addEventListener('change', event => {
+    const input = event.target;
+    if (!(input instanceof HTMLElement) || input.matches(':disabled')) return;
+    if (input.id === 'skin') { state.skin = input.value; document.documentElement.dataset.skin = state.skin; updateAddress(); }
+    else if (input.id === 'list-status') { state.listStatus = input.value; renderFiltered(); }
+    else if (input.closest('#requirement-form') && ['project', 'template'].includes(input.name) && !formLocked()) { state.form[input.name] = input.value; dirty('form', 'form'); }
+    else if (input.name === 'answer') state.answer = input.value;
+    else if (input.id === 'scenario') { applyScenario(input.value); render(); }
+  });
+  document.addEventListener('submit', event => {
+    event.preventDefault();
+    if (event.target.id === 'requirement-form' && !formLocked()) { captureOperation('form'); render(); }
+    if (event.target.id === 'settings-form') saveOwner();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape' || dialog.open) return;
+    if (state.selected) { event.preventDefault(); closeContext(); }
+    else if (state.feedback) { state.feedback = ''; $('#feedback').hidden = true; }
+  });
+  dialog.addEventListener('close', () => { const target = state.dialogTrigger; state.dialog = null; state.dialogTrigger = null; if (target?.isConnected) target.focus({ preventScroll: true }); else restoreFocus(); });
+  dialog.addEventListener('keydown', event => {
+    if (event.key !== 'Tab') return;
+    const controls = [...dialog.querySelectorAll('button:not(:disabled),a[href],input:not(:disabled),select:not(:disabled),textarea:not(:disabled),[tabindex="0"]')].filter(element => element.getClientRects().length);
+    const first = controls[0], last = controls.at(-1);
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+  });
+  window.addEventListener('beforeunload', event => { if (state.dirtyOwner || unresolved()) { event.preventDefault(); event.returnValue = ''; } });
+  $('#brand-icon').innerHTML = UI.icon('nav.home'); $('#brand-name').textContent = 'Loopper';
+  $('#navigation').setAttribute('aria-label', UI.name('app.navigation'));
+  $('#navigation-index').innerHTML = UI.icon('app.navigation') + text('app.navigation'); $('#navigation-index').setAttribute('aria-label', UI.name('app.navigation')); $('#navigation-index').dataset.focusId = 'navigation-index';
+  $('#workspace-name').textContent = UI.label('app.workspace'); $('#prototype-label').textContent = UI.label('app.prototype');
+  $('#rail-note').textContent = UI.label('app.prototype'); $('#skin-label').textContent = UI.label('object.skin'); $('#skin').setAttribute('aria-label', UI.name('settings.changeSkin'));
+  $('#skip-content').textContent = UI.label('app.skipContent'); $('#prototype-note').textContent = '独立本地模拟 · 不连接业务服务或模型';
+  $('#scope-note').innerHTML = `<label ${semantic('app.scenarios')}>${text('app.scenarios')} <select id="scenario" name="scenario" aria-label="${name('app.scenarios')}" data-mock-control><option value="clean">${text('status.readonly')}</option>${['dirty', 'sending', 'unknown', 'waiting', 'recovery', 'error'].map(mode => `<option value="${mode}">${text(`status.${mode}`)}</option>`).join('')}<option value="conflict">局部同步冲突</option></select></label>`;
+  $('#confirmation-close').innerHTML = UI.icon('ui.close'); $('#confirmation-close').setAttribute('aria-label', UI.name('ui.close')); $('#confirmation-close').dataset.semantic = 'ui.close';
+  applyScenario(query.get('scenario') || 'clean'); render();
+  window.LoopperDesktop = Object.freeze({ ready: true, snapshot() {
+    const operation = state.operation;
+    return structuredClone({ page: state.page, skin: state.skin, selected: state.selected, expanded: state.expanded, dirty: !!state.dirtyOwner, dirtyOwner: state.dirtyOwner, owner: operation?.owner || state.dirtyOwner || { page: state.page }, receipt: operation?.receipt || state.receipts.at(-1) || null, form: state.form, files: state.files.map(file => ({ name: file.name, size: file.size, type: file.type })), settings: state.settings, operation: operation ? { owner: operation.owner, key: operation.key, body: operation.body, phase: operation.phase, mutations: operation.mutations, reads: operation.reads, navigationAttempts: operation.navigationAttempts, files: operation.files.map(file => ({ name: file.name, size: file.size, type: file.type })) } : null, error: state.error, waiting: state.waiting, conflict: state.conflict, scenario: state.scenario });
+  } });
+})();
+</script>
+</body>
+</html>

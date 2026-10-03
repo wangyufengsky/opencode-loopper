@@ -1,0 +1,256 @@
+{
+  "stage": "W1 local foundation only; W0 frozen, W2+ not started",
+  "baseline": "3c848261bfaa603a10fa06652fbbca8e82c3e3b8",
+  "branch": "feat/react-full-migration",
+  "runtime": {
+    "node": "24.19.0",
+    "npm": "11.9.0",
+    "formalNode22ReleaseOrJarVerified": false
+  },
+  "dependency": {
+    "antd": "6.6.5",
+    "registry": "https://registry.npmjs.org",
+    "added": 63,
+    "removed": 0,
+    "existingVersionChanges": [],
+    "integrity": "sha512-biJB/aORNU2lvZZCX783S/g8atfE8akrEKRjRrsXVttoMtJbSHLf/Z29niv0blzt6H3BgKvhkQgHoUn5MgCx7w==",
+    "glyphSubset": 78
+  },
+  "cleanCi": {
+    "command": "npm ci --no-audit --no-fund --cache /workspace/react-full-w0-evidence/npm-cache",
+    "normalSandboxExit": 1,
+    "normalSandboxError": "esbuild official install.js spawnSync binary --version EPERM",
+    "normalToolApprovalExit": 0,
+    "packages": 483,
+    "seconds": 11,
+    "existingXyflowPatchEntries": 6,
+    "nodeModulesReplacedByNpmCi": true,
+    "oldDistPreservedOutsideRepositoryBeforeCleanBuild": true
+  },
+  "foundationUnit": {
+    "command": "npm run test:foundation -- --maxWorkers=2 --reporter=json",
+    "exitCode": 0,
+    "total": 69,
+    "passed": 69,
+    "failed": 0,
+    "pending": 0
+  },
+  "allUnit": {
+    "command": "npm test -- --maxWorkers=2 --reporter=json",
+    "exitCode": 1,
+    "total": 1485,
+    "passed": 1401,
+    "failed": 84,
+    "pending": 0,
+    "classification": {
+      "existing": {
+        "total": 1305,
+        "passed": 1305,
+        "failed": 0,
+        "pending": 0
+      },
+      "w0": {
+        "total": 111,
+        "passed": 27,
+        "failed": 84,
+        "pending": 0
+      },
+      "foundation": {
+        "total": 69,
+        "passed": 69,
+        "failed": 0,
+        "pending": 0
+      }
+    }
+  },
+  "checks": {
+    "typecheck": {
+      "command": "npm run typecheck",
+      "exitCode": 0
+    },
+    "reactOnlyTypecheck": {
+      "command": "npm run typecheck:foundation",
+      "exitCode": 0
+    },
+    "productionBuild": {
+      "command": "npm run build",
+      "exitCode": 0,
+      "warning": "existing chunks >500kB, no threshold changed"
+    },
+    "reactAntPreviewBuild": {
+      "command": "npm run build:foundation-preview",
+      "exitCode": 0,
+      "javascriptKB": 1147.3,
+      "gzipKB": 353.54,
+      "warning": "all-component standalone test fixture >500kB; route splitting deferred"
+    },
+    "tooling": {
+      "passed": 31,
+      "failed": 0,
+      "exitCode": 0,
+      "sandboxDiagnostic": "spawnSync git EPERM; normal tool approval run succeeds"
+    },
+    "accounting": {
+      "passed": 13,
+      "failed": 0,
+      "exitCode": 0,
+      "sandboxDiagnostic": "spawnSync rg EPERM; normal tool approval run succeeds"
+    },
+    "glyphGenerator": {
+      "command": "node scripts/generate-foundation-icons.mjs --check",
+      "exitCode": 0
+    },
+    "lint": {
+      "run": false,
+      "reason": "no lint script or configuration; no unsolicited linter installed"
+    }
+  },
+  "desktopPrototype": {
+    "passed": 205,
+    "failed": 0,
+    "png": 28,
+    "evidenceSha256": "ca670e0b75d5cf037d674ad7071257c78469c03368b0f1b583efb219f02a18f8",
+    "singleHtmlSha256": "311779b44cba4ddcff9703533fde01007ab83ffa39d0cb84043c056b9a6862eb",
+    "singleHtmlBytes": 201034,
+    "finalPackagingRetest": {
+      "command": "node docs/design/react-full-migration/prototype/desktop-v2/verify-desktop.mjs --raw /workspace/react-full-desktop-v2-evidence/final-packaging",
+      "exitCode": 0,
+      "passed": 205,
+      "failed": 0,
+      "pngBytesChanged": 0,
+      "change": "generator removes four leftover indentation spaces only; exact embedded CSS/JS unchanged",
+      "independentReviewSha256": "452be79b5061e082df813835bc1d45cf8dcf82b97f05d63ac65efedc6ac056a8"
+    }
+  },
+  "realReactAntBrowser": {
+    "command": "node frontend/e2e/w1/verify-foundation.mjs; local React-only server41784",
+    "exitCode": 0,
+    "total": 41,
+    "passed": 41,
+    "failed": 0,
+    "png": 11,
+    "strictFirstUnmountSamples": 18,
+    "sourceFilesCompared": 27,
+    "changedSources": 0,
+    "errors": 0,
+    "warnings": 0,
+    "evidenceSha256": "908936fc2c480d938d52db7b2e97d58fdbc0ebab1971de54327fa9bd5da65a12",
+    "resourceBoundary": "First synchronous unmount sample; exact w1-instance-probe, MediaQueryList modern change, window focusin/keydown registrations; fixture-owned RAF/interval stacks plus all raw native RAFs (also strict []); all native ResizeObserver active targets raw. No heap/GC, arbitrary third-party timer or React delegated-container listener claim."
+  },
+  "productE2E": {
+    "collection": 305,
+    "files": 70,
+    "listCommand": "PLAYWRIGHT_CHROME_EXECUTABLE=/usr/bin/chromium npx playwright test --list",
+    "listExitCode": 0,
+    "initialListError": "existing macOS default Chrome path absent; supported environment override resolves Linux Chromium",
+    "notRerunInW1": 305,
+    "w0HistoricalRun": {
+      "total": 20,
+      "passed": 19,
+      "failed": 1,
+      "currentDesktop": {
+        "total": 15,
+        "passed": 14,
+        "failed": 1
+      },
+      "historicalNarrowOutOfScope": 5,
+      "remainingNotRun": 285
+    },
+    "original11AfterW0": {
+      "passed": 10,
+      "failed": 1,
+      "retainedFailure": "Automation health UI consumer gap"
+    }
+  },
+  "scope": {
+    "changedExistingRuntimeAndE2EFilesSinceW0": [],
+    "historyOwnerChanged": false,
+    "vuePiniaEntryRemoved": false,
+    "validatedCanvasOrDependencyPatchRewritten": false,
+    "w0ScenesExpanded": false,
+    "pushPrMergeDeploy": false,
+    "narrow": "OUT_OF_SCOPE, old assertions preserved"
+  },
+  "typeOnlyTestCorrection": {
+    "previousTsSha256": "a060a96b22e60c64fb793fd5d9f626c269bec12bcd77a5fb496101527edb4cdd",
+    "currentTsSha256": "781ff9190364fee5475d4e5bda30a746c4e458edf44f346475c05c130f6fbe42",
+    "expectedPrevious": "a060a96b22e60c64fb793fd5d9f626c269bec12bcd77a5fb496101527edb4cdd",
+    "previousJsSha256": "34610e614c7837869a94e7231da084fe64ae8d9c66a6d3bd861b31f8703181ac",
+    "currentJsSha256": "34610e614c7837869a94e7231da084fe64ae8d9c66a6d3bd861b31f8703181ac",
+    "byteIdenticalJavascript": true,
+    "previousTsMatched": true
+  },
+  "sourceSha256": {
+    "frontend/e2e/w1/preview.html": "f61d0743b95a0b95935c8a4bd2600a71cf6e33104aae7dbc82df82a46156ef77",
+    "frontend/e2e/w1/preview.tsx": "b7e7cf49b639b783087d87db2194083929d094e165e46c253761f0c5a4abe1f4",
+    "frontend/e2e/w1/verify-foundation.mjs": "9aca9a5d09ac9a8a56fa2adac4b544863f50b4cff2f5eccec539280f064cf9c5",
+    "frontend/e2e/w1/vite.config.ts": "8aab039f5713a2421a8ed210ef5e5f2ded2b2707c5a4b03f6fb4fae28f4c3232",
+    "frontend/package-lock.json": "9531ee279895657bd4045c180164ad4fd276eb3c50ffd8d4526f44700bbfee72",
+    "frontend/src/foundation/SemanticIcon.tsx": "aa8bf3d584e357df85b4c347b0f1330d672794a54bfe193af5afa0b591639222",
+    "frontend/src/foundation/components.spec.tsx": "781ff9190364fee5475d4e5bda30a746c4e458edf44f346475c05c130f6fbe42",
+    "frontend/src/foundation/components.tsx": "b1d663e00f06680d06261782c69dd1af5b63ebc2e3405c6c30062713a3472488",
+    "frontend/src/foundation/contracts/controller.ts": "0eaed69bd1abd3e3596606ef086a59bbfe68d3b2a1be9174e4b9b0e4caeb2a35",
+    "frontend/src/foundation/contracts/immutable.ts": "36d091029fbee3baa151aeb86dcc013fbf4674eeb10d08eae3f34d58db5a8a1a",
+    "frontend/src/foundation/contracts/navigation.spec.ts": "8d255ab7e478e1512ff16afc99b1a42935530157a97d9d62f3caa1b75fa794ab",
+    "frontend/src/foundation/contracts/navigation.ts": "91749c38d3321c86765bdf1c80aa34f19eaeedf3a653344e617cfc2506d65400",
+    "frontend/src/foundation/contracts/receipt.spec.ts": "a26c7d72dfb4f4f4e0ac1a7a529b8172ffbf49699884d20fa123e19ba9687b96",
+    "frontend/src/foundation/contracts/receipt.ts": "f446815215b62ca50e63015d263ae37cb919bd5921794fa68289febe1925b596",
+    "frontend/src/foundation/contracts/resource-controller.spec.ts": "734bbbbbf118f6d19172a2a20be23c1fd458fd6faa59d06d7c5b2cc1df291094",
+    "frontend/src/foundation/contracts/resource.ts": "af108047aace2082d24348f56578fc8629b8ad44d545b4189aa07a788704ab09",
+    "frontend/src/foundation/contracts/scope.ts": "635a9b837e0177801ee593a0cdc9d8e816f8c69c602c91ebe23db965c123a5f3",
+    "frontend/src/foundation/contracts/types.ts": "a2bdcf79e18a12690ddd8a0ce411a404fe82c25ca0d4268c87cf63522cc5b2d1",
+    "frontend/src/foundation/foundation.css": "b7a7b720438866d605d100d3e99827d48c4bab570562874d26e5a8e919360db3",
+    "frontend/src/foundation/ownership.spec.ts": "07551aaedaceac856d7dd72cec23c5e1f983355ea6dc8ae3a07d14b7a619e4fc",
+    "frontend/src/foundation/provider.tsx": "f531ec21c34f5a717d45e37d1a97fd9d23c8c19382131850e5a34735d11385ed",
+    "frontend/src/foundation/registry-theme.spec.tsx": "1724215f6940d3ca76a2ed0b80886fa1602056d2cdc2bc32e4ec3e4ca663efd7",
+    "frontend/src/foundation/semantic-glyphs.json": "37b78605e15d97e4c560ce02ca855aa58e44002ca2d541667f4616b3ffaee9fb",
+    "frontend/src/foundation/semantic-registry-data.json": "09f23554b5f1224a105f835bfd2209b0c74950371a4c198791aaf63a6df61be6",
+    "frontend/src/foundation/semanticRegistry.ts": "1a4858d38db786e557d34891f4bb23f046af4cdef23a2d1235128d6b9180e4c4",
+    "frontend/src/foundation/theme.ts": "bcec2551c0d23de456ac6bb6e323bb548726d353fe087cd08aa2741349e11193",
+    "scripts/generate-foundation-icons.mjs": "a652a6f55defd4075fb9adbed9f52ab3e5ef198d5a7908b2bdcc2aca48db257e"
+  },
+  "rawEvidenceSha256": {
+    "clean-ci.log": "346583cb76adaeb80c23ee515234f7a5a5a1ab8f8195f36c539ad88152672ef2",
+    "clean-ci-permitted.log": "70196a1334e1a193886a32c9cafe631a659c3d1bcd38cc20c16b8330ac77d31d",
+    "foundation-final.json": "9964d4bb9c571d5386f832f39deb7274b3cadb9c13070cd8e1540c34fd4f9961",
+    "foundation-final.log": "fa71fa20b5a9d9fa0eb3f7a28940e604f109d5db18d4788f16e83602df8a950c",
+    "unit-final.json": "a6ba95191f32e528ecce18a7d36cb1f97a14ab95f86134df89578921f27882d2",
+    "unit-final.log": "c3ce79823e5a804d9006100e67b63fe33e37eff95774c8ab42c54a6a835fa2cb",
+    "typecheck-final.log": "d68d4967c7dcc37e3b03a518b6b3e155e239ef9b958ce6c46c7dfc458a38fa5f",
+    "typecheck-foundation-final.log": "dc6027aca3b5b19433c290e8b25ddb6ea9e803ef3a7c6d57fd6ba3150cda855a",
+    "build-final.log": "0ba4b80d8afe0d19c872112e131fe8bd0138a1d7483a73acf7eae35d5ebf5a70",
+    "build-preview-final.log": "8520d31a8d6ba42768ddb241500471cbd5e83b628ca3a7c1eace1a99efbfa437",
+    "tooling-permitted-final.log": "00807b574133a8d45ff3d8eb8fe99b3a68dfd15cc4968d3cd1d22d349f3bfcd8",
+    "accounting-permitted-final.log": "129915bd13f89922b7ff52b2abe62ec186951030e003ba235d1bc3c50f532119",
+    "e2e-list-configured-final.log": "a5ea55d54d48630943e219ac855e88a80357877bc9de01861dd7f855563ec3ed",
+    "test-type-only-proof.json": "fa6c5766be44122a0bde8bc11aa1e5736fa3247d8e3f0874a3da267934177909",
+    "browser-final-v5.log": "786af3038429e05194f17ba86513a4a5cd864a290d0ba887976593ecb551c77a"
+  },
+  "limits": [
+    "No production page/API/router/SSE adapter rollout; W2+ not authorized",
+    "84 correct W0 red assertions retained; not all-green",
+    "No live backend, paid model, parser, real multipart upload or cross-refresh File persistence proof",
+    "No all-heap GC, arbitrary third-party timer or React delegated-root-listener release claim",
+    "Foundation mock screens are not migrated product pages",
+    "Narrow acceptance withdrawn; final Vue removal still required later"
+  ],
+  "finalDeliveryAudit": {
+    "sourceHashesVerified": 27,
+    "W0TestsUnchanged": true,
+    "oldPrototypeFilesUnchanged": 39,
+    "localMarkdownLinksChecked": 411,
+    "brokenLinks": 0,
+    "projectDocumentCheck": "node scripts/check-project.mjs: exit0, 20 routed documents",
+    "lucideNoticeSha256": "b495047bd93a9b06913511076f504daba17d5bbeb3e0650f3bb53a4220329c57",
+    "independentReviews": {
+      "contracts": "e949eebe5bc05e640c993abbe4bad07480173ead366710d344f1657bf27ff8e8",
+      "components": "ab351947b71641c0bbe07f7f5532f0bd4620b44528892f55cb18a4f39fe1093b",
+      "browser": "abf42609689d2e6833f33104e1bef73f65bba4dfcb5d32e5d2b06bca1a2b541e"
+    },
+    "temporaryPreviewServersClosed": [
+      41784,
+      41783
+    ],
+    "originalMigrationWorktreeClean": true
+  }
+}

@@ -1,0 +1,4775 @@
+{
+  "kind": "Non-author desktop design verification; HTML/mock, not product acceptance",
+  "scope": {
+    "dimensions": [
+      {
+        "width": 1440,
+        "height": 960
+      },
+      {
+        "width": 1280,
+        "height": 900
+      }
+    ],
+    "skins": [
+      "spdb",
+      "tech-blue",
+      "github-white"
+    ],
+    "screens": [
+      "home",
+      "list",
+      "form",
+      "task",
+      "settings"
+    ],
+    "narrowScreens": "OUT_OF_SCOPE",
+    "production": false
+  },
+  "sources": {
+    "index.html": "86908108eb4602f9eafc33c3f64e9a4d88381348eb54887fdf6ddf26605393bd",
+    "styles.css": "29add0c85ba96100b67611f109c98ad9c72196653ce0b969f9e600658f5fb79c",
+    "app.js": "5ebd2c28b989d72a46581cd2634cecc89806e508abfec089b5da7e74c59281a4",
+    "semantic-registry.json": "a2590bf07ef3d36163ee91d348fc0c50a83c6960798c014b161d6f9523be843b",
+    "semantic-registry.js": "60263ad7160718c89ec110ca162b8a9a4a948e23111e4dfd5cb925fc50c90c91",
+    "review-single.html": "311779b44cba4ddcff9703533fde01007ab83ffa39d0cb84043c056b9a6862eb",
+    "generate-single.mjs": "49296d8a06a374383c7fb64939be37ff1dc5507cc910593d8454b3610871aa46",
+    "verify-desktop.mjs": "5ccdb9d85cf052c98e9439c165edc85f91bae171ce8020f4abdc3ff062fcdbc2"
+  },
+  "originalBefore": {
+    "index.html": "f39fbe7845aa9dcf46e149571d433713dee13fff599ccbd29aacd25059c2cf80",
+    "prototype.css": "5d85cfd1ba0754fe6eeeecd532372607884e43e7b3ba76b7d84d04577f7d489f",
+    "prototype.js": "4cc457a3758bad4605c8d04fd058ea0b62ddd0292c03c6ac87be1baeb3478e99",
+    "capture.mjs": "1910885b939a557caf2705e3b4625c8d9956325f24abb7661f400f3864a9efe7",
+    "evidence.json": "568ae3fe042de6d72fcc719cb7efe5dd57463fea1ac2095458707bd8385a73ca",
+    "review-single.html": "9b519f8a3f6d34c1a323f975540323586ff6ee8cd6516c1dd623dfb1c37cd26b",
+    "bundle-single.mjs": "83de69a8e08dc13cb59bc3fc4c4ab96925869cbfa9835034001534c7b17c48da",
+    "verify-single.mjs": "04b75c96029be7ecda2edd4263ad1465caaaf452da684257a9983df595ce2564",
+    "single-evidence.json": "eb537f3f8aa031d148c28711f97aed612f7fd34c1dc5c92adad4e82401f6cbfb",
+    "screenshots/github-white-detail-1440.png": "ccd01dfe2e0a5e5af55802974aac885e7cca25f47e781a60228252ca65cb339d",
+    "screenshots/github-white-detail-390.png": "d90f792faf1c48edfba5c14efcb83353b4b32f2bfb2ca46528eb0677717c91a7",
+    "screenshots/github-white-form-1440.png": "3d22ed3dfdf7606db1591cbc7c8a2190ac538540669573e76ea8c17e29aca9e9",
+    "screenshots/github-white-form-390.png": "5cb89b14699b231832a6e6500940b6af8c0acb366a70e5bddb1f689134ea6c01",
+    "screenshots/github-white-home-1440.png": "67a1cabd44ac90885b6f1419deac11c870977e3b4adc0d9ac06d6427db53d572",
+    "screenshots/github-white-home-390.png": "870d435ef6e2326d10c90d2d00182a9869da54221fe36e95cc8560f0e78dd076",
+    "screenshots/github-white-list-1440.png": "3a3e87b680552f79c0c5fc485654b21bd38271699a40bbb53957679c40c5466f",
+    "screenshots/github-white-list-320.png": "c0e9298375b344db181daa8f8b4da58295bd8db591eedf2ceb61d6eb1f7964c6",
+    "screenshots/github-white-list-390.png": "015ee31a2ba0e565cbf6b26a4a39c5e39163055cfdb8d2a896ba5f5f6d7162a2",
+    "screenshots/github-white-list-filters.png": "f89fc2cb5f840f0cb5e6a42b6ad9b6bdd32cba473316778cdc7f27528cd9186c",
+    "screenshots/github-white-settings-1440.png": "b5dfb7f68d48338f628bf5a8ee5ffce1c065ffa4cc343dbac7240a4a6202bf31",
+    "screenshots/github-white-settings-320.png": "252f6ace90e9055bd64488a2d7792c6aa187bae84628a7f5765e2f57f84b4e95",
+    "screenshots/github-white-settings-390.png": "0b7d27ccb16acc4d2159a9b748f89c918390865c32773cdec088aa63980aceeb",
+    "screenshots/spdb-detail-1440.png": "97ab86ea4d93d96ed2cd36a763f17806a3a928ce4977e34acbfd28f22ef5ea0a",
+    "screenshots/spdb-detail-conflict.png": "37ddf8b0d345c3cd4d3d355ddbe6da10cf7bb7fcc5cf8bda70055d5e0628a878",
+    "screenshots/spdb-form-1440.png": "136b1dab0f21cecbb671f51e47d849e33dbd4971a62f08363eb407473335c0d1",
+    "screenshots/spdb-home-1440.png": "e3e6ec0446db35d284aff2d4034c6f0ed6e5a52e2fa6b5f8d54125ba6f661f31",
+    "screenshots/spdb-home-390.png": "2781aab680f9b8bc3ad93cddaebe2fd1d2dfe6f1028766e86f997bfd45fa72cf",
+    "screenshots/spdb-list-1440.png": "72202f1e3efa6596cbe7c6a74f18faea2f8dd1d13e6cdc44a5550371a93ca611",
+    "screenshots/spdb-settings-1440.png": "f7d8426f34d02e4bc384862f8c75c4782e24726c198c0222bdef3d6befa8dbea",
+    "screenshots/tech-blue-detail-1440.png": "f31fbeab02e31af042fe408a11a5e99c865001df6047b6e1adbd934fddc054bc",
+    "screenshots/tech-blue-detail-390.png": "a136de04c4a2d531abf30ea1d1402a45cb24602298c20af66ea9ca42bdf724c8",
+    "screenshots/tech-blue-form-1440.png": "eef515f8a08c358d586a89e249f87cb0b8a4dac03e0da32d4fd35cc9074b3adf",
+    "screenshots/tech-blue-form-390.png": "8e80d3593999bc5f91a16fb3eb0376392ba9b7087c286c21130280bea43493e7",
+    "screenshots/tech-blue-form-unknown.png": "71325f6fd3bdbce087fcfc7e98f6e8758c9c1e41d7b10f4aefbdd2545ebc293c",
+    "screenshots/tech-blue-home-1440.png": "3bb729ba8aa4bda192a19d37bf6ef5e62faaa6227609cb42dcfce2cabb974b65",
+    "screenshots/tech-blue-list-1440.png": "b651c771a1dcef18aa43b1747b7092b578c04c028e31d0c8cd12415358fd169a",
+    "screenshots/tech-blue-list-reduced-motion.png": "78ed7aa466ffbbccd26040cf6918332472d9ed17d027f0072cff329248126631",
+    "screenshots/tech-blue-settings-1440.png": "fd158676e0a38a05b88cf3a1d4187f79d5fa1d581204021e8c77cd1045eb48a5"
+  },
+  "checks": [
+    {
+      "name": "local semantic registry: exact bundled Lucide source, complete known entries and immutable runtime projection",
+      "result": "pass"
+    },
+    {
+      "name": "home/spdb/1440: default content, hidden context, explicit mock, desktop reachability",
+      "result": "pass"
+    },
+    {
+      "name": "home/spdb/1440: semantic DOM and decorative local icon consistency",
+      "result": "pass"
+    },
+    {
+      "name": "home/spdb/1440: selection, repeated selection, presentation close and focus return",
+      "result": "pass"
+    },
+    {
+      "name": "home/spdb/1280: default content, hidden context, explicit mock, desktop reachability",
+      "result": "pass"
+    },
+    {
+      "name": "home/spdb/1280: semantic DOM and decorative local icon consistency",
+      "result": "pass"
+    },
+    {
+      "name": "home/spdb/1280: selection, repeated selection, presentation close and focus return",
+      "result": "pass"
+    },
+    {
+      "name": "list/spdb/1440: default content, hidden context, explicit mock, desktop reachability",
+      "result": "pass"
+    },
+    {
+      "name": "list/spdb/1440: semantic DOM and decorative local icon consistency",
+      "result": "pass"
+    },
+    {
+      "name": "list/spdb/1440: selection, repeated selection, presentation close and focus return",
+      "result": "pass"
+    },
+    {
+      "name": "list/spdb/1280: default content, hidden context, explicit mock, desktop reachability",
+      "result": "pass"
+    },
+    {
+      "name": "list/spdb/1280: semantic DOM and decorative local icon consistency",
+      "result": "pass"
+    },
+    {
+      "name": "list/spdb/1280: selection, repeated selection, presentation close and focus return",
+      "result": "pass"
+    },
+    {
+      "name": "form/spdb/1440: default content, hidden context, explicit mock, desktop reachability",
+      "result": "pass"
+    },
+    {
+      "name": "form/spdb/1440: semantic DOM and decorative local icon consistency",
+      "result": "pass"
+    },
+    {
+      "name": "form/spdb/1440: selection, repeated selection, presentation close and focus return",
+      "result": "pass"
+    },
+    {
+      "name": "form/spdb/1280: default content, hidden context, explicit mock, desktop reachability",
+      "result": "pass"
+    },
+    {
+      "name": "form/spdb/1280: semantic DOM and decorative local icon consistency",
+      "result": "pass"
+    },
+    {
+      "name": "form/spdb/1280: selection, repeated selection, presentation close and focus return",
+      "result": "pass"
+    },
+    {
+      "name": "task/spdb/1440: default content, hidden context, explicit mock, desktop reachability",
+      "result": "pass"
+    },
+    {
+      "name": "task/spdb/1440: semantic DOM and decorative local icon consistency",
+      "result": "pass"
+    },
+    {
+      "name": "task/spdb/1440: selection, repeated selection, presentation close and focus return",
+      "result": "pass"
+    },
+    {
+      "name": "task/spdb/1280: default content, hidden context, explicit mock, desktop reachability",
+      "result": "pass"
+    },
+    {
+      "name": "task/spdb/1280: semantic DOM and decorative local icon consistency",
+      "result": "pass"
+    },
+    {
+      "name": "task/spdb/1280: selection, repeated selection, presentation close and focus return",
+      "result": "pass"
+    },
+    {
+      "name": "settings/spdb/1440: default content, hidden context, explicit mock, desktop reachability",
+      "result": "pass"
+    },
+    {
+      "name": "settings/spdb/1440: semantic DOM and decorative local icon consistency",
+      "result": "pass"
+    },
+    {
+      "name": "settings/spdb/1440: selection, repeated selection, presentation close and focus return",
+      "result": "pass"
+    },
+    {
+      "name": "settings/spdb/1280: default content, hidden context, explicit mock, desktop reachability",
+      "result": "pass"
+    },
+    {
+      "name": "settings/spdb/1280: semantic DOM and decorative local icon consistency",
+      "result": "pass"
+    },
+    {
+      "name": "settings/spdb/1280: selection, repeated selection, presentation close and focus return",
+      "result": "pass"
+    },
+    {
+      "name": "home/tech-blue/1440: default content, hidden context, explicit mock, desktop reachability",
+      "result": "pass"
+    },
+    {
+      "name": "home/tech-blue/1440: semantic DOM and decorative local icon consistency",
+      "result": "pass"
+    },
+    {
+      "name": "home/tech-blue/1440: selection, repeated selection, presentation close and focus return",
+      "result": "pass"
+    },
+    {
+      "name": "home/tech-blue/1280: default content, hidden context, explicit mock, desktop reachability",
+      "result": "pass"
+    },
+    {
+      "name": "home/tech-blue/1280: semantic DOM and decorative local icon consistency",
+      "result": "pass"
+    },
+    {
+      "name": "home/tech-blue/1280: selection, repeated selection, presentation close and focus return",
+      "result": "pass"
+    },
+    {
+      "name": "list/tech-blue/1440: default content, hidden context, explicit mock, desktop reachability",
+      "result": "pass"
+    },
+    {
+      "name": "list/tech-blue/1440: semantic DOM and decorative local icon consistency",
+      "result": "pass"
+    },
+    {
+      "name": "list/tech-blue/1440: selection, repeated selection, presentation close and focus return",
+      "result": "pass"
+    },
+    {
+      "name": "list/tech-blue/1280: default content, hidden context, explicit mock, desktop reachability",
+      "result": "pass"
+    },
+    {
+      "name": "list/tech-blue/1280: semantic DOM and decorative local icon consistency",
+      "result": "pass"
+    },
+    {
+      "name": "list/tech-blue/1280: selection, repeated selection, presentation close and focus return",
+      "result": "pass"
+    },
+    {
+      "name": "form/tech-blue/1440: default content, hidden context, explicit mock, desktop reachability",
+      "result": "pass"
+    },
+    {
+      "name": "form/tech-blue/1440: semantic DOM and decorative local icon consistency",
+      "result": "pass"
+    },
+    {
+      "name": "form/tech-blue/1440: selection, repeated selection, presentation close and focus return",
+      "result": "pass"
+    },
+    {
+      "name": "form/tech-blue/1280: default content, hidden context, explicit mock, desktop reachability",
+      "result": "pass"
+    },
+    {
+      "name": "form/tech-blue/1280: semantic DOM and decorative local icon consistency",
+      "result": "pass"
+    },
+    {
+      "name": "form/tech-blue/1280: selection, repeated selection, presentation close and focus return",
+      "result": "pass"
+    },
+    {
+      "name": "task/tech-blue/1440: default content, hidden context, explicit mock, desktop reachability",
+      "result": "pass"
+    },
+    {
+      "name": "task/tech-blue/1440: semantic DOM and decorative local icon consistency",
+      "result": "pass"
+    },
+    {
+      "name": "task/tech-blue/1440: selection, repeated selection, presentation close and focus return",
+      "result": "pass"
+    },
+    {
+      "name": "task/tech-blue/1280: default content, hidden context, explicit mock, desktop reachability",
+      "result": "pass"
+    },
+    {
+      "name": "task/tech-blue/1280: semantic DOM and decorative local icon consistency",
+      "result": "pass"
+    },
+    {
+      "name": "task/tech-blue/1280: selection, repeated selection, presentation close and focus return",
+      "result": "pass"
+    },
+    {
+      "name": "settings/tech-blue/1440: default content, hidden context, explicit mock, desktop reachability",
+      "result": "pass"
+    },
+    {
+      "name": "settings/tech-blue/1440: semantic DOM and decorative local icon consistency",
+      "result": "pass"
+    },
+    {
+      "name": "settings/tech-blue/1440: selection, repeated selection, presentation close and focus return",
+      "result": "pass"
+    },
+    {
+      "name": "settings/tech-blue/1280: default content, hidden context, explicit mock, desktop reachability",
+      "result": "pass"
+    },
+    {
+      "name": "settings/tech-blue/1280: semantic DOM and decorative local icon consistency",
+      "result": "pass"
+    },
+    {
+      "name": "settings/tech-blue/1280: selection, repeated selection, presentation close and focus return",
+      "result": "pass"
+    },
+    {
+      "name": "home/github-white/1440: default content, hidden context, explicit mock, desktop reachability",
+      "result": "pass"
+    },
+    {
+      "name": "home/github-white/1440: semantic DOM and decorative local icon consistency",
+      "result": "pass"
+    },
+    {
+      "name": "home/github-white/1440: selection, repeated selection, presentation close and focus return",
+      "result": "pass"
+    },
+    {
+      "name": "home/github-white/1280: default content, hidden context, explicit mock, desktop reachability",
+      "result": "pass"
+    },
+    {
+      "name": "home/github-white/1280: semantic DOM and decorative local icon consistency",
+      "result": "pass"
+    },
+    {
+      "name": "home/github-white/1280: selection, repeated selection, presentation close and focus return",
+      "result": "pass"
+    },
+    {
+      "name": "list/github-white/1440: default content, hidden context, explicit mock, desktop reachability",
+      "result": "pass"
+    },
+    {
+      "name": "list/github-white/1440: semantic DOM and decorative local icon consistency",
+      "result": "pass"
+    },
+    {
+      "name": "list/github-white/1440: selection, repeated selection, presentation close and focus return",
+      "result": "pass"
+    },
+    {
+      "name": "list/github-white/1280: default content, hidden context, explicit mock, desktop reachability",
+      "result": "pass"
+    },
+    {
+      "name": "list/github-white/1280: semantic DOM and decorative local icon consistency",
+      "result": "pass"
+    },
+    {
+      "name": "list/github-white/1280: selection, repeated selection, presentation close and focus return",
+      "result": "pass"
+    },
+    {
+      "name": "form/github-white/1440: default content, hidden context, explicit mock, desktop reachability",
+      "result": "pass"
+    },
+    {
+      "name": "form/github-white/1440: semantic DOM and decorative local icon consistency",
+      "result": "pass"
+    },
+    {
+      "name": "form/github-white/1440: selection, repeated selection, presentation close and focus return",
+      "result": "pass"
+    },
+    {
+      "name": "form/github-white/1280: default content, hidden context, explicit mock, desktop reachability",
+      "result": "pass"
+    },
+    {
+      "name": "form/github-white/1280: semantic DOM and decorative local icon consistency",
+      "result": "pass"
+    },
+    {
+      "name": "form/github-white/1280: selection, repeated selection, presentation close and focus return",
+      "result": "pass"
+    },
+    {
+      "name": "task/github-white/1440: default content, hidden context, explicit mock, desktop reachability",
+      "result": "pass"
+    },
+    {
+      "name": "task/github-white/1440: semantic DOM and decorative local icon consistency",
+      "result": "pass"
+    },
+    {
+      "name": "task/github-white/1440: selection, repeated selection, presentation close and focus return",
+      "result": "pass"
+    },
+    {
+      "name": "task/github-white/1280: default content, hidden context, explicit mock, desktop reachability",
+      "result": "pass"
+    },
+    {
+      "name": "task/github-white/1280: semantic DOM and decorative local icon consistency",
+      "result": "pass"
+    },
+    {
+      "name": "task/github-white/1280: selection, repeated selection, presentation close and focus return",
+      "result": "pass"
+    },
+    {
+      "name": "settings/github-white/1440: default content, hidden context, explicit mock, desktop reachability",
+      "result": "pass"
+    },
+    {
+      "name": "settings/github-white/1440: semantic DOM and decorative local icon consistency",
+      "result": "pass"
+    },
+    {
+      "name": "settings/github-white/1440: selection, repeated selection, presentation close and focus return",
+      "result": "pass"
+    },
+    {
+      "name": "settings/github-white/1280: default content, hidden context, explicit mock, desktop reachability",
+      "result": "pass"
+    },
+    {
+      "name": "settings/github-white/1280: semantic DOM and decorative local icon consistency",
+      "result": "pass"
+    },
+    {
+      "name": "settings/github-white/1280: selection, repeated selection, presentation close and focus return",
+      "result": "pass"
+    },
+    {
+      "name": "home/spdb: Enter/Space selection, Escape and explicit deselection retain trigger focus",
+      "result": "pass"
+    },
+    {
+      "name": "home/spdb: non-modal context does not trap Tab, expand/collapse preserves selection",
+      "result": "pass"
+    },
+    {
+      "name": "list/spdb: Enter/Space selection, Escape and explicit deselection retain trigger focus",
+      "result": "pass"
+    },
+    {
+      "name": "list/spdb: non-modal context does not trap Tab, expand/collapse preserves selection",
+      "result": "pass"
+    },
+    {
+      "name": "form/spdb: Enter/Space selection, Escape and explicit deselection retain trigger focus",
+      "result": "pass"
+    },
+    {
+      "name": "form/spdb: non-modal context does not trap Tab, expand/collapse preserves selection",
+      "result": "pass"
+    },
+    {
+      "name": "task/spdb: Enter/Space selection, Escape and explicit deselection retain trigger focus",
+      "result": "pass"
+    },
+    {
+      "name": "task/spdb: non-modal context does not trap Tab, expand/collapse preserves selection",
+      "result": "pass"
+    },
+    {
+      "name": "settings/spdb: Enter/Space selection, Escape and explicit deselection retain trigger focus",
+      "result": "pass"
+    },
+    {
+      "name": "settings/spdb: non-modal context does not trap Tab, expand/collapse preserves selection",
+      "result": "pass"
+    },
+    {
+      "name": "spdb: skip link and keyboard focus indicator",
+      "result": "pass"
+    },
+    {
+      "name": "spdb: reduced motion disables non-essential transitions and leaves keyboard selection usable",
+      "result": "pass"
+    },
+    {
+      "name": "home/tech-blue: Enter/Space selection, Escape and explicit deselection retain trigger focus",
+      "result": "pass"
+    },
+    {
+      "name": "home/tech-blue: non-modal context does not trap Tab, expand/collapse preserves selection",
+      "result": "pass"
+    },
+    {
+      "name": "list/tech-blue: Enter/Space selection, Escape and explicit deselection retain trigger focus",
+      "result": "pass"
+    },
+    {
+      "name": "list/tech-blue: non-modal context does not trap Tab, expand/collapse preserves selection",
+      "result": "pass"
+    },
+    {
+      "name": "form/tech-blue: Enter/Space selection, Escape and explicit deselection retain trigger focus",
+      "result": "pass"
+    },
+    {
+      "name": "form/tech-blue: non-modal context does not trap Tab, expand/collapse preserves selection",
+      "result": "pass"
+    },
+    {
+      "name": "task/tech-blue: Enter/Space selection, Escape and explicit deselection retain trigger focus",
+      "result": "pass"
+    },
+    {
+      "name": "task/tech-blue: non-modal context does not trap Tab, expand/collapse preserves selection",
+      "result": "pass"
+    },
+    {
+      "name": "settings/tech-blue: Enter/Space selection, Escape and explicit deselection retain trigger focus",
+      "result": "pass"
+    },
+    {
+      "name": "settings/tech-blue: non-modal context does not trap Tab, expand/collapse preserves selection",
+      "result": "pass"
+    },
+    {
+      "name": "tech-blue: skip link and keyboard focus indicator",
+      "result": "pass"
+    },
+    {
+      "name": "tech-blue: reduced motion disables non-essential transitions and leaves keyboard selection usable",
+      "result": "pass"
+    },
+    {
+      "name": "home/github-white: Enter/Space selection, Escape and explicit deselection retain trigger focus",
+      "result": "pass"
+    },
+    {
+      "name": "home/github-white: non-modal context does not trap Tab, expand/collapse preserves selection",
+      "result": "pass"
+    },
+    {
+      "name": "list/github-white: Enter/Space selection, Escape and explicit deselection retain trigger focus",
+      "result": "pass"
+    },
+    {
+      "name": "list/github-white: non-modal context does not trap Tab, expand/collapse preserves selection",
+      "result": "pass"
+    },
+    {
+      "name": "form/github-white: Enter/Space selection, Escape and explicit deselection retain trigger focus",
+      "result": "pass"
+    },
+    {
+      "name": "form/github-white: non-modal context does not trap Tab, expand/collapse preserves selection",
+      "result": "pass"
+    },
+    {
+      "name": "task/github-white: Enter/Space selection, Escape and explicit deselection retain trigger focus",
+      "result": "pass"
+    },
+    {
+      "name": "task/github-white: non-modal context does not trap Tab, expand/collapse preserves selection",
+      "result": "pass"
+    },
+    {
+      "name": "settings/github-white: Enter/Space selection, Escape and explicit deselection retain trigger focus",
+      "result": "pass"
+    },
+    {
+      "name": "settings/github-white: non-modal context does not trap Tab, expand/collapse preserves selection",
+      "result": "pass"
+    },
+    {
+      "name": "github-white: skip link and keyboard focus indicator",
+      "result": "pass"
+    },
+    {
+      "name": "github-white: reduced motion disables non-essential transitions and leaves keyboard selection usable",
+      "result": "pass"
+    },
+    {
+      "name": "home/spdb: search filters loaded objects only, clears and retains actual input focus without requests",
+      "result": "pass"
+    },
+    {
+      "name": "list/spdb: search/status combine; context close retains local query/filter without writes",
+      "result": "pass"
+    },
+    {
+      "name": "form/spdb: exactly four real New fields, no upload in main or advanced context",
+      "result": "pass"
+    },
+    {
+      "name": "form/spdb: real dirty input, theme/presentation retain draft; leave requires cancel or explicit discard",
+      "result": "pass"
+    },
+    {
+      "name": "form/spdb/sending: actual four-field lock, no silent leave/discard, close retains original owner/body/key",
+      "result": "pass"
+    },
+    {
+      "name": "form/spdb/unknown: actual four-field lock, no silent leave/discard, close retains original owner/body/key",
+      "result": "pass"
+    },
+    {
+      "name": "form/spdb: explicit original retry, accepted handoff blocks navigation, no invented read GET/repeat create",
+      "result": "pass"
+    },
+    {
+      "name": "settings/spdb: two actual groups retain drafts across close/theme; explicit discard restores the whole owner",
+      "result": "pass"
+    },
+    {
+      "name": "settings/spdb: mock save commits whole two-group baseline; later discard preserves it",
+      "result": "pass"
+    },
+    {
+      "name": "task/spdb: waiting question survives context close; answer focus and stop confirmation are distinct",
+      "result": "pass"
+    },
+    {
+      "name": "task/spdb: accepted operation recovery only reads original owner and cannot double write",
+      "result": "pass"
+    },
+    {
+      "name": "task/spdb: answer without idempotency key recovers by original state read, no repeated answer POST",
+      "result": "pass"
+    },
+    {
+      "name": "task/spdb: versioned conflict is independent task demo, preserves waiting question, no Settings CAS",
+      "result": "pass"
+    },
+    {
+      "name": "home/tech-blue: search filters loaded objects only, clears and retains actual input focus without requests",
+      "result": "pass"
+    },
+    {
+      "name": "list/tech-blue: search/status combine; context close retains local query/filter without writes",
+      "result": "pass"
+    },
+    {
+      "name": "form/tech-blue: exactly four real New fields, no upload in main or advanced context",
+      "result": "pass"
+    },
+    {
+      "name": "form/tech-blue: real dirty input, theme/presentation retain draft; leave requires cancel or explicit discard",
+      "result": "pass"
+    },
+    {
+      "name": "form/tech-blue/sending: actual four-field lock, no silent leave/discard, close retains original owner/body/key",
+      "result": "pass"
+    },
+    {
+      "name": "form/tech-blue/unknown: actual four-field lock, no silent leave/discard, close retains original owner/body/key",
+      "result": "pass"
+    },
+    {
+      "name": "form/tech-blue: explicit original retry, accepted handoff blocks navigation, no invented read GET/repeat create",
+      "result": "pass"
+    },
+    {
+      "name": "settings/tech-blue: two actual groups retain drafts across close/theme; explicit discard restores the whole owner",
+      "result": "pass"
+    },
+    {
+      "name": "settings/tech-blue: mock save commits whole two-group baseline; later discard preserves it",
+      "result": "pass"
+    },
+    {
+      "name": "task/tech-blue: waiting question survives context close; answer focus and stop confirmation are distinct",
+      "result": "pass"
+    },
+    {
+      "name": "task/tech-blue: accepted operation recovery only reads original owner and cannot double write",
+      "result": "pass"
+    },
+    {
+      "name": "task/tech-blue: answer without idempotency key recovers by original state read, no repeated answer POST",
+      "result": "pass"
+    },
+    {
+      "name": "task/tech-blue: versioned conflict is independent task demo, preserves waiting question, no Settings CAS",
+      "result": "pass"
+    },
+    {
+      "name": "home/github-white: search filters loaded objects only, clears and retains actual input focus without requests",
+      "result": "pass"
+    },
+    {
+      "name": "list/github-white: search/status combine; context close retains local query/filter without writes",
+      "result": "pass"
+    },
+    {
+      "name": "form/github-white: exactly four real New fields, no upload in main or advanced context",
+      "result": "pass"
+    },
+    {
+      "name": "form/github-white: real dirty input, theme/presentation retain draft; leave requires cancel or explicit discard",
+      "result": "pass"
+    },
+    {
+      "name": "form/github-white/sending: actual four-field lock, no silent leave/discard, close retains original owner/body/key",
+      "result": "pass"
+    },
+    {
+      "name": "form/github-white/unknown: actual four-field lock, no silent leave/discard, close retains original owner/body/key",
+      "result": "pass"
+    },
+    {
+      "name": "form/github-white: explicit original retry, accepted handoff blocks navigation, no invented read GET/repeat create",
+      "result": "pass"
+    },
+    {
+      "name": "settings/github-white: two actual groups retain drafts across close/theme; explicit discard restores the whole owner",
+      "result": "pass"
+    },
+    {
+      "name": "settings/github-white: mock save commits whole two-group baseline; later discard preserves it",
+      "result": "pass"
+    },
+    {
+      "name": "task/github-white: waiting question survives context close; answer focus and stop confirmation are distinct",
+      "result": "pass"
+    },
+    {
+      "name": "task/github-white: accepted operation recovery only reads original owner and cannot double write",
+      "result": "pass"
+    },
+    {
+      "name": "task/github-white: answer without idempotency key recovers by original state read, no repeated answer POST",
+      "result": "pass"
+    },
+    {
+      "name": "task/github-white: versioned conflict is independent task demo, preserves waiting question, no Settings CAS",
+      "result": "pass"
+    },
+    {
+      "name": "home: unsupported write scenario cannot manufacture Task owner/version in a read/settings page",
+      "result": "pass"
+    },
+    {
+      "name": "list: unsupported write scenario cannot manufacture Task owner/version in a read/settings page",
+      "result": "pass"
+    },
+    {
+      "name": "settings: unsupported write scenario cannot manufacture Task owner/version in a read/settings page",
+      "result": "pass"
+    },
+    {
+      "name": "single HTML: exact inline CSS/registry/app bytes, hash CSP, scripts after existing DOM",
+      "result": "pass"
+    },
+    {
+      "name": "single/home/spdb/1440: exact DOM and stable browser pixels equal local source",
+      "result": "pass"
+    },
+    {
+      "name": "single/home/spdb/1280: exact DOM and stable browser pixels equal local source",
+      "result": "pass"
+    },
+    {
+      "name": "single/list/spdb/1440: exact DOM and stable browser pixels equal local source",
+      "result": "pass"
+    },
+    {
+      "name": "single/list/spdb/1280: exact DOM and stable browser pixels equal local source",
+      "result": "pass"
+    },
+    {
+      "name": "single/form/spdb/1440: exact DOM and stable browser pixels equal local source",
+      "result": "pass"
+    },
+    {
+      "name": "single/form/spdb/1280: exact DOM and stable browser pixels equal local source",
+      "result": "pass"
+    },
+    {
+      "name": "single/task/spdb/1440: exact DOM and stable browser pixels equal local source",
+      "result": "pass"
+    },
+    {
+      "name": "single/task/spdb/1280: exact DOM and stable browser pixels equal local source",
+      "result": "pass"
+    },
+    {
+      "name": "single/settings/spdb/1440: exact DOM and stable browser pixels equal local source",
+      "result": "pass"
+    },
+    {
+      "name": "single/settings/spdb/1280: exact DOM and stable browser pixels equal local source",
+      "result": "pass"
+    },
+    {
+      "name": "single/home/tech-blue/1440: exact DOM and stable browser pixels equal local source",
+      "result": "pass"
+    },
+    {
+      "name": "single/home/tech-blue/1280: exact DOM and stable browser pixels equal local source",
+      "result": "pass"
+    },
+    {
+      "name": "single/list/tech-blue/1440: exact DOM and stable browser pixels equal local source",
+      "result": "pass"
+    },
+    {
+      "name": "single/list/tech-blue/1280: exact DOM and stable browser pixels equal local source",
+      "result": "pass"
+    },
+    {
+      "name": "single/form/tech-blue/1440: exact DOM and stable browser pixels equal local source",
+      "result": "pass"
+    },
+    {
+      "name": "single/form/tech-blue/1280: exact DOM and stable browser pixels equal local source",
+      "result": "pass"
+    },
+    {
+      "name": "single/task/tech-blue/1440: exact DOM and stable browser pixels equal local source",
+      "result": "pass"
+    },
+    {
+      "name": "single/task/tech-blue/1280: exact DOM and stable browser pixels equal local source",
+      "result": "pass"
+    },
+    {
+      "name": "single/settings/tech-blue/1440: exact DOM and stable browser pixels equal local source",
+      "result": "pass"
+    },
+    {
+      "name": "single/settings/tech-blue/1280: exact DOM and stable browser pixels equal local source",
+      "result": "pass"
+    },
+    {
+      "name": "single/home/github-white/1440: exact DOM and stable browser pixels equal local source",
+      "result": "pass"
+    },
+    {
+      "name": "single/home/github-white/1280: exact DOM and stable browser pixels equal local source",
+      "result": "pass"
+    },
+    {
+      "name": "single/list/github-white/1440: exact DOM and stable browser pixels equal local source",
+      "result": "pass"
+    },
+    {
+      "name": "single/list/github-white/1280: exact DOM and stable browser pixels equal local source",
+      "result": "pass"
+    },
+    {
+      "name": "single/form/github-white/1440: exact DOM and stable browser pixels equal local source",
+      "result": "pass"
+    },
+    {
+      "name": "single/form/github-white/1280: exact DOM and stable browser pixels equal local source",
+      "result": "pass"
+    },
+    {
+      "name": "single/task/github-white/1440: exact DOM and stable browser pixels equal local source",
+      "result": "pass"
+    },
+    {
+      "name": "single/task/github-white/1280: exact DOM and stable browser pixels equal local source",
+      "result": "pass"
+    },
+    {
+      "name": "single/settings/github-white/1440: exact DOM and stable browser pixels equal local source",
+      "result": "pass"
+    },
+    {
+      "name": "single/settings/github-white/1280: exact DOM and stable browser pixels equal local source",
+      "result": "pass"
+    },
+    {
+      "name": "single HTML: document-only requests across all 30 desktop combinations",
+      "result": "pass"
+    },
+    {
+      "name": "viewer-like HTML injection: all five pages × three skins render with zero requests",
+      "result": "pass"
+    },
+    {
+      "name": "old prototype preservation: all original sources/evidence and exactly 29 screenshots unchanged",
+      "result": "pass"
+    },
+    {
+      "name": "source freeze: author prototype, registry, single HTML and verifier did not change during the run",
+      "result": "pass"
+    },
+    {
+      "name": "no external resources, API mutations, page errors, or console errors",
+      "result": "pass"
+    }
+  ],
+  "screenshots": [
+    {
+      "name": "spdb-home-default.png",
+      "sha256": "f06c8207ccd216e30e779b14572be79854bd92dedd19731169a6ba959dd62414",
+      "bytes": 70393,
+      "samples": 2,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "skin": "spdb",
+      "state": "home, default, simulated data",
+      "simulated": true
+    },
+    {
+      "name": "spdb-list-default.png",
+      "sha256": "ded8ac41f62f767c16f862f30055f8b017fdb856ed9e1016a2d1e3e56cd94f33",
+      "bytes": 84445,
+      "samples": 2,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "skin": "spdb",
+      "state": "list, default, simulated data",
+      "simulated": true
+    },
+    {
+      "name": "spdb-form-default.png",
+      "sha256": "0eecd1c046fd4044799d5c9ea03afc70b1268687b6609e6f1866bbd12d3ce801",
+      "bytes": 56125,
+      "samples": 2,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "skin": "spdb",
+      "state": "form, default, simulated data",
+      "simulated": true
+    },
+    {
+      "name": "spdb-task-default.png",
+      "sha256": "dc2ce5632aa86161d1bd3b76b11ca007db53cf142265a2028257ab9e663c33b8",
+      "bytes": 90303,
+      "samples": 2,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "skin": "spdb",
+      "state": "task, default, simulated data",
+      "simulated": true
+    },
+    {
+      "name": "spdb-settings-default.png",
+      "sha256": "5b92c7bb51bec7db4d52678334d1aecf107c0147137f3e510b73c070941c383b",
+      "bytes": 61507,
+      "samples": 2,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "skin": "spdb",
+      "state": "settings, default, simulated data",
+      "simulated": true
+    },
+    {
+      "name": "tech-blue-home-default.png",
+      "sha256": "afb424312befcdd85632d2b7e47b2c6e36842447d223544ebacb221172a35f03",
+      "bytes": 71740,
+      "samples": 2,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "skin": "tech-blue",
+      "state": "home, default, simulated data",
+      "simulated": true
+    },
+    {
+      "name": "tech-blue-list-default.png",
+      "sha256": "bb8e879a0abde29d300dbe7fb8f6cf6c85fed4d8447d42954782ee011c9b909c",
+      "bytes": 85492,
+      "samples": 2,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "skin": "tech-blue",
+      "state": "list, default, simulated data",
+      "simulated": true
+    },
+    {
+      "name": "tech-blue-form-default.png",
+      "sha256": "a578c5c278c9bc153c8cda6aee2316db8dec092162532d8eb76930745d5d7a2c",
+      "bytes": 56869,
+      "samples": 2,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "skin": "tech-blue",
+      "state": "form, default, simulated data",
+      "simulated": true
+    },
+    {
+      "name": "tech-blue-task-default.png",
+      "sha256": "1c54e2842bbc8a6ad71c3fcfc523e02b33ea8743de583310440d80dece21c770",
+      "bytes": 91146,
+      "samples": 2,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "skin": "tech-blue",
+      "state": "task, default, simulated data",
+      "simulated": true
+    },
+    {
+      "name": "tech-blue-settings-default.png",
+      "sha256": "5f8b1de692d31b056f2d5bace7a22360d40d030b99e9dbb89fdc401ee23a9909",
+      "bytes": 62631,
+      "samples": 2,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "skin": "tech-blue",
+      "state": "settings, default, simulated data",
+      "simulated": true
+    },
+    {
+      "name": "github-white-home-default.png",
+      "sha256": "00c61442cdbc4fbb30e7c95e9f6a8e0fdbb035270dea5de6c436a9305c22bbb8",
+      "bytes": 70949,
+      "samples": 2,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "skin": "github-white",
+      "state": "home, default, simulated data",
+      "simulated": true
+    },
+    {
+      "name": "github-white-home-selected.png",
+      "sha256": "45556aec8b0d31e4a04c8f2d5a53160930f6e34ab684dc4990941b38c0d14625",
+      "bytes": 95782,
+      "samples": 2,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "skin": "github-white",
+      "state": "home, selected context, simulated data",
+      "simulated": true
+    },
+    {
+      "name": "github-white-list-default.png",
+      "sha256": "1a486b711f7f72eff3af583b49064f24587d9903097400f17a65dbac60984883",
+      "bytes": 84955,
+      "samples": 2,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "skin": "github-white",
+      "state": "list, default, simulated data",
+      "simulated": true
+    },
+    {
+      "name": "github-white-list-selected.png",
+      "sha256": "8c781a644c3fad4d1c19cd7602ba8221abb50189fd8449f415f52ee46e469a00",
+      "bytes": 108982,
+      "samples": 2,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "skin": "github-white",
+      "state": "list, selected context, simulated data",
+      "simulated": true
+    },
+    {
+      "name": "github-white-form-default.png",
+      "sha256": "0d4810baa3fb62692a985bbfc3dc8c4026d3da3bdde01aa819f983164777501c",
+      "bytes": 56683,
+      "samples": 2,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "skin": "github-white",
+      "state": "form, default, simulated data",
+      "simulated": true
+    },
+    {
+      "name": "github-white-form-selected.png",
+      "sha256": "ef0c681fec635123c84a62a3ac4fbfbd335529423e62932161632c457d1994bf",
+      "bytes": 80004,
+      "samples": 2,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "skin": "github-white",
+      "state": "form, selected context, simulated data",
+      "simulated": true
+    },
+    {
+      "name": "github-white-task-default.png",
+      "sha256": "d6aebbe9cc85f2d66b2d112032c56d30a56203553842c5ea322d6172ed864062",
+      "bytes": 90926,
+      "samples": 2,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "skin": "github-white",
+      "state": "task, default, simulated data",
+      "simulated": true
+    },
+    {
+      "name": "github-white-task-selected.png",
+      "sha256": "8fb599a27bc78db92e72a909ad3987f7d6877589ddbfd160f687b0114e7837e8",
+      "bytes": 113589,
+      "samples": 2,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "skin": "github-white",
+      "state": "task, selected context, simulated data",
+      "simulated": true
+    },
+    {
+      "name": "github-white-settings-default.png",
+      "sha256": "d8c2450cb2affee631682ecf46ffbbf7b5eb2e72e47d621ed5e463c94d7cebed",
+      "bytes": 62100,
+      "samples": 2,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "skin": "github-white",
+      "state": "settings, default, simulated data",
+      "simulated": true
+    },
+    {
+      "name": "github-white-settings-selected.png",
+      "sha256": "699d1fb61abd3b03db5b570061c9e56452fc86210737fa85ed7c851b01c2a919",
+      "bytes": 79610,
+      "samples": 2,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "skin": "github-white",
+      "state": "settings, selected context, simulated data",
+      "simulated": true
+    },
+    {
+      "name": "spdb-form-dirty-confirm.png",
+      "sha256": "4f625742361751021f235813e1d71889e6f0acf2b1fec824206fdb0536671f09",
+      "bytes": 85142,
+      "samples": 2,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "skin": "spdb",
+      "state": "ordinary unsent draft, explicit leave decision, simulated",
+      "simulated": true
+    },
+    {
+      "name": "spdb-settings-dirty.png",
+      "sha256": "a0f4b27e220d8108a41988b88afa49d2592f3d640b3ea37521e7b7618be949ee",
+      "bytes": 90136,
+      "samples": 2,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "skin": "spdb",
+      "state": "two settings groups edited, one whole settings owner, simulated",
+      "simulated": true
+    },
+    {
+      "name": "spdb-task-waiting.png",
+      "sha256": "46c97aff69207d22bbd1f73d4bdfc6ea6bde84c963e735dba9dd1372b5f6933b",
+      "bytes": 109632,
+      "samples": 2,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "skin": "spdb",
+      "state": "waiting question and explicit stop action, simulated",
+      "simulated": true
+    },
+    {
+      "name": "spdb-task-conflict.png",
+      "sha256": "6164a8996de01806b65d5d12e1e0f9d1fcf03f978d982b0405f86bed17d1388b",
+      "bytes": 129470,
+      "samples": 2,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "skin": "spdb",
+      "state": "independent versioned task local-sync conflict, simulated",
+      "simulated": true
+    },
+    {
+      "name": "tech-blue-form-unknown.png",
+      "sha256": "4b9dd2e74467287fc53a13ed9b47d66cd69eebd5c5926c47f8f0426a08075cdd",
+      "bytes": 76262,
+      "samples": 2,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "skin": "tech-blue",
+      "state": "unknown create owner retained, locked four fields, simulated",
+      "simulated": true
+    },
+    {
+      "name": "tech-blue-task-recovered.png",
+      "sha256": "e9d2e32bbf27b4bc97ffa6b7c537cd90f26c376feff0b0361b4408ce4f280aa4",
+      "bytes": 79273,
+      "samples": 2,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "skin": "tech-blue",
+      "state": "accepted owner readback simulation, zero additional writes",
+      "simulated": true
+    },
+    {
+      "name": "github-white-form-handoff.png",
+      "sha256": "753651f2e5dea98d5c9a993fae2b0e56ed84221f75def887a3d8112b1799dc76",
+      "bytes": 91884,
+      "samples": 2,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "skin": "github-white",
+      "state": "accepted original receipt target, no new create, simulated",
+      "simulated": true
+    },
+    {
+      "name": "tech-blue-list-reduced-motion-1280.png",
+      "sha256": "7ff3c77540d135a858558117ad342f683df7d26f4b09a8a882228e1c08dc342d",
+      "bytes": 107197,
+      "samples": 2,
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "skin": "tech-blue",
+      "state": "1280 desktop context with reduced motion, simulated",
+      "simulated": true
+    }
+  ],
+  "requests": [
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=home&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=home&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=home&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=list&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=list&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=form&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=form&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=task&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=task&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=settings&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=settings&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=home&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=home&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=list&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=list&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=form&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=form&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=task&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=task&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=settings&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=settings&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=home&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=home&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=list&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=list&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=form&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=form&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=task&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=task&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=settings&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=settings&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=home&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=list&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=form&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=task&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=settings&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=list&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=list&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=home&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=list&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=form&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=task&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=settings&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=list&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=list&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=home&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=list&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=form&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=task&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=settings&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=list&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=list&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=home&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=list&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=form&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=form&skin=spdb&scenario=sending",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=form&skin=spdb&scenario=unknown",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=form&skin=spdb&scenario=unknown",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=settings&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=settings&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=task&skin=spdb&scenario=waiting",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=task&skin=spdb&scenario=recovery",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=task&skin=spdb&scenario=unknown",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=task&skin=spdb&scenario=conflict",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=home&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=list&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=form&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=form&skin=tech-blue&scenario=sending",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=form&skin=tech-blue&scenario=unknown",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=form&skin=tech-blue&scenario=unknown",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=settings&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=settings&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=task&skin=tech-blue&scenario=waiting",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=task&skin=tech-blue&scenario=recovery",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=task&skin=tech-blue&scenario=unknown",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=task&skin=tech-blue&scenario=conflict",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=home&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=list&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=form&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=form&skin=github-white&scenario=sending",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=form&skin=github-white&scenario=unknown",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=form&skin=github-white&scenario=unknown",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=settings&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=settings&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=task&skin=github-white&scenario=waiting",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=task&skin=github-white&scenario=recovery",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=task&skin=github-white&scenario=unknown",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=task&skin=github-white&scenario=conflict",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=home&skin=github-white&scenario=unknown",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=list&skin=github-white&scenario=unknown",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=settings&skin=github-white&scenario=unknown",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/index.html?page=list&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=home&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/index.html?page=home&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=home&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/index.html?page=home&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=list&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/index.html?page=list&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=list&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/index.html?page=list&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=form&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/index.html?page=form&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=form&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/index.html?page=form&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=task&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/index.html?page=task&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=task&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/index.html?page=task&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=settings&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/index.html?page=settings&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=settings&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/index.html?page=settings&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=home&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/index.html?page=home&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=home&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/index.html?page=home&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=list&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/index.html?page=list&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=list&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/index.html?page=list&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=form&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/index.html?page=form&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=form&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/index.html?page=form&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=task&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/index.html?page=task&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=task&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/index.html?page=task&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=settings&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/index.html?page=settings&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=settings&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/index.html?page=settings&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=home&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/index.html?page=home&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=home&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/index.html?page=home&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=list&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/index.html?page=list&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=list&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/index.html?page=list&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=form&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/index.html?page=form&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=form&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/index.html?page=form&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=task&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/index.html?page=task&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=task&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/index.html?page=task&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=settings&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/index.html?page=settings&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=settings&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/index.html?page=settings&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/styles.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/semantic-registry.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "page": 2,
+      "url": "http://127.0.0.1:41783/app.js",
+      "type": "script",
+      "method": "GET"
+    }
+  ],
+  "externalRequests": [],
+  "pageErrors": [],
+  "consoleErrors": [],
+  "executionComplete": true,
+  "nativeDialogs": [
+    {
+      "type": "beforeunload",
+      "message": ""
+    },
+    {
+      "type": "beforeunload",
+      "message": ""
+    },
+    {
+      "type": "beforeunload",
+      "message": ""
+    },
+    {
+      "type": "beforeunload",
+      "message": ""
+    },
+    {
+      "type": "beforeunload",
+      "message": ""
+    },
+    {
+      "type": "beforeunload",
+      "message": ""
+    },
+    {
+      "type": "beforeunload",
+      "message": ""
+    }
+  ],
+  "previewOrigin": "http://127.0.0.1:41783",
+  "browser": "151.0.7922.173",
+  "semantic": {
+    "objects": 120,
+    "actions": 173,
+    "icons": 78,
+    "routes": 31,
+    "localIconFileSha256": "428633667745fc16b264451b5d9bab478e7a648720a7d40c01e756b21346fe97"
+  },
+  "singleDocumentRequests": [
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=home&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=home&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=list&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=list&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=form&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=form&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=task&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=task&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=settings&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=settings&skin=spdb&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=home&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=home&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=list&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=list&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=form&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=form&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=task&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=task&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=settings&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=settings&skin=tech-blue&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=home&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=home&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=list&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=list&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=form&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=form&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=task&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=task&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=settings&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "page": 1,
+      "url": "http://127.0.0.1:41783/review-single.html?page=settings&skin=github-white&scenario=clean",
+      "type": "document",
+      "method": "GET"
+    }
+  ],
+  "injectedPage": {
+    "requests": [],
+    "errors": [],
+    "combinations": 15
+  },
+  "originalAfter": {
+    "index.html": "f39fbe7845aa9dcf46e149571d433713dee13fff599ccbd29aacd25059c2cf80",
+    "prototype.css": "5d85cfd1ba0754fe6eeeecd532372607884e43e7b3ba76b7d84d04577f7d489f",
+    "prototype.js": "4cc457a3758bad4605c8d04fd058ea0b62ddd0292c03c6ac87be1baeb3478e99",
+    "capture.mjs": "1910885b939a557caf2705e3b4625c8d9956325f24abb7661f400f3864a9efe7",
+    "evidence.json": "568ae3fe042de6d72fcc719cb7efe5dd57463fea1ac2095458707bd8385a73ca",
+    "review-single.html": "9b519f8a3f6d34c1a323f975540323586ff6ee8cd6516c1dd623dfb1c37cd26b",
+    "bundle-single.mjs": "83de69a8e08dc13cb59bc3fc4c4ab96925869cbfa9835034001534c7b17c48da",
+    "verify-single.mjs": "04b75c96029be7ecda2edd4263ad1465caaaf452da684257a9983df595ce2564",
+    "single-evidence.json": "eb537f3f8aa031d148c28711f97aed612f7fd34c1dc5c92adad4e82401f6cbfb",
+    "screenshots/github-white-detail-1440.png": "ccd01dfe2e0a5e5af55802974aac885e7cca25f47e781a60228252ca65cb339d",
+    "screenshots/github-white-detail-390.png": "d90f792faf1c48edfba5c14efcb83353b4b32f2bfb2ca46528eb0677717c91a7",
+    "screenshots/github-white-form-1440.png": "3d22ed3dfdf7606db1591cbc7c8a2190ac538540669573e76ea8c17e29aca9e9",
+    "screenshots/github-white-form-390.png": "5cb89b14699b231832a6e6500940b6af8c0acb366a70e5bddb1f689134ea6c01",
+    "screenshots/github-white-home-1440.png": "67a1cabd44ac90885b6f1419deac11c870977e3b4adc0d9ac06d6427db53d572",
+    "screenshots/github-white-home-390.png": "870d435ef6e2326d10c90d2d00182a9869da54221fe36e95cc8560f0e78dd076",
+    "screenshots/github-white-list-1440.png": "3a3e87b680552f79c0c5fc485654b21bd38271699a40bbb53957679c40c5466f",
+    "screenshots/github-white-list-320.png": "c0e9298375b344db181daa8f8b4da58295bd8db591eedf2ceb61d6eb1f7964c6",
+    "screenshots/github-white-list-390.png": "015ee31a2ba0e565cbf6b26a4a39c5e39163055cfdb8d2a896ba5f5f6d7162a2",
+    "screenshots/github-white-list-filters.png": "f89fc2cb5f840f0cb5e6a42b6ad9b6bdd32cba473316778cdc7f27528cd9186c",
+    "screenshots/github-white-settings-1440.png": "b5dfb7f68d48338f628bf5a8ee5ffce1c065ffa4cc343dbac7240a4a6202bf31",
+    "screenshots/github-white-settings-320.png": "252f6ace90e9055bd64488a2d7792c6aa187bae84628a7f5765e2f57f84b4e95",
+    "screenshots/github-white-settings-390.png": "0b7d27ccb16acc4d2159a9b748f89c918390865c32773cdec088aa63980aceeb",
+    "screenshots/spdb-detail-1440.png": "97ab86ea4d93d96ed2cd36a763f17806a3a928ce4977e34acbfd28f22ef5ea0a",
+    "screenshots/spdb-detail-conflict.png": "37ddf8b0d345c3cd4d3d355ddbe6da10cf7bb7fcc5cf8bda70055d5e0628a878",
+    "screenshots/spdb-form-1440.png": "136b1dab0f21cecbb671f51e47d849e33dbd4971a62f08363eb407473335c0d1",
+    "screenshots/spdb-home-1440.png": "e3e6ec0446db35d284aff2d4034c6f0ed6e5a52e2fa6b5f8d54125ba6f661f31",
+    "screenshots/spdb-home-390.png": "2781aab680f9b8bc3ad93cddaebe2fd1d2dfe6f1028766e86f997bfd45fa72cf",
+    "screenshots/spdb-list-1440.png": "72202f1e3efa6596cbe7c6a74f18faea2f8dd1d13e6cdc44a5550371a93ca611",
+    "screenshots/spdb-settings-1440.png": "f7d8426f34d02e4bc384862f8c75c4782e24726c198c0222bdef3d6befa8dbea",
+    "screenshots/tech-blue-detail-1440.png": "f31fbeab02e31af042fe408a11a5e99c865001df6047b6e1adbd934fddc054bc",
+    "screenshots/tech-blue-detail-390.png": "a136de04c4a2d531abf30ea1d1402a45cb24602298c20af66ea9ca42bdf724c8",
+    "screenshots/tech-blue-form-1440.png": "eef515f8a08c358d586a89e249f87cb0b8a4dac03e0da32d4fd35cc9074b3adf",
+    "screenshots/tech-blue-form-390.png": "8e80d3593999bc5f91a16fb3eb0376392ba9b7087c286c21130280bea43493e7",
+    "screenshots/tech-blue-form-unknown.png": "71325f6fd3bdbce087fcfc7e98f6e8758c9c1e41d7b10f4aefbdd2545ebc293c",
+    "screenshots/tech-blue-home-1440.png": "3bb729ba8aa4bda192a19d37bf6ef5e62faaa6227609cb42dcfce2cabb974b65",
+    "screenshots/tech-blue-list-1440.png": "b651c771a1dcef18aa43b1747b7092b578c04c028e31d0c8cd12415358fd169a",
+    "screenshots/tech-blue-list-reduced-motion.png": "78ed7aa466ffbbccd26040cf6918332472d9ed17d027f0072cff329248126631",
+    "screenshots/tech-blue-settings-1440.png": "fd158676e0a38a05b88cf3a1d4187f79d5fa1d581204021e8c77cd1045eb48a5"
+  },
+  "sourcesAfter": {
+    "index.html": "86908108eb4602f9eafc33c3f64e9a4d88381348eb54887fdf6ddf26605393bd",
+    "styles.css": "29add0c85ba96100b67611f109c98ad9c72196653ce0b969f9e600658f5fb79c",
+    "app.js": "5ebd2c28b989d72a46581cd2634cecc89806e508abfec089b5da7e74c59281a4",
+    "semantic-registry.json": "a2590bf07ef3d36163ee91d348fc0c50a83c6960798c014b161d6f9523be843b",
+    "semantic-registry.js": "60263ad7160718c89ec110ca162b8a9a4a948e23111e4dfd5cb925fc50c90c91",
+    "review-single.html": "311779b44cba4ddcff9703533fde01007ab83ffa39d0cb84043c056b9a6862eb",
+    "generate-single.mjs": "49296d8a06a374383c7fb64939be37ff1dc5507cc910593d8454b3610871aa46",
+    "verify-desktop.mjs": "5ccdb9d85cf052c98e9439c165edc85f91bae171ce8020f4abdc3ff062fcdbc2"
+  },
+  "summary": {
+    "passed": 205,
+    "failed": 0,
+    "screenshots": 28,
+    "requests": 518
+  }
+}
