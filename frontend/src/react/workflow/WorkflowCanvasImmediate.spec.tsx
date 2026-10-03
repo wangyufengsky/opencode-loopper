@@ -37,6 +37,18 @@ function noWrites(props: ReturnType<typeof fixture>) {
 }
 
 describe('strict immediate cleanup of actual Pointer workflow gestures', () => {
+  it('renders the connection preview in its own root with the exact viewport transform, without a second portal host', async () => {
+    const props = fixture({ selected: 'review', layout: { x: 72, y: -31, zoom: 1.75, positions: {} } })
+    const view = render(<WorkflowCanvasView {...props} />); await connected(view.container)
+    const source = start(view.container, 'connection-started')
+    const preview = view.container.querySelector('.workflow-connection-preview')!
+    expect(preview.parentElement).toBe(canvas(view.container))
+    expect(preview.closest('.react-flow__viewport')).toBeNull()
+    expect(preview.querySelector('g')?.getAttribute('transform')).toBe('translate(72,-31) scale(1.75)')
+    expect(preview.querySelector('path')?.getAttribute('d')).toBeTruthy()
+    input.pointer(source, 'pointercancel', 205, 120)
+    expect(view.container.querySelector('.workflow-connection-preview')).toBeNull(); noWrites(props)
+  })
   it.each(scenarios.flatMap(gesture => ['mouse', 'touch'].map(pointerType => ({ gesture, pointerType }))))(
     'immediately owns zero listeners and RAF after $pointerType $gesture root unmount', async ({ gesture, pointerType }) => {
       const props = fixture({ selected: 'review' }), view = render(<StrictMode><WorkflowCanvasView {...props} /></StrictMode>)

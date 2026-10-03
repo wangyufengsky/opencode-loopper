@@ -1,0 +1,246 @@
+{
+  "scope": "真实 Chromium 生产 dist；桌面1440×1000；模拟数据，真实后端/模型未验证",
+  "count": 30,
+  "images": [
+    {
+      "file": "screenshots/github-white-designer-default.png",
+      "skin": "github-white",
+      "state": "designer-default",
+      "bytes": 95570,
+      "sha256": "16220822552b865dbe8b57caac2b12055dabe9493ff89734e086d00768d81108",
+      "twoExactConsecutiveBuffers": true
+    },
+    {
+      "file": "screenshots/github-white-requirement-new-default.png",
+      "skin": "github-white",
+      "state": "requirement-new-default",
+      "bytes": 61674,
+      "sha256": "956bfe5cb54c6263632b3ce6729c8b74db1969f5d04047e3cba3782e97aee3ca",
+      "twoExactConsecutiveBuffers": true
+    },
+    {
+      "file": "screenshots/github-white-requirement-new-unknown.png",
+      "skin": "github-white",
+      "state": "requirement-new-unknown",
+      "bytes": 86774,
+      "sha256": "43b88f4bb18336c98db7295ec6d59aab0d558435addf31782fe6242b5d38e6b0",
+      "twoExactConsecutiveBuffers": true
+    },
+    {
+      "file": "screenshots/github-white-requirement-plan-default.png",
+      "skin": "github-white",
+      "state": "requirement-plan-default",
+      "bytes": 48412,
+      "sha256": "b7628fdb99f158992baa383894e3d61a8d63164251484c551240ad455293b2ee",
+      "twoExactConsecutiveBuffers": true
+    },
+    {
+      "file": "screenshots/github-white-requirement-plan-selected.png",
+      "skin": "github-white",
+      "state": "requirement-plan-selected",
+      "bytes": 69378,
+      "sha256": "8a2ed11cf31dd94b0a24c9b6ac16630a00fbc5d1bc72727820752abdc46b6958",
+      "twoExactConsecutiveBuffers": true
+    },
+    {
+      "file": "screenshots/github-white-workflow-edit-default.png",
+      "skin": "github-white",
+      "state": "workflow-edit-default",
+      "bytes": 43122,
+      "sha256": "cf556beb5d0869182af832a3eb060f328c18aa65098057d512d207b4824e40a7",
+      "twoExactConsecutiveBuffers": true
+    },
+    {
+      "file": "screenshots/github-white-workflow-edit-selected.png",
+      "skin": "github-white",
+      "state": "workflow-edit-selected",
+      "bytes": 63681,
+      "sha256": "cc9437f956443b551b57cae387faf0c8d7f1b0c4ea9614dcafe9d5d83194c72d",
+      "twoExactConsecutiveBuffers": true
+    },
+    {
+      "file": "screenshots/github-white-workflow-new-default.png",
+      "skin": "github-white",
+      "state": "workflow-new-default",
+      "bytes": 38993,
+      "sha256": "6c5692a571198b37be275c463dfaa4a5ad52057ee8b672c199a50d4880ab6fc8",
+      "twoExactConsecutiveBuffers": true
+    },
+    {
+      "file": "screenshots/github-white-workflow-normal-connected.png",
+      "skin": "github-white",
+      "state": "workflow-normal-connected",
+      "bytes": 45075,
+      "sha256": "248a4e85578ea615ea9f9e0214fc202ee8f596ec88718d944d6f7b202821e9bc",
+      "twoExactConsecutiveBuffers": true
+    },
+    {
+      "file": "screenshots/spdb-designer-default.png",
+      "skin": "spdb",
+      "state": "designer-default",
+      "bytes": 97164,
+      "sha256": "bc1688be4f25007bd671c88873a713ef351f7a3351cd59699f52d4618a7d0e61",
+      "twoExactConsecutiveBuffers": true
+    },
+    {
+      "file": "screenshots/spdb-requirement-new-default.png",
+      "skin": "spdb",
+      "state": "requirement-new-default",
+      "bytes": 62342,
+      "sha256": "e6c08c5fc16fdb852e5939ee449803ad770fcb3e1f2933bdfc7e2536196485cc",
+      "twoExactConsecutiveBuffers": true
+    },
+    {
+      "file": "screenshots/spdb-requirement-new-unknown.png",
+      "skin": "spdb",
+      "state": "requirement-new-unknown",
+      "bytes": 87787,
+      "sha256": "e2ce1827a2eb507032e4bf6e64c483b978819bc6b5544ed3f8de8f9faa0b7e14",
+      "twoExactConsecutiveBuffers": true
+    },
+    {
+      "file": "screenshots/spdb-requirement-plan-default.png",
+      "skin": "spdb",
+      "state": "requirement-plan-default",
+      "bytes": 52081,
+      "sha256": "59f48ff0bf15d4ca9a15288f3ee96b0e01c365c4728996cda1d654d666dbd442",
+      "twoExactConsecutiveBuffers": true
+    },
+    {
+      "file": "screenshots/spdb-requirement-plan-selected.png",
+      "skin": "spdb",
+      "state": "requirement-plan-selected",
+      "bytes": 73190,
+      "sha256": "dda25acdcb100bf59684ca2bf119a50b849b79c6f631fa80dc9b35cc66f9cd9f",
+      "twoExactConsecutiveBuffers": true
+    },
+    {
+      "file": "screenshots/spdb-workflow-edit-default.png",
+      "skin": "spdb",
+      "state": "workflow-edit-default",
+      "bytes": 46415,
+      "sha256": "396dea1c9cecdb09e7c3e24bd1c7f5a0e7296c3f3e79537229e77c8ffa8202fa",
+      "twoExactConsecutiveBuffers": true
+    },
+    {
+      "file": "screenshots/spdb-workflow-edit-selected.png",
+      "skin": "spdb",
+      "state": "workflow-edit-selected",
+      "bytes": 66904,
+      "sha256": "a135146b6f40ddb6ae3ddc779d0eec1732b47608f773f732a6ec1dc2a2e3440c",
+      "twoExactConsecutiveBuffers": true
+    },
+    {
+      "file": "screenshots/spdb-workflow-new-default.png",
+      "skin": "spdb",
+      "state": "workflow-new-default",
+      "bytes": 40422,
+      "sha256": "cf12347c975f0134b973f626cd3426fa33550603d075c219304f9577335224db",
+      "twoExactConsecutiveBuffers": true
+    },
+    {
+      "file": "screenshots/spdb-workflow-normal-connected.png",
+      "skin": "spdb",
+      "state": "workflow-normal-connected",
+      "bytes": 48370,
+      "sha256": "9dba90aae4ac3236c75e774433c0f57967f750df9d2aa9b85a702c00ff40d441",
+      "twoExactConsecutiveBuffers": true
+    },
+    {
+      "file": "screenshots/spdb-workflow-partial-accepted.png",
+      "skin": "spdb",
+      "state": "workflow-partial-accepted",
+      "bytes": 87661,
+      "sha256": "d3ceaf1650863859d70b7f5a301539da398c0133559eeecb437a41f0ebe111ac",
+      "twoExactConsecutiveBuffers": true
+    },
+    {
+      "file": "screenshots/tech-blue-designer-default.png",
+      "skin": "tech-blue",
+      "state": "designer-default",
+      "bytes": 116653,
+      "sha256": "6fb892fc16a00e19996495f86506a1893d9e2ca947b5c9afcaa1073cd23f4a4f",
+      "twoExactConsecutiveBuffers": true
+    },
+    {
+      "file": "screenshots/tech-blue-designer-unknown-file.png",
+      "skin": "tech-blue",
+      "state": "designer-unknown-file",
+      "bytes": 145187,
+      "sha256": "d1fdfa1ca87c9f918a9e94c884221093466946491ac536bcc6c427ddbac0545e",
+      "twoExactConsecutiveBuffers": true
+    },
+    {
+      "file": "screenshots/tech-blue-requirement-new-default.png",
+      "skin": "tech-blue",
+      "state": "requirement-new-default",
+      "bytes": 81661,
+      "sha256": "b3a4ed3c4675fd82059d6986da59af15f9acd2059a57bb0c5d8ba977d8843ef8",
+      "twoExactConsecutiveBuffers": true
+    },
+    {
+      "file": "screenshots/tech-blue-requirement-new-unknown.png",
+      "skin": "tech-blue",
+      "state": "requirement-new-unknown",
+      "bytes": 107431,
+      "sha256": "6b007ff58e657893e4951e880bfaba1adb4013e205a75fb9f2b9b1373e149aae",
+      "twoExactConsecutiveBuffers": true
+    },
+    {
+      "file": "screenshots/tech-blue-requirement-plan-default.png",
+      "skin": "tech-blue",
+      "state": "requirement-plan-default",
+      "bytes": 53144,
+      "sha256": "9aa5ad8ab45ad73723653fc0eae8c8342007b1db00f1fc165ee3188d82e8a827",
+      "twoExactConsecutiveBuffers": true
+    },
+    {
+      "file": "screenshots/tech-blue-requirement-plan-selected.png",
+      "skin": "tech-blue",
+      "state": "requirement-plan-selected",
+      "bytes": 73986,
+      "sha256": "2d799cf3758d1c129412ae62283bd04544567c24a1248aecfb5a80558a0d08fe",
+      "twoExactConsecutiveBuffers": true
+    },
+    {
+      "file": "screenshots/tech-blue-workflow-edit-default.png",
+      "skin": "tech-blue",
+      "state": "workflow-edit-default",
+      "bytes": 46905,
+      "sha256": "6ab1ccbd6f46bf2663836acee218805ef239e6a39128d0eeb21f7c5058de7544",
+      "twoExactConsecutiveBuffers": true
+    },
+    {
+      "file": "screenshots/tech-blue-workflow-edit-selected.png",
+      "skin": "tech-blue",
+      "state": "workflow-edit-selected",
+      "bytes": 67289,
+      "sha256": "57c091c383eba97c31abf7213edab11537a909248e2fd260d067eadcae090bd0",
+      "twoExactConsecutiveBuffers": true
+    },
+    {
+      "file": "screenshots/tech-blue-workflow-new-default.png",
+      "skin": "tech-blue",
+      "state": "workflow-new-default",
+      "bytes": 40763,
+      "sha256": "329089bfcbea06c36d72cb4159cbc4a04e9177f5c648e5a6e56251e32f2f04b9",
+      "twoExactConsecutiveBuffers": true
+    },
+    {
+      "file": "screenshots/tech-blue-workflow-normal-connected.png",
+      "skin": "tech-blue",
+      "state": "workflow-normal-connected",
+      "bytes": 48975,
+      "sha256": "cc89bdb39891d8f28f4c5d816b2f9c312a0a0ec5cb67379562d759d1dba82b2a",
+      "twoExactConsecutiveBuffers": true
+    },
+    {
+      "file": "screenshots/tech-blue-workflow-partial-rejected.png",
+      "skin": "tech-blue",
+      "state": "workflow-partial-rejected",
+      "bytes": 92866,
+      "sha256": "326e54a8bd4d2592d176c1807b156203d6a92513ff0c94ac13fdd97ff8ccdea5",
+      "twoExactConsecutiveBuffers": true
+    }
+  ]
+}

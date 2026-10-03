@@ -1,5 +1,5 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
-import { getBezierPath, MiniMap, Position, ReactFlow, ReactFlowProvider, useReactFlow, ViewportPortal } from '@xyflow/react'
+import { getBezierPath, MiniMap, Position, ReactFlow, ReactFlowProvider, useReactFlow } from '@xyflow/react'
 import { autoLayout, NODE_HEIGHT, NODE_WIDTH, outcomeTitle } from '@/components/workflow/graph'
 import type { WorkflowLayout, WorkflowPoint } from '@/types/domain'
 import { ReactIcon } from '@/react/ReactIcon'
@@ -9,6 +9,7 @@ import { copyLayout, fitLayout, positionOf, revealLayout, zoomLayout } from './l
 import type { WorkflowCanvasHandle, WorkflowCanvasProps } from './types'
 import { useWorkflowPointerGestures } from './pointerGestures'
 import '@xyflow/react/dist/style.css'
+import '@/components/workflow/workflow-canvas.css'
 import './workflow-react.css'
 
 const nodeTypes = { workflow: WorkflowFlowNodeView }, edgeTypes = { workflow: WorkflowFlowEdgeView }
@@ -144,9 +145,13 @@ function WorkflowCanvasContent(props: WorkflowCanvasProps) {
       nodesFocusable={false} edgesFocusable={false} disableKeyboardA11y deleteKeyCode={null} selectionKeyCode={null} multiSelectionKeyCode={null}
       selectNodesOnDrag={false} panOnDrag={false} panOnScroll={false} panActivationKeyCode={null} zoomActivationKeyCode={null}
       preventScrolling={false} zoomOnScroll={false} zoomOnPinch={false} zoomOnDoubleClick={false} attributionPosition="top-right">
-      <ViewportPortal>{previewPath && <svg className="workflow-connection-preview" aria-hidden="true"><path d={previewPath} className="workflow-wire react-flow__connection-path" /></svg>}</ViewportPortal>
       {minimap && !!props.graph.nodes.length && <MiniMap className="workflow-minimap" ariaLabel="流程缩略图" nodeColor="var(--color-action-primary)" maskColor="var(--color-bg-canvas)" />}
     </ReactFlow>
+    {/* This noninteractive preview belongs to this root. A portal would install
+        an additional React delegation host with no public listener disposer. */}
+    {previewPath && <svg className="workflow-connection-preview" aria-hidden="true" style={{ left: 0, top: 0 }}>
+      <g transform={`translate(${local.x},${local.y}) scale(${local.zoom})`}><path d={previewPath} className="workflow-wire react-flow__connection-path" /></g>
+    </svg>}
     {!props.graph.nodes.length && <div className="workflow-canvas-empty"><span className="workflow-empty-mark"><ReactIcon icon="lucide:workflow" width={30} /></span><h2>留出空间，让想法开始。</h2><p>添加第一个节点，连接你的工作流程。</p></div>}
     {props.connecting && <p className="workflow-connecting" role="status">选择后续节点 · Esc 取消</p>}
     <div className="workflow-canvas-controls nodrag nopan" data-canvas-tools onPointerDown={event => event.stopPropagation()}>

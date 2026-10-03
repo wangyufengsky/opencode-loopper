@@ -14,6 +14,7 @@ import { createW2TaskPort } from './w2TaskPort'
 import { w2PageLoaders } from './w2Routes'
 import { w3PageLoader } from './w3Routes'
 import { w4PageLoader } from './w4Routes'
+import { w5PageLoader } from './w5Routes'
 import { createW4TaskBoundary } from './w4TaskBoundary'
 import type { ReactViewHost } from './reactViewLifecycle'
 import { W2BridgeView, type BridgeDialogSnapshot, type BridgeDialogPort } from './w2BridgeView'
@@ -22,7 +23,7 @@ const route = useRoute(), router = useRouter(), store = useTaskStore(), host = r
 const failed = ref('')
 type ViewProps = Parameters<typeof W2BridgeView>[0]
 let view: ReturnType<typeof mountReactView<ViewProps>> | undefined
-let currentPath = '', sequence = 0, active = true, cleanupHealthy = true
+let currentPath = '', currentFullPath = '', sequence = 0, active = true, cleanupHealthy = true
 let component: ComponentType<W2PageProps> | undefined
 let pageProps: W2PageProps | undefined
 let taskBoundary: ReturnType<typeof createW2TaskPort> | undefined
@@ -97,17 +98,19 @@ defineExpose(lifecycle)
 async function mountPage() {
   failed.value = ''
   if (!destroyPage()) return
-  leaves = coordinator(); currentPath = route.path
+  leaves = coordinator(); currentPath = route.path; currentFullPath = route.fullPath
   const ticket = sequence, path = currentPath
-  const load = w2PageLoaders[path] ?? w3PageLoader(path) ?? w4PageLoader(path)
+  const load = w2PageLoaders[path] ?? w3PageLoader(path) ?? w4PageLoader(path) ?? w5PageLoader(path)
   if (!load || !host.value) { failed.value = '此页面尚未接入，请返回原入口'; return }
   try {
     const loaded = await load()
     if (!active || ticket !== sequence || route.path !== path || !host.value) return
-    taskBoundary = w4PageLoader(path) ? createW4TaskBoundary() : createW2TaskPort(store)
+    // W4/W5 pages own their business state. The empty compatibility port never
+    // subscribes to Pinia or forwards creative commands to the old task store.
+    taskBoundary = w4PageLoader(path) || w5PageLoader(path) ? createW4TaskBoundary() : createW2TaskPort(store)
     component = loaded
     const go = async (to: W2Target, replace = false, handoff?: NavigationRequest['handoff']): Promise<boolean> => {
-      if (!active || !pageProps || route.path !== path) return false
+      if (!active || ticket !== sequence || !pageProps || route.path !== path) return false
       const request: NavigationRequest = { destination: router.resolve(to).fullPath, replace, handoff }
       requested = request
       try { const result = await (replace ? router.replace(to) : router.push(to)); return !isNavigationFailure(result) && route.fullPath === request.destination }
@@ -116,10 +119,10 @@ async function mountPage() {
     pageProps = {
       route: { path: route.path, fullPath: route.fullPath, query: { ...route.query } as W2PageProps['route']['query'], params: { ...route.params } },
       skin: currentSkin.value, setSkin: id => applySkin(id), legacy: { task: taskBoundary.port },
-      lifecycle: { retain: (key, dispose) => { if (active && route.path === path && !owners.has(key)) owners.set(key, dispose) } },
+      lifecycle: { retain: (key, dispose) => { if (active && ticket === sequence && route.path === path && !owners.has(key)) owners.set(key, dispose) } },
       navigation: {
         go, goAccepted: (to, permit) => navigateAcceptedHandoff(permit, router.resolve(to).fullPath, () => go(to, false, permit)),
-        back: () => { if (active && route.path === path) router.back() },
+        back: () => { if (active && ticket === sequence && route.path === path) router.back() },
         registerGuard: guard => leaves.register(guard),
         guardChanged: () => {
           if (!readConfirmation) return
@@ -156,7 +159,10 @@ onMounted(() => {
   void mountPage()
 })
 watch(() => [route.fullPath, currentSkin.value.id], () => {
-  if (route.path !== currentPath) void mountPage()
+  // Only committed W5 navigation replaces its scope. The existing router guard
+  // has already blocked unresolved writes or explicitly confirmed dirty input.
+  // Theme/context changes never retire the business owner.
+  if (route.path !== currentPath || !!w5PageLoader(route.path) && route.fullPath !== currentFullPath) void mountPage()
   else render()
 }, { flush: 'post' })
 onBeforeUnmount(() => {

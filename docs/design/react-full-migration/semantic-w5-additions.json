@@ -1,0 +1,1049 @@
+{
+  "schemaVersion": 1,
+  "baseline": "5c181fc39e26249650df851fe9a7c8a68cab519d",
+  "scope": "W5 existing production creative actions; no new backend capability",
+  "objects": {},
+  "actions": {
+    "workflow.editConfiguration": {
+      "label": "重新配置",
+      "name": "重新配置节点参数",
+      "icon": "settings-2",
+      "intent": "workflow.editConfiguration",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.addParameter": {
+      "label": "添加参数",
+      "name": "添加命令参数",
+      "icon": "plus",
+      "intent": "workflow.addParameter",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.addCheck": {
+      "label": "添加检查",
+      "name": "添加交付物检查",
+      "icon": "list-checks",
+      "intent": "workflow.addCheck",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.addSection": {
+      "label": "添加章节",
+      "name": "添加原文章节",
+      "icon": "list-plus",
+      "intent": "workflow.addSection",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.addInput": {
+      "label": "添加输入",
+      "name": "添加节点输入",
+      "icon": "list-plus",
+      "intent": "workflow.addInput",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.addOutput": {
+      "label": "添加交付物",
+      "name": "添加节点交付物",
+      "icon": "list-plus",
+      "intent": "workflow.addOutput",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.addOutcome": {
+      "label": "添加结果",
+      "name": "添加业务结果",
+      "icon": "list-plus",
+      "intent": "workflow.addOutcome",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.addPublicInput": {
+      "label": "添加公共资料",
+      "name": "添加公共资料声明",
+      "icon": "list-plus",
+      "intent": "workflow.addPublicInput",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.settings": {
+      "label": "流程设置",
+      "name": "打开流程设置",
+      "icon": "settings-2",
+      "intent": "workflow.settings",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.tools": {
+      "label": "更多工具",
+      "name": "打开流程工具",
+      "icon": "wrench",
+      "intent": "workflow.tools",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.nodeList": {
+      "label": "查找节点",
+      "name": "查找流程节点",
+      "icon": "search",
+      "intent": "workflow.nodeList",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.validate": {
+      "label": "检查流程",
+      "name": "检查流程定义",
+      "icon": "list-checks",
+      "intent": "workflow.validate",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.autoLayout": {
+      "label": "自动整理",
+      "name": "自动整理流程节点",
+      "icon": "network",
+      "intent": "workflow.autoLayout",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.presets": {
+      "label": "预设工作模块",
+      "name": "选择预设工作模块",
+      "icon": "blocks",
+      "intent": "workflow.presets",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.addReadonly": {
+      "label": "只读分析",
+      "name": "添加只读分析节点",
+      "icon": "scan-text",
+      "intent": "workflow.addReadonly",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.addWrite": {
+      "label": "文件工作",
+      "name": "添加文件工作节点",
+      "icon": "file-code",
+      "intent": "workflow.addWrite",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.addHuman": {
+      "label": "人工检查",
+      "name": "添加人工检查节点",
+      "icon": "user-round-check",
+      "intent": "workflow.addHuman",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.roleVersions": {
+      "label": "选择其他版本",
+      "name": "选择角色已发布版本",
+      "icon": "history",
+      "intent": "workflow.roleVersions",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "designer.start": {
+      "label": "开始设计",
+      "name": "开始设计",
+      "icon": "play",
+      "intent": "designer.start",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "designer.send": {
+      "label": "发送",
+      "name": "发送",
+      "icon": "send",
+      "intent": "designer.send",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "designer.reset": {
+      "label": "重新开始",
+      "name": "重新开始",
+      "icon": "rotate-ccw",
+      "intent": "designer.reset",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "designer.openTask": {
+      "label": "打开已创建任务",
+      "name": "打开已创建任务",
+      "icon": "external-link",
+      "intent": "designer.openTask",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "designer.confirmRequirement": {
+      "label": "确认需求并继续",
+      "name": "确认需求并继续",
+      "icon": "circle-check",
+      "intent": "designer.confirmRequirement",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "designer.reopenRequirement": {
+      "label": "重新讨论需求",
+      "name": "重新讨论需求",
+      "icon": "message-circle",
+      "intent": "designer.reopenRequirement",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "designer.approvePackage": {
+      "label": "接受当前设计",
+      "name": "接受当前设计",
+      "icon": "circle-check",
+      "intent": "designer.approvePackage",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "designer.reopenPackage": {
+      "label": "重新讨论工作包",
+      "name": "重新讨论工作包",
+      "icon": "message-circle",
+      "intent": "designer.reopenPackage",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "designer.retryCompiler": {
+      "label": "重新编译规范",
+      "name": "重新编译规范",
+      "icon": "refresh-cw",
+      "intent": "designer.retryCompiler",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "designer.redesign": {
+      "label": "重新设计",
+      "name": "重新设计",
+      "icon": "pencil-ruler",
+      "intent": "designer.redesign",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "designer.retryDecomposition": {
+      "label": "重试拆分",
+      "name": "重试拆分",
+      "icon": "refresh-cw",
+      "intent": "designer.retryDecomposition",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "designer.retryPackageCompiler": {
+      "label": "重新编译工作包",
+      "name": "重新编译工作包",
+      "icon": "refresh-cw",
+      "intent": "designer.retryPackageCompiler",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "designer.redesignPackage": {
+      "label": "重新设计工作包",
+      "name": "重新设计工作包",
+      "icon": "pencil-ruler",
+      "intent": "designer.redesignPackage",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "designer.confirmProfile": {
+      "label": "确认任务设置",
+      "name": "确认任务设置",
+      "icon": "circle-check",
+      "intent": "designer.confirmProfile",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "designer.rerouteProfile": {
+      "label": "重新判定",
+      "name": "重新判定",
+      "icon": "refresh-cw",
+      "intent": "designer.rerouteProfile",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "designer.cancelRouter": {
+      "label": "取消 AI 判定",
+      "name": "取消 AI 判定",
+      "icon": "circle-stop",
+      "intent": "designer.cancelRouter",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "designer.largeTask": {
+      "label": "启用大型任务模式",
+      "name": "启用大型任务模式",
+      "icon": "layers",
+      "intent": "designer.largeTask",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "designer.autoMode": {
+      "label": "修改全自动模式",
+      "name": "修改全自动模式",
+      "icon": "bot",
+      "intent": "designer.autoMode",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "designer.copyV2": {
+      "label": "复制为新规范",
+      "name": "复制为新规范",
+      "icon": "copy",
+      "intent": "designer.copyV2",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "designer.validate": {
+      "label": "验证执行规范",
+      "name": "验证执行规范",
+      "icon": "badge-check",
+      "intent": "designer.validate",
+      "scope": "read",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "designer.reloadDraft": {
+      "label": "重新载入规范",
+      "name": "重新载入规范",
+      "icon": "refresh-cw",
+      "intent": "designer.reloadDraft",
+      "scope": "read",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "designer.convertReport": {
+      "label": "转换为可写设计",
+      "name": "转换为可写设计",
+      "icon": "file-pen",
+      "intent": "designer.convertReport",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "designer.previewAttachment": {
+      "label": "安全预览",
+      "name": "安全预览",
+      "icon": "scan-eye",
+      "intent": "designer.previewAttachment",
+      "scope": "read",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "designer.stopAttachment": {
+      "label": "停止资料未来使用",
+      "name": "停止资料未来使用",
+      "icon": "circle-stop",
+      "intent": "designer.stopAttachment",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "designer.recommendAnswers": {
+      "label": "采用全部推荐项",
+      "name": "采用全部推荐项",
+      "icon": "sparkles",
+      "intent": "designer.recommendAnswers",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "designer.replyQuestion": {
+      "label": "提交回答并继续",
+      "name": "提交回答并继续",
+      "icon": "send",
+      "intent": "designer.replyQuestion",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "designer.addStage": {
+      "label": "添加阶段",
+      "name": "添加阶段",
+      "icon": "plus",
+      "intent": "designer.addStage",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "designer.addCriterion": {
+      "label": "添加验收条件",
+      "name": "添加验收条件",
+      "icon": "plus",
+      "intent": "designer.addCriterion",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "designer.addVerifier": {
+      "label": "添加验收器",
+      "name": "添加验收器",
+      "icon": "plus",
+      "intent": "designer.addVerifier",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "designer.addAssertion": {
+      "label": "添加断言",
+      "name": "添加断言",
+      "icon": "plus",
+      "intent": "designer.addAssertion",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.chooseProject": {
+      "label": "选择项目",
+      "name": "选择项目",
+      "icon": "folder-kanban",
+      "intent": "workflow.chooseProject",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.chooseTemplate": {
+      "label": "选择流程",
+      "name": "选择流程",
+      "icon": "workflow",
+      "intent": "workflow.chooseTemplate",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.openCreatedRequirement": {
+      "label": "打开已创建的需求",
+      "name": "打开已创建的需求",
+      "icon": "external-link",
+      "intent": "workflow.openCreatedRequirement",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.flowInputs": {
+      "label": "需求与资料",
+      "name": "需求与资料",
+      "icon": "file-input",
+      "intent": "workflow.flowInputs",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.moreTools": {
+      "label": "更多操作",
+      "name": "更多操作",
+      "icon": "wrench",
+      "intent": "workflow.moreTools",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.single": {
+      "label": "单步执行",
+      "name": "单步执行",
+      "icon": "step-forward",
+      "intent": "workflow.single",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "workflow.until": {
+      "label": "运行至此处",
+      "name": "运行至此处",
+      "icon": "flag",
+      "intent": "workflow.until",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "workflow.continuous": {
+      "label": "连续执行",
+      "name": "连续执行",
+      "icon": "play",
+      "intent": "workflow.continuous",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "workflow.adjustPlan": {
+      "label": "调整计划",
+      "name": "调整计划",
+      "icon": "pencil-ruler",
+      "intent": "workflow.adjustPlan",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.cancelRequirement": {
+      "label": "取消需求",
+      "name": "取消需求",
+      "icon": "circle-x",
+      "intent": "workflow.cancelRequirement",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "workflow.rejectCandidate": {
+      "label": "退回候选",
+      "name": "退回候选",
+      "icon": "undo-2",
+      "intent": "workflow.rejectCandidate",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "workflow.confirmFinish": {
+      "label": "确认结束需求",
+      "name": "确认结束需求",
+      "icon": "circle-stop",
+      "intent": "workflow.confirmFinish",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "workflow.completeHuman": {
+      "label": "提交结果并完成节点",
+      "name": "提交结果并完成节点",
+      "icon": "circle-check",
+      "intent": "workflow.completeHuman",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "workflow.nodeStop": {
+      "label": "停止节点",
+      "name": "停止节点",
+      "icon": "square",
+      "intent": "workflow.nodeStop",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "workflow.nodeResume": {
+      "label": "恢复原尝试",
+      "name": "恢复原尝试",
+      "icon": "play",
+      "intent": "workflow.nodeResume",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "workflow.nodeStopCheck": {
+      "label": "重新检查停止",
+      "name": "重新检查停止",
+      "icon": "refresh-cw",
+      "intent": "workflow.nodeStopCheck",
+      "scope": "read",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.fixedInput": {
+      "label": "固定输入",
+      "name": "固定输入",
+      "icon": "file-lock",
+      "intent": "workflow.fixedInput",
+      "scope": "read",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.deliverables": {
+      "label": "交付物",
+      "name": "交付物",
+      "icon": "package-check",
+      "intent": "workflow.deliverables",
+      "scope": "read",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.commandEvidence": {
+      "label": "执行记录",
+      "name": "执行记录",
+      "icon": "terminal",
+      "intent": "workflow.commandEvidence",
+      "scope": "read",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.modelActivity": {
+      "label": "模型日志",
+      "name": "模型日志",
+      "icon": "message-square",
+      "intent": "workflow.modelActivity",
+      "scope": "read",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.knowledgeEvidence": {
+      "label": "检索证据",
+      "name": "检索证据",
+      "icon": "book-open",
+      "intent": "workflow.knowledgeEvidence",
+      "scope": "read",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.partialReport": {
+      "label": "阶段报告",
+      "name": "阶段报告",
+      "icon": "file-chart-column",
+      "intent": "workflow.partialReport",
+      "scope": "read",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.publicationSources": {
+      "label": "查看代码成果",
+      "name": "查看代码成果",
+      "icon": "git-branch",
+      "intent": "workflow.publicationSources",
+      "scope": "read",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.inspectPush": {
+      "label": "检查推送目标",
+      "name": "检查推送目标",
+      "icon": "scan-eye",
+      "intent": "workflow.inspectPush",
+      "scope": "read",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.inspectWriteback": {
+      "label": "检查回填目标",
+      "name": "检查回填目标",
+      "icon": "scan-eye",
+      "intent": "workflow.inspectWriteback",
+      "scope": "read",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.commitConfirm": {
+      "label": "确认保存本地提交",
+      "name": "确认保存本地提交",
+      "icon": "git-commit-horizontal",
+      "intent": "workflow.commitConfirm",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "workflow.pushConfirm": {
+      "label": "确认推送成果分支",
+      "name": "确认推送成果分支",
+      "icon": "git-pull-request-arrow",
+      "intent": "workflow.pushConfirm",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "workflow.writebackConfirm": {
+      "label": "确认回填这些改动",
+      "name": "确认回填这些改动",
+      "icon": "folder-input",
+      "intent": "workflow.writebackConfirm",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "workflow.selectUploaded": {
+      "label": "选择已上传资料",
+      "name": "选择已上传资料",
+      "icon": "files",
+      "intent": "workflow.selectUploaded",
+      "scope": "read",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.uploadAndSelect": {
+      "label": "上传并选用",
+      "name": "上传并选用",
+      "icon": "upload",
+      "intent": "workflow.uploadAndSelect",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "workflow.resumeUpload": {
+      "label": "补传原文件",
+      "name": "补传原文件",
+      "icon": "refresh-cw",
+      "intent": "workflow.resumeUpload",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "workflow.useUpload": {
+      "label": "选用这份资料",
+      "name": "选用这份资料",
+      "icon": "file-check",
+      "intent": "workflow.useUpload",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.inputContent": {
+      "label": "查看固定版本正文",
+      "name": "查看固定版本正文",
+      "icon": "file-text",
+      "intent": "workflow.inputContent",
+      "scope": "read",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.fixedFiles": {
+      "label": "查看固定版本文件",
+      "name": "查看固定版本文件",
+      "icon": "files",
+      "intent": "workflow.fixedFiles",
+      "scope": "read",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.fileChanges": {
+      "label": "查看代码改动",
+      "name": "查看代码改动",
+      "icon": "git-compare",
+      "intent": "workflow.fileChanges",
+      "scope": "read",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.previewDocument": {
+      "label": "预览报告",
+      "name": "预览报告",
+      "icon": "scan-eye",
+      "intent": "workflow.previewDocument",
+      "scope": "read",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.readPartial": {
+      "label": "查看阶段报告",
+      "name": "查看阶段报告",
+      "icon": "file-chart-column",
+      "intent": "workflow.readPartial",
+      "scope": "read",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.downloadPartial": {
+      "label": "下载阶段报告",
+      "name": "下载阶段报告",
+      "icon": "download",
+      "intent": "workflow.downloadPartial",
+      "scope": "read",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workflow.saveTemplateConfirm": {
+      "label": "确认保存为新流程",
+      "name": "确认保存为新流程",
+      "icon": "workflow",
+      "intent": "workflow.saveTemplateConfirm",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "workflow.retryCreate": {
+      "label": "重试创建",
+      "name": "重试创建",
+      "icon": "refresh-cw",
+      "intent": "workflow.retryCreate",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "用户显式恢复原创建key/body；accepted只完成原交接，不重复创建"
+    }
+  }
+}

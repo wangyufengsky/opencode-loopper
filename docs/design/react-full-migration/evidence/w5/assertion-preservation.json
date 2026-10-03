@@ -1,0 +1,14 @@
+{
+  "method": "Counter(file relative to frontend, fullName); retains duplicate-name occurrences rather than set comparison",
+  "baseCommit": "5c181fc39e26249650df851fe9a7c8a68cab519d",
+  "priorRawSha256": "b9c7c6fb87bf289a0c27b3409b2d246563413ba4abf4c88d999f6145bc14e436",
+  "currentRawSha256": "43e6873570fd35d7e187c85d040dd687f25f0c01bc07ccb3f4ef2de9e319b177",
+  "priorAssertions": 2057,
+  "currentAssertions": 2332,
+  "removedOccurrences": 0,
+  "addedOccurrences": 275,
+  "originalW0Definitions": 111,
+  "originalW0NowPassed": 111,
+  "originalW5Red41NowPassed": 41,
+  "noSkip": true
+}

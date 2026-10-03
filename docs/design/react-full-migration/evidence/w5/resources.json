@@ -1,0 +1,1742 @@
+{
+  "scope": "W5 final 49 production Chromium tests, immediate first sample; ledger retains audit references, does not prove GC",
+  "count": 64,
+  "breakdown": {
+    "repeatedActualRoutes": 45,
+    "rootUnmount": 5,
+    "nativeDesignerStreamExit": 2,
+    "activePanDragConnectionExit": 12
+  },
+  "unchangedLedgerSha256": "51983279d16f852171953b35a2b0ec8174e74bb4858785a597175ad8bc1c2c1f",
+  "activeRouteStrongerPositiveControls": 6,
+  "samples": [
+    {
+      "rawFile": "designer-root-shutdown.json",
+      "rawSha256": "8e53f2f66ab4dd36e0fe7a0272428c05afef698c4eb3d596045324c596d82ba6",
+      "cycle": 0,
+      "path": "/designer",
+      "exit": "root",
+      "before": {
+        "listeners": 2,
+        "observers": 1,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 0,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "github-white-designer-threecycles.json",
+      "rawSha256": "124f3d66f2e34b26ea49442b48503ca0556f727f70a88a1360c9a95c0acf810e",
+      "cycle": 0,
+      "path": "/designer",
+      "exit": "route",
+      "before": {
+        "listeners": 2,
+        "observers": 1,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 0,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "github-white-designer-threecycles.json",
+      "rawSha256": "124f3d66f2e34b26ea49442b48503ca0556f727f70a88a1360c9a95c0acf810e",
+      "cycle": 1,
+      "path": "/designer",
+      "exit": "route",
+      "before": {
+        "listeners": 2,
+        "observers": 1,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 0,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "github-white-designer-threecycles.json",
+      "rawSha256": "124f3d66f2e34b26ea49442b48503ca0556f727f70a88a1360c9a95c0acf810e",
+      "cycle": 2,
+      "path": "/designer",
+      "exit": "route",
+      "before": {
+        "listeners": 2,
+        "observers": 1,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 0,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "github-white-requirement-new-threecycles.json",
+      "rawSha256": "326ab4eb5ef289363d63da687d5d719b487622e31159768cadd813feed5bc36c",
+      "cycle": 0,
+      "path": "/requirements/new",
+      "exit": "route",
+      "before": {
+        "listeners": 3,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 0,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "github-white-requirement-new-threecycles.json",
+      "rawSha256": "326ab4eb5ef289363d63da687d5d719b487622e31159768cadd813feed5bc36c",
+      "cycle": 1,
+      "path": "/requirements/new",
+      "exit": "route",
+      "before": {
+        "listeners": 3,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 0,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "github-white-requirement-new-threecycles.json",
+      "rawSha256": "326ab4eb5ef289363d63da687d5d719b487622e31159768cadd813feed5bc36c",
+      "cycle": 2,
+      "path": "/requirements/new",
+      "exit": "route",
+      "before": {
+        "listeners": 3,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 0,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "github-white-requirement-plan-threecycles.json",
+      "rawSha256": "2f30ccb3636135b1bad39b39f59f2925bbe8fff3d08cfd38e9ba7513de7078a8",
+      "cycle": 0,
+      "path": "/requirements/w5-req",
+      "exit": "route",
+      "before": {
+        "listeners": 9,
+        "observers": 3,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 1
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 2,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "github-white-requirement-plan-threecycles.json",
+      "rawSha256": "2f30ccb3636135b1bad39b39f59f2925bbe8fff3d08cfd38e9ba7513de7078a8",
+      "cycle": 1,
+      "path": "/requirements/w5-req",
+      "exit": "route",
+      "before": {
+        "listeners": 9,
+        "observers": 3,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 1
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 2,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "github-white-requirement-plan-threecycles.json",
+      "rawSha256": "2f30ccb3636135b1bad39b39f59f2925bbe8fff3d08cfd38e9ba7513de7078a8",
+      "cycle": 2,
+      "path": "/requirements/w5-req",
+      "exit": "route",
+      "before": {
+        "listeners": 9,
+        "observers": 3,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 1
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 2,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "github-white-workflow-edit-threecycles.json",
+      "rawSha256": "35c6d98dbf340a422573aba3b7c07053b2c84287d16111fc6a39301ce1556152",
+      "cycle": 0,
+      "path": "/workflows/w5-flow",
+      "exit": "route",
+      "before": {
+        "listeners": 6,
+        "observers": 3,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 2,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "github-white-workflow-edit-threecycles.json",
+      "rawSha256": "35c6d98dbf340a422573aba3b7c07053b2c84287d16111fc6a39301ce1556152",
+      "cycle": 1,
+      "path": "/workflows/w5-flow",
+      "exit": "route",
+      "before": {
+        "listeners": 6,
+        "observers": 3,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 2,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "github-white-workflow-edit-threecycles.json",
+      "rawSha256": "35c6d98dbf340a422573aba3b7c07053b2c84287d16111fc6a39301ce1556152",
+      "cycle": 2,
+      "path": "/workflows/w5-flow",
+      "exit": "route",
+      "before": {
+        "listeners": 6,
+        "observers": 3,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 2,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "github-white-workflow-new-threecycles.json",
+      "rawSha256": "7f4b5415cd8fa612d3b781d37575ccba46dd11c44897b6907fb86866012b81f6",
+      "cycle": 0,
+      "path": "/workflows/new",
+      "exit": "route",
+      "before": {
+        "listeners": 6,
+        "observers": 2,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 1,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "github-white-workflow-new-threecycles.json",
+      "rawSha256": "7f4b5415cd8fa612d3b781d37575ccba46dd11c44897b6907fb86866012b81f6",
+      "cycle": 1,
+      "path": "/workflows/new",
+      "exit": "route",
+      "before": {
+        "listeners": 6,
+        "observers": 2,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 1,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "github-white-workflow-new-threecycles.json",
+      "rawSha256": "7f4b5415cd8fa612d3b781d37575ccba46dd11c44897b6907fb86866012b81f6",
+      "cycle": 2,
+      "path": "/workflows/new",
+      "exit": "route",
+      "before": {
+        "listeners": 6,
+        "observers": 2,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 1,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "native-designer-root.json",
+      "rawSha256": "4ca84ad90b23874c5ee3896815abfa6147f24771516ffb8a143bb8133ecb6e8a",
+      "cycle": 0,
+      "path": "/designer",
+      "exit": "route",
+      "before": {
+        "listeners": 2,
+        "observers": 1,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 0,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "native-designer-route.json",
+      "rawSha256": "659682e9d71488f5944d881b37efc88bf62d4474a98915a48cc1490da0e92295",
+      "cycle": 0,
+      "path": "/designer",
+      "exit": "route",
+      "before": {
+        "listeners": 2,
+        "observers": 1,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 0,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "requirement-new-root-shutdown.json",
+      "rawSha256": "b961cc140630322794742599b6d0605c497403c749ef5c74f5d0e1a997105741",
+      "cycle": 0,
+      "path": "/requirements/new",
+      "exit": "root",
+      "before": {
+        "listeners": 3,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 0,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "requirement-plan-active-connect-root.json",
+      "rawSha256": "5aa8c616b5b12d4e478c7ecccc9fafdbe6a1742add5e8a4070c9e0869e72133b",
+      "cycle": 0,
+      "path": "/requirements/w5-req",
+      "exit": "root",
+      "before": {
+        "listeners": 14,
+        "observers": 3,
+        "captures": 1,
+        "pendingFrames": 0,
+        "timers": 1
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 1,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "requirement-plan-active-connect-route.json",
+      "rawSha256": "d938f86430bebcc420bd45bea8bdcdb625b3a032eb35106f8246b0e425d8f4b9",
+      "cycle": 0,
+      "path": "/requirements/w5-req",
+      "exit": "root",
+      "before": {
+        "listeners": 14,
+        "observers": 3,
+        "captures": 1,
+        "pendingFrames": 0,
+        "timers": 1
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 2,
+      "activeGestureStillPresentBeforeRealRouteClick": "connect"
+    },
+    {
+      "rawFile": "requirement-plan-active-drag-root.json",
+      "rawSha256": "472c892ce576938ad8d1a281a6324063ef774b2bee2e70452ae37eede086e4f1",
+      "cycle": 0,
+      "path": "/requirements/w5-req",
+      "exit": "root",
+      "before": {
+        "listeners": 14,
+        "observers": 3,
+        "captures": 1,
+        "pendingFrames": 0,
+        "timers": 1
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 1,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "requirement-plan-active-drag-route.json",
+      "rawSha256": "6c01c64ab0602faee62127d1609c8fce3126c33ceac09bd571a6c3a822838844",
+      "cycle": 0,
+      "path": "/requirements/w5-req",
+      "exit": "root",
+      "before": {
+        "listeners": 14,
+        "observers": 3,
+        "captures": 1,
+        "pendingFrames": 0,
+        "timers": 1
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 2,
+      "activeGestureStillPresentBeforeRealRouteClick": "drag"
+    },
+    {
+      "rawFile": "requirement-plan-active-pan-root.json",
+      "rawSha256": "0a5960f120160881906be0d32a47a8a0fa68d59ea05276783ae95b46ca9332e5",
+      "cycle": 0,
+      "path": "/requirements/w5-req",
+      "exit": "root",
+      "before": {
+        "listeners": 14,
+        "observers": 3,
+        "captures": 1,
+        "pendingFrames": 0,
+        "timers": 1
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 0,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "requirement-plan-active-pan-route.json",
+      "rawSha256": "9ec5bd9926863ab55ae5876eafc654e8e0934993ba12e878e6372f8acf112fb8",
+      "cycle": 0,
+      "path": "/requirements/w5-req",
+      "exit": "root",
+      "before": {
+        "listeners": 14,
+        "observers": 3,
+        "captures": 1,
+        "pendingFrames": 0,
+        "timers": 1
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 1,
+      "activeGestureStillPresentBeforeRealRouteClick": "pan"
+    },
+    {
+      "rawFile": "requirement-plan-root-shutdown.json",
+      "rawSha256": "c566031c29cf81e08ca7dc65108260294fc429824c1eef5faf4bd71717f9fdcc",
+      "cycle": 0,
+      "path": "/requirements/w5-req",
+      "exit": "root",
+      "before": {
+        "listeners": 9,
+        "observers": 3,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 1
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 1,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "spdb-designer-threecycles.json",
+      "rawSha256": "50f778b3d321543f44db756e0b06fc622e3867c5ead8c916354ef8a6777e7e46",
+      "cycle": 0,
+      "path": "/designer",
+      "exit": "route",
+      "before": {
+        "listeners": 2,
+        "observers": 1,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 0,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "spdb-designer-threecycles.json",
+      "rawSha256": "50f778b3d321543f44db756e0b06fc622e3867c5ead8c916354ef8a6777e7e46",
+      "cycle": 1,
+      "path": "/designer",
+      "exit": "route",
+      "before": {
+        "listeners": 2,
+        "observers": 1,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 0,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "spdb-designer-threecycles.json",
+      "rawSha256": "50f778b3d321543f44db756e0b06fc622e3867c5ead8c916354ef8a6777e7e46",
+      "cycle": 2,
+      "path": "/designer",
+      "exit": "route",
+      "before": {
+        "listeners": 2,
+        "observers": 1,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 0,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "spdb-requirement-new-threecycles.json",
+      "rawSha256": "6fe29dabe8be1a1ff6484535d4acb7126801dd482755539e159e63499a296522",
+      "cycle": 0,
+      "path": "/requirements/new",
+      "exit": "route",
+      "before": {
+        "listeners": 3,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 0,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "spdb-requirement-new-threecycles.json",
+      "rawSha256": "6fe29dabe8be1a1ff6484535d4acb7126801dd482755539e159e63499a296522",
+      "cycle": 1,
+      "path": "/requirements/new",
+      "exit": "route",
+      "before": {
+        "listeners": 3,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 0,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "spdb-requirement-new-threecycles.json",
+      "rawSha256": "6fe29dabe8be1a1ff6484535d4acb7126801dd482755539e159e63499a296522",
+      "cycle": 2,
+      "path": "/requirements/new",
+      "exit": "route",
+      "before": {
+        "listeners": 3,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 0,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "spdb-requirement-plan-threecycles.json",
+      "rawSha256": "0b0387e58ded1139cb383a82298b7a1497fb8460d296594e11bd292f18b3750e",
+      "cycle": 0,
+      "path": "/requirements/w5-req",
+      "exit": "route",
+      "before": {
+        "listeners": 9,
+        "observers": 3,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 1
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 2,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "spdb-requirement-plan-threecycles.json",
+      "rawSha256": "0b0387e58ded1139cb383a82298b7a1497fb8460d296594e11bd292f18b3750e",
+      "cycle": 1,
+      "path": "/requirements/w5-req",
+      "exit": "route",
+      "before": {
+        "listeners": 9,
+        "observers": 3,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 1
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 2,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "spdb-requirement-plan-threecycles.json",
+      "rawSha256": "0b0387e58ded1139cb383a82298b7a1497fb8460d296594e11bd292f18b3750e",
+      "cycle": 2,
+      "path": "/requirements/w5-req",
+      "exit": "route",
+      "before": {
+        "listeners": 9,
+        "observers": 3,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 1
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 2,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "spdb-workflow-edit-threecycles.json",
+      "rawSha256": "cc7e00d11e840b54f735b55f9e4c19a49afb30773f27d7d19c3bc9460711685f",
+      "cycle": 0,
+      "path": "/workflows/w5-flow",
+      "exit": "route",
+      "before": {
+        "listeners": 6,
+        "observers": 3,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 2,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "spdb-workflow-edit-threecycles.json",
+      "rawSha256": "cc7e00d11e840b54f735b55f9e4c19a49afb30773f27d7d19c3bc9460711685f",
+      "cycle": 1,
+      "path": "/workflows/w5-flow",
+      "exit": "route",
+      "before": {
+        "listeners": 6,
+        "observers": 3,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 2,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "spdb-workflow-edit-threecycles.json",
+      "rawSha256": "cc7e00d11e840b54f735b55f9e4c19a49afb30773f27d7d19c3bc9460711685f",
+      "cycle": 2,
+      "path": "/workflows/w5-flow",
+      "exit": "route",
+      "before": {
+        "listeners": 6,
+        "observers": 3,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 2,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "spdb-workflow-new-threecycles.json",
+      "rawSha256": "00b2f3b8bf3663ec207221085ae4ad0aa98cd76adea11a084eb04177e8bde597",
+      "cycle": 0,
+      "path": "/workflows/new",
+      "exit": "route",
+      "before": {
+        "listeners": 6,
+        "observers": 2,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 1,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "spdb-workflow-new-threecycles.json",
+      "rawSha256": "00b2f3b8bf3663ec207221085ae4ad0aa98cd76adea11a084eb04177e8bde597",
+      "cycle": 1,
+      "path": "/workflows/new",
+      "exit": "route",
+      "before": {
+        "listeners": 6,
+        "observers": 2,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 1,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "spdb-workflow-new-threecycles.json",
+      "rawSha256": "00b2f3b8bf3663ec207221085ae4ad0aa98cd76adea11a084eb04177e8bde597",
+      "cycle": 2,
+      "path": "/workflows/new",
+      "exit": "route",
+      "before": {
+        "listeners": 6,
+        "observers": 2,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 1,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "tech-blue-designer-threecycles.json",
+      "rawSha256": "57fe9a22ddb5cc236c85319d78b081024e7aa8fadddc8245e83ab8b61c5b3775",
+      "cycle": 0,
+      "path": "/designer",
+      "exit": "route",
+      "before": {
+        "listeners": 2,
+        "observers": 1,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 0,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "tech-blue-designer-threecycles.json",
+      "rawSha256": "57fe9a22ddb5cc236c85319d78b081024e7aa8fadddc8245e83ab8b61c5b3775",
+      "cycle": 1,
+      "path": "/designer",
+      "exit": "route",
+      "before": {
+        "listeners": 2,
+        "observers": 1,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 0,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "tech-blue-designer-threecycles.json",
+      "rawSha256": "57fe9a22ddb5cc236c85319d78b081024e7aa8fadddc8245e83ab8b61c5b3775",
+      "cycle": 2,
+      "path": "/designer",
+      "exit": "route",
+      "before": {
+        "listeners": 2,
+        "observers": 1,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 0,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "tech-blue-requirement-new-threecycles.json",
+      "rawSha256": "38066a1da4eb15cb32551301f529e7aefa6bb0351a6e7c2ac85a716c0ca5746b",
+      "cycle": 0,
+      "path": "/requirements/new",
+      "exit": "route",
+      "before": {
+        "listeners": 3,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 0,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "tech-blue-requirement-new-threecycles.json",
+      "rawSha256": "38066a1da4eb15cb32551301f529e7aefa6bb0351a6e7c2ac85a716c0ca5746b",
+      "cycle": 1,
+      "path": "/requirements/new",
+      "exit": "route",
+      "before": {
+        "listeners": 3,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 0,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "tech-blue-requirement-new-threecycles.json",
+      "rawSha256": "38066a1da4eb15cb32551301f529e7aefa6bb0351a6e7c2ac85a716c0ca5746b",
+      "cycle": 2,
+      "path": "/requirements/new",
+      "exit": "route",
+      "before": {
+        "listeners": 3,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 0,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "tech-blue-requirement-plan-threecycles.json",
+      "rawSha256": "c849fa107fa093ccbbdc3b48a960109c37fec34dce0b4446c0dbec490fe04a3a",
+      "cycle": 0,
+      "path": "/requirements/w5-req",
+      "exit": "route",
+      "before": {
+        "listeners": 9,
+        "observers": 3,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 1
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 2,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "tech-blue-requirement-plan-threecycles.json",
+      "rawSha256": "c849fa107fa093ccbbdc3b48a960109c37fec34dce0b4446c0dbec490fe04a3a",
+      "cycle": 1,
+      "path": "/requirements/w5-req",
+      "exit": "route",
+      "before": {
+        "listeners": 9,
+        "observers": 3,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 1
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 2,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "tech-blue-requirement-plan-threecycles.json",
+      "rawSha256": "c849fa107fa093ccbbdc3b48a960109c37fec34dce0b4446c0dbec490fe04a3a",
+      "cycle": 2,
+      "path": "/requirements/w5-req",
+      "exit": "route",
+      "before": {
+        "listeners": 9,
+        "observers": 3,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 1
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 2,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "tech-blue-workflow-edit-threecycles.json",
+      "rawSha256": "df95c26989d2dabfa1a4a5ea7bf80c55c3a20885f3589ccf104306ce7637b5d0",
+      "cycle": 0,
+      "path": "/workflows/w5-flow",
+      "exit": "route",
+      "before": {
+        "listeners": 6,
+        "observers": 3,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 2,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "tech-blue-workflow-edit-threecycles.json",
+      "rawSha256": "df95c26989d2dabfa1a4a5ea7bf80c55c3a20885f3589ccf104306ce7637b5d0",
+      "cycle": 1,
+      "path": "/workflows/w5-flow",
+      "exit": "route",
+      "before": {
+        "listeners": 6,
+        "observers": 3,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 2,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "tech-blue-workflow-edit-threecycles.json",
+      "rawSha256": "df95c26989d2dabfa1a4a5ea7bf80c55c3a20885f3589ccf104306ce7637b5d0",
+      "cycle": 2,
+      "path": "/workflows/w5-flow",
+      "exit": "route",
+      "before": {
+        "listeners": 6,
+        "observers": 3,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 2,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "tech-blue-workflow-new-threecycles.json",
+      "rawSha256": "bf2eaa0a846f02815d5fc565fe95935afd9d61b2e3ad54a6f67cc301f0737153",
+      "cycle": 0,
+      "path": "/workflows/new",
+      "exit": "route",
+      "before": {
+        "listeners": 6,
+        "observers": 2,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 1,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "tech-blue-workflow-new-threecycles.json",
+      "rawSha256": "bf2eaa0a846f02815d5fc565fe95935afd9d61b2e3ad54a6f67cc301f0737153",
+      "cycle": 1,
+      "path": "/workflows/new",
+      "exit": "route",
+      "before": {
+        "listeners": 6,
+        "observers": 2,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 1,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "tech-blue-workflow-new-threecycles.json",
+      "rawSha256": "bf2eaa0a846f02815d5fc565fe95935afd9d61b2e3ad54a6f67cc301f0737153",
+      "cycle": 2,
+      "path": "/workflows/new",
+      "exit": "route",
+      "before": {
+        "listeners": 6,
+        "observers": 2,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 1,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "workflow-edit-active-connect-root.json",
+      "rawSha256": "8f188204c0e74aa3c4bf48412da2b85d01be99049dc94ecfe8990e87b95314a0",
+      "cycle": 0,
+      "path": "/workflows/w5-flow",
+      "exit": "root",
+      "before": {
+        "listeners": 11,
+        "observers": 3,
+        "captures": 1,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 1,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "workflow-edit-active-connect-route.json",
+      "rawSha256": "e1fee433e3aa2392fc85f037b6bd70476ec9daf6af9c98899e47de586fb3a4f9",
+      "cycle": 0,
+      "path": "/workflows/w5-flow",
+      "exit": "root",
+      "before": {
+        "listeners": 11,
+        "observers": 3,
+        "captures": 1,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 2,
+      "activeGestureStillPresentBeforeRealRouteClick": "connect"
+    },
+    {
+      "rawFile": "workflow-edit-active-drag-root.json",
+      "rawSha256": "48c256ab7d133530c80fc071c1b841fc099c84988b5cebdff19ecbd44b170de0",
+      "cycle": 0,
+      "path": "/workflows/w5-flow",
+      "exit": "root",
+      "before": {
+        "listeners": 11,
+        "observers": 3,
+        "captures": 1,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 1,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "workflow-edit-active-drag-route.json",
+      "rawSha256": "5e2b35317bfd44365c853d71fb13983cbc69bb37b8d4f9992c13010939650b43",
+      "cycle": 0,
+      "path": "/workflows/w5-flow",
+      "exit": "root",
+      "before": {
+        "listeners": 11,
+        "observers": 3,
+        "captures": 1,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 2,
+      "activeGestureStillPresentBeforeRealRouteClick": "drag"
+    },
+    {
+      "rawFile": "workflow-edit-active-pan-root.json",
+      "rawSha256": "c2d07f31b30449387163554df27ff844d9179c52826389f132a0809ad07e46e8",
+      "cycle": 0,
+      "path": "/workflows/w5-flow",
+      "exit": "root",
+      "before": {
+        "listeners": 11,
+        "observers": 3,
+        "captures": 1,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 0,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "workflow-edit-active-pan-route.json",
+      "rawSha256": "5abd307625fe3b660ee52e812f9e71504a89baaf8712b11258690b6e6f06fc27",
+      "cycle": 0,
+      "path": "/workflows/w5-flow",
+      "exit": "root",
+      "before": {
+        "listeners": 11,
+        "observers": 3,
+        "captures": 1,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 1,
+      "activeGestureStillPresentBeforeRealRouteClick": "pan"
+    },
+    {
+      "rawFile": "workflow-edit-root-shutdown.json",
+      "rawSha256": "c5e4109b29b418f753bbc85fa5b188f3c9d874a1a8eca116933b3859cafea90b",
+      "cycle": 0,
+      "path": "/workflows/w5-flow",
+      "exit": "root",
+      "before": {
+        "listeners": 6,
+        "observers": 3,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 1,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    },
+    {
+      "rawFile": "workflow-new-root-shutdown.json",
+      "rawSha256": "e08401ec28a8ef62ec668e7c86324d03bce9836f78faf423ce60e12f28a156cc",
+      "cycle": 0,
+      "path": "/workflows/new",
+      "exit": "root",
+      "before": {
+        "listeners": 6,
+        "observers": 2,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "immediate": {
+        "listeners": 0,
+        "observers": 0,
+        "captures": 0,
+        "pendingFrames": 0,
+        "timers": 0
+      },
+      "rootDisconnected": true,
+      "sameDocument": true,
+      "externalSentinelPreserved": true,
+      "noInterveningCleanupInput": true,
+      "elementBlurFromNavigationOrRemoval": 0,
+      "activeGestureStillPresentBeforeRealRouteClick": null
+    }
+  ]
+}

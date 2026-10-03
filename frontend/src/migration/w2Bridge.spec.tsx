@@ -1,5 +1,5 @@
 import { createElement, useLayoutEffect, useState } from 'react'
-import { act } from '@testing-library/react'
+import { act, fireEvent } from '@testing-library/react'
 import { createPinia } from 'pinia'
 import { defineComponent, h } from 'vue'
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
@@ -19,6 +19,8 @@ vi.mock('./w2Routes', () => ({ w2PageLoaders: {
 } }))
 vi.mock('./w3Routes', () => ({ w3PageLoader: (path: string) =>
   /^\/(template-tasks|knowledge|ppt)(\/|$)/.test(path) ? () => harness.load!() : undefined }))
+vi.mock('./w5Routes', () => ({ w5PageLoader: (path: string) =>
+  path === '/designer' || /^\/(requirements|workflows)\/[^/]+$/.test(path) ? () => harness.load!() : undefined }))
 let props: W2PageProps, risk: W2LeaveGuard
 let attached = 0, setups = 0, detached = 0, retired = 0, written = 0, cleanupThrows = false
 const roots: VueWrapper[] = []
@@ -42,6 +44,11 @@ async function setup(path = '/projects') {
     { path: '/template-tasks/source-runs/:id', component: W2RouteBridge },
     { path: '/knowledge/:conversationId?', component: W2RouteBridge },
     { path: '/ppt/:id', component: W2RouteBridge },
+    { path: '/requirements/new', component: W2RouteBridge },
+    { path: '/requirements/:id', component: W2RouteBridge },
+    { path: '/workflows/new', component: W2RouteBridge },
+    { path: '/workflows/:id', component: W2RouteBridge },
+    { path: '/designer', component: W2RouteBridge },
     { path: '/exit', component: { template: '<p>原 Vue 路由仍可用</p>' } },
   ] })
   await router.push(path); await router.isReady()
@@ -114,6 +121,36 @@ describe('W2 actual Vue history / React lifetime boundary', () => {
     expect(retired).toBe(0); expect(attached).toBe(1); expect(written).toBe(0)
     await move(router, '/exit')
     expect(attached).toBe(0); expect(retired).toBe(1); expect(document.body.textContent).toContain('原 Vue 路由仍可用')
+  })
+  it.each(['/requirements/new', '/requirements/req-original', '/workflows/new', '/workflows/workflow-original', '/designer?sessionId=session-original'])('W5 history %s retains exactly its React owner and an inert legacy task port', async path => {
+    const { router } = await setup(path)
+    expect(props.route.fullPath).toBe(path)
+    expect(props.legacy.task.getSnapshot().tasks).toEqual([])
+    expect(props.legacy.task.getSnapshot().projects).toEqual([])
+    if (path.includes('original') && !path.includes('?')) expect(props.route.params.id).toBe(path.split('/').at(-1))
+    if (path.includes('?')) expect(props.route.query.sessionId).toBe('session-original')
+    risk = () => ({ kind: 'BLOCK', reason: '保留原 File、revision 和未知命令', recoveryAction: '核对原身份' })
+    await move(router, '/projects'); expect(router.currentRoute.value.fullPath).toBe(path)
+    await act(async () => { props.setSkin('tech-blue'); await flushPromises() })
+    expect(attached).toBe(1); expect(retired).toBe(0); expect(written).toBe(0)
+    expect(props.route.fullPath).toBe(path)
+    risk = () => ({ kind: 'ALLOW' }); await move(router, '/exit')
+    expect(retired).toBe(1); expect(attached).toBe(0); expect(written).toBe(0)
+  })
+  it('W5 same-path scope navigation explicitly confirms dirty input and retires the old owner before mounting the new one', async () => {
+    const { router } = await setup('/designer?sessionId=A')
+    const originalNavigation = props.navigation
+    await act(async () => { fireEvent.change(document.querySelector('input[aria-label="草稿"]')!, { target: { value: 'A的未保存草稿' } }) })
+    risk = () => ({ kind: 'CONFIRM_DISCARD', description: 'A草稿需要明确放弃', draftRevision: 1 })
+    const move = router.push('/designer?sessionId=B'); await settle()
+    expect(router.currentRoute.value.query.sessionId).toBe('A'); expect(retired).toBe(0)
+    const discard = document.querySelector<HTMLButtonElement>('[data-semantic="ui.discardChanges"]')!
+    expect(discard).toBeTruthy(); await act(async () => { discard.click(); await flushPromises() }); await move; await settle()
+    expect(router.currentRoute.value.fullPath).toBe('/designer?sessionId=B')
+    expect(retired).toBe(1); expect(attached).toBe(1); expect(written).toBe(0)
+    expect((document.querySelector('input[aria-label="草稿"]') as HTMLInputElement).value).toBe('original')
+    expect(await originalNavigation.go('/exit')).toBe(false)
+    expect(router.currentRoute.value.query.sessionId).toBe('B'); expect(written).toBe(0)
   })
   it.each(['pending', 'unknown'])('%s blocks real route leave and query change without unloading or replaying writes', async () => {
     const { router } = await setup(); risk = () => ({ kind: 'BLOCK', reason: '保留原身份', recoveryAction: '恢复原操作' })

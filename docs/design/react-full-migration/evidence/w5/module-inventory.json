@@ -1,0 +1,1287 @@
+{
+  "scope": "W5 production sources only; API references are TypeScript AST references to actual imports from @/api/, exclude semantic labels/CSS/array operations; not a count of writes",
+  "baseline": "5c181fc39e26249650df851fe9a7c8a68cab519d",
+  "productionFiles": [
+    "frontend/src/pages/w5/designer/DesignerPage.tsx",
+    "frontend/src/pages/w5/designer/Discussion.tsx",
+    "frontend/src/pages/w5/designer/LoopSpecEditor.tsx",
+    "frontend/src/pages/w5/designer/controller.ts",
+    "frontend/src/pages/w5/designer/index.tsx",
+    "frontend/src/pages/w5/designer/model.ts",
+    "frontend/src/pages/w5/requirements/Candidates.tsx",
+    "frontend/src/pages/w5/requirements/Choice.tsx",
+    "frontend/src/pages/w5/requirements/Content.tsx",
+    "frontend/src/pages/w5/requirements/Finish.tsx",
+    "frontend/src/pages/w5/requirements/Inputs.tsx",
+    "frontend/src/pages/w5/requirements/NewRequirementPage.tsx",
+    "frontend/src/pages/w5/requirements/NodeRun.tsx",
+    "frontend/src/pages/w5/requirements/Publication.tsx",
+    "frontend/src/pages/w5/requirements/RequirementPage.tsx",
+    "frontend/src/pages/w5/requirements/SaveTemplate.tsx",
+    "frontend/src/pages/w5/requirements/candidatesController.ts",
+    "frontend/src/pages/w5/requirements/contentController.ts",
+    "frontend/src/pages/w5/requirements/controller.ts",
+    "frontend/src/pages/w5/requirements/core.ts",
+    "frontend/src/pages/w5/requirements/finishController.ts",
+    "frontend/src/pages/w5/requirements/index.tsx",
+    "frontend/src/pages/w5/requirements/newController.ts",
+    "frontend/src/pages/w5/requirements/nodeController.ts",
+    "frontend/src/pages/w5/requirements/parts.tsx",
+    "frontend/src/pages/w5/requirements/publicationController.ts",
+    "frontend/src/pages/w5/requirements/templateController.ts",
+    "frontend/src/pages/w5/requirements/uploadController.ts",
+    "frontend/src/pages/w5/workflow/NodeSpecialists.tsx",
+    "frontend/src/pages/w5/workflow/WorkflowEditorPage.tsx",
+    "frontend/src/pages/w5/workflow/WorkflowNodeEditor.tsx",
+    "frontend/src/pages/w5/workflow/WorkflowPresetPicker.tsx",
+    "frontend/src/pages/w5/workflow/WorkflowPublicInputs.tsx",
+    "frontend/src/pages/w5/workflow/WorkflowRolePicker.tsx",
+    "frontend/src/pages/w5/workflow/editorController.ts",
+    "frontend/src/pages/w5/workflow/index.tsx",
+    "frontend/src/pages/w5/workflow/reports/AnalysisReports.tsx",
+    "frontend/src/pages/w5/workflow/reports/BasicReports.tsx",
+    "frontend/src/pages/w5/workflow/reports/DesignReports.tsx",
+    "frontend/src/pages/w5/workflow/reports/Previews.tsx",
+    "frontend/src/pages/w5/workflow/reports/ReportParts.tsx",
+    "frontend/src/pages/w5/workflow/reports/TestReports.tsx",
+    "frontend/src/pages/w5/workflow/reports/WorkflowCommandEvidence.tsx",
+    "frontend/src/pages/w5/workflow/reports/WorkflowKnowledgeReport.tsx",
+    "frontend/src/pages/w5/workflow/reports/index.tsx",
+    "frontend/src/pages/w5/workflow/reports/validators.ts"
+  ],
+  "components": [
+    {
+      "file": "frontend/src/pages/w5/designer/DesignerPage.tsx",
+      "name": "DesignerPage",
+      "line": 19
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/Discussion.tsx",
+      "name": "PendingQuestion",
+      "line": 12
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/Discussion.tsx",
+      "name": "Discussion",
+      "line": 20
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/Discussion.tsx",
+      "name": "ActivityProjection",
+      "line": 34
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/LoopSpecEditor.tsx",
+      "name": "LoopSpecEditor",
+      "line": 21
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/Candidates.tsx",
+      "name": "CandidatesPanel",
+      "line": 9
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/Choice.tsx",
+      "name": "RequirementChoice",
+      "line": 9
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/Content.tsx",
+      "name": "FixedInputContent",
+      "line": 18
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/Content.tsx",
+      "name": "AttemptFiles",
+      "line": 30
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/Content.tsx",
+      "name": "AttemptKnowledge",
+      "line": 46
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/Content.tsx",
+      "name": "AttemptPartial",
+      "line": 57
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/Finish.tsx",
+      "name": "FinishPanel",
+      "line": 10
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/Inputs.tsx",
+      "name": "DocumentInput",
+      "line": 25
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/Inputs.tsx",
+      "name": "PublicValues",
+      "line": 47
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/NewRequirementPage.tsx",
+      "name": "NewRequirementPage",
+      "line": 10
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/NodeRun.tsx",
+      "name": "NodeRun",
+      "line": 16
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/Publication.tsx",
+      "name": "PublicationPanel",
+      "line": 10
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/RequirementPage.tsx",
+      "name": "RequirementPage",
+      "line": 22
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/SaveTemplate.tsx",
+      "name": "SaveTemplatePanel",
+      "line": 13
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/parts.tsx",
+      "name": "Action",
+      "line": 24
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/parts.tsx",
+      "name": "Labeled",
+      "line": 27
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/parts.tsx",
+      "name": "RequirementContextPanel",
+      "line": 29
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/NodeSpecialists.tsx",
+      "name": "WorkflowCommandEditor",
+      "line": 15
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/NodeSpecialists.tsx",
+      "name": "WorkflowVerificationEditor",
+      "line": 33
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/NodeSpecialists.tsx",
+      "name": "WorkflowReviewSourceEditor",
+      "line": 50
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/NodeSpecialists.tsx",
+      "name": "WorkflowSourceDesignEditor",
+      "line": 54
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/NodeSpecialists.tsx",
+      "name": "WorkflowDocumentReviewEditor",
+      "line": 61
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/WorkflowEditorPage.tsx",
+      "name": "WorkflowEditorPage",
+      "line": 17
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/WorkflowNodeEditor.tsx",
+      "name": "WorkflowNodeEditor",
+      "line": 25
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/WorkflowPresetPicker.tsx",
+      "name": "WorkflowPresetPicker",
+      "line": 9
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/WorkflowPublicInputs.tsx",
+      "name": "WorkflowPublicInputs",
+      "line": 5
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/WorkflowRolePicker.tsx",
+      "name": "WorkflowRolePicker",
+      "line": 7
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/reports/AnalysisReports.tsx",
+      "name": "WorkflowSnapshotReport",
+      "line": 4
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/reports/AnalysisReports.tsx",
+      "name": "WorkflowHistoryAnalysisReport",
+      "line": 10
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/reports/BasicReports.tsx",
+      "name": "WorkflowCommandReport",
+      "line": 5
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/reports/BasicReports.tsx",
+      "name": "WorkflowVerificationReport",
+      "line": 9
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/reports/BasicReports.tsx",
+      "name": "WorkflowReviewReport",
+      "line": 13
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/reports/BasicReports.tsx",
+      "name": "WorkflowRepositoryReport",
+      "line": 17
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/reports/BasicReports.tsx",
+      "name": "WorkflowSourceReport",
+      "line": 21
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/reports/BasicReports.tsx",
+      "name": "WorkflowHistoryReport",
+      "line": 25
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/reports/BasicReports.tsx",
+      "name": "WorkflowReviewSourceReport",
+      "line": 29
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/reports/BasicReports.tsx",
+      "name": "WorkflowSourcePlanReport",
+      "line": 33
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/reports/BasicReports.tsx",
+      "name": "WorkflowDocumentPlanReport",
+      "line": 37
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/reports/BasicReports.tsx",
+      "name": "WorkflowDocumentReport",
+      "line": 41
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/reports/BasicReports.tsx",
+      "name": "WorkflowHistorySummary",
+      "line": 45
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/reports/BasicReports.tsx",
+      "name": "WorkflowSnapshotSummary",
+      "line": 49
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/reports/DesignReports.tsx",
+      "name": "WorkflowSourceDesignReport",
+      "line": 5
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/reports/DesignReports.tsx",
+      "name": "WorkflowDocumentReviewReport",
+      "line": 9
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/reports/Previews.tsx",
+      "name": "WorkflowCodeChanges",
+      "line": 7
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/reports/Previews.tsx",
+      "name": "WorkflowDocumentPreview",
+      "line": 18
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/reports/Previews.tsx",
+      "name": "WorkflowWritebackPreview",
+      "line": 23
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/reports/Previews.tsx",
+      "name": "WorkflowSnapshotPartialReport",
+      "line": 27
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/reports/ReportParts.tsx",
+      "name": "Invalid",
+      "line": 9
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/reports/ReportParts.tsx",
+      "name": "Badge",
+      "line": 10
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/reports/ReportParts.tsx",
+      "name": "Lines",
+      "line": 11
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/reports/ReportParts.tsx",
+      "name": "Limits",
+      "line": 12
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/reports/ReportParts.tsx",
+      "name": "Markdown",
+      "line": 13
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/reports/ReportParts.tsx",
+      "name": "Code",
+      "line": 14
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/reports/ReportParts.tsx",
+      "name": "References",
+      "line": 16
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/reports/TestReports.tsx",
+      "name": "WorkflowTestProfileReport",
+      "line": 6
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/reports/TestReports.tsx",
+      "name": "WorkflowTestDesignReport",
+      "line": 10
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/reports/TestReports.tsx",
+      "name": "WorkflowTestScopeReport",
+      "line": 14
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/reports/TestReports.tsx",
+      "name": "WorkflowNativeTestReport",
+      "line": 18
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/reports/TestReports.tsx",
+      "name": "WorkflowTestReviewReport",
+      "line": 22
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/reports/TestReports.tsx",
+      "name": "WorkflowTestSummaryReport",
+      "line": 26
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/reports/WorkflowCommandEvidence.tsx",
+      "name": "WorkflowCommandEvidence",
+      "line": 10
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/reports/WorkflowKnowledgeReport.tsx",
+      "name": "WorkflowKnowledgeReport",
+      "line": 8
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/reports/index.tsx",
+      "name": "WorkflowOutputReport",
+      "line": 19
+    }
+  ],
+  "owners": [
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "name": "createDesignerController",
+      "line": 23
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/candidatesController.ts",
+      "name": "createCandidatesController",
+      "line": 5
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/contentController.ts",
+      "name": "createContentController",
+      "line": 6
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/controller.ts",
+      "name": "createRequirementController",
+      "line": 12
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/finishController.ts",
+      "name": "createFinishController",
+      "line": 7
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/newController.ts",
+      "name": "createNewRequirementController",
+      "line": 11
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/nodeController.ts",
+      "name": "createNodeController",
+      "line": 7
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/publicationController.ts",
+      "name": "createPublicationController",
+      "line": 8
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/templateController.ts",
+      "name": "createSaveTemplateController",
+      "line": 8
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/uploadController.ts",
+      "name": "createUploadController",
+      "line": 9
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/editorController.ts",
+      "name": "createWorkflowEditorController",
+      "line": 24
+    }
+  ],
+  "apiReferences": [
+    {
+      "file": "frontend/src/pages/w5/designer/DesignerPage.tsx",
+      "reference": "api.getSettingsModels",
+      "module": "@/api/client",
+      "line": 30
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/Discussion.tsx",
+      "reference": "api.designerAttachmentContentUrl",
+      "module": "@/api/client",
+      "line": 26
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "subscribeDesignerEvents",
+      "module": "@/api/client",
+      "line": 64
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.getDesignerSession",
+      "module": "@/api/client",
+      "line": 83
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.getDesignerActivity",
+      "module": "@/api/client",
+      "line": 90
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.getDesignerSession",
+      "module": "@/api/client",
+      "line": 100
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.getSettings",
+      "module": "@/api/client",
+      "line": 130
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.createDraft",
+      "module": "@/api/client",
+      "line": 132
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.createDesignerContextTurn",
+      "module": "@/api/client",
+      "line": 136
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.createDesignerSession",
+      "module": "@/api/client",
+      "line": 136
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.sendDesignerContextTurn",
+      "module": "@/api/client",
+      "line": 151
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.sendRequirementMessage",
+      "module": "@/api/client",
+      "line": 151
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.sendWorkPackageMessage",
+      "module": "@/api/client",
+      "line": 151
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.sendDesignerMessage",
+      "module": "@/api/client",
+      "line": 151
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.validateDraft",
+      "module": "@/api/client",
+      "line": 164
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.updateDraft",
+      "module": "@/api/client",
+      "line": 168
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.getDraft",
+      "module": "@/api/client",
+      "line": 180
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.getDesignerSession",
+      "module": "@/api/client",
+      "line": 180
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.confirmDraft",
+      "module": "@/api/client",
+      "line": 189
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.getDraft",
+      "module": "@/api/client",
+      "line": 190
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.getTaskOverview",
+      "module": "@/api/client",
+      "line": 191
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.getTaskAudit",
+      "module": "@/api/client",
+      "line": 191
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.getTaskOverview",
+      "module": "@/api/client",
+      "line": 207
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.getTaskAudit",
+      "module": "@/api/client",
+      "line": 208
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.previewDesignerTaskProfileUpdate",
+      "module": "@/api/client",
+      "line": 231
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.updateDesignerTaskProfile",
+      "module": "@/api/client",
+      "line": 237
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.stopDesignerSession",
+      "module": "@/api/client",
+      "line": 242
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.getStoryBindingCapability",
+      "module": "@/api/client",
+      "line": 251
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.getProjects",
+      "module": "@/api/client",
+      "line": 257
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.replyDesignerQuestion",
+      "module": "@/api/client",
+      "line": 272
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.confirmDesignerRequirement",
+      "module": "@/api/client",
+      "line": 278
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.reopenDesignerRequirement",
+      "module": "@/api/client",
+      "line": 278
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.approveWorkPackage",
+      "module": "@/api/client",
+      "line": 279
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.reopenWorkPackage",
+      "module": "@/api/client",
+      "line": 279
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.retryDesignerCompiler",
+      "module": "@/api/client",
+      "line": 280
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.requestDesignerRedesign",
+      "module": "@/api/client",
+      "line": 280
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.retryDesignerDecomposition",
+      "module": "@/api/client",
+      "line": 280
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.retryWorkPackageCompiler",
+      "module": "@/api/client",
+      "line": 281
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.redesignWorkPackage",
+      "module": "@/api/client",
+      "line": 281
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.confirmDesignerTaskProfile",
+      "module": "@/api/client",
+      "line": 282
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.rerouteDesignerTaskProfile",
+      "module": "@/api/client",
+      "line": 282
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.cancelDesignerTaskProfileRouting",
+      "module": "@/api/client",
+      "line": 282
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.enableDesignerLargeTaskMode",
+      "module": "@/api/client",
+      "line": 283
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.updateDesignerAutoMode",
+      "module": "@/api/client",
+      "line": 283
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.getDesignerAttachmentPreview",
+      "module": "@/api/client",
+      "line": 288
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.stopDesignerAttachment",
+      "module": "@/api/client",
+      "line": 289
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.getAnalysisReport",
+      "module": "@/api/client",
+      "line": 290
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.convertAnalysisReportToDesign",
+      "module": "@/api/client",
+      "line": 293
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.copyDraftAsV2",
+      "module": "@/api/client",
+      "line": 295
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.createDesignerSession",
+      "module": "@/api/client",
+      "line": 295
+    },
+    {
+      "file": "frontend/src/pages/w5/designer/controller.ts",
+      "reference": "api.validateDraft",
+      "module": "@/api/client",
+      "line": 296
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/Choice.tsx",
+      "reference": "workflowRuns.projects",
+      "module": "@/api/workflowRuns",
+      "line": 16
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/Choice.tsx",
+      "reference": "workflowApi.list",
+      "module": "@/api/workflow",
+      "line": 16
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/Inputs.tsx",
+      "reference": "api.templateBranches",
+      "module": "@/api/client",
+      "line": 17
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/Inputs.tsx",
+      "reference": "workflowDocuments.fileUrl",
+      "module": "@/api/workflowDocuments",
+      "line": 33
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/NewRequirementPage.tsx",
+      "reference": "workflowApi.get",
+      "module": "@/api/workflow",
+      "line": 34
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/candidatesController.ts",
+      "reference": "workflowRuns.candidates",
+      "module": "@/api/workflowRuns",
+      "line": 10
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/candidatesController.ts",
+      "reference": "workflowRuns.candidate",
+      "module": "@/api/workflowRuns",
+      "line": 17
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/candidatesController.ts",
+      "reference": "workflowRuns.rejectCandidate",
+      "module": "@/api/workflowRuns",
+      "line": 24
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/contentController.ts",
+      "reference": "workflowRuns.files",
+      "module": "@/api/workflowRuns",
+      "line": 20
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/contentController.ts",
+      "reference": "workflowRuns.changes",
+      "module": "@/api/workflowRuns",
+      "line": 27
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/contentController.ts",
+      "reference": "workflowRuns.fileText",
+      "module": "@/api/workflowRuns",
+      "line": 39
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/contentController.ts",
+      "reference": "workflowRuns.inputContent",
+      "module": "@/api/workflowRuns",
+      "line": 51
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/contentController.ts",
+      "reference": "workflowRuns.knowledgeEvidence",
+      "module": "@/api/workflowRuns",
+      "line": 62
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/contentController.ts",
+      "reference": "workflowRuns.knowledgeEvidenceBody",
+      "module": "@/api/workflowRuns",
+      "line": 70
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/contentController.ts",
+      "reference": "workflowRuns.snapshotPartialReport",
+      "module": "@/api/workflowRuns",
+      "line": 77
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/contentController.ts",
+      "reference": "workflowRuns.fileUrl",
+      "module": "@/api/workflowRuns",
+      "line": 83
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/contentController.ts",
+      "reference": "workflowRuns.archiveUrl",
+      "module": "@/api/workflowRuns",
+      "line": 84
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/controller.ts",
+      "reference": "workflowRuns.execution",
+      "module": "@/api/workflowRuns",
+      "line": 56
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/controller.ts",
+      "reference": "workflowRuns.get",
+      "module": "@/api/workflowRuns",
+      "line": 64
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/controller.ts",
+      "reference": "workflowRuns.get",
+      "module": "@/api/workflowRuns",
+      "line": 80
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/controller.ts",
+      "reference": "api.getSettings",
+      "module": "@/api/client",
+      "line": 92
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/controller.ts",
+      "reference": "api.getSettingsModels",
+      "module": "@/api/client",
+      "line": 101
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/controller.ts",
+      "reference": "workflowRuns.applyCandidate",
+      "module": "@/api/workflowRuns",
+      "line": 122
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/controller.ts",
+      "reference": "workflowRuns.applyPlan",
+      "module": "@/api/workflowRuns",
+      "line": 122
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/controller.ts",
+      "reference": "workflowRuns.revise",
+      "module": "@/api/workflowRuns",
+      "line": 122
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/controller.ts",
+      "reference": "workflowRuns.layout",
+      "module": "@/api/workflowRuns",
+      "line": 131
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/controller.ts",
+      "reference": "workflowRuns.get",
+      "module": "@/api/workflowRuns",
+      "line": 135
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/controller.ts",
+      "reference": "workflowRuns.confirm",
+      "module": "@/api/workflowRuns",
+      "line": 148
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/controller.ts",
+      "reference": "workflowRuns.get",
+      "module": "@/api/workflowRuns",
+      "line": 149
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/controller.ts",
+      "reference": "workflowRuns.start",
+      "module": "@/api/workflowRuns",
+      "line": 160
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/controller.ts",
+      "reference": "workflowRuns.pause",
+      "module": "@/api/workflowRuns",
+      "line": 167
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/controller.ts",
+      "reference": "workflowRuns.cancel",
+      "module": "@/api/workflowRuns",
+      "line": 178
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/finishController.ts",
+      "reference": "workflowRuns.finishStatus",
+      "module": "@/api/workflowRuns",
+      "line": 15
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/finishController.ts",
+      "reference": "workflowRuns.finish",
+      "module": "@/api/workflowRuns",
+      "line": 22
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/newController.ts",
+      "reference": "workflowApi.get",
+      "module": "@/api/workflow",
+      "line": 17
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/newController.ts",
+      "reference": "workflowRuns.project",
+      "module": "@/api/workflowRuns",
+      "line": 17
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/newController.ts",
+      "reference": "workflowRuns.create",
+      "module": "@/api/workflowRuns",
+      "line": 33
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/nodeController.ts",
+      "reference": "workflowRuns.attempts",
+      "module": "@/api/workflowRuns",
+      "line": 23
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/nodeController.ts",
+      "reference": "workflowRuns.attempt",
+      "module": "@/api/workflowRuns",
+      "line": 31
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/nodeController.ts",
+      "reference": "workflowRuns.definition",
+      "module": "@/api/workflowRuns",
+      "line": 37
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/nodeController.ts",
+      "reference": "workflowRuns.inputs",
+      "module": "@/api/workflowRuns",
+      "line": 56
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/nodeController.ts",
+      "reference": "workflowRuns.result",
+      "module": "@/api/workflowRuns",
+      "line": 62
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/nodeController.ts",
+      "reference": "workflowRuns.commandEvidence",
+      "module": "@/api/workflowRuns",
+      "line": 65
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/nodeController.ts",
+      "reference": "workflowRuns.activity",
+      "module": "@/api/workflowRuns",
+      "line": 68
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/nodeController.ts",
+      "reference": "workflowRuns.complete",
+      "module": "@/api/workflowRuns",
+      "line": 79
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/nodeController.ts",
+      "reference": "workflowRuns.commandAction",
+      "module": "@/api/workflowRuns",
+      "line": 90
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/nodeController.ts",
+      "reference": "workflowRuns.modelAction",
+      "module": "@/api/workflowRuns",
+      "line": 90
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/publicationController.ts",
+      "reference": "workflowPublication.status",
+      "module": "@/api/workflowPublication",
+      "line": 27
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/publicationController.ts",
+      "reference": "workflowPush.status",
+      "module": "@/api/workflowPush",
+      "line": 28
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/publicationController.ts",
+      "reference": "workflowWriteback.status",
+      "module": "@/api/workflowWriteback",
+      "line": 29
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/publicationController.ts",
+      "reference": "workflowPublication.sources",
+      "module": "@/api/workflowPublication",
+      "line": 37
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/publicationController.ts",
+      "reference": "workflowPublication.preview",
+      "module": "@/api/workflowPublication",
+      "line": 44
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/publicationController.ts",
+      "reference": "workflowWriteback.preview",
+      "module": "@/api/workflowWriteback",
+      "line": 54
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/publicationController.ts",
+      "reference": "workflowPublication.confirm",
+      "module": "@/api/workflowPublication",
+      "line": 64
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/publicationController.ts",
+      "reference": "workflowPush.remotes",
+      "module": "@/api/workflowPush",
+      "line": 71
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/publicationController.ts",
+      "reference": "workflowPush.preview",
+      "module": "@/api/workflowPush",
+      "line": 78
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/publicationController.ts",
+      "reference": "workflowPush.confirm",
+      "module": "@/api/workflowPush",
+      "line": 85
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/publicationController.ts",
+      "reference": "workflowWriteback.confirm",
+      "module": "@/api/workflowWriteback",
+      "line": 91
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/publicationController.ts",
+      "reference": "workflowPublication.retry",
+      "module": "@/api/workflowPublication",
+      "line": 97
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/publicationController.ts",
+      "reference": "workflowPublication.status",
+      "module": "@/api/workflowPublication",
+      "line": 98
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/publicationController.ts",
+      "reference": "workflowPush.retry",
+      "module": "@/api/workflowPush",
+      "line": 104
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/publicationController.ts",
+      "reference": "workflowPush.status",
+      "module": "@/api/workflowPush",
+      "line": 105
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/publicationController.ts",
+      "reference": "workflowWriteback.retry",
+      "module": "@/api/workflowWriteback",
+      "line": 110
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/publicationController.ts",
+      "reference": "workflowWriteback.status",
+      "module": "@/api/workflowWriteback",
+      "line": 111
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/templateController.ts",
+      "reference": "workflowRuns.previewTemplate",
+      "module": "@/api/workflowRuns",
+      "line": 15
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/templateController.ts",
+      "reference": "workflowRuns.saveTemplate",
+      "module": "@/api/workflowRuns",
+      "line": 22
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/uploadController.ts",
+      "reference": "workflowDocuments.upload",
+      "module": "@/api/workflowDocuments",
+      "line": 31
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/uploadController.ts",
+      "reference": "workflowDocuments.get",
+      "module": "@/api/workflowDocuments",
+      "line": 36
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/uploadController.ts",
+      "reference": "workflowDocuments.list",
+      "module": "@/api/workflowDocuments",
+      "line": 51
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/uploadController.ts",
+      "reference": "workflowDocuments.get",
+      "module": "@/api/workflowDocuments",
+      "line": 60
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/uploadController.ts",
+      "reference": "workflowDocuments.files",
+      "module": "@/api/workflowDocuments",
+      "line": 67
+    },
+    {
+      "file": "frontend/src/pages/w5/requirements/uploadController.ts",
+      "reference": "workflowDocuments.text",
+      "module": "@/api/workflowDocuments",
+      "line": 75
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/WorkflowPresetPicker.tsx",
+      "reference": "workflowApi.presets",
+      "module": "@/api/workflow",
+      "line": 16
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/WorkflowPresetPicker.tsx",
+      "reference": "workflowApi.preset",
+      "module": "@/api/workflow",
+      "line": 19
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/WorkflowRolePicker.tsx",
+      "reference": "api.getRoles",
+      "module": "@/api/client",
+      "line": 15
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/WorkflowRolePicker.tsx",
+      "reference": "api.getRole",
+      "module": "@/api/client",
+      "line": 22
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/WorkflowRolePicker.tsx",
+      "reference": "api.getRoleRevision",
+      "module": "@/api/client",
+      "line": 23
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/WorkflowRolePicker.tsx",
+      "reference": "api.getRoleRevisions",
+      "module": "@/api/client",
+      "line": 34
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/WorkflowRolePicker.tsx",
+      "reference": "api.getRole",
+      "module": "@/api/client",
+      "line": 42
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/WorkflowRolePicker.tsx",
+      "reference": "api.getRoleRevision",
+      "module": "@/api/client",
+      "line": 42
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/editorController.ts",
+      "reference": "workflowApi.get",
+      "module": "@/api/workflow",
+      "line": 51
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/editorController.ts",
+      "reference": "workflowApi.validate",
+      "module": "@/api/workflow",
+      "line": 82
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/editorController.ts",
+      "reference": "workflowApi.get",
+      "module": "@/api/workflow",
+      "line": 91
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/editorController.ts",
+      "reference": "workflowApi.copy",
+      "module": "@/api/workflow",
+      "line": 103
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/editorController.ts",
+      "reference": "workflowApi.revise",
+      "module": "@/api/workflow",
+      "line": 103
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/editorController.ts",
+      "reference": "workflowApi.create",
+      "module": "@/api/workflow",
+      "line": 103
+    },
+    {
+      "file": "frontend/src/pages/w5/workflow/editorController.ts",
+      "reference": "workflowApi.layout",
+      "module": "@/api/workflow",
+      "line": 111
+    }
+  ],
+  "totals": {
+    "files": 46,
+    "exportedComponentDeclarations": 68,
+    "exportedControllerOrScopeFactories": 11,
+    "distinctImportedApiReferences": 117
+  }
+}

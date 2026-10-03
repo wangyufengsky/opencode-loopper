@@ -27,7 +27,9 @@
     "test:w3": "node ../scripts/generate-semantic-registry.mjs --check && node ../scripts/generate-foundation-icons.mjs --check && vitest run src/pages/w3 src/migration/w3Routes.spec.ts src/migration/w2Bridge.spec.tsx",
     "test:w3-browser": "playwright test --config e2e/w3/playwright.config.ts",
     "test:w4": "node ../scripts/generate-semantic-registry.mjs --check && node ../scripts/generate-foundation-icons.mjs --check && vitest run src/pages/w4 src/migration/w4Routes.spec.ts src/migration/w2Bridge.spec.tsx src/migration/w4TaskBoundary.spec.ts src/stores/taskEventSubscriptionCleanup.spec.ts",
-    "test:w4-browser": "playwright test --config e2e/w4/playwright.config.ts"
+    "test:w4-browser": "playwright test --config e2e/w4/playwright.config.ts",
+    "test:w5": "node ../scripts/generate-semantic-registry.mjs --check && node ../scripts/generate-foundation-icons.mjs --check && vitest run src/pages/w5 src/migration/w5Routes.spec.ts src/migration/w5Ownership.spec.ts src/migration/w2Bridge.spec.tsx src/router/designerEntry.spec.ts src/w0/workflow-w0.spec.ts src/w0/designer-w0.spec.ts src/react/workflow/WorkflowCanvasImmediate.spec.tsx src/react/workflow/WorkflowCanvasReact.spec.tsx src/foundation/ownership.spec.ts",
+    "test:w5-browser": "playwright test --config e2e/w5/playwright.config.ts"
   },
   "dependencies": {
     "@codemirror/lang-java": "^6.0.2",

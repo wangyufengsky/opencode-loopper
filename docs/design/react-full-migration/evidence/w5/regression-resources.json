@@ -1,0 +1,2809 @@
+{
+  "scope": "已迁W2–W4相同最终production dist回归；不是W5新增独立场景数",
+  "waves": {
+    "w2": {
+      "count": 51,
+      "samples": [
+        {
+          "rawFile": "github-white-databases-firstsnapshot.json",
+          "rawSha256": "5363eb8e9401799146105973cc7336d281d34b669fb228449e92ac61ae86e8c1",
+          "cycle": 0,
+          "path": "/databases",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-designs-firstsnapshot.json",
+          "rawSha256": "7fe3d24b3ff8e0092378f3018326f2f123282020cdd3829225176ebdb0780017",
+          "cycle": 0,
+          "path": "/designs",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-home-firstsnapshot.json",
+          "rawSha256": "103357d3f32ee8c5cc45270b064f3124a8847c3f8983e940e66ca21875bdfc44",
+          "cycle": 0,
+          "path": "/",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-insights-firstsnapshot.json",
+          "rawSha256": "292674efdb109c85416cdcffecca44596427efbee34dd11f7334944e351eb8e2",
+          "cycle": 0,
+          "path": "/insights",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-knowledge-history-firstsnapshot.json",
+          "rawSha256": "dd448995984af503203983aaf363f6e0760e1498a33ca5b4e16384b2b14ebbcd",
+          "cycle": 0,
+          "path": "/knowledge/history",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-ppt-firstsnapshot.json",
+          "rawSha256": "bdf1d92f3f5e39e15d9fbf5610ab3c6a2d86e2507e58c5b7c29e96599ab97200",
+          "cycle": 0,
+          "path": "/ppt",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-projects-firstsnapshot.json",
+          "rawSha256": "2539dc14af5d6f14633e61a6b636438c3dbfe1a75e0d6bc3975b20a3462ad240",
+          "cycle": 0,
+          "path": "/projects",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-requirements-firstsnapshot.json",
+          "rawSha256": "2d02a4f4da810bc3bb2c7cd269a910c505dfbeeba7fd9365c38d3d7e94e474e5",
+          "cycle": 0,
+          "path": "/requirements",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-roles-active-threecycles.json",
+          "rawSha256": "4f01dc1ac4beb9118b04c2e757318d27f7adc8545a7d40e01b9911a6ea5b2f02",
+          "cycle": 0,
+          "path": "/roles",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-roles-active-threecycles.json",
+          "rawSha256": "4f01dc1ac4beb9118b04c2e757318d27f7adc8545a7d40e01b9911a6ea5b2f02",
+          "cycle": 1,
+          "path": "/roles",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-roles-active-threecycles.json",
+          "rawSha256": "4f01dc1ac4beb9118b04c2e757318d27f7adc8545a7d40e01b9911a6ea5b2f02",
+          "cycle": 2,
+          "path": "/roles",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-roles-firstsnapshot.json",
+          "rawSha256": "de9caf70b9293246a551d7c14e4e45ff239b3cb411d1bb72a907204f71bf2d93",
+          "cycle": 0,
+          "path": "/roles",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-runtime-firstsnapshot.json",
+          "rawSha256": "033d58e007b2e6fc20ef81f4192237fa77adbc4ee8df318074f364be3b377f7b",
+          "cycle": 0,
+          "path": "/runtime",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-settings-firstsnapshot.json",
+          "rawSha256": "2bf97f91949e2e09f0285bb55dadd67b069181e19862f076a520bddf225822b7",
+          "cycle": 0,
+          "path": "/settings",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-tasks-firstsnapshot.json",
+          "rawSha256": "8acbb0d9d3aedd64ebf66496165dc607a423e0863665c37d321fbd2a0d0d4a88",
+          "cycle": 0,
+          "path": "/tasks",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-tools-firstsnapshot.json",
+          "rawSha256": "a89792700aecff6acb98db32805bc3dcfdc4f29f830ee9a155c904d00fb74bde",
+          "cycle": 0,
+          "path": "/tools",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-workflows-firstsnapshot.json",
+          "rawSha256": "dbde60f5074947bd898c149052205d2adab3b7df2e1e4fe4931b09871c76dbce",
+          "cycle": 0,
+          "path": "/workflows",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-databases-firstsnapshot.json",
+          "rawSha256": "8fbaf443a0dd2d9f3aaf96fb97cd157ca92bd42868b3266a9dc9025e1fac822b",
+          "cycle": 0,
+          "path": "/databases",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-designs-firstsnapshot.json",
+          "rawSha256": "38451b07ee7e61572f7e203e35a2593eec29371ed4667bd5b49d10151e13bab7",
+          "cycle": 0,
+          "path": "/designs",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-home-firstsnapshot.json",
+          "rawSha256": "6e5264eedda1a16d959c838c83a0e908e40ec168eb31c36140c29cee4a00fd7d",
+          "cycle": 0,
+          "path": "/",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-insights-firstsnapshot.json",
+          "rawSha256": "52f9daf8ec13668b33a60e068fbf7d0c88cf70e769406e2d0216f663f0759d38",
+          "cycle": 0,
+          "path": "/insights",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-knowledge-history-firstsnapshot.json",
+          "rawSha256": "4d098f66ac518fbbcdab34ec8e30b949364e92bcf261d46a4c13ce9b18243077",
+          "cycle": 0,
+          "path": "/knowledge/history",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-ppt-firstsnapshot.json",
+          "rawSha256": "71216887677e095b6f6c480ae9ced66952ee65465d966e7a769324d44ea993f0",
+          "cycle": 0,
+          "path": "/ppt",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-projects-firstsnapshot.json",
+          "rawSha256": "f8bceb333fc00e9fe252de5d7d792c6e684e2a01cdefd846444b00cf74285da1",
+          "cycle": 0,
+          "path": "/projects",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-requirements-firstsnapshot.json",
+          "rawSha256": "40f563b33735611f860216adff4eea9974a4383221e33a7724791089a9118cb6",
+          "cycle": 0,
+          "path": "/requirements",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-roles-active-threecycles.json",
+          "rawSha256": "34b41a2b4d85be02386aa7f3bf2ccfdc161d880dac375f722d5c8e450c3d351a",
+          "cycle": 0,
+          "path": "/roles",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-roles-active-threecycles.json",
+          "rawSha256": "34b41a2b4d85be02386aa7f3bf2ccfdc161d880dac375f722d5c8e450c3d351a",
+          "cycle": 1,
+          "path": "/roles",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-roles-active-threecycles.json",
+          "rawSha256": "34b41a2b4d85be02386aa7f3bf2ccfdc161d880dac375f722d5c8e450c3d351a",
+          "cycle": 2,
+          "path": "/roles",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-roles-firstsnapshot.json",
+          "rawSha256": "206b21fcb9e05d05c7f86bae7059e6d804520d816e48a296293aba16020f50d5",
+          "cycle": 0,
+          "path": "/roles",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-runtime-firstsnapshot.json",
+          "rawSha256": "4e3f1d4bc64880abf6a245aaa7646dfc48981eada4d9cfa89c6c0cdf536f606f",
+          "cycle": 0,
+          "path": "/runtime",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-settings-firstsnapshot.json",
+          "rawSha256": "e594d1ac2f4e06e43bf5e54e530989972b9823d9a0b552efbc4b6b94fb5dc7a8",
+          "cycle": 0,
+          "path": "/settings",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-tasks-firstsnapshot.json",
+          "rawSha256": "0e41a19cde68d703f529a8d817047eac2288a261edc0179997c9d62f2c9cbf46",
+          "cycle": 0,
+          "path": "/tasks",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-tools-firstsnapshot.json",
+          "rawSha256": "9587b60b713fd131d9d7110dffd337ae6b906e686e322c12ea8b6ee39b560330",
+          "cycle": 0,
+          "path": "/tools",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-workflows-firstsnapshot.json",
+          "rawSha256": "265cb5355f6c28cf1414dde9ed21041ce8bb3380fb2ff5c5625956c386c0371f",
+          "cycle": 0,
+          "path": "/workflows",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-databases-firstsnapshot.json",
+          "rawSha256": "6cfe31649347fb0a1ce59ef6206e0771346eb9f24f0b0a1a415dc57b47606a7a",
+          "cycle": 0,
+          "path": "/databases",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-designs-firstsnapshot.json",
+          "rawSha256": "2d40fc8d59e1b5d37fd8f587271a9c94d3e179b3db5c603fc28c43fc4dfe25be",
+          "cycle": 0,
+          "path": "/designs",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-home-firstsnapshot.json",
+          "rawSha256": "d5d0bd494a33cc92fe20612b4f2d618cc664d0514cd558c0a5f3d99997d1b74f",
+          "cycle": 0,
+          "path": "/",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-insights-firstsnapshot.json",
+          "rawSha256": "b5bbcd1cf0fe559116c0a86bb492d075f07cbd0c7b844a9e25962a49bae8afd6",
+          "cycle": 0,
+          "path": "/insights",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-knowledge-history-firstsnapshot.json",
+          "rawSha256": "02b59fae2bbfaa91da14aa6d33d5fdbb0d8ee348d1a9ea2c48f641ad0bbf8af1",
+          "cycle": 0,
+          "path": "/knowledge/history",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-ppt-firstsnapshot.json",
+          "rawSha256": "6232b0628f5b2b29829d3c8ceba41f7b34bf4536f0c89417e3e8ac18e834a6e6",
+          "cycle": 0,
+          "path": "/ppt",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-projects-firstsnapshot.json",
+          "rawSha256": "c1559da5db708b692b1a5a526ee9652e89b3156fc16e83bd515092af1bfa1f79",
+          "cycle": 0,
+          "path": "/projects",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-requirements-firstsnapshot.json",
+          "rawSha256": "7a918dc6482da95505c9f0ce276dd1847eb9e1468ccf39e72adfcab705753422",
+          "cycle": 0,
+          "path": "/requirements",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-roles-active-threecycles.json",
+          "rawSha256": "f9e974d72e53c885776304c07d18dc7c79bdbcf4627dd3bd35bb980832a35a1f",
+          "cycle": 0,
+          "path": "/roles",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-roles-active-threecycles.json",
+          "rawSha256": "f9e974d72e53c885776304c07d18dc7c79bdbcf4627dd3bd35bb980832a35a1f",
+          "cycle": 1,
+          "path": "/roles",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-roles-active-threecycles.json",
+          "rawSha256": "f9e974d72e53c885776304c07d18dc7c79bdbcf4627dd3bd35bb980832a35a1f",
+          "cycle": 2,
+          "path": "/roles",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-roles-firstsnapshot.json",
+          "rawSha256": "57918945cfa915bd2d329cc300c5ef8bd7e144ed45572cf5ffd1cf873026fcf9",
+          "cycle": 0,
+          "path": "/roles",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-runtime-firstsnapshot.json",
+          "rawSha256": "b6dce9c12cd6b82829cfed503a4ec06c1b89215f027325921d39418a3e5362a2",
+          "cycle": 0,
+          "path": "/runtime",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-settings-firstsnapshot.json",
+          "rawSha256": "a7d145d086c6375cba77755e5be512eb00c9933f2b6af404f39f37e077f34a88",
+          "cycle": 0,
+          "path": "/settings",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-tasks-firstsnapshot.json",
+          "rawSha256": "4b91a7662d81ddcd4df718f6ad47c655628e174623ab3ef45e1afcdf2b962408",
+          "cycle": 0,
+          "path": "/tasks",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-tools-firstsnapshot.json",
+          "rawSha256": "e0a806f317782f65a0bddda130b8ee31b2fe25df53cbe2139dbc44c4365cf357",
+          "cycle": 0,
+          "path": "/tools",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-workflows-firstsnapshot.json",
+          "rawSha256": "b6a1622dce46a945508579568fe46a44954f09cfaa7cebc0842c81bb949f1875",
+          "cycle": 0,
+          "path": "/workflows",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        }
+      ]
+    },
+    "w3": {
+      "count": 69,
+      "samples": [
+        {
+          "rawFile": "github-white-catalog-threecycles.json",
+          "rawSha256": "79e07f71c96e6e0712307c5f72ac477f0d715e212de074715cec076baddb869b",
+          "cycle": 0,
+          "path": "/template-tasks",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-catalog-threecycles.json",
+          "rawSha256": "79e07f71c96e6e0712307c5f72ac477f0d715e212de074715cec076baddb869b",
+          "cycle": 1,
+          "path": "/template-tasks",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-catalog-threecycles.json",
+          "rawSha256": "79e07f71c96e6e0712307c5f72ac477f0d715e212de074715cec076baddb869b",
+          "cycle": 2,
+          "path": "/template-tasks",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-document-threecycles.json",
+          "rawSha256": "1a4d50d60750645a6111623a630c974febba6fb1ea164caaabcf348d32656254",
+          "cycle": 0,
+          "path": "/template-tasks/document-runs/w3-document",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-document-threecycles.json",
+          "rawSha256": "1a4d50d60750645a6111623a630c974febba6fb1ea164caaabcf348d32656254",
+          "cycle": 1,
+          "path": "/template-tasks/document-runs/w3-document",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-document-threecycles.json",
+          "rawSha256": "1a4d50d60750645a6111623a630c974febba6fb1ea164caaabcf348d32656254",
+          "cycle": 2,
+          "path": "/template-tasks/document-runs/w3-document",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-history-archive-exit.json",
+          "rawSha256": "7cb2d0ca6c6688581f03184ff4d5b11e953e74d8941ccb77a01fe9efebb23982",
+          "cycle": 0,
+          "path": "/template-tasks",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-knowledge-existing-threecycles.json",
+          "rawSha256": "ec735d9f8f882d0f8643c618619c14393dc6c5d4fa5af7de2859e64c99817b96",
+          "cycle": 0,
+          "path": "/knowledge/w3-knowledge",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-knowledge-existing-threecycles.json",
+          "rawSha256": "ec735d9f8f882d0f8643c618619c14393dc6c5d4fa5af7de2859e64c99817b96",
+          "cycle": 1,
+          "path": "/knowledge/w3-knowledge",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-knowledge-existing-threecycles.json",
+          "rawSha256": "ec735d9f8f882d0f8643c618619c14393dc6c5d4fa5af7de2859e64c99817b96",
+          "cycle": 2,
+          "path": "/knowledge/w3-knowledge",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-knowledge-new-threecycles.json",
+          "rawSha256": "5b5509f64b07e3fba74f3649703784aaef719a58c78d0f6074cd1999fb6a6762",
+          "cycle": 0,
+          "path": "/knowledge",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-knowledge-new-threecycles.json",
+          "rawSha256": "5b5509f64b07e3fba74f3649703784aaef719a58c78d0f6074cd1999fb6a6762",
+          "cycle": 1,
+          "path": "/knowledge",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-knowledge-new-threecycles.json",
+          "rawSha256": "5b5509f64b07e3fba74f3649703784aaef719a58c78d0f6074cd1999fb6a6762",
+          "cycle": 2,
+          "path": "/knowledge",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-ppt-default-exit.json",
+          "rawSha256": "42ff9e86b9722c7c24be35b5ff9e0d05ffc8a02ef66aec7472620c8e79467a74",
+          "cycle": 0,
+          "path": "/ppt/w3-ppt",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-ppt-drag-threecycles.json",
+          "rawSha256": "f334459c1ae21a079609ec9e88cb9d2696bdd6a345582f1f58909b05800e1ad9",
+          "cycle": 0,
+          "path": "/ppt/w3-ppt",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-ppt-drag-threecycles.json",
+          "rawSha256": "f334459c1ae21a079609ec9e88cb9d2696bdd6a345582f1f58909b05800e1ad9",
+          "cycle": 1,
+          "path": "/ppt/w3-ppt",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-ppt-drag-threecycles.json",
+          "rawSha256": "f334459c1ae21a079609ec9e88cb9d2696bdd6a345582f1f58909b05800e1ad9",
+          "cycle": 2,
+          "path": "/ppt/w3-ppt",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-ppt-resize-threecycles.json",
+          "rawSha256": "b06653fb536355d0a91912998b77f3830e9546097b86c2990a406b181434481d",
+          "cycle": 0,
+          "path": "/ppt/w3-ppt",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-ppt-resize-threecycles.json",
+          "rawSha256": "b06653fb536355d0a91912998b77f3830e9546097b86c2990a406b181434481d",
+          "cycle": 1,
+          "path": "/ppt/w3-ppt",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-ppt-resize-threecycles.json",
+          "rawSha256": "b06653fb536355d0a91912998b77f3830e9546097b86c2990a406b181434481d",
+          "cycle": 2,
+          "path": "/ppt/w3-ppt",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-source-threecycles.json",
+          "rawSha256": "76239de6d5366248081e375b1ccf23d9eb0cac5c93e3d31cbbb87ea0f35e9597",
+          "cycle": 0,
+          "path": "/template-tasks/source-runs/w3-source",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-source-threecycles.json",
+          "rawSha256": "76239de6d5366248081e375b1ccf23d9eb0cac5c93e3d31cbbb87ea0f35e9597",
+          "cycle": 1,
+          "path": "/template-tasks/source-runs/w3-source",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-source-threecycles.json",
+          "rawSha256": "76239de6d5366248081e375b1ccf23d9eb0cac5c93e3d31cbbb87ea0f35e9597",
+          "cycle": 2,
+          "path": "/template-tasks/source-runs/w3-source",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-catalog-threecycles.json",
+          "rawSha256": "2533c6ed8d195d34fc29f1d92fdf9b2fcb98498cb556f0de6276fedc3f122621",
+          "cycle": 0,
+          "path": "/template-tasks",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-catalog-threecycles.json",
+          "rawSha256": "2533c6ed8d195d34fc29f1d92fdf9b2fcb98498cb556f0de6276fedc3f122621",
+          "cycle": 1,
+          "path": "/template-tasks",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-catalog-threecycles.json",
+          "rawSha256": "2533c6ed8d195d34fc29f1d92fdf9b2fcb98498cb556f0de6276fedc3f122621",
+          "cycle": 2,
+          "path": "/template-tasks",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-document-threecycles.json",
+          "rawSha256": "1e9a3f9502e38db4ea2f587495aba567a30cd82fe711d93fb65ae4523f5340df",
+          "cycle": 0,
+          "path": "/template-tasks/document-runs/w3-document",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-document-threecycles.json",
+          "rawSha256": "1e9a3f9502e38db4ea2f587495aba567a30cd82fe711d93fb65ae4523f5340df",
+          "cycle": 1,
+          "path": "/template-tasks/document-runs/w3-document",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-document-threecycles.json",
+          "rawSha256": "1e9a3f9502e38db4ea2f587495aba567a30cd82fe711d93fb65ae4523f5340df",
+          "cycle": 2,
+          "path": "/template-tasks/document-runs/w3-document",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-history-archive-exit.json",
+          "rawSha256": "cee5521b313306a44e42993895099965af07accec60ed46c4f64df7cca41e47a",
+          "cycle": 0,
+          "path": "/template-tasks",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-knowledge-existing-threecycles.json",
+          "rawSha256": "4e9e655ba4f16942dd20a1e87f0700582ce93d443d1062827669518448566ec7",
+          "cycle": 0,
+          "path": "/knowledge/w3-knowledge",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-knowledge-existing-threecycles.json",
+          "rawSha256": "4e9e655ba4f16942dd20a1e87f0700582ce93d443d1062827669518448566ec7",
+          "cycle": 1,
+          "path": "/knowledge/w3-knowledge",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-knowledge-existing-threecycles.json",
+          "rawSha256": "4e9e655ba4f16942dd20a1e87f0700582ce93d443d1062827669518448566ec7",
+          "cycle": 2,
+          "path": "/knowledge/w3-knowledge",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-knowledge-new-threecycles.json",
+          "rawSha256": "466af5554721e31415f08256b95c987af048ba20a73d8418aaeb7d3583bb2db4",
+          "cycle": 0,
+          "path": "/knowledge",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-knowledge-new-threecycles.json",
+          "rawSha256": "466af5554721e31415f08256b95c987af048ba20a73d8418aaeb7d3583bb2db4",
+          "cycle": 1,
+          "path": "/knowledge",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-knowledge-new-threecycles.json",
+          "rawSha256": "466af5554721e31415f08256b95c987af048ba20a73d8418aaeb7d3583bb2db4",
+          "cycle": 2,
+          "path": "/knowledge",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-ppt-default-exit.json",
+          "rawSha256": "031ec6a87dc2eb8a17d808e8528839f72de97631ff37b3f338808c01981a2ba1",
+          "cycle": 0,
+          "path": "/ppt/w3-ppt",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-ppt-drag-threecycles.json",
+          "rawSha256": "9e384c56a272bcfaca97c32036b12bffb7c26f752e21b30ebb7f05864f47c132",
+          "cycle": 0,
+          "path": "/ppt/w3-ppt",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-ppt-drag-threecycles.json",
+          "rawSha256": "9e384c56a272bcfaca97c32036b12bffb7c26f752e21b30ebb7f05864f47c132",
+          "cycle": 1,
+          "path": "/ppt/w3-ppt",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-ppt-drag-threecycles.json",
+          "rawSha256": "9e384c56a272bcfaca97c32036b12bffb7c26f752e21b30ebb7f05864f47c132",
+          "cycle": 2,
+          "path": "/ppt/w3-ppt",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-ppt-resize-threecycles.json",
+          "rawSha256": "adef0b74699a2246bfce9ae3622eb3039f005c3ef85340ded64fcdaa23681104",
+          "cycle": 0,
+          "path": "/ppt/w3-ppt",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-ppt-resize-threecycles.json",
+          "rawSha256": "adef0b74699a2246bfce9ae3622eb3039f005c3ef85340ded64fcdaa23681104",
+          "cycle": 1,
+          "path": "/ppt/w3-ppt",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-ppt-resize-threecycles.json",
+          "rawSha256": "adef0b74699a2246bfce9ae3622eb3039f005c3ef85340ded64fcdaa23681104",
+          "cycle": 2,
+          "path": "/ppt/w3-ppt",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-source-threecycles.json",
+          "rawSha256": "4857b7b0bf59d04a80261ba7c6c1b22d6cb8d42054ec8fb4fc9cb58ca47b0f97",
+          "cycle": 0,
+          "path": "/template-tasks/source-runs/w3-source",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-source-threecycles.json",
+          "rawSha256": "4857b7b0bf59d04a80261ba7c6c1b22d6cb8d42054ec8fb4fc9cb58ca47b0f97",
+          "cycle": 1,
+          "path": "/template-tasks/source-runs/w3-source",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-source-threecycles.json",
+          "rawSha256": "4857b7b0bf59d04a80261ba7c6c1b22d6cb8d42054ec8fb4fc9cb58ca47b0f97",
+          "cycle": 2,
+          "path": "/template-tasks/source-runs/w3-source",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-catalog-threecycles.json",
+          "rawSha256": "9319d03a1e3c1c314be8269b494658ce07ea88a10755562e84956b9cc520d0da",
+          "cycle": 0,
+          "path": "/template-tasks",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-catalog-threecycles.json",
+          "rawSha256": "9319d03a1e3c1c314be8269b494658ce07ea88a10755562e84956b9cc520d0da",
+          "cycle": 1,
+          "path": "/template-tasks",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-catalog-threecycles.json",
+          "rawSha256": "9319d03a1e3c1c314be8269b494658ce07ea88a10755562e84956b9cc520d0da",
+          "cycle": 2,
+          "path": "/template-tasks",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-document-threecycles.json",
+          "rawSha256": "7af5589dde427e17a028414d555d776db922eb3648ab8c318efdccaa6e68a1c2",
+          "cycle": 0,
+          "path": "/template-tasks/document-runs/w3-document",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-document-threecycles.json",
+          "rawSha256": "7af5589dde427e17a028414d555d776db922eb3648ab8c318efdccaa6e68a1c2",
+          "cycle": 1,
+          "path": "/template-tasks/document-runs/w3-document",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-document-threecycles.json",
+          "rawSha256": "7af5589dde427e17a028414d555d776db922eb3648ab8c318efdccaa6e68a1c2",
+          "cycle": 2,
+          "path": "/template-tasks/document-runs/w3-document",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-history-archive-exit.json",
+          "rawSha256": "bedee8ecdf57076a02d100d55325511566a8a09a41633fbdbf9a045ffd20b871",
+          "cycle": 0,
+          "path": "/template-tasks",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-knowledge-existing-threecycles.json",
+          "rawSha256": "9d89f0a2e780290eb7e564b1b4ee89bc200112fd55c535ecc2cd1b4aa4495254",
+          "cycle": 0,
+          "path": "/knowledge/w3-knowledge",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-knowledge-existing-threecycles.json",
+          "rawSha256": "9d89f0a2e780290eb7e564b1b4ee89bc200112fd55c535ecc2cd1b4aa4495254",
+          "cycle": 1,
+          "path": "/knowledge/w3-knowledge",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-knowledge-existing-threecycles.json",
+          "rawSha256": "9d89f0a2e780290eb7e564b1b4ee89bc200112fd55c535ecc2cd1b4aa4495254",
+          "cycle": 2,
+          "path": "/knowledge/w3-knowledge",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-knowledge-new-threecycles.json",
+          "rawSha256": "d5a3cb76f2cdb55c4810bca552c7157fef9518230d36930f374060ddeee806b1",
+          "cycle": 0,
+          "path": "/knowledge",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-knowledge-new-threecycles.json",
+          "rawSha256": "d5a3cb76f2cdb55c4810bca552c7157fef9518230d36930f374060ddeee806b1",
+          "cycle": 1,
+          "path": "/knowledge",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-knowledge-new-threecycles.json",
+          "rawSha256": "d5a3cb76f2cdb55c4810bca552c7157fef9518230d36930f374060ddeee806b1",
+          "cycle": 2,
+          "path": "/knowledge",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-ppt-default-exit.json",
+          "rawSha256": "7edd288d41737efabcda9ea3edabe5b0e66f59d6f7be7dbeae290fbc106cf911",
+          "cycle": 0,
+          "path": "/ppt/w3-ppt",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-ppt-drag-threecycles.json",
+          "rawSha256": "77733b7c922605fe30054652e069149463a135d3cae320bf4ec3a3f73e43c255",
+          "cycle": 0,
+          "path": "/ppt/w3-ppt",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-ppt-drag-threecycles.json",
+          "rawSha256": "77733b7c922605fe30054652e069149463a135d3cae320bf4ec3a3f73e43c255",
+          "cycle": 1,
+          "path": "/ppt/w3-ppt",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-ppt-drag-threecycles.json",
+          "rawSha256": "77733b7c922605fe30054652e069149463a135d3cae320bf4ec3a3f73e43c255",
+          "cycle": 2,
+          "path": "/ppt/w3-ppt",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-ppt-resize-threecycles.json",
+          "rawSha256": "353405ff36350df46c33ebd734ff89c2cfb07c69705a3a3621c79893612bf06f",
+          "cycle": 0,
+          "path": "/ppt/w3-ppt",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-ppt-resize-threecycles.json",
+          "rawSha256": "353405ff36350df46c33ebd734ff89c2cfb07c69705a3a3621c79893612bf06f",
+          "cycle": 1,
+          "path": "/ppt/w3-ppt",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-ppt-resize-threecycles.json",
+          "rawSha256": "353405ff36350df46c33ebd734ff89c2cfb07c69705a3a3621c79893612bf06f",
+          "cycle": 2,
+          "path": "/ppt/w3-ppt",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-source-threecycles.json",
+          "rawSha256": "63eb205207eae111ecfc9e9147379dbfd4e2e7ade7e52cd3f8e2b354110e1868",
+          "cycle": 0,
+          "path": "/template-tasks/source-runs/w3-source",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-source-threecycles.json",
+          "rawSha256": "63eb205207eae111ecfc9e9147379dbfd4e2e7ade7e52cd3f8e2b354110e1868",
+          "cycle": 1,
+          "path": "/template-tasks/source-runs/w3-source",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-source-threecycles.json",
+          "rawSha256": "63eb205207eae111ecfc9e9147379dbfd4e2e7ade7e52cd3f8e2b354110e1868",
+          "cycle": 2,
+          "path": "/template-tasks/source-runs/w3-source",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        }
+      ]
+    },
+    "w4": {
+      "count": 44,
+      "samples": [
+        {
+          "rawFile": "active-stage-pan-root.json",
+          "rawSha256": "f4467f1d106be7b214ec15f57583b31bbe51ca50afb1e193d29f7fd8c08b4c9e",
+          "cycle": 0,
+          "path": "/tasks/w4-task",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "active-stage-pan-route.json",
+          "rawSha256": "f518452b70a4cbca25cda77280c6815f5e0461e45cf8fad7abcf0b4a45c2abaf",
+          "cycle": 0,
+          "path": "/tasks/w4-task",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-history-threecycles.json",
+          "rawSha256": "833ea8ed1e65be24bbc31b27278bc820a80dc7d54986cf0c92f889cae99c151c",
+          "cycle": 0,
+          "path": "/tasks/w4-task/design",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-history-threecycles.json",
+          "rawSha256": "833ea8ed1e65be24bbc31b27278bc820a80dc7d54986cf0c92f889cae99c151c",
+          "cycle": 1,
+          "path": "/tasks/w4-task/design",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-history-threecycles.json",
+          "rawSha256": "833ea8ed1e65be24bbc31b27278bc820a80dc7d54986cf0c92f889cae99c151c",
+          "cycle": 2,
+          "path": "/tasks/w4-task/design",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-inbox-threecycles.json",
+          "rawSha256": "9c341e661b489df1a7ba9b17a74f32fac19b0909d46eb6a6fdacdec55a20b162",
+          "cycle": 0,
+          "path": "/inbox",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-inbox-threecycles.json",
+          "rawSha256": "9c341e661b489df1a7ba9b17a74f32fac19b0909d46eb6a6fdacdec55a20b162",
+          "cycle": 1,
+          "path": "/inbox",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-inbox-threecycles.json",
+          "rawSha256": "9c341e661b489df1a7ba9b17a74f32fac19b0909d46eb6a6fdacdec55a20b162",
+          "cycle": 2,
+          "path": "/inbox",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-recovery-threecycles.json",
+          "rawSha256": "8f75ad6d2a60d2af0c883cce2180820c80a56f0e0d8bd571b20c8df2b4e702ed",
+          "cycle": 0,
+          "path": "/tasks/w4-task/recovery",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-recovery-threecycles.json",
+          "rawSha256": "8f75ad6d2a60d2af0c883cce2180820c80a56f0e0d8bd571b20c8df2b4e702ed",
+          "cycle": 1,
+          "path": "/tasks/w4-task/recovery",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-recovery-threecycles.json",
+          "rawSha256": "8f75ad6d2a60d2af0c883cce2180820c80a56f0e0d8bd571b20c8df2b4e702ed",
+          "cycle": 2,
+          "path": "/tasks/w4-task/recovery",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-task-threecycles.json",
+          "rawSha256": "a9d6b627525f1a17c47cf97faf5ad8da6d0f74aa7e673c8ca9811c7caa534f31",
+          "cycle": 0,
+          "path": "/tasks/w4-task",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-task-threecycles.json",
+          "rawSha256": "a9d6b627525f1a17c47cf97faf5ad8da6d0f74aa7e673c8ca9811c7caa534f31",
+          "cycle": 1,
+          "path": "/tasks/w4-task",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "github-white-task-threecycles.json",
+          "rawSha256": "a9d6b627525f1a17c47cf97faf5ad8da6d0f74aa7e673c8ca9811c7caa534f31",
+          "cycle": 2,
+          "path": "/tasks/w4-task",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "history-root-shutdown.json",
+          "rawSha256": "17fecb8b279e895cb9cc87c61329b7e3f33bc70c037e17008256a309a38373e3",
+          "cycle": 0,
+          "path": "/tasks/w4-task/design",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "inbox-root-shutdown.json",
+          "rawSha256": "f42e62f1a553d0cb1cdc7321e1a43df1a5a688b9495e1e46732938d5e9bab92d",
+          "cycle": 0,
+          "path": "/inbox",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "native-sse-authority-exit-root.json",
+          "rawSha256": "cb8b120a4295ba3da13699c7ea8bc4cd8c39bf09ebd435b6222ad717b4df59b3",
+          "cycle": 0,
+          "path": "/tasks/native-cursor-root",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "native-sse-authority-exit-route.json",
+          "rawSha256": "dc61e22aa11d2a2bf0e4d89492366e9d8d13c5b4d2afab43a1c81741aa1e7b4c",
+          "cycle": 0,
+          "path": "/tasks/native-cursor-route",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "recovery-root-shutdown.json",
+          "rawSha256": "2faaa15c5ece3a06a48c2df56f7ca42ebc2b5a74f402569f7a2a1f7925ffe19a",
+          "cycle": 0,
+          "path": "/tasks/w4-task/recovery",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-history-threecycles.json",
+          "rawSha256": "d3376fd84eea7222799b1e5f89a9d13de654ceb43d173a8534b6b6b915b87c39",
+          "cycle": 0,
+          "path": "/tasks/w4-task/design",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-history-threecycles.json",
+          "rawSha256": "d3376fd84eea7222799b1e5f89a9d13de654ceb43d173a8534b6b6b915b87c39",
+          "cycle": 1,
+          "path": "/tasks/w4-task/design",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-history-threecycles.json",
+          "rawSha256": "d3376fd84eea7222799b1e5f89a9d13de654ceb43d173a8534b6b6b915b87c39",
+          "cycle": 2,
+          "path": "/tasks/w4-task/design",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-inbox-threecycles.json",
+          "rawSha256": "7869dd8190dabd4e3f256d583dde50f9be482dcfb50ec7332667e872e72ecd01",
+          "cycle": 0,
+          "path": "/inbox",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-inbox-threecycles.json",
+          "rawSha256": "7869dd8190dabd4e3f256d583dde50f9be482dcfb50ec7332667e872e72ecd01",
+          "cycle": 1,
+          "path": "/inbox",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-inbox-threecycles.json",
+          "rawSha256": "7869dd8190dabd4e3f256d583dde50f9be482dcfb50ec7332667e872e72ecd01",
+          "cycle": 2,
+          "path": "/inbox",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-recovery-threecycles.json",
+          "rawSha256": "5f0e2b05c006eeb6083daee95728da43617aba3df8124eaeefc92050635b9542",
+          "cycle": 0,
+          "path": "/tasks/w4-task/recovery",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-recovery-threecycles.json",
+          "rawSha256": "5f0e2b05c006eeb6083daee95728da43617aba3df8124eaeefc92050635b9542",
+          "cycle": 1,
+          "path": "/tasks/w4-task/recovery",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-recovery-threecycles.json",
+          "rawSha256": "5f0e2b05c006eeb6083daee95728da43617aba3df8124eaeefc92050635b9542",
+          "cycle": 2,
+          "path": "/tasks/w4-task/recovery",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-task-threecycles.json",
+          "rawSha256": "a7ca6f83e9c88a9156bf4220b4ffe32f9cab3e3b114cc9ccd09e1abb53a7aafa",
+          "cycle": 0,
+          "path": "/tasks/w4-task",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-task-threecycles.json",
+          "rawSha256": "a7ca6f83e9c88a9156bf4220b4ffe32f9cab3e3b114cc9ccd09e1abb53a7aafa",
+          "cycle": 1,
+          "path": "/tasks/w4-task",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "spdb-task-threecycles.json",
+          "rawSha256": "a7ca6f83e9c88a9156bf4220b4ffe32f9cab3e3b114cc9ccd09e1abb53a7aafa",
+          "cycle": 2,
+          "path": "/tasks/w4-task",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "task-root-shutdown.json",
+          "rawSha256": "2ace90f60e61413ee5f966ee6ef085ea573ce1e228948dc57cb1ac76525246bd",
+          "cycle": 0,
+          "path": "/tasks/w4-task",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-history-threecycles.json",
+          "rawSha256": "e72bb6c9e8196e84e90507f77a5a6400fb6129df966c9fe5c5d11e72ba77aaf3",
+          "cycle": 0,
+          "path": "/tasks/w4-task/design",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-history-threecycles.json",
+          "rawSha256": "e72bb6c9e8196e84e90507f77a5a6400fb6129df966c9fe5c5d11e72ba77aaf3",
+          "cycle": 1,
+          "path": "/tasks/w4-task/design",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-history-threecycles.json",
+          "rawSha256": "e72bb6c9e8196e84e90507f77a5a6400fb6129df966c9fe5c5d11e72ba77aaf3",
+          "cycle": 2,
+          "path": "/tasks/w4-task/design",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-inbox-threecycles.json",
+          "rawSha256": "d030211c753560d6c51db6a4c0660ab9e2d7a8075d94196ab81c7242ba14f9bb",
+          "cycle": 0,
+          "path": "/inbox",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-inbox-threecycles.json",
+          "rawSha256": "d030211c753560d6c51db6a4c0660ab9e2d7a8075d94196ab81c7242ba14f9bb",
+          "cycle": 1,
+          "path": "/inbox",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-inbox-threecycles.json",
+          "rawSha256": "d030211c753560d6c51db6a4c0660ab9e2d7a8075d94196ab81c7242ba14f9bb",
+          "cycle": 2,
+          "path": "/inbox",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-recovery-threecycles.json",
+          "rawSha256": "6566ca2dac5c7c1ba7fdf3156c52355842553470b7bdf710ba67b2225e2c4f7e",
+          "cycle": 0,
+          "path": "/tasks/w4-task/recovery",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-recovery-threecycles.json",
+          "rawSha256": "6566ca2dac5c7c1ba7fdf3156c52355842553470b7bdf710ba67b2225e2c4f7e",
+          "cycle": 1,
+          "path": "/tasks/w4-task/recovery",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-recovery-threecycles.json",
+          "rawSha256": "6566ca2dac5c7c1ba7fdf3156c52355842553470b7bdf710ba67b2225e2c4f7e",
+          "cycle": 2,
+          "path": "/tasks/w4-task/recovery",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-task-threecycles.json",
+          "rawSha256": "6e407116c03afdafd0386b266cf9ad13319ecd8a295033b29bdd5dce38e91bab",
+          "cycle": 0,
+          "path": "/tasks/w4-task",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-task-threecycles.json",
+          "rawSha256": "6e407116c03afdafd0386b266cf9ad13319ecd8a295033b29bdd5dce38e91bab",
+          "cycle": 1,
+          "path": "/tasks/w4-task",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        },
+        {
+          "rawFile": "tech-blue-task-threecycles.json",
+          "rawSha256": "6e407116c03afdafd0386b266cf9ad13319ecd8a295033b29bdd5dce38e91bab",
+          "cycle": 2,
+          "path": "/tasks/w4-task",
+          "immediate": {
+            "listeners": 0,
+            "observers": 0,
+            "captures": 0,
+            "pendingFrames": 0,
+            "timers": 0
+          },
+          "sameDocument": true,
+          "externalSentinelPreserved": true,
+          "rootDisconnected": true,
+          "noCleanupInput": true
+        }
+      ]
+    }
+  },
+  "GC": "关系释放与审计引用仍存活分别披露，非heap验证"
+}

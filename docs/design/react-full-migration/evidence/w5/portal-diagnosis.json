@@ -1,0 +1,71 @@
+{
+  "status": "diagnosis before fix, not passed",
+  "lockedVersions": {
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "@xyflow/react": "12.12.0"
+  },
+  "sources": [
+    {
+      "path": "frontend/src/react/workflow/WorkflowCanvasReact.tsx",
+      "sha256": "ae4bb7df3798918a91c1ab25d24938d08a54078d9f7649e7a4f6ecd9065a49bb"
+    },
+    {
+      "path": "frontend/src/react/workflow/pointerGestures.ts",
+      "sha256": "08cce87338cfe48dff8759510bd29079fd307ce87cf5e45ec691f367706389d5"
+    },
+    {
+      "path": "frontend/node_modules/@xyflow/react/dist/esm/index.mjs",
+      "sha256": "aab15420c38879ce7053591065c58a5e73e090507c3429010ca5f238be49c2a3"
+    },
+    {
+      "path": "frontend/node_modules/react-dom/cjs/react-dom-client.production.js",
+      "sha256": "8a8147c1cebdb19d82fd11bdb76391be9b20d00edf67cc8e8b30f44e850ce693"
+    },
+    {
+      "path": "frontend/e2e/w2/resources.ts",
+      "sha256": "51983279d16f852171953b35a2b0ec8174e74bb4858785a597175ad8bc1c2c1f"
+    }
+  ],
+  "upstream": [
+    "https://reactflow.dev/api-reference/components/viewport-portal",
+    "https://react.dev/reference/react-dom/createPortal"
+  ],
+  "finding": "ViewportPortal calls createPortal, ReactDOM installs root event delegation on its element. Current exact ledger retains the element and reports 38 bound element listeners after root removal. Global listener/RO target/RAF/capture/timer first sample is zero. This does not by itself prove a live global retention or GC leak; no counter exemption or private listener removal is authorized.",
+  "probes": [
+    {
+      "case": "spdb-workflow-edit-threecycles.json",
+      "sourceSha256": "b4e60b0c1ff65e48367ad3eb4b645e17efe89ed440fb9c769349438d3af318f9",
+      "firstAfter": {
+        "listeners": 38,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "listenerTargetIds": [
+        22
+      ],
+      "listenerKinds": [
+        "element"
+      ]
+    },
+    {
+      "case": "spdb-workflow-new-threecycles.json",
+      "sourceSha256": "51f69a3f3c0578ec68878ce1418681728d4e640926a2a0da0232f237bc66af59",
+      "firstAfter": {
+        "listeners": 38,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "listenerTargetIds": [
+        18
+      ],
+      "listenerKinds": [
+        "element"
+      ]
+    }
+  ]
+}

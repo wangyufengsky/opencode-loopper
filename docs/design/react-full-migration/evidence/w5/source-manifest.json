@@ -1,0 +1,490 @@
+{
+  "baseline": "5c181fc39e26249650df851fe9a7c8a68cab519d",
+  "scope": "Final W5 frozen production/test/locked dependency bytes, after independent partial-layout rejection fix",
+  "files": [
+    {
+      "path": "frontend/e2e/w5/evidence.ts",
+      "bytes": 3004,
+      "sha256": "1da2ef27c19faf411cccf718afaa7791cb21b74d0ea2dcd7e3844ef417e3eb00"
+    },
+    {
+      "path": "frontend/e2e/w5/playwright.config.ts",
+      "bytes": 849,
+      "sha256": "8a8ec4deae3ee9eafacebb47c8956aba8b6fb6346e928edecc50d73243f72537"
+    },
+    {
+      "path": "frontend/e2e/w5/productFixture.ts",
+      "bytes": 7901,
+      "sha256": "36de66f1735224bbacaff98562ce3b8da5dc772d246c847b3b31a69883915b9c"
+    },
+    {
+      "path": "frontend/e2e/w5/production-routes.spec.ts",
+      "bytes": 31506,
+      "sha256": "fa977d608240f10a04d2e7c3c85ee656f8da66462322d0c43144cbedde5aa53c"
+    },
+    {
+      "path": "frontend/e2e/w5/serve.mjs",
+      "bytes": 2766,
+      "sha256": "cb4e5cdecdd5949e6d790a56076341943910896ba0b53734a0debf5dcf8e1d28"
+    },
+    {
+      "path": "frontend/package-lock.json",
+      "bytes": 246367,
+      "sha256": "9531ee279895657bd4045c180164ad4fd276eb3c50ffd8d4526f44700bbfee72"
+    },
+    {
+      "path": "frontend/package.json",
+      "bytes": 4164,
+      "sha256": "8dccb214cfae2e975f3afebe9c0d965ed5bc709193a78f43e9ebdb13692515d9"
+    },
+    {
+      "path": "frontend/src/components/workflow/workflow-canvas.css",
+      "bytes": 4346,
+      "sha256": "5ee8446b3a27295ac20afdfaef2c3cdf908f927f3b89c0ea1cc153d1c7e2d211"
+    },
+    {
+      "path": "frontend/src/components/workflow/workflow.css",
+      "bytes": 19374,
+      "sha256": "a2c32a7c32857f1cc91cb1be3d89401e87455a5b3fdd795f5bd9e88898fb5fc5"
+    },
+    {
+      "path": "frontend/src/foundation/ownership.spec.ts",
+      "bytes": 3071,
+      "sha256": "61474f696d4098055de8c357156c18ac93759d090febde1fcef1c3b716828f18"
+    },
+    {
+      "path": "frontend/src/foundation/semantic-glyphs.json",
+      "bytes": 45058,
+      "sha256": "3094d80aa413604e65ba265e5cedb44f5ce7ea1e8e4b5d869e76aaa056df5bb5"
+    },
+    {
+      "path": "frontend/src/foundation/semantic-registry-data.json",
+      "bytes": 181708,
+      "sha256": "c8459d481b843f33792d7a79575bcef2bda47845e965ed38a92745e90036582c"
+    },
+    {
+      "path": "frontend/src/migration/W2RouteBridge.vue",
+      "bytes": 9581,
+      "sha256": "705c5f1db7cfb118569ccc5be6d62d9737cf9ee30d27ce964b18edb5b4489368"
+    },
+    {
+      "path": "frontend/src/migration/w2Bridge.spec.tsx",
+      "bytes": 17596,
+      "sha256": "df9351b8b9ce16ed9ac1ffdf870ada837788f35581facfa70bce25d55efcfded"
+    },
+    {
+      "path": "frontend/src/migration/w5Ownership.spec.ts",
+      "bytes": 2832,
+      "sha256": "a283a2f189735d6f9a5b217e9a3d8ba51af02c0b61163e5609ae67a927f29ce6"
+    },
+    {
+      "path": "frontend/src/migration/w5Routes.spec.ts",
+      "bytes": 1240,
+      "sha256": "44596d789aa0d9182af2818f9eb325003e17d56dd13daaebec866864ddde6b6d"
+    },
+    {
+      "path": "frontend/src/migration/w5Routes.ts",
+      "bytes": 1352,
+      "sha256": "edfbcdd6c2dfdedd0fea60cc71066577eded920a4cdcdd058a20d2db704fca75"
+    },
+    {
+      "path": "frontend/src/pages/w5/designer/DesignerPage.spec.tsx",
+      "bytes": 14058,
+      "sha256": "6b58e4abe4a693fe8eb870e5a3fe5f2c27daf7d3d8505350dcc470059bed9f15"
+    },
+    {
+      "path": "frontend/src/pages/w5/designer/DesignerPage.tsx",
+      "bytes": 30948,
+      "sha256": "15c9392e2e6a45bb5b8ce5c01dde3bfa6f27c85f7809e6cb729b8a187e9099b0"
+    },
+    {
+      "path": "frontend/src/pages/w5/designer/Discussion.tsx",
+      "bytes": 8203,
+      "sha256": "3e3e6bfdc15c13bc7f6d79ffe099132b1f7c627213fdb1b2ce5394d5113a7a85"
+    },
+    {
+      "path": "frontend/src/pages/w5/designer/LoopSpecEditor.spec.tsx",
+      "bytes": 5812,
+      "sha256": "b9ca3de097aeeb9c56da47521d8ae232f302d0891207d73068412c8a05a3e780"
+    },
+    {
+      "path": "frontend/src/pages/w5/designer/LoopSpecEditor.tsx",
+      "bytes": 22572,
+      "sha256": "0bdf998b7676719fdf192e558606545a64927c94900dfad013046b2d2d97e217"
+    },
+    {
+      "path": "frontend/src/pages/w5/designer/capabilities.spec.ts",
+      "bytes": 13380,
+      "sha256": "e156fa1bf072a6a4c18e339507444dfc56fcdf73cfecf310844fe88dbfd07706"
+    },
+    {
+      "path": "frontend/src/pages/w5/designer/controller.spec.ts",
+      "bytes": 9131,
+      "sha256": "a5ca00930ffc15a10a1f1b6be35c2ce02ed2b663f94b86425875c77400ed2b53"
+    },
+    {
+      "path": "frontend/src/pages/w5/designer/controller.ts",
+      "bytes": 44017,
+      "sha256": "ef7aec31183295b2f63f7c1c79db8249dfb7ea40c60a00296b9e0559e31a0292"
+    },
+    {
+      "path": "frontend/src/pages/w5/designer/designer.css",
+      "bytes": 1635,
+      "sha256": "cb6ba3eb6916e86141f5124c27ab10847ed8ef2a4c89f78efe5e2a92606e69ca"
+    },
+    {
+      "path": "frontend/src/pages/w5/designer/index.tsx",
+      "bytes": 127,
+      "sha256": "2c3cc8ad75ad0801ec42bf719592c10ac6cb7b0af567a29096ff3457cf5dffb3"
+    },
+    {
+      "path": "frontend/src/pages/w5/designer/model.ts",
+      "bytes": 5392,
+      "sha256": "ddb70acb57627b8b72f9dd7ca363307dfc718fa4a82d7398b40fe83442c66631"
+    },
+    {
+      "path": "frontend/src/pages/w5/designer/semantic-proposal.json",
+      "bytes": 2297,
+      "sha256": "ee132f89a96f6ff86f3ae87fd479b9f600d4c97b596771f268261f3ef22270c9"
+    },
+    {
+      "path": "frontend/src/pages/w5/designer/test-support.tsx",
+      "bytes": 4444,
+      "sha256": "d0d255d75e1d13bfc9ee4d41a247a84b369aa491970904857a0d03eaa1b6da52"
+    },
+    {
+      "path": "frontend/src/pages/w5/designer/w0-contract.tsx",
+      "bytes": 16729,
+      "sha256": "05591b75414fa07a02e02d010ac5df4a74f695349fa01a26e3d067094fb9e69d"
+    },
+    {
+      "path": "frontend/src/pages/w5/requirements/Candidates.tsx",
+      "bytes": 4845,
+      "sha256": "fee9996f1a53b910486c0b1df479161e0d8891cc789b18b69264c245e36b1c53"
+    },
+    {
+      "path": "frontend/src/pages/w5/requirements/Choice.tsx",
+      "bytes": 2619,
+      "sha256": "e3647e5c29b4e96ecb009210925d196a20988480c0f69fc1b45b130e04699626"
+    },
+    {
+      "path": "frontend/src/pages/w5/requirements/Content.tsx",
+      "bytes": 6744,
+      "sha256": "197927b3417c85d31e94bbe9a0b34bc1efb2b208292fef419f2efcef459d793c"
+    },
+    {
+      "path": "frontend/src/pages/w5/requirements/Finish.tsx",
+      "bytes": 4370,
+      "sha256": "32e798176f8c5e463cf1ffb339ff55a6d905805676fdbcd3aa264d0f1a54b6d3"
+    },
+    {
+      "path": "frontend/src/pages/w5/requirements/Inputs.tsx",
+      "bytes": 9737,
+      "sha256": "74c8a117642644ea7576bbe2ac809abf579de1e74de108b3e21df3b19606367c"
+    },
+    {
+      "path": "frontend/src/pages/w5/requirements/NewRequirementPage.tsx",
+      "bytes": 4120,
+      "sha256": "3b7f7279c9d1c53dc08c3530fa5f771bed221310305fa8d3fb97cb0c1664a4da"
+    },
+    {
+      "path": "frontend/src/pages/w5/requirements/NodeRun.tsx",
+      "bytes": 10565,
+      "sha256": "a497a1baa7aaba753dcb5ab7496d5ee70386525e562f7a49456632ddf27c2cd7"
+    },
+    {
+      "path": "frontend/src/pages/w5/requirements/PlanDiff.tsx",
+      "bytes": 3116,
+      "sha256": "00efd978e1f7d81f03c6622b8fd475daea5b04782c57d4a764fae0ce55b085fb"
+    },
+    {
+      "path": "frontend/src/pages/w5/requirements/Publication.tsx",
+      "bytes": 8625,
+      "sha256": "c6ea0e904c19996f88452be4534e11c998476bcfffe039d11aa0cfaf6459a0ce"
+    },
+    {
+      "path": "frontend/src/pages/w5/requirements/RequirementPage.tsx",
+      "bytes": 16679,
+      "sha256": "80a003719bf268d0034157d58357c336094a1e3031874c432ca9655b4db89099"
+    },
+    {
+      "path": "frontend/src/pages/w5/requirements/SaveTemplate.tsx",
+      "bytes": 6053,
+      "sha256": "490741a5bf53596f900a7ed9c06cf21a92324e25f3ebc7ae857e40d6c7c378f2"
+    },
+    {
+      "path": "frontend/src/pages/w5/requirements/candidatesController.ts",
+      "bytes": 3527,
+      "sha256": "17240eaf8c6e66edb29198e635800013a2722b30324c27fa481a51147e013976"
+    },
+    {
+      "path": "frontend/src/pages/w5/requirements/children.spec.ts",
+      "bytes": 21204,
+      "sha256": "d225e0c4a0f75641c64bd6396762886257e92e4faf28a1fd7ad2223862aeb4a5"
+    },
+    {
+      "path": "frontend/src/pages/w5/requirements/content-pages.spec.tsx",
+      "bytes": 5252,
+      "sha256": "99b0fe8931ec23447ceb2fc6501a4b300ca249e6def8da82494636c7074313c9"
+    },
+    {
+      "path": "frontend/src/pages/w5/requirements/contentController.ts",
+      "bytes": 8578,
+      "sha256": "f2dbc2d46a403512c03101091e6f762dc1f7b29e8b1d8525ffe8b4caa502271e"
+    },
+    {
+      "path": "frontend/src/pages/w5/requirements/controller.spec.ts",
+      "bytes": 16135,
+      "sha256": "8491137a5bb1f3e22b2bd3dd43c82729841a7ea22930a5743983ef33cb9c574c"
+    },
+    {
+      "path": "frontend/src/pages/w5/requirements/controller.ts",
+      "bytes": 26879,
+      "sha256": "a478a22446e6b21504f998de41c44c9e88bf14a7168f77a714557d54eb158f10"
+    },
+    {
+      "path": "frontend/src/pages/w5/requirements/core.ts",
+      "bytes": 4312,
+      "sha256": "71923607df3163d74c12c4d1481078f6bea7c5e7c4060d21c944e1903266036b"
+    },
+    {
+      "path": "frontend/src/pages/w5/requirements/finishController.ts",
+      "bytes": 3816,
+      "sha256": "3f2c5f7a0a90f14e9aeab6107b080099506db6207baa14b217fd8cf363fabeee"
+    },
+    {
+      "path": "frontend/src/pages/w5/requirements/index.tsx",
+      "bytes": 616,
+      "sha256": "92ef7593a8f7305d1ea6a42cacd2676f0db0349b3e2060328c7bd9da15ce4701"
+    },
+    {
+      "path": "frontend/src/pages/w5/requirements/newController.ts",
+      "bytes": 4008,
+      "sha256": "05a8dfe841ea1d592f19aff15b2a58c1dea8b8ff7bdd0497883bcf38d413590b"
+    },
+    {
+      "path": "frontend/src/pages/w5/requirements/nodeController.ts",
+      "bytes": 10073,
+      "sha256": "8bf23ee648ce0fcd43a818d096d49c9ad32422310736bd7bf783e0f0aa425329"
+    },
+    {
+      "path": "frontend/src/pages/w5/requirements/pages.spec.tsx",
+      "bytes": 9108,
+      "sha256": "4d98002ac4c49e38d570c4076c2d3d32de81ca1f4964240f9f9a22436682166f"
+    },
+    {
+      "path": "frontend/src/pages/w5/requirements/parts.tsx",
+      "bytes": 3686,
+      "sha256": "c5e89471ec7dc3e73f3691ec96e8d4803eacdb57e905cc0ede5cfe142985a5a8"
+    },
+    {
+      "path": "frontend/src/pages/w5/requirements/publicationController.ts",
+      "bytes": 17849,
+      "sha256": "1daee8ff822819dfb0d1ec81541fcaf65d322c6bec0b97063811d329a4f89ec9"
+    },
+    {
+      "path": "frontend/src/pages/w5/requirements/readers.spec.ts",
+      "bytes": 10974,
+      "sha256": "444d0dade15ea4d5aa0d5e5ebd671cf049c5287392e58e4ff529edde0e39ab86"
+    },
+    {
+      "path": "frontend/src/pages/w5/requirements/requirements.css",
+      "bytes": 2624,
+      "sha256": "de91e44595195cf707aacb664fda365ada603d29484e5251eb3abe0010214962"
+    },
+    {
+      "path": "frontend/src/pages/w5/requirements/semantic-proposal.json",
+      "bytes": 1963,
+      "sha256": "d04b3c85f7c0febf6db6a77a2eba42c7898fb6aff7150380e6c2bcff44aae9fd"
+    },
+    {
+      "path": "frontend/src/pages/w5/requirements/templateController.ts",
+      "bytes": 3662,
+      "sha256": "55bc28c9f1dca65eda9f344e96103ab9aa3fdcea8656f0cb574ddc96ddf14309"
+    },
+    {
+      "path": "frontend/src/pages/w5/requirements/test-support.tsx",
+      "bytes": 4534,
+      "sha256": "72173c20dc0c0b32171986baa906bf05005faccfa96f88f59ecf9a01b2206245"
+    },
+    {
+      "path": "frontend/src/pages/w5/requirements/uploadController.ts",
+      "bytes": 9092,
+      "sha256": "e8ff25cba438a489d851b3deef5e1ba86af71f1a76437f5c488f9b4ceb7d5af2"
+    },
+    {
+      "path": "frontend/src/pages/w5/requirements/w0-contract.tsx",
+      "bytes": 20799,
+      "sha256": "4151584abf090bfadaaaa35a93c4b08e570c9e5b0d2c951f4aa0b3c5b96de433"
+    },
+    {
+      "path": "frontend/src/pages/w5/workflow/NodeSpecialists.tsx",
+      "bytes": 17676,
+      "sha256": "aab6aa25b568ae19a60c882048966edb3d9a3de030cc3e4029675c58b60ca527"
+    },
+    {
+      "path": "frontend/src/pages/w5/workflow/WorkflowEditorPage.tsx",
+      "bytes": 13672,
+      "sha256": "86f452e89013ff87040f45b0da8a3d590e352a2f973b8ad077837c5370050a83"
+    },
+    {
+      "path": "frontend/src/pages/w5/workflow/WorkflowNodeEditor.tsx",
+      "bytes": 20492,
+      "sha256": "fc62bfd444ed50b7e89431ae1790b19139486c6624d01cfc33f37b4a4ab48753"
+    },
+    {
+      "path": "frontend/src/pages/w5/workflow/WorkflowPresetPicker.tsx",
+      "bytes": 5236,
+      "sha256": "cf430b4752e3d6a6015defaf248706de1d18b76ec85e25f7c87727e98685cf7f"
+    },
+    {
+      "path": "frontend/src/pages/w5/workflow/WorkflowPublicInputs.tsx",
+      "bytes": 3527,
+      "sha256": "dba46aa956b68c674a86acbd3039ce405e57c4363ef94e8a87c5e7be793b2887"
+    },
+    {
+      "path": "frontend/src/pages/w5/workflow/WorkflowRolePicker.tsx",
+      "bytes": 7225,
+      "sha256": "9461673eb26d86676d8fc237fc353d3620073492956211ecabaa00332c85f56f"
+    },
+    {
+      "path": "frontend/src/pages/w5/workflow/editorController.spec.ts",
+      "bytes": 13822,
+      "sha256": "c4895f85d21090b830c91d60d5741d66c58ad3a25f5205d879d4cf7b9764fa63"
+    },
+    {
+      "path": "frontend/src/pages/w5/workflow/editorController.ts",
+      "bytes": 20441,
+      "sha256": "040ed283f3eef83f19590a123a48586454bd18b1dbdb88820c8798b06f32f282"
+    },
+    {
+      "path": "frontend/src/pages/w5/workflow/independent-designer-review.spec.tsx",
+      "bytes": 4831,
+      "sha256": "c60de246de8e233ad61140a616f76d6086e5dd1eab4d69ef4bdc81f858150561"
+    },
+    {
+      "path": "frontend/src/pages/w5/workflow/index.tsx",
+      "bytes": 436,
+      "sha256": "31799c93c40e7413e5c7cab25d308b88837d162ccf688d00c682939dd05d6fee"
+    },
+    {
+      "path": "frontend/src/pages/w5/workflow/nodeEditors.spec.tsx",
+      "bytes": 17637,
+      "sha256": "24305b6dde613ff0cb31306082517d67c387559a6cb4bdd4dcbe5304c758d4e7"
+    },
+    {
+      "path": "frontend/src/pages/w5/workflow/pages.spec.tsx",
+      "bytes": 15560,
+      "sha256": "2f47612aab2a33589a2d7524a89a19152309071ece5ffc485febb37f07a5521d"
+    },
+    {
+      "path": "frontend/src/pages/w5/workflow/reports/AnalysisReports.tsx",
+      "bytes": 3649,
+      "sha256": "3c662c7921ce7dee6adf0cf5b9535c7039f91971de811c76672ccdc8fdb4c26d"
+    },
+    {
+      "path": "frontend/src/pages/w5/workflow/reports/BasicReports.tsx",
+      "bytes": 11464,
+      "sha256": "edf917ca0e4058c46a437c971330cff2c5a24bee844806b66cba45f932a7b6bd"
+    },
+    {
+      "path": "frontend/src/pages/w5/workflow/reports/DesignReports.tsx",
+      "bytes": 4101,
+      "sha256": "5d1784e8a9786199547e250f123a75b585b288a471e1973c764a38114f5e29eb"
+    },
+    {
+      "path": "frontend/src/pages/w5/workflow/reports/Previews.tsx",
+      "bytes": 6318,
+      "sha256": "6ee990cc2e9c0122ea79c9a9e7534e1fbd7490c53a2ace102b2bc72a9e634a1e"
+    },
+    {
+      "path": "frontend/src/pages/w5/workflow/reports/ReportParts.tsx",
+      "bytes": 2198,
+      "sha256": "0abf5c8cc83a47bdfac823b3d3bc12761b482cc93b733fb6662d3a8002d617cf"
+    },
+    {
+      "path": "frontend/src/pages/w5/workflow/reports/TestReports.tsx",
+      "bytes": 6421,
+      "sha256": "1d557e06617c991abd342f7c3cefdb7dd34c3af63ba40426d24e838a1384b3e1"
+    },
+    {
+      "path": "frontend/src/pages/w5/workflow/reports/WorkflowCommandEvidence.tsx",
+      "bytes": 4179,
+      "sha256": "dd049bd9ed50c32446dc3542686ac74434719ecde6ad5ae4103eac98070011eb"
+    },
+    {
+      "path": "frontend/src/pages/w5/workflow/reports/WorkflowKnowledgeReport.tsx",
+      "bytes": 1874,
+      "sha256": "321efd3c8ceb7faaad25af2c466b3b7cd02517de7def9342c7da321c3216b86b"
+    },
+    {
+      "path": "frontend/src/pages/w5/workflow/reports/index.tsx",
+      "bytes": 4627,
+      "sha256": "71ff19c2d2bbc6a4f669ecbbea271dd8c041f77aa31621d70557c0f88d38ba8d"
+    },
+    {
+      "path": "frontend/src/pages/w5/workflow/reports/validators.ts",
+      "bytes": 47569,
+      "sha256": "f0ef945326be22e98b0f89e826f86885ff909f5e8cc29066fe3bd5c02154ac3b"
+    },
+    {
+      "path": "frontend/src/pages/w5/workflow/reports.spec.tsx",
+      "bytes": 15468,
+      "sha256": "1ad540fc22c76d421e14e612433daf6a916e8cf52592a175cbd41adf67a80925"
+    },
+    {
+      "path": "frontend/src/pages/w5/workflow/semantic-proposal.json",
+      "bytes": 4580,
+      "sha256": "1195f172552c5b90c2bee504e81d965c0fd68fe2589d06cac24450c638f3add8"
+    },
+    {
+      "path": "frontend/src/pages/w5/workflow/workflow-editor.css",
+      "bytes": 2324,
+      "sha256": "d63e936da677a4490f27a8f14c2e14a7bcf4529502745de13d5e47a8336778c5"
+    },
+    {
+      "path": "frontend/src/react/workflow/WorkflowCanvasImmediate.spec.tsx",
+      "bytes": 28287,
+      "sha256": "95abbc003f6145229c1d7e4def2085bc2f2b4eb005717cffef2306cb0fbe323b"
+    },
+    {
+      "path": "frontend/src/react/workflow/WorkflowCanvasReact.tsx",
+      "bytes": 13242,
+      "sha256": "d6cb43bc916f2bc6897100bfe8edbf358d04cec8ae624e412672e3c3a40f7ac4"
+    },
+    {
+      "path": "frontend/src/react/workflow/workflow-react.css",
+      "bytes": 3522,
+      "sha256": "fe7c26979585ac395ab198184afbedb31e48a920078113ebcbe60449ec6515a8"
+    },
+    {
+      "path": "frontend/src/router/index.ts",
+      "bytes": 2936,
+      "sha256": "fcf8da7c377db5c88ed496db1c8681505edec14e972c262abb306747025ec72e"
+    },
+    {
+      "path": "frontend/src/w0/designer-w0.spec.ts",
+      "bytes": 3915,
+      "sha256": "02f4a3549214b3e29f40badf4f04029b8bf58732bf2716f45f3fa2bd86e64781"
+    },
+    {
+      "path": "frontend/src/w0/workflow-w0.spec.ts",
+      "bytes": 8421,
+      "sha256": "99da4a39eb0413184538746ce326bf774e098721f788e482465ee6a382484c22"
+    },
+    {
+      "path": "scripts/generate-semantic-registry.mjs",
+      "bytes": 1722,
+      "sha256": "8677bc68feb9d67537d07b98a506ec6ebc8711c38f2fb9be207a4d4cb8179b92"
+    },
+    {
+      "path": "scripts/patch-xyflow-react.mjs",
+      "bytes": 7217,
+      "sha256": "ee7470c172e619920477e4faf96f4bb4884815698e493a13285a3eb716666db3"
+    }
+  ],
+  "closureDeltaFromPriorFreeze": [
+    "frontend/src/pages/w5/workflow/editorController.spec.ts",
+    "frontend/src/pages/w5/workflow/editorController.ts"
+  ]
+}

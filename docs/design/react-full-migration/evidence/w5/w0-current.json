@@ -1,0 +1,565 @@
+{
+  "source": "final full unit, same frozen source, no duplicate run accumulation",
+  "rawSha256": "43e6873570fd35d7e187c85d040dd687f25f0c01bc07ccb3f4ef2de9e319b177",
+  "total": 111,
+  "passed": 111,
+  "failed": 0,
+  "skipped": 0,
+  "assertions": [
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "assertion": "B5.1 ordinary Designer drafts require real route confirmation initial-text: declining leave preserves draft",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "assertion": "B5.1 ordinary Designer drafts require real route confirmation followup-text: declining leave preserves draft",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "assertion": "B5.1 ordinary Designer drafts require real route confirmation initial-file: declining leave preserves draft",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "assertion": "B5.1 ordinary Designer drafts require real route confirmation followup-file: declining leave preserves draft",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "assertion": "B5.1 ordinary Designer drafts require real route confirmation saved read-only Designer can leave without a confirmation or write",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "assertion": "B5.2 unresolved Designer writes forbid route leave initial/sending retains File owner",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "assertion": "B5.2 unresolved Designer writes forbid route leave initial/unknown retains File owner",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "assertion": "B5.2 unresolved Designer writes forbid route leave followup/sending retains File owner",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "assertion": "B5.2 unresolved Designer writes forbid route leave followup/unknown retains File owner",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "assertion": "B5.3 accepted Task handoff retains original identity guard-false: confirmed Task retains an explicit navigation-only recovery",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "assertion": "B5.3 accepted Task handoff retains original identity reject: confirmed Task retains an explicit navigation-only recovery",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "assertion": "B6.1 retired question callbacks stay with original owner reply accepted after retirement must not launch a new A refresh or alter independent B",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "assertion": "B6.1 retired question callbacks stay with original owner reject modal path is unreachable: mandatory question exposes no reject action",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "assertion": "B6.2 profile preview/modal await scope preview: retirement invalidates profile action before mutation",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "assertion": "B6.2 profile preview/modal await scope modal: retirement invalidates profile action before mutation",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "assertion": "B6.3 follow-up immutable multipart operation and later draft unknown recovery uses original body/File and leaves later reachable edits unsent",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "assertion": "B6.3 follow-up immutable multipart operation and later draft typing while a real send is in-flight remains an unsent draft after original acknowledgement",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "assertion": "B7.1 owned terminal retry timeout immediate retirement first snapshot clears active retry before any natural callback completes",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "assertion": "B7.2 owned composer focus RAF immediate retirement retirement cancels queued composer focus before it can focus another page",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "assertion": "B7.3 storage failures cannot discard accepted identity accepted initial File receipt stays recoverable when workspace persistence fails",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "assertion": "B7.3 storage failures cannot discard accepted identity explicit session recovery remains usable when optional workspace storage is unwritable",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/endpoint-w0.spec.ts",
+      "assertion": "W0 B9 endpoint contracts B9.1 start: real fetch sends one unkeyed request on uncertain delivery",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/endpoint-w0.spec.ts",
+      "assertion": "W0 B9 endpoint contracts B9.1 batch: real fetch sends one unkeyed request on uncertain delivery",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/endpoint-w0.spec.ts",
+      "assertion": "W0 B9 endpoint contracts B9.1 question: real fetch sends one unkeyed request on uncertain delivery",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/endpoint-w0.spec.ts",
+      "assertion": "W0 B9 endpoint contracts B9.1 message: real fetch sends one unkeyed request on uncertain delivery",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/endpoint-w0.spec.ts",
+      "assertion": "W0 B9 endpoint contracts B9.1 batch unknown then rerender/read refresh/theme and recovery open never retry automatically",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/endpoint-w0.spec.ts",
+      "assertion": "W0 B9 endpoint contracts B9.1 question unknown then real poll read/same-props/skin changes never resubmit",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/endpoint-w0.spec.ts",
+      "assertion": "W0 B9 endpoint contracts B9.2 report external-owner negative control: changing then restoring unknown draft cannot replace original key",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/endpoint-w0.spec.ts",
+      "assertion": "W0 B9 endpoint contracts B9.2 multipart real File bytes and metadata identical on explicit unchanged retry",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/endpoint-w0.spec.ts",
+      "assertion": "W0 B9 endpoint contracts B9.2 diagnostic unknown retry keeps original action/CAS/commandId",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/endpoint-w0.spec.ts",
+      "assertion": "W0 B9 endpoint contracts B9.2 mock server rejects same key/different digest; does not claim actual Java validation",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/endpoint-w0.spec.ts",
+      "assertion": "W0 B9 endpoint contracts B9.3 accepted Task/start unknown unchanged retry only starts known Task",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/endpoint-w0.spec.ts",
+      "assertion": "W0 B9 endpoint contracts B9.3 accepted Task/start unknown changed then restored draft must never create another Task",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/endpoint-w0.spec.ts",
+      "assertion": "W0 B9 endpoint contracts B9.3 batch unknown GET advances CAS: original retry cannot silently become new version",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/endpoint-w0.spec.ts",
+      "assertion": "W0 B9 endpoint contracts B9.3 stop-proof projection blocks retry without inventing key",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/endpoint-w0.spec.ts",
+      "assertion": "W0 B9 endpoint contracts B9.3 diagnostic accepted response followed by read failure must never rePOST receipt",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B3 creation/run identity and navigation B3.1 report: real create in flight must block route leave; disabled inputs cannot be mutated",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B3 creation/run identity and navigation B3.1 source: real create in flight must block route leave; disabled inputs cannot be mutated",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B3 creation/run identity and navigation B3.1 document: real create in flight must block route leave; disabled inputs cannot be mutated",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B3 creation/run identity and navigation B3.1 document: hashing really active before any POST must block leave",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B3 creation/run identity and navigation B3.1 report: unknown receipt cannot replace original intent via editable UI",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B3 creation/run identity and navigation B3.1 source: unknown receipt cannot replace original intent via editable UI",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B3 creation/run identity and navigation B3.1 document: unknown receipt cannot replace original intent via editable UI",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B3 creation/run identity and navigation B3.1 report/start-inflight: accepted Task identity blocks leave and survives real editable draft",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B3 creation/run identity and navigation B3.1 report/start-unknown: accepted Task identity blocks leave and survives real editable draft",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B3 creation/run identity and navigation B3.2 source: read-only owner without local command may leave and closes SSE without stop POST",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B3 creation/run identity and navigation B3.2 document: read-only owner without local command may leave and closes SSE without stop POST",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B3 creation/run identity and navigation B3.2 source/inflight: same-record and exit navigation preserve pending scope",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B3 creation/run identity and navigation B3.2 source/unknown: same-record and exit navigation preserve pending scope",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B3 creation/run identity and navigation B3.2 document/inflight: same-record and exit navigation preserve pending scope",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B3 creation/run identity and navigation B3.2 document/unknown: same-record and exit navigation preserve pending scope",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B3 creation/run identity and navigation B3.3 source/cancel: refresh version and batch selection must not mint a new unknown command",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B3 creation/run identity and navigation B3.3 source/retry: refresh version and batch selection must not mint a new unknown command",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B3 creation/run identity and navigation B3.3 document/resume: refresh version and batch selection must not mint a new unknown command",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B3 creation/run identity and navigation B3.3 document/cancel: refresh version and batch selection must not mint a new unknown command",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B3 creation/run identity and navigation B3.4 report: denied get/set storage retains in-memory original identity and blocks leave",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B3 creation/run identity and navigation B3.4 source: denied get/set storage retains in-memory original identity and blocks leave",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B3 creation/run identity and navigation B3.4 document: denied get/set storage retains in-memory original identity and blocks leave",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B3 creation/run identity and navigation B3.4 document: by-request 404 remains unknown; actual File bytes/order cannot replace original operation",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B3 creation/run identity and navigation B3.4 document: accepted by-request receipt performs reads only and identifies original run",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B4 document cancellation scope B4.1 pending confirm A followed by real route B must never POST stale cancellation",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B4 document cancellation scope B4.1 reject real modal leaves original A and issues zero writes",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B4 document cancellation scope B4.1 current modal confirm submits exactly once with original A CAS",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B4 document cancellation scope B4.2 success: already-sent A POST after forced retirement cannot pollute new B owner",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B4 document cancellation scope B4.2 error: already-sent A POST after forced retirement cannot pollute new B owner",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B8 history and child retirement B8.1 search B resolves before A: list/facets/cursor must stay in B query",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B8 history and child retirement B8.1 old cursor append after new filter cannot append A into B",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B8 history and child retirement B8.1 success: unmount prevents late retired-owner writes and debounce revival",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B8 history and child retirement B8.1 error: unmount prevents late retired-owner writes and debounce revival",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B8 history and child retirement B8.2 frozen record A arriving after real route B cannot overwrite B",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B8 history and child retirement B8.2 attachment A late with same file ID cannot populate B cache",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B8 history and child retirement B8.2 cached A same attachment ID must be invalidated when route becomes B",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B8 history and child retirement B8.2 retired record error must not clear old busy or add error",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B8 history and child retirement B8.3 sources/directory: late response after root unmount cannot mutate retired refs",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B8 history and child retirement B8.3 sources/body: late response after root unmount cannot mutate retired refs",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B8 history and child retirement B8.3 clarification sent POST after forced root retirement cannot emit updated or clear draft",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B8 history and child retirement B8.3 supplement options read after unmount cannot open retired form",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B8 history and child retirement B8.3 supplement sent upload after forced root retirement cannot emit updated",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/templates-history-w0.spec.ts",
+      "assertion": "W0 B8 history and child retirement B8.3 existing prop scope guards reject old child callbacks without unmount",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "assertion": "B1.1 New unresolved create navigation sending/push must retain original owner",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "assertion": "B1.1 New unresolved create navigation sending/replace must retain original owner",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "assertion": "B1.1 New unresolved create navigation sending/back must retain original owner",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "assertion": "B1.1 New unresolved create navigation unknown/push must retain original owner",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "assertion": "B1.1 New unresolved create navigation unknown/replace must retain original owner",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "assertion": "B1.1 New unresolved create navigation unknown/back must retain original owner",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "assertion": "B1.1 New unresolved create navigation ordinary dirty decline preserves input and explicit discard remains allowed",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "assertion": "B1.2 Library unresolved copy/archive navigation copy/sending must block route leave",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "assertion": "B1.2 Library unresolved copy/archive navigation copy/unknown must block route leave",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "assertion": "B1.2 Library unresolved copy/archive navigation archive/sending must block route leave",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "assertion": "B1.2 Library unresolved copy/archive navigation archive/unknown must block route leave",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "assertion": "B1.2 Library unresolved copy/archive navigation unknown copy keeps its original body/key while actual list filters change",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "assertion": "B1.3 accepted New receipt survives failed handoff guard-false retains receipt and offers navigation-only recovery",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "assertion": "B1.3 accepted New receipt survives failed handoff cancelled retains receipt and offers navigation-only recovery",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "assertion": "B1.3 accepted New receipt survives failed handoff reject retains receipt and offers navigation-only recovery",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "assertion": "B1.4 disabled New UI and independent immutable owner controls sending then unknown disables all four real form fields/choices and explicit retry keeps original body",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "assertion": "B1.4 disabled New UI and independent immutable owner controls pure owner ignores external draft projection and accepted read failure never repeats mutation",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "assertion": "B2.1 real nested command guards human/sending refuses leaving actual command panel",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "assertion": "B2.1 real nested command guards human/unknown refuses leaving actual command panel",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "assertion": "B2.1 real nested command guards candidate/sending refuses leaving actual command panel",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "assertion": "B2.1 real nested command guards candidate/unknown refuses leaving actual command panel",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "assertion": "B2.1 real nested command guards finish/sending refuses leaving actual command panel",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "assertion": "B2.1 real nested command guards finish/unknown refuses leaving actual command panel",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "assertion": "B2.1 real nested command guards commit/sending refuses leaving actual command panel",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "assertion": "B2.1 real nested command guards commit/unknown refuses leaving actual command panel",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "assertion": "B2.1 real nested command guards push/sending refuses leaving actual command panel",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "assertion": "B2.1 real nested command guards push/unknown refuses leaving actual command panel",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "assertion": "B2.1 real nested command guards writeback/sending refuses leaving actual command panel",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "assertion": "B2.1 real nested command guards writeback/unknown refuses leaving actual command panel",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "assertion": "B2.1 real nested command guards actual Requirement parent refuses route leave while its Finish child is unknown",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "assertion": "B2.2 original process stop identity retains command version/attempt on explicit retry and blocks leaving unknown stop",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "assertion": "B2.3 accepted write/readback split actual Finish child retains accepted readback and only rereads on recovery",
+      "status": "passed"
+    }
+  ]
+}

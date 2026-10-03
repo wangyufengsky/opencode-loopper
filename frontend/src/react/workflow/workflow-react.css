@@ -18,3 +18,12 @@
 .workflow-canvas-react .workflow-minimap { background: var(--color-bg-surface); }
 .workflow-canvas-react .react-flow__attribution { background: var(--color-bg-surface); color: var(--color-text-muted); }
 .workflow-canvas-react .react-flow__attribution a { color: var(--color-text-muted); }
+
+/* Native canvas buttons retain the same token-owned presentation without a Vue page ancestor. */
+.workflow-canvas-react .workflow-canvas-controls button, .workflow-canvas-react button.workflow-port { display:inline-flex; align-items:center; justify-content:center; gap:7px; font:inherit; min-height:30px; padding:5px 7px; border:1px solid transparent; border-radius:var(--radius-control); color:var(--color-text-primary); background:var(--color-bg-surface); cursor:pointer; }
+.workflow-canvas-react button.workflow-port { position:absolute; bottom:-11px; left:calc(50% - 11px); width:22px; height:22px; min-height:22px; padding:0; border:1px solid var(--color-border-default); border-radius:50%; }
+.workflow-canvas-react .workflow-canvas-controls button:hover:not(:disabled), .workflow-canvas-react button.workflow-port:hover:not(:disabled) { color:var(--color-action-primary); border-color:var(--color-action-primary); }
+.workflow-canvas-react .workflow-canvas-controls button:disabled, .workflow-canvas-react button.workflow-port:disabled { opacity:.48; cursor:default; }
+.workflow-canvas-react :focus-visible { outline:2px solid var(--color-action-primary); outline-offset:3px; }
+.workflow-canvas-react .workflow-canvas-caption { position:absolute; right:18px; bottom:26px; font-size:10px; color:var(--color-text-secondary); font-family:var(--font-code); pointer-events:none; }
+.workflow-canvas-react .workflow-canvas-caption span { padding-inline:7px; opacity:.5; }

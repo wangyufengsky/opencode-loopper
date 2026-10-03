@@ -1,0 +1,656 @@
+{
+  "baseline": "5c181fc39e26249650df851fe9a7c8a68cab519d",
+  "routeRecords": [
+    "/workflows/new",
+    "/workflows/:id",
+    "/requirements/new",
+    "/requirements/:id",
+    "/designer"
+  ],
+  "uniqueVueEntryCount": 4,
+  "recursiveVueFiles": 84,
+  "scope": "冻结旧生产入口递归组件引用；包含共享读取与已验收画布包装，不等于每个文件需要重写。直接API词法名字不是命令总数。",
+  "files": [
+    {
+      "file": "frontend/src/components/AiActivityPanel.vue",
+      "lines": 57,
+      "sha256": "1f4b40618ef99d1d908e4aff160f6e6ef0fa9576127bfba49ead3bbf3e46a230",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/ArtifactAssertionEditor.vue",
+      "lines": 50,
+      "sha256": "4d737c6d446e789bb0e33eb9a7ac781350e1e06f66d812fc710381529fb06521",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/CodeMergeEditor.vue",
+      "lines": 158,
+      "sha256": "6614411e68423ca4e81b2d5f667e5ef013f14c44122c41a29b03c5819196ea32",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/DesignerCurrentActivity.vue",
+      "lines": 128,
+      "sha256": "f01dd89dbb3e205b86208efe26a7141d0e50c3d07ace0940a3a83bf4c961132c",
+      "apiCallNames": [
+        "getDesignerActivity"
+      ]
+    },
+    {
+      "file": "frontend/src/components/DesignerDiscussionHistory.vue",
+      "lines": 64,
+      "sha256": "455113a4a5a933a163157a04b3db22ce6bb710462ebe55805807557bb663cd0c",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/DesignerSystemMessageHistory.vue",
+      "lines": 60,
+      "sha256": "7482988ce0e4939db7f2b6d11b4ae6f7250ed6bf41e35a0d3ab2865813c09f04",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/DesignerValidatorHistory.vue",
+      "lines": 53,
+      "sha256": "ff361e23863fb8cff7cf3c846709c140b360c81f358dc06e8b2471a6d8c97f90",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/ExecutionAcceptancePanel.vue",
+      "lines": 97,
+      "sha256": "c81501967fdea49e3bc5c350b1051751107fbddb93b3fa54e93eb8abc505079e",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/LayeredErrorPanel.vue",
+      "lines": 108,
+      "sha256": "fd3171654d71542afc2f7e4578fc74bac53a8c1a92180213ea68c438453f5cd9",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/LoopSpecEditor.vue",
+      "lines": 454,
+      "sha256": "2347fb63dbe456820780523774ec6e92c204e1ccf9bdd85b4b5128d26278b3df",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/MarkdownDocument.vue",
+      "lines": 324,
+      "sha256": "290e7b2b7cdcea2f52d5f8653433af0027f7444a2913f040eeae0fcf15b7c68d",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/MarkdownDocumentLegacy.vue",
+      "lines": 313,
+      "sha256": "836bf8483fa2e9259a0e7e48dba5efc3780d8aa9319b03f1702cba84dcc72ff8",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/PackageGapNotice.vue",
+      "lines": 27,
+      "sha256": "6844dac201624a8097c0f28e77294032f6d2c2da55fa822f19b0c11e5ee4da64",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/PageHeader.vue",
+      "lines": 39,
+      "sha256": "e11033bcbf78289d68be315c9dcb63096a5b9db1a4cab14bc91b4aa61b300082",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/PendingQuestionCard.vue",
+      "lines": 104,
+      "sha256": "1f065e49befd14d529dde8b9d2cf0564e1e88fcc4d787672914a21b77bb633f4",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/StagedFileContextCard.vue",
+      "lines": 125,
+      "sha256": "8f845bd42f695023cc22b7a52e8613c0c8df998f21e192e765bbc0153e96f0d1",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/StatusBadge.vue",
+      "lines": 19,
+      "sha256": "2b14c4ff3ecd9b0f892a4254a82e5a7a1c64000e6113fbb736fd7ed570b78d4b",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/StoryBindingSetup.vue",
+      "lines": 87,
+      "sha256": "13ff61c92b4f3a9dd89534f277859f1bc463f26a5b2f613c8de902741420dd06",
+      "apiCallNames": [
+        "getStoryBindingCapability"
+      ]
+    },
+    {
+      "file": "frontend/src/components/TaskProfileRouterDialog.vue",
+      "lines": 182,
+      "sha256": "e0d589b7786e73b9d02effe816a2c260461e79ebad81d163b0325d6e51bd83f2",
+      "apiCallNames": [
+        "getDesignerActivity"
+      ]
+    },
+    {
+      "file": "frontend/src/components/TokenUsageWindow.vue",
+      "lines": 109,
+      "sha256": "dfce7f2db262cb2d8f31ed4c8a9b01f50935224ebc7ec7927428bad0ed0cc2c9",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/knowledge/KnowledgeEvidence.vue",
+      "lines": 59,
+      "sha256": "c30425bd98bc51506ab1bc0f9d0567cf169240546a01a4631ca86439660b034a",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowAddMenu.vue",
+      "lines": 15,
+      "sha256": "0d9867e7f2142f4bd445c950dfb46621d61d2f4c6470e045214123225770afc8",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowBranchInput.vue",
+      "lines": 43,
+      "sha256": "66b5449e72a3ef907430126eee093d672c7451aead64361de9d747c4cbf3d6af",
+      "apiCallNames": [
+        "templateBranches"
+      ]
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowCandidates.vue",
+      "lines": 36,
+      "sha256": "0151735ff27c8c678a1726cec252fab8a4d9bd9db85a04821b5527335b2eb696",
+      "apiCallNames": [
+        "candidate",
+        "candidates",
+        "rejectCandidate"
+      ]
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowCanvas.vue",
+      "lines": 32,
+      "sha256": "fe2f2241a4524b9a16cd6477d491d257ede3ad124f58fe11bf9889149320cbd9",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowCanvasLegacy.vue",
+      "lines": 104,
+      "sha256": "ffb88222e6f1a6be0eb45d1debb60f009ce17abca17240b1f5d0c00acc464950",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowChoice.vue",
+      "lines": 33,
+      "sha256": "96208685be8393750d9272aa5c7163b4cc0efe105b1de4db7f4573bcc9829def",
+      "apiCallNames": [
+        "list",
+        "projects"
+      ]
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowCodeChanges.vue",
+      "lines": 47,
+      "sha256": "92c9c09d86e831f2add5b2f31cbdf574fa996402dad146b29bb0562dcefcc14f",
+      "apiCallNames": [
+        "changes",
+        "fileUrl"
+      ]
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowCommandEditor.vue",
+      "lines": 32,
+      "sha256": "6eef7a7df6fc48b4e016241f3c562ffb11a5abd628e3a3c5fdc944a8ef61b1d4",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowCommandEvidence.vue",
+      "lines": 45,
+      "sha256": "ce3db5da57f6f3c3e4372705d2324233a8698971e59c212e9a53738b9a71579f",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowCommandReport.vue",
+      "lines": 25,
+      "sha256": "88383a46bed6e58469b2ec7e5e25e9c2455a461b37c1edc4a705f24e1ecd0477",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowContextPanel.vue",
+      "lines": 16,
+      "sha256": "6b1816c32c0596252497b635c9e709ef68e835d9eee5cf24dc62feb501aef47b",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowDocumentInput.vue",
+      "lines": 97,
+      "sha256": "7237112303871087a7b24854077cccd9761ff625e0f40cfc7a56ddae5cceffc8",
+      "apiCallNames": [
+        "fileUrl",
+        "files",
+        "get",
+        "list",
+        "text",
+        "upload"
+      ]
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowDocumentPlanReport.vue",
+      "lines": 31,
+      "sha256": "17c943c4ea21192c04d7af1b917939c64e37b847fbdaee812056718e4e8e7318",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowDocumentPreview.vue",
+      "lines": 52,
+      "sha256": "02e9c85b2b68fd16de7d0220165d9f4c6064d5223efa6a0a90292988324575c9",
+      "apiCallNames": [
+        "fileText"
+      ]
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowDocumentReport.vue",
+      "lines": 24,
+      "sha256": "505a5e5a21b4c3c3895bf17fe4ab9733f9f0ac7de5dd4ac18dc4ad5a8e0ab7d2",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowDocumentReviewEditor.vue",
+      "lines": 34,
+      "sha256": "b45b5f1c8c372460dc85ac094df5060054d2ce3d9b8c1709bb9f7c30573c51a0",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowDocumentReviewReport.vue",
+      "lines": 51,
+      "sha256": "d86da3530bd658686c95169f0a9f2177e5a36720750d32a7b544df1506ffc65a",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowFiles.vue",
+      "lines": 22,
+      "sha256": "18f17204e760a95aa0b1c9042ed57320ae17840f9fed9f89e1f3b3b10281489b",
+      "apiCallNames": [
+        "archiveUrl",
+        "fileUrl",
+        "files"
+      ]
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowFinish.vue",
+      "lines": 77,
+      "sha256": "3d542db6cbd7faf007d93b6a85be4291cba42eebc74ddf69730e1213872eb898",
+      "apiCallNames": [
+        "finish",
+        "finishStatus"
+      ]
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowHistoryAnalysisReport.vue",
+      "lines": 59,
+      "sha256": "07f1173082eb8bc40e2ec81527630965afcdbf4ac0e7fc17a9c60c07f835be25",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowHistoryReport.vue",
+      "lines": 32,
+      "sha256": "72c519323d0e7e39f5184819bace4b59fb2798bfcaee2d93913f74637fe5e65e",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowHistorySummary.vue",
+      "lines": 28,
+      "sha256": "aaf56138be6328954b8aab36bb5dd9fd3abbbd217b369c5eb4296e648ffeb077",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowInputContent.vue",
+      "lines": 54,
+      "sha256": "7293f77d82d73812fe95148a16303d11eaa9559921991d18a77d0ca96f96dc6d",
+      "apiCallNames": [
+        "inputContent"
+      ]
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowKnowledgeEvidence.vue",
+      "lines": 62,
+      "sha256": "1569f9631e811c8d5adfb3b7403cb202a0eaef1399e51eec2d4bb5514a396a56",
+      "apiCallNames": [
+        "knowledgeEvidence",
+        "knowledgeEvidenceBody"
+      ]
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowKnowledgeReport.vue",
+      "lines": 32,
+      "sha256": "d48776e14255aa9cc8f5f4cb778b611ea38a6bc3199a3cd1325de8aef62476a8",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowModelChoice.vue",
+      "lines": 22,
+      "sha256": "bb75019abce8fa8582aee4300331e8a12a42a26534a26cd39af2a915e02b1557",
+      "apiCallNames": [
+        "getSettingsModels"
+      ]
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowNativeTestReport.vue",
+      "lines": 52,
+      "sha256": "25bcb3413affface842ad01b00ca5000872228e721f6998e52e928c69fa580de",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowNodeEditor.vue",
+      "lines": 95,
+      "sha256": "31175002c4189cdc9cf377417431277d0ef22d3ac3383bb4c69477054455a9ca",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowNodeList.vue",
+      "lines": 18,
+      "sha256": "35b98f69f4b214b20b7fd973ae3324439b5f86a37fc70e7c2b2e5abab04c1117",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowNodeRun.vue",
+      "lines": 127,
+      "sha256": "b67e4a5957176ae0e51d8f56433c16c4964324d6bb80bbce1411199b3709d811",
+      "apiCallNames": [
+        "activity",
+        "attempt",
+        "attempts",
+        "commandAction",
+        "commandEvidence",
+        "complete",
+        "definition",
+        "inputs",
+        "modelAction",
+        "result"
+      ]
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowPlanDiff.vue",
+      "lines": 31,
+      "sha256": "62cc6265ecf6380857400026dc0988167fbc646291ed5a199894bf830372f15c",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowPresetPicker.vue",
+      "lines": 31,
+      "sha256": "63ed7a988b441d4581c649a5993d13c365fefe8f8bcc83d4d01f05e974fc870f",
+      "apiCallNames": [
+        "preset",
+        "presets"
+      ]
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowPublicInputs.vue",
+      "lines": 22,
+      "sha256": "b2fa46c3be13f993614fc2ef918911f89ac6de9356efdf4101a6ea61b3b44d77",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowPublication.vue",
+      "lines": 86,
+      "sha256": "95c38a8780ed8adabbc5e649ffcc9514d2ec1f77c9e325d6d16aea4b6e73d288",
+      "apiCallNames": [
+        "preview",
+        "sources"
+      ]
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowPublicationCommit.vue",
+      "lines": 61,
+      "sha256": "54fb4f02d4ec9b90d0cc4510536fbe5f496d28cd7ac5848bb5c62d953193cb13",
+      "apiCallNames": [
+        "confirm",
+        "retry",
+        "status"
+      ]
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowPush.vue",
+      "lines": 69,
+      "sha256": "5a0cad4bedf9fabda363a6325210d762f92e589df836022765e889ce3cb6c525",
+      "apiCallNames": [
+        "confirm",
+        "preview",
+        "remotes",
+        "retry",
+        "status"
+      ]
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowRepositoryReport.vue",
+      "lines": 27,
+      "sha256": "b28341a389132489ac68d919d1b8f2de5be84d9ea699e6eace301d193bcc3547",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowReviewReport.vue",
+      "lines": 34,
+      "sha256": "108a7ea678ec95939d15853cad3d1b6bcc667a488ddaac0df5733320ea1a9fd4",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowReviewSourceEditor.vue",
+      "lines": 22,
+      "sha256": "ca5db6c36d930025ecb64d9609fe2f2bf4d7a57302a826dc696e6913cda88fd9",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowReviewSourceReport.vue",
+      "lines": 40,
+      "sha256": "b2e4eb587926049ddfa1b2db1632c2ef321b5f73221383cb5b72c2f4c321e016",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowRolePicker.vue",
+      "lines": 53,
+      "sha256": "c4d996654db54bd2ba810c0b1d73ad0d10b192184d39cee62f2f786ab7984f76",
+      "apiCallNames": [
+        "getRole",
+        "getRoleRevision",
+        "getRoleRevisions",
+        "getRoles"
+      ]
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowSaveTemplate.vue",
+      "lines": 80,
+      "sha256": "4427023f5a3022523defe1ad42fe743856558a87ea597009c34d1e9cb1df937f",
+      "apiCallNames": [
+        "previewTemplate",
+        "saveTemplate"
+      ]
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowSnapshotPartialReport.vue",
+      "lines": 37,
+      "sha256": "ecf65abdcfc13275122ec54378cd7bff45b432095d953f612eb797322818e5a3",
+      "apiCallNames": [
+        "snapshotPartialReport"
+      ]
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowSnapshotReport.vue",
+      "lines": 58,
+      "sha256": "4ca17e39e3ad3b05ad0274dfeca87d5c4fbd51eb8b750e40da7fa5b7ef175cf2",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowSnapshotSummary.vue",
+      "lines": 29,
+      "sha256": "676d8a428de88bc98e5534567418e0bb104c2f7a34c4e622981128235b5f290c",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowSourceDesignEditor.vue",
+      "lines": 29,
+      "sha256": "92eb57d3bd04411fb6e50eeb5a7d8f5bf546f5c75f8f81085f86b0b24d37b142",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowSourceDesignReport.vue",
+      "lines": 36,
+      "sha256": "d2d52c1eecfd0f7f99a7889e36b52022b6918137d7785605802b01236677181d",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowSourcePlanReport.vue",
+      "lines": 25,
+      "sha256": "ac0656a66bdd7aa56bc297284b4966098a2ba662e97f52b0c311b7d5591b11a8",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowSourceReport.vue",
+      "lines": 27,
+      "sha256": "06a94a98324b9e5b1ebe5e93879a2ab5a73490a968796197160396028897a759",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowTestDesignReport.vue",
+      "lines": 41,
+      "sha256": "fc0f137387a1f83feb682c45c3693fcbc90ea78936319940ca71a5c9ff6dce1c",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowTestProfileReport.vue",
+      "lines": 50,
+      "sha256": "31e133b62220ffdd422f8843cf9bb62b927ad821a0dd997e5f09b058520b6540",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowTestReviewReport.vue",
+      "lines": 51,
+      "sha256": "a4831427d5cbce473ec7d6b81989332b54717b81c081dc74ded132ddde5d191b",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowTestScopeReport.vue",
+      "lines": 21,
+      "sha256": "aa5ce5a9a618f0404010d2d77da8298f253953a441221d2f8ef74cd54ee84a0c",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowTestSummaryReport.vue",
+      "lines": 46,
+      "sha256": "6e8bd7b8310d68dc67de04eeaea0bb359280783a50d147134f9d961a2cdb1da4",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowValueFields.vue",
+      "lines": 13,
+      "sha256": "1b8c17a8376f34ab7d951400a0fd4b471cd0dc3e420d0b65382e4fe1f38e7c97",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowVerificationEditor.vue",
+      "lines": 37,
+      "sha256": "deb5fc73b0674bcbdf329fca97999e1d7b3b05889ddfc827c5000c939226570a",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowVerificationReport.vue",
+      "lines": 27,
+      "sha256": "e439fea225e4bc8e1b3eaca4eed8b39e94389b55b7f38b33b5529f0dc3dad787",
+      "apiCallNames": []
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowWriteback.vue",
+      "lines": 64,
+      "sha256": "a42fd28dd315a6cf65801ba82a4319c3f22286dd8981f0072dcbe14ef129a917",
+      "apiCallNames": [
+        "confirm",
+        "retry",
+        "status"
+      ]
+    },
+    {
+      "file": "frontend/src/components/workflow/WorkflowWritebackPreview.vue",
+      "lines": 40,
+      "sha256": "84c4d0173468ee4355fe97d2bfce7d5bb696f30ada5ba14a69ee3a83159a30d7",
+      "apiCallNames": [
+        "preview"
+      ]
+    },
+    {
+      "file": "frontend/src/views/DesignerView.vue",
+      "lines": 2145,
+      "sha256": "2ccd0603a3051607262dcd982cc6ce7f5247d2e9ba256cdfde88d45695543b46",
+      "apiCallNames": [
+        "approveWorkPackage",
+        "cancelDesignerTaskProfileRouting",
+        "confirmDesignerRequirement",
+        "confirmDesignerTaskProfile",
+        "confirmDraft",
+        "convertAnalysisReportToDesign",
+        "copyDraftAsV2",
+        "createDesignerContextTurn",
+        "createDesignerSession",
+        "createDraft",
+        "designerAttachmentContentUrl",
+        "enableDesignerLargeTaskMode",
+        "getAnalysisReport",
+        "getDesignerAttachmentPreview",
+        "getDesignerSession",
+        "getDraft",
+        "getSettings",
+        "previewDesignerTaskProfileUpdate",
+        "redesignWorkPackage",
+        "rejectDesignerQuestion",
+        "reopenDesignerRequirement",
+        "reopenWorkPackage",
+        "replyDesignerQuestion",
+        "requestDesignerRedesign",
+        "rerouteDesignerTaskProfile",
+        "retryDesignerCompiler",
+        "retryDesignerDecomposition",
+        "retryWorkPackageCompiler",
+        "sendDesignerContextTurn",
+        "sendDesignerMessage",
+        "sendRequirementMessage",
+        "sendWorkPackageMessage",
+        "stopDesignerAttachment",
+        "stopDesignerSession",
+        "updateDesignerAutoMode",
+        "updateDesignerTaskProfile",
+        "updateDraft",
+        "validateDraft"
+      ]
+    },
+    {
+      "file": "frontend/src/views/WorkflowEditorView.vue",
+      "lines": 176,
+      "sha256": "974077af590404a0c459b052658b1d02fd86fbbc2f689da91a388961e90e55fe",
+      "apiCallNames": [
+        "get",
+        "validate"
+      ]
+    },
+    {
+      "file": "frontend/src/views/WorkflowRequirementNewView.vue",
+      "lines": 74,
+      "sha256": "e749b3b3d5c2ffc49417b843b13ef2c4bac0b0f6251c3b888f20121c953abb14",
+      "apiCallNames": [
+        "create",
+        "get",
+        "project"
+      ]
+    },
+    {
+      "file": "frontend/src/views/WorkflowRequirementView.vue",
+      "lines": 284,
+      "sha256": "74bc8805811c018c9365801be246492df74e89e1d41d1dc7fcf6230dcec67887",
+      "apiCallNames": [
+        "cancel",
+        "confirm",
+        "execution",
+        "get",
+        "pause",
+        "start"
+      ]
+    }
+  ]
+}

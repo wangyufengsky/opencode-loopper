@@ -1,0 +1,166 @@
+{
+  "actions": {
+    "workflow.editConfiguration": {
+      "label": "重新配置",
+      "name": "重新配置节点参数",
+      "icon": "settings-2",
+      "intent": "workflow.editConfiguration",
+      "scope": "workflow",
+      "guard": "caller",
+      "behavior": "explicit"
+    },
+    "workflow.addParameter": {
+      "label": "添加参数",
+      "name": "添加命令参数",
+      "icon": "plus",
+      "intent": "workflow.addParameter",
+      "scope": "workflow",
+      "guard": "caller",
+      "behavior": "explicit"
+    },
+    "workflow.addCheck": {
+      "label": "添加检查",
+      "name": "添加交付物检查",
+      "icon": "list-checks",
+      "intent": "workflow.addCheck",
+      "scope": "workflow",
+      "guard": "caller",
+      "behavior": "explicit"
+    },
+    "workflow.addSection": {
+      "label": "添加章节",
+      "name": "添加原文章节",
+      "icon": "list-plus",
+      "intent": "workflow.addSection",
+      "scope": "workflow",
+      "guard": "caller",
+      "behavior": "explicit"
+    },
+    "workflow.addInput": {
+      "label": "添加输入",
+      "name": "添加节点输入",
+      "icon": "list-plus",
+      "intent": "workflow.addInput",
+      "scope": "workflow",
+      "guard": "caller",
+      "behavior": "explicit"
+    },
+    "workflow.addOutput": {
+      "label": "添加交付物",
+      "name": "添加节点交付物",
+      "icon": "list-plus",
+      "intent": "workflow.addOutput",
+      "scope": "workflow",
+      "guard": "caller",
+      "behavior": "explicit"
+    },
+    "workflow.addOutcome": {
+      "label": "添加结果",
+      "name": "添加业务结果",
+      "icon": "list-plus",
+      "intent": "workflow.addOutcome",
+      "scope": "workflow",
+      "guard": "caller",
+      "behavior": "explicit"
+    },
+    "workflow.addPublicInput": {
+      "label": "添加公共资料",
+      "name": "添加公共资料声明",
+      "icon": "list-plus",
+      "intent": "workflow.addPublicInput",
+      "scope": "workflow",
+      "guard": "caller",
+      "behavior": "explicit"
+    },
+    "workflow.settings": {
+      "label": "流程设置",
+      "name": "打开流程设置",
+      "icon": "settings-2",
+      "intent": "workflow.settings",
+      "scope": "workflow",
+      "guard": "caller",
+      "behavior": "explicit"
+    },
+    "workflow.tools": {
+      "label": "更多工具",
+      "name": "打开流程工具",
+      "icon": "wrench",
+      "intent": "workflow.tools",
+      "scope": "workflow",
+      "guard": "caller",
+      "behavior": "explicit"
+    },
+    "workflow.nodeList": {
+      "label": "查找节点",
+      "name": "查找流程节点",
+      "icon": "search",
+      "intent": "workflow.nodeList",
+      "scope": "workflow",
+      "guard": "caller",
+      "behavior": "explicit"
+    },
+    "workflow.validate": {
+      "label": "检查流程",
+      "name": "检查流程定义",
+      "icon": "list-checks",
+      "intent": "workflow.validate",
+      "scope": "workflow",
+      "guard": "caller",
+      "behavior": "explicit"
+    },
+    "workflow.autoLayout": {
+      "label": "自动整理",
+      "name": "自动整理流程节点",
+      "icon": "network",
+      "intent": "workflow.autoLayout",
+      "scope": "workflow",
+      "guard": "caller",
+      "behavior": "explicit"
+    },
+    "workflow.presets": {
+      "label": "预设工作模块",
+      "name": "选择预设工作模块",
+      "icon": "blocks",
+      "intent": "workflow.presets",
+      "scope": "workflow",
+      "guard": "caller",
+      "behavior": "explicit"
+    },
+    "workflow.addReadonly": {
+      "label": "只读分析",
+      "name": "添加只读分析节点",
+      "icon": "scan-text",
+      "intent": "workflow.addReadonly",
+      "scope": "workflow",
+      "guard": "caller",
+      "behavior": "explicit"
+    },
+    "workflow.addWrite": {
+      "label": "文件工作",
+      "name": "添加文件工作节点",
+      "icon": "file-code",
+      "intent": "workflow.addWrite",
+      "scope": "workflow",
+      "guard": "caller",
+      "behavior": "explicit"
+    },
+    "workflow.addHuman": {
+      "label": "人工检查",
+      "name": "添加人工检查节点",
+      "icon": "user-round-check",
+      "intent": "workflow.addHuman",
+      "scope": "workflow",
+      "guard": "caller",
+      "behavior": "explicit"
+    },
+    "workflow.roleVersions": {
+      "label": "选择其他版本",
+      "name": "选择角色已发布版本",
+      "icon": "history",
+      "intent": "workflow.roleVersions",
+      "scope": "workflow",
+      "guard": "caller",
+      "behavior": "explicit"
+    }
+  }
+}

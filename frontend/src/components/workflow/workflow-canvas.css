@@ -1,0 +1,29 @@
+/* Framework-neutral canvas visuals. Loaded by both legacy and React entries. */
+.workflow-canvas { position: relative; flex: 1; min-height: 360px; overflow: hidden; touch-action: none; background-color: var(--color-bg-canvas); background-image: radial-gradient(var(--color-border-default) 1px, transparent 1px); background-size: 20px 20px; cursor: grab; }
+.workflow-canvas:active { cursor: grabbing; }
+.workflow-canvas-world { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
+.workflow-wires { position: absolute; top: 0; left: 0; overflow: visible; }
+.workflow-wire { fill: none; stroke: var(--color-text-muted); stroke-width: 1.5px; pointer-events: none; }
+.workflow-wire-hit { stroke: transparent; stroke-width: 16px; fill: none; cursor: pointer; }
+.workflow-wire-hit:hover + .workflow-wire, .workflow-wire-hit:focus-visible + .workflow-wire { stroke: var(--color-action-primary); stroke-width: 3px; }
+.workflow-edge-label { fill: var(--color-text-secondary); font-size: 12px; text-anchor: middle; paint-order: stroke; stroke: var(--color-bg-canvas); stroke-width: 5px; pointer-events: none; }
+.workflow-node { box-sizing: border-box; position: absolute; width: 224px; height: 118px; border: 1px solid var(--color-border-default); border-radius: var(--radius-card); background: var(--color-bg-surface); padding: 14px; box-shadow: var(--shadow-card); user-select: none; cursor: grab; }
+.workflow-node.selected, .workflow-node.connect-source { border-color: var(--color-action-primary); box-shadow: 0 0 0 1px var(--color-action-primary); }
+.workflow-node header { display: flex; gap: 10px; align-items: center; }
+.workflow-node strong { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workflow-node-icon { width: 26px; height: 26px; display: grid; place-items: center; background: var(--color-bg-elevated); border-radius: var(--radius-control); color: var(--color-action-primary); flex-shrink: 0; }
+.workflow-node > p { font-size: 12px; color: var(--color-text-secondary); margin: 7px 0 12px 36px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workflow-node footer { display: flex; justify-content: space-between; font-size: 10px; color: var(--color-text-muted); gap: 6px; }
+.workflow-node footer > span { display: flex; align-items: center; gap: 3px; }
+.workflow-page button.workflow-port { position: absolute; bottom: -11px; left: calc(50% - 11px); width: 22px; height: 22px; padding: 0; min-height: 22px; border-radius: 50%; background: var(--color-bg-surface); }
+.workflow-canvas-empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; color: var(--color-text-muted); padding: 24px; text-align: center; }
+.workflow-canvas-empty h2 { font-size: 18px; color: var(--color-text-secondary); margin-bottom: 0; }
+.workflow-canvas-empty p { font-size: 13px; }
+.workflow-connecting { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); margin: 0; padding: 10px 14px; border: 1px solid var(--color-action-primary); background: var(--color-bg-surface); border-radius: var(--radius-control); white-space: nowrap; color: var(--color-action-primary); font-size: 12px; }
+.workflow-canvas-controls { position: absolute; bottom: 16px; left: 16px; display: flex; align-items: center; padding: 3px; gap: 5px; border: 1px solid var(--color-border-default); border-radius: var(--radius-control); background: var(--color-bg-surface); box-shadow: var(--shadow-card); font-size: 12px; }
+.workflow-canvas-controls button { padding: 4px 7px; border-color: transparent; font-size: 12px; }
+.workflow-canvas-controls span { min-width: 36px; text-align: center; }
+.workflow-minimap { position: absolute; bottom: 16px; right: 16px; width: 110px; height: 74px; padding: 5px; border: 1px solid var(--color-border-default); border-radius: var(--radius-control); background: var(--color-bg-surface); fill: var(--color-action-primary); opacity: .75; pointer-events: none; }
+.workflow-node-state[data-state=SUCCEEDED] { color: var(--color-success); }
+.workflow-node-state[data-state=FAILED], .workflow-node-state[data-state=STALLED] { color: var(--color-task-danger); }
+.workflow-node-state[data-state=RUNNING], .workflow-node-state[data-state=WAITING_INPUT] { color: var(--color-action-primary); }

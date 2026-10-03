@@ -1,0 +1,76 @@
+{
+  "workflow-definite-partial-identity.json": {
+    "rawSha256": "309210a3066f1a1666a180915a8cbb07101f455644d70cbfe662188c606aa836",
+    "graphWrites": 1,
+    "layoutWrites": 3,
+    "sameOriginalLayoutBody": true,
+    "noImplicitRetry": true
+  },
+  "workflow-two-stage-original-identity.json": {
+    "rawSha256": "af426327a84f6aca60114b8f693b5628b9384907bd39a4dc72e3437a8bdce881",
+    "graphWrites": 1,
+    "layoutWrites": 2,
+    "finalReadFailed": true,
+    "sameOriginalLayoutBody": true
+  },
+  "designer-original-file-recovery.json": {
+    "rawSha256": "d2293d447a48fbda077e1b38e5732addc382a41a1ae9f5ba1aa4e9c431d94201",
+    "originalEqual": true,
+    "metadataAndOrderedFileBytesEqual": true,
+    "posts": 2
+  },
+  "spdb-create-identical-recovery.json": {
+    "rawSha256": "68ee75bfeb9b468a3d060ca1575240c8416e3766dff644832144ce5129ddbf35",
+    "writes": [
+      {
+        "path": "/api/workflows/requirements",
+        "method": "POST",
+        "body": "{\"requestKey\":\"06d62504-ad26-48ed-9893-159a4b1efa31\",\"projectId\":\"w2-project\",\"templateId\":\"w5-flow\",\"templateRevision\":2,\"title\":\"原始四字段需求 · 模拟\",\"objective\":\"保持原创建身份和输入。\"}"
+      },
+      {
+        "path": "/api/workflows/requirements",
+        "method": "POST",
+        "body": "{\"requestKey\":\"06d62504-ad26-48ed-9893-159a4b1efa31\",\"projectId\":\"w2-project\",\"templateId\":\"w5-flow\",\"templateRevision\":2,\"title\":\"原始四字段需求 · 模拟\",\"objective\":\"保持原创建身份和输入。\"}"
+      }
+    ],
+    "nativePrompts": 2,
+    "sameDocumentAfterRefreshBack": true,
+    "originalBodyEqual": true
+  },
+  "tech-blue-create-identical-recovery.json": {
+    "rawSha256": "160d238df3cb29fb4f319cfdfceaf1764059f5a8fbd80fb9670a040bc3be1626",
+    "writes": [
+      {
+        "path": "/api/workflows/requirements",
+        "method": "POST",
+        "body": "{\"requestKey\":\"f54ec4d0-7288-401d-8cad-fecb866f769e\",\"projectId\":\"w2-project\",\"templateId\":\"w5-flow\",\"templateRevision\":2,\"title\":\"原始四字段需求 · 模拟\",\"objective\":\"保持原创建身份和输入。\"}"
+      },
+      {
+        "path": "/api/workflows/requirements",
+        "method": "POST",
+        "body": "{\"requestKey\":\"f54ec4d0-7288-401d-8cad-fecb866f769e\",\"projectId\":\"w2-project\",\"templateId\":\"w5-flow\",\"templateRevision\":2,\"title\":\"原始四字段需求 · 模拟\",\"objective\":\"保持原创建身份和输入。\"}"
+      }
+    ],
+    "nativePrompts": 2,
+    "sameDocumentAfterRefreshBack": true,
+    "originalBodyEqual": true
+  },
+  "github-white-create-identical-recovery.json": {
+    "rawSha256": "8c46ab2d1a9bebc28f55d1e7a659b4e7309852333056d6f4f751bf4e66fda367",
+    "writes": [
+      {
+        "path": "/api/workflows/requirements",
+        "method": "POST",
+        "body": "{\"requestKey\":\"492c8782-2c0a-429c-9faf-f194d7f08013\",\"projectId\":\"w2-project\",\"templateId\":\"w5-flow\",\"templateRevision\":2,\"title\":\"原始四字段需求 · 模拟\",\"objective\":\"保持原创建身份和输入。\"}"
+      },
+      {
+        "path": "/api/workflows/requirements",
+        "method": "POST",
+        "body": "{\"requestKey\":\"492c8782-2c0a-429c-9faf-f194d7f08013\",\"projectId\":\"w2-project\",\"templateId\":\"w5-flow\",\"templateRevision\":2,\"title\":\"原始四字段需求 · 模拟\",\"objective\":\"保持原创建身份和输入。\"}"
+      }
+    ],
+    "nativePrompts": 2,
+    "sameDocumentAfterRefreshBack": true,
+    "originalBodyEqual": true
+  }
+}

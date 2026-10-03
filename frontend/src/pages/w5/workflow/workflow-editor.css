@@ -1,0 +1,18 @@
+.workflow-editor-react { min-width:0; display:flex; flex-direction:column; height:calc(100vh - 210px); min-height:520px; }
+.workflow-editor-toolbar { flex:0 0 auto; padding:8px 0 12px; }
+.workflow-editor-canvas { flex:1; min-height:420px; position:relative; border:1px solid var(--color-border-default); border-radius:var(--radius-card); overflow:hidden; }
+.workflow-editor-canvas > .workflow-canvas { width:100%; height:100%; }
+.workflow-react-context { min-width:0; overflow-wrap:anywhere; }
+.workflow-react-context .workflow-fields,.workflow-fields { display:flex; flex-direction:column; gap:12px; padding:12px; margin-block:12px; border:1px solid var(--color-border-default); border-radius:var(--radius-control); }
+.workflow-fields > label,.workflow-binding > label { display:flex; flex-direction:column; gap:5px; }
+.workflow-fields label:has(input[type=checkbox]) { flex-direction:row; align-items:center; }
+.workflow-binding { display:flex; flex-direction:column; gap:10px; padding:12px 0; border-bottom:1px solid var(--color-border-default); }
+.workflow-fields input:not([type=checkbox]),.workflow-fields select,.workflow-fields textarea,.workflow-node-list > input { width:100%; color:var(--color-text-primary); background:var(--color-bg-canvas); border:1px solid var(--color-border-default); border-radius:var(--radius-control); padding:7px 9px; }
+.workflow-node-advanced > summary { cursor:pointer; padding:12px 0; }
+.workflow-node-list,.workflow-preset-list,.workflow-add-menu,.workflow-tools { display:flex; flex-direction:column; gap:10px; }
+.workflow-node-list > button,.workflow-preset-list > button { display:flex; flex-direction:column; gap:5px; text-align:left; padding:12px; color:var(--color-text-primary); background:var(--color-bg-canvas); border:1px solid var(--color-border-default); border-radius:var(--radius-control); }
+.workflow-node-list > button span,.workflow-preset-list > button span { color:var(--color-text-secondary); font-size:.85rem; }
+.workflow-professional-report { overflow-wrap:anywhere; min-width:0; }
+.workflow-professional-report article,.workflow-professional-report details { padding-block:8px; }
+.workflow-professional-report pre { white-space:pre-wrap; overflow-wrap:anywhere; max-height:360px; overflow:auto; }
+.workflow-professional-report code { overflow-wrap:anywhere; }

@@ -1,0 +1,89 @@
+{
+  "team": "Exactly original /root/react_flow_workflow, /root/react_legacy_canvas, /root/react_ppt_canvas; retained gpt-6.1-sol/xhigh configuration; no new agents",
+  "reviews": [
+    {
+      "review": "A 审 C，含 Designer reopen 最后字节",
+      "rawFile": "A-independent-C-final-reopen.json",
+      "sha256": "aee7f6d8f79b1e3811891231d81c2a58189dadf383c43756c3c878f631e53793",
+      "passed": 90,
+      "failed": 0,
+      "skipped": 0,
+      "note": "独立复跑与作者场景重叠，不累加唯一覆盖"
+    },
+    {
+      "review": "B 审 A，含分段拒绝最终字节",
+      "rawFile": "B-A-independent-final.json",
+      "sha256": "da7719b8a44d87b5d52b98276f8dd0813158160dd7297a6f9e27dfe16b7eed3d",
+      "passed": 109,
+      "failed": 0,
+      "skipped": 0,
+      "note": "独立复跑与作者场景重叠，不累加唯一覆盖"
+    },
+    {
+      "review": "C 审 B，含原 Requirements W0",
+      "rawFile": "C-B-independent-final.json",
+      "sha256": "0bfc9884db6d9acc769cf342deb26918311bb5893a4dd31fa4f5d5a5e8b3dce3",
+      "passed": 102,
+      "failed": 0,
+      "skipped": 0,
+      "note": "独立复跑与作者场景重叠，不累加唯一覆盖"
+    },
+    {
+      "review": "C 审 B 最后 DTO 夹具",
+      "rawFile": "C-B-content-fixture-final.json",
+      "sha256": "625ab8789c2dc78088dab37aa8604620b9fa497ebadb86da1492fdd050983692",
+      "passed": 3,
+      "failed": 0,
+      "skipped": 0,
+      "note": "独立复跑与作者场景重叠，不累加唯一覆盖"
+    },
+    {
+      "review": "C 审组长 bridge/root/ownership（CSS提取前，限定来源）",
+      "rawFile": "C-root-independent.json",
+      "sha256": "db9d113ee9730477ae5f83b893a367cd50f7fd2df0d796e051672ea6ec3a854c",
+      "passed": 85,
+      "failed": 0,
+      "skipped": 0,
+      "note": "独立复跑与作者场景重叠，不累加唯一覆盖"
+    }
+  ],
+  "confirmedFindings": [
+    {
+      "reviewer": "A",
+      "module": "Designer",
+      "finding": "foreign initial accepted DTO, missing 20/300/60 limits",
+      "resolution": "原红转绿；保留 accepted 身份/原File；原数值范围还原"
+    },
+    {
+      "reviewer": "C",
+      "module": "Requirements",
+      "finding": "accepted confirm followed by stale authoritative GET",
+      "resolution": "保留 accepted 只读恢复，GET 必须追上 receipt 版本/状态"
+    },
+    {
+      "reviewer": "B",
+      "module": "Workflow",
+      "finding": "accepted graph followed by definitive layout rejection cleared partial identity",
+      "resolution": "保留 graph receipt 与原 layout key/body/CAS；只显式布局重试；连续拒绝保持 BLOCK"
+    }
+  ],
+  "authorCounts": {
+    "workflow": 109,
+    "requirements": 70,
+    "designer": 63
+  },
+  "permanentIndependentDesignerTests": 6,
+  "sharedFinalBrowserIndependentReview": "见 designer.md 最终独立64首样/30PNG审计；85项旧来源不冒充新CSS测试",
+  "sourceManifest": "source-manifest.json",
+  "finalSharedBrowserAudit": {
+    "reviewer": "C",
+    "rawFile": "C-final-browser-audit.json",
+    "sha256": "62d368ccd31570ff3dfc94a48d484cf14ca21e29376076cde870c0ab52e9a6c6",
+    "tests": 49,
+    "strictFirstSamples": 64,
+    "activeRoutePositiveControls": 6,
+    "exactPNGs": 30,
+    "sourceFrozenFiles": 96,
+    "mismatch": 0
+  }
+}

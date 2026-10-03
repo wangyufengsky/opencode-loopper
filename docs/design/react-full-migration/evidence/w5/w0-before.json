@@ -1,0 +1,277 @@
+{
+  "baseline": "5c181fc39e26249650df851fe9a7c8a68cab519d",
+  "command": "vitest run src/w0/workflow-w0.spec.ts src/w0/designer-w0.spec.ts --maxWorkers=1 --reporter=default --reporter=json",
+  "exitCode": 1,
+  "total": 53,
+  "passed": 12,
+  "failed": 41,
+  "skipped": 0,
+  "rawReportSha256": "e7c3cdb259c483992723e7446e7b2b1f408c36bfcc95cc6ca0938d1b0ee332ec",
+  "assertions": [
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "name": "B5.1 ordinary Designer drafts require real route confirmation initial-text: declining leave preserves draft",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "name": "B5.1 ordinary Designer drafts require real route confirmation followup-text: declining leave preserves draft",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "name": "B5.1 ordinary Designer drafts require real route confirmation initial-file: declining leave preserves draft",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "name": "B5.1 ordinary Designer drafts require real route confirmation followup-file: declining leave preserves draft",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "name": "B5.1 ordinary Designer drafts require real route confirmation saved read-only Designer can leave without a confirmation or write",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "name": "B5.2 unresolved Designer writes forbid route leave initial/sending retains File owner",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "name": "B5.2 unresolved Designer writes forbid route leave initial/unknown retains File owner",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "name": "B5.2 unresolved Designer writes forbid route leave followup/sending retains File owner",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "name": "B5.2 unresolved Designer writes forbid route leave followup/unknown retains File owner",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "name": "B5.3 accepted Task handoff retains original identity guard-false: confirmed Task retains an explicit navigation-only recovery",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "name": "B5.3 accepted Task handoff retains original identity reject: confirmed Task retains an explicit navigation-only recovery",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "name": "B6.1 retired question callbacks stay with original owner reply accepted after retirement must not launch a new A refresh or alter independent B",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "name": "B6.1 retired question callbacks stay with original owner reject modal path is unreachable: mandatory question exposes no reject action",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "name": "B6.2 profile preview/modal await scope preview: retirement invalidates profile action before mutation",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "name": "B6.2 profile preview/modal await scope modal: retirement invalidates profile action before mutation",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "name": "B6.3 follow-up immutable multipart operation and later draft unknown recovery uses original body/File and leaves later reachable edits unsent",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "name": "B6.3 follow-up immutable multipart operation and later draft typing while a real send is in-flight remains an unsent draft after original acknowledgement",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "name": "B7.1 owned terminal retry timeout immediate retirement first snapshot clears active retry before any natural callback completes",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "name": "B7.2 owned composer focus RAF immediate retirement retirement cancels queued composer focus before it can focus another page",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "name": "B7.3 storage failures cannot discard accepted identity accepted initial File receipt stays recoverable when workspace persistence fails",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/designer-w0.spec.ts",
+      "name": "B7.3 storage failures cannot discard accepted identity explicit session recovery remains usable when optional workspace storage is unwritable",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "name": "B1.1 New unresolved create navigation sending/push must retain original owner",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "name": "B1.1 New unresolved create navigation sending/replace must retain original owner",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "name": "B1.1 New unresolved create navigation sending/back must retain original owner",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "name": "B1.1 New unresolved create navigation unknown/push must retain original owner",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "name": "B1.1 New unresolved create navigation unknown/replace must retain original owner",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "name": "B1.1 New unresolved create navigation unknown/back must retain original owner",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "name": "B1.1 New unresolved create navigation ordinary dirty decline preserves input and explicit discard remains allowed",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "name": "B1.2 Library unresolved copy/archive navigation copy/sending must block route leave",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "name": "B1.2 Library unresolved copy/archive navigation copy/unknown must block route leave",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "name": "B1.2 Library unresolved copy/archive navigation archive/sending must block route leave",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "name": "B1.2 Library unresolved copy/archive navigation archive/unknown must block route leave",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "name": "B1.2 Library unresolved copy/archive navigation unknown copy keeps its original body/key while actual list filters change",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "name": "B1.3 accepted New receipt survives failed handoff guard-false retains receipt and offers navigation-only recovery",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "name": "B1.3 accepted New receipt survives failed handoff cancelled retains receipt and offers navigation-only recovery",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "name": "B1.3 accepted New receipt survives failed handoff reject retains receipt and offers navigation-only recovery",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "name": "B1.4 disabled New UI and independent immutable owner controls sending then unknown disables all four real form fields/choices and explicit retry keeps original body",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "name": "B1.4 disabled New UI and independent immutable owner controls pure owner ignores external draft projection and accepted read failure never repeats mutation",
+      "status": "passed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "name": "B2.1 real nested command guards human/sending refuses leaving actual command panel",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "name": "B2.1 real nested command guards human/unknown refuses leaving actual command panel",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "name": "B2.1 real nested command guards candidate/sending refuses leaving actual command panel",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "name": "B2.1 real nested command guards candidate/unknown refuses leaving actual command panel",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "name": "B2.1 real nested command guards finish/sending refuses leaving actual command panel",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "name": "B2.1 real nested command guards finish/unknown refuses leaving actual command panel",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "name": "B2.1 real nested command guards commit/sending refuses leaving actual command panel",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "name": "B2.1 real nested command guards commit/unknown refuses leaving actual command panel",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "name": "B2.1 real nested command guards push/sending refuses leaving actual command panel",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "name": "B2.1 real nested command guards push/unknown refuses leaving actual command panel",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "name": "B2.1 real nested command guards writeback/sending refuses leaving actual command panel",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "name": "B2.1 real nested command guards writeback/unknown refuses leaving actual command panel",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "name": "B2.1 real nested command guards actual Requirement parent refuses route leave while its Finish child is unknown",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "name": "B2.2 original process stop identity retains command version/attempt on explicit retry and blocks leaving unknown stop",
+      "status": "failed"
+    },
+    {
+      "file": "src/w0/workflow-w0.spec.ts",
+      "name": "B2.3 accepted write/readback split actual Finish child retains accepted readback and only rereads on recovery",
+      "status": "failed"
+    }
+  ]
+}

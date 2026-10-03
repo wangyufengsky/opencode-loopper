@@ -1,0 +1,231 @@
+{
+  "schema": 1,
+  "baseCommit": "5c181fc39e26249650df851fe9a7c8a68cab519d",
+  "scope": "W5有限本地验收；全量unit通过，不代表全站E2E或真实后端通过",
+  "sourceManifest": "source-manifest.json",
+  "sourceManifestSha256": "dd022083a1df77676e45883cbf1ac89ccbe001c5fdd7234f767494a28cec97ba",
+  "frozenFiles": 96,
+  "relatedUnit": 428,
+  "uniqueNewUnitFromW4": 275,
+  "w5DirectoryUniqueUnit": 248,
+  "authorUnit": {
+    "A": 109,
+    "B": 70,
+    "C": 63
+  },
+  "permanentIndependentDesignerCases": 6,
+  "W0": {
+    "total": 111,
+    "passed": 111,
+    "failed": 0,
+    "original41RedNowPassed": 41,
+    "skipped": 0
+  },
+  "runs": [
+    {
+      "label": "W5相关unit",
+      "command": "npm run test:w5 -- --maxWorkers=1 --reporter=json",
+      "rawFile": "w5-related-final.json",
+      "rawSha256": "98acec72c492e7c64230800bff606f2af668e3870aaa2a7ab50172cd63440660",
+      "result": {
+        "total": 428,
+        "passed": 428,
+        "failed": 0,
+        "skipped": 0,
+        "exitCode": 0
+      }
+    },
+    {
+      "label": "全量unit",
+      "command": "npm test -- --maxWorkers=1 --reporter=json",
+      "rawFile": "unit-final.json",
+      "rawSha256": "43e6873570fd35d7e187c85d040dd687f25f0c01bc07ccb3f4ef2de9e319b177",
+      "result": {
+        "total": 2332,
+        "passed": 2332,
+        "failed": 0,
+        "skipped": 0,
+        "exitCode": 0
+      }
+    },
+    {
+      "label": "W5最终production Chromium",
+      "command": "npm run test:w5-browser -- --reporter=list,json（evidence/json 输出在仓库外）",
+      "rawFile": "browser-final.json",
+      "rawSha256": "a47aa6136090f53bfba0c75f90351982219a0e24a4ba03e9769068e0da762ca7",
+      "result": {
+        "total": 49,
+        "passed": 49,
+        "failed": 0,
+        "skipped": 0,
+        "flaky": 0,
+        "exitCode": 0
+      }
+    },
+    {
+      "label": "W2最终production Chromium",
+      "command": "npm run test:w2-browser -- --reporter=list,json（evidence/json 输出在仓库外）",
+      "rawFile": "w2-browser-final.json",
+      "rawSha256": "3c7c3ee8d6ad73c73453062e907ad4a6da8683e538e0ca057889e99eaf4ff8da",
+      "result": {
+        "total": 49,
+        "passed": 49,
+        "failed": 0,
+        "skipped": 0,
+        "flaky": 0,
+        "exitCode": 0
+      }
+    },
+    {
+      "label": "W3最终production Chromium",
+      "command": "npm run test:w3-browser -- --reporter=list,json（evidence/json 输出在仓库外）",
+      "rawFile": "w3-browser-final.json",
+      "rawSha256": "02066b1e8dfdf64c622d9ce58676f96ab02658bfc964f5aa9088cd9d9ba5e02e",
+      "result": {
+        "total": 31,
+        "passed": 31,
+        "failed": 0,
+        "skipped": 0,
+        "flaky": 0,
+        "exitCode": 0
+      }
+    },
+    {
+      "label": "W4最终production Chromium",
+      "command": "npm run test:w4-browser -- --reporter=list,json（evidence/json 输出在仓库外）",
+      "rawFile": "w4-browser-final.json",
+      "rawSha256": "b807f3de4587ca449486d007f7564a70901970a6d379a6c02643514dbf2a6692",
+      "result": {
+        "total": 29,
+        "passed": 29,
+        "failed": 0,
+        "skipped": 0,
+        "flaky": 0,
+        "exitCode": 0
+      }
+    },
+    {
+      "label": "W1官方隔离dev fixture回归，非生产路由证据",
+      "command": "启动 e2e/w1/vite.config.ts 既定本地 dev server 后 npm run test:foundation-browser",
+      "rawFile": "w1-browser-dev/evidence.json",
+      "rawSha256": "ca1912649268b47dcc62d60b89bbbe9e82671815dda16e4fbbed9b8cc3e837c8",
+      "result": {
+        "total": 41,
+        "passed": 41,
+        "failed": 0,
+        "exitCode": 0
+      },
+      "strictUnmountSamples": 18
+    },
+    {
+      "label": "typecheck",
+      "command": "npm run typecheck",
+      "rawFile": "type-final.log",
+      "rawSha256": "d68d4967c7dcc37e3b03a518b6b3e155e239ef9b958ce6c46c7dfc458a38fa5f",
+      "result": {
+        "exitCode": 0
+      }
+    },
+    {
+      "label": "生产build/依赖patch检查",
+      "command": "npm run build",
+      "rawFile": "build-final.log",
+      "rawSha256": "5ab1b2ffd3e59a88924826dc2c6347a9801db46a17c4564b02d998e60cf3b877",
+      "result": {
+        "exitCode": 0
+      }
+    },
+    {
+      "label": "tooling",
+      "command": "npm run test:tooling",
+      "rawFile": "tooling-release-approved.log",
+      "rawSha256": "9995754b228336bff38c95dc04135687394a0f854870e4c7ffd1e212ac155e8d",
+      "result": {
+        "exitCode": 0,
+        "total": 33,
+        "passed": 33,
+        "failed": 0,
+        "skipped": 0
+      },
+      "embeddedPython": {
+        "6": "passed",
+        "4": "passed"
+      }
+    },
+    {
+      "label": "accounting（正常权限终态）",
+      "command": "npm run test:accounting",
+      "rawFile": "accounting-release.log",
+      "rawSha256": "98b6726f1f2f800ca03a50202d51f2419702bf75b849bf0ae4803410a600ac8f",
+      "result": {
+        "exitCode": 0,
+        "total": 13,
+        "passed": 13,
+        "failed": 0,
+        "skipped": 0
+      }
+    }
+  ],
+  "resourceFirstSamples": {
+    "W5": 64,
+    "W2": 51,
+    "W3": 69,
+    "W4": 44,
+    "W1Fixture": 18
+  },
+  "finalPNGs": 30,
+  "sourceBytesUnchangedAfterVerification": true,
+  "independentReview": "independent-review.json",
+  "preservedAssertions": "assertion-preservation.json",
+  "candidateFailuresNotHidden": [
+    {
+      "scope": "初次W5生产入口",
+      "result": "1 pass / 3 fail / 35 not run",
+      "classification": "导航折叠夹具及真实Requirements initial load缺陷，已修复并最终重新跑全部49"
+    },
+    {
+      "scope": "原48项metadata解析候选",
+      "result": "47 pass / 1 fail",
+      "classification": "metadata Blob应按Content-Disposition名称解析；原multipart字节/顺序断言保留"
+    },
+    {
+      "scope": "视觉正控48项候选",
+      "result": "41 pass / 7 fail",
+      "classification": "4缩放后屏幕矩形误当CSS尺寸、3对零边图取null computedStyle；改正正控，105/20/连接/资源断言未改，最终49重跑"
+    },
+    {
+      "scope": "W1 production preview错误夹具",
+      "result": "33 pass / 8 fail",
+      "classification": "既定W1断言依赖dev StrictMode/preview源栈，官方隔离dev fixture最终41通过；未改W1断言"
+    },
+    {
+      "scope": "accounting普通sandbox",
+      "result": "3文件级 2 pass / 1 fail, exit1",
+      "classification": "无内部断言诊断，不猜具体原因；正常权限复跑13/13 exit0，未改网络/凭据"
+    },
+    {
+      "scope": "tooling最终默认sandbox",
+      "result": "4文件级 2 pass / 2 fail, exit1；project check及Python6/4通过",
+      "classification": "无内部失败断言诊断，准确保留，不猜原因；正常权限相同命令最终33/33 Node+Python6/4 exit0，源码与断言未改"
+    }
+  ],
+  "warnings": [
+    "既有大包体与PURE注释警告",
+    "既有role picker测试act警告，未把warning称零"
+  ],
+  "notRunOrNotProven": [
+    "旧default全站E2E未全量重新接入/运行，原11历史失败分类仍独立留存",
+    "真实后端/模型/文件解析/实际Git写入",
+    "跨刷新服务端不提供的完整File/unknown恢复",
+    "Firefox/Safari/真实触控设备",
+    "heap/GC全部对象释放",
+    "W6 history接管和零Vue终态",
+    "干净npm ci本波未重跑；锁文件/依赖未变化",
+    "窄屏由用户取消范围；没有新增窄屏工作",
+    "项目无lint script"
+  ],
+  "remainingRisk": [
+    "原布局CAS连续409保持BLOCK与显式原身份恢复，不自动换版本/key，不称保存成功"
+  ],
+  "publication": "local only; no push/PR/merge/deploy"
+}

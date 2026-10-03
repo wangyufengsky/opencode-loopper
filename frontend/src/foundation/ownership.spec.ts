@@ -9,6 +9,7 @@ describe('W1 ownership boundary', () => {
     const additions = JSON.parse(readFileSync(resolve(process.cwd(), '../docs/design/react-full-migration/semantic-w2-additions.json'), 'utf8'))
     const w3 = JSON.parse(readFileSync(resolve(process.cwd(), '../docs/design/react-full-migration/semantic-w3-additions.json'), 'utf8'))
     const w4 = JSON.parse(readFileSync(resolve(process.cwd(), '../docs/design/react-full-migration/semantic-w4-additions.json'), 'utf8'))
+    const w5 = JSON.parse(readFileSync(resolve(process.cwd(), '../docs/design/react-full-migration/semantic-w5-additions.json'), 'utf8'))
     for (const key of ['objects', 'actions'] as const) {
       for (const name of Object.keys(additions[key])) expect(design[key]).not.toHaveProperty(name)
       for (const name of Object.keys(w3[key])) {
@@ -20,7 +21,13 @@ describe('W1 ownership boundary', () => {
         expect(additions[key]).not.toHaveProperty(name)
         expect(w3[key]).not.toHaveProperty(name)
       }
-      expect(uiSemantics[key]).toEqual({ ...design[key], ...additions[key], ...w3[key], ...w4[key] })
+      for (const name of Object.keys(w5[key])) {
+        expect(design[key]).not.toHaveProperty(name)
+        expect(additions[key]).not.toHaveProperty(name)
+        expect(w3[key]).not.toHaveProperty(name)
+        expect(w4[key]).not.toHaveProperty(name)
+      }
+      expect(uiSemantics[key]).toEqual({ ...design[key], ...additions[key], ...w3[key], ...w4[key], ...w5[key] })
     }
     for (const key of ['guards', 'components', 'routes'] as const) expect(uiSemantics[key]).toEqual(design[key])
   })
