@@ -1,5 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { installPointerEnvironment, type PointerEnvironment } from '@/react/workflow/workflowPointerTestHelpers'
 import WorkflowCanvas from './WorkflowCanvas.vue'
 import { template } from './workflowTestFixtures'
 const runtimeState = vi.hoisted(() => ({ value: 'vue' as 'vue' | 'react' }))
@@ -8,7 +9,9 @@ vi.mock('@/migration/canvasRuntimeVue', async () => {
   return { useCanvasRuntime: () => readonly(ref(runtimeState.value)) }
 })
 describe.each(['vue', 'react'] as const)('%s workflow canvas interactions', runtime => {
-  beforeEach(() => { runtimeState.value = runtime })
+  let input: PointerEnvironment
+  beforeEach(() => { runtimeState.value = runtime; input = installPointerEnvironment() })
+  afterEach(() => input.restore())
   it('supports keyboard move/connect/delete and leaves dependencies unchanged', async () => {
     const draft = template(), wrapper = mount(WorkflowCanvas, { props: { graph: draft.graph, layout: draft.layout }, global: { stubs: { Icon: true } } })
     const node = wrapper.get('article'); await node.trigger('keydown', { key: 'ArrowRight' })
@@ -25,9 +28,11 @@ describe.each(['vue', 'react'] as const)('%s workflow canvas interactions', runt
     const value = template(), view = mount(WorkflowCanvas, { props: { graph: value.graph, layout: value.layout }, global: { stubs: { Icon: true } } })
     await view.get('article').trigger('click'); await view.get('[aria-label="放大画布"]').trigger('click')
     expect(view.emitted('cancel')).toBeUndefined()
-    await view.get('.workflow-canvas').trigger('pointerdown', { button: 0, clientX: 20, clientY: 20, pointerId: 1 })
-    await view.get('.workflow-canvas').trigger('pointermove', { clientX: 60, clientY: 70, pointerId: 1 })
-    await view.get('.workflow-canvas').trigger('pointerup'); await view.get('.workflow-canvas').trigger('click')
+    const surface = view.get<HTMLElement>('.workflow-canvas').element
+    input.pointer(surface, 'pointerdown', 20, 20)
+    input.pointer(surface, 'pointermove', 60, 70)
+    input.pointer(surface, 'pointerup', 60, 70)
+    await view.get('.workflow-canvas').trigger('click')
     expect(view.emitted('cancel')).toBeUndefined()
     await view.get('.workflow-canvas').trigger('click'); await view.get('article').trigger('keydown', { key: 'Escape' })
     expect(view.emitted('cancel')).toHaveLength(2); view.unmount()
@@ -37,8 +42,10 @@ describe.each(['vue', 'react'] as const)('%s workflow canvas interactions', runt
     expect(view.find('.workflow-port').exists()).toBe(false)
     await view.setProps({ selected: 'review' }); expect(view.find('.workflow-port').exists()).toBe(true)
     await view.setProps({ connecting: 'other' })
-    await view.get('article').trigger('pointerdown', { button: 0, clientX: 20, clientY: 20, pointerId: 1 })
-    await view.get('article').trigger('pointerup'); await view.get('article').trigger('click')
+    const article = view.get<HTMLElement>('article').element
+    input.pointer(article, 'pointerdown', 20, 20)
+    input.pointer(article, 'pointerup', 20, 20)
+    await view.get('article').trigger('click')
     expect(view.emitted('select')).toBeUndefined(); expect(view.emitted('connect')).toEqual([['review']]); view.unmount()
   })
   it('makes connections selectable with Space and locates nodes without emitting a saved layout', async () => {

@@ -91,16 +91,16 @@ Vue Router（唯一 history 所有者）
 
 - 单测：真实 React Flow/React Testing Library 交互；Vue 适配器与 Legacy 分开验证；原纯 TS 合同继续执行。
 - E2E：默认偏好下显式检查 React 标记与 `.react-flow`。仅为验证回退的用例才选择 Vue。
-- 场景：默认/空白、选择/重复选择/切换/取消、拖动、原生端口连接、撤销、只读预览、候选与另存预览、PPT 修订/缩放/对象操作、上传未知结果恢复、草稿拒绝离开、安全回退。
+- 场景：默认/空白、选择/重复选择/切换/取消、拖动、真实端口 Pointer 连接、撤销、只读预览、候选与另存预览、PPT 修订/缩放/对象操作、上传未知结果恢复、草稿拒绝离开、安全回退。
 - 三皮肤：spdb、tech-blue、github-white；桌面与 390px 窄屏。截图由 Chromium 对模拟 API 数据实际渲染生成，不是设计稿。
 - jsdom 只补 ResizeObserver、尺寸与 DOMMatrix 等浏览器测量 API；不在集成测试里把 React Flow 替换为 Vue 或静态假图。真实几何和手势最终由 Chromium 验证。
 - 运行 `npm ci`、`npm run typecheck`、`npm test`、`npm run build`、`npm run test:tooling`、`npm run test:accounting` 和 Chromium E2E。仓库未配置独立 lint 脚本，不把其他检查冒称 lint。
 
 具体计数、截图和限制见 [交付与验证记录](react-canvas-validation.md)；模拟 API 验收不证明真实后端、模型、文件解析或外部发布链路可用。
 
-后续交叉审查发现 React Flow 活动连线没有公开的即时监听 disposer。本轮关闭节点与连线的边缘自动平移以消除悬挂 RAF，并禁止卸载后的连接写回；手动平移与原生拖动/连接继续可用。四个上游 document 监听仍需合适的自然鼠标事件才解除，不能声称满足“卸载瞬间零监听”。限制、测试和后续门槛见 [资源清理记录](../deliveries/react-canvas-cross-review/README.md#尚未满足的资源清理门槛)。
+对 `50221409` 的严格诊断确认了原生连接 document 监听和节点拖动 window 监听在卸载后残留，现有上游没有公开的即时取消接口。该 [历史阻塞复核](../deliveries/react-canvas-cross-review/immediate-cleanup-gate.md) 保留，不再作为当前实现结论。
 
-对 `50221409` 的后续严格诊断还确认了节点活动鼠标拖动的 window 监听残留。保留当前原生手势时，没有找到公开的即时终止路径；门槛仍失败，生产实现未再改动。具体源码/官方接口、浏览器反例、业务影响和上游补丁/自有手势两种后续路径见 [即时清理阻塞复核](../deliveries/react-canvas-cross-review/immediate-cleanup-gate.md)。
+用户授权后，工作流画布用公开配置在启动前关闭上游节点拖动、连接与关联视口手势，改由实例级 Pointer Events 管理 capture、四个 section 监听和 ownerWindow blur；Ctrl＋滚轮监听也由实例精确释放。React Flow 仍负责真实节点/边、Handle 测量和受控视口；坐标与实测尺寸只通过公开实例 API 读取。业务 API、布局 DTO、撤销及存储仍由原页面单一持有，不增加订阅或命令所有者。完整交互替换、严格卸载矩阵、代价和设备边界见 [当前验收](../deliveries/react-canvas-cross-review/pointer-gesture-review.md)。PPT 和只读 DiagramFlow 的手势实现不受本轮替换影响。
 
 ## 后续全站替换清单与 Vue 退场条件
 

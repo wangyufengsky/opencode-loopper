@@ -1,5 +1,19 @@
 # React 画布迁移交叉验收
 
+最新续接是 [Pointer Events 交互替换与严格验收](pointer-gesture-review.md)：保留 React Flow，应用拥有节点、端口及关联视口手势的完整生命周期。该文记录新的修复、独立复核、最终门禁和三皮肤实际截图。下文的 1198/152 项、33 张图片及旧清理限制属于先前阶段，保留原始结果，不作为新实现的验证结论。
+
+## Pointer 手势替换后的实际截图
+
+以下 6 张均在最终源码修复后由 **Chromium 实际渲染＋模拟数据** 重新采集，原始 PNG 未加工。左列是桌面正在连接，右列是 390px 节点拖动中的真实详情浮层；浮层遮挡部分画布是原有窄屏行为，截图未人为隐藏浮层。精确位移与卸载清理另由行为测试证明，不能仅从静态图片推断。采集时源码摘要与图片 SHA-256 见 [清单](pointer-screenshots.json)，测试及设备边界见 [验收报告](pointer-gesture-review.md)。原 33 张历史图片在下文保留。
+
+| 皮肤 | 桌面活动连接 · 模拟数据 | 390px 活动拖动与详情浮层 · 模拟数据 |
+| --- | --- | --- |
+| spdb | ![spdb 活动连接，模拟数据](pointer-screenshots/spdb-pointer-connect-desktop.png) | ![spdb 窄屏活动拖动，模拟数据](pointer-screenshots/spdb-pointer-drag-390.png) |
+| tech-blue | ![tech-blue 活动连接，模拟数据](pointer-screenshots/tech-blue-pointer-connect-desktop.png) | ![tech-blue 窄屏活动拖动，模拟数据](pointer-screenshots/tech-blue-pointer-drag-390.png) |
+| github-white | ![github-white 活动连接，模拟数据](pointer-screenshots/github-white-pointer-connect-desktop.png) | ![github-white 窄屏活动拖动，模拟数据](pointer-screenshots/github-white-pointer-drag-390.png) |
+
+## 以下保留上一轮交叉验收
+
 本轮从 `63d2462f7b69d76bf1a27c9aa597be086c69ccfd` 开始，在 `feat/react-canvas-migration` 本地分支交叉审查与修复。原迁移基线为 `c26bf3bf7590424bd95bf83c093ae5740a068572`。本目录只包含审查说明与明确的模拟数据截图，不包含环境日志、trace、凭据或外部投递记录。准备本地交付不代表已获得推送、PR 或部署授权。
 
 **所有图片均为 Chromium 实际浏览器渲染，使用模拟 API 数据。** PPT 预览制品本身也是测试 fixture；图片不证明真实后端、真实模型或真实文件解析可用。修复代码提交为 `628ab18d88173910139dd9709054b17d10e534cb`；33 张本轮新截图随本文收录在仓库内。
@@ -81,7 +95,9 @@
 | 默认模型归属 | [modelChoice.spec.ts:15](../../../frontend/src/components/workflow/modelChoice.spec.ts#L15) 原默认初始化、显式选择、迟到响应与需求隔离合同，没有在 React 引入第二默认值 |
 | Mermaid 和订阅 | [MermaidDiagram.spec.tsx:64](../../../frontend/src/react/diagrams/MermaidDiagram.spec.tsx#L64) 根重放、旧结果/错误与产物清理；[长序列浏览器用例](../../../frontend/e2e/react-diagram-accessibility.spec.ts) 直接记录任务及全局 EventSource 的创建与关闭 |
 
-## 尚未满足的资源清理门槛
+## 先前阶段尚未满足的资源清理门槛
+
+以下是 `50221409` 时的历史限制；应用自有手势后的当前结果见 [后续验收](pointer-gesture-review.md)。
 
 锁定依赖是 `@xyflow/react 12.12.0` / `@xyflow/system 0.0.83`。活动连线的 `XYHandle.onPointerDown` 内部注册 `mousemove`、`mouseup`、`touchmove`、`touchend` 四个 document 监听；其公共类型返回 `void`，没有 disposer 或 AbortSignal。React Flow 的 `cancelConnection()` 清空 store，不能立刻解除这些监听。第二位审查者独立检查了安装包的公共类型与实现，确认这不是本地遗漏调用某个公开销毁接口。
 

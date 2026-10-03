@@ -1,0 +1,66 @@
+{
+  "base_commit": "9152124f7a2bcee6d3f52f0795b3d0d418787b7d",
+  "code_reference": "与本清单同一提交的源码；以 source_sha256 核对采集时源码",
+  "captured_date_utc": "2026-10-03",
+  "browser": "系统 Chromium / Playwright",
+  "mock_data": true,
+  "capture_suite": "frontend/e2e/react-canvas-pointer-lifecycle.spec.ts",
+  "source_sha256": {
+    "frontend/src/react/workflow/WorkflowCanvasReact.tsx": "ae4bb7df3798918a91c1ab25d24938d08a54078d9f7649e7a4f6ecd9065a49bb",
+    "frontend/src/react/workflow/WorkflowFlowNode.tsx": "baa147ebc9c75759434e0eeb8b24e931b03d888fa18bd69376b567f89edb92b9",
+    "frontend/src/react/workflow/workflow-react.css": "fea5ef37ca9232e6753b78fb081d75396a5fbba1e1362921c8ec88119fba257a",
+    "frontend/src/react/workflow/pointerGestures.ts": "326dbbc52aa8eadba2ba887254f901f7ba15497be1b26069e8cf63b6e13f8bba",
+    "frontend/e2e/react-canvas-pointer-lifecycle.spec.ts": "59179eeee23fa0bc5000231c8526503178549f3ade0bd9a0463055a01021d511",
+    "frontend/e2e/fixtures/pointerResources.ts": "4d1dadaceab66d45d96b9b2bbbc1eb0431879b9e80d8921a40cfeac21af1366c"
+  },
+  "images": [
+    {
+      "file": "pointer-screenshots/spdb-pointer-connect-desktop.png",
+      "title": "spdb · 桌面活动端口连接 · 模拟数据",
+      "width": 1600,
+      "height": 1000,
+      "bytes": 77295,
+      "sha256": "6ecf9d2466c0dc5831bae5d681a13fc0e8e8dd5b17d961ab5b4cb388aa08e047"
+    },
+    {
+      "file": "pointer-screenshots/spdb-pointer-drag-390.png",
+      "title": "spdb · 390px 活动节点拖动与原有详情浮层 · 模拟数据",
+      "width": 390,
+      "height": 881,
+      "bytes": 35075,
+      "sha256": "00fca28c5a7c5ce5b49cd3435db98dd3ae947ec65b6882c2f09798993c04c203"
+    },
+    {
+      "file": "pointer-screenshots/tech-blue-pointer-connect-desktop.png",
+      "title": "tech-blue · 桌面活动端口连接 · 模拟数据",
+      "width": 1600,
+      "height": 1000,
+      "bytes": 77749,
+      "sha256": "ede84639fdae060a1ff61e6cc9a2ad5791fde69cbe25883a15b6bf8198a0a2ff"
+    },
+    {
+      "file": "pointer-screenshots/tech-blue-pointer-drag-390.png",
+      "title": "tech-blue · 390px 活动节点拖动与原有详情浮层 · 模拟数据",
+      "width": 390,
+      "height": 881,
+      "bytes": 35117,
+      "sha256": "99c587bca24cf79027b57b71dbc933f7cd4b20c4adb86cda7762adfe5b0f7543"
+    },
+    {
+      "file": "pointer-screenshots/github-white-pointer-connect-desktop.png",
+      "title": "github-white · 桌面活动端口连接 · 模拟数据",
+      "width": 1600,
+      "height": 1000,
+      "bytes": 69546,
+      "sha256": "f7b95f4342371ddfa8b3853e39eb3ec2f3b21fc83267effbd427e4f7d750a502"
+    },
+    {
+      "file": "pointer-screenshots/github-white-pointer-drag-390.png",
+      "title": "github-white · 390px 活动节点拖动与原有详情浮层 · 模拟数据",
+      "width": 390,
+      "height": 862,
+      "bytes": 31874,
+      "sha256": "9ef978441d2dcbd49139670e0775a894f3a78328510a0876b336d24928fa75b0"
+    }
+  ]
+}
