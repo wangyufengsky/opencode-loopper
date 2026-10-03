@@ -189,11 +189,11 @@ Source 和 Document 底层端点位于 `api/client.ts:1618–1634,1658–1690`�
 
 ## 9. 基线差异、静态恢复缺口与 W0 决策
 
-以下不是本轮 React 新回归；本轮未运行复现。表中“源码明确”指控制流可读确定，“待行为复现”指风险路径仍需红测试确认。W0先冻结正确行为/补基线失败证据，再决定最小修复；不能在新视图为了绿测删导航、暂停、下载或上传恢复。
+以下不是本轮 React 新回归；本轮未运行复现。表中“源码明确”指控制流可读确定，“待行为复现”指风险路径仍需红测试确认。项目经理现已决定pending／unknown写入硬阻离开，普通dirty／未发送File明确confirm，不自动重发或换身份，无持久化／by-request不承诺跨刷新。逐项[W0红测／证据台账](w0-evidence-ledger.md)区分静态事实、待复现风险与未修复状态；生产迁移前先结清全部映射／行为门槛，不能为绿测删导航、暂停、下载或上传恢复。
 
 | 编号/风险 | 实际源码证据 | 判断与建议门槛 |
 | --- | --- | --- |
-| B1 未知create导航可丢原操作 |New `WorkflowRequirementNewView.vue:22` pending只普通confirm；Library `:22–47`无路由guard；对比详情`:207–213`硬阻断page pending |源码明确的策略差异。W0明确允许离开时的receipt找回保证，推荐未知/accepted-readback先settle或转原operation恢复入口，不能靠confirm清pending；保留普通dirty原确认语义。 |
+| B1 未知create导航可丢原操作 |New `WorkflowRequirementNewView.vue:22` pending只普通confirm；Library `:22–47`无路由guard；对比详情`:207–213`硬阻断page pending |源码明确的策略差异。PM已决定未settle写硬阻离开；原key／冻结body显式幂等恢复POST（无by-request GET），已知receipt只nav/read。另补取消导航resolve NavigationFailure与reject两条红测；普通dirty确认保留，不把设计当已修。 |
 | B2 嵌套命令导航策略较宽 |NodeRun `:109`、Candidates`:30`、Finish`:40`、PublicationCommit`:32`、Push`:42`、Writeback`:33`允许confirm后离开；另存模板`:38`严格锁 |源码明确；父canLeave调用不自动提升成hardblock。逐动作核验原key/accepted恢复能力，尤其网络未知与processstop不应新key重发；不误报所有需求命令都已hard-block。 |
 | B3 模板表单/运行页的pending生命周期 |TemplateTasks `:110–145`无leaveguard；三个store内存/可选storage各异；Source routewatch`:72–78`、Document`:48–61`reset pending，无leaveguard |源码明确，但是否实际丢请求需复现。W0拟增加统一待确认操作恢复展示及合法导航策略；不能从store“还存在”推断跨刷新File可恢复。 |
 | B4 Document取消modal晚确认可跨run |`DocumentTemplateView.vue:63–74` current在modal前、generation却modal后捕获；无对current.id复核；Source `:80–85`有相应检查 |待行为复现：A确认框期间转B，随后A回执可能符合B generation。须红测后以captured owner/epoch在confirm后及write/readback后保护。 |
@@ -203,7 +203,7 @@ Source 和 Document 底层端点位于 `api/client.ts:1618–1634,1658–1690`�
 | B8 只读历史/文档子读取scope不足 |History`:113–132,199`缺读取epoch/unmount失效；TaskHistory`:27–63`缺epoch；DocumentSources`:14–35`、Clarification`:11–25`、Supplement`:16–40`无dispose失效 |待行为复现；React复用组件不等于Vue旧key语义。先在base查迟到/卸载，再提取标准readonlyscope，不能让A附件正文回到B。 |
 | B9 无key的endpoint不能用统一重写策略 |template start `client.ts:1705`，batch retry`:1698–1699`、部分Designer动作无requestKey；诊断recover有commandId |源码明确；分别用已有ID/version/CAS/状态read恢复。若需要新服务器幂等能力是单独协议工作，不在JSX改名时悄悄添加。 |
 
-建议B1–B7作为W0/各高风险波次准入清单；有确定安全问题则修基线并与新React共用controller，有产品行为选择则提交具体可评审决定。B8可随着只读controller wave补红测试。没有证据的条目不在交付报告写成“已经漏洞复现/已经修复”。
+B1–B9全部进入[W0准入台账](w0-evidence-ledger.md)，不能将B8延后到生产波次，或将B9误判为统一补key的授权。静态风险先复现；实际修复需后续专项阶段放行，保留当前保护与原测试断言。没有证据不写成“已复现／已修”；本轮只修文档与原型交付，未修上述业务。
 
 ## 10. 已有行为测试与必须增加的验收
 

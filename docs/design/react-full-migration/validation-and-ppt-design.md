@@ -96,7 +96,7 @@ ElementPlus 耦合文件为 `react-renderer-ro-diagnostic`、`skins`、`publicat
 | --- | --- | --- | --- |
 | database-progress，1440/390，共2 | 原日志71/103行等待旧“主机”输入；当前是 JDBC URL/用户名表单。属于旧字段契约/夹具失配，不是单纯超时环境问题 | `e2e/database-progress.spec.ts:27,35`；`components/DatabaseConnectionDrawer.vue:51,78,80` | 用实际 JDBC URL 和用户名构造输入/DTO，核对 type profile、只读账号/访问范围、测试请求及结果；修改真实连接输入后旧 probe 消失；保留 tests=1/saves=0。后续任务12/14、85%、会话批次2/4、窄屏溢出断言仍须实际跑；它们被首错阻断，当前没有通过证明。另核查当前 server DTO，不能只换第一选择器就结束 |
 | document-template-tasks，1440/390，共2 | 原日志133/160行 ENOENT；在业务与无溢出断言后写 `/private/tmp`，Cloud 路径不存在。是已证明输出路径 portability 错误 | `e2e/document-template-tasks.spec.ts:63` | 使用 TestInfo.outputPath 或显式证据 env 默认 test-results；只改本测试产物路径，不创建系统假目录或删 screenshot。保留 File 上传重试、同身份2次POST、按需报告正文只取1次等真实写操作断言。不同 OS 上的业务链路仍重新执行 |
-| read-consistency 的自动化恢复，共1 | 原日志187行元素不存在；当前 `/automations` 已 redirect `/template-tasks`。旧入口仍被测试当作挂载 AutomationsView，不是网络恢复事实 | `e2e/read-consistency.spec.ts:32–49`；`router/index.ts:25`；孤立 `views/AutomationsView.vue:100` | 保留 redirect/deep-link 合同；将仍适用的失败→服务端恢复→清旧告警行为映射到正式模板/任务宿主页，补真实端点/状态测试。若旧 AutomationHealth 独立合同仍需维护，放到其实际组件/领域测试而不重新暴露退役路由。没有产品依据时标待确认/待复现，不能只删本case或把它改为redirect一条就丢掉恢复行为 |
+| read-consistency 的自动化恢复，共1 | 原日志187行元素不存在；当前 `/automations` 已 redirect `/template-tasks`。旧入口仍被测试当作挂载 AutomationsView，不是网络恢复事实 | `e2e/read-consistency.spec.ts:32–49`；`router/index.ts:25`；孤立 `views/AutomationsView.vue:100` | 保留 redirect/deep-link 合同；将仍适用的失败→服务端恢复→清旧告警行为映射到原历史GET的正式归档消费者；TemplateTasks当前并非此消费者，详见[兼容映射](automations-compatibility-map.md)。冻结入口／原GET／状态断言后才迁移，不换成不相干API恢复测试。旧AutomationHealth的可见错误恢复合同、原数据兼容与公开写入口退役负控必须各有测试归属，不重新暴露退役写入。没有产品依据时标待确认/待复现，不能只删本case或把它改为redirect一条就丢掉恢复行为 |
 | roles 三皮肤×1440/390，共6 | 原日志224等处期待“仍需运行时核定”，实际“阶段绑定配置 · 调用条件待运行时核定”。已证明是文案预期失配 | `e2e/roles.spec.ts:151`；`views/RoleManagementView.vue:552` | 对当前运行时待核定文案和 CONFIG_ONLY/complete=false 语义建立断言，继续保留 limitations、工具来源、required工具、API结果不冒充运行授权、无横溢出、两栏/窄屏布局。每种皮肤与宽度全部重跑，不能将正则放宽为任何“核定”或删 status检查 |
 
 “后续功能待复现”是证据边界，不是最终允许失败。W0 先在原技术栈用相同模拟数据完整复现/修正以上根因，输出前后 trace 与行为映射；若发现真实业务 bug，以明确小修复和回归清除，不把它归咎于 React。最终 W7 全站零失败、零非预期 skip，不保留这 11 项豁免。
@@ -177,7 +177,7 @@ W6 删除旧Vue页/组件、adapter、偏好UI及Vue分支前，逐项将回退�
 | `/databases` | JDBC输入、驱动/version、test与save分开、范围/项目、credentials不泄漏 | database-progress、database-driver-upgrade、connection-management；W0全部后续合同 |
 | `/settings` | 原settings PUT保存/失败保留、本地皮肤/偏好、provider/model不暗写、生效范围、独立凭据 | SettingsView.spec.ts、skins/skills/react-canvas-migration；补完整表单/dirty；AppSettings无CAS version，不杜撰expectedVersion |
 | `/roles` | role list/detail/history/diff/import ZIP/preview、409重校验后发布 | roles13；W0三皮肤×双宽度及File/版本合同 |
-| `/automations`→`/template-tasks` | 退役入口兼容重定向，不能挂旧owner | W0新增正式redirect与恢复合同对映 |
+| `/automations`→`/template-tasks` | 兼容redirect；9历史GET／导出仍在，10公开旧写退役，当前缺归档消费者 | W0按[兼容映射](automations-compatibility-map.md)结清health读恢复、版本／run／导出／数据保护和拒写断言；不能只有redirect |
 | `/settings/roles`→`/roles` | 兼容深链、刷新且仅一个role owner | roles现有首case保留 |
 | `/:pathMatch(.*)*`→`/` | 404兼容返回与焦点，API/assets不被SPA吞 | app-shell＋新增fallback；服务端history fallback独立集成证明 |
 
@@ -207,7 +207,7 @@ W6 删除旧Vue页/组件、adapter、偏好UI及Vue分支前，逐项将回退�
 
 | 波次 | 工作 | 进入下一波条件 |
 | --- | --- | --- |
-| W0 | 原11根因及后续业务合同清理；全站baseline304实际执行形成准确红绿/根因表 | 每项有实际证据，unknown标待复现；不以修改expectedStatus清零 |
+| W0 | 原11根因及后续业务合同清理；B1–B9红测与Automations消费者／兼容映射结清；全站baseline304实际执行形成准确红绿/根因表 | 当前未通过，生产迁移前全部准入；每项有实际证据，unknown标待复现，不以修改expectedStatus清零 |
 | W1 | Ant组件封装、Zustand vanilla/controller、共享主题/图标/Markdown/活动/表单；React根与导航协议仅隔离原型/Memory fixture验证，VueRouter仍唯一browser history owner | lifecycle、焦点/输入、回执/File、路由blocker合同与兼容测试通过；W6才正式接管history |
 | W2 | 低风险系统列表/设置/工具/数据库/角色等 | 每条路由深链/错误/写动作/三皮肤基线及原11相关场景通过 |
 | W3 | 模板任务/文档与源码run、Knowledge会话、PPT Studio owner与子组件；PPT列表/Knowledge历史在W2 | 上述PPT/资料/会话/停止/未知/历史/资源合同全迁React/E2E；过渡wrapper只delegate |

@@ -1,8 +1,10 @@
 # 全站 React 迁移：第二阶段规划与设计审查
 
+**DESIGN-ONLY／仅设计资料：尚未生产实施。** 本分支自第一阶段基线起只新增设计文档、独立模拟原型、截图与原型检查；本次发布授权不包含未来生产实现。直接查看[三皮肤、五类页面29图](prototype/README.md)。
+
 **结论：先按现代产品设计翻新壳、导航和信息层级，再按模块迁移页面与业务所有者，最后彻底移除 Vue。** 保留第一阶段已验证的 React Flow、PPT、Mermaid 画布，以及API／DTO和纯TypeScript协议；主要基础UI选择Ant Design，产品设计不会照搬库默认样式。临时路由／状态适配器只服务过渡，不作为最终交付。
 
-本轮仅完成规划与设计，等待项目经理审查；**尚未开始下面的开发波次**。基线 `a3c692d38925206883f2b0a1255479108cfd439e`，独立分支 `feat/react-full-migration`，独立工作区 `/workspace/opencode-loopper-react-full`。第一阶段工作区、分支及其已交付截图保留。没有安装候选框架、修改运行实现、依赖、main、网络或凭据，没有外部发布。
+本轮仅完成规划与设计，等待项目经理审查；**尚未开始下面的开发波次**。基线 `a3c692d38925206883f2b0a1255479108cfd439e`，独立分支 `feat/react-full-migration`，独立工作区 `/workspace/opencode-loopper-react-full`。第一阶段工作区、分支及其已交付截图保留。没有安装候选框架、修改运行实现、依赖、main、网络或凭据。此前设计仅本地；最新用户授权只允许将这些设计资料发布到同名独立分支供审查。
 
 ## 1. 可审查报告入口
 
@@ -14,9 +16,11 @@
 | [PPT 与全站验证设计](validation-and-ppt-design.md) | PPT：PPT／知识业务风险、测试分类、原 11 失败根因证据与最终验收矩阵 |
 | [UI 栈与代表页面规范](ui-stack-and-page-spec.md) | 组长：正式依赖、主题、公共控件与正式集成要求 |
 | [产品翻新与动效](product-redesign.md) | 组长：首页／列表／表单／详情／设置 before→after、组件层次、操作密度、动效与独立呈现门槛 |
+| [W0红测与证据准入](w0-evidence-ledger.md) | workflow：B1–B9的源码事实／待复现风险／未修复状态及生产前门槛 |
+| [Automations兼容映射](automations-compatibility-map.md) | legacy：真实现行消费者、历史读写边界、退役写接口与归档／整合缺项 |
 | [控制器与接口设计](controller-interfaces.md) | 组长：snapshot、operation、draft、navigation与资源的接口草案及交接门槛 |
 | [独立交叉审查](independent-review.md) | 三名原成员的非作者审查范围、发现、修正与证明边界 |
-| [原型与 29 张截图](prototype/README.md) | 组长：独立本地模拟原型，三皮肤和窄屏真实Chromium渲染，检查与复现入口 |
+| [单文件审查版](prototype/review-single.html)／[原29图索引](prototype/README.md) | 组长：五类页三皮肤、窄屏与原互动；独立模拟原型，完整浏览器证据和复现入口 |
 | [完整静态源码索引](source-inventory.json) | 组长：所有 187 SFC、路由、状态模块、依赖引用与锁文件候选残留；词法索引不是行为证明 |
 
 涉及的源码链接均相对本报告指向当前基线；开发后行号可能移动。原型是独立模拟设计，不是正式React/Ant/API验收。第一阶段验证历史见[最终补丁审查](../../deliveries/react-canvas-all-cleanup/resize-observer-patch.md)。
@@ -52,7 +56,7 @@
 | `/knowledge/:conversationId?` | Knowledge 会话、检索与证据 | PPT | W3 |
 | `/designer` | 历史 Designer；designerEntry 条件 guard | workflow | W5 |
 | `/requirements` | Requirement list | workflow | W2 |
-| `/requirements/new` | Requirement create／上传／unknown恢复 | workflow | W5 |
+| `/requirements/new` | 新建需求：名称／说明／项目／流程四字段；创建与原身份回执恢复 | workflow | W5 |
 | `/requirements/:id` | 规划／候选／调整／执行／发布／恢复 | workflow | W5 |
 | `/workflows` | Workflow library | workflow | W2 |
 | `/workflows/new` | WorkflowEditor 新建 | workflow | W5 |
@@ -121,11 +125,11 @@ flowchart TD
 
 ## 6. 开发波次及可验证里程碑
 
-本轮 P0（规划盘点）→D0（本设计）结束后交项目经理 gate。以下 W0–W7 都是**审批后的开发／验证工作**，不是本轮已经完成。
+本轮 P0（规划盘点）→D0（本设计）及最小门禁补充交项目经理审查。以下 W0–W7 **尚未执行**。项目经理尚未放行全面开发；W0映射与红测／合同证据须先结清，才允许进入W1–W6生产迁移，不能边全面重写边补这些门槛。需要W0专项测试或合同修复时，先取得对应阶段放行。
 
 | 波次 | 前置依赖与实现范围 | 退出门槛／负责人 |
 | --- | --- | --- |
-| W0 合同与债务基线 | 记录全部行为映射；逐一复现原 11 失败，分类过时预期／产品缺陷／环境；明确 Designer redirect、Automations 与新建需求 unknown 离开差异 | 原断言每项有迁移后的业务等价映射和根因证据；不 skip/drop；组长集成、PPT 主审、模块作者修复 |
+| W0 合同与债务基线 | 先结清[B1–B9红测／证据](w0-evidence-ledger.md)、[Automations兼容映射](automations-compatibility-map.md)与原11根因／保留断言；统一PM已决定离开合同，逐项复现静态风险 | 当前尚未通过；每项有红测与后续绿测／根因证据、原断言等价消费者、原数据兼容及独立审查；未结清不得进入生产迁移，不skip/drop；组长集成、原三人交叉审 |
 | W1 基础 UI 与 owner | Ant tokens、UiButton/Form/Dialog/Table、导航 port、snapshot/controller模式、全局accounting；五类翻新代表页的正式React样例与有用途的CSS动效；纯读scope／receipt contract | 三皮肤、键盘焦点、reduced-motion、pending关闭、输入与草稿保留、双实例/StrictMode；冻结共享接口与实测包体预算；组长主责、原三人复核 |
 | W2 列表／核心系统 | 依分工迁移 Home/Projects/Runtime/Tools/Database/Settings/Roles、列表与历史/Insights | 对应每个 route 首进/深链/refresh/back/empty/error、全部原动作输入输出与权限；相关 unit/Chromium；不以只读列表覆盖隐藏写入弹窗 |
 | W3 文档／知识／PPT | template/Document/Source run、Knowledge会话、PPT页面owner与配套编辑组件 | 原 key/File/multipart/accepted读取/cursor/409/epoch/自动保存/SSE清理；保持已验收 React 内层；对应 store contract + 实页 E2E |
@@ -138,7 +142,7 @@ flowchart TD
 
 ## 7. 回退边界
 
-过渡开关只对新 route 实例生效；dirty/File/pending/unknown/autosave 时不得热卸载、清 key、重发或把 File 序列化后丢失。未知写入期间不能用“回退到旧页”作为恢复手段，必须先按原身份查询／重试达到安全状态。
+过渡开关只对新 route 实例生效；dirty/File/pending/unknown/autosave 时不得热卸载、清 key、重发或把 File 序列化后丢失。未知写入期间不能用“回退到旧页”作为恢复手段，必须先按endpoint真实能力，以原身份核对或显式幂等恢复达到安全状态；无此能力则保留阻断，不能自动重发。
 
 W2–W5 的故障回退是下一次安全导航选择已验收视图，或回到前一个完整本地 checkpoint；同一 app/controller 的持久协议不变，不拆出第二 backend schema。W6 去 Vue 后**不保留运行时代码里的 Vue fallback**；可操作回退为整个构建回退到前一完整 checkpoint，经无活跃阻断操作证明后再启动。不会自动部署，也不会从应用内动态下载旧 Vue 包。需恢复 unknown 操作时，先使用原 pending 存储协议恢复，不能盲重发。
 
@@ -159,18 +163,19 @@ W2–W5 的故障回退是下一次安全导航选择已验收视图，或回到
 
 最终交付清单应有：准确commit、原组件→React页面／controller／测试的映射、无Vue树与全routes动态验收证据、全部通过/失败/未跑数、清洁安装与锁定补丁证据、真实截图、未验证backend/模型/文件解析边界及剩余风险。发布/PR/合并/部署另需对应授权。
 
-## 9. 本轮待项目经理决定的事项
+## 9. 项目经理门禁与已确定策略
 
 普通组件／token／接口取舍已在设计中作出，不再回问用户。项目经理审查并决定：
 
 - **阶段门禁：**本报告是否允许进入W0–W1开发；若不足，具体退回哪项清单或设计补齐，而不是跳过设计直接全站改写。
-- **合同歧义与现存缺口：**未知离开差异不只在RequirementNew：Library、Source/Document、Designer嵌套操作、Roles ZIP及Settings草稿亦需W0明确。建议pending/unknown/File不丢owner、提供原身份恢复，普通dirty明确确认；区分现有合同与拟修可靠性缺口，不用视觉翻新悄悄改业务。流程[B1–B9](workflow-protocol-design.md#9-基线差异静态恢复缺口与-w0-决策)、[核心基线差异](core-ui-inventory.md#现存基线差异和待验证合同)附源码与待复现性质。
-- **退役入口的能力映射：**Automations旧view不可达，但template/version/rule/run/import-preview-confirm/API仍存在，不能因为零Vue就删其业务。建议保留redirect，在TemplateTasks明确“高级模板与自动化”的当前消费者／归档入口映射；旧读取一致性及授权、导入确认断言保留。缺等价消费者的范围交项目经理认定，不只删除旧测试换绿。
+- **离开策略已决定，勿再回问普通取舍：**pending／unknown写入默认阻离开，直到用原身份核对或恢复到安全状态；accepted后只读／限定已知receipt目标交接。普通dirty／未发送File只能明确confirm后放弃，不自动重发write或换幂等身份。SPA硬阻断与beforeunload提示限制分别披露；无持久化／by-request能力不承诺跨刷新完整恢复。生产尚未改，实际恢复入口按endpoint能力实现，原型查询只是模拟。详见[设计合同](controller-interfaces.md#3-草稿file与视图的交接)。
+- **W0仍是生产前阻塞项：**[B1–B9证据清单](w0-evidence-ledger.md)区分源码确定差异、待复现风险与修复状态；本轮未跑红测／未修生产。必须补齐逐项行为证据与原11根因，不用文档或截图当绿测。其它[核心基线差异](core-ui-inventory.md#现存基线差异和待验证合同)沿用同一门槛。
+- **Automations真实退役边界：**旧view不可达，后端旧写入口明确报LEGACY_AUTOMATION_RETIRED；历史GET／导出仍存在，但当前TemplateTasks不是其等价消费者。保留redirect、原数据和仍适用读取／安全断言；不复活已退役写入，不因去Vue删历史能力。逐项[兼容与归档映射](automations-compatibility-map.md)和消费者缺项在生产前结清。
 - **验证交付边界：**如果最后仍无法运行真实后端，允许交付“全React前端及模拟API契约验收”，同时保留真实后端/模型/解析未验证标签；不能批准“全部真实功能已验证”的表述。此项不要求现在测试付费模型。
 
 这几项是项目经理的本轮审查议题，当前工作在规划／设计结束处暂停，未自动进入开发。
 
-## 10. 本轮实际完成与检查
+## 10. 0717a4a规划提交的历史完成与检查
 
 - 独立worktree／分支从指定a3c692d创建；正常只读远端核对仍为第一阶段分支a3c692d、main为3fe0fc459fa21e196ce64655da11f3c3402929c6，第二阶段远端分支尚不存在。原第一阶段worktree仍干净；没有推送本分支。
 - 三名原任务均由真实followup续接，分工文档已归还。PPT对总波次／数量交叉审查、legacy对全报告／五页设计交叉审查、workflow对原型／协议边界与最终图片交叉审查。已修各审查指出的波次重复、基线能力误述、原型筛选／草稿和焦点问题；非作者审查不等于正式实现测试。
@@ -179,4 +184,8 @@ W2–W5 的故障回退是下一次安全导航选择已验收视图，或回到
 - 本轮改动仅docs/design/react-full-migration文档、独立原型和设计截图；未修改生产source、package/lock、pom、入口、测试、凭据或网络。新worktree仍无node_modules/dist，没有安装候选UI／状态／路由框架。截图使用原worktree已安装正式Playwright，不重用旧画布图当新设计证据。
 - **未运行本轮生产unit、全站E2E、typecheck/build/tooling测试体、干净npm ci、真实后端／模型／文件解析。**这些是开发后W7硬门禁，不在规划阶段冒称完成。第一阶段通过与未跑结果继续作为历史基线，原11失败未修／未计通过，GC采样边界未抹掉。
 
-本地提交只保存可审查设计成果，供项目经理门禁；没有发布本报告、截图或原型到GitHub/Slack/Space。
+## 11. 最小设计门禁补充
+
+优先打开[单文件审查版](prototype/review-single.html)：原CSS／JS原样内联，五类页、三皮肤、现有互动不变，没有外部资源请求。原[多文件原型与29图](prototype/README.md)、原capture及evidence保留；单文件独立证明见[本轮交付记录](design-gate-supplement.md)。父侧原生查看器未在本工具环境实际验证，视觉审查仍待项目经理，不能称已经接受设计。
+
+本轮只纠正文档、打包现有原型并验证；未改生产实现／依赖，未安装候选框架，未执行生产unit／E2E／typecheck／build。B1–B9与原11历史失败没有业务修复或新通过记录，W0尚未结清。本地提交只保存可审查设计成果；最新授权允许正常推送同名独立GitHub分支，仅发布设计资料，不包含第二阶段未来生产代码。用户通知交项目经理处理，不直接发Slack／Space。
