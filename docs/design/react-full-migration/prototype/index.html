@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN" data-skin="github-white">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' file:; script-src 'self' file:; style-src 'self' file: 'unsafe-inline'; img-src 'self' file: data:; connect-src 'none'; font-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Loopper · 第二阶段设计原型（模拟数据）</title>
+  <link rel="stylesheet" href="prototype.css">
+  <script src="prototype.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到主内容</a>
+  <div class="shell">
+    <aside class="sidebar" aria-label="应用导航">
+      <a class="brand" href="?page=home" data-page="home"><span class="brand-symbol" aria-hidden="true">↗</span><span>Loopper<small>本地开发工作区</small></span></a>
+      <nav id="navigation" aria-label="主导航"></nav>
+      <div class="sidebar-bottom"><span class="status-dot" aria-hidden="true"></span>设计预览<small>不连接后端或模型</small></div>
+    </aside>
+    <div class="workspace">
+      <header class="topbar">
+        <button class="icon-button mobile-menu" data-open="navigation" aria-label="打开导航">☰</button>
+        <span class="workspace-label">示例工作区<span class="slash">/</span><span id="breadcrumb">首页</span></span>
+        <div class="topbar-end"><span class="prototype-label">设计原型 · 模拟数据</span><label class="skin-control"><span class="sr-only">皮肤</span><select id="skin"><option value="spdb">spdb 风</option><option value="tech-blue">科技蓝</option><option value="github-white">GitHub 白</option></select></label></div>
+      </header>
+      <main id="main-content" tabindex="-1"></main>
+      <footer class="preview-note">独立设计原型 · 所有项目、状态和操作结果均为模拟内容 · 无业务请求</footer>
+    </div>
+  </div>
+  <dialog id="preview-dialog" aria-labelledby="dialog-title"><header><div><span class="eyebrow">设计原型 · 模拟数据</span><h2 id="dialog-title"></h2></div><button class="icon-button" data-close aria-label="关闭面板">×</button></header><div id="dialog-body"></div></dialog>
+  <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

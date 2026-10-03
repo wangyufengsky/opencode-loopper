@@ -1,0 +1,630 @@
+{
+  "kind": "Independent design prototype, simulated data; not product acceptance",
+  "baseline": "a3c692d38925206883f2b0a1255479108cfd439e",
+  "sources": {
+    "index.html": "f39fbe7845aa9dcf46e149571d433713dee13fff599ccbd29aacd25059c2cf80",
+    "prototype.css": "5d85cfd1ba0754fe6eeeecd532372607884e43e7b3ba76b7d84d04577f7d489f",
+    "prototype.js": "4cc457a3758bad4605c8d04fd058ea0b62ddd0292c03c6ac87be1baeb3478e99",
+    "capture.mjs": "1910885b939a557caf2705e3b4625c8d9956325f24abb7661f400f3864a9efe7"
+  },
+  "checks": [
+    {
+      "name": "home/spdb/1440: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "home/spdb/390: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "home/spdb/320: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "list/spdb/1440: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "list/spdb/390: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "list/spdb/320: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "form/spdb/1440: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "form/spdb/390: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "form/spdb/320: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "detail/spdb/1440: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "detail/spdb/390: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "detail/spdb/320: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "settings/spdb/1440: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "settings/spdb/390: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "settings/spdb/320: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "home/tech-blue/1440: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "home/tech-blue/390: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "home/tech-blue/320: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "list/tech-blue/1440: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "list/tech-blue/390: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "list/tech-blue/320: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "form/tech-blue/1440: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "form/tech-blue/390: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "form/tech-blue/320: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "detail/tech-blue/1440: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "detail/tech-blue/390: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "detail/tech-blue/320: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "settings/tech-blue/1440: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "settings/tech-blue/390: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "settings/tech-blue/320: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "home/github-white/1440: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "home/github-white/390: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "home/github-white/320: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "list/github-white/1440: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "list/github-white/390: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "list/github-white/320: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "form/github-white/1440: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "form/github-white/390: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "form/github-white/320: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "detail/github-white/1440: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "detail/github-white/390: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "detail/github-white/320: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "settings/github-white/1440: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "settings/github-white/390: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "settings/github-white/320: visible mock label, one heading, no page horizontal overflow",
+      "result": "pass"
+    },
+    {
+      "name": "keyboard: skip link focuses main",
+      "result": "pass"
+    },
+    {
+      "name": "list: search preserves explicit result count",
+      "result": "pass"
+    },
+    {
+      "name": "list: state filter, recovery action discoverable",
+      "result": "pass"
+    },
+    {
+      "name": "drawer: 24 Tab and Shift-Tab stay inside; Escape returns trigger",
+      "result": "pass"
+    },
+    {
+      "name": "default motion: drawer has purposeful 180ms entry, controls immediately usable",
+      "result": "pass"
+    },
+    {
+      "name": "drawer: ten repeated open/close cycles retain one dialog and correct focus",
+      "result": "pass"
+    },
+    {
+      "name": "list: search and status combine; applied project filter persists on reopen",
+      "result": "pass"
+    },
+    {
+      "name": "theme: draft and field values survive three skin changes",
+      "result": "pass"
+    },
+    {
+      "name": "mock dirty: navigating to tasks offers explicit cancel without losing input",
+      "result": "pass"
+    },
+    {
+      "name": "mock unknown: close panel then attempt navigation; original draft remains",
+      "result": "pass"
+    },
+    {
+      "name": "mock unknown: query clears only demo unknown, never issues request",
+      "result": "pass"
+    },
+    {
+      "name": "mock dirty: explicit discard navigates only after unknown is resolved",
+      "result": "pass"
+    },
+    {
+      "name": "detail: answer focus and secondary recovery/stop stay accessible",
+      "result": "pass"
+    },
+    {
+      "name": "task versioned resolution: explicit independent 409 demo retains editable solution draft",
+      "result": "pass"
+    },
+    {
+      "name": "settings: advanced disclosure keeps input and does not invent CAS API fields",
+      "result": "pass"
+    },
+    {
+      "name": "settings: public switch toggles with keyboard Space",
+      "result": "pass"
+    },
+    {
+      "name": "settings: switching sections retains demo field and disclosure draft",
+      "result": "pass"
+    },
+    {
+      "name": "mobile navigation: management group retains all 16 destinations and closes to trigger",
+      "result": "pass"
+    },
+    {
+      "name": "reduced motion: drawer opens without transition or animation, keyboard remains usable",
+      "result": "pass"
+    },
+    {
+      "name": "isolated prototype: zero external requests and page errors",
+      "result": "pass"
+    }
+  ],
+  "screenshots": [
+    {
+      "file": "screenshots/spdb-home-1440.png",
+      "sha256": "e3e6ec0446db35d284aff2d4034c6f0ed6e5a52e2fa6b5f8d54125ba6f661f31",
+      "bytes": 126928,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "fullPage": true,
+      "skin": "spdb",
+      "state": "home, default, simulated"
+    },
+    {
+      "file": "screenshots/spdb-home-390.png",
+      "sha256": "2781aab680f9b8bc3ad93cddaebe2fd1d2dfe6f1028766e86f997bfd45fa72cf",
+      "bytes": 92530,
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "fullPage": true,
+      "skin": "spdb",
+      "state": "home, default, simulated"
+    },
+    {
+      "file": "screenshots/spdb-list-1440.png",
+      "sha256": "72202f1e3efa6596cbe7c6a74f18faea2f8dd1d13e6cdc44a5550371a93ca611",
+      "bytes": 110014,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "fullPage": true,
+      "skin": "spdb",
+      "state": "list, default, simulated"
+    },
+    {
+      "file": "screenshots/spdb-form-1440.png",
+      "sha256": "136b1dab0f21cecbb671f51e47d849e33dbd4971a62f08363eb407473335c0d1",
+      "bytes": 117904,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "fullPage": true,
+      "skin": "spdb",
+      "state": "form, default, simulated"
+    },
+    {
+      "file": "screenshots/spdb-detail-1440.png",
+      "sha256": "97ab86ea4d93d96ed2cd36a763f17806a3a928ce4977e34acbfd28f22ef5ea0a",
+      "bytes": 144706,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "fullPage": true,
+      "skin": "spdb",
+      "state": "detail, default, simulated"
+    },
+    {
+      "file": "screenshots/spdb-settings-1440.png",
+      "sha256": "f7d8426f34d02e4bc384862f8c75c4782e24726c198c0222bdef3d6befa8dbea",
+      "bytes": 106346,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "fullPage": true,
+      "skin": "spdb",
+      "state": "settings, default, simulated"
+    },
+    {
+      "file": "screenshots/tech-blue-home-1440.png",
+      "sha256": "3bb729ba8aa4bda192a19d37bf6ef5e62faaa6227609cb42dcfce2cabb974b65",
+      "bytes": 128155,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "fullPage": true,
+      "skin": "tech-blue",
+      "state": "home, default, simulated"
+    },
+    {
+      "file": "screenshots/tech-blue-list-1440.png",
+      "sha256": "b651c771a1dcef18aa43b1747b7092b578c04c028e31d0c8cd12415358fd169a",
+      "bytes": 111035,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "fullPage": true,
+      "skin": "tech-blue",
+      "state": "list, default, simulated"
+    },
+    {
+      "file": "screenshots/tech-blue-form-1440.png",
+      "sha256": "eef515f8a08c358d586a89e249f87cb0b8a4dac03e0da32d4fd35cc9074b3adf",
+      "bytes": 119260,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "fullPage": true,
+      "skin": "tech-blue",
+      "state": "form, default, simulated"
+    },
+    {
+      "file": "screenshots/tech-blue-form-390.png",
+      "sha256": "8e80d3593999bc5f91a16fb3eb0376392ba9b7087c286c21130280bea43493e7",
+      "bytes": 65907,
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "fullPage": true,
+      "skin": "tech-blue",
+      "state": "form, default, simulated"
+    },
+    {
+      "file": "screenshots/tech-blue-detail-1440.png",
+      "sha256": "f31fbeab02e31af042fe408a11a5e99c865001df6047b6e1adbd934fddc054bc",
+      "bytes": 145568,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "fullPage": true,
+      "skin": "tech-blue",
+      "state": "detail, default, simulated"
+    },
+    {
+      "file": "screenshots/tech-blue-detail-390.png",
+      "sha256": "a136de04c4a2d531abf30ea1d1402a45cb24602298c20af66ea9ca42bdf724c8",
+      "bytes": 110461,
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "fullPage": true,
+      "skin": "tech-blue",
+      "state": "detail, default, simulated"
+    },
+    {
+      "file": "screenshots/tech-blue-settings-1440.png",
+      "sha256": "fd158676e0a38a05b88cf3a1d4187f79d5fa1d581204021e8c77cd1045eb48a5",
+      "bytes": 107381,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "fullPage": true,
+      "skin": "tech-blue",
+      "state": "settings, default, simulated"
+    },
+    {
+      "file": "screenshots/github-white-home-1440.png",
+      "sha256": "67a1cabd44ac90885b6f1419deac11c870977e3b4adc0d9ac06d6427db53d572",
+      "bytes": 126761,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "fullPage": true,
+      "skin": "github-white",
+      "state": "home, default, simulated"
+    },
+    {
+      "file": "screenshots/github-white-home-390.png",
+      "sha256": "870d435ef6e2326d10c90d2d00182a9869da54221fe36e95cc8560f0e78dd076",
+      "bytes": 92232,
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "fullPage": true,
+      "skin": "github-white",
+      "state": "home, default, simulated"
+    },
+    {
+      "file": "screenshots/github-white-list-1440.png",
+      "sha256": "3a3e87b680552f79c0c5fc485654b21bd38271699a40bbb53957679c40c5466f",
+      "bytes": 109719,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "fullPage": true,
+      "skin": "github-white",
+      "state": "list, default, simulated"
+    },
+    {
+      "file": "screenshots/github-white-list-390.png",
+      "sha256": "015ee31a2ba0e565cbf6b26a4a39c5e39163055cfdb8d2a896ba5f5f6d7162a2",
+      "bytes": 70677,
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "fullPage": true,
+      "skin": "github-white",
+      "state": "list, default, simulated"
+    },
+    {
+      "file": "screenshots/github-white-list-320.png",
+      "sha256": "c0e9298375b344db181daa8f8b4da58295bd8db591eedf2ceb61d6eb1f7964c6",
+      "bytes": 69554,
+      "viewport": {
+        "width": 320,
+        "height": 844
+      },
+      "fullPage": true,
+      "skin": "github-white",
+      "state": "list, default, simulated"
+    },
+    {
+      "file": "screenshots/github-white-form-1440.png",
+      "sha256": "3d22ed3dfdf7606db1591cbc7c8a2190ac538540669573e76ea8c17e29aca9e9",
+      "bytes": 117562,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "fullPage": true,
+      "skin": "github-white",
+      "state": "form, default, simulated"
+    },
+    {
+      "file": "screenshots/github-white-form-390.png",
+      "sha256": "5cb89b14699b231832a6e6500940b6af8c0acb366a70e5bddb1f689134ea6c01",
+      "bytes": 63738,
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "fullPage": true,
+      "skin": "github-white",
+      "state": "form, default, simulated"
+    },
+    {
+      "file": "screenshots/github-white-detail-1440.png",
+      "sha256": "ccd01dfe2e0a5e5af55802974aac885e7cca25f47e781a60228252ca65cb339d",
+      "bytes": 144482,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "fullPage": true,
+      "skin": "github-white",
+      "state": "detail, default, simulated"
+    },
+    {
+      "file": "screenshots/github-white-detail-390.png",
+      "sha256": "d90f792faf1c48edfba5c14efcb83353b4b32f2bfb2ca46528eb0677717c91a7",
+      "bytes": 107969,
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "fullPage": true,
+      "skin": "github-white",
+      "state": "detail, default, simulated"
+    },
+    {
+      "file": "screenshots/github-white-settings-1440.png",
+      "sha256": "b5dfb7f68d48338f628bf5a8ee5ffce1c065ffa4cc343dbac7240a4a6202bf31",
+      "bytes": 105913,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "fullPage": true,
+      "skin": "github-white",
+      "state": "settings, default, simulated"
+    },
+    {
+      "file": "screenshots/github-white-settings-390.png",
+      "sha256": "0b7d27ccb16acc4d2159a9b748f89c918390865c32773cdec088aa63980aceeb",
+      "bytes": 65309,
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "fullPage": true,
+      "skin": "github-white",
+      "state": "settings, default, simulated"
+    },
+    {
+      "file": "screenshots/github-white-settings-320.png",
+      "sha256": "252f6ace90e9055bd64488a2d7792c6aa187bae84628a7f5765e2f57f84b4e95",
+      "bytes": 63539,
+      "viewport": {
+        "width": 320,
+        "height": 844
+      },
+      "fullPage": true,
+      "skin": "github-white",
+      "state": "settings, default, simulated"
+    },
+    {
+      "file": "screenshots/github-white-list-filters.png",
+      "sha256": "f89fc2cb5f840f0cb5e6a42b6ad9b6bdd32cba473316778cdc7f27528cd9186c",
+      "bytes": 111313,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "fullPage": false,
+      "skin": "github-white",
+      "state": "filter drawer open, simulated"
+    },
+    {
+      "file": "screenshots/tech-blue-form-unknown.png",
+      "sha256": "71325f6fd3bdbce087fcfc7e98f6e8758c9c1e41d7b10f4aefbdd2545ebc293c",
+      "bytes": 112452,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "fullPage": false,
+      "skin": "tech-blue",
+      "state": "unknown receipt and guarded draft, simulated"
+    },
+    {
+      "file": "screenshots/spdb-detail-conflict.png",
+      "sha256": "37ddf8b0d345c3cd4d3d355ddbe6da10cf7bb7fcc5cf8bda70055d5e0628a878",
+      "bytes": 139911,
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "fullPage": false,
+      "skin": "spdb",
+      "state": "independent versioned local-sync solution 409 presentation, simulated"
+    },
+    {
+      "file": "screenshots/tech-blue-list-reduced-motion.png",
+      "sha256": "78ed7aa466ffbbccd26040cf6918332472d9ed17d027f0072cff329248126631",
+      "bytes": 22562,
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "fullPage": false,
+      "skin": "tech-blue",
+      "state": "reduced-motion drawer, simulated"
+    }
+  ],
+  "externalRequests": 0,
+  "pageErrors": [],
+  "browser": "151.0.7922.173",
+  "summary": {
+    "passed": 65,
+    "failed": 0,
+    "screenshots": 29
+  }
+}
