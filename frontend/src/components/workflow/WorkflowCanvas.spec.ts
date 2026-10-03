@@ -1,8 +1,14 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import WorkflowCanvas from './WorkflowCanvas.vue'
 import { template } from './workflowTestFixtures'
-describe('workflow canvas interactions', () => {
+const runtimeState = vi.hoisted(() => ({ value: 'vue' as 'vue' | 'react' }))
+vi.mock('@/migration/canvasRuntimeVue', async () => {
+  const { readonly, ref } = await import('vue')
+  return { useCanvasRuntime: () => readonly(ref(runtimeState.value)) }
+})
+describe.each(['vue', 'react'] as const)('%s workflow canvas interactions', runtime => {
+  beforeEach(() => { runtimeState.value = runtime })
   it('supports keyboard move/connect/delete and leaves dependencies unchanged', async () => {
     const draft = template(), wrapper = mount(WorkflowCanvas, { props: { graph: draft.graph, layout: draft.layout }, global: { stubs: { Icon: true } } })
     const node = wrapper.get('article'); await node.trigger('keydown', { key: 'ArrowRight' })
@@ -38,6 +44,7 @@ describe('workflow canvas interactions', () => {
   it('makes connections selectable with Space and locates nodes without emitting a saved layout', async () => {
     const value = template(); value.graph.nodes.push({ ...value.graph.nodes[0]!, id: 'later', title: '后续' }); value.graph.edges = [{ id: 'edge', from: 'review', to: 'later', outcome: null }]
     const view = mount(WorkflowCanvas, { props: { graph: value.graph, layout: value.layout, selectedEdge: 'edge' }, global: { stubs: { Icon: true } } })
+    await vi.waitFor(() => expect(view.find('.workflow-wire-hit').exists()).toBe(true))
     const wire = view.get('.workflow-wire-hit'); expect(wire.attributes('aria-pressed')).toBe('true')
     await wire.trigger('keydown', { key: ' ' }); expect(view.emitted('edge')).toEqual([['edge']])
     view.vm.reveal('later'); expect(view.emitted('layout')).toBeUndefined(); view.unmount()

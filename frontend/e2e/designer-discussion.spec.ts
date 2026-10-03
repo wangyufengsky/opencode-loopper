@@ -122,7 +122,7 @@ function session(phase: Phase) {
   }
 }
 
-async function installDesignerApi(page: Page) {
+async function installDesignerApi(page: Page, diagram = false) {
   let phase: Phase = 'requirement-question'
   let confirmed = false
   await page.route('http://127.0.0.1:41773/api/**', async (route) => {
@@ -144,7 +144,11 @@ async function installDesignerApi(page: Page) {
     if (path === '/api/loop-drafts/draft-e2e' && method === 'GET') return fulfill(draft(confirmed ? 'CONFIRMED' : 'DRAFT_READY'))
     if (path === '/api/loop-drafts/draft-e2e/confirm' && method === 'POST') { confirmed = true; return fulfill({ taskId: 'task-e2e' }) }
     if (path === '/api/designer-sessions' && method === 'POST') return fulfill(session(phase))
-    if (path === '/api/designer-sessions/designer-e2e' && method === 'GET') return fulfill(session(phase))
+    if (path === '/api/designer-sessions/designer-e2e' && method === 'GET') {
+      const value = session(phase)
+      if (diagram) value.messages[0]!.content = '# 历史设计图 · 模拟数据\n\n```mermaid\nflowchart LR\n  A[确认需求] --> B[核对设计]\n```'
+      return fulfill(value)
+    }
     if (path === '/api/designer-sessions/designer-e2e/questions/q-requirement/reply' && method === 'POST') { phase = 'requirement-review'; return fulfill(undefined, 204) }
     if (path === '/api/designer-sessions/designer-e2e/requirement/confirm' && method === 'POST') { phase = 'wp1-question'; return fulfill(undefined, 204) }
     if (path === '/api/designer-sessions/designer-e2e/questions/q-wp1/reply' && method === 'POST') { phase = 'wp1-review'; return fulfill(undefined, 204) }
@@ -341,5 +345,31 @@ for (const kind of ['document', 'table'] as const) {
     await expect(page).toHaveURL(/\/tasks\/task-e2e$/)
     await expect(page.getByRole('button', { name: '开始执行' })).toBeVisible()
     expect(confirmed).toBe(true)
+  })
+}
+
+
+for (const skin of ['spdb', 'tech-blue', 'github-white']) {
+  test(`${skin} 历史Designer中的Mermaid由React渲染并保持主题与窄屏（模拟数据）`, async ({ page }) => {
+    await installDesignerApi(page, true)
+    const errors: string[] = []; page.on('pageerror', error => errors.push(error.message))
+    await page.addInitScript(value => localStorage.setItem('loopper.skin', value), skin)
+    await page.setViewportSize({ width: 1600, height: 1000 })
+    await page.goto('/designer?sessionId=designer-e2e')
+    const diagram = page.locator('[data-canvas-runtime="react"][data-canvas-kind="mermaid"]').first()
+    await diagram.scrollIntoViewIfNeeded()
+    await expect(diagram.locator('svg')).toBeVisible()
+    await expect(diagram).toContainText('确认需求')
+    await expect(diagram).toContainText('核对设计')
+    expect(await diagram.locator('script, foreignObject').count()).toBe(0)
+    const expand = page.getByRole('button', { name: /展开完整输出/ }).first()
+    if (await expand.isVisible()) await expand.click()
+    const evidence = process.env.CANVAS_EVIDENCE_DIR ?? 'test-results/react-canvas'
+    await page.screenshot({ path: `${evidence}/${skin}-designer-mermaid.png`, fullPage: true })
+    await page.setViewportSize({ width: 390, height: 844 })
+    await expect(diagram.locator('svg')).toBeVisible()
+    expect(await diagram.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true)
+    await page.screenshot({ path: `${evidence}/${skin}-designer-mermaid-mobile.png`, fullPage: true })
+    expect(errors).toEqual([])
   })
 }

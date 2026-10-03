@@ -1,0 +1,16 @@
+.workflow-react-host { display: flex; flex: 1; min-width: 0; min-height: 0; position: relative; }
+.workflow-canvas-react { min-width: 0; }
+.workflow-canvas-react .react-flow { --xy-edge-stroke: var(--color-text-muted); --xy-handle-background-color: var(--color-action-primary); --xy-handle-border-color: var(--color-bg-surface); }
+.workflow-canvas-react .workflow-node { position: relative; }
+.workflow-canvas-react .react-flow__node-workflow { width: 224px; height: 118px; }
+.workflow-canvas-react .react-flow__handle { width: 8px; height: 8px; opacity: 0; border: 2px solid var(--color-bg-surface); background: var(--color-action-primary); }
+.workflow-canvas-react .react-flow__handle.source { left: calc(50% + 26px); }
+.workflow-canvas-react .workflow-handle-visible.connectable,
+.workflow-canvas-react .react-flow__node:hover .react-flow__handle.target.connectable,
+.workflow-canvas-react.workflow-connection-dragging .react-flow__handle.target.connectable { opacity: 1; }
+.workflow-canvas-react .workflow-edge-selected .workflow-wire { stroke: var(--color-action-primary); stroke-width: 3px; }
+.workflow-canvas-react .workflow-canvas-controls, .workflow-canvas-react .workflow-canvas-caption,
+.workflow-canvas-react .workflow-connecting, .workflow-canvas-react .workflow-canvas-empty { z-index: 5; }
+.workflow-canvas-react .workflow-minimap { background: var(--color-bg-surface); }
+.workflow-canvas-react .react-flow__attribution { background: var(--color-bg-surface); color: var(--color-text-muted); }
+.workflow-canvas-react .react-flow__attribution a { color: var(--color-text-muted); }

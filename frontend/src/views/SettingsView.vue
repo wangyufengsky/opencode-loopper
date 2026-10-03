@@ -4,6 +4,7 @@ import { Icon } from '@iconify/vue'
 import { ElMessage } from 'element-plus'
 import PageHeader from '@/components/PageHeader.vue'
 import GitCredentialForm from '@/components/GitCredentialForm.vue'
+import CanvasRuntimeSettings from '@/migration/CanvasRuntimeSettings.vue'
 import { api } from '@/api/client'
 import type { AppSettings, AvailableModel } from '@/types/domain'
 import { useTaskStore } from '@/stores/taskStore'
@@ -30,6 +31,7 @@ const fieldError = ref('')
 const modelError = ref('')
 
 const sections = [
+  { id: 'canvas', title: '画布显示', subtitle: '显示偏好与兼容模式', icon: 'lucide:panels-top-left' },
   { id: 'runtime', title: '服务设置', subtitle: '端口、目录与监控', icon: 'lucide:server' },
   { id: 'models', title: '模型服务', subtitle: 'OpenCode 与默认模型', icon: 'lucide:bot' },
   { id: 'limits', title: '执行限制', subtitle: '并发、尝试与超时', icon: 'lucide:sliders-horizontal' },
@@ -119,7 +121,7 @@ onMounted(load)
 
 <template>
   <PageHeader eyebrow="系统" title="设置">
-    <template #actions><el-button v-if="activeSection !== 'git-credentials'" class="settings-save" type="primary" :loading="saving" :disabled="loading" @click="save"><Icon icon="lucide:save" />保存设置</el-button></template>
+    <template #actions><el-button v-if="!['git-credentials', 'canvas'].includes(activeSection)" class="settings-save" type="primary" :loading="saving" :disabled="loading" @click="save"><Icon icon="lucide:save" />保存设置</el-button></template>
   </PageHeader>
   <main id="main-content" class="content settings-content" tabindex="-1" v-loading="loading">
     <div class="settings-layout">
@@ -136,6 +138,7 @@ onMounted(load)
         <p class="nav-note"><Icon icon="lucide:info" width="16" />本页设置修改后请保存。各项生效时间见面板说明。</p>
       </nav>
       <div class="settings-panels">
+      <article v-if="activeSection === 'canvas'" id="settings-canvas" class="card settings-panel"><CanvasRuntimeSettings /></article>
       <article v-if="activeSection === 'git-credentials'" id="settings-git-credentials" class="card settings-panel"><div class="card-header"><h2 class="card-title">全局 Git 账号</h2></div><GitCredentialForm :demo="store.usingDemo" /></article>
       <article v-show="activeSection === 'runtime'" id="settings-runtime" class="card settings-panel runtime-settings" aria-labelledby="runtime-title">
         <div class="card-header"><div><p class="eyebrow">运行环境</p><h2 id="runtime-title" class="card-title">服务设置</h2></div><span class="activation restart">重启生效</span></div>

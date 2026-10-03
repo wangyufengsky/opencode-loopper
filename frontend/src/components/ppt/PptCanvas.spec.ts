@@ -1,8 +1,8 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
-import PptCanvas from './PptCanvas.vue'
+import PptCanvas from './PptCanvasLegacy.vue'
 import { pptDeck } from './pptTestFixtures'
-describe('PPT object manipulation', () => {
+describe('PPT legacy object manipulation', () => {
   it('translates scaled preview dragging to point geometry and retains its revision', async () => {
     const deck = pptDeck(),
       wrapper = mount(PptCanvas, {

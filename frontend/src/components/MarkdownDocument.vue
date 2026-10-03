@@ -4,7 +4,10 @@ import DOMPurify from 'dompurify'
 import MarkdownIt from 'markdown-it'
 import { splitThinkingContent } from '@/utils/thinkingContent'
 import { currentSkin } from '@/themes/state'
-import { nextDiagramId, renderDiagram } from '@/themes/mermaid'
+import { mountReactView } from '@/react/bridge'
+import { MermaidDiagram, type MermaidDiagramProps } from '@/react/diagrams/MermaidDiagram'
+import { useCanvasRuntime } from '@/migration/canvasRuntimeVue'
+import MarkdownDocumentLegacy from './MarkdownDocumentLegacy.vue'
 
 const props = withDefaults(defineProps<{
   content: string
@@ -18,7 +21,9 @@ const props = withDefaults(defineProps<{
   allowImages: true,
   collapsedLines: 3,
 })
+const runtime = useCanvasRuntime()
 const documentRoot = ref<HTMLElement>()
+const mermaidViews = new Map<HTMLElement, ReturnType<typeof mountReactView<MermaidDiagramProps>>>()
 const expanded = ref(false)
 const overflowing = ref(props.collapsible)
 const collapsedThinking = ref(new Set<number>())
@@ -84,69 +89,21 @@ function toggleThinking(index: number) {
   void measureOverflow()
 }
 
-function removeMermaidRenderArtifacts(id: string) {
-  document.getElementById(`d${id}`)?.remove()
-  document.getElementById(`i${id}`)?.remove()
-  document.getElementById(id)?.remove()
-}
-
-/** Mermaid may use SVG foreignObject labels, which secure SVG sanitizers remove.
- * Convert those labels to plain SVG text first so node names remain visible
- * without admitting embedded HTML from model-authored diagram source. */
-function normalizeMermaidSvg(svg: string) {
-  // Mermaid's SVG may contain HTML-style void elements inside foreignObject.
-  // XML requires them to be self-closing, otherwise DOMParser returns a
-  // parsererror document instead of the chart. Normalize only known void tags;
-  // the resulting SVG is still sanitized before insertion into the page.
-  const xmlSafe = svg.replace(/<(br|hr|img|input|meta|link)(\b[^>]*)>/gi, (tag, name, attributes) => (
-    tag.endsWith('/>') ? tag : `<${name}${attributes}/>`
-  ))
-  const parsed = new DOMParser().parseFromString(xmlSafe, 'image/svg+xml')
-  if (parsed.querySelector('parsererror')) throw new Error('Mermaid returned malformed SVG')
-  for (const foreignObject of [...parsed.querySelectorAll('foreignObject')]) {
-    const textContent = foreignObject.textContent?.replace(/\s+/g, ' ').trim()
-    if (!textContent) {
-      foreignObject.remove()
-      continue
-    }
-    const x = Number.parseFloat(foreignObject.getAttribute('x') ?? '0') || 0
-    const y = Number.parseFloat(foreignObject.getAttribute('y') ?? '0') || 0
-    const width = Number.parseFloat(foreignObject.getAttribute('width') ?? '0') || 0
-    const height = Number.parseFloat(foreignObject.getAttribute('height') ?? '0') || 0
-    const label = parsed.createElementNS('http://www.w3.org/2000/svg', 'text')
-    label.setAttribute('class', 'mermaid-safe-label')
-    label.setAttribute('x', String(x + width / 2))
-    label.setAttribute('y', String(y + height / 2))
-    label.setAttribute('text-anchor', 'middle')
-    label.setAttribute('dominant-baseline', 'middle')
-    label.textContent = textContent
-    foreignObject.replaceWith(label)
-  }
-  return new XMLSerializer().serializeToString(parsed.documentElement)
-}
-
 async function renderMermaidFrame(frame: HTMLElement, source: string, version: number) {
   if (version !== renderVersion || !documentRoot.value?.contains(frame)) return
-  const id = nextDiagramId()
-  try {
-    const { svg, bindFunctions } = await renderDiagram(id, source, currentSkin.value)
-    if (version !== renderVersion || !documentRoot.value?.contains(frame)) return
-    frame.classList.remove('markdown-mermaid-pending')
-    frame.setAttribute('aria-label', 'Mermaid 流程图')
-    frame.innerHTML = DOMPurify.sanitize(normalizeMermaidSvg(svg), {
-      USE_PROFILES: { html: true, svg: true, svgFilters: true },
-    })
-    bindFunctions?.(frame)
-  } catch {
-    // Mermaid versions before suppressErrorRendering was consistently honored
-    // can leave their temporary error SVG attached directly to document.body.
-    removeMermaidRenderArtifacts(id)
-    if (version !== renderVersion || !documentRoot.value?.contains(frame)) return
-    frame.classList.remove('markdown-mermaid-pending')
-    frame.classList.add('markdown-mermaid-error')
-    frame.textContent = '流程图语法无法渲染，请检查 Mermaid 文本。'
+  let view = mermaidViews.get(frame)
+  if (!view) {
+    frame.textContent = ''
+    view = mountReactView(frame, MermaidDiagram)
+    mermaidViews.set(frame, view)
   }
-  await measureOverflow()
+  view.render({ source, skin: currentSkin.value, isCurrent: () => version === renderVersion && !!documentRoot.value?.contains(frame), onStatus(status) {
+    if (version !== renderVersion || !documentRoot.value?.contains(frame)) return
+    frame.classList.toggle('markdown-mermaid-pending', status === 'pending')
+    frame.classList.toggle('markdown-mermaid-error', status === 'error')
+    frame.setAttribute('aria-label', status === 'pending' ? 'Mermaid 流程图，接近可视区域时加载' : 'Mermaid 流程图')
+    void measureOverflow()
+  } })
 }
 
 function observeMermaidFrame(frame: HTMLElement, source: string, version: number) {
@@ -175,10 +132,14 @@ async function renderMermaidDiagrams() {
   await nextTick()
   if (!documentRoot.value || version !== renderVersion) return
 
+  for (const [frame, view] of mermaidViews) {
+    if (!documentRoot.value.contains(frame)) { view.unmount(); mermaidViews.delete(frame) }
+  }
+
   // Existing SVGs retain their source so a skin change can re-render without resetting Markdown UI state.
   for (const frame of documentRoot.value.querySelectorAll<HTMLElement>('figure[data-mermaid-source]')) {
     frame.className = 'markdown-mermaid markdown-mermaid-pending'
-    frame.textContent = '流程图将在滚动到此处时加载…'
+    if (!mermaidViews.has(frame)) frame.textContent = '流程图将在滚动到此处时加载…'
     observeMermaidFrame(frame, frame.dataset.mermaidSource!, version)
   }
   const blocks = [...documentRoot.value.querySelectorAll<HTMLElement>('pre > code.language-mermaid')]
@@ -189,6 +150,8 @@ async function renderMermaidDiagrams() {
     const frame = document.createElement('figure')
     frame.className = 'markdown-mermaid markdown-mermaid-pending'
     frame.dataset.mermaidSource = source
+    frame.dataset.canvasRuntime = 'react'
+    frame.dataset.canvasKind = 'mermaid'
     frame.setAttribute('aria-label', 'Mermaid 流程图，接近可视区域时加载')
     frame.textContent = '流程图将在滚动到此处时加载…'
     code.parentElement.replaceWith(frame)
@@ -213,7 +176,7 @@ function toggleExpanded() {
   expanded.value = !expanded.value
 }
 
-watch(() => props.content, async () => {
+watch(renderedSegments, async () => {
   await renderMermaidDiagrams()
   await measureOverflow()
 }, { flush: 'post' })
@@ -227,11 +190,14 @@ onBeforeUnmount(() => {
   renderVersion += 1
   mermaidObserver?.disconnect()
   mermaidJobs.clear()
+  for (const view of mermaidViews.values()) view.unmount()
+  mermaidViews.clear()
 })
 </script>
 
 <template>
-  <div class="markdown-output">
+  <MarkdownDocumentLegacy v-if="runtime === 'vue'" v-bind="props" />
+  <div v-else class="markdown-output">
     <div
       v-if="hasThinkingSegments"
       ref="documentRoot"

@@ -22,13 +22,18 @@ async function clickButton(label: string) {
   }
   await button(label).trigger('click')
 }
+async function waitForConnections(count: number) {
+  expect(wrapper!.find('[data-canvas-runtime="react"]').exists()).toBe(true)
+  // Real React Flow measures handles before rendering their edges.
+  await vi.waitFor(() => expect(wrapper!.findAll('.workflow-wire')).toHaveLength(count))
+}
 describe('workflow authoring', () => {
   it('adds a preset with its bound parent and supports undo before any save', async () => {
     api.presets.mockResolvedValue({ items: [preset()], nextCursor: null }); api.preset.mockResolvedValue(preset())
     await render(); await clickButton('预设工作模块'); await flushPromises()
     await wrapper!.get('.workflow-preset-list button').trigger('click'); await flushPromises()
     await wrapper!.get('.workflow-preset-detail select').setValue('NODE|review|result'); await clickButton('添加到画布')
-    expect(wrapper!.findAll('.workflow-node')).toHaveLength(2); expect(wrapper!.findAll('.workflow-wire')).toHaveLength(1); expect(wrapper!.find('.workflow-presets').exists()).toBe(false)
+    expect(wrapper!.findAll('.workflow-node')).toHaveLength(2); await waitForConnections(1); expect(wrapper!.find('.workflow-presets').exists()).toBe(false)
     expect(api.create).not.toHaveBeenCalled(); expect(api.revise).not.toHaveBeenCalled()
     await wrapper!.get('[aria-label="撤销修改"]').trigger('click'); expect(wrapper!.findAll('.workflow-node')).toHaveLength(1); expect(wrapper!.findAll('.workflow-wire')).toHaveLength(0)
   })
@@ -84,6 +89,7 @@ describe('workflow authoring', () => {
   it('switches nodes and edges exclusively, treats repeated selection as stable and clears stale selection on undo', async () => {
     const value = template(); value.graph.nodes.push({ ...value.graph.nodes[0]!, id: 'other', title: '后续检查' }); value.graph.edges.push({ id: 'edge', from: 'review', to: 'other', outcome: null })
     api.get.mockResolvedValue(value); await render()
+    await waitForConnections(1)
     await wrapper!.findAll('.workflow-node')[0]!.trigger('click'); const panel = wrapper!.get('.workflow-context-panel').element
     await wrapper!.findAll('.workflow-node')[0]!.trigger('click'); expect(wrapper!.get('.workflow-context-panel').element).toBe(panel)
     await wrapper!.findAll('.workflow-node')[1]!.trigger('click'); expect(wrapper!.get<HTMLInputElement>('aside[aria-label="节点设置"] input').element.value).toBe('后续检查')

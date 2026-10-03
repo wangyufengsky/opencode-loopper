@@ -4,6 +4,7 @@ import { ElButton, ElButtonGroup, ElCheckbox, ElCheckboxGroup, ElConfigProvider,
 import App from '@/App.vue'
 import { router } from '@/router'
 import { createPinia } from 'pinia'
+import { installCanvasRuntime } from '@/migration/canvasRuntimeVue'
 import { registerBundledIcons } from '@/icons'
 import 'element-plus/es/components/alert/style/css'
 import 'element-plus/es/components/radio-button/style/css'
@@ -39,6 +40,7 @@ if (import.meta.hot) import.meta.hot.dispose(stopSkinSync)
 registerBundledIcons()
 
 const app = createApp(App)
+installCanvasRuntime(app, router)
 app.use(createPinia()).use(router)
 for (const component of [ElButton, ElButtonGroup, ElCheckbox, ElCheckboxGroup, ElConfigProvider, ElDialog, ElForm, ElFormItem, ElInput, ElInputNumber, ElOption, ElRadio, ElRadioGroup, ElSelect, ElSwitch, ElTabPane, ElTable, ElTableColumn, ElTabs]) app.use(component)
 app.mount('#app')

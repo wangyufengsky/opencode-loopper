@@ -30,6 +30,7 @@ for (const width of [1600, 390]) test(`另存流程先预览、保留当前步�
   await addWorkflowNode(page, '人工检查')
   await workflowTool(page, '另存为流程模板')
   const dialog = page.getByRole('dialog', { name: '另存为流程模板' })
+  await expect(dialog.locator('[data-canvas-runtime="react"][data-canvas-kind="workflow"] .react-flow')).toBeVisible()
   await expect(dialog.getByLabel('保存结构')).toHaveValue('CURRENT'); await expect(dialog.locator('.workflow-node')).toHaveCount(2)
   await dialog.getByRole('button', { name: '适应画布', exact: true }).click(); expect(saves).toHaveLength(0)
   await dialog.getByLabel('保存结构').selectOption('INITIAL'); await expect(dialog.locator('.workflow-node')).toHaveCount(1)

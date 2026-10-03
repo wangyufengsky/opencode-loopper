@@ -90,6 +90,11 @@ function join(id: string) {
   try { change({ ...draft.value, graph: connect(draft.value.graph, connecting.value, id) }); connecting.value = ''; error.value = '' }
   catch (failure) { error.value = userFacingError(failure, '节点无法连接，请检查依赖顺序。') }
 }
+function joinPair(from: string, to: string) {
+  if (locked.value) return
+  try { change({ ...draft.value, graph: connect(draft.value.graph, from, to) }); connecting.value = ''; error.value = '' }
+  catch (failure) { error.value = userFacingError(failure, '节点无法连接，请检查依赖顺序。') }
+}
 function remove(id: string) {
   if (locked.value || !window.confirm('删除这个节点及其连接？已绑定它的输入需要先调整。')) return
   try { const graph = removeNode(draft.value.graph, id), layout = clone(draft.value.layout); delete layout.positions[id]; change({ ...draft.value, graph, layout }); dismiss(); error.value = '' }
@@ -152,7 +157,7 @@ watch(() => route.params.id, () => { if (!navigatingAfterSave) void load() }, { 
         <template v-if="undo.length || redo.length"><span class="workflow-tool-divider" /><button :disabled="locked || !undo.length" aria-label="撤销修改" title="撤销修改" @click="history(true)"><Icon icon="lucide:undo-2" /></button><button :disabled="locked || !redo.length" aria-label="重做修改" title="重做修改" @click="history(false)"><Icon icon="lucide:redo-2" /></button></template>
         <button aria-label="更多工具" title="更多工具" :aria-expanded="inspecting === 'tools'" @click="toggle('tools')"><Icon icon="lucide:ellipsis" /></button>
       </div>
-      <WorkflowCanvas ref="canvas" :graph="draft.graph" :layout="draft.layout" :selected="selected" :selected-edge="selectedEdge" :readonly="locked" :connecting="connecting" :role-names="roleNames" @select="select" @edge="selectEdge" @connect="join" @layout="layout" @remove="remove" @cancel="dismiss" />
+      <WorkflowCanvas ref="canvas" :graph="draft.graph" :layout="draft.layout" :selected="selected" :selected-edge="selectedEdge" :readonly="locked" :connecting="connecting" :role-names="roleNames" @select="select" @edge="selectEdge" @connect="join" @connect-pair="joinPair" @layout="layout" @remove="remove" @cancel="dismiss" />
       <WorkflowContextPanel v-if="inspecting === 'add'" title="添加节点" class="workflow-tools-panel" @close="dismiss"><WorkflowAddMenu :disabled="locked" @add="add" @presets="openPresets" /></WorkflowContextPanel>
       <WorkflowContextPanel v-else-if="inspecting === 'tools'" title="更多工具" class="workflow-tools-panel" @close="dismiss"><div class="workflow-tool-actions"><button @click="toggle('nodes')"><Icon icon="lucide:list-tree" />节点列表</button><button :disabled="busy || loading || !ready" @click="validate"><Icon icon="lucide:list-checks" />检查流程</button><button :disabled="locked" @click="layout({ ...draft.layout, positions: autoLayout(draft.graph) })"><Icon icon="lucide:network" />自动排列</button><p>拖动空白处平移，Ctrl + 滚轮缩放。选中节点后可用方向键移动，Delete 删除，Esc 取消选择。</p></div></WorkflowContextPanel>
     <WorkflowContextPanel v-if="inspecting === 'nodes'" title="节点列表" class="workflow-tools-panel" @close="dismiss"><WorkflowNodeList :nodes="draft.graph.nodes" @select="locate" /></WorkflowContextPanel>

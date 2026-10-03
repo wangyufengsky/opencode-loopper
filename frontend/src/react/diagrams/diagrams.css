@@ -1,0 +1,47 @@
+.readonly-diagram { position: relative; width: 100%; min-width: 0; overflow: hidden; color: var(--color-text-primary); background: var(--color-bg-surface); }
+.readonly-diagram .react-flow { --xy-edge-stroke: var(--color-border-default); --xy-controls-button-background-color: var(--color-bg-surface); --xy-controls-button-background-color-hover: var(--color-bg-elevated); --xy-controls-button-color: var(--color-text-secondary); --xy-controls-button-border-color: var(--color-border-default); }
+.readonly-diagram .react-flow__attribution { background: var(--color-bg-surface); }
+.readonly-diagram .react-flow__attribution a { color: var(--color-text-secondary); }
+.readonly-diagram .react-flow__handle { opacity: 0; pointer-events: none; }
+.readonly-diagram .stage-connector { stroke: var(--color-border-default); stroke-width: 2; }
+.readonly-diagram .connector-complete { stroke: var(--color-success); }
+.readonly-diagram .connector-active { stroke: var(--color-accent-cyan); }
+.readonly-diagram .phase-card { display: flex; flex-direction: column; width: 100%; height: 100%; border: 1px solid var(--color-border-default); border-radius: calc(var(--radius-control) + 6px); background: var(--appearance-stage-rail-phase-card-background); box-shadow: var(--appearance-stage-rail-phase-card-box-shadow); }
+.readonly-diagram .phase-card header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 14px 15px; border-bottom: 1px solid var(--color-border-default); }
+.readonly-diagram .phase-card header > div { display: grid; gap: 4px; }
+.readonly-diagram .phase-index { color: var(--color-accent-cyan); font: 700 9px var(--font-code); }
+.readonly-diagram .phase-card header strong { font-size: 13px; }
+.readonly-diagram .phase-status { display: flex; align-items: center; gap: 5px; color: var(--color-text-secondary); font-size: 10px; }
+.readonly-diagram .phase-objective { flex: 1; padding: 17px 16px; }
+.readonly-diagram .phase-objective > span { color: var(--color-text-muted); font-size: 10px; }
+.readonly-diagram .phase-objective p { margin: 8px 0 0; color: var(--color-text-primary); font: 12px/1.75 var(--font-ui); white-space: pre-wrap; overflow-wrap: anywhere; }
+.readonly-diagram .phase-card footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 11px 15px; border-top: 1px solid var(--color-border-default); color: var(--color-text-muted); font-size: 10px; }
+.readonly-diagram .phase-card footer span { display: flex; align-items: center; gap: 6px; }
+.readonly-diagram .phase-card.is-succeeded { border-color: var(--color-success); }
+.readonly-diagram .phase-card.is-succeeded .phase-status { color: var(--color-success); }
+.readonly-diagram .phase-card.is-running, .readonly-diagram .phase-card.is-verifying { border-color: var(--color-accent-cyan); }
+.readonly-diagram .phase-card.is-running .phase-status, .readonly-diagram .phase-card.is-verifying .phase-status { color: var(--color-accent-cyan); }
+.readonly-diagram .phase-card.is-failed, .readonly-diagram .phase-card.is-blocked { border-color: var(--color-danger); }
+.role-diagrams { display: grid; gap: 16px; }
+.role-diagrams .workflow-card { min-width: 0; border: 1px solid var(--color-border-default); border-radius: var(--radius-card); padding: 20px; background: var(--color-bg-surface); }
+.role-diagrams .workflow-card > header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.role-diagrams .workflow-card > header > span { display: flex; gap: 8px; align-items: center; font-size: 14px; font-weight: 600; }
+.role-diagrams .workflow-card header small { display: flex; align-items: center; gap: 6px; color: var(--color-text-secondary); font-size: 11px; }
+.role-diagrams .workflow-card header i { width: 7px; height: 7px; border-radius: 50%; background: var(--color-accent-cyan); }
+.readonly-diagram .role-step { display: flex; flex-direction: column; gap: 10px; width: 100%; height: 100%; padding: 16px 12px; border: 1px solid var(--color-border-default); border-radius: var(--radius-control); background: var(--color-bg-elevated); color: var(--color-text-secondary); box-sizing: border-box; }
+.readonly-diagram .role-step.current { border-color: var(--color-accent-cyan); background: color-mix(in srgb, var(--color-accent-cyan) 7%, var(--color-bg-surface)); color: var(--color-text-primary); }
+.readonly-diagram .step-number { font: 12px var(--font-code); color: var(--color-text-muted); }
+.readonly-diagram .role-step strong { font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.role-diagrams .slot-list { list-style: none; margin: 0; padding: 14px 0 0; border-top: 1px solid var(--color-border-default); display: grid; gap: 10px; }
+.role-diagrams .slot-list li { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; font-size: 12px; }
+.role-diagrams .slot-list small { color: var(--color-text-secondary); }
+.role-diagrams .inline-button { font: inherit; color: var(--color-accent-cyan); border: 0; background: none; cursor: pointer; margin-left: auto; text-decoration: underline; }
+.role-diagrams button:focus-visible { outline: 2px solid var(--color-accent-cyan); outline-offset: 3px; }
+.readonly-diagram .template-step { display: flex; height: 100%; width: 100%; flex-direction: column; align-items: center; justify-content: center; gap: 9px; padding: 10px; box-sizing: border-box; border: 1px solid var(--color-border-default); border-radius: var(--radius-control); color: var(--color-text-muted); background: var(--color-bg-surface); font-size: 12px; }
+.readonly-diagram .template-step.complete { color: var(--color-success); border-color: var(--color-success); }
+.readonly-diagram .template-step.active { color: var(--color-accent-cyan); border-color: var(--color-accent-cyan); }
+.readonly-diagram .template-step.interrupted { color: var(--color-session-warning); }
+.readonly-diagram .template-step small { font-size: 10px; }
+.readonly-diagram .flow-icon { display: grid; width: 30px; height: 30px; place-items: center; border: 1px solid currentColor; border-radius: 50%; }
+.react-mermaid-diagram, .react-mermaid-svg { width: 100%; min-width: 0; }
+.react-mermaid-svg svg { display: block; max-width: 100%; height: auto; }

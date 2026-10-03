@@ -1,5 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { mountReactView } from '@/react/bridge'
+import { TemplateStepDiagram } from '@/react/diagrams/TemplateStepDiagram'
+import type { TemplateStep } from '@/domain/diagrams/projections'
+import { useCanvasRuntime } from '@/migration/canvasRuntimeVue'
+import TemplateTaskProgressPanelLegacy from './TemplateTaskProgressPanelLegacy.vue'
 import { Icon } from '@iconify/vue'
 import type { Task } from '@/types/domain'
 import { displayLabel } from '@/utils/displayLabels'
@@ -7,6 +12,14 @@ import SnapshotReviewBatchesPanel from './SnapshotReviewBatchesPanel.vue'
 import StageRail from './StageRail.vue'
 import TemplateBatchRecoveryPanel from './TemplateBatchRecoveryPanel.vue'
 const props = defineProps<{ task: Task }>()
+const runtime = useCanvasRuntime(), stepHost = ref<HTMLElement>()
+let stepView: ReturnType<typeof mountReactView<{ steps: TemplateStep[] }>> | undefined
+watch([stepHost, () => props.task.templateProgress?.steps], ([host, steps]) => {
+  if (!host) { stepView?.unmount(); stepView = undefined; return }
+  stepView ??= mountReactView(host, TemplateStepDiagram)
+  stepView.render({ steps: (steps ?? []).map(step => ({ ...step })) })
+}, { deep: true, flush: 'post' })
+onBeforeUnmount(() => stepView?.unmount())
 const copied = ref(false)
 const progress = computed(() => props.task.templateProgress)
 const total = computed(() => progress.value?.reviewBatches == null || progress.value.contributorBatches == null ? null : progress.value.reviewBatches + progress.value.contributorBatches)
@@ -29,11 +42,10 @@ async function copyPath() { try { await navigator.clipboard.writeText(progress.v
 </script>
 
 <template>
-  <section class="card template-progress" aria-label="执行进度">
+  <TemplateTaskProgressPanelLegacy v-if="runtime === 'vue'" :task="task" />
+  <section v-else class="card template-progress" aria-label="执行进度">
     <header class="progress-heading"><div><span class="eyebrow">任务执行</span><h2>执行进度</h2></div><div class="phase-state"><span :class="['state-dot', { complete: task.status === 'COMPLETED' }]" />{{ phase }}<small v-if="progress?.repairRound">第 {{ progress.repairRound }} 轮返修</small></div></header>
-    <ol v-if="progress?.steps?.length" class="flow" aria-label="执行流程">
-      <li v-for="step in progress.steps" :key="step.key" :class="step.state.toLowerCase()" :aria-current="step.state === 'ACTIVE' ? 'step' : undefined"><span class="flow-icon"><Icon :icon="step.state === 'COMPLETE' ? 'lucide:check' : step.state === 'INTERRUPTED' ? 'lucide:pause' : step.state === 'UNKNOWN' ? 'lucide:minus' : 'lucide:circle'" width="15" /></span><span>{{ step.label }}</span><small v-if="step.state === 'UNKNOWN'">历史记录不足</small></li>
-    </ol>
+    <div v-if="progress?.steps?.length" ref="stepHost" class="template-step-host" data-canvas-runtime="react" data-canvas-kind="template-progress" />
     <div class="progress-body">
       <div class="ring-block">
         <div class="ring" role="img" :aria-label="progress?.snapshot ? `已验证 ${completed} 个审查批次` : total ? `分析批次完成 ${completed}/${total}，${percentage}%` : total === 0 ? '无需模型分析' : '分析批次总数待确定'">
@@ -62,7 +74,6 @@ async function copyPath() { try { await navigator.clipboard.writeText(progress.v
 <style scoped>
 .template-progress { padding:24px; margin-bottom:20px; min-width:0; }
 .progress-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; }.progress-heading h2 { margin:5px 0 0; font-size:18px; }.eyebrow { color:var(--color-text-muted); font-size:11px; }.phase-state { display:flex; align-items:center; flex-wrap:wrap; gap:8px; font-size:13px; }.phase-state small { color:var(--color-text-secondary); }.state-dot { width:7px;height:7px;border-radius:50%;background:var(--color-accent-cyan); }.state-dot.complete{background:var(--color-success);}
-.flow { display:flex;list-style:none;padding:24px 0;margin:20px 0 0;border-top:1px solid var(--color-border-default);gap:8px; }.flow li{flex:1;position:relative;display:flex;flex-direction:column;align-items:center;text-align:center;gap:9px;font-size:12px;color:var(--color-text-muted);}.flow li:not(:last-child)::after{content:'';position:absolute;top:16px;left:calc(50% + 21px);width:calc(100% - 34px);height:1px;background:var(--color-border-default);}.flow-icon{display:grid;place-items:center;width:32px;height:32px;border:1px solid var(--color-border-default);border-radius:50%;background:var(--color-bg-surface);}.flow .complete{color:var(--color-success);}.flow .active{color:var(--color-accent-cyan);font-weight:600;}.flow .active .flow-icon,.flow .complete .flow-icon{border-color:currentColor;}.flow .interrupted{color:var(--color-session-warning);}.flow small{font-size:10px;}
 .progress-body{display:grid;grid-template-columns:250px 1fr;align-items:center;gap:40px;padding:18px 0 22px;}.ring-block{display:grid;justify-items:center;gap:14px;font-size:12px;color:var(--color-text-secondary);}.ring{width:148px;height:148px;position:relative;}.ring svg{width:100%;height:100%;transform:rotate(-90deg);}.ring circle{fill:none;stroke-width:8;}.ring-track{stroke:var(--color-border-default);}.ring-value{stroke:var(--color-accent-cyan);stroke-linecap:round;transition:stroke-dasharray .25s ease;}.ring>div{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;}.ring strong{font-size:35px;color:var(--color-text-primary);font-variant-numeric:tabular-nums;}.ring strong small{font-size:17px;margin-left:3px;}.ring strong.unknown{font-size:22px;}.ring-caption{font-size:13px;font-weight:500;}.analysis-details{min-width:0;}.category{margin-bottom:18px;}.category>div:first-child{display:flex;justify-content:space-between;font-size:13px;margin-bottom:10px;}.category strong{font-variant-numeric:tabular-nums;}.meter{height:6px;border-radius:calc(var(--radius-control) + 2px);overflow:hidden;background:var(--color-border-default);}.meter i{height:100%;display:block;background:var(--color-accent-cyan);border-radius:calc(var(--radius-control) + 2px);}.batch-counts{display:flex;gap:32px;padding-top:6px;}.batch-counts>span{display:grid;gap:5px;font-size:11px;color:var(--color-text-secondary);}.batch-counts b{font-size:22px;font-weight:600;color:var(--color-text-primary);}.batch-counts .attention b{color:var(--color-session-warning);}.progress-note{font-size:12px;color:var(--color-text-muted);margin:16px 0 0;line-height:1.6;}.output-directory{display:flex;align-items:flex-start;gap:10px;border-top:1px solid var(--color-border-default);padding-top:16px;font-size:12px;color:var(--color-text-secondary);}.output-directory details{flex:1;min-width:0;}.output-directory summary{overflow-wrap:anywhere;cursor:pointer;}.output-directory code{display:block;overflow-wrap:anywhere;margin-top:10px;font-size:11px;}.stage-details{border-top:1px solid var(--color-border-default);margin-top:16px;padding-top:14px;}.stage-details>summary{font-size:12px;color:var(--color-text-secondary);cursor:pointer;margin-bottom:10px;}
 @media(max-width:720px){.template-progress{padding:18px;}.progress-body{grid-template-columns:1fr;gap:24px;}.flow{flex-direction:column;gap:14px;}.flow li{flex-direction:row;text-align:left;}.flow li:not(:last-child)::after{left:16px;top:35px;width:1px;height:10px;}.progress-heading{align-items:flex-start;}.batch-counts{justify-content:space-between;}.output-directory{flex-wrap:wrap;}}
 @media(prefers-reduced-motion:reduce){.ring-value{transition:none;}}

@@ -1,7 +1,11 @@
-import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import TemplateTaskProgressPanel from './TemplateTaskProgressPanel.vue'
 import type { Task } from '@/types/domain'
+import { CANVAS_RUNTIME_STORAGE } from '@/migration/canvasRuntime'
+enableAutoUnmount(afterEach)
+beforeEach(() => localStorage.removeItem(CANVAS_RUNTIME_STORAGE))
+afterEach(() => localStorage.removeItem(CANVAS_RUNTIME_STORAGE))
 
 function task(status: Task['status'] = 'RUNNING'): Task {
   return { id: 't', projectId: 'p', projectName: '项目', title: '报告', goal: '', branch: 'main', worktreePath: '',
@@ -10,7 +14,7 @@ function task(status: Task['status'] = 'RUNNING'): Task {
       activeBatches: 1, failedBatches: 0, repairRound: 0, documentPath: '/reports/task/round' } }
 }
 describe('Template progress', () => {
-  it('shows lightweight steps and conditional finding reviews without recursive planning', () => {
+  it('shows lightweight steps and conditional finding reviews without recursive planning', async () => {
     const value = task()
     value.templateProgress = { ...value.templateProgress!, reviewBatches: 8, contributorBatches: 1, completedReviews: 4,
       currentPhase: 'ANALYSIS', steps: [{ key: 'SNAPSHOT', label: '准备范围', state: 'COMPLETE' },
@@ -18,7 +22,9 @@ describe('Template progress', () => {
       snapshot: { mode: 'DATE_INCREMENTAL', targetSha: 'target', baselineSha: 'base', planRevision: 1, supplements: 0, lightweight: true,
         phases: [{ label: '代码分析', total: 8, completed: 4 }, { label: '问题复核', total: 1, completed: 0 }] } }
     const wrapper = mount(TemplateTaskProgressPanel, { props: { task: value }, global: { stubs: { SnapshotReviewBatchesPanel: true, TemplateBatchRecoveryPanel: true } } })
-    expect(wrapper.findAll('.flow li')).toHaveLength(3)
+    await flushPromises()
+    expect(wrapper.findAll('[data-canvas-kind="template-progress"] .react-flow__node')).toHaveLength(3)
+    expect(wrapper.find('[data-canvas-runtime="react"] .react-flow').exists()).toBe(true)
     expect(wrapper.findAll('.category')).toHaveLength(2)
     expect(wrapper.text()).toContain('轻量审查')
     expect(wrapper.text()).toContain('仅发现候选问题的批次增加复核')
@@ -55,5 +61,31 @@ describe('Template progress', () => {
     const wrapper = mount(TemplateTaskProgressPanel, { props: { task: value }, global: { stubs: { ElProgress: true } } })
     expect(wrapper.text()).toContain('采集完成后显示分析批次总数')
     expect(wrapper.text()).not.toContain('剩余')
+  })
+  it('mounts server steps when they arrive and tears down the React root when they disappear', async () => {
+    const value = task('PAUSED')
+    const wrapper = mount(TemplateTaskProgressPanel, { props: { task: value }, global: { stubs: { ElButton: true } } })
+    expect(wrapper.find('.react-flow').exists()).toBe(false)
+    await wrapper.setProps({ task: { ...value, templateProgress: { ...value.templateProgress!, steps: [{ key: 'review', label: '独立复核', state: 'ACTIVE' }] } } })
+    await flushPromises()
+    expect(wrapper.get('.template-step').attributes('aria-current')).toBe('step')
+    const host = wrapper.get('.template-step-host').element
+    await wrapper.setProps({ task: value })
+    expect(wrapper.find('.react-flow').exists()).toBe(false)
+    expect(host.innerHTML).toBe('')
+    expect(wrapper.text()).toContain('已完成 20 / 30 个分析批次')
+  })
+  it('Vue rollback preserves both the template step sequence and nested stage details', () => {
+    localStorage.setItem(CANVAS_RUNTIME_STORAGE, JSON.stringify({ documents: 'vue', tasks: 'vue' }))
+    const value = task('PAUSED')
+    value.templateProgress = { ...value.templateProgress!, steps: [{ key: 'review', label: '独立复核', state: 'INTERRUPTED' }] }
+    value.stages = [{ id: 'stage', ordinal: 1, objective: '原执行规范', status: 'PAUSED', attempts: [] }]
+    const wrapper = mount(TemplateTaskProgressPanel, { props: { task: value }, global: { stubs: { ElButton: true } } })
+    expect(wrapper.find('[data-canvas-kind="template-progress"][data-canvas-runtime="vue"]').exists()).toBe(true)
+    expect(wrapper.find('.flow .interrupted').text()).toContain('独立复核')
+    expect(wrapper.find('[data-canvas-kind="stages"][data-canvas-runtime="vue"]').exists()).toBe(true)
+    expect(wrapper.find('.react-flow').exists()).toBe(false)
+    expect(wrapper.text()).toContain('原执行规范')
+    expect(wrapper.text()).toContain('已完成 20 / 30 个分析批次')
   })
 })

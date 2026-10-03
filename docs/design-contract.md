@@ -21,7 +21,7 @@
 已冻结 Task/Stage/Recovery 使用原合同与画像。`WorkPackageRoleService.get` 的既有兼容修复仅针对设计工作包：父画像是 `DIRECT_SOFTWARE_DESIGN` 且 intent 为软件/历史软件，已存包 rolePackId 缺失或不是 `software-` 时，按已确认父画像重新赋予包角色。该修复不授权随项目重析改写已冻结执行 Stage、历史证据或 Recovery；其他不一致须按具体迁移/修复合同处理。
 
 The UI is a desktop-first developer console. Figma is the visual source of
-truth; Vue components must expose the same states and terminology as the Figma
+truth; UI components must expose the same states and terminology as the Figma
 component variants.
 
 Figma source: [OpenCode Loopper Control Plane](https://www.figma.com/design/dEUMnufilqNivuyK3vgyIT)
@@ -30,6 +30,8 @@ The file contains 43 variables in four collections, six text styles, three
 effects, 18 reusable components, six desktop screens, and dedicated Session
 warning / Task-terminal boards. Vue uses Element Plus for mature interaction
 primitives and keeps the Figma tokens and error hierarchy in local components.
+
+画布渲染现渐进接入 React：节点流程使用 React Flow，PPT 使用自由对象编辑器，文档图示保留 Mermaid 语义。Vue Router、业务命令与订阅在本阶段继续由原页面持有；路由盘点、接口边界、安全回退和 Vue 退场条件见 [React 画布迁移](design/react-canvas-migration.md)。三套皮肤与既有业务合同继续适用。
 
 ## Typography
 

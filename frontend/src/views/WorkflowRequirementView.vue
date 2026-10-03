@@ -35,7 +35,7 @@ const surface = ref<'none' | 'flow' | 'add' | 'tools' | 'nodes'>('none'), canvas
 const publicationBusy = ref(false), publicationPanel = ref<InstanceType<typeof WorkflowPublication>>()
 const uploadBusy = ref(false), uploadPending = ref(false), presetsOpen = ref(false), finishBusy = ref(false), finishPanel = ref<InstanceType<typeof WorkflowFinish>>()
 const exportDraft = ref<{ requirement: string; revision: number; title: string; graph: WorkflowGraph; layout: WorkflowLayout } | null>(null), exportPanel = ref<InstanceType<typeof WorkflowSaveTemplate>>()
-const route = useRoute(), command = useWorkflowCommand()
+const route = useRoute(), command = useWorkflowCommand(() => String(route.params.id))
 const base = ref<WorkflowRequirement | null>(null), snapshot = ref<WorkflowExecution | null>(null), graph = ref(emptyGraph()), layout = ref(emptyLayout())
 const selected = ref(''), edgeId = ref(''), connecting = ref(''), roleNames = ref<Record<string, string>>({}), inputValues = ref<Record<string, string>>({}), checked = ref<string[]>([])
 const modelChoice = useWorkflowModel(), { model, loading: modelLoading, error: modelError } = modelChoice
@@ -67,26 +67,29 @@ const historyDateFields = computed(() => [...new Set(graph.value.nodes.filter(no
 const repositoryFields = computed(() => [...new Set(graph.value.nodes.filter(node => ['system.repository.snapshot', 'system.git.history', 'system.review.snapshot'].includes(node.moduleId || '')).flatMap(node => node.inputs.filter(input => input.name === 'branch' && input.source === 'REQUIREMENT').map(input => input.sourceId)))])
 function accept(value: WorkflowRequirement) { base.value = value; graph.value = clone(value.graph); layout.value = clone(value.layout); planSave.value = null; editing.value = false; proposal.value = null; undo.value = []; redo.value = [] }
 function schedule() { clearTimeout(timer); if (alive) timer = setTimeout(() => { if (document.hidden || command.locked.value || nodeBusy.value || candidateBusy.value || uploadBusy.value || uploadPending.value) schedule(); else void refresh() }, 2500) }
-async function refresh(strict = false) {
-  if (refreshing.value && !strict) return
+async function refresh(strict = false, current = command.captureScope()) {
+  if (!current() || refreshing.value && !strict) return
   const ticket = generation, refreshTicket = ++refreshGeneration, requirement = id.value; refreshing.value = true
+  const currentRead = () => current() && ticket === generation && refreshTicket === refreshGeneration
   try {
     const value = await workflowRuns.execution(requirement)
-    if (!alive || ticket !== generation || refreshTicket !== refreshGeneration || uploadBusy.value || uploadPending.value) return
+    if (!currentRead() || uploadBusy.value || uploadPending.value) return
     if (base.value && value.execution.revision !== base.value.revision) {
       if (dirty.value) throw new Error('计划已有新版本，当前草稿已保留，请重新加载后继续。')
-      const updated = await workflowRuns.get(requirement); if (!alive || ticket !== generation || refreshTicket !== refreshGeneration || uploadBusy.value || uploadPending.value) return; accept(updated)
+      const updated = await workflowRuns.get(requirement); if (!currentRead() || uploadBusy.value || uploadPending.value) return; accept(updated)
     }
     snapshot.value = value; readable.value = true; error.value = ''; checked.value = checked.value.filter(key => value.control.checkpoints.some(checkpoint => checkpoint.attemptId === key))
     modelChoice.adoptControl(value.control.model)
-  } catch (failure) { if (alive && ticket === generation && refreshTicket === refreshGeneration) { readable.value = false; error.value = userFacingError(failure, '执行状态暂时无法读取，请重试。'); if (strict) throw failure } }
-  finally { if (alive && ticket === generation && refreshTicket === refreshGeneration) { refreshing.value = false; schedule() } }
+  } catch (failure) { if (currentRead()) { readable.value = false; error.value = userFacingError(failure, '执行状态暂时无法读取，请重试。'); if (strict) throw failure } }
+  finally { if (currentRead()) { refreshing.value = false; schedule() } }
 }
 async function load() {
-  const ticket = ++generation; uploadBusy.value = false; uploadPending.value = false; surface.value = 'none'; connecting.value = ''; presetsOpen.value = false; refreshGeneration++; clearTimeout(timer); command.pending.value = null; command.error.value = ''; loading.value = true; readable.value = false; refreshing.value = false; snapshot.value = null; base.value = null; editing.value = false; proposal.value = null; reviewOpen.value = false; selected.value = ''; edgeId.value = ''; checked.value = []; modelChoice.reset(); inputValues.value = {}; error.value = ''; notice.value = ''
-  try { const value = await workflowRuns.get(id.value); if (!alive || ticket !== generation) return; accept(value); await refresh(true) }
-  catch (failure) { if (alive && ticket === generation) error.value = userFacingError(failure, '需求计划无法读取，请重新加载。') }
-  finally { if (alive && ticket === generation) loading.value = false }
+  command.invalidate()
+  const ticket = ++generation, requirement = id.value, current = command.captureScope(); uploadBusy.value = false; uploadPending.value = false; surface.value = 'none'; connecting.value = ''; presetsOpen.value = false; refreshGeneration++; clearTimeout(timer); loading.value = true; readable.value = false; refreshing.value = false; snapshot.value = null; base.value = null; editing.value = false; proposal.value = null; reviewOpen.value = false; selected.value = ''; edgeId.value = ''; checked.value = []; modelChoice.reset(); inputValues.value = {}; error.value = ''; notice.value = ''
+  const currentLoad = () => current() && ticket === generation
+  try { const value = await workflowRuns.get(requirement); if (!currentLoad()) return; accept(value); await refresh(true, current) }
+  catch (failure) { if (currentLoad()) error.value = userFacingError(failure, '需求计划无法读取，请重新加载。') }
+  finally { if (currentLoad()) loading.value = false }
 }
 function change(next: WorkflowGraph, nextLayout = layout.value) {
   if (!planning.value || locked.value) return
@@ -126,6 +129,14 @@ function addPreset(next: WorkflowGraph, node: WorkflowNode) {
 }
 function patch(value: WorkflowNode) { if (protectedKeys.value.has(value.id)) return; change(replaceReviewSource(graph.value, value, !inputsFrozen.value)) }
 function join(key: string) { if (!planning.value || locked.value) return; if (!connecting.value) { connecting.value = key; return }; try { if (protectedKeys.value.has(key)) throw new Error('这个节点已执行或属于保留区域，不能改变它的前置依赖。'); change(connect(graph.value, connecting.value, key)); connecting.value = ''; error.value = '' } catch (failure) { error.value = userFacingError(failure) } }
+function joinPair(from: string, to: string) {
+  if (!planning.value || locked.value || !canChangeContext()) return
+  try {
+    if (protectedKeys.value.has(to)) throw new Error('这个节点已执行或属于保留区域，不能改变它的前置依赖。')
+    change(connect(graph.value, from, to)); connecting.value = ''; error.value = ''
+  }
+  catch (failure) { error.value = userFacingError(failure, '节点无法连接，请检查依赖顺序。') }
+}
 function remove(key: string) { if (!planning.value || locked.value || !canRemove(key) || !window.confirm('将节点及其连接移出当前计划？已有执行和交付物历史将保留。')) return; try { const next = removeNode(graph.value, key), position = clone(layout.value); delete position.positions[key]; change(next, position); dismiss() } catch (failure) { error.value = userFacingError(failure) } }
 function removeEdge() { if (!locked.value && planning.value && edge.value && !protectedKeys.value.has(edge.value.to) && window.confirm('删除这条连接？')) { change({ ...graph.value, edges: graph.value.edges.filter(item => item.id !== edgeId.value) }); dismiss() } }
 function setLayout(value: WorkflowLayout) { if (!locked.value) { if (planning.value) change(graph.value, value); else layout.value = value } }
@@ -136,13 +147,23 @@ function exportTemplate() {
 async function save() {
   if (!base.value || uploadBusy.value || uploadPending.value || exportDraft.value || command.locked.value || nodeBusy.value || candidateBusy.value || finishBusy.value || publicationBusy.value || !readable.value || proposalReadOnly.value || !proposalReady.value) return
   if (!planSave.value) planSave.value = preparePlanSave({ ...base.value, version: snapshot.value!.execution.version, state: snapshot.value!.execution.state }, graph.value, layout.value, proposal.value)
-  const operation = planSave.value
-  await command.submit('保存计划', () => savePlan(operation), async value => { accept(value); reviewOpen.value = false; await refresh(true); notice.value = operation.active && operation.changesPlan ? '计划已应用，请选择执行方式继续。' : '计划已保存。' })
+  const operation = planSave.value, current = command.captureScope()
+  await command.submit('保存计划', () => savePlan(operation), async value => {
+    if (!current()) return
+    accept(value); reviewOpen.value = false; await refresh(true, current)
+    if (current()) notice.value = operation.active && operation.changesPlan ? '计划已应用，请选择执行方式继续。' : '计划已保存。'
+  })
 }
 async function confirm() {
   if (!base.value || locked.value || graphDirty.value || state.value !== 'PLANNING') return
-  const body = { requestKey: crypto.randomUUID(), expectedVersion: snapshot.value!.execution.version }, target = id.value, retainedLayout = layoutDirty.value ? clone(layout.value) : null
-  await command.submit('确认计划', () => workflowRuns.confirm(target, body), async () => { accept(await workflowRuns.get(target)); if (retainedLayout) layout.value = retainedLayout; await refresh(true); notice.value = '计划已确认，选择执行方式即可开始。' })
+  const body = { requestKey: crypto.randomUUID(), expectedVersion: snapshot.value!.execution.version }, target = id.value, retainedLayout = layoutDirty.value ? clone(layout.value) : null, current = command.captureScope()
+  await command.submit('确认计划', () => workflowRuns.confirm(target, body), async () => {
+    if (!current()) return
+    const value = await workflowRuns.get(target)
+    if (!current()) return
+    accept(value); if (retainedLayout) layout.value = retainedLayout; await refresh(true, current)
+    if (current()) notice.value = '计划已确认，选择执行方式即可开始。'
+  })
 }
 function waitingForModel(mode: WorkflowRunMode, target: string | null = null) { return modelLoading.value && (mode !== 'SINGLE' || graph.value.nodes.find(node => node.id === target)?.kind === 'WORK') }
 async function run(mode: WorkflowRunMode, target: string | null = null) {
@@ -151,12 +172,12 @@ async function run(mode: WorkflowRunMode, target: string | null = null) {
     if (mode !== 'CONTINUOUS' && !target) throw new Error('请先选择一个节点。')
     const body = { requestKey: crypto.randomUUID(), expectedVersion: control.value.version, expectedControlVersion: control.value.controlVersion, mode, targetKey: target,
       inputs: inputsFrozen.value ? null : readValues(graph.value.inputs, inputValues.value), model: clone(model.value), checkpointAttempts: checkpoints.value.map(checkpoint => checkpoint.attemptId) }
-    const targetId = id.value
-    await command.submit('执行流程', () => workflowRuns.start(targetId, body), async () => { await refresh(true); notice.value = '' })
+    const targetId = id.value, current = command.captureScope()
+    await command.submit('执行流程', () => workflowRuns.start(targetId, body), async () => { await refresh(true, current); if (current()) notice.value = '' })
   } catch (failure) { error.value = userFacingError(failure) }
 }
-async function pause() { if (!control.value || locked.value) return; const target = id.value, body = { requestKey: crypto.randomUUID(), expectedControlVersion: control.value.controlVersion }; await command.submit('暂停派发', () => workflowRuns.pause(target, body), async () => { await refresh(true) }) }
-async function cancel() { if (!base.value || !beforeStart.value || locked.value || !window.confirm('取消这个尚未执行的需求？历史计划将保留。')) return; const target = id.value, body = { requestKey: crypto.randomUUID(), expectedVersion: snapshot.value!.execution.version }; await command.submit('取消需求', () => workflowRuns.cancel(target, body), async () => { await refresh(true) }) }
+async function pause() { if (!control.value || locked.value) return; const target = id.value, body = { requestKey: crypto.randomUUID(), expectedControlVersion: control.value.controlVersion }, current = command.captureScope(); await command.submit('暂停派发', () => workflowRuns.pause(target, body), async () => { await refresh(true, current) }) }
+async function cancel() { if (!base.value || !beforeStart.value || locked.value || !window.confirm('取消这个尚未执行的需求？历史计划将保留。')) return; const target = id.value, body = { requestKey: crypto.randomUUID(), expectedVersion: snapshot.value!.execution.version }, current = command.captureScope(); await command.submit('取消需求', () => workflowRuns.cancel(target, body), async () => { await refresh(true, current) }) }
 function canRemove(key: string) {
   if (beforeStart.value) return true
   if (!base.value || statuses.value[key] === 'ACTIVE' || checkpoints.value.some(check => check.nodeKey === key)) return false
@@ -165,10 +186,11 @@ function canRemove(key: string) {
 }
 async function beginEdit() {
   if (locked.value || terminal.value || ending.value || beforeStart.value || editing.value || inspector.value && !inspector.value.canLeave()) return
+  const current = command.captureScope()
   if (control.value?.configured && ['ACTIVE', 'WAITING'].includes(control.value.state)) {
     const target = id.value, body = { requestKey: crypto.randomUUID(), expectedControlVersion: control.value.controlVersion }
-    await command.submit('暂停派发并调整计划', () => workflowRuns.pause(target, body), async () => { await refresh(true); editing.value = true })
-  } else { await refresh(); if (readable.value && !terminal.value) editing.value = true }
+    await command.submit('暂停派发并调整计划', () => workflowRuns.pause(target, body), async () => { await refresh(true, current); if (current()) editing.value = true })
+  } else { await refresh(false, current); if (current() && readable.value && !terminal.value) editing.value = true }
 }
 function toggleCandidates() { if (!candidateBusy.value && (!candidates.value || candidates.value.canLeave())) { reviewOpen.value = !reviewOpen.value; surface.value = 'none' } }
 function review(value: WorkflowCandidate) {
@@ -183,7 +205,7 @@ function discard() {
   accept(base.value); surface.value = 'none'; selected.value = ''; edgeId.value = ''; connecting.value = ''; notice.value = ''
 }
 function canLeave() { if (publicationPanel.value && !publicationPanel.value.canLeave()) return false; if (exportPanel.value && !exportPanel.value.canLeave()) return false; if (uploadBusy.value || uploadPending.value) return false; if (finishPanel.value && !finishPanel.value.canLeave()) return false; if (candidates.value && !candidates.value.canLeave()) return false; if (inspector.value && !inspector.value.canLeave()) return false; return !(dirty.value || command.pending.value) || window.confirm('当前计划有未保存或待确认的操作，仍要离开？') }
-async function reload() { if (canLeave()) { exportDraft.value = null; command.pending.value = null; command.error.value = ''; planSave.value = null; await load() } }
+async function reload() { if (canLeave()) { exportDraft.value = null; planSave.value = null; await load() } }
 onBeforeRouteLeave(canLeave); onBeforeRouteUpdate(canLeave)
 const unload = (event: BeforeUnloadEvent) => { if (exportDraft.value || dirty.value || command.pending.value || uploadBusy.value || uploadPending.value || nodeBusy.value || candidateBusy.value || finishBusy.value || publicationBusy.value) { event.preventDefault(); event.returnValue = '' } }
 window.addEventListener('beforeunload', unload)
@@ -229,7 +251,7 @@ watch([usesModel, readable, terminal], () => { if (usesModel.value && readable.v
       <template v-if="planning && (undo.length || redo.length)"><span class="workflow-tool-divider" /><button aria-label="撤销计划修改" title="撤销计划修改" :disabled="locked || !undo.length" @click="history(true)"><Icon icon="lucide:undo-2" /></button><button aria-label="重做计划修改" title="重做计划修改" :disabled="locked || !redo.length" @click="history(false)"><Icon icon="lucide:redo-2" /></button></template>
       <button aria-label="更多工具" title="更多工具" :aria-expanded="surface === 'tools'" :disabled="uploadBusy || uploadPending || nodeBusy" @click="toggle('tools')"><Icon icon="lucide:ellipsis" /></button>
     </div>
-    <WorkflowCanvas ref="canvas" :graph="graph" :layout="layout" :selected="selected" :selected-edge="edgeId" :connecting="connecting" :readonly="!planning || locked" :movable="!locked" :states="statuses" :role-names="roleNames" @select="select" @connect="join" @edge="selectEdge" @layout="setLayout" @remove="remove" @cancel="dismiss" />
+    <WorkflowCanvas ref="canvas" :graph="graph" :layout="layout" :selected="selected" :selected-edge="edgeId" :connecting="connecting" :readonly="!planning || locked" :movable="!locked" :states="statuses" :role-names="roleNames" @select="select" @connect="join" @connect-pair="joinPair" @edge="selectEdge" @layout="setLayout" @remove="remove" @cancel="dismiss" />
     <WorkflowContextPanel v-if="surface === 'add'" title="添加节点" class="workflow-tools-panel" @close="dismiss"><WorkflowAddMenu :disabled="locked" @add="add" @presets="openPresets" /></WorkflowContextPanel>
     <WorkflowContextPanel v-else-if="surface === 'tools'" title="更多工具" class="workflow-tools-panel" @close="dismiss"><div class="workflow-tool-actions"><button @click="toggle('nodes')"><Icon icon="lucide:list-tree" />节点列表</button>
       <button :disabled="locked" @click="setLayout({ ...layout, positions: autoLayout(graph) })"><Icon icon="lucide:network" />自动排列</button>

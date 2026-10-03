@@ -536,6 +536,7 @@ for (const skin of ['spdb', 'tech-blue', 'github-white']) {
     await page.setViewportSize({ width: 1600, height: 1000 })
     await page.goto(`/ppt/${documentId}`)
     await expect(page.locator('html')).toHaveAttribute('data-skin', skin)
+    await expect(page.locator('[data-canvas-runtime="react"][data-canvas-kind="ppt"]')).toBeVisible()
     await expect(page.getByAltText('当前幻灯片实际预览')).toBeVisible()
     const panel = page.getByRole('region', { name: '演示文稿预览' })
     const defaultPanel = (await panel.boundingBox())!

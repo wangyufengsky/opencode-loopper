@@ -1,7 +1,9 @@
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+import { waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import MarkdownDocument from '@/components/MarkdownDocument.vue'
 import { applySkin } from '@/themes/state'
+import { CANVAS_RUNTIME_STORAGE } from '@/migration/canvasRuntime'
 
 enableAutoUnmount(afterEach)
 
@@ -15,8 +17,9 @@ vi.mock('mermaid', () => ({
 }))
 
 describe('MarkdownDocument', () => {
-  afterEach(() => { vi.unstubAllGlobals(); applySkin('tech-blue', false) })
+  afterEach(() => { vi.unstubAllGlobals(); localStorage.removeItem(CANVAS_RUNTIME_STORAGE); applySkin('tech-blue', false) })
   beforeEach(() => {
+    localStorage.removeItem(CANVAS_RUNTIME_STORAGE)
     vi.stubGlobal('IntersectionObserver', undefined)
     mermaidMocks.render.mockReset()
     mermaidMocks.render.mockResolvedValue({ svg: '<svg role="img"><foreignObject width="120" height="30"><div><p>Rendered flow<br> safely</p><img src="x" onerror="alert(1)"></div></foreignObject></svg>' })
@@ -83,6 +86,8 @@ describe('MarkdownDocument', () => {
     await flushPromises()
 
     expect(mermaidMocks.render).toHaveBeenCalledWith(expect.stringMatching(/^loopper-mermaid-/), source)
+    await waitFor(() => expect(wrapper.find('figure[aria-label="Mermaid 流程图"] svg').exists()).toBe(true))
+    expect(wrapper.find('figure[data-canvas-runtime="react"] .react-mermaid-svg svg').exists()).toBe(true)
     expect(wrapper.get('figure[aria-label="Mermaid 流程图"]').text()).toContain('Rendered flow')
     expect(wrapper.find('foreignObject').exists()).toBe(false)
     expect(wrapper.find('[onerror]').exists()).toBe(false)
@@ -103,6 +108,7 @@ describe('MarkdownDocument', () => {
     })
     await flushPromises()
 
+    await waitFor(() => expect(wrapper.find('.markdown-mermaid-error').exists()).toBe(true))
     expect(wrapper.get('.markdown-mermaid-error').text()).toBe('流程图语法无法渲染，请检查 Mermaid 文本。')
     expect(document.body.textContent).not.toContain('Syntax error in text')
     expect(document.querySelector('[id^="dloopper-mermaid-"]')).toBeNull()
@@ -128,6 +134,7 @@ describe('MarkdownDocument', () => {
     notify?.([{ isIntersecting: true, target: placeholder }])
     await flushPromises()
     expect(mermaidMocks.render).toHaveBeenCalled()
+    await waitFor(() => expect(wrapper.find('.markdown-mermaid-pending').exists()).toBe(false))
     expect(wrapper.find('.markdown-mermaid-pending').exists()).toBe(false)
   })
 
@@ -189,11 +196,80 @@ describe('MarkdownDocument', () => {
     expect(mermaidMocks.render).toHaveBeenCalledTimes(1)
     release!({ svg: '<svg><text>obsolete dark diagram</text></svg>' })
     await flushPromises()
+    await waitFor(() => {
+      expect(wrapper.find('figure svg').exists()).toBe(true)
+      expect(second.find('figure svg').exists()).toBe(true)
+    })
     expect(wrapper.text()).not.toContain('obsolete dark diagram')
     expect(wrapper.find('figure svg').exists()).toBe(true)
     expect(second.find('figure svg').exists()).toBe(true)
     const ids = mermaidMocks.render.mock.calls.map(call => call[0])
     expect(new Set(ids).size).toBe(ids.length)
+  })
+
+  it('内容替换会卸载旧 React 图，迟到的旧 SVG 不进入新文档', async () => {
+    let release: ((value: { svg: string }) => void) | undefined
+    mermaidMocks.render.mockImplementationOnce(() => new Promise(resolve => { release = resolve }))
+    mermaidMocks.render.mockResolvedValue({ svg: '<svg><text>当前文档图</text></svg>' })
+    const wrapper = mount(MarkdownDocument, { props: { content: '```mermaid\nflowchart LR\nA --> B\n```' } })
+    await flushPromises()
+    await waitFor(() => expect(mermaidMocks.render).toHaveBeenCalledTimes(1))
+    const oldFrame = wrapper.get('figure').element
+    await wrapper.setProps({ content: '```mermaid\nsequenceDiagram\n用户->>程序: 新文档\n```' })
+    release!({ svg: '<svg><text>旧文档图</text></svg>' })
+    await waitFor(() => expect(wrapper.text()).toContain('当前文档图'))
+    expect(wrapper.text()).not.toContain('旧文档图')
+    expect(oldFrame.innerHTML).toBe('')
+    expect(wrapper.get('figure').attributes('data-mermaid-source')).toContain('sequenceDiagram')
+  })
+
+  it('证据高亮变化重建 Markdown 时会重建真实 React 图并清理旧根', async () => {
+    const wrapper = mount(MarkdownDocument, { props: { content: '# 验收证据\n\n```mermaid\nflowchart LR\nA --> B\n```' } })
+    await waitFor(() => expect(wrapper.find('.react-mermaid-svg svg').exists()).toBe(true))
+    const previous = wrapper.get('figure').element
+    await wrapper.setProps({ highlightLines: [1] })
+    await waitFor(() => expect(wrapper.find('.react-mermaid-svg svg').exists()).toBe(true))
+    expect(previous.innerHTML).toBe('')
+    expect(wrapper.get('h1').classes()).toContain('evidence-highlight')
+  })
+
+  it('已开始图在等待新主题可见期间也拒绝旧主题迟到结果', async () => {
+    let notify: ((entries: Array<{ isIntersecting: boolean; target: Element }>) => void) | undefined
+    const disconnect = vi.fn()
+    vi.stubGlobal('IntersectionObserver', class {
+      constructor(callback: typeof notify) { notify = callback }
+      observe = vi.fn(); unobserve = vi.fn(); disconnect = disconnect
+    })
+    let release: ((value: { svg: string }) => void) | undefined
+    mermaidMocks.render.mockImplementationOnce(() => new Promise(resolve => { release = resolve }))
+    const wrapper = mount(MarkdownDocument, { props: { content: '```mermaid\nflowchart LR\nA --> B\n```' } })
+    await flushPromises()
+    const frame = wrapper.get('figure').element
+    notify?.([{ isIntersecting: true, target: frame }])
+    await waitFor(() => expect(mermaidMocks.render).toHaveBeenCalledTimes(1))
+    applySkin('github-white', false)
+    await flushPromises()
+    release!({ svg: '<svg><text>obsolete deferred theme</text></svg>' })
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('obsolete deferred theme')
+    notify?.([{ isIntersecting: true, target: frame }])
+    await waitFor(() => expect(wrapper.find('figure svg').exists()).toBe(true))
+    expect(mermaidMocks.render).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+    expect(disconnect).toHaveBeenCalled()
+    expect(frame.innerHTML).toBe('')
+  })
+
+  it('新实例可回退 Vue，仍共用安全图服务且不替换已挂载的 React 图', async () => {
+    const content = '```mermaid\nflowchart LR\nA --> B\n```'
+    const current = mount(MarkdownDocument, { props: { content } })
+    await waitFor(() => expect(current.find('.react-mermaid-svg svg').exists()).toBe(true))
+    localStorage.setItem(CANVAS_RUNTIME_STORAGE, JSON.stringify({ documents: 'vue' }))
+    const fallback = mount(MarkdownDocument, { props: { content } })
+    await waitFor(() => expect(fallback.find('figure[data-canvas-runtime="vue"] svg').exists()).toBe(true))
+    expect(fallback.find('.react-mermaid-diagram').exists()).toBe(false)
+    expect(fallback.find('foreignObject, [onerror]').exists()).toBe(false)
+    expect(current.find('.react-mermaid-svg svg').exists()).toBe(true)
   })
 
 })

@@ -213,3 +213,28 @@ test('桌面双栏独立滚动且分页常驻，工具权限可各自折叠', as
   await page.keyboard.press('Enter')
   await expect(permissions.locator('.permission-list')).toBeVisible()
 })
+
+
+for (const skin of ['spdb', 'tech-blue', 'github-white']) {
+  test(`${skin} 角色流程采用真实ReactFlow且版本入口可达（模拟数据）`, async ({ page }) => {
+    await mockRolesApi(page)
+    const errors: string[] = []; page.on('pageerror', error => errors.push(error.message))
+    await page.addInitScript(value => localStorage.setItem('loopper.skin', value), skin)
+    await page.setViewportSize({ width: 1440, height: 1000 })
+    await page.goto('/roles'); await selectRole(page)
+    const diagram = page.locator('[data-canvas-runtime="react"][data-canvas-kind="roles"]').first()
+    await expect(diagram.locator('.react-flow')).toBeVisible()
+    await expect(diagram.locator('.react-flow__node')).toHaveCount(3)
+    await expect(diagram.locator('.react-flow__edge')).toHaveCount(2)
+    const evidence = process.env.CANVAS_EVIDENCE_DIR ?? 'test-results/react-canvas'
+    await page.screenshot({ path: `${evidence}/${skin}-roles.png`, fullPage: true })
+    await page.setViewportSize({ width: 390, height: 844 })
+    await diagram.scrollIntoViewIfNeeded()
+    await expect(diagram).toBeVisible()
+    expect(await page.locator('body').evaluate(element => element.scrollWidth <= innerWidth + 1)).toBe(true)
+    await page.screenshot({ path: `${evidence}/${skin}-roles-mobile.png`, fullPage: true })
+    await page.getByRole('button', { name: '查看此阶段使用的版本', exact: true }).first().click()
+    await expect(page.getByText('请完成当前工作包设计。')).toBeVisible()
+    expect(errors).toEqual([])
+  })
+}

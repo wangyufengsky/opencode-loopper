@@ -31,6 +31,7 @@ test('候选先查看、编辑后确认、历史预览和手动后续调整', as
     return route.fulfill({ json: [] })
   })
   await page.setViewportSize({ width: 1600, height: 1000 }); await page.goto('/requirements/req')
+  await expect(page.locator('[data-canvas-runtime="react"][data-canvas-kind="workflow"] .react-flow')).toBeVisible()
   await expect(page.getByRole('button', { name: '连续执行', exact: true })).toBeDisabled(); await workflowTool(page, '候选计划')
   await page.locator('.workflow-candidate-list button').first().click(); await expect(page.getByText('设计节点 提出的计划', { exact: true })).toBeVisible(); await page.screenshot({ path: 'test-results/workflow-candidate-list.png', fullPage: true })
   await page.getByRole('button', { name: '在画布中查看', exact: true }).click(); await expect(page.locator('.workflow-proposal-banner')).toContainText('尚未生效'); expect(applies).toHaveLength(0)

@@ -59,7 +59,9 @@ test('创建、连接、拖动、保存并重新打开流程；三种皮肤和�
   const first = page.locator('.workflow-node').filter({ hasText: '设计确认' }), box = await first.boundingBox()
   if (!box) throw new Error('节点没有可见位置')
   await page.mouse.move(box.x + 45, box.y + 22); await page.mouse.down(); await page.mouse.move(box.x + 150, box.y + 42, { steps: 5 }); await page.mouse.up()
-  await expect(first).toHaveCSS('left', '105px')
+  // React Flow positions nodes with transforms; assert the visible movement contract.
+  await expect.poll(async () => (await first.boundingBox())!.x - box.x).toBeCloseTo(105, 0)
+  await expect.poll(async () => (await first.boundingBox())!.y - box.y).toBeCloseTo(20, 0)
   await workflowTool(page, '自动排列')
   await page.getByRole('button', { name: '适应画布', exact: true }).click()
   await page.getByRole('button', { name: '保存流程', exact: true }).click()

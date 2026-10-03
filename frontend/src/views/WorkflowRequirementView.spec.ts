@@ -33,6 +33,11 @@ async function clickButton(label: string) {
   }
   await button(label).trigger('click')
 }
+async function waitForConnections(count: number) {
+  expect(wrapper!.find('[data-canvas-runtime="react"]').exists()).toBe(true)
+  // Real React Flow measures handles before rendering their edges.
+  await vi.waitFor(() => expect(wrapper!.findAll('.workflow-wire')).toHaveLength(count))
+}
 describe('requirement canvas', () => {
   it('saves a captured draft independently and protects an uncertain template operation during navigation', async () => {
     const router = await render(); await clickButton('人工检查')
@@ -50,7 +55,7 @@ describe('requirement canvas', () => {
     vi.mocked(workflowApi.presets).mockResolvedValue({ items: [preset()], nextCursor: null }); vi.mocked(workflowApi.preset).mockResolvedValue(preset())
     await render(); await clickButton('预设工作模块'); await flushPromises(); await wrapper!.get('.workflow-preset-list button').trigger('click'); await flushPromises()
     await wrapper!.get('.workflow-preset-detail select').setValue('NODE|review|result'); await clickButton('添加到画布')
-    expect(wrapper!.findAll('.workflow-node')).toHaveLength(2); expect(wrapper!.findAll('.workflow-wire')).toHaveLength(1); expect(wrapper!.find('.workflow-presets').exists()).toBe(false)
+    expect(wrapper!.findAll('.workflow-node')).toHaveLength(2); await waitForConnections(1); expect(wrapper!.find('.workflow-presets').exists()).toBe(false)
     expect(api.start).not.toHaveBeenCalled(); expect(api.revise).not.toHaveBeenCalled(); expect(api.applyPlan).not.toHaveBeenCalled()
     await wrapper!.get('[aria-label="撤销计划修改"]').trigger('click'); expect(wrapper!.findAll('.workflow-node')).toHaveLength(1)
   })
@@ -126,6 +131,7 @@ describe('requirement canvas', () => {
   it('keeps an unsent node form when context changes are rejected and does not prompt on repeated selection', async () => {
     const value = requirement({ state: 'PAUSED' }); value.graph.nodes.push({ ...value.graph.nodes[0]!, id: 'other', title: '后续检查' }); value.graph.edges.push({ id: 'edge', from: 'review', to: 'other', outcome: null })
     api.get.mockResolvedValue(value); api.execution.mockResolvedValue(execution('PAUSED')); await render()
+    await waitForConnections(1)
     await wrapper!.get('.workflow-node').trigger('click'); const panel = wrapper!.getComponent(WorkflowNodeRun)
     nodeCanLeave.mockReturnValue(false)
     await wrapper!.get('.workflow-node').trigger('click'); expect(nodeCanLeave).not.toHaveBeenCalled()
