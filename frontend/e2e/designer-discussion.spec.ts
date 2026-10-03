@@ -1,4 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
+import { allCanvasSnapshot, assertCanvasDisposed, assertNoCleanupInput, observeAllCanvasResources, recordAllCanvas } from './fixtures/allCanvasResources'
+import { holdCanvasStreams } from './fixtures/allCanvasReview'
 
 type Phase = 'requirement-question' | 'requirement-review' | 'wp1-question' | 'wp1-review' | 'wp2-question' | 'wp2-review' | 'final-review'
 
@@ -373,3 +375,38 @@ for (const skin of ['spdb', 'tech-blue', 'github-white']) {
     expect(errors).toEqual([])
   })
 }
+
+test('历史Designer静态Mermaid三次真实SPA退出清理SVG渲染残留与观察器（模拟数据）', async ({ page }, info) => {
+  await installDesignerApi(page, true); await holdCanvasStreams(page); await observeAllCanvasResources(page)
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message))
+  await page.route('**/api/designer-sessions/history-page**', route => route.fulfill({ json: { items: [{
+    id: 'designer-e2e', projectId: project.id, projectName: project.name, goal: '历史设计图 · 模拟数据',
+    state: 'RUNNING', workflowPhase: 'DISCUSSING_REQUIREMENT', draftStatus: 'DRAFT_READY', draftId: 'draft-e2e',
+    resumable: true, archived: false, stopRetryAvailable: false, createdAt: now, updatedAt: now,
+  }], facets: {}, nextCursor: null } }))
+  await page.setViewportSize({ width: 1600, height: 1000 }); await page.goto('/designs')
+  const identity = (await allCanvasSnapshot(page)).documentIdentity, rootIds = new Set<number>()
+  for (let cycle = 0; cycle < 3; cycle++) {
+    await page.getByRole('button', { name: '继续', exact: true }).click()
+    const diagram = page.locator('.react-mermaid-diagram[data-canvas-runtime="react"]').first()
+    await diagram.scrollIntoViewIfNeeded(); await expect(diagram.locator('svg')).toBeVisible()
+    await expect(diagram).toContainText('确认需求'); await expect(diagram).toContainText('核对设计')
+    expect(await diagram.locator('script, foreignObject').count()).toBe(0)
+    const oldRoot = await diagram.elementHandle(), streams = await page.evaluate(() => window.__allCanvasStreams)
+    await page.evaluate(() => window.__allCanvasResources.arm())
+    const during = await allCanvasSnapshot(page)
+    expect(during.observerLedger.some(row => row.kind === 'intersection' && row.observed.length > 0)).toBe(true)
+    expect(rootIds.has(during.roots[0]!.id)).toBe(false); rootIds.add(during.roots[0]!.id)
+    await page.locator('a[href="/designs"]').first().evaluate(element => (element as HTMLElement).click())
+    await expect(page).toHaveURL('/designs'); await expect(diagram).toHaveCount(0)
+    const immediate = await allCanvasSnapshot(page)
+    const artifacts = await page.locator('body > [id^="dloopper-mermaid-"], body > [id^="iloopper-mermaid-"], body > [id^="loopper-mermaid-"], svg[id^="loopper-mermaid-"]').count()
+    await recordAllCanvas(info, `designer-static-mermaid-${cycle}`, { during, immediate, artifacts, streamsBefore: streams,
+      streamsAfter: await page.evaluate(() => window.__allCanvasStreams), errors })
+    assertCanvasDisposed(immediate); assertNoCleanupInput(during, immediate); expect(artifacts).toBe(0)
+    expect(immediate.documentIdentity).toBe(identity)
+    expect(await oldRoot!.evaluate(element => element.isConnected)).toBe(false); await oldRoot!.dispose()
+    expect(errors).toEqual([])
+    await page.evaluate(() => window.__allCanvasResources.disarm())
+  }
+})

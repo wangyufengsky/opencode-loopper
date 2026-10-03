@@ -61,7 +61,7 @@ export async function observePointerResources(page: Page) {
       return result
     }
     Element.prototype.releasePointerCapture = function(pointerId) { return releaseCapture.call(this, pointerId) }
-    for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'lostpointercapture']) {
+    for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'lostpointercapture', 'mousemove', 'mouseup']) {
       nativeAdd.call(document, type, ((event: PointerEvent) => {
         if (armed) events.push({ type: event.type, target: name(event.target), pointerId: event.pointerId,
           pointerType: event.pointerType, clientX: event.clientX, clientY: event.clientY, trusted: event.isTrusted })

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { RoleSlotBinding, Stage } from '@/types/domain'
 import { projectStages } from '@/domain/diagrams/projections'
@@ -67,7 +67,7 @@ describe('真实 React Flow 只读图', () => {
     expect(last.classList.contains('nopan')).toBe(true)
     await waitFor(() => expect(last.style.visibility).toBe('visible'))
     const originalViewport = viewport.style.transform, originalPosition = last.style.transform
-    last.focus(); fireEvent.focus(last)
+    act(() => { last.focus(); fireEvent.focus(last) })
     await waitFor(() => expect(viewport.style.transform).not.toBe(originalViewport))
     for (const key of ['ArrowRight', 'Enter', ' ', 'Delete']) fireEvent.keyDown(last, { key })
     expect(last.style.transform).toBe(originalPosition)

@@ -1,6 +1,6 @@
 # React 画布阶段交付与验证记录
 
-当前续接验收见 [Pointer Events 手势替换](../deliveries/react-canvas-cross-review/pointer-gesture-review.md)。本文是首次迁移历史，以下旧计数与即时清理限制不能替代后续实现的结果。
+当前续接验收见 [全部画布类别退出清理](../deliveries/react-canvas-all-cleanup/README.md)，含尚未通过的上游 renderer ResizeObserver 门槛；此前工作流手势替换见 [Pointer Events 验收](../deliveries/react-canvas-cross-review/pointer-gesture-review.md)。本文是首次迁移历史，以下旧计数与即时清理限制不能替代后续实现的结果。
 
 本文保留首次阶段提交 `63d2462f7b69d76bf1a27c9aa597be086c69ccfd` 的历史结果。后续独立交叉验收、修复代码 `628ab18d88173910139dd9709054b17d10e534cb`、1198 项单测、分批 Chromium 结果及仓库内 33 张新截图，见 [本轮交叉验收](../deliveries/react-canvas-cross-review/README.md)。该记录明确列出仍有的基线失败与 React Flow 活动连线即时监听清理限制，不能用本文旧结果替代当前门禁。
 

@@ -2,6 +2,7 @@ import { useCallback, useLayoutEffect, useRef, useState, type PointerEvent as Re
 import type { WorkflowCanvasProps } from './types'
 import type { WorkflowLayout, WorkflowPoint } from '@/types/domain'
 import { copyLayout, positionOf } from './layout'
+import { ownResources } from '@/react/gestures/pointerResources'
 
 type Port = 'source' | 'target'
 type Sample = { point: WorkflowPoint; target: HTMLElement }
@@ -35,36 +36,6 @@ interface Options {
 const pointOf = (event: { clientX: number; clientY: number }): WorkflowPoint => ({ x: event.clientX, y: event.clientY })
 const distance = (a: WorkflowPoint, b: WorkflowPoint) => Math.hypot(a.x - b.x, a.y - b.y)
 const moved = (a: WorkflowPoint, b: WorkflowPoint) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y) >= 3
-
-// Every native registration belongs to this one active canvas session. Dispose
-// before releasing capture: synchronous lostpointercapture cannot re-enter it.
-function ownResources(root: HTMLElement, move: (event: PointerEvent) => void, up: (event: PointerEvent) => void,
-  cancel: (event?: PointerEvent) => void) {
-  const captures = new Map<number, HTMLElement>(), ownerWindow = root.ownerDocument.defaultView
-  const blur = () => cancel()
-  const types = { pointermove: move, pointerup: up, pointercancel: cancel, lostpointercapture: cancel }
-  for (const [type, listener] of Object.entries(types)) root.addEventListener(type, listener as EventListener)
-  ownerWindow?.addEventListener('blur', blur)
-  function release(id: number) {
-    const target = captures.get(id); captures.delete(id)
-    try { if (target?.hasPointerCapture?.(id)) target.releasePointerCapture(id) }
-    catch { /* A detached target may already have lost its native capture. */ }
-  }
-  return {
-    capture(target: HTMLElement, id: number) {
-      try {
-        if (!target.setPointerCapture) return false
-        target.setPointerCapture(id); captures.set(id, target); return true
-      } catch { return false }
-    },
-    release,
-    dispose() {
-      for (const [type, listener] of Object.entries(types)) root.removeEventListener(type, listener as EventListener)
-      ownerWindow?.removeEventListener('blur', blur)
-      for (const id of [...captures.keys()]) release(id)
-    },
-  }
-}
 
 export function useWorkflowPointerGestures(options: Options) {
   const latest = useRef(options); latest.current = options

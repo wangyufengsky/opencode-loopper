@@ -1,0 +1,69 @@
+{
+  "baselineCommit": "b2b88768169d4319bdb7194cca5fc1e0efc97142",
+  "capture": "Chromium actual browser screenshots; simulated API data; viewport 390x844; full page; original unedited PNG bytes",
+  "result": "Visual and interaction evidence only. Strict observer cleanup gate fails; see README.",
+  "images": [
+    {
+      "file": "screenshots/spdb-stages-390-keyboard.png",
+      "title": "spdb 普通任务阶段 · 390px 键盘定位与选字 · 模拟数据",
+      "bytes": 174214,
+      "width": 390,
+      "height": 2476,
+      "sha256": "b5af321c89834d51e72227883c8561b0696ecffc24eac463eef5b3d21be0c5ef"
+    },
+    {
+      "file": "screenshots/tech-blue-template-progress-390-keyboard.png",
+      "title": "tech-blue 模板流程 · 390px 键盘定位与选字 · 模拟数据",
+      "bytes": 403457,
+      "width": 390,
+      "height": 3256,
+      "sha256": "7ef371b555b9c108dbe3733e565f71dfa84dfcc86c0d06453d48c270e0cb6bec"
+    },
+    {
+      "file": "screenshots/github-white-roles-390-keyboard.png",
+      "title": "github-white 角色流程 · 390px 键盘定位与选字 · 模拟数据",
+      "bytes": 88224,
+      "width": 390,
+      "height": 1497,
+      "sha256": "8eefe3bb5cbdd62a4ad539f228856bc0788527d06c9248892d8d6abe7be8d523"
+    }
+  ],
+  "sources": [
+    {
+      "file": "frontend/src/react/diagrams/ReadonlyDiagramFlow.tsx",
+      "sha256": "82aacf84443a67580f60043a5ecc74a22999f7c90ad29b9ddde2b6afd4f975a7"
+    },
+    {
+      "file": "frontend/src/react/diagrams/diagrams.css",
+      "sha256": "63f1b165cf414dd7bba5db0b016f1fd66150664493be8be4dd7ebb4ab5366283"
+    },
+    {
+      "file": "frontend/src/react/diagrams/viewportGestures.ts",
+      "sha256": "363afd1e25ba6dfddaf7647d902710d1aafb5fc901f63e3b3d18c4e73d198488"
+    },
+    {
+      "file": "frontend/src/react/gestures/pointerResources.ts",
+      "sha256": "d2695a055621b45b59c6feabfc4f091318977e9d9876df431ebd50e63f9eef60"
+    },
+    {
+      "file": "frontend/src/react/workflow/pointerGestures.ts",
+      "sha256": "08cce87338cfe48dff8759510bd29079fd307ce87cf5e45ec691f367706389d5"
+    },
+    {
+      "file": "frontend/e2e/react-all-canvas-cleanup.spec.ts",
+      "sha256": "6ced5ddaa55aa5b9a6df02213a7eac9432ea712f3779d1bb9af357e658e7626c"
+    },
+    {
+      "file": "frontend/e2e/fixtures/allCanvasResources.ts",
+      "sha256": "5ed2848f99f1d74322d4c10f0b3f59f9d09ec55098dd8a6ec0776e16aa6bd76b"
+    },
+    {
+      "file": "frontend/e2e/fixtures/allCanvasReview.ts",
+      "sha256": "8a0c4cfb6cf3ff050a1a78000582cfab6affb273fbc01adcdd745d32ceb2baaf"
+    },
+    {
+      "file": "frontend/package-lock.json",
+      "sha256": "230c57186d84a632a676a78f9194064c0fbc06817481444b48e4042b74ac65eb"
+    }
+  ]
+}

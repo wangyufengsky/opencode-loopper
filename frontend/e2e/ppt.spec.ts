@@ -1,4 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
+import { allCanvasSnapshot, assertCanvasDisposed, assertNoCleanupInput, observeAllCanvasResources, recordAllCanvas } from './fixtures/allCanvasResources'
+import { holdCanvasStreams } from './fixtures/allCanvasReview'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
@@ -775,3 +777,62 @@ test('存储不可写且无属性草稿时，未知键盘操作阻止回退直�
   expect(confirmations).toEqual([])
   await page.screenshot({ path: screenshot('ppt-volatile-pending-safe-fallback-mock'), fullPage: true })
 })
+
+for (const gesture of ['drag', 'resize'] as const) {
+  test(`PPT ${gesture} 活动中三次SPA退出首采样零监听RAF捕获RO且无迟到保存（模拟数据）`, async ({ page }, info) => {
+    const state = await fixture(page), errors: string[] = []
+    page.on('pageerror', error => errors.push(error.message))
+    await holdCanvasStreams(page); await observeAllCanvasResources(page)
+    await page.setViewportSize({ width: 1600, height: 1000 }); await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.goto('/ppt')
+    const identity = (await allCanvasSnapshot(page)).documentIdentity, rootIds = new Set<number>()
+    for (let cycle = 0; cycle < 3; cycle++) {
+      await page.locator(`.ppt-document-card[href="/ppt/${documentId}"]`).click()
+      const canvas = page.locator('.ppt-canvas-wrap[data-canvas-runtime="react"]')
+      await expect(canvas).toBeVisible()
+      await page.getByRole('button', { name: '手动编辑', exact: true }).click()
+      const object = canvas.getByRole('button', { name: '文本框：本季度核心成果', exact: true })
+      if (gesture === 'resize') await object.click()
+      const handle = gesture === 'resize' ? object.getByRole('button', { name: '拖动调整对象大小' }) : object
+      await handle.scrollIntoViewIfNeeded()
+      const box = (await handle.boundingBox())!, before = (await object.boundingBox())!
+      const origin = { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+      expect(await handle.evaluate((element, point) => element.contains(document.elementFromPoint(point.x, point.y)), origin)).toBe(true)
+      const oldRoot = await canvas.elementHandle(), streams = await page.evaluate(() => window.__allCanvasStreams)
+      await page.evaluate(() => window.__allCanvasResources.arm())
+      await page.mouse.move(origin.x, origin.y); await page.mouse.down(); await page.mouse.move(origin.x + 105, origin.y + 20)
+      await expect(object).toHaveClass(/dragging/)
+      await expect.poll(async () => {
+        const moved = (await object.boundingBox())!
+        return Math.abs((gesture === 'drag' ? moved.x - before.x : moved.width - before.width) - 105)
+      }).toBeLessThan(1)
+      const during = await allCanvasSnapshot(page)
+      expect(during.captures).toHaveLength(1); expect(during.observers.length).toBeGreaterThan(0)
+      expect(during.events.some(event => event.type === 'pointerdown' && event.trusted && event.pointerType === 'mouse')).toBe(true)
+      expect(during.events.some(event => event.type === 'pointermove' && event.trusted && Math.abs(event.clientX! - origin.x - 105) < .01)).toBe(true)
+      expect(rootIds.has(during.roots[0]!.id)).toBe(false); rootIds.add(during.roots[0]!.id)
+      expect(state.operations).toEqual([])
+      await page.getByRole('link', { name: '返回作品列表', exact: true }).evaluate(element => (element as HTMLElement).click())
+      await expect(page).toHaveURL('/ppt'); await expect(canvas).toHaveCount(0)
+      const immediate = await allCanvasSnapshot(page)
+      await recordAllCanvas(info, `ppt-${gesture}-${cycle}`, { during, immediate, streamsBefore: streams,
+        streamsAfter: await page.evaluate(() => window.__allCanvasStreams), operations: state.operations, errors })
+      assertCanvasDisposed(immediate); assertNoCleanupInput(during, immediate)
+      expect(immediate.documentIdentity).toBe(identity)
+      expect(await oldRoot!.evaluate(element => element.isConnected)).toBe(false); await oldRoot!.dispose()
+      expect(state.operations).toEqual([]); expect(errors).toEqual([])
+      const disposed = await page.evaluate(() => window.__allCanvasStreams)
+      expect(disposed.opened).toEqual(streams.opened)
+      expect(disposed.closed).toEqual([...streams.closed, `/api/ppt/documents/${documentId}/events`])
+      // Release the physical mouse only after the strict immediate-unmount sample.
+      await page.evaluate(() => window.__allCanvasResources.disarm()); await page.mouse.up()
+      expect(state.operations).toEqual([])
+      await page.mouse.move(7, 9)
+      await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
+      const unaffected = await allCanvasSnapshot(page)
+      expect(unaffected.sentinel.moves).toBeGreaterThan(immediate.sentinel.moves)
+      expect(unaffected.sentinel.frames).toBeGreaterThan(immediate.sentinel.frames)
+      expect(unaffected.sentinel.listener).toBe(true)
+    }
+  })
+}

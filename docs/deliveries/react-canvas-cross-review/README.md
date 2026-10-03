@@ -1,6 +1,8 @@
 # React 画布迁移交叉验收
 
-最新续接是 [Pointer Events 交互替换与严格验收](pointer-gesture-review.md)：保留 React Flow，应用拥有节点、端口及关联视口手势的完整生命周期。该文记录新的修复、独立复核、最终门禁和三皮肤实际截图。下文的 1198/152 项、33 张图片及旧清理限制属于先前阶段，保留原始结果，不作为新实现的验证结论。
+最新续接是 [全部画布类别退出清理验收](../react-canvas-all-cleanup/README.md)：保留已验证工作流，替换共享只读图的视口手势，并补 PPT、需求/预览和静态图的退出证据。更严格的原生观察器探针确认了尚未解决的 React Flow renderer ResizeObserver 清理缺口，当前不能称全资源通过。
+
+此前 [Pointer Events 交互替换与严格验收](pointer-gesture-review.md) 记录工作流的已通过门槛与六张图片。下文的 1198/152 项、33 张图片及旧清理限制属于先前阶段，保留原始结果，不作为新实现的验证结论。
 
 ## Pointer 手势替换后的实际截图
 
