@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 for (const width of [1440, 390]) {
-  test(`文档评审上传重试、刷新与按需报告 ${width}px`, async ({ page }) => {
+  test(`文档评审上传重试、刷新与按需报告 ${width}px`, async ({ page }, testInfo) => {
     const posts: string[] = []; let bodies = 0; let sectionBodies = 0
     const overview = { id: 'document', projectId: 'p', templateId: 'REQUIREMENT_CODE_REVIEW', templateVersion: '2', sourceKind: 'DOCUMENT_SOURCE', sourceRevision: 1, analysisConcurrency: 4, title: '需求代码评审 · 示例项目',
       state: 'COMPLETED', waitingReasonCode: null, waitingMessage: null, designerId: null, taskId: null, requirementRevision: 1, version: 10,
@@ -60,6 +60,6 @@ for (const width of [1440, 390]) {
     await page.reload(); await expect(page.getByRole('heading', { name: /需求代码评审 · 示例项目/ })).toBeVisible()
     expect(posts).toHaveLength(2); expect(bodies).toBe(1)
     expect(await page.locator('body').evaluate(node => node.scrollWidth <= window.innerWidth)).toBeTruthy()
-    await page.screenshot({ path: `/private/tmp/loopper-document-template-${width}.png`, fullPage: true })
+    await page.screenshot({ path: testInfo.outputPath(`loopper-document-template-${width}.png`), fullPage: true })
   })
 }

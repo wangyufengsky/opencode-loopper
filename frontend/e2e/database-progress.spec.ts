@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import type { DatabaseConnectionInput } from '../src/types/domain'
 const types = [
   { type:'MYSQL', label:'MySQL', id:'mysql-8.0.33', driverClass:'com.mysql.cj.jdbc.Driver', defaultPort:3306, binaries:[{filename:'mysql-connector-j-8.0.33.jar',sha256:'fixture'}] },
   { type:'OPENGAUSS', label:'openGauss', id:'opengauss-6.0.3', driverClass:'org.postgresql.Driver', defaultPort:5432, binaries:[{filename:'opengauss-jdbc-6.0.3.jar',sha256:'fixture'}] },
@@ -7,10 +8,11 @@ const types = [
 for (const width of [1440,390]) {
  test(`数据库分区配置与真实步骤投影 ${width}px`,async({page})=>{
   let tests=0, saves=0
+  const drafts: DatabaseConnectionInput[] = []
   await page.route('http://127.0.0.1:41773/api/**',async route=>{
    const path=new URL(route.request().url()).pathname
    if(path==='/api/database-connections/types')return route.fulfill({json:types})
-   if(path==='/api/database-connections/test'){tests++;return route.fulfill({json:{connected:true,sessionReadOnly:true,serverProduct:'测试服务器',serverVersion:'8.0',driverVersion:'8.0.33',detail:'连接与只读标记已检查'}})}
+   if(path==='/api/database-connections/test'){tests++;expect(route.request().method()).toBe('POST');expect(route.request().headers()['x-loopper-local-ui']).toBe('1');drafts.push(route.request().postDataJSON());return route.fulfill({json:{connected:true,sessionReadOnly:true,serverProduct:'测试服务器',serverVersion:'8.0',driverVersion:'8.0.33',driverSha256:'fixture',compatibilityVerified:false,detail:'连接与只读标记已检查'}})}
    if(path==='/api/database-connections'&&route.request().method()==='POST'){saves++;return route.fulfill({json:{id:'created'}})}
    if(path==='/api/database-connections')return route.fulfill({json:{items:[],nextCursor:null}})
    if(path.endsWith('/overview'))return route.fulfill({json:{id:'fixture',projectId:'p',title:'项目人员贡献周报',status:'RUNNING',loopRetryAvailable:false,cancellationAvailable:false,hasDesignHistory:false,archived:false,executionMode:'TEMPLATE_REPORT',stages:[],templateProgress:{reviewBatches:10,contributorBatches:4,completedReviews:10,completedContributors:2,activeBatches:1,failedBatches:0,repairRound:0,documentPath:'/reports/贡献周报_20260901_001',currentPhase:'CONTRIBUTORS',steps:[{key:'COLLECT',label:'采集提交',state:'COMPLETE'},{key:'CODE',label:'代码分析',state:'COMPLETE'},{key:'CONTRIBUTORS',label:'人员贡献',state:'ACTIVE'},{key:'REPORT',label:'生成并校验报告',state:'PENDING'},{key:'COMPLETE',label:'完成',state:'PENDING'}]}}})
@@ -24,15 +26,16 @@ for (const width of [1440,390]) {
   await page.screenshot({path:`test-results/database-empty-${width}.png`})
   await page.getByRole('button',{name:'新增数据库连接',exact:true}).click()
   await page.getByRole('textbox',{name:'连接名称',exact:true}).fill('内网业务库')
-  await page.getByRole('textbox',{name:'主机',exact:true}).fill('db.internal')
-  await page.getByRole('textbox',{name:'数据库名称',exact:true}).fill('app')
-  await page.getByRole('textbox',{name:'只读账号',exact:true}).fill('reader')
+  await page.getByRole('textbox',{name:'JDBC URL',exact:true}).fill('jdbc:mysql://db.internal:3306/app')
+  await page.getByRole('textbox',{name:'用户名',exact:true}).fill('reader')
   await page.getByRole('textbox',{name:'密码',exact:true}).fill('fixture-password')
   await page.getByRole('textbox',{name:'允许访问的数据库',exact:true}).fill('app')
   await page.getByRole('button',{name:'测试连接',exact:true}).click()
   await expect(page.getByText('连接成功 · 只读标记已确认')).toBeVisible();expect(tests).toBe(1);expect(saves).toBe(0)
+  expect(drafts).toHaveLength(1)
+  expect(drafts[0]).toMatchObject({name:'内网业务库',password:'fixture-password',config:{type:'MYSQL',jdbcUrl:'jdbc:mysql://db.internal:3306/app',username:'reader',schemas:['app']}})
   await page.screenshot({path:`test-results/database-drawer-${width}.png`})
-  await page.getByRole('textbox',{name:'主机',exact:true}).fill('changed.internal');await expect(page.getByText('连接成功 · 只读标记已确认')).toHaveCount(0)
+  await page.getByRole('textbox',{name:'JDBC URL',exact:true}).fill('jdbc:mysql://changed.internal:3306/app');await expect(page.getByText('连接成功 · 只读标记已确认')).toHaveCount(0)
   await page.getByRole('button',{name:'取消',exact:true}).click()
   await page.goto('/tasks/fixture')
   await expect(page.getByRole('img',{name:'分析批次完成 12/14，85%'})).toBeVisible()

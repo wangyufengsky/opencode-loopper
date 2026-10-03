@@ -1,0 +1,2744 @@
+{
+  "kind": "w0-workflow-designer-results",
+  "baseline": "008542f0bf02dc1c1b76f1e75429aab8452b797d",
+  "author": "/root/react_flow_workflow",
+  "historicalStartupConfiguration": {
+    "model": "gpt-6.1-sol",
+    "reasoningEffort": "xhigh",
+    "livePlatformReadable": false
+  },
+  "status": "EVIDENCE_FROZEN_BUSINESS_GATES_OPEN_NO_PRODUCTION_REPAIR",
+  "productionModified": false,
+  "scope": {
+    "globalW0ParentCases": 28,
+    "ownedParentCases": 16,
+    "ownedCaseIds": [
+      "B1.1",
+      "B1.2",
+      "B1.3",
+      "B1.4",
+      "B2.1",
+      "B2.2",
+      "B2.3",
+      "B5.1",
+      "B5.2",
+      "B5.3",
+      "B6.1",
+      "B6.2",
+      "B6.3",
+      "B7.1",
+      "B7.2",
+      "B7.3"
+    ]
+  },
+  "summary": {
+    "parentClassification": {
+      "REPRODUCED_FAIL": 15,
+      "PASS": 1
+    },
+    "parentCoverage": {
+      "partial": 15,
+      "complete": 1
+    },
+    "actualSubtests": {
+      "total": 53,
+      "passed": 8,
+      "failed": 45,
+      "skipped": 0,
+      "evidenceRun": "workflow-designer-final (historical full53 before final DTO/type completion and B1.4 extension)"
+    },
+    "note": "green unreachable negative control B6.1 does not equal reachable reject coverage; composite parent FAIL does not claim all remaining variants run",
+    "latestAssertionExtension": {
+      "run": "workflow-b1-4-locked-final",
+      "sameTestReplaced": true,
+      "newTestsAdded": 0,
+      "executed": 1,
+      "passed": 1,
+      "failed": 0,
+      "nameFilteredNotExecuted": 31,
+      "fullFrozenAggregate": "PENDING_PARENT_FINAL_RERUN"
+    }
+  },
+  "runs": [
+    {
+      "id": "workflow-designer-final",
+      "cwd": "/workspace/opencode-loopper-react-full/frontend",
+      "command": "./node_modules/.bin/vitest run src/w0/workflow-w0.spec.ts src/w0/designer-w0.spec.ts --maxWorkers=1 --reporter=verbose --reporter=json --outputFile.json=/workspace/react-full-w0-evidence/workflow-designer-final.json > /workspace/react-full-w0-evidence/workflow-designer-final.log 2>&1",
+      "exitCode": 1,
+      "startTimeEpochMs": 1791019355793,
+      "report": "/workspace/react-full-w0-evidence/workflow-designer-final.json",
+      "reportSha256": "f36393bd41d78d99956c69e9c0b162859cafe774dac929f663a5b53b7be9059b",
+      "log": "/workspace/react-full-w0-evidence/workflow-designer-final.log",
+      "logSha256": "fb1da32275bf13a2cfe818a35084d855350741ce6aee73d923b2341c5c5308b0",
+      "exactSourceRelation": "final log/JSON produced immediately before these final type/fixture-DTO completions; current source hashes are separate frozen-source hashes, not claimed as exact previously run source; subsequently the same B1.4 UI test was strengthened to SENDING→UNKNOWN and separately rerun. The old53 aggregate is retained as historical executed evidence, not claimed as a full run of current bytes."
+    },
+    {
+      "id": "workflow-b1-4-locked-final",
+      "cwd": "/workspace/opencode-loopper-react-full/frontend",
+      "command": "./node_modules/.bin/vitest run src/w0/workflow-w0.spec.ts --testNamePattern='sending then unknown disables all four' --maxWorkers=1 --reporter=verbose --reporter=json --outputFile.json=/workspace/react-full-w0-evidence/workflow-b1-4-locked-final.json > /workspace/react-full-w0-evidence/workflow-b1-4-locked-final.log 2>&1",
+      "exitCode": 0,
+      "executedTests": 1,
+      "passedTests": 1,
+      "failedTests": 0,
+      "nameFilteredNotExecuted": 31,
+      "skipCodeAdded": false,
+      "report": "/workspace/react-full-w0-evidence/workflow-b1-4-locked-final.json",
+      "reportSha256": "ee229658c983d238f0726bcc0ff8fb2aa27581d24a600e960ec33a9774acb0a3",
+      "log": "/workspace/react-full-w0-evidence/workflow-b1-4-locked-final.log",
+      "logSha256": "a18273fd030effdf9eee27ce7198def872b49ccf93e46aa07084659873d025c4",
+      "testSourceSha256": {
+        "frontend/src/w0/workflow-w0.spec.ts": "471be59eddd217fb3a398e53d4ab70587baaf1d1c923fcffeb21768445bc65ae"
+      },
+      "exactSourceRelation": "current frozen Workflow test bytes are exactly those used for this selected UI test run; the other31 Workflow tests were name-filtered and not rerun here; full53 fresh aggregate requires parent final full run"
+    }
+  ],
+  "frozenSourceSha256": {
+    "frontend/src/components/workflow/WorkflowCandidates.spec.ts": "9344fade1d29af49860c5205640d3b3e2080c36955bbb632ef6f773c07686335",
+    "frontend/src/components/workflow/WorkflowCandidates.vue": "0151735ff27c8c678a1726cec252fab8a4d9bd9db85a04821b5527335b2eb696",
+    "frontend/src/components/workflow/WorkflowFinish.spec.ts": "007730ddb13b21f51a5cc9253d12663e5f67715bb38117293b5ddd8dd15d620b",
+    "frontend/src/components/workflow/WorkflowFinish.vue": "3d542db6cbd7faf007d93b6a85be4291cba42eebc74ddf69730e1213872eb898",
+    "frontend/src/components/workflow/WorkflowNodeRun.spec.ts": "947ace40df9e094076cbd9e44ba449310acadc7393a09aef2ea06827503c7c99",
+    "frontend/src/components/workflow/WorkflowNodeRun.vue": "b67e4a5957176ae0e51d8f56433c16c4964324d6bb80bbce1411199b3709d811",
+    "frontend/src/components/workflow/WorkflowPublicationCommit.spec.ts": "0c34610c0d0da8a6022b2c2760cdd271e30a7bea178e44d4c36cbcc724eed818",
+    "frontend/src/components/workflow/WorkflowPublicationCommit.vue": "54fb4f02d4ec9b90d0cc4510536fbe5f496d28cd7ac5848bb5c62d953193cb13",
+    "frontend/src/components/workflow/WorkflowPush.spec.ts": "7cbade772ddefa45f2f400083fc0c9c5ead4af2036027b77a0b0658f90ed5240",
+    "frontend/src/components/workflow/WorkflowPush.vue": "5a0cad4bedf9fabda363a6325210d762f92e589df836022765e889ce3cb6c525",
+    "frontend/src/components/workflow/WorkflowWriteback.spec.ts": "7a132d1ae6593d27eaa78f626ff4d8262ad725dcd2c877a6d6bca080c4ba8756",
+    "frontend/src/components/workflow/WorkflowWriteback.vue": "a42fd28dd315a6cf65801ba82a4319c3f22286dd8981f0072dcbe14ef129a917",
+    "frontend/src/components/workflow/command.spec.ts": "66ca042c33aca2471cefaa3c21ac3419da800b4f15a0638de5af8f0971c4efc7",
+    "frontend/src/components/workflow/command.ts": "2aaff42a4d6219146fada4539b330f57fed5006e7f30f5dadc410b9e23a5e028",
+    "frontend/src/domain/acknowledgedOperation.ts": "556d7a1386d5d8789ad72b37b5908afe8e2c23a22a4e5bb32c0662e44345517f",
+    "frontend/src/stores/taskStore.ts": "1f8df75c6e37d1c27491b0eafdff28d506e345fa2b2ef4abf7e9b390ef4f6860",
+    "frontend/src/views/DesignerView.spec.ts": "4206c595744529ca041fcc27cc1227a573e392823978cf2490e094d48593c83d",
+    "frontend/src/views/DesignerView.vue": "2ccd0603a3051607262dcd982cc6ce7f5247d2e9ba256cdfde88d45695543b46",
+    "frontend/src/views/WorkflowLibraryView.spec.ts": "4fd75751f984987fe0e1e032a880b06d047f06026669ff5c4954faa029b08d1d",
+    "frontend/src/views/WorkflowLibraryView.vue": "773da113fc5c382d497b6dc86065cfeef32d317f19f0e2c3d0da16b4cd9a61e8",
+    "frontend/src/views/WorkflowRequirementNewView.spec.ts": "cf520f7163d9acd4c47aa2c2b00ad354520ef913dcc41607af57844f9e089dac",
+    "frontend/src/views/WorkflowRequirementNewView.vue": "e749b3b3d5c2ffc49417b843b13ef2c4bac0b0f6251c3b888f20121c953abb14",
+    "frontend/src/views/WorkflowRequirementScope.spec.ts": "b6c63aa7faeda2e6379dd0e555cf4afbfb875634188e97be83f64bd8434c8239",
+    "frontend/src/views/WorkflowRequirementView.vue": "74bc8805811c018c9365801be246492df74e89e1d41d1dc7fcf6230dcec67887",
+    "frontend/src/w0/workflow-w0.spec.ts": "471be59eddd217fb3a398e53d4ab70587baaf1d1c923fcffeb21768445bc65ae",
+    "frontend/src/w0/designer-w0.spec.ts": "0cbbf181235a1ffc3af7477b1e7692df959b07414c903afaa96555b3960f7556"
+  },
+  "fixtureCorrections": [
+    {
+      "run": "designer-first",
+      "issue": "B5.3 empty stages stopped confirm at parsedSpec; B6.1 reject UI absent because mandatory=true",
+      "disposition": "valid one NON_JAVA stage added; reject stays actual unreachable negative control; none counted product RED"
+    },
+    {
+      "run": "workflow-designer-second",
+      "issue": "B5.3 asserted/mock getTask rather than production getTaskOverview",
+      "disposition": "transport mock+assert corrected to getTaskOverview/getTaskAudit; final reached recoveryVisible assertion; old first failure excluded"
+    },
+    {
+      "afterRun": "workflow-designer-final",
+      "issue": "parent typecheck identified DTO/timer/union types only",
+      "disposition": "projects nextCursor undefined+facets{}, notice empty in DesignerAppendResult mocks, Promise<never> and timer handle union; contract assertions unchanged; no separate author rerun per parent; frozen full suite owned by parent",
+      "exactSourceRelation": "final log/JSON produced immediately before these final type/fixture-DTO completions; current source hashes are separate frozen-source hashes, not claimed as exact previously run source"
+    },
+    {
+      "run": "workflow-b1-4-locked-final",
+      "issue": "admission required New four-field lock negative control in SENDING as well as UNKNOWN",
+      "disposition": "same existing UI test now uses actual deferred create; both phases independently assert four named controls and retry state/call count; explicit retry retains body/key; one selected test actual PASS; no assertion weakening/no new test/no disabled event"
+    }
+  ],
+  "cases": [
+    {
+      "caseId": "B1.1",
+      "title": "New 未确认 create 禁止离开",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "source": [
+        {
+          "file": "frontend/src/views/WorkflowRequirementNewView.vue",
+          "line": 15
+        },
+        {
+          "file": "frontend/src/views/WorkflowRequirementNewView.vue",
+          "line": 20
+        },
+        {
+          "file": "frontend/src/views/WorkflowRequirementNewView.vue",
+          "line": 22
+        },
+        {
+          "file": "frontend/src/views/WorkflowRequirementNewView.vue",
+          "line": 25
+        }
+      ],
+      "originalTests": [
+        {
+          "file": "frontend/src/views/WorkflowRequirementNewView.spec.ts",
+          "line": 57
+        },
+        {
+          "file": "frontend/src/views/WorkflowRequirementNewView.spec.ts",
+          "line": 63
+        }
+      ],
+      "newTest": {
+        "file": "frontend/src/w0/workflow-w0.spec.ts",
+        "line": 106
+      },
+      "expectedContract": "SENDING/UNKNOWN 必须硬拒绝 SPA 离开；普通 dirty 取消保留，显式放弃可离开。",
+      "observedResult": "6项 pending 导航都实际离开（push/replace→/away，back→/previous），create均仅1次；普通 dirty 取消/明确放弃对照通过。",
+      "executedVariants": [
+        "sending/unknown × push/replace/back：6 FAIL",
+        "普通 dirty confirm=false 保 title；confirm=true 允许且create0：1 PASS"
+      ],
+      "remainingVariants": [
+        "同路由换实体/query及原 operation 在导航受阻后的完整恢复",
+        "取消后全部4字段与跨刷新恢复（New不提供该承诺）"
+      ],
+      "evidenceLimits": "真实memory-history RouterView/生产guard；只证明离开与owner销毁入口，不扩成已证明后台重复create。",
+      "repairResult": "NOT_RUN: no production repair authorized or made",
+      "gate": "OPEN",
+      "subtests": [
+        {
+          "name": "B1.1 New unresolved create navigation sending/push must retain original owner",
+          "status": "failed",
+          "durationMs": 87.86006099999986,
+          "failedAssertions": [
+            "AssertionError: expected '/away' to be '/requirements/new' // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        },
+        {
+          "name": "B1.1 New unresolved create navigation sending/replace must retain original owner",
+          "status": "failed",
+          "durationMs": 22.631106000000045,
+          "failedAssertions": [
+            "AssertionError: expected '/away' to be '/requirements/new' // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        },
+        {
+          "name": "B1.1 New unresolved create navigation sending/back must retain original owner",
+          "status": "failed",
+          "durationMs": 15.856469000000061,
+          "failedAssertions": [
+            "AssertionError: expected '/previous' to be '/requirements/new' // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        },
+        {
+          "name": "B1.1 New unresolved create navigation unknown/push must retain original owner",
+          "status": "failed",
+          "durationMs": 15.522470999999996,
+          "failedAssertions": [
+            "AssertionError: expected '/away' to be '/requirements/new' // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        },
+        {
+          "name": "B1.1 New unresolved create navigation unknown/replace must retain original owner",
+          "status": "failed",
+          "durationMs": 21.80124099999989,
+          "failedAssertions": [
+            "AssertionError: expected '/away' to be '/requirements/new' // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        },
+        {
+          "name": "B1.1 New unresolved create navigation unknown/back must retain original owner",
+          "status": "failed",
+          "durationMs": 15.222153999999819,
+          "failedAssertions": [
+            "AssertionError: expected '/previous' to be '/requirements/new' // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        },
+        {
+          "name": "B1.1 New unresolved create navigation ordinary dirty decline preserves input and explicit discard remains allowed",
+          "status": "passed",
+          "durationMs": 11.053094999999985,
+          "failedAssertions": [],
+          "classification": "PASS"
+        }
+      ],
+      "subtestCounts": {
+        "failed": 6,
+        "passed": 1
+      },
+      "requestAndStateEvidence": [
+        {
+          "logLine": 151,
+          "observations": {
+            "phase": "sending",
+            "action": "push",
+            "route": "/away",
+            "createCount": 1,
+            "body": {
+              "requestKey": "535f4ed0-82bf-4919-af82-807f7f98b84a",
+              "projectId": "project",
+              "templateId": "example",
+              "templateRevision": 3,
+              "title": "冻结标题",
+              "objective": "冻结目标"
+            }
+          }
+        },
+        {
+          "logLine": 157,
+          "observations": {
+            "phase": "sending",
+            "action": "replace",
+            "route": "/away",
+            "createCount": 1,
+            "body": {
+              "requestKey": "7a3a5d79-926f-4533-befe-a35687b791f4",
+              "projectId": "project",
+              "templateId": "example",
+              "templateRevision": 3,
+              "title": "冻结标题",
+              "objective": "冻结目标"
+            }
+          }
+        },
+        {
+          "logLine": 165,
+          "observations": {
+            "phase": "sending",
+            "action": "back",
+            "route": "/previous",
+            "createCount": 1,
+            "body": {
+              "requestKey": "c8ae4963-9c34-48f7-b66c-1ac74b671e4d",
+              "projectId": "project",
+              "templateId": "example",
+              "templateRevision": 3,
+              "title": "冻结标题",
+              "objective": "冻结目标"
+            }
+          }
+        },
+        {
+          "logLine": 171,
+          "observations": {
+            "phase": "unknown",
+            "action": "push",
+            "route": "/away",
+            "createCount": 1,
+            "body": {
+              "requestKey": "0f0e9db8-2f93-4d7d-a740-0a5607fae945",
+              "projectId": "project",
+              "templateId": "example",
+              "templateRevision": 3,
+              "title": "冻结标题",
+              "objective": "冻结目标"
+            }
+          }
+        },
+        {
+          "logLine": 177,
+          "observations": {
+            "phase": "unknown",
+            "action": "replace",
+            "route": "/away",
+            "createCount": 1,
+            "body": {
+              "requestKey": "b6c8d4ce-d131-44ef-a168-7d9cb8eb4a5b",
+              "projectId": "project",
+              "templateId": "example",
+              "templateRevision": 3,
+              "title": "冻结标题",
+              "objective": "冻结目标"
+            }
+          }
+        },
+        {
+          "logLine": 183,
+          "observations": {
+            "phase": "unknown",
+            "action": "back",
+            "route": "/previous",
+            "createCount": 1,
+            "body": {
+              "requestKey": "1ae85e8d-2996-4e0e-9b02-d9df5079d112",
+              "projectId": "project",
+              "templateId": "example",
+              "templateRevision": 3,
+              "title": "冻结标题",
+              "objective": "冻结目标"
+            }
+          }
+        }
+      ],
+      "commandRun": "workflow-designer-final",
+      "commandExitCode": 1
+    },
+    {
+      "caseId": "B1.2",
+      "title": "Library copy/archive pending 离开",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "source": [
+        {
+          "file": "frontend/src/views/WorkflowLibraryView.vue",
+          "line": 22
+        },
+        {
+          "file": "frontend/src/views/WorkflowLibraryView.vue",
+          "line": 26
+        },
+        {
+          "file": "frontend/src/views/WorkflowLibraryView.vue",
+          "line": 31
+        },
+        {
+          "file": "frontend/src/views/WorkflowLibraryView.vue",
+          "line": 32
+        },
+        {
+          "file": "frontend/src/views/WorkflowLibraryView.vue",
+          "line": 47
+        }
+      ],
+      "originalTests": [
+        {
+          "file": "frontend/src/views/WorkflowLibraryView.spec.ts",
+          "line": 38
+        },
+        {
+          "file": "frontend/src/views/WorkflowLibraryView.spec.ts",
+          "line": 46
+        }
+      ],
+      "newTest": {
+        "file": "frontend/src/w0/workflow-w0.spec.ts",
+        "line": 123
+      },
+      "expectedContract": "未确认copy/archive禁离开；过滤不改变原body/key，未知仅用户显式恢复。",
+      "observedResult": "copy/archive各sending/unknown均导航到/away；copy unknown改变真实“我的流程”筛选后重试保相同请求。",
+      "executedVariants": [
+        "copy/archive × sending/unknown：4 FAIL",
+        "copy unknown→实际filter切换→重试原操作，body/key相同：1 PASS"
+      ],
+      "remainingVariants": [
+        "archive筛选/显式恢复",
+        "replace/back/同路由变化；copy已接受但目标导航失败",
+        "复制回执的只导航恢复入口"
+      ],
+      "evidenceLimits": "原copy body/sourceRevision与archive expectedVersion、requestKey逐调用写入日志；没有实际后端。",
+      "repairResult": "NOT_RUN: no production repair authorized or made",
+      "gate": "OPEN",
+      "subtests": [
+        {
+          "name": "B1.2 Library unresolved copy/archive navigation copy/sending must block route leave",
+          "status": "failed",
+          "durationMs": 38.295990000000074,
+          "failedAssertions": [
+            "AssertionError: expected '/away' to be '/workflows' // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        },
+        {
+          "name": "B1.2 Library unresolved copy/archive navigation copy/unknown must block route leave",
+          "status": "failed",
+          "durationMs": 22.253925999999865,
+          "failedAssertions": [
+            "AssertionError: expected '/away' to be '/workflows' // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        },
+        {
+          "name": "B1.2 Library unresolved copy/archive navigation archive/sending must block route leave",
+          "status": "failed",
+          "durationMs": 16.358376000000135,
+          "failedAssertions": [
+            "AssertionError: expected '/away' to be '/workflows' // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        },
+        {
+          "name": "B1.2 Library unresolved copy/archive navigation archive/unknown must block route leave",
+          "status": "failed",
+          "durationMs": 15.605207999999948,
+          "failedAssertions": [
+            "AssertionError: expected '/away' to be '/workflows' // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        },
+        {
+          "name": "B1.2 Library unresolved copy/archive navigation unknown copy keeps its original body/key while actual list filters change",
+          "status": "passed",
+          "durationMs": 20.418603000000076,
+          "failedAssertions": [],
+          "classification": "PASS"
+        }
+      ],
+      "subtestCounts": {
+        "failed": 4,
+        "passed": 1
+      },
+      "requestAndStateEvidence": [
+        {
+          "logLine": 200,
+          "observations": {
+            "action": "copy",
+            "phase": "sending",
+            "route": "/away",
+            "request": [
+              "example",
+              {
+                "requestKey": "abb5ed2e-e1ad-4b29-ac63-3383854bf338",
+                "sourceRevision": 2,
+                "title": "交付流程 副本"
+              }
+            ]
+          }
+        },
+        {
+          "logLine": 203,
+          "observations": {
+            "action": "copy",
+            "phase": "unknown",
+            "route": "/away",
+            "request": [
+              "example",
+              {
+                "requestKey": "1a233784-212d-4cc2-8a63-a81b03d3a56e",
+                "sourceRevision": 2,
+                "title": "交付流程 副本"
+              }
+            ]
+          }
+        },
+        {
+          "logLine": 206,
+          "observations": {
+            "action": "archive",
+            "phase": "sending",
+            "route": "/away",
+            "request": [
+              "example",
+              {
+                "requestKey": "bd1ccd15-aace-4430-b3fb-23904e7903f8",
+                "expectedVersion": 3
+              }
+            ]
+          }
+        },
+        {
+          "logLine": 209,
+          "observations": {
+            "action": "archive",
+            "phase": "unknown",
+            "route": "/away",
+            "request": [
+              "example",
+              {
+                "requestKey": "b29e4a82-2f9b-45a7-b5c6-a16712481446",
+                "expectedVersion": 3
+              }
+            ]
+          }
+        },
+        {
+          "logLine": 212,
+          "observations": {
+            "original": [
+              "example",
+              {
+                "requestKey": "d432830e-7471-455d-80ce-78ad33193d46",
+                "sourceRevision": 2,
+                "title": "交付流程 副本"
+              }
+            ],
+            "retry": [
+              "example",
+              {
+                "requestKey": "d432830e-7471-455d-80ce-78ad33193d46",
+                "sourceRevision": 2,
+                "title": "交付流程 副本"
+              }
+            ]
+          }
+        }
+      ],
+      "commandRun": "workflow-designer-final",
+      "commandExitCode": 1
+    },
+    {
+      "caseId": "B1.3",
+      "title": "New 确定回执导航失败",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "source": [
+        {
+          "file": "frontend/src/views/WorkflowRequirementNewView.vue",
+          "line": 20
+        },
+        {
+          "file": "frontend/src/views/WorkflowRequirementNewView.vue",
+          "line": 22
+        },
+        {
+          "file": "frontend/src/components/workflow/command.ts",
+          "line": 22
+        },
+        {
+          "file": "frontend/src/domain/acknowledgedOperation.ts",
+          "line": 15
+        },
+        {
+          "file": "frontend/src/domain/acknowledgedOperation.ts",
+          "line": 18
+        }
+      ],
+      "originalTests": [
+        {
+          "file": "frontend/src/components/workflow/command.spec.ts",
+          "line": 14
+        },
+        {
+          "file": "frontend/src/components/workflow/command.spec.ts",
+          "line": 20
+        },
+        {
+          "file": "frontend/src/components/workflow/command.spec.ts",
+          "line": 25
+        }
+      ],
+      "newTest": {
+        "file": "frontend/src/w0/workflow-w0.spec.ts",
+        "line": 141
+      },
+      "expectedContract": "NavigationFailure与reject均保确定receipt；只导航到原ID，不能重新create。",
+      "observedResult": "真实guard=false及竞争导航取消均丢“打开已创建的需求”入口并重新显示submit；reject保入口。每项create仅1次。",
+      "executedVariants": [
+        "真实guard false：FAIL",
+        "异步guard+真实竞争replace导致取消：FAIL",
+        "真实guard throw/reject：PASS"
+      ],
+      "remainingVariants": [
+        "失败后实际点击恢复、确认最终URL与create不增加",
+        "成功receipt交接不得绕其他owner pending guard"
+      ],
+      "evidenceLimits": "不是所有导航失败都丢receipt；VueRouter正常resolve NavigationFailure与promise reject分开。New after只有导航，没有by-request GET。",
+      "repairResult": "NOT_RUN: no production repair authorized or made",
+      "gate": "OPEN",
+      "subtests": [
+        {
+          "name": "B1.3 accepted New receipt survives failed handoff guard-false retains receipt and offers navigation-only recovery",
+          "status": "failed",
+          "durationMs": 13.939262999999755,
+          "failedAssertions": [
+            "AssertionError: expected false to be true // Object.is equality",
+            "AssertionError: expected true to be false // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        },
+        {
+          "name": "B1.3 accepted New receipt survives failed handoff cancelled retains receipt and offers navigation-only recovery",
+          "status": "failed",
+          "durationMs": 12.921026999999867,
+          "failedAssertions": [
+            "AssertionError: expected false to be true // Object.is equality",
+            "AssertionError: expected true to be false // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        },
+        {
+          "name": "B1.3 accepted New receipt survives failed handoff reject retains receipt and offers navigation-only recovery",
+          "status": "passed",
+          "durationMs": 11.090056000000004,
+          "failedAssertions": [],
+          "classification": "PASS"
+        }
+      ],
+      "subtestCounts": {
+        "failed": 2,
+        "passed": 1
+      },
+      "requestAndStateEvidence": [
+        {
+          "logLine": 218,
+          "observations": {
+            "failure": "guard-false",
+            "route": "/requirements/new?projectId=project",
+            "createCount": 1,
+            "text": "新建需求写下目标，再到画布中安排工作。返回需求列表需求内容需求名称需求说明工作方式工作项目选择项目 ⌄使用流程交付流程 ⌄版本 3 · 本次需求独立保存进入画布后，可继续调整节点与任务。确认计划后，再开始执行。进入规划画布"
+          }
+        },
+        {
+          "logLine": 236,
+          "observations": {
+            "failure": "cancelled",
+            "route": "/requirements/new?projectId=project&interruption=1",
+            "createCount": 1,
+            "text": "新建需求写下目标，再到画布中安排工作。返回需求列表需求内容需求名称需求说明工作方式工作项目选择项目 ⌄使用流程交付流程 ⌄版本 3 · 本次需求独立保存进入画布后，可继续调整节点与任务。确认计划后，再开始执行。进入规划画布"
+          }
+        },
+        {
+          "logLine": 242,
+          "observations": {
+            "failure": "reject",
+            "route": "/requirements/new?projectId=project",
+            "createCount": 1,
+            "text": "新建需求写下目标，再到画布中安排工作。返回需求列表需求内容需求名称需求说明工作方式工作项目选择项目 ⌄使用流程交付流程 ⌄版本 3 · 本次需求独立保存进入画布后，可继续调整节点与任务。操作已接受，最新状态暂时无法读取，请刷新结果。确认计划后，再开始执行。打开已创建的需求"
+          }
+        }
+      ],
+      "commandRun": "workflow-designer-final",
+      "commandExitCode": 1
+    },
+    {
+      "caseId": "B1.4",
+      "title": "New 禁改负控／纯owner冻结",
+      "classification": "PASS",
+      "coverage": "complete",
+      "source": [
+        {
+          "file": "frontend/src/views/WorkflowRequirementNewView.vue",
+          "line": 19
+        },
+        {
+          "file": "frontend/src/views/WorkflowRequirementNewView.vue",
+          "line": 54
+        },
+        {
+          "file": "frontend/src/views/WorkflowRequirementNewView.vue",
+          "line": 59
+        },
+        {
+          "file": "frontend/src/views/WorkflowRequirementNewView.vue",
+          "line": 61
+        },
+        {
+          "file": "frontend/src/views/WorkflowRequirementNewView.vue",
+          "line": 62
+        },
+        {
+          "file": "frontend/src/domain/acknowledgedOperation.ts",
+          "line": 14
+        },
+        {
+          "file": "frontend/src/domain/acknowledgedOperation.ts",
+          "line": 18
+        }
+      ],
+      "originalTests": [
+        {
+          "file": "frontend/src/views/WorkflowRequirementNewView.spec.ts",
+          "line": 57
+        },
+        {
+          "file": "frontend/src/components/workflow/command.spec.ts",
+          "line": 14
+        },
+        {
+          "file": "frontend/src/components/workflow/command.spec.ts",
+          "line": 20
+        }
+      ],
+      "newTest": {
+        "file": "frontend/src/w0/workflow-w0.spec.ts",
+        "line": 159
+      },
+      "expectedContract": "New SENDING/UNKNOWN均锁4字段，SENDING禁止retry；外部projection变化不得改冻结body/key；accepted恢复只能后半段。",
+      "observedResult": "deferred create的真实SENDING和reject后的UNKNOWN，两阶段title/objective/project/template均禁改。SENDING retry禁用、create1；UNKNOWN retry可用且尚create1；用户明确retry为同body对象/key、create2。原纯owner projection/accepted只读对照此前已通过，未在单test过滤运行里重跑。",
+      "executedVariants": [
+        "真实New deferred SENDING→reject UNKNOWN两阶段4字段禁改、SENDING retry禁用/create1、UNKNOWN仅显式retry保body/key：当前单test PASS",
+        "纯owner外部draft projection变化＋accepted/readfail恢复：此前完整53运行 PASS（本次过滤未重跑）"
+      ],
+      "remainingVariants": [],
+      "evidenceLimits": "真实New SENDING与UNKNOWN均直接观察原控件；没有解除disabled、DOM force、禁用控件事件或select emit。显式retry保body对象/key。纯owner和其余51项沿此前完整53证据分列；不得将当前单项PASS说成全部53重跑通过。New只导航，后编辑草稿只在B6.3实际可达入口检验。",
+      "repairResult": "NOT_RUN: no production repair authorized or made",
+      "gate": "EXISTING_CONTRACT_PASS",
+      "subtests": [
+        {
+          "name": "B1.4 disabled New UI and independent immutable owner controls sending then unknown disables all four real form fields/choices and explicit retry keeps original body",
+          "status": "passed",
+          "durationMs": 88.56890999999996,
+          "failedAssertions": [],
+          "classification": "PASS",
+          "commandRun": "workflow-b1-4-locked-final",
+          "commandExitCode": 0
+        },
+        {
+          "name": "B1.4 disabled New UI and independent immutable owner controls pure owner ignores external draft projection and accepted read failure never repeats mutation",
+          "status": "passed",
+          "durationMs": 2.439296999999897,
+          "failedAssertions": [],
+          "classification": "PASS",
+          "commandRun": "workflow-designer-final",
+          "commandExitCode": 1
+        }
+      ],
+      "subtestCounts": {
+        "passed": 2
+      },
+      "requestAndStateEvidence": [
+        {
+          "logLine": 248,
+          "observations": {
+            "original": {
+              "requestKey": "040acc97-2208-4891-8769-fb8fb29701c2",
+              "projectId": "project",
+              "templateId": "example",
+              "templateRevision": 3,
+              "title": "冻结标题",
+              "objective": "冻结目标"
+            },
+            "retry": {
+              "requestKey": "040acc97-2208-4891-8769-fb8fb29701c2",
+              "projectId": "project",
+              "templateId": "example",
+              "templateRevision": 3,
+              "title": "冻结标题",
+              "objective": "冻结目标"
+            }
+          },
+          "run": "workflow-designer-final"
+        },
+        {
+          "logLine": 251,
+          "observations": {
+            "projection": {
+              "title": "新草稿",
+              "templateRevision": 4
+            },
+            "writeBodies": [
+              [
+                {
+                  "title": "原标题",
+                  "templateRevision": 3,
+                  "requestKey": "w0-owner-original-key"
+                }
+              ],
+              [
+                {
+                  "title": "原标题",
+                  "templateRevision": 3,
+                  "requestKey": "w0-owner-original-key"
+                }
+              ]
+            ],
+            "readCount": 2
+          },
+          "run": "workflow-designer-final"
+        },
+        {
+          "run": "workflow-b1-4-locked-final",
+          "logLine": 8,
+          "observations": {
+            "sendingFields": {
+              "title": true,
+              "objective": true,
+              "project": true,
+              "template": true
+            },
+            "unknownFields": {
+              "title": true,
+              "objective": true,
+              "project": true,
+              "template": true
+            },
+            "original": {
+              "requestKey": "a52be6b3-6034-4311-bf5f-001e96c2776f",
+              "projectId": "project",
+              "templateId": "example",
+              "templateRevision": 3,
+              "title": "冻结标题",
+              "objective": "冻结目标"
+            },
+            "retry": {
+              "requestKey": "a52be6b3-6034-4311-bf5f-001e96c2776f",
+              "projectId": "project",
+              "templateId": "example",
+              "templateRevision": 3,
+              "title": "冻结标题",
+              "objective": "冻结目标"
+            }
+          }
+        }
+      ],
+      "commandRun": "mixed: current selected UI rerun + unchanged owner test historical full53 run"
+    },
+    {
+      "caseId": "B2.1",
+      "title": "六嵌套panel guard及Finish父页组合",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "source": [
+        {
+          "file": "frontend/src/components/workflow/WorkflowNodeRun.vue",
+          "line": 90
+        },
+        {
+          "file": "frontend/src/components/workflow/WorkflowNodeRun.vue",
+          "line": 109
+        },
+        {
+          "file": "frontend/src/components/workflow/WorkflowCandidates.vue",
+          "line": 30
+        },
+        {
+          "file": "frontend/src/components/workflow/WorkflowFinish.vue",
+          "line": 40
+        },
+        {
+          "file": "frontend/src/components/workflow/WorkflowPublicationCommit.vue",
+          "line": 32
+        },
+        {
+          "file": "frontend/src/components/workflow/WorkflowPush.vue",
+          "line": 42
+        },
+        {
+          "file": "frontend/src/components/workflow/WorkflowWriteback.vue",
+          "line": 33
+        },
+        {
+          "file": "frontend/src/views/WorkflowRequirementView.vue",
+          "line": 212
+        },
+        {
+          "file": "frontend/src/views/WorkflowRequirementView.vue",
+          "line": 215
+        }
+      ],
+      "originalTests": [
+        {
+          "file": "frontend/src/components/workflow/WorkflowNodeRun.spec.ts",
+          "line": 33
+        },
+        {
+          "file": "frontend/src/components/workflow/WorkflowNodeRun.spec.ts",
+          "line": 48
+        },
+        {
+          "file": "frontend/src/components/workflow/WorkflowNodeRun.spec.ts",
+          "line": 90
+        },
+        {
+          "file": "frontend/src/components/workflow/WorkflowCandidates.spec.ts",
+          "line": 13
+        },
+        {
+          "file": "frontend/src/components/workflow/WorkflowFinish.spec.ts",
+          "line": 27
+        },
+        {
+          "file": "frontend/src/components/workflow/WorkflowFinish.spec.ts",
+          "line": 57
+        },
+        {
+          "file": "frontend/src/components/workflow/WorkflowPublicationCommit.spec.ts",
+          "line": 21
+        },
+        {
+          "file": "frontend/src/components/workflow/WorkflowPublicationCommit.spec.ts",
+          "line": 40
+        },
+        {
+          "file": "frontend/src/components/workflow/WorkflowPush.spec.ts",
+          "line": 22
+        },
+        {
+          "file": "frontend/src/components/workflow/WorkflowPush.spec.ts",
+          "line": 42
+        },
+        {
+          "file": "frontend/src/components/workflow/WorkflowWriteback.spec.ts",
+          "line": 27
+        },
+        {
+          "file": "frontend/src/components/workflow/WorkflowWriteback.spec.ts",
+          "line": 45
+        },
+        {
+          "file": "frontend/src/views/WorkflowRequirementScope.spec.ts",
+          "line": 153
+        },
+        {
+          "file": "frontend/src/views/WorkflowRequirementScope.spec.ts",
+          "line": 169
+        }
+      ],
+      "newTest": {
+        "file": "frontend/src/w0/workflow-w0.spec.ts",
+        "line": 225
+      },
+      "expectedContract": "每个未确认嵌套owner hard block；不能用confirm放弃pending。实际父页组合也须保owner。",
+      "observedResult": "六真实panel经真实按钮发POST，sending/unknown × confirm=true的exposed canLeave均true；实际Requirement+Finish unknown route也到/away。",
+      "executedVariants": [
+        "human complete/candidate reject/finish/commit/push confirm/writeback confirm × sending/unknown：12 FAIL（真实panel，direct canLeave）",
+        "实际Requirement父页+Finish子panel unknown→router.push：1 FAIL"
+      ],
+      "remainingVariants": [
+        "其它5panel真实父route/关闭panel/切node/attempt/换requirement组合",
+        "WorkflowSaveTemplate locked对照与各panel无pending普通draft确认",
+        "其它动作（candidate accept等）"
+      ],
+      "evidenceLimits": "13子测试不能宣称6×全部组合均跑；直接canLeave不是实际route证据。日志含每个实际原body/key/CAS；parent真实route仅Finish。",
+      "repairResult": "NOT_RUN: no production repair authorized or made",
+      "gate": "OPEN",
+      "subtests": [
+        {
+          "name": "B2.1 real nested command guards human/sending refuses leaving actual command panel",
+          "status": "failed",
+          "durationMs": 18.275244999999813,
+          "failedAssertions": [
+            "AssertionError: expected true to be false // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        },
+        {
+          "name": "B2.1 real nested command guards human/unknown refuses leaving actual command panel",
+          "status": "failed",
+          "durationMs": 10.774065000000064,
+          "failedAssertions": [
+            "AssertionError: expected true to be false // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        },
+        {
+          "name": "B2.1 real nested command guards candidate/sending refuses leaving actual command panel",
+          "status": "failed",
+          "durationMs": 10.889536999999564,
+          "failedAssertions": [
+            "AssertionError: expected true to be false // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        },
+        {
+          "name": "B2.1 real nested command guards candidate/unknown refuses leaving actual command panel",
+          "status": "failed",
+          "durationMs": 7.7182269999998425,
+          "failedAssertions": [
+            "AssertionError: expected true to be false // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        },
+        {
+          "name": "B2.1 real nested command guards finish/sending refuses leaving actual command panel",
+          "status": "failed",
+          "durationMs": 7.1223439999998845,
+          "failedAssertions": [
+            "AssertionError: expected true to be false // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        },
+        {
+          "name": "B2.1 real nested command guards finish/unknown refuses leaving actual command panel",
+          "status": "failed",
+          "durationMs": 5.8325090000003,
+          "failedAssertions": [
+            "AssertionError: expected true to be false // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        },
+        {
+          "name": "B2.1 real nested command guards commit/sending refuses leaving actual command panel",
+          "status": "failed",
+          "durationMs": 6.842454999999973,
+          "failedAssertions": [
+            "AssertionError: expected true to be false // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        },
+        {
+          "name": "B2.1 real nested command guards commit/unknown refuses leaving actual command panel",
+          "status": "failed",
+          "durationMs": 5.425463000000036,
+          "failedAssertions": [
+            "AssertionError: expected true to be false // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        },
+        {
+          "name": "B2.1 real nested command guards push/sending refuses leaving actual command panel",
+          "status": "failed",
+          "durationMs": 8.317925999999716,
+          "failedAssertions": [
+            "AssertionError: expected true to be false // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        },
+        {
+          "name": "B2.1 real nested command guards push/unknown refuses leaving actual command panel",
+          "status": "failed",
+          "durationMs": 6.873986999999943,
+          "failedAssertions": [
+            "AssertionError: expected true to be false // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        },
+        {
+          "name": "B2.1 real nested command guards writeback/sending refuses leaving actual command panel",
+          "status": "failed",
+          "durationMs": 5.2943780000000515,
+          "failedAssertions": [
+            "AssertionError: expected true to be false // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        },
+        {
+          "name": "B2.1 real nested command guards writeback/unknown refuses leaving actual command panel",
+          "status": "failed",
+          "durationMs": 3.9627089999999043,
+          "failedAssertions": [
+            "AssertionError: expected true to be false // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        },
+        {
+          "name": "B2.1 real nested command guards actual Requirement parent refuses route leave while its Finish child is unknown",
+          "status": "failed",
+          "durationMs": 56.967437000000245,
+          "failedAssertions": [
+            "AssertionError: expected '/away' to be '/requirements/req' // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        }
+      ],
+      "subtestCounts": {
+        "failed": 13
+      },
+      "requestAndStateEvidence": [
+        {
+          "logLine": 254,
+          "observations": {
+            "kind": "human",
+            "phase": "sending",
+            "canLeave": true,
+            "calls": [
+              [
+                "req",
+                "review",
+                {
+                  "requestKey": "edd00844-d97b-4fe8-9ba5-2f8372404b5c",
+                  "expectedVersion": 7,
+                  "attemptId": "run",
+                  "expectedAttemptVersion": 1,
+                  "delivery": {
+                    "summary": "原人工说明",
+                    "outcome": null,
+                    "outputs": {
+                      "result": {
+                        "kind": "TEXT",
+                        "content": "原交付"
+                      }
+                    }
+                  }
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "logLine": 257,
+          "observations": {
+            "kind": "human",
+            "phase": "unknown",
+            "canLeave": true,
+            "calls": [
+              [
+                "req",
+                "review",
+                {
+                  "requestKey": "02837cbb-09f2-4061-b4a1-6bf75dfc3b76",
+                  "expectedVersion": 7,
+                  "attemptId": "run",
+                  "expectedAttemptVersion": 1,
+                  "delivery": {
+                    "summary": "原人工说明",
+                    "outcome": null,
+                    "outputs": {
+                      "result": {
+                        "kind": "TEXT",
+                        "content": "原交付"
+                      }
+                    }
+                  }
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "logLine": 260,
+          "observations": {
+            "kind": "candidate",
+            "phase": "sending",
+            "canLeave": true,
+            "calls": [
+              [
+                "req",
+                "candidate",
+                {
+                  "requestKey": "779773ab-6c73-42ad-a5a1-308576ab99c2",
+                  "expectedCandidateVersion": 0,
+                  "reason": "原退回原因"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "logLine": 263,
+          "observations": {
+            "kind": "candidate",
+            "phase": "unknown",
+            "canLeave": true,
+            "calls": [
+              [
+                "req",
+                "candidate",
+                {
+                  "requestKey": "5dc0f282-53c6-436e-8952-91b442267680",
+                  "expectedCandidateVersion": 0,
+                  "reason": "原退回原因"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "logLine": 266,
+          "observations": {
+            "kind": "finish",
+            "phase": "sending",
+            "canLeave": true,
+            "calls": [
+              [
+                "req",
+                {
+                  "requestKey": "bada90a3-85df-456a-b76b-5b5974613e47",
+                  "expectedVersion": 7,
+                  "target": "COMPLETED",
+                  "reason": "原结束原因"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "logLine": 288,
+          "observations": {
+            "kind": "finish",
+            "phase": "unknown",
+            "canLeave": true,
+            "calls": [
+              [
+                "req",
+                {
+                  "requestKey": "49ffd4da-78a6-446a-b49f-ca9aa7056669",
+                  "expectedVersion": 7,
+                  "target": "COMPLETED",
+                  "reason": "原结束原因"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "logLine": 291,
+          "observations": {
+            "kind": "commit",
+            "phase": "sending",
+            "canLeave": true,
+            "calls": [
+              [
+                "req",
+                {
+                  "requestKey": "1b111cdb-1c1f-4fd0-934f-afceff2263ce",
+                  "expectedVersion": 7,
+                  "revision": 2,
+                  "node": "work",
+                  "attempt": "original-attempt",
+                  "output": "code",
+                  "previewSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+                  "message": "原提交说明"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "logLine": 294,
+          "observations": {
+            "kind": "commit",
+            "phase": "unknown",
+            "canLeave": true,
+            "calls": [
+              [
+                "req",
+                {
+                  "requestKey": "bcb441ea-8b12-46c6-917c-069af2e163b8",
+                  "expectedVersion": 7,
+                  "revision": 2,
+                  "node": "work",
+                  "attempt": "original-attempt",
+                  "output": "code",
+                  "previewSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+                  "message": "原提交说明"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "logLine": 297,
+          "observations": {
+            "kind": "push",
+            "phase": "sending",
+            "canLeave": true,
+            "calls": [
+              [
+                "req",
+                {
+                  "requestKey": "aa14c7de-b1c2-411d-b3cb-46302849c6cc",
+                  "expectedVersion": 3,
+                  "remote": "origin",
+                  "previewSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "logLine": 300,
+          "observations": {
+            "kind": "push",
+            "phase": "unknown",
+            "canLeave": true,
+            "calls": [
+              [
+                "req",
+                {
+                  "requestKey": "e13ef716-3718-479c-8772-3d8a53211a0e",
+                  "expectedVersion": 3,
+                  "remote": "origin",
+                  "previewSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "logLine": 303,
+          "observations": {
+            "kind": "writeback",
+            "phase": "sending",
+            "canLeave": true,
+            "calls": [
+              [
+                "req",
+                {
+                  "requestKey": "a74a24eb-061f-4b97-9d19-6c1a0811b3b6",
+                  "expectedVersion": 7,
+                  "selection": {
+                    "revision": 2,
+                    "node": "work",
+                    "attempt": "original-attempt",
+                    "output": "code",
+                    "sourceSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+                  },
+                  "previewSha256": "checked"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "logLine": 306,
+          "observations": {
+            "kind": "writeback",
+            "phase": "unknown",
+            "canLeave": true,
+            "calls": [
+              [
+                "req",
+                {
+                  "requestKey": "d40f730d-38f0-4fc9-917e-b0fefc154a31",
+                  "expectedVersion": 7,
+                  "selection": {
+                    "revision": 2,
+                    "node": "work",
+                    "attempt": "original-attempt",
+                    "output": "code",
+                    "sourceSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+                  },
+                  "previewSha256": "checked"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "logLine": 312,
+          "observations": {
+            "actualParent": true,
+            "route": "/away",
+            "calls": [
+              [
+                "req",
+                {
+                  "requestKey": "a302e2ad-69db-46e8-9a62-ab7ba68123e0",
+                  "expectedVersion": 3,
+                  "target": "COMPLETED",
+                  "reason": "原结束原因"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "commandRun": "workflow-designer-final",
+      "commandExitCode": 1
+    },
+    {
+      "caseId": "B2.2",
+      "title": "原process stop身份与禁离开",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "source": [
+        {
+          "file": "frontend/src/components/workflow/WorkflowNodeRun.vue",
+          "line": 100
+        },
+        {
+          "file": "frontend/src/components/workflow/WorkflowNodeRun.vue",
+          "line": 106
+        },
+        {
+          "file": "frontend/src/components/workflow/WorkflowNodeRun.vue",
+          "line": 109
+        }
+      ],
+      "originalTests": [
+        {
+          "file": "frontend/src/components/workflow/WorkflowNodeRun.spec.ts",
+          "line": 41
+        },
+        {
+          "file": "frontend/src/components/workflow/WorkflowNodeRun.spec.ts",
+          "line": 48
+        },
+        {
+          "file": "frontend/src/components/workflow/WorkflowNodeRun.spec.ts",
+          "line": 71
+        },
+        {
+          "file": "frontend/src/components/workflow/WorkflowNodeRun.spec.ts",
+          "line": 77
+        }
+      ],
+      "newTest": {
+        "file": "frontend/src/w0/workflow-w0.spec.ts",
+        "line": 242
+      },
+      "expectedContract": "unknown stop保原req/node/attempt/version/key且禁离开；无新start/重叠writer。",
+      "observedResult": "实际command stop未知后显式retry，两请求req/review/run/stop、commandVersion19与key相同；canLeave=true违反禁离开。",
+      "executedVariants": [
+        "command stop unknown→显式重试保原身份／commandVersion19：PASS子断言；随后canLeave：FAIL"
+      ],
+      "remainingVariants": [
+        "model stop/version",
+        "unknown期间attempt/权威状态变更",
+        "实际父route、backend停止证明及无重叠writer"
+      ],
+      "evidenceLimits": "只验证command分支；body两次相同不证明后端停止。",
+      "repairResult": "NOT_RUN: no production repair authorized or made",
+      "gate": "OPEN",
+      "subtests": [
+        {
+          "name": "B2.2 original process stop identity retains command version/attempt on explicit retry and blocks leaving unknown stop",
+          "status": "failed",
+          "durationMs": 7.737545999999838,
+          "failedAssertions": [
+            "AssertionError: expected true to be false // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        }
+      ],
+      "subtestCounts": {
+        "failed": 1
+      },
+      "requestAndStateEvidence": [
+        {
+          "logLine": 331,
+          "observations": {
+            "calls": [
+              [
+                "req",
+                "review",
+                "run",
+                "stop",
+                {
+                  "requestKey": "73a7918a-0a9c-4010-80d3-b9089ad8060a",
+                  "expectedVersion": 19
+                }
+              ],
+              [
+                "req",
+                "review",
+                "run",
+                "stop",
+                {
+                  "requestKey": "73a7918a-0a9c-4010-80d3-b9089ad8060a",
+                  "expectedVersion": 19
+                }
+              ]
+            ],
+            "canLeave": true
+          }
+        }
+      ],
+      "commandRun": "workflow-designer-final",
+      "commandExitCode": 1
+    },
+    {
+      "caseId": "B2.3",
+      "title": "accepted-write/readback 分离",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "source": [
+        {
+          "file": "frontend/src/components/workflow/WorkflowFinish.vue",
+          "line": 16
+        },
+        {
+          "file": "frontend/src/components/workflow/WorkflowFinish.vue",
+          "line": 24
+        },
+        {
+          "file": "frontend/src/components/workflow/WorkflowFinish.vue",
+          "line": 35
+        },
+        {
+          "file": "frontend/src/components/workflow/WorkflowFinish.vue",
+          "line": 38
+        },
+        {
+          "file": "frontend/src/components/workflow/WorkflowFinish.vue",
+          "line": 40
+        },
+        {
+          "file": "frontend/src/domain/acknowledgedOperation.ts",
+          "line": 14
+        },
+        {
+          "file": "frontend/src/domain/acknowledgedOperation.ts",
+          "line": 18
+        }
+      ],
+      "originalTests": [
+        {
+          "file": "frontend/src/components/workflow/WorkflowFinish.spec.ts",
+          "line": 34
+        },
+        {
+          "file": "frontend/src/components/workflow/WorkflowFinish.spec.ts",
+          "line": 40
+        },
+        {
+          "file": "frontend/src/components/workflow/WorkflowNodeRun.spec.ts",
+          "line": 48
+        }
+      ],
+      "newTest": {
+        "file": "frontend/src/w0/workflow-w0.spec.ts",
+        "line": 251
+      },
+      "expectedContract": "accepted-readback保持禁离开；显式恢复只GET，mutation始终1，合法新版本读回。",
+      "observedResult": "真实Finish POSTaccepted、finishStatus GET失败后提供“刷新操作结果”；canLeave=true为红。随后恢复仅finishStatus GET，finish POST仍1。",
+      "executedVariants": [
+        "实际Finish accepted→read failure→canLeave：FAIL；继续仅读恢复/POST1：PASS子断言"
+      ],
+      "remainingVariants": [
+        "其它5panel accepted-readback",
+        "真实父route/关闭panel",
+        "读回版本推进用于下一合法操作"
+      ],
+      "evidenceLimits": "恢复计数已测，下一操作新revision合法性未测，不能证明全部六动作accepted流程。",
+      "repairResult": "NOT_RUN: no production repair authorized or made",
+      "gate": "OPEN",
+      "subtests": [
+        {
+          "name": "B2.3 accepted write/readback split actual Finish child retains accepted readback and only rereads on recovery",
+          "status": "failed",
+          "durationMs": 6.919952000000194,
+          "failedAssertions": [
+            "AssertionError: expected true to be false // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        }
+      ],
+      "subtestCounts": {
+        "failed": 1
+      },
+      "requestAndStateEvidence": [
+        {
+          "logLine": 334,
+          "observations": {
+            "canLeave": true,
+            "mutationCount": 1,
+            "reads": 3
+          }
+        }
+      ],
+      "commandRun": "workflow-designer-final",
+      "commandExitCode": 1
+    },
+    {
+      "caseId": "B5.1",
+      "title": "Designer普通text/File dirty覆盖",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "source": [
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 81
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 82
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 117
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 207
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 1173
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 1175
+        }
+      ],
+      "originalTests": [
+        {
+          "file": "frontend/src/views/DesignerView.spec.ts",
+          "line": 793
+        },
+        {
+          "file": "frontend/src/views/DesignerView.spec.ts",
+          "line": 937
+        },
+        {
+          "file": "frontend/src/views/DesignerView.spec.ts",
+          "line": 969
+        },
+        {
+          "file": "frontend/src/views/DesignerView.spec.ts",
+          "line": 1831
+        }
+      ],
+      "newTest": {
+        "file": "frontend/src/w0/designer-w0.spec.ts",
+        "line": 69
+      },
+      "expectedContract": "LoopSpec不dirty时未发送text/File也须confirm；取消保留，明确放弃才离开。保存只读无draft可离开。",
+      "observedResult": "initial/followup text/File四种入口confirm拒绝配置但confirm0，真实route到/away；保存只读会话无draft离开无写通过。",
+      "executedVariants": [
+        "initial-text/followup-text/initial-file/followup-file：4 FAIL",
+        "保存无draft只读session可离开/no-confirm/no-create：1 PASS"
+      ],
+      "remainingVariants": [
+        "修复后取消保File原实例/bytes/顺序（当前route已离开仅证明静默离开）",
+        "各4draft显式放弃true路径",
+        "组合File+text/重选顺序"
+      ],
+      "evidenceLimits": "text保留使用textarea.value；File当前后续断言仅UI original.txt。不能宣称已证明File GC或字节丢失。",
+      "repairResult": "NOT_RUN: no production repair authorized or made",
+      "gate": "OPEN",
+      "subtests": [
+        {
+          "name": "B5.1 ordinary Designer drafts require real route confirmation initial-text: declining leave preserves draft",
+          "status": "failed",
+          "durationMs": 207.99821099999963,
+          "failedAssertions": [
+            "AssertionError: expected '/away' to be '/designer' // Object.is equality",
+            "AssertionError: expected \"spy\" to be called once, but got 0 times"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        },
+        {
+          "name": "B5.1 ordinary Designer drafts require real route confirmation followup-text: declining leave preserves draft",
+          "status": "failed",
+          "durationMs": 113.74755699999969,
+          "failedAssertions": [
+            "AssertionError: expected '/away' to be '/designer' // Object.is equality",
+            "AssertionError: expected \"spy\" to be called once, but got 0 times"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        },
+        {
+          "name": "B5.1 ordinary Designer drafts require real route confirmation initial-file: declining leave preserves draft",
+          "status": "failed",
+          "durationMs": 79.26247000000012,
+          "failedAssertions": [
+            "AssertionError: expected '/away' to be '/designer' // Object.is equality",
+            "AssertionError: expected \"spy\" to be called once, but got 0 times"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        },
+        {
+          "name": "B5.1 ordinary Designer drafts require real route confirmation followup-file: declining leave preserves draft",
+          "status": "failed",
+          "durationMs": 85.33929900000021,
+          "failedAssertions": [
+            "AssertionError: expected '/away' to be '/designer' // Object.is equality",
+            "AssertionError: expected \"spy\" to be called once, but got 0 times"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        },
+        {
+          "name": "B5.1 ordinary Designer drafts require real route confirmation saved read-only Designer can leave without a confirmation or write",
+          "status": "passed",
+          "durationMs": 60.02599400000008,
+          "failedAssertions": [],
+          "classification": "PASS"
+        }
+      ],
+      "subtestCounts": {
+        "failed": 4,
+        "passed": 1
+      },
+      "requestAndStateEvidence": [
+        {
+          "logLine": 5,
+          "observations": {
+            "kind": "initial-text",
+            "route": "/away",
+            "confirmCount": 0
+          }
+        },
+        {
+          "logLine": 11,
+          "observations": {
+            "kind": "followup-text",
+            "route": "/away",
+            "confirmCount": 0
+          }
+        },
+        {
+          "logLine": 14,
+          "observations": {
+            "kind": "initial-file",
+            "route": "/away",
+            "confirmCount": 0
+          }
+        },
+        {
+          "logLine": 23,
+          "observations": {
+            "kind": "followup-file",
+            "route": "/away",
+            "confirmCount": 0
+          }
+        }
+      ],
+      "commandRun": "workflow-designer-final",
+      "commandExitCode": 1
+    },
+    {
+      "caseId": "B5.2",
+      "title": "Designer pending写入禁离开",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "source": [
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 88
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 92
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 1173
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 1175
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 1308
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 1348
+        }
+      ],
+      "originalTests": [
+        {
+          "file": "frontend/src/views/DesignerView.spec.ts",
+          "line": 793
+        },
+        {
+          "file": "frontend/src/views/DesignerView.spec.ts",
+          "line": 937
+        },
+        {
+          "file": "frontend/src/views/DesignerView.spec.ts",
+          "line": 969
+        }
+      ],
+      "newTest": {
+        "file": "frontend/src/w0/designer-w0.spec.ts",
+        "line": 89
+      },
+      "expectedContract": "initial/followup写sending/unknown不得confirm放弃；原body/submissionId/File留原owner。",
+      "observedResult": "两真实context-turn入口各sending/unknown，mutation1并含原submissionId/File，全部route到/away。",
+      "executedVariants": [
+        "initial/followup multipart context-turn × sending/unknown：4 FAIL"
+      ],
+      "remainingVariants": [
+        "无File message分支sending/unknown",
+        "重新开始/视图回退/replace/back",
+        "实际阻断后的File原实例/顺序与body保留"
+      ],
+      "evidenceLimits": "READ_ONLY/readOnly控制runtime；REVIEWING+DISCUSSING_REQUIREMENT composer依生产380–389实际可编辑。无disabled破坏。",
+      "repairResult": "NOT_RUN: no production repair authorized or made",
+      "gate": "OPEN",
+      "subtests": [
+        {
+          "name": "B5.2 unresolved Designer writes forbid route leave initial/sending retains File owner",
+          "status": "failed",
+          "durationMs": 88.33224799999971,
+          "failedAssertions": [
+            "AssertionError: expected '/away' to be '/designer' // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        },
+        {
+          "name": "B5.2 unresolved Designer writes forbid route leave initial/unknown retains File owner",
+          "status": "failed",
+          "durationMs": 75.37715600000001,
+          "failedAssertions": [
+            "AssertionError: expected '/away' to be '/designer' // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        },
+        {
+          "name": "B5.2 unresolved Designer writes forbid route leave followup/sending retains File owner",
+          "status": "failed",
+          "durationMs": 70.0077980000001,
+          "failedAssertions": [
+            "AssertionError: expected '/away' to be '/designer' // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        },
+        {
+          "name": "B5.2 unresolved Designer writes forbid route leave followup/unknown retains File owner",
+          "status": "failed",
+          "durationMs": 75.14237599999979,
+          "failedAssertions": [
+            "AssertionError: expected '/away' to be '/designer' // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        }
+      ],
+      "subtestCounts": {
+        "failed": 4
+      },
+      "requestAndStateEvidence": [
+        {
+          "logLine": 30,
+          "observations": {
+            "channel": "initial",
+            "phase": "sending",
+            "route": "/away",
+            "mutationCount": 1,
+            "firstBody": {
+              "submissionId": "4862e6f8-8594-4821-8c1a-373923d959e0",
+              "projectId": "project",
+              "draftId": "draft-A",
+              "content": "原初始目标",
+              "autoModeEnabled": false,
+              "storyBinding": {
+                "enabled": false
+              }
+            },
+            "fileNames": [
+              "original.txt"
+            ]
+          }
+        },
+        {
+          "logLine": 33,
+          "observations": {
+            "channel": "initial",
+            "phase": "unknown",
+            "route": "/away",
+            "mutationCount": 1,
+            "firstBody": {
+              "submissionId": "4865767f-e77e-4369-9f76-aed7361da106",
+              "projectId": "project",
+              "draftId": "draft-A",
+              "content": "原初始目标",
+              "autoModeEnabled": false,
+              "storyBinding": {
+                "enabled": false
+              }
+            },
+            "fileNames": [
+              "original.txt"
+            ]
+          }
+        },
+        {
+          "logLine": 38,
+          "observations": {
+            "channel": "followup",
+            "phase": "sending",
+            "route": "/away",
+            "mutationCount": 1,
+            "firstBody": {
+              "submissionId": "a40dfa06-78db-40da-af52-5a459a557c6d",
+              "content": "原消息",
+              "scopeKey": "REQUIREMENT",
+              "expectedDiscussionRevision": 1,
+              "expectedDesignRevision": 0
+            },
+            "fileNames": [
+              "original.txt"
+            ]
+          }
+        },
+        {
+          "logLine": 45,
+          "observations": {
+            "channel": "followup",
+            "phase": "unknown",
+            "route": "/away",
+            "mutationCount": 1,
+            "firstBody": {
+              "submissionId": "9d61c624-7f95-4675-a85a-dd75041a6c67",
+              "content": "原消息",
+              "scopeKey": "REQUIREMENT",
+              "expectedDiscussionRevision": 1,
+              "expectedDesignRevision": 0
+            },
+            "fileNames": [
+              "original.txt"
+            ]
+          }
+        }
+      ],
+      "commandRun": "workflow-designer-final",
+      "commandExitCode": 1
+    },
+    {
+      "caseId": "B5.3",
+      "title": "Designer确定Task交接恢复",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "source": [
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 1091
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 1093
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 1288
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 1292
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 1300
+        },
+        {
+          "file": "frontend/src/stores/taskStore.ts",
+          "line": 193
+        },
+        {
+          "file": "frontend/src/stores/taskStore.ts",
+          "line": 238
+        },
+        {
+          "file": "frontend/src/stores/taskStore.ts",
+          "line": 242
+        }
+      ],
+      "originalTests": [
+        {
+          "file": "frontend/src/views/DesignerView.spec.ts",
+          "line": 1738
+        }
+      ],
+      "newTest": {
+        "file": "frontend/src/w0/designer-w0.spec.ts",
+        "line": 102
+      },
+      "expectedContract": "确定TaskID交接guard false/reject后保receipt恢复；只nav/read，不再confirm/create。",
+      "observedResult": "两variant都确认1、真实getTaskOverview(original taskId)已调用且store有accepted-task；workspace清空，恢复入口缺失，重新显示初始目标textarea。",
+      "executedVariants": [
+        "真实Task目标guard=false：FAIL（恢复入口/新表单断言）",
+        "真实Task目标guard throw/reject：FAIL（同断言）"
+      ],
+      "remainingVariants": [
+        "竞争导航取消",
+        "恢复后实际nav原Task且confirm始终1",
+        "Task读取失败及后续显示失败Task状态"
+      ],
+      "evidenceLimits": "最终getTaskOverview+getTaskAudit真实transport通过，不计旧getTask0夹具失败。store仍保Task，不夸大为后台重复创建或所有receipt丢失。",
+      "repairResult": "NOT_RUN: no production repair authorized or made",
+      "gate": "OPEN",
+      "subtests": [
+        {
+          "name": "B5.3 accepted Task handoff retains original identity guard-false: confirmed Task retains an explicit navigation-only recovery",
+          "status": "failed",
+          "durationMs": 136.84436099999994,
+          "failedAssertions": [
+            "AssertionError: expected false to be true // Object.is equality",
+            "AssertionError: expected true to be false // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        },
+        {
+          "name": "B5.3 accepted Task handoff retains original identity reject: confirmed Task retains an explicit navigation-only recovery",
+          "status": "failed",
+          "durationMs": 122.28229099999999,
+          "failedAssertions": [
+            "AssertionError: expected false to be true // Object.is equality",
+            "AssertionError: expected true to be false // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        }
+      ],
+      "subtestCounts": {
+        "failed": 2
+      },
+      "requestAndStateEvidence": [
+        {
+          "logLine": 50,
+          "observations": {
+            "failure": "guard-false",
+            "route": "/designer",
+            "confirmedTaskIds": [
+              "accepted-task"
+            ],
+            "workspace": null,
+            "text": "新建设计今天想推进什么？项目上下文测试项目测试项目描述你的目标自动保存添加上下文文件快速起稿开发新功能修复问题重构模块开启故事绑定仅统计设计师和执行者的 AI 工作量选择项目后检测故事绑定能力重新检测只读分析项目全自动模式⌘ / Ctrl + Enter开始设计设计上下文当前上下文测试项目直接执行路径/fixture执行位置直接模式历史任务0 个待继续设计0 个"
+          }
+        },
+        {
+          "logLine": 56,
+          "observations": {
+            "failure": "reject",
+            "route": "/designer",
+            "confirmedTaskIds": [
+              "accepted-task"
+            ],
+            "workspace": null,
+            "text": "新建设计今天想推进什么？项目上下文测试项目测试项目描述你的目标自动保存添加上下文文件快速起稿开发新功能修复问题重构模块开启故事绑定仅统计设计师和执行者的 AI 工作量选择项目后检测故事绑定能力重新检测只读分析项目全自动模式⌘ / Ctrl + Enter开始设计设计上下文当前上下文测试项目直接执行路径/fixture执行位置直接模式历史任务0 个待继续设计0 个"
+          }
+        }
+      ],
+      "commandRun": "workflow-designer-final",
+      "commandExitCode": 1
+    },
+    {
+      "caseId": "B6.1",
+      "title": "退休question回调隔离",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "source": [
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 779
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 783
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 790
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 798
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 1812
+        }
+      ],
+      "originalTests": [
+        {
+          "file": "frontend/src/views/DesignerView.spec.ts",
+          "line": 1128
+        }
+      ],
+      "newTest": {
+        "file": "frontend/src/w0/designer-w0.spec.ts",
+        "line": 121
+      },
+      "expectedContract": "退休A后回执不得复活A读/影响B；可达reject modal过期确认须零新写。",
+      "observedResult": "实际question推荐answer POST在途，强制退休A、实际新建独立B后交付A回执又GET A；mandatory=true真实UI无reject按钮，reject0/confirm0。",
+      "executedVariants": [
+        "实际reply→强制退休A→独立B→late receipt：FAIL（退休后新GET A）",
+        "mandatory question真实UI reject不可达负控：UNREPRODUCED_OR_UNREACHABLE（测试PASS）"
+      ],
+      "remainingVariants": [
+        "可达reject modal入口（当前生产无此入口，不强造）",
+        "同owner已切B时question/busy是否污染；各version变化"
+      ],
+      "evidenceLimits": "强制root retirement是迟到防御，不代替正常pending禁导航。B为独立owner；仅证明A退休后新读，没有证明B被改。",
+      "repairResult": "NOT_RUN: no production repair authorized or made",
+      "gate": "OPEN",
+      "subtests": [
+        {
+          "name": "B6.1 retired question callbacks stay with original owner reply accepted after retirement must not launch a new A refresh or alter independent B",
+          "status": "failed",
+          "durationMs": 113.7037519999999,
+          "failedAssertions": [
+            "AssertionError: expected [ [ 'A' ] ] to deeply equal []"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        },
+        {
+          "name": "B6.1 retired question callbacks stay with original owner reject modal path is unreachable: mandatory question exposes no reject action",
+          "status": "passed",
+          "durationMs": 50.423151999999845,
+          "failedAssertions": [],
+          "classification": "UNREPRODUCED_OR_UNREACHABLE"
+        }
+      ],
+      "subtestCounts": {
+        "failed": 1,
+        "passed": 1
+      },
+      "requestAndStateEvidence": [
+        {
+          "logLine": 62,
+          "observations": {
+            "afterRetirementReads": [
+              [
+                "A"
+              ]
+            ],
+            "bRoute": "/designer?sessionId=B"
+          }
+        },
+        {
+          "logLine": 65,
+          "observations": {
+            "classification": "UNREPRODUCED_OR_UNREACHABLE",
+            "reason": "production PendingQuestionCard mandatory=true hides reject; no synthetic reject emit"
+          }
+        }
+      ],
+      "commandRun": "workflow-designer-final",
+      "commandExitCode": 1
+    },
+    {
+      "caseId": "B6.2",
+      "title": "profile preview/modal退休后写",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "source": [
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 472
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 483
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 494
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 501
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 505
+        }
+      ],
+      "originalTests": [
+        {
+          "file": "frontend/src/views/DesignerView.spec.ts",
+          "line": 310
+        },
+        {
+          "file": "frontend/src/views/DesignerView.spec.ts",
+          "line": 358
+        }
+      ],
+      "newTest": {
+        "file": "frontend/src/w0/designer-w0.spec.ts",
+        "line": 139
+      },
+      "expectedContract": "每个await后重新确认scope/version；未发写的退休preview/modal不得继续update。",
+      "observedResult": "实际修改设置/largeTask switch/保存设置；挂起preview或confirm modal，退休A后返回/确认，两项均向A执行update（profile version7、largeTask=true）。",
+      "executedVariants": [
+        "preview挂起退休→resolvepreview+modal：FAIL",
+        "modal挂起退休→resolveconfirm：FAIL"
+      ],
+      "remainingVariants": [
+        "同session TaskProfile版本推进/同owner换session",
+        "accepted update后readback失败仅读",
+        "409保留选择与成功version推进"
+      ],
+      "evidenceLimits": "只证明退休后仍POST原A，未证明错写B；modal由真实ElMessageBox入口mock异步决定。",
+      "repairResult": "NOT_RUN: no production repair authorized or made",
+      "gate": "OPEN",
+      "subtests": [
+        {
+          "name": "B6.2 profile preview/modal await scope preview: retirement invalidates profile action before mutation",
+          "status": "failed",
+          "durationMs": 118.75015699999994,
+          "failedAssertions": [
+            "AssertionError: expected \"spy\" to not be called at all, but actually been called 1 times\n\nReceived: \n\n  1st spy call:\n\n    Array [\n      \"A\",\n      \"SOFTWARE_CHANGE\",\n      \"SOURCE_CODE\",\n      7,\n      true,\n      Array [],\n    ]\n\n\nNumber of calls: 1\n"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        },
+        {
+          "name": "B6.2 profile preview/modal await scope modal: retirement invalidates profile action before mutation",
+          "status": "failed",
+          "durationMs": 113.8392329999997,
+          "failedAssertions": [
+            "AssertionError: expected \"spy\" to not be called at all, but actually been called 1 times\n\nReceived: \n\n  1st spy call:\n\n    Array [\n      \"A\",\n      \"SOFTWARE_CHANGE\",\n      \"SOURCE_CODE\",\n      7,\n      true,\n      Array [],\n    ]\n\n\nNumber of calls: 1\n"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        }
+      ],
+      "subtestCounts": {
+        "failed": 2
+      },
+      "requestAndStateEvidence": [
+        {
+          "logLine": 71,
+          "observations": {
+            "pause": "preview",
+            "preview": [
+              [
+                "A",
+                "SOFTWARE_CHANGE",
+                "SOURCE_CODE",
+                7,
+                true,
+                []
+              ]
+            ],
+            "update": [
+              [
+                "A",
+                "SOFTWARE_CHANGE",
+                "SOURCE_CODE",
+                7,
+                true,
+                []
+              ]
+            ]
+          }
+        },
+        {
+          "logLine": 93,
+          "observations": {
+            "pause": "modal",
+            "preview": [
+              [
+                "A",
+                "SOFTWARE_CHANGE",
+                "SOURCE_CODE",
+                7,
+                true,
+                []
+              ]
+            ],
+            "update": [
+              [
+                "A",
+                "SOFTWARE_CHANGE",
+                "SOURCE_CODE",
+                7,
+                true,
+                []
+              ]
+            ]
+          }
+        }
+      ],
+      "commandRun": "workflow-designer-final",
+      "commandExitCode": 1
+    },
+    {
+      "caseId": "B6.3",
+      "title": "follow-up冻结multipart及后编辑草稿",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "source": [
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 380
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 1324
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 1325
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 1331
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 1339
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 1340
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 1342
+        }
+      ],
+      "originalTests": [
+        {
+          "file": "frontend/src/views/DesignerView.spec.ts",
+          "line": 793
+        },
+        {
+          "file": "frontend/src/views/DesignerView.spec.ts",
+          "line": 937
+        },
+        {
+          "file": "frontend/src/views/DesignerView.spec.ts",
+          "line": 969
+        }
+      ],
+      "newTest": {
+        "file": "frontend/src/w0/designer-w0.spec.ts",
+        "line": 155
+      },
+      "expectedContract": "同submissionId恢复原body/File/顺序；原写成功不能清后来未发送草稿。",
+      "observedResult": "unknown后真实可编辑textarea改正文并drop extraFile，第二次send同submissionId却body由原消息变后来编辑、Files由1变2，后编辑草稿清空。另文本send在途真实typing，ack也清新草稿。",
+      "executedVariants": [
+        "multipart unknown→实际text/File编辑→显式send：FAIL",
+        "text message send在途→实际later typing→ack：FAIL"
+      ],
+      "remainingVariants": [
+        "package/discussion/designRevision变化",
+        "File原顺序改变及bytes验证",
+        "退休后成功不重启poll"
+      ],
+      "evidenceLimits": "未解除disabled或合成禁用选择事件；两Files包含原File且第一项reference保留，失败是追加File/body变了，不说原File本身被替换。文本endpoint无通用key，不伪造重投。",
+      "repairResult": "NOT_RUN: no production repair authorized or made",
+      "gate": "OPEN",
+      "subtests": [
+        {
+          "name": "B6.3 follow-up immutable multipart operation and later draft unknown recovery uses original body/File and leaves later reachable edits unsent",
+          "status": "failed",
+          "durationMs": 89.18398400000024,
+          "failedAssertions": [
+            "AssertionError: expected { …(6) } to deeply equal { …(6) }",
+            "AssertionError: expected [ File{ …(1) }, File{ …(1) } ] to deeply equal [ File{ …(1) } ]",
+            "AssertionError: expected '' to be '后来编辑' // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        },
+        {
+          "name": "B6.3 follow-up immutable multipart operation and later draft typing while a real send is in-flight remains an unsent draft after original acknowledgement",
+          "status": "failed",
+          "durationMs": 68.28882199999998,
+          "failedAssertions": [
+            "AssertionError: expected '' to be '后来编辑' // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        }
+      ],
+      "subtestCounts": {
+        "failed": 2
+      },
+      "requestAndStateEvidence": [
+        {
+          "logLine": 96,
+          "observations": {
+            "original": [
+              "A",
+              {
+                "submissionId": "9ef70f30-f9ba-47d3-a6d3-1ff0e5b48635",
+                "content": "原消息",
+                "scopeKey": "REQUIREMENT",
+                "expectedDiscussionRevision": 1,
+                "expectedDesignRevision": 0
+              }
+            ],
+            "retry": [
+              "A",
+              {
+                "submissionId": "9ef70f30-f9ba-47d3-a6d3-1ff0e5b48635",
+                "content": "后来编辑",
+                "scopeKey": "REQUIREMENT",
+                "expectedDiscussionRevision": 1,
+                "expectedDesignRevision": 0
+              }
+            ],
+            "originalFiles": [
+              "original.txt"
+            ],
+            "retryFiles": [
+              "original.txt",
+              "extra.txt"
+            ],
+            "finalDraft": ""
+          }
+        },
+        {
+          "logLine": 122,
+          "observations": {
+            "inFlightLaterDraft": "",
+            "requests": [
+              [
+                "A",
+                "原消息",
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "commandRun": "workflow-designer-final",
+      "commandExitCode": 1
+    },
+    {
+      "caseId": "B7.1",
+      "title": "terminal retry timeout即时释放",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "source": [
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 859
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 861
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 1167
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 1169
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 1170
+        }
+      ],
+      "originalTests": [
+        {
+          "file": "frontend/src/views/DesignerView.spec.ts",
+          "line": 128
+        },
+        {
+          "file": "frontend/src/views/DesignerView.spec.ts",
+          "line": 185
+        },
+        {
+          "file": "frontend/src/views/DesignerView.spec.ts",
+          "line": 228
+        }
+      ],
+      "newTest": {
+        "file": "frontend/src/w0/designer-w0.spec.ts",
+        "line": 177
+      },
+      "expectedContract": "证明活动retry后root retirement首采样owned timeout0、streamclosed，迟到不得新GET/重排。",
+      "observedResult": "实际stream终态+在途poll证明owned retry1；unmount后任何clock/promise/input之前首采样仍1（红），streamclose1。交付旧poll再推进100ms无额外GET（绿子断言）。",
+      "executedVariants": [
+        "真实stream+deferred poll，fake-clock首采样，late read/100ms分层：1 FAIL"
+      ],
+      "remainingVariants": [
+        "两实例不互清/重复cycles",
+        "其它资源及递归50次所有路径",
+        "真实浏览器timer/GC"
+      ],
+      "evidenceLimits": "set/clearTimeout透明callthrough，按真实callback源码refreshDesignerAfterTerminalEvent识别唯一owned1；不等自然结束清理。只声明首采样ledger；已执行timer从集合移除的全周期未测。",
+      "repairResult": "NOT_RUN: no production repair authorized or made",
+      "gate": "OPEN",
+      "subtests": [
+        {
+          "name": "B7.1 owned terminal retry timeout immediate retirement first snapshot clears active retry before any natural callback completes",
+          "status": "failed",
+          "durationMs": 55.364788999999746,
+          "failedAssertions": [
+            "AssertionError: expected 1 to be +0 // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        }
+      ],
+      "subtestCounts": {
+        "failed": 1
+      },
+      "requestAndStateEvidence": [
+        {
+          "logLine": 125,
+          "observations": {
+            "before": 1,
+            "firstAfter": 1,
+            "streamClosed": 1
+          }
+        }
+      ],
+      "commandRun": "workflow-designer-final",
+      "commandExitCode": 1
+    },
+    {
+      "caseId": "B7.2",
+      "title": "composer focus RAF即时释放/迟到焦点",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "source": [
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 1047
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 1048
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 1049
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 1167
+        }
+      ],
+      "originalTests": [
+        {
+          "file": "frontend/src/views/DesignerView.spec.ts",
+          "line": 128
+        },
+        {
+          "file": "frontend/src/views/DesignerView.spec.ts",
+          "line": 185
+        },
+        {
+          "file": "frontend/src/views/DesignerView.spec.ts",
+          "line": 228
+        }
+      ],
+      "newTest": {
+        "file": "frontend/src/w0/designer-w0.spec.ts",
+        "line": 195
+      },
+      "expectedContract": "实际edit入口排入owned composer RAF，卸载即cancel；迟到不能聚焦新页同selector。",
+      "observedResult": "实际?sessionId=A&mode=edit queued1，真实router离开后首采样仍1；之后才交付旧callback，确实聚焦新页同id textarea。两断言红。",
+      "executedVariants": [
+        "实际edit入口→owned queuedRAF→真实route leave→严格首采样→独立late delivery：1 FAIL"
+      ],
+      "remainingVariants": [
+        "多实例/全部RAF来源",
+        "实际Chromium调度与全堆回收"
+      ],
+      "evidenceLimits": "RAF mock登记callback identity并按真实#designer-message函数源码归属；无主动清global账本。故意late回调在首采样后，独立防御不掩盖即时清理。",
+      "repairResult": "NOT_RUN: no production repair authorized or made",
+      "gate": "OPEN",
+      "subtests": [
+        {
+          "name": "B7.2 owned composer focus RAF immediate retirement retirement cancels queued composer focus before it can focus another page",
+          "status": "failed",
+          "durationMs": 50.624420999999984,
+          "failedAssertions": [
+            "AssertionError: expected 1 to be +0 // Object.is equality",
+            "AssertionError: expected <textarea …(2)></textarea> not to be <textarea …(2)></textarea> // Object.is equality"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        }
+      ],
+      "subtestCounts": {
+        "failed": 1
+      },
+      "requestAndStateEvidence": [
+        {
+          "logLine": 132,
+          "observations": {
+            "before": 1,
+            "firstAfter": 1,
+            "route": "/away"
+          }
+        },
+        {
+          "logLine": 133,
+          "observations": {
+            "lateFocusedNewPage": true
+          }
+        }
+      ],
+      "commandRun": "workflow-designer-final",
+      "commandExitCode": 1
+    },
+    {
+      "caseId": "B7.3",
+      "title": "storage失败与确定create事实",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "source": [
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 106
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 110
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 970
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 1026
+        },
+        {
+          "file": "frontend/src/views/DesignerView.vue",
+          "line": 1086
+        }
+      ],
+      "originalTests": [
+        {
+          "file": "frontend/src/views/DesignerView.spec.ts",
+          "line": 705
+        },
+        {
+          "file": "frontend/src/views/DesignerView.spec.ts",
+          "line": 720
+        },
+        {
+          "file": "frontend/src/views/DesignerView.spec.ts",
+          "line": 793
+        }
+      ],
+      "newTest": {
+        "file": "frontend/src/w0/designer-w0.spec.ts",
+        "line": 212
+      },
+      "expectedContract": "optional storage失败不把accepted create伪装普通失败；内存与显式session恢复保留，刷新能力不虚构。",
+      "observedResult": "initial File createaccepted且workspace setItem SecurityError：create1、sessioncomposer仍在，但提示“无法创建设计草案”（红）；已有session显式GET恢复+storage不可写仍可用（绿）。",
+      "executedVariants": [
+        "accepted initial File create→setItem SecurityError：FAIL（误导错误）",
+        "?sessionId=A显式恢复+setItem SecurityError：PASS"
+      ],
+      "remainingVariants": [
+        "getItem/removeItem/quota错误",
+        "清理/Taskhandoff阶段storage失败",
+        "回退UI/File/draft完整内存与刷新限制提示"
+      ],
+      "evidenceLimits": "确定回执与composer没有丢；不说已证明自动重发、File GC或跨刷新字节恢复。只复现postreceipt误导消息。",
+      "repairResult": "NOT_RUN: no production repair authorized or made",
+      "gate": "OPEN",
+      "subtests": [
+        {
+          "name": "B7.3 storage failures cannot discard accepted identity accepted initial File receipt stays recoverable when workspace persistence fails",
+          "status": "failed",
+          "durationMs": 75.43946099999948,
+          "failedAssertions": [
+            "AssertionError: expected [ '无法创建设计草案' ] to not include '无法创建设计草案'"
+          ],
+          "classification": "REPRODUCED_FAIL"
+        },
+        {
+          "name": "B7.3 storage failures cannot discard accepted identity explicit session recovery remains usable when optional workspace storage is unwritable",
+          "status": "passed",
+          "durationMs": 45.9980859999996,
+          "failedAssertions": [],
+          "classification": "PASS"
+        }
+      ],
+      "subtestCounts": {
+        "failed": 1,
+        "passed": 1
+      },
+      "requestAndStateEvidence": [
+        {
+          "logLine": 136,
+          "observations": {
+            "createCount": 1,
+            "acceptedSessionVisible": true,
+            "errors": [
+              [
+                "无法创建设计草案"
+              ]
+            ]
+          }
+        },
+        {
+          "logLine": 144,
+          "observations": {
+            "recoveredVisible": true,
+            "text": "重新开始确认设计并创建任务1需求讨论2工作包设计3总体确认4创建任务只读设计测试项目全自动已停用正在连接实时通道OpenCode 状态探测中系统 · 需求讨论远端 等待等待首次状态任务设置 · 软件变更识别置信度 未产生技术栈 定制任务人工确认流程 完整分包设计 · 执行 OpenCode 实施 · 测试 必须测试修改设置当前作用域：整体需求添加上下文文件⌘ / Ctrl + Enter发送需求已明确，开始拆包设计确认候选执行规范等待候选1 个阶段PT2H等待候选now"
+          }
+        }
+      ],
+      "commandRun": "workflow-designer-final",
+      "commandExitCode": 1
+    }
+  ],
+  "independentReview": {
+    "author": "/root/react_flow_workflow",
+    "reviewedAuthor": "/root/react_ppt_canvas",
+    "scope": [
+      "frontend/e2e/database-progress.spec.ts",
+      "frontend/e2e/document-template-tasks.spec.ts",
+      "frontend/e2e/read-consistency.spec.ts",
+      "frontend/e2e/roles.spec.ts"
+    ],
+    "reviewType": "READ_ONLY_SOURCE_DIFF_REPORT_HASH_TRACE_REVIEW_NO_BROWSER_RERUN",
+    "conclusion": "No test-methodology blocker found; historical Automations visible consumer contract remains FAIL.",
+    "proofs": [
+      "before four source copies equal HEAD bytes; after copies equal current bytes",
+      "before sourceSha256 / afterSourceSha256 match respective source copies",
+      "both report/log SHA256 match ledger",
+      "before JSON 11 FAIL /0 PASS; original11 preserved after, 10 PASS /1 FAIL; fullafter20=19PASS/1FAIL/0skip/0flaky",
+      "diff only JDBC/name expectations, screenshot outputPath, exact current role label and independent redirect negative test; original Automations recovery assertions unchanged",
+      "before11 failure traces exist; doc traces reach final screenshot after original business flow; both Automations failure traces stop missing visible health consumer",
+      "after1 failure trace retained; passing cases rely actual JSON+source and screenshots, not nonexistent success traces"
+    ],
+    "notProven": [
+      "real database/backend/paid model/File parser",
+      "production archived health consumer availability or scheduler correctness",
+      "these E2E passes do not close our16 W0 parent cases"
+    ],
+    "evidenceHashes": {
+      "/workspace/opencode-loopper-react-full/docs/design/react-full-migration/evidence/w0/historical-failures.json": "c8c7a62bf0baa86ab2b6bdd7b4853b75941d4f307b7aaa9f9910f65f65252e8c",
+      "/workspace/react-full-w0-evidence/historical-before-results.json": "d65eb5b485b0fb91e8aba85328d95cb44579af15db900f3dd3ce279ab43d9d9f",
+      "/workspace/react-full-w0-evidence/historical-before.log": "771ad1a2de1d3ef889b60e519057ac9e08faba16c5020e3aca001acf6235c5e0",
+      "/workspace/react-full-w0-evidence/historical-after-results.json": "311c17334579fe54675a4a13a974e1ca765cac21c6cc219ab6e172eb06768750",
+      "/workspace/react-full-w0-evidence/historical-after.log": "527cb31a9c6851261d4720452ffbc394f509b7c28e21dab08654de867d3da6f6"
+    }
+  },
+  "finalParentGate": "PENDING_PARENT_FINAL_RERUN: previous parent frozen full run predates the stronger B1.4 assertion; parent will rerun final full on new hash. No author production repair or full-suite rerun.",
+  "unsupportedClaims": [
+    "No production fix/red→green proof",
+    "No real backend/provider request",
+    "No browser testing by this author",
+    "No unsupported cross-refresh File/draft recovery",
+    "No own tests used as independent review"
+  ]
+}

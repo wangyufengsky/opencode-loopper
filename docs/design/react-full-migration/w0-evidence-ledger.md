@@ -1,5 +1,7 @@
 # W0：Workflow、模板与 Designer 的红测及证据台账
 
+> 本文是设计阶段冻结的待执行计划，下方 `NOT_RUN` 属于当时快照。实际 W0 已完成最小探针：28组＝25复现失败／3通过，27组仍部分覆盖；最终1416 unit＝1332通过／84合同红测失败。生产未修。当前证据、剩余变体及非作者复核以[W0实测报告](evidence/w0/README.md)、[验证回执](evidence/w0/verification.json)为准。窄屏需求已撤回，旧证据保留且不计当前桌面准入。
+
 本台账承接 [workflow-protocol-design.md](workflow-protocol-design.md) 第 9 节的 B1–B9，并以项目经理本轮已决定的导航、恢复合同收紧准入。生产源码审查基线为 `a3c692d38925206883f2b0a1255479108cfd439e`；本次只读核对时工作树 HEAD 为 `0717a4a5c3f5bf6fb61af8208136d5353e05a941`，分支为 `feat/react-full-migration`。本轮只新增本文，未修改业务、安装依赖或运行生产单测／浏览器。
 
 所有源码、原测试行号均指该工作树；下文 `views/`、`components/`、`stores/`、`api/`、`domain/` 的路径相对 `frontend/src/`，Java 路径相对仓库根。原测试名称和断言是**测试源码证据**，不代表本轮执行通过。静态原型的 mock unknown、查询、409 与截图仅验证设计呈现，不验证以下真实协议。

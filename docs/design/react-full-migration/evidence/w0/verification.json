@@ -1,0 +1,97 @@
+{
+  "baseline": "008542f0bf02dc1c1b76f1e75429aab8452b797d",
+  "runtime": {
+    "node": "24.19.0",
+    "npm": "11.9.0",
+    "formalNode22ReleaseVerified": false
+  },
+  "unit": {
+    "command": "npx vitest run --maxWorkers=2 --reporter=json --outputFile=/workspace/react-full-w0-evidence/final-unit-reviewed.json",
+    "exitCode": 1,
+    "total": 1416,
+    "passed": 1332,
+    "failed": 84,
+    "pending": 0,
+    "existing": {
+      "passed": 1305
+    },
+    "newW0": {
+      "failed": 84,
+      "passed": 27
+    }
+  },
+  "typecheck": {
+    "command": "npm run typecheck",
+    "exitCode": 0
+  },
+  "build": {
+    "command": "npm run build",
+    "exitCode": 0,
+    "warning": "existing chunks >500 kB; no limit changed"
+  },
+  "tooling": {
+    "command": "npm run test:tooling",
+    "passed": 31,
+    "failed": 0,
+    "exitCode": 0
+  },
+  "accounting": {
+    "command": "npm run test:accounting",
+    "passed": 13,
+    "failed": 0,
+    "exitCode": 0
+  },
+  "e2e": {
+    "collected": 305,
+    "files": 70,
+    "historicalRun": {
+      "total": 20,
+      "passed": 19,
+      "failed": 1,
+      "skipped": 0,
+      "flaky": 0
+    },
+    "desktopScope": {
+      "total": 15,
+      "passed": 14,
+      "failed": 1
+    },
+    "historicalNarrowOutOfScope": 5,
+    "notRun": 285
+  },
+  "sourceSha256": {
+    "frontend/src/w0/designer-w0.spec.ts": "0cbbf181235a1ffc3af7477b1e7692df959b07414c903afaa96555b3960f7556",
+    "frontend/src/w0/endpoint-w0.spec.ts": "1ce4a37714f661bc971946451ecb5266512b0d4ba4991eaf308cd083d459e42d",
+    "frontend/src/w0/templates-history-w0.spec.ts": "1dd6eaf2dae11b6b1550bda42d04267e448ea6b555e056788a9c5684fca09e2c",
+    "frontend/src/w0/workflow-w0.spec.ts": "471be59eddd217fb3a398e53d4ab70587baaf1d1c923fcffeb21768445bc65ae"
+  },
+  "rawEvidenceSha256": {
+    "final-unit-reviewed.json": "73bf6bd5cc67a91b3faa2d35f12280cb69e4d0f8dc4a0a5880f429f3ab5d1dad",
+    "final-unit-reviewed.log": "fe67a5be677fbea48325302ce2b24d87576487a80366bd3138feac2d273366f8",
+    "typecheck-reviewed-final.log": "d68d4967c7dcc37e3b03a518b6b3e155e239ef9b958ce6c46c7dfc458a38fa5f",
+    "build-reviewed.log": "3aa1346d780c468d518c307e606baca086285db8facb18a0a7c6aa18e531a8a6",
+    "tooling-permitted.log": "84ff5fc9c3671fb7ea5c87b5a177e551960886d3f340eebd29f7d8e755f3410f",
+    "accounting-permitted.log": "19d2c4ea4f89ca5e45f20b4c4756def0000f36654ffe46472be55c10d7a84a70"
+  },
+  "scope": {
+    "baseline": "008542f0bf02dc1c1b76f1e75429aab8452b797d",
+    "trackedManifestFiles": 3121,
+    "changedBaselineFiles": [
+      "frontend/e2e/database-progress.spec.ts",
+      "frontend/e2e/document-template-tasks.spec.ts",
+      "frontend/e2e/read-consistency.spec.ts",
+      "frontend/e2e/roles.spec.ts"
+    ],
+    "productionFilesChanged": 0,
+    "packageAndLockChanged": false,
+    "prototypeFilesCompared": 39,
+    "prototypeChanges": 0,
+    "pngFilesCompared": 29
+  },
+  "limits": [
+    "W0 test/document changes only; correct contract red tests remain",
+    "No live backend/model/parser/refresh recovery or React production implementation verification",
+    "Disconnected observer targets do not prove every GC object is released",
+    "Narrow requirements withdrawn; old assertions and evidence preserved"
+  ]
+}

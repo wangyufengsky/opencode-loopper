@@ -1,6 +1,6 @@
 # Automations 退役边界与兼容能力映射
 
-本文件是全 React 迁移的 **W0 设计门禁**，不是实现完成记录。2026-10-03 在 `feat/react-full-migration`、源码基线 `0717a4a5c3f5bf6fb61af8208136d5353e05a941` 只读核对前端、后端、SQL、产品合同和测试；本轮只新增本文件，未安装依赖、运行生产测试、启动浏览器或修改生产代码。作者是原团队 `react_legacy_canvas`；原启动记录显式为 `model=gpt-6.1-sol`、`reasoning_effort=xhigh`，当前工具没有实时配置字段，不能把该记录当作实时平台查询结果。
+本文件是全 React 迁移的 **W0 设计门禁**，不是实现完成记录。2026-10-03 在 `feat/react-full-migration`、源码基线 `0717a4a5c3f5bf6fb61af8208136d5353e05a941` 只读核对前端、后端、SQL、产品合同和测试；初版盘点只新增本文件，未安装依赖、运行生产测试、启动浏览器或修改生产代码；后续获 W0 测试/文档授权在 `008542f0` 执行本文链接的模板/历史端点探针，并冻结下方具体 Drawer 设计，依然未修改生产/Java。作者是原团队 `react_legacy_canvas`；原启动记录显式为 `model=gpt-6.1-sol`、`reasoning_effort=xhigh`，当前工具没有实时配置字段，不能把该记录当作实时平台查询结果。
 
 **结论：旧 Automations 的历史查询、导出、持久化与既有 run 对账仍存在；旧公开写入已经明确退役。当前没有路由挂载旧 View，也没有在正式 TemplateTasks 页面消费这些历史查询。** `/automations` 重定向成功不等于这些能力已经整合。孤立 View 的按钮、mock 成功回执、可直接调用的 Java Service 都不能证明当前 HTTP 写入可用。迁移必须补齐历史读能力的可达映射，保留退役拒绝和旧数据保护，不能擅自恢复已退役的创建、触发、导入或密钥签发。
 
@@ -16,7 +16,7 @@
 | R：公开写入退役 | 有产品合同、Controller 拒绝和部分回归断言 | 保持拒绝，不迁出可执行写按钮；组长与后端兼容 owner 持有全端点拒绝门禁，legacy 模块作者不能改为调用内部 Service 或新模板任务写接口。 |
 | H：历史内部合同 | Service/Mapper/SQL/领域状态机仍可读写或直接测试 | 保留冻结数据、兼容测试和历史 run 对账；没有功能移交与行为等价证据不得删。保留内部方法不意味着重新开放用户操作。 |
 | L：有限后继能力 | 当前 TemplateTasks 自身的目录、参数、确认/开始与历史导航 | legacy 模块作者持有 TemplateTasksView、templateTaskStore 及其新模板创建 controller；workflow 作者持有 Document/Source run/store 的分支协议接口；任务模块持有 Task 读取/恢复。它们只替代批准的新任务入口，不等价于旧规则、旧 run、旧模板管理。 |
-| P：待定归档呈现 | 本文件提出的必要 UI 映射，还没有实现或验收 | 必须由组长在 W0 结清位置、消费者、数据范围、测试迁移；W3 实现之前不得写成“当前支持”，W6 退出 Vue 之前必须有实际 React 消费链和测试。 |
+| P：已定设计、尚未实现归档呈现 | 本轮已选择的只读 Drawer 映射，还没有实现或验收 | 位置、消费者、数据范围、测试迁移按下文具体落点冻结；W3 实现之前不得写成“当前支持”，W6 退出 Vue 之前必须有实际 React 消费链和测试。 |
 
 上表区分设计准入与实施验收：W0 可以批准保持退役和补齐历史只读呈现，但未实现的 P/C 项不会自动转为通过。旧 View/VTU 测试退出的前提是每个断言已有明确历史兼容、退役拒绝或 React 行为去向。本文“后端兼容 owner”指现有 Java Service/Controller/Mapper 的职责边界；本轮只审既有合同并设计后续测试，不授权 Java 改动，也不另设成员。全站仍使用原三人分工。
 
@@ -108,13 +108,29 @@ API 基础路径由 [AutomationController](../../../src/main/java/io/opencode/lo
 | workspace/单模板导出 | 两种现GET仍保留，内容范围不同；整工作区不是完整DB备份 | C/P：历史归档显式导出动作由一个read owner调用原GET，验证格式、范围和secret排除；不以此替代run/health数据保留。 |
 | 原run历史/失败/队列/恢复 | 七状态、可空Task/draft和失败evidence保留；已有绑定Task后台对账继续，未绑定REVIEW_REQUIRED无公开确认 | C/H/P：只读归档必须覆盖全部run，不只新模板Task列表。有效Task可链接现详情；已删Task/空绑定显示历史状态，不造新Task。保持错误→刷新新读投影清旧告警，未确立当前实现的恢复动作不得添加。 |
 
-### 归档呈现方案与单一 owner（待 W0 结清）
+### 已选择归档 Drawer、消费者和单一 owner（W0 设计落点）
 
-建议在既定 TemplateTasks 信息架构内提供用户主动打开的“历史模板与自动化记录”只读入口，而不是恢复旧自动化工作台。可采用归档 Drawer/独立局部面板，但**当前没有这个入口，方案未实现**；不新建业务能力或擅自增加路由。默认目录仍只读server catalog、填写参数，执行记录仍去Tasks。原功能合同 `:444` 及 `frontend/e2e/template-tasks.spec.ts:95–109` 禁止模板默认页面加载执行历史；归档run的展示位置、按需加载触发与该条合同的明确区分必须由组长在W0记录，不能先把旧历史表塞入默认目录再宣称等价。
+2026-10-03 W0 测试/文档授权后，具体选择是：在既定 **TemplateTasks 页面工具区**增加用户主动打开的“历史模板与自动化记录”入口，打开**只读 Drawer**；不增加业务路由，`/automations` 继续 redirect `/template-tasks`。Drawer 提供“历史模板”“旧规则与检测记录”“运行记录”“导出说明”四个页签。它是 W3 生产工作包的确定落点，**目前没有 Drawer、controller 或正式消费者，不能写成当前支持；W1/生产迁移仍未放行**。视觉位置/密度由总 UI 设计验收，但入口、字段、错误、深链、刷新和下列高级只读功能必须可达。
 
-必要数据流是：用户显式打开归档 → 一个纯TS历史读取 controller → 现有9个GET的已批准子集 → React只读DTO/版本与规则归属检查 → 显式刷新/导出/有效Task深链。没有可执行旧写命令，没有浏览器cron/Git探测，没有第二个server恢复owner。controller按archive实例与request generation拒绝卸载/切记录后迟到读回，关闭后撤销订阅/监听/下载URL；此清理要求是未来实现门槛，不是当前旧View已有证明。
+默认目录只请求 server catalog/项目/分支，不请求旧 workspace/rules/templates/runs；关闭 Drawer 后恢复目录不补请求。原功能合同 `:444` 及 `frontend/e2e/template-tasks.spec.ts:95–109` 的“目录不下载执行历史”保持；归档读仅由主动打开、切页签/记录、刷新或导出触发。Drawer 顶部注明“历史只读；旧触发、审批、导入及密钥签发已退役”，不出现旧创建/编辑/发布/启用/触发/确认/preview/import/webhook 操作。MANUAL/AUTO_START/REVIEW_REQUIRED 保留为旧记录语义，不映射为新提交/开始按钮。
 
-职责不改变总波次：**W0**组长＋legacy明确归档入口、逐断言去向和本文件C/P缺项；**W1**legacy提取只读DTO/parser/read controller与一份snapshot owner，并持有 templateTaskStore 的新模板创建controller；**W3**legacy实现 TemplateTasks React 页面及邻接归档消费者，workflow提供既定 Document/Source run/store 的分支协议接口、任务模块保留Task详情owner；**W6**组长原子换根/路由后删除已映射的孤立Vue View、VTU夹具；**W7**验证作者完成相邻测试、当前恢复入口及全站门禁。TemplateTasksView、templateTaskStore 和 newpage/controller 由 legacy 同一作者持有；新旧页不得各自创建第二套命令队列或订阅，workflow不能再分出一套模板确认/开始writer。历史只读归档模块不取得新模板创建controller的写权限。
+唯一 owner 是 **legacy 持有的纯 TS `TemplateHistoryArchiveController`**（设计名称，未实现），由同一 TemplateTasks 页面 controller 注入 `archiveReads` 端口；只给 GET、两个 GET 导出及导航端口，不注入新模板 create/start 或旧写端口。它持有 Drawer 开闭、tab、选中 template/version/rule/run、loading/error/read generation、原始导出内容及临时下载 URL；各 React 子视图只有 DTO 和事件，不自建第二订阅/writer。无需 SSE、轮询、浏览器 cron/Git；服务端历史 run 对账仍归现有 Java owner。请求作用域包含 Drawer 实例 epoch、tab、选中 id、参数；关闭/切记录/卸载失效晚到读回，释放自行创建的 URL/监听。快照接收只读，不把展示 DTO 写回 spec/SQL。
+
+| 9 个兼容 GET 的确定消费者 | 使用触发与字段/范围 | 必须通过的行为门槛（均未实现/未执行） |
+| --- | --- | --- |
+| `/workspace` → Drawer 归档概览 | 首次显式打开读取 templates/rules/runs/serverTime，显示三个历史计数/关联概览；不声称事务快照 | 默认页零旧历史请求；打开仅一次；关闭后迟到成功/失败零 retired write；有效/失效 Task 深链分别验证 |
+| `/templates` → 历史模板页签列表 | 用户切页签/刷新；id/name/description/state/version、当前 decoder 可得的版本数，不臆造 createdAt | ACTIVE/ARCHIVED/空列表/失败显式刷新，所有项保留，不因无新 catalog 对应项过滤 |
+| `/templates/{id}` → 模板详情 | 用户选模板；校验返回 id 与选择一致，版本归属不混 | 两模板反向回执、404/错误不显示旧详情；不得把 template id 当新 catalog id |
+| `/templates/{id}/versions` → 版本列表与冻结合同查看 | 同一详情按需读；versionNumber/hash/immutable/autoStartApproved/spec/createdAt，倒序保持真实编号 | v1/v2、全部版本/spec/hash 原值保留；只读查看不升级 schema/重算 hash，不把 normalized DTO 当原始导出 |
+| `/templates/{id}/export` → “导出该模板最新合同” | 用户明确点击；下载原 spec_json，仅最新版本；无版本错误仍可见 | 精确原 JSON 内容/范围；不是全版本备份；无退役 preview/confirm 写；下载 URL 自己销毁 |
+| `/templates/export` → “导出旧模板与规则格式” | 导出说明页签明确点击；formatVersion=1、templates+versions、规则有限字段 | 原字段/格式不增删；secret/tokenHash/runs/health 明确不含；不能称数据库备份，不能随打开自动导出 |
+| `/rules` → 旧规则与检测记录列表/详情 | 四 trigger/two approval、state/version/项目/精确模板版本/配置、可选当前版本 health；没有 secret/hash/lastHead | MANUAL、CRON、GIT_HEAD_CHANGED、WEBHOOK 的真实 trigger 码按 decoder 读取；AUTO_START/REVIEW_REQUIRED 为只读标志；缺 health 显示“未检查”，FAILED 原因/次数→更新读 CHECKED 清旧告警；过期 health 不造成功，不恢复检测 |
+| `/rules/{id}/runs` → 选中旧规则的运行记录 | 用户选规则/刷新；ruleId 归属，所有 run 状态/evidence/error/draftId/taskId/时间 | 空绑定/删 Task 不丢记录、不造新 Task；切 rule 迟到拒绝；REVIEW_REQUIRED 无公开确认动作 |
+| `/runs` → 运行记录页签完整 feed | 不限绑定 Task；serverTime、detectedAt/id 顺序，保留七状态 | 不能拿新模板 Task 列表替代；失败/跳过/未绑定/终态/空页都有展示；有效 Task 链接现详情，无效绑定安全说明，无自动 start/recover |
+
+九项不是要求默认打开并行下载全部 API；概览、页签和选中详情分别按上述触发读取。现 client 缺单模板/versions/单模板导出/规则 run 方法，W1 需补纯 TS GET adapter 和真实响应 decoder 合同，后端 API 不变；这是未来工作包，不是假定已存在消费者。展示字段只来自现公开 DTO，SQL 私有 key/version/tokenHash 等不补猜、不出现在新写请求。
+
+职责按总波次固定：**W0**legacy 冻结本矩阵和对应旧断言归属，组长审设计准入；**W1**legacy 提取只读 parser/read controller，并持有同一 templateTaskStore 的新模板创建 controller；**W3**legacy 实现 TemplateTasks React 页及 Drawer，workflow 仅提供 Document/Source run/store 分支协议接口；Task 深链仍由任务模块 owner 接收；**W6**组长原子换根后，只有断言迁移并通过才删除孤立 Vue View/VTU 夹具；**W7**验证作者跑真实 React GET/导出/redirect、退休写拒绝、升级保留及全站门禁。后端 owner 是既有 Controller/Service/Mapper 责任边界，本轮无 Java 改动授权、无新增成员。不能以此设计冻结冒称实现已通过。
 
 ## 测试行为账本：现有断言及生产开发前门禁
 
@@ -126,7 +142,7 @@ API 基础路径由 [AutomationController](../../../src/main/java/io/opencode/lo
 | `FE/views/AutomationsView.spec.ts:79–100` | mock preview先于confirm、import返回一时token、导出既有JSON | R/H/C：公开preview/confirm拒绝；内部无写预览/confirm/hash/secret；React实际GET导出。原case每条断言拆分到这些owner并记录后才可删除VTU测试。 |
 | `FE/components/AutomationHealth.spec.ts:5–14` | props驱动未检查/FAILED/CHECKED，恢复值清旧告警 | C/P：纯TS health投影＋实际React归档更新；rule enablement、run success、health三者独立，缺health不伪装成功。 |
 | `FE/api/client.spec.ts:729–743,746–773,1275–1281` | CRON wire往返、fetch mock一时secret、健康投影；不是实HTTP Service许可 | H/C：保留不依赖Vue的parser/wire/秘密排除测试；添加真实GET response形状。不能拿mock create通过声称服务器允许创建。 |
-| `frontend/e2e/read-consistency.spec.ts:32–49` | 测试访问已redirect路径但期待旧health组件；伪造server workspace失败→成功，属于原11中旧入口失配1项 | C/P/R：拆成redirect/deep-link无旧写入＋正式归档真实端点的新读清告警，保持失败次数/原因、成功清旧错误断言。不得只删case或改成一个redirect断言；不得恢复Git轮询来让旧fixture绿。本轮未重跑，仍是待迁移/待验证。 |
+| `frontend/e2e/read-consistency.spec.ts:32–49` | 测试访问已redirect路径但期待旧health组件；伪造server workspace失败→成功，属于原11中旧入口失配1项 | C/P/R：拆成redirect/deep-link无旧写入＋正式归档真实端点的新读清告警，保持失败次数/原因、成功清旧错误断言。不得只删case或改成一个redirect断言；不得恢复Git轮询来让旧fixture绿。W0 已重跑 before/after：原 UI 消费者断言仍 FAIL，新增 redirect 单独 PASS；2 条纯 health 投影 PASS 不代表正式 UI 消费者。实际记录见 [旧11结果](evidence/w0/historical-failures.md)，归档真实端点消费仍待实现/验证。 |
 | `BT/api/AutomationControllerTest.java:28–60` | 实Controller＋mockService；template create退役/权限、Webhook不可派发 | R：扩成全部10操作的合法输入拒绝矩阵，读/写分别断言；保留verifyNoInteractions，不只是找错误文字。 |
 | `BT/api/FeatureContractSerializationTest.java:42–72` | 兼容DTO triggerType/config roundtrip、一时token只在mutation不在rule | H/C：继续纯后端兼容序列化测试；补实际Controller GET records与frontend decoder合同（它们不是同一个record class）。 |
 | `BT/service/AutomationServiceIntegrationTest.java:49–66,70–85,265–300` | 500历史run中活动对账选择＋key查询；退役poll无新run、无Git进程、无head观察、CRON不派发 | H/R：server历史对账owner保留，UI不能重新派发；未来真实服务门禁继续验证，当前文件存在不算本轮通过。 |
@@ -140,13 +156,13 @@ API 基础路径由 [AutomationController](../../../src/main/java/io/opencode/lo
 
 生产开发准入必须记录并关闭以下事项，不能以“未来整合”口头替代：
 
-1. **D1 归档入口和数据范围（阻塞，组长＋legacy）：**明确TemplateTasks中按需历史模板/规则/健康/全部run及两种导出的可达消费者与位置；与目录不载历史合同一致。现在无消费者；任务历史不完整、单导出不完整。确认方案后再开始对应生产工作包。
+1. **D1 归档入口和数据范围（设计已定，实施未放行，legacy＋组长）：**采用上述 TemplateTasks 四页签只读 Drawer，9 GET/两导出逐项有触发、字段和断言。当前无消费者；W3 实现前仍不能删除旧能力/数据。目录零历史请求保持，生产授权另行取得。
 2. **D2 旧写退役矩阵（已定边界，验证待补，后端兼容owner＋验证作者）：**全部10个操作、localUI/合法旧token、无Service/行/Task/secret副作用的测试设计落位；旧REVIEW_REQUIRED不重新确认。不得绕Controller或改用新模板POST来保留旧按钮。
 3. **D3 数据保留和DTO差异（阻塞删除，后端兼容owner＋legacy）：**设计冻结spec/hash、v1/v2、旧rule/run/task/draft/health及V77版本行为的完整升级夹具；GET遗漏字段、过期health过滤、旧cron键、有限导出必须明确，不新增字段/权限填补假等价。已有Task终态到run的COMPLETED/SUPERSEDED静态差异另列待聚焦证实，不能用“对账保留”概括成终态行为已全部正确。
 4. **D4 每条旧前端断言去向（阻塞Vue退出，legacy＋验证作者）：**死View的create/approval/confirm/preview/secret断言有H/R归属，读/刷新/导出/health有真实React归档消费者；旧失败1项分开deep-link与读恢复，禁止drop/skip换绿。对应设计与验证计划须在生产迁移前结清，实际结果在W3/W7回填。
-5. **D5 同一owner与恢复语义（阻塞实现，组长＋模块作者）：**历史只读controller不取得新模板写权限，路由/关闭/晚到读回失效；server对账仍唯一owner。不存在批准的未知旧写重试/自动恢复或secret重签发，不提出新业务恢复按钮。
+5. **D5 同一owner与恢复语义（设计已定、实现验收未完成，legacy＋组长）：**历史只读controller不取得新模板写权限，路由/关闭/晚到读回失效；server对账仍唯一owner。不存在批准的未知旧写重试/自动恢复或secret重签发，不提出新业务恢复按钮。
 
-本文件已经明确现行边界和必要映射，但D1/D3/D4/D5尚无当前等价UI/实现证据；**不能宣称Automations兼容整合已通过或据此删除旧数据/合同/测试**。组长应在W0结清具体消费者、行为去向和工作包，之后按获批映射实施。
+D1/D5 的具体消费者和单 owner 设计已在 W0 冻结；D3 数据升级完整夹具、D4 全旧断言动态移交仍是删除前门槛，9 GET 的实际 React 消费均未实现/未执行。**不能宣称 Automations 兼容整合已通过或据此删除旧数据/合同/测试**。本轮 12 个模板/历史/endpoint W0 场景另见 [实际结果](evidence/w0/templates-history-results.md)，它们不覆盖旧 Java 全端点拒绝或升级验证，也不开放 W1 生产迁移。
 
 ## 其它设计报告原句与本轮修订要求
 

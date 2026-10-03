@@ -1,0 +1,434 @@
+{
+  "baseline": "008542f0bf02dc1c1b76f1e75429aab8452b797d",
+  "parentCount": 28,
+  "classifications": {
+    "PASS": 3,
+    "REPRODUCED_FAIL": 25
+  },
+  "coverage": {
+    "complete": 1,
+    "partial": 27
+  },
+  "cases": [
+    {
+      "id": "B1.1",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "counts": {
+        "failed": 6,
+        "passed": 1
+      },
+      "finding": "6项 pending 导航都实际离开（push/replace→/away，back→/previous），create均仅1次；普通 dirty 取消/明确放弃对照通过。",
+      "evidence": "workflow-designer-results.md",
+      "remaining": [
+        "同路由换实体/query及原 operation 在导航受阻后的完整恢复",
+        "取消后全部4字段与跨刷新恢复（New不提供该承诺）"
+      ]
+    },
+    {
+      "id": "B1.2",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "counts": {
+        "failed": 4,
+        "passed": 1
+      },
+      "finding": "copy/archive各sending/unknown均导航到/away；copy unknown改变真实“我的流程”筛选后重试保相同请求。",
+      "evidence": "workflow-designer-results.md",
+      "remaining": [
+        "archive筛选/显式恢复",
+        "replace/back/同路由变化；copy已接受但目标导航失败",
+        "复制回执的只导航恢复入口"
+      ]
+    },
+    {
+      "id": "B1.3",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "counts": {
+        "failed": 2,
+        "passed": 1
+      },
+      "finding": "真实guard=false及竞争导航取消均丢“打开已创建的需求”入口并重新显示submit；reject保入口。每项create仅1次。",
+      "evidence": "workflow-designer-results.md",
+      "remaining": [
+        "失败后实际点击恢复、确认最终URL与create不增加",
+        "成功receipt交接不得绕其他owner pending guard"
+      ]
+    },
+    {
+      "id": "B1.4",
+      "classification": "PASS",
+      "coverage": "complete",
+      "counts": {
+        "passed": 2
+      },
+      "finding": "deferred create的真实SENDING和reject后的UNKNOWN，两阶段title/objective/project/template均禁改。SENDING retry禁用、create1；UNKNOWN retry可用且尚create1；用户明确retry为同body对象/key、create2。原纯owner projection/accepted只读对照此前已通过，未在单test过滤运行里重跑。",
+      "evidence": "workflow-designer-results.md",
+      "remaining": []
+    },
+    {
+      "id": "B2.1",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "counts": {
+        "failed": 13
+      },
+      "finding": "六真实panel经真实按钮发POST，sending/unknown × confirm=true的exposed canLeave均true；实际Requirement+Finish unknown route也到/away。",
+      "evidence": "workflow-designer-results.md",
+      "remaining": [
+        "其它5panel真实父route/关闭panel/切node/attempt/换requirement组合",
+        "WorkflowSaveTemplate locked对照与各panel无pending普通draft确认",
+        "其它动作（candidate accept等）"
+      ]
+    },
+    {
+      "id": "B2.2",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "counts": {
+        "failed": 1
+      },
+      "finding": "实际command stop未知后显式retry，两请求req/review/run/stop、commandVersion19与key相同；canLeave=true违反禁离开。",
+      "evidence": "workflow-designer-results.md",
+      "remaining": [
+        "model stop/version",
+        "unknown期间attempt/权威状态变更",
+        "实际父route、backend停止证明及无重叠writer"
+      ]
+    },
+    {
+      "id": "B2.3",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "counts": {
+        "failed": 1
+      },
+      "finding": "真实Finish POSTaccepted、finishStatus GET失败后提供“刷新操作结果”；canLeave=true为红。随后恢复仅finishStatus GET，finish POST仍1。",
+      "evidence": "workflow-designer-results.md",
+      "remaining": [
+        "其它5panel accepted-readback",
+        "真实父route/关闭panel",
+        "读回版本推进用于下一合法操作"
+      ]
+    },
+    {
+      "id": "B3.1",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "counts": {
+        "REPRODUCED_FAIL": 9
+      },
+      "finding": "创建/hash/start 处理中 busy 禁输入有效，但真实 router.push 能离开；unknown 后输入重新可编辑，换草稿发新 key；已接受 Task/start unknown 再改回草稿又 create。",
+      "evidence": "templates-history-results.md",
+      "remaining": [
+        "Source preview 进行中的离开、Source/Document 每个输入字段独立变体未测；真实 File hash 卡住/三 create/report start 已测。",
+        "浏览器原生刷新/关闭、完整跨进程恢复未测。"
+      ]
+    },
+    {
+      "id": "B3.2",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "counts": {
+        "PASS": 2,
+        "REPRODUCED_FAIL": 4
+      },
+      "finding": "Source start/Document resume 的 inflight、unknown 都允许 A→B→exit；id-watch 会清 pending。无本地命令只读页允许退出，SSE close=1 且零 stop POST。",
+      "evidence": "templates-history-results.md",
+      "remaining": [
+        "路由守卫实际挂在 RouterView owner；没有用私有 ref 改路由。",
+        "取消/重试动作的 A→B 独立变体、GET 卡住时只读离开未测。"
+      ]
+    },
+    {
+      "id": "B3.3",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "counts": {
+        "REPRODUCED_FAIL": 4
+      },
+      "finding": "四动作均在 GET 3→4 后生成新 key/CAS；Source retry 同时改变选择 batch-a→batch-a+batch-b，原选择不冻结。",
+      "evidence": "templates-history-results.md",
+      "remaining": [
+        "Source retry 的仅改选择/仅改版本两种独立变体未分开；本次同时变化。",
+        "成功/明确拒绝/HTTP 409 的各服务端真实语义未执行。"
+      ]
+    },
+    {
+      "id": "B3.4",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "counts": {
+        "REPRODUCED_FAIL": 4,
+        "PASS": 1
+      },
+      "finding": "get/set 抛错时同输入两次 explicit retry 保同 key，仍能离开；文档 metadata reload 的 by-request404保未知，同字节重选保 key；异字节/反序实际发新 key和不同bytes/顺序。单独 accepted GET 正控只读找原run、零追加POST。",
+      "evidence": "templates-history-results.md",
+      "remaining": [
+        "removeItem 在这三个 store 没有调用路径（UNREPRODUCED_OR_UNREACHABLE，调用数0），没有伪造 throw 成功证明。",
+        "Source/report 没有支持的 by-request 恢复；未虚构通用刷新恢复。",
+        "已分开 Document metadata/by-request404未知与GET200已接受仅读；畸形 metadata、reload 后存储再次失效未测。",
+        "真实 FileReader+WebCrypto；没有持久化/恢复 File；字节/反序 store 负控不是 UI 被禁时注入事件；允许拒绝changed输入零追加POST或原bytes/顺序恢复，绝不强制旧key+新bytes。"
+      ]
+    },
+    {
+      "id": "B4.1",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "counts": {
+        "REPRODUCED_FAIL": 1,
+        "PASS": 2
+      },
+      "finding": "A modal pending→真实同组件路由 B→confirm 后实际 POST A，结果把 B run 变 A；当前 A 正常 confirm 单次 POST、reject 零 POST 两正控通过。",
+      "evidence": "templates-history-results.md",
+      "remaining": [
+        "A stale POST 的失败回执、modal pending 时根卸载未另测。",
+        "原页面允许 A→B 为本次基线红；不把测试路由能力称成安全回退。"
+      ]
+    },
+    {
+      "id": "B4.2",
+      "classification": "PASS",
+      "coverage": "partial",
+      "counts": {
+        "PASS": 2
+      },
+      "finding": "A actual cancel POST 发出后强制根卸载/new B root，A success/error 都不能污染 B run/error/acting；保原 A key/CAS。",
+      "evidence": "templates-history-results.md",
+      "remaining": [
+        "此 PASS 仅代表强制退役的 late callback 防线，不代表未知导航安全；前置 B3.2 hard-block 合同是红。",
+        "未模拟浏览器 refresh/hard close。"
+      ]
+    },
+    {
+      "id": "B5.1",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "counts": {
+        "failed": 4,
+        "passed": 1
+      },
+      "finding": "initial/followup text/File四种入口confirm拒绝配置但confirm0，真实route到/away；保存只读会话无draft离开无写通过。",
+      "evidence": "workflow-designer-results.md",
+      "remaining": [
+        "修复后取消保File原实例/bytes/顺序（当前route已离开仅证明静默离开）",
+        "各4draft显式放弃true路径",
+        "组合File+text/重选顺序"
+      ]
+    },
+    {
+      "id": "B5.2",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "counts": {
+        "failed": 4
+      },
+      "finding": "两真实context-turn入口各sending/unknown，mutation1并含原submissionId/File，全部route到/away。",
+      "evidence": "workflow-designer-results.md",
+      "remaining": [
+        "无File message分支sending/unknown",
+        "重新开始/视图回退/replace/back",
+        "实际阻断后的File原实例/顺序与body保留"
+      ]
+    },
+    {
+      "id": "B5.3",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "counts": {
+        "failed": 2
+      },
+      "finding": "两variant都确认1、真实getTaskOverview(original taskId)已调用且store有accepted-task；workspace清空，恢复入口缺失，重新显示初始目标textarea。",
+      "evidence": "workflow-designer-results.md",
+      "remaining": [
+        "竞争导航取消",
+        "恢复后实际nav原Task且confirm始终1",
+        "Task读取失败及后续显示失败Task状态"
+      ]
+    },
+    {
+      "id": "B6.1",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "counts": {
+        "failed": 1,
+        "passed": 1
+      },
+      "finding": "实际question推荐answer POST在途，强制退休A、实际新建独立B后交付A回执又GET A；mandatory=true真实UI无reject按钮，reject0/confirm0。",
+      "evidence": "workflow-designer-results.md",
+      "remaining": [
+        "可达reject modal入口（当前生产无此入口，不强造）",
+        "同owner已切B时question/busy是否污染；各version变化"
+      ]
+    },
+    {
+      "id": "B6.2",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "counts": {
+        "failed": 2
+      },
+      "finding": "实际修改设置/largeTask switch/保存设置；挂起preview或confirm modal，退休A后返回/确认，两项均向A执行update（profile version7、largeTask=true）。",
+      "evidence": "workflow-designer-results.md",
+      "remaining": [
+        "同session TaskProfile版本推进/同owner换session",
+        "accepted update后readback失败仅读",
+        "409保留选择与成功version推进"
+      ]
+    },
+    {
+      "id": "B6.3",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "counts": {
+        "failed": 2
+      },
+      "finding": "unknown后真实可编辑textarea改正文并drop extraFile，第二次send同submissionId却body由原消息变后来编辑、Files由1变2，后编辑草稿清空。另文本send在途真实typing，ack也清新草稿。",
+      "evidence": "workflow-designer-results.md",
+      "remaining": [
+        "package/discussion/designRevision变化",
+        "File原顺序改变及bytes验证",
+        "退休后成功不重启poll"
+      ]
+    },
+    {
+      "id": "B7.1",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "counts": {
+        "failed": 1
+      },
+      "finding": "实际stream终态+在途poll证明owned retry1；unmount后任何clock/promise/input之前首采样仍1（红），streamclose1。交付旧poll再推进100ms无额外GET（绿子断言）。",
+      "evidence": "workflow-designer-results.md",
+      "remaining": [
+        "两实例不互清/重复cycles",
+        "其它资源及递归50次所有路径",
+        "真实浏览器timer/GC"
+      ]
+    },
+    {
+      "id": "B7.2",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "counts": {
+        "failed": 1
+      },
+      "finding": "实际?sessionId=A&mode=edit queued1，真实router离开后首采样仍1；之后才交付旧callback，确实聚焦新页同id textarea。两断言红。",
+      "evidence": "workflow-designer-results.md",
+      "remaining": [
+        "多实例/全部RAF来源",
+        "实际Chromium调度与全堆回收"
+      ]
+    },
+    {
+      "id": "B7.3",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "counts": {
+        "failed": 1,
+        "passed": 1
+      },
+      "finding": "initial File createaccepted且workspace setItem SecurityError：create1、sessioncomposer仍在，但提示“无法创建设计草案”（红）；已有session显式GET恢复+storage不可写仍可用（绿）。",
+      "evidence": "workflow-designer-results.md",
+      "remaining": [
+        "getItem/removeItem/quota错误",
+        "清理/Taskhandoff阶段storage失败",
+        "回退UI/File/draft完整内存与刷新限制提示"
+      ]
+    },
+    {
+      "id": "B8.1",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "counts": {
+        "REPRODUCED_FAIL": 4
+      },
+      "finding": "B 新查询先回、A 旧回覆盖 list/facets/cursor；旧 cursor append 混入 B；卸载后旧 read success/error 仍改退休 refs，但 debounce 被清，不新增 read。",
+      "evidence": "templates-history-results.md",
+      "remaining": [
+        "旧 ref 变化只证明 retired-scope 合同差异；未证明它污染一个新根实例。",
+        "搜索+游标已测，项目/状态/归档/排序逐字段与选择 UI 未穷举；没有触发业务写按钮。"
+      ]
+    },
+    {
+      "id": "B8.2",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "counts": {
+        "REPRODUCED_FAIL": 4
+      },
+      "finding": "A record 后回覆盖 B；同 attachment id 的 A late 正文进 B cache；A 已缓存跨 B 不重新读取，显示 A；退休 record error 改旧 busy/error。",
+      "evidence": "templates-history-results.md",
+      "remaining": [
+        "同路由 id-watch 已测；真实 remount 附件 success/error 及缓存独立再建 owner未穷举。",
+        "退休旧 refs 不能等同新页污染；跨 id cache/record 的实际 B 污染分别有证据。"
+      ]
+    },
+    {
+      "id": "B8.3",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "counts": {
+        "REPRODUCED_FAIL": 5,
+        "PASS": 1
+      },
+      "finding": "目录/正文、补传 options 卸载后写旧 refs；回答/补传 POST 完成后清旧草稿/Files。Vue unmount 自身屏蔽 updated emit，实测没有跨根业务 emit；新 B clarification 草稿未变。运行 id/revision 的既有 clarification watcher 正控通过。",
+      "evidence": "templates-history-results.md",
+      "remaining": [
+        "目录/正文/options/两 POST success root-retire 已测；迟到 error、新 B Supplement/options 的所有组合未测。",
+        "Sources/Supplement props change 正控未新增（相邻存在的断言未借作本轮已通过）。",
+        "强制卸载仅验证第二道防线，正常离开必须先阻断未知写，B3 当前红。"
+      ]
+    },
+    {
+      "id": "B9.1",
+      "classification": "PASS",
+      "coverage": "partial",
+      "counts": {
+        "PASS": 6
+      },
+      "finding": "实际 API fetch 的 start/batch/question/message 每次未知仅1 POST，body 无虚构 key；actual batch reload/props/render/三 applySkin/recovery open 以及 actual question 1200ms poll/props/三 applySkin 无自动重写。",
+      "evidence": "templates-history-results.md",
+      "remaining": [
+        "四 transport 无重试已测；start/message 的实际 page rerender/recovery open 未测；message UI owner由 A 组专题覆盖，不能借本文件 transport 替代。",
+        "当前命令 owner 是 Vue，无 React StrictMode 路径（UNREPRODUCED_OR_UNREACHABLE），setProps 不是 StrictMode。",
+        "Question 无手动刷新按钮，真实 poll 已测；不宣称点击不存在按钮。",
+        "no-key 不等于可以安全用户重发；本场景 PASS 只禁止自动重写，不证明 read-before-retry 恢复。"
+      ]
+    },
+    {
+      "id": "B9.2",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "counts": {
+        "REPRODUCED_FAIL": 1,
+        "PASS": 3
+      },
+      "finding": "report 外部 owner draft 改后恢复会替 key（UI 可编辑路径另有 B3.1）；multipart 两次同 File 确认 metadata/key/actual bytes/hash/name 相同；diagnostic unknown retry 原 action/CAS/commandId 相同；mock server samekey/different digest 返回409。",
+      "evidence": "templates-history-results.md",
+      "remaining": [
+        "report draft 三态只读 owner 负控，不是直接篡改 disabled UI；B3.1 独立真实 UI。",
+        "multipart 本项同字节 explicit retry；B3.4 独立真实 reselect 字节/顺序 negative control。",
+        "409 是确定性 mock 约束并验证 client error，未运行 Java/真实后端，不证明其完整 digest 或幂等实现。",
+        "accepted 后只读合同放 B9.3；并非所有 keyed API 共用一套 CAS。"
+      ]
+    },
+    {
+      "id": "B9.3",
+      "classification": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "counts": {
+        "PASS": 2,
+        "REPRODUCED_FAIL": 3
+      },
+      "finding": "report 同草稿确实复用已知 Task id，仅事实正控，未实现先 GET；改后恢复 create3次。batch unknown GET version3→4 后重新发新 CAS；服务端 ready=false/STOPPING 投影阻断为正控。diagnostic accepted 后 GET失败/再旧 read 后重新 POST 同 commandId=2，丢 accepted 阶段。",
+      "evidence": "templates-history-results.md",
+      "remaining": [
+        "未调用真实 backend stop/CAS；这里只测试现前端依服务端投影守卫及旧 read 负控。",
+        "unchanged start2 仅原 TaskID 复用，不能计完整安全恢复 PASS；要求明确先读确认、unknown 保留，no-key 不盲重发。",
+        "diagnostic accepted/read-fail 真实 UI 重新可点，但 GET旧 canFinalize=true 是独立模拟陈旧读，不声称真实服务必返此组合。"
+      ]
+    }
+  ]
+}

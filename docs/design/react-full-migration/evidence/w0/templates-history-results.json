@@ -1,0 +1,2231 @@
+{
+  "schema_version": 1,
+  "baseline": "008542f0bf02dc1c1b76f1e75429aab8452b797d",
+  "date": "2026-10-03",
+  "author": "/root/react_legacy_canvas",
+  "startup_record": {
+    "model": "gpt-6.1-sol",
+    "reasoning_effort": "xhigh",
+    "realtime_config_queried": false
+  },
+  "authorization": "W0 tests/docs only; W1/production not released",
+  "parent_cases": {
+    "executed": 12,
+    "PASS": 2,
+    "REPRODUCED_FAIL": 10,
+    "coverage_full": 0,
+    "coverage_partial": 12
+  },
+  "subcases": {
+    "total": 58,
+    "PASS": 19,
+    "REPRODUCED_FAIL": 39,
+    "ENV_BLOCKED": 0,
+    "NOT_RUN_counted_as_tests": 0
+  },
+  "raw_directory": "/workspace/react-full-w0-evidence",
+  "exit_code": 1,
+  "hashes": {
+    "/workspace/opencode-loopper-react-full/frontend/src/w0/templates-history-w0.spec.ts": "1dd6eaf2dae11b6b1550bda42d04267e448ea6b555e056788a9c5684fca09e2c",
+    "/workspace/opencode-loopper-react-full/frontend/src/w0/endpoint-w0.spec.ts": "1ce4a37714f661bc971946451ecb5266512b0d4ba4991eaf308cd083d459e42d",
+    "/workspace/react-full-w0-evidence/templates-endpoint-final-v5.log": "f14144325319cce774db56c9724390399e6d4cc6f67eb4a046e6cb537c6be3ce",
+    "/workspace/react-full-w0-evidence/templates-endpoint-final-v5.json": "c12d45d26962e76cb2ae80d1015bf9865e8869eab9e539fa4339e3c787ab6e8f"
+  },
+  "cases": [
+    {
+      "id": "B3.1",
+      "title": "创建三分支与已接受 Task 的导航/原意图保护",
+      "status": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "counts": {
+        "REPRODUCED_FAIL": 9
+      },
+      "finding": "创建/hash/start 处理中 busy 禁输入有效，但真实 router.push 能离开；unknown 后输入重新可编辑，换草稿发新 key；已接受 Task/start unknown 再改回草稿又 create。",
+      "source_anchors": [
+        "frontend/src/views/TemplateTasksView.vue:110",
+        "frontend/src/stores/templateTaskStore.ts:12",
+        "frontend/src/stores/sourceTemplateStore.ts:15",
+        "frontend/src/stores/documentTemplateStore.ts:31"
+      ],
+      "subcases": [
+        {
+          "name": "B3.1 report: real create in flight must block route leave; disabled inputs cannot be mutated",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 83,
+          "failure_first": "AssertionError: expected '/exit' to be '/template-tasks' // Object.is equality",
+          "assertion_locations": [
+            "src/w0/templates-history-w0.spec.ts:91:54"
+          ]
+        },
+        {
+          "name": "B3.1 source: real create in flight must block route leave; disabled inputs cannot be mutated",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 83,
+          "failure_first": "AssertionError: expected '/exit' to be '/template-tasks' // Object.is equality",
+          "assertion_locations": [
+            "src/w0/templates-history-w0.spec.ts:91:54"
+          ]
+        },
+        {
+          "name": "B3.1 document: real create in flight must block route leave; disabled inputs cannot be mutated",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 83,
+          "failure_first": "AssertionError: expected '/exit' to be '/template-tasks' // Object.is equality",
+          "assertion_locations": [
+            "src/w0/templates-history-w0.spec.ts:91:54"
+          ]
+        },
+        {
+          "name": "B3.1 document: hashing really active before any POST must block leave",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 94,
+          "failure_first": "AssertionError: expected '/exit' to be '/template-tasks' // Object.is equality",
+          "assertion_locations": [
+            "src/w0/templates-history-w0.spec.ts:99:54"
+          ]
+        },
+        {
+          "name": "B3.1 report: unknown receipt cannot replace original intent via editable UI",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 101,
+          "failure_first": "AssertionError: expected { …(6) } to deeply equal { …(5) }",
+          "assertion_locations": [
+            "src/w0/templates-history-w0.spec.ts:111:111",
+            "src/w0/templates-history-w0.spec.ts:111:43"
+          ]
+        },
+        {
+          "name": "B3.1 source: unknown receipt cannot replace original intent via editable UI",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 101,
+          "failure_first": "AssertionError: expected { …(7) } to deeply equal { …(6) }",
+          "assertion_locations": [
+            "src/w0/templates-history-w0.spec.ts:111:111",
+            "src/w0/templates-history-w0.spec.ts:111:43"
+          ]
+        },
+        {
+          "name": "B3.1 document: unknown receipt cannot replace original intent via editable UI",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 101,
+          "failure_first": "AssertionError: expected { …(5) } to deeply equal { …(5) }",
+          "assertion_locations": [
+            "src/w0/templates-history-w0.spec.ts:111:111",
+            "src/w0/templates-history-w0.spec.ts:111:43"
+          ]
+        },
+        {
+          "name": "B3.1 report/start-inflight: accepted Task identity blocks leave and survives real editable draft",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 113,
+          "failure_first": "AssertionError: expected '/exit' to be '/template-tasks' // Object.is equality",
+          "assertion_locations": [
+            "src/w0/templates-history-w0.spec.ts:123:185"
+          ]
+        },
+        {
+          "name": "B3.1 report/start-unknown: accepted Task identity blocks leave and survives real editable draft",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 113,
+          "failure_first": "AssertionError: expected \"createTemplateTask\" to be called 1 times, but got 3 times",
+          "assertion_locations": [
+            "src/w0/templates-history-w0.spec.ts:123:185",
+            "src/w0/templates-history-w0.spec.ts:123:25"
+          ]
+        }
+      ],
+      "remaining_or_scope_limits": [
+        "Source preview 进行中的离开、Source/Document 每个输入字段独立变体未测；真实 File hash 卡住/三 create/report start 已测。",
+        "浏览器原生刷新/关闭、完整跨进程恢复未测。"
+      ],
+      "request_evidence": [
+        {
+          "subcase": "B3.1/report/create",
+          "evidence": {
+            "route": "/exit",
+            "request": {
+              "templateId": "SNAPSHOT_CODE_REVIEW",
+              "templateVersion": "1",
+              "projectId": "p",
+              "branchId": "local:main",
+              "requestKey": "c5a9a4e8-92f0-48c7-9d6a-e4af87945d08"
+            },
+            "calls": 1,
+            "inputLocked": true
+          }
+        },
+        {
+          "subcase": "B3.1/source/create",
+          "evidence": {
+            "route": "/exit",
+            "request": {
+              "templateId": "UNIT_TEST_DEVELOPMENT",
+              "templateVersion": "1",
+              "projectId": "p",
+              "sourcePath": "src/main",
+              "requirements": "",
+              "requestKey": "7a3451a3-777c-4061-9b5e-651cf7ac1974"
+            },
+            "calls": 1,
+            "inputLocked": true
+          }
+        },
+        {
+          "subcase": "B3.1/document/create",
+          "evidence": {
+            "route": "/exit",
+            "request": {
+              "templateId": "REQUIREMENT_CODE_REVIEW",
+              "templateVersion": "1",
+              "projectId": "p",
+              "branchId": "local:main",
+              "requestKey": "fddee300-d6c4-4036-a583-33210bc977b8"
+            },
+            "calls": 1,
+            "inputLocked": true
+          }
+        },
+        {
+          "subcase": "B3.1/document/hash",
+          "evidence": {
+            "route": "/exit",
+            "submitting": true,
+            "writes": 0
+          }
+        },
+        {
+          "subcase": "B3.1/report/unknown-new-intent",
+          "evidence": {
+            "original": {
+              "templateId": "SNAPSHOT_CODE_REVIEW",
+              "templateVersion": "1",
+              "projectId": "p",
+              "branchId": "local:main",
+              "requestKey": "5fad4b75-d185-49af-a085-f9393448f691"
+            },
+            "retry": {
+              "templateId": "SNAPSHOT_CODE_REVIEW",
+              "templateVersion": "1",
+              "projectId": "p",
+              "branchId": "local:main",
+              "documentPath": "/changed",
+              "requestKey": "6e826bac-3675-4f6a-a5ec-2ebbe62752c3"
+            },
+            "route": "/exit"
+          }
+        },
+        {
+          "subcase": "B3.1/source/unknown-new-intent",
+          "evidence": {
+            "original": {
+              "templateId": "UNIT_TEST_DEVELOPMENT",
+              "templateVersion": "1",
+              "projectId": "p",
+              "sourcePath": "src/main",
+              "requirements": "",
+              "requestKey": "58942ed8-5106-4fdb-9b72-915e5cd1fdc7"
+            },
+            "retry": {
+              "templateId": "UNIT_TEST_DEVELOPMENT",
+              "templateVersion": "1",
+              "projectId": "p",
+              "sourcePath": "src/changed",
+              "requirements": "",
+              "requestKey": "2bf6a23d-6610-4890-91e7-cdaa2872a7e5"
+            },
+            "route": "/exit"
+          }
+        },
+        {
+          "subcase": "B3.1/document/unknown-new-intent",
+          "evidence": {
+            "original": {
+              "templateId": "REQUIREMENT_CODE_REVIEW",
+              "templateVersion": "1",
+              "projectId": "p",
+              "branchId": "local:main",
+              "requestKey": "95fa8a0e-5a75-4af4-9b45-e3f7b644e616"
+            },
+            "retry": {
+              "templateId": "REQUIREMENT_CODE_REVIEW",
+              "templateVersion": "1",
+              "projectId": "p",
+              "branchId": "local:main",
+              "requestKey": "e2b9c4bb-8092-455f-85d8-995cff625c8c"
+            },
+            "route": "/exit"
+          }
+        },
+        {
+          "subcase": "B3.1/report/start-inflight",
+          "evidence": {
+            "create": [
+              [
+                {
+                  "templateId": "SNAPSHOT_CODE_REVIEW",
+                  "templateVersion": "1",
+                  "projectId": "p",
+                  "branchId": "local:main",
+                  "requestKey": "ddee4bab-70b1-4aff-a4b1-c995e063c5de"
+                }
+              ]
+            ],
+            "start": [
+              [
+                "task-accepted"
+              ]
+            ],
+            "route": "/exit",
+            "knownTaskId": "task-accepted"
+          }
+        },
+        {
+          "subcase": "B3.1/report/start-unknown",
+          "evidence": {
+            "create": [
+              [
+                {
+                  "templateId": "SNAPSHOT_CODE_REVIEW",
+                  "templateVersion": "1",
+                  "projectId": "p",
+                  "branchId": "local:main",
+                  "requestKey": "2d535b99-29ad-4593-9e06-a5b728f3bd6e"
+                }
+              ],
+              [
+                {
+                  "templateId": "SNAPSHOT_CODE_REVIEW",
+                  "templateVersion": "1",
+                  "projectId": "p",
+                  "branchId": "local:main",
+                  "documentPath": "/changed-after-accepted",
+                  "requestKey": "23f90699-c967-4467-8b02-04cb4fd9515e"
+                }
+              ],
+              [
+                {
+                  "templateId": "SNAPSHOT_CODE_REVIEW",
+                  "templateVersion": "1",
+                  "projectId": "p",
+                  "branchId": "local:main",
+                  "requestKey": "2ee7be9c-7e1b-4f5e-b3ac-5398a5ff9568"
+                }
+              ]
+            ],
+            "start": [
+              [
+                "task-accepted"
+              ],
+              [
+                "task-accepted"
+              ],
+              [
+                "task-accepted"
+              ]
+            ],
+            "route": "/exit",
+            "knownTaskId": "task-accepted"
+          }
+        }
+      ],
+      "command": "npx vitest run src/w0/endpoint-w0.spec.ts src/w0/templates-history-w0.spec.ts --maxWorkers=1 --reporter=verbose --reporter=json --outputFile=/workspace/react-full-w0-evidence/templates-endpoint-final-v5.json",
+      "exit_code": 1
+    },
+    {
+      "id": "B3.2",
+      "title": "Source/Document 运行页 pending 作用域与安全只读离开",
+      "status": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "counts": {
+        "PASS": 2,
+        "REPRODUCED_FAIL": 4
+      },
+      "finding": "Source start/Document resume 的 inflight、unknown 都允许 A→B→exit；id-watch 会清 pending。无本地命令只读页允许退出，SSE close=1 且零 stop POST。",
+      "source_anchors": [
+        "frontend/src/views/SourceTemplateView.vue:72",
+        "frontend/src/views/SourceTemplateView.vue:79",
+        "frontend/src/views/DocumentTemplateView.vue:48",
+        "frontend/src/views/DocumentTemplateView.vue:62"
+      ],
+      "subcases": [
+        {
+          "name": "B3.2 source: read-only owner without local command may leave and closes SSE without stop POST",
+          "status": "PASS",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 126,
+          "failure_first": "",
+          "assertion_locations": []
+        },
+        {
+          "name": "B3.2 document: read-only owner without local command may leave and closes SSE without stop POST",
+          "status": "PASS",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 126,
+          "failure_first": "",
+          "assertion_locations": []
+        },
+        {
+          "name": "B3.2 source/inflight: same-record and exit navigation preserve pending scope",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 132,
+          "failure_first": "AssertionError: expected '/template-tasks/source-runs/B' to be '/template-tasks/source-runs/A' // Object.is equality",
+          "assertion_locations": [
+            "src/w0/templates-history-w0.spec.ts:140:54",
+            "src/w0/templates-history-w0.spec.ts:141:110"
+          ]
+        },
+        {
+          "name": "B3.2 source/unknown: same-record and exit navigation preserve pending scope",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 132,
+          "failure_first": "AssertionError: expected '/template-tasks/source-runs/B' to be '/template-tasks/source-runs/A' // Object.is equality",
+          "assertion_locations": [
+            "src/w0/templates-history-w0.spec.ts:140:54",
+            "src/w0/templates-history-w0.spec.ts:141:110"
+          ]
+        },
+        {
+          "name": "B3.2 document/inflight: same-record and exit navigation preserve pending scope",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 132,
+          "failure_first": "AssertionError: expected '/template-tasks/document-runs/B' to be '/template-tasks/document-runs/A' // Object.is equality",
+          "assertion_locations": [
+            "src/w0/templates-history-w0.spec.ts:140:54",
+            "src/w0/templates-history-w0.spec.ts:141:110"
+          ]
+        },
+        {
+          "name": "B3.2 document/unknown: same-record and exit navigation preserve pending scope",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 132,
+          "failure_first": "AssertionError: expected '/template-tasks/document-runs/B' to be '/template-tasks/document-runs/A' // Object.is equality",
+          "assertion_locations": [
+            "src/w0/templates-history-w0.spec.ts:140:54",
+            "src/w0/templates-history-w0.spec.ts:141:110"
+          ]
+        }
+      ],
+      "remaining_or_scope_limits": [
+        "路由守卫实际挂在 RouterView owner；没有用私有 ref 改路由。",
+        "取消/重试动作的 A→B 独立变体、GET 卡住时只读离开未测。"
+      ],
+      "request_evidence": [
+        {
+          "subcase": "B3.2/source/read-only-leave",
+          "evidence": {
+            "route": "/exit",
+            "closed": 1,
+            "writes": 0
+          }
+        },
+        {
+          "subcase": "B3.2/document/read-only-leave",
+          "evidence": {
+            "route": "/exit",
+            "closed": 1,
+            "writes": 0
+          }
+        },
+        {
+          "subcase": "B3.2/source/inflight",
+          "evidence": {
+            "original": [
+              "A",
+              "start",
+              {
+                "requestKey": "00143add-e4e1-4e13-9e8a-dbe9b0fd998a",
+                "expectedVersion": 3
+              }
+            ],
+            "route": "/template-tasks/source-runs/B",
+            "streamsClosed": [
+              1,
+              0
+            ]
+          }
+        },
+        {
+          "subcase": "B3.2/source/unknown",
+          "evidence": {
+            "original": [
+              "A",
+              "start",
+              {
+                "requestKey": "4199f65c-1b57-49e6-a19f-1459db8d5bac",
+                "expectedVersion": 3
+              }
+            ],
+            "route": "/template-tasks/source-runs/B",
+            "streamsClosed": [
+              1,
+              0
+            ]
+          }
+        },
+        {
+          "subcase": "B3.2/document/inflight",
+          "evidence": {
+            "original": [
+              "A",
+              "resume",
+              {
+                "action": "resume",
+                "requestKey": "e98a1bae-b008-45b7-824c-367e3e7b7b9d",
+                "expectedVersion": 3
+              }
+            ],
+            "route": "/template-tasks/document-runs/B",
+            "streamsClosed": [
+              1,
+              0
+            ]
+          }
+        },
+        {
+          "subcase": "B3.2/document/unknown",
+          "evidence": {
+            "original": [
+              "A",
+              "resume",
+              {
+                "action": "resume",
+                "requestKey": "e09823b0-a2ff-49fa-83b0-bd9b27ac6911",
+                "expectedVersion": 3
+              }
+            ],
+            "route": "/template-tasks/document-runs/B",
+            "streamsClosed": [
+              1,
+              0
+            ]
+          }
+        }
+      ],
+      "command": "npx vitest run src/w0/endpoint-w0.spec.ts src/w0/templates-history-w0.spec.ts --maxWorkers=1 --reporter=verbose --reporter=json --outputFile=/workspace/react-full-w0-evidence/templates-endpoint-final-v5.json",
+      "exit_code": 1
+    },
+    {
+      "id": "B3.3",
+      "title": "Source retry/cancel、Document resume/cancel 未知身份冻结",
+      "status": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "counts": {
+        "REPRODUCED_FAIL": 4
+      },
+      "finding": "四动作均在 GET 3→4 后生成新 key/CAS；Source retry 同时改变选择 batch-a→batch-a+batch-b，原选择不冻结。",
+      "source_anchors": [
+        "frontend/src/views/SourceTemplateView.vue:88",
+        "frontend/src/views/DocumentTemplateView.vue:69"
+      ],
+      "subcases": [
+        {
+          "name": "B3.3 source/cancel: refresh version and batch selection must not mint a new unknown command",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 145,
+          "failure_first": "AssertionError: expected [ 'A', 'cancel', { …(3) } ] to deeply equal [ 'A', 'cancel', { …(2) } ]",
+          "assertion_locations": [
+            "src/w0/templates-history-w0.spec.ts:162:33"
+          ]
+        },
+        {
+          "name": "B3.3 source/retry: refresh version and batch selection must not mint a new unknown command",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 145,
+          "failure_first": "AssertionError: expected [ 'A', 'retry', { …(3) } ] to deeply equal [ 'A', 'retry', { …(3) } ]",
+          "assertion_locations": [
+            "src/w0/templates-history-w0.spec.ts:162:33"
+          ]
+        },
+        {
+          "name": "B3.3 document/resume: refresh version and batch selection must not mint a new unknown command",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 145,
+          "failure_first": "AssertionError: expected [ 'A', 'resume', …(1) ] to deeply equal [ 'A', 'resume', …(1) ]",
+          "assertion_locations": [
+            "src/w0/templates-history-w0.spec.ts:162:33"
+          ]
+        },
+        {
+          "name": "B3.3 document/cancel: refresh version and batch selection must not mint a new unknown command",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 145,
+          "failure_first": "AssertionError: expected [ 'A', 'cancel', …(1) ] to deeply equal [ 'A', 'cancel', …(1) ]",
+          "assertion_locations": [
+            "src/w0/templates-history-w0.spec.ts:162:33"
+          ]
+        }
+      ],
+      "remaining_or_scope_limits": [
+        "Source retry 的仅改选择/仅改版本两种独立变体未分开；本次同时变化。",
+        "成功/明确拒绝/HTTP 409 的各服务端真实语义未执行。"
+      ],
+      "request_evidence": [
+        {
+          "subcase": "B3.3/source/cancel",
+          "evidence": {
+            "original": [
+              "A",
+              "cancel",
+              {
+                "requestKey": "c77acff5-225f-4011-bdfb-6445ca4f7c34",
+                "expectedVersion": 3
+              }
+            ],
+            "retry": [
+              "A",
+              "cancel",
+              {
+                "requestKey": "66180892-43bb-425a-94ad-def621381979",
+                "expectedVersion": 4
+              }
+            ]
+          }
+        },
+        {
+          "subcase": "B3.3/source/retry",
+          "evidence": {
+            "original": [
+              "A",
+              "retry",
+              {
+                "requestKey": "30a8e469-4416-4345-82a5-9db1564908a4",
+                "expectedVersion": 3,
+                "modelIds": [
+                  "batch-a"
+                ]
+              }
+            ],
+            "retry": [
+              "A",
+              "retry",
+              {
+                "requestKey": "fafae996-003f-4d17-bf50-c84af0f1fd1e",
+                "expectedVersion": 4,
+                "modelIds": [
+                  "batch-a",
+                  "batch-b"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "subcase": "B3.3/document/resume",
+          "evidence": {
+            "original": [
+              "A",
+              "resume",
+              {
+                "action": "resume",
+                "requestKey": "fe4d17cd-a011-4b52-8744-bbdcd62b1e95",
+                "expectedVersion": 3
+              }
+            ],
+            "retry": [
+              "A",
+              "resume",
+              {
+                "action": "resume",
+                "requestKey": "857861c0-2806-4a3c-ae59-1591c5caa431",
+                "expectedVersion": 4
+              }
+            ]
+          }
+        },
+        {
+          "subcase": "B3.3/document/cancel",
+          "evidence": {
+            "original": [
+              "A",
+              "cancel",
+              {
+                "action": "cancel",
+                "requestKey": "9ef368fa-412c-482d-a331-0e20a04cc7ad",
+                "expectedVersion": 3
+              }
+            ],
+            "retry": [
+              "A",
+              "cancel",
+              {
+                "action": "cancel",
+                "requestKey": "03fcea4a-fd1e-4648-bc55-ae4a0846e9b3",
+                "expectedVersion": 4
+              }
+            ]
+          }
+        }
+      ],
+      "command": "npx vitest run src/w0/endpoint-w0.spec.ts src/w0/templates-history-w0.spec.ts --maxWorkers=1 --reporter=verbose --reporter=json --outputFile=/workspace/react-full-w0-evidence/templates-endpoint-final-v5.json",
+      "exit_code": 1
+    },
+    {
+      "id": "B3.4",
+      "title": "可选浏览器存储与文档真实 bytes/顺序恢复",
+      "status": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "counts": {
+        "REPRODUCED_FAIL": 4,
+        "PASS": 1
+      },
+      "finding": "get/set 抛错时同输入两次 explicit retry 保同 key，仍能离开；文档 metadata reload 的 by-request404保未知，同字节重选保 key；异字节/反序实际发新 key和不同bytes/顺序。单独 accepted GET 正控只读找原run、零追加POST。",
+      "source_anchors": [
+        "frontend/src/stores/sourceTemplateStore.ts:6",
+        "frontend/src/stores/documentTemplateStore.ts:16",
+        "frontend/src/stores/documentTemplateStore.ts:26",
+        "frontend/src/stores/documentTemplateStore.ts:36"
+      ],
+      "subcases": [
+        {
+          "name": "B3.4 report: denied get/set storage retains in-memory original identity and blocks leave",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 164,
+          "failure_first": "AssertionError: expected '/exit' to be '/template-tasks' // Object.is equality",
+          "assertion_locations": [
+            "src/w0/templates-history-w0.spec.ts:171:49"
+          ]
+        },
+        {
+          "name": "B3.4 source: denied get/set storage retains in-memory original identity and blocks leave",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 164,
+          "failure_first": "AssertionError: expected '/exit' to be '/template-tasks' // Object.is equality",
+          "assertion_locations": [
+            "src/w0/templates-history-w0.spec.ts:171:49"
+          ]
+        },
+        {
+          "name": "B3.4 document: denied get/set storage retains in-memory original identity and blocks leave",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 164,
+          "failure_first": "AssertionError: expected '/exit' to be '/template-tasks' // Object.is equality",
+          "assertion_locations": [
+            "src/w0/templates-history-w0.spec.ts:171:49"
+          ]
+        },
+        {
+          "name": "B3.4 document: by-request 404 remains unknown; actual File bytes/order cannot replace original operation",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 173,
+          "failure_first": "AssertionError: expected { …(5) } to deeply equal { …(5) }",
+          "assertion_locations": [
+            "src/w0/templates-history-w0.spec.ts:185:63",
+            "src/w0/templates-history-w0.spec.ts:187:101"
+          ]
+        },
+        {
+          "name": "B3.4 document: accepted by-request receipt performs reads only and identifies original run",
+          "status": "PASS",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 191,
+          "failure_first": "",
+          "assertion_locations": []
+        }
+      ],
+      "remaining_or_scope_limits": [
+        "removeItem 在这三个 store 没有调用路径（UNREPRODUCED_OR_UNREACHABLE，调用数0），没有伪造 throw 成功证明。",
+        "Source/report 没有支持的 by-request 恢复；未虚构通用刷新恢复。",
+        "已分开 Document metadata/by-request404未知与GET200已接受仅读；畸形 metadata、reload 后存储再次失效未测。",
+        "真实 FileReader+WebCrypto；没有持久化/恢复 File；字节/反序 store 负控不是 UI 被禁时注入事件；允许拒绝changed输入零追加POST或原bytes/顺序恢复，绝不强制旧key+新bytes。"
+      ],
+      "request_evidence": [
+        {
+          "subcase": "B3.4/report/storage",
+          "evidence": {
+            "requests": [
+              {
+                "templateId": "SNAPSHOT_CODE_REVIEW",
+                "templateVersion": "1",
+                "projectId": "p",
+                "branchId": "local:main",
+                "requestKey": "389628ba-f517-421c-ade7-d13432f07acf"
+              },
+              {
+                "templateId": "SNAPSHOT_CODE_REVIEW",
+                "templateVersion": "1",
+                "projectId": "p",
+                "branchId": "local:main",
+                "requestKey": "389628ba-f517-421c-ade7-d13432f07acf"
+              }
+            ],
+            "storageCalls": {
+              "get": 1,
+              "set": 0,
+              "remove": 0
+            },
+            "removeReachability": "no removal path in these stores",
+            "route": "/exit"
+          }
+        },
+        {
+          "subcase": "B3.4/source/storage",
+          "evidence": {
+            "requests": [
+              {
+                "templateId": "UNIT_TEST_DEVELOPMENT",
+                "templateVersion": "1",
+                "projectId": "p",
+                "sourcePath": "src/main",
+                "requirements": "",
+                "requestKey": "1e4a7e82-6cff-48bd-8d2f-cacaf08fcab3"
+              },
+              {
+                "templateId": "UNIT_TEST_DEVELOPMENT",
+                "templateVersion": "1",
+                "projectId": "p",
+                "sourcePath": "src/main",
+                "requirements": "",
+                "requestKey": "1e4a7e82-6cff-48bd-8d2f-cacaf08fcab3"
+              }
+            ],
+            "storageCalls": {
+              "get": 2,
+              "set": 2,
+              "remove": 0
+            },
+            "removeReachability": "no removal path in these stores",
+            "route": "/exit"
+          }
+        },
+        {
+          "subcase": "B3.4/document/storage",
+          "evidence": {
+            "requests": [
+              {
+                "templateId": "REQUIREMENT_CODE_REVIEW",
+                "templateVersion": "1",
+                "projectId": "p",
+                "branchId": "local:main",
+                "requestKey": "c72824e4-199f-4dd6-8f24-09f7c10b2749"
+              },
+              {
+                "templateId": "REQUIREMENT_CODE_REVIEW",
+                "templateVersion": "1",
+                "projectId": "p",
+                "branchId": "local:main",
+                "requestKey": "c72824e4-199f-4dd6-8f24-09f7c10b2749"
+              }
+            ],
+            "storageCalls": {
+              "get": 1,
+              "set": 2,
+              "remove": 0
+            },
+            "removeReachability": "no removal path in these stores",
+            "route": "/exit"
+          }
+        },
+        {
+          "subcase": "B3.4/document/bytes-order",
+          "evidence": {
+            "requests": [
+              {
+                "templateId": "REQUIREMENT_CODE_REVIEW",
+                "templateVersion": "1",
+                "projectId": "p",
+                "branchId": "local:main",
+                "requestKey": "e4183e85-9d40-46e6-b21b-1ea595ba8f4c"
+              },
+              {
+                "templateId": "REQUIREMENT_CODE_REVIEW",
+                "templateVersion": "1",
+                "projectId": "p",
+                "branchId": "local:main",
+                "requestKey": "e4183e85-9d40-46e6-b21b-1ea595ba8f4c"
+              },
+              {
+                "templateId": "REQUIREMENT_CODE_REVIEW",
+                "templateVersion": "1",
+                "projectId": "p",
+                "branchId": "local:main",
+                "requestKey": "ba2e3cf7-0486-4e00-8d1d-94b36874b710"
+              },
+              {
+                "templateId": "REQUIREMENT_CODE_REVIEW",
+                "templateVersion": "1",
+                "projectId": "p",
+                "branchId": "local:main",
+                "requestKey": "58e60346-2b23-4e58-9018-2a6143d7ef54"
+              }
+            ],
+            "uploads": [
+              [
+                {
+                  "name": "one.md",
+                  "sha256": "c0d956105ec95da349d344aa43bab33ee3f696c7c84831e2cc32f3c901a35a22",
+                  "sameOriginalInstance": true
+                },
+                {
+                  "name": "two.md",
+                  "sha256": "b51dc910fbaa4e33566758363570b2fa0494336ad1d26e2bbb54cd41d388bd4a",
+                  "sameOriginalInstance": true
+                }
+              ],
+              [
+                {
+                  "name": "one.md",
+                  "sha256": "c0d956105ec95da349d344aa43bab33ee3f696c7c84831e2cc32f3c901a35a22",
+                  "sameOriginalInstance": false
+                },
+                {
+                  "name": "two.md",
+                  "sha256": "b51dc910fbaa4e33566758363570b2fa0494336ad1d26e2bbb54cd41d388bd4a",
+                  "sameOriginalInstance": false
+                }
+              ],
+              [
+                {
+                  "name": "one.md",
+                  "sha256": "3e62ba39a233a09e84d8f4479726aec818da416eb5b7016f285cb152312916bc",
+                  "sameOriginalInstance": false
+                },
+                {
+                  "name": "two.md",
+                  "sha256": "b51dc910fbaa4e33566758363570b2fa0494336ad1d26e2bbb54cd41d388bd4a",
+                  "sameOriginalInstance": false
+                }
+              ],
+              [
+                {
+                  "name": "two.md",
+                  "sha256": "b51dc910fbaa4e33566758363570b2fa0494336ad1d26e2bbb54cd41d388bd4a",
+                  "sameOriginalInstance": true
+                },
+                {
+                  "name": "one.md",
+                  "sha256": "c0d956105ec95da349d344aa43bab33ee3f696c7c84831e2cc32f3c901a35a22",
+                  "sameOriginalInstance": true
+                }
+              ]
+            ],
+            "metadataOnly": {
+              "fingerprint": "{\"input\":{\"templateId\":\"REQUIREMENT_CODE_REVIEW\",\"templateVersion\":\"1\",\"projectId\":\"p\",\"branchId\":\"local:main\"},\"files\":[{\"name\":\"one.md\",\"sha256\":\"c0d956105ec95da349d344aa43bab33ee3f696c7c84831e2cc32f3c901a35a22\"},{\"name\":\"two.md\",\"sha256\":\"b51dc910fbaa4e33566758363570b2fa0494336ad1d26e2bbb54cd41d388bd4a\"}]}",
+              "request": {
+                "templateId": "REQUIREMENT_CODE_REVIEW",
+                "templateVersion": "1",
+                "projectId": "p",
+                "branchId": "local:main",
+                "requestKey": "e4183e85-9d40-46e6-b21b-1ea595ba8f4c"
+              }
+            },
+            "scope": "external store negative control; UI edit path covered B3.1",
+            "byRequestStatus": 404,
+            "knownAccepted": false,
+            "allowedAlternative": "reject changed input without POST OR resume frozen original bytes/order"
+          }
+        },
+        {
+          "subcase": "B3.4/document/accepted-read",
+          "evidence": {
+            "requestKey": "cba2d625-c1ce-468d-836e-81fdda0e86c4",
+            "lookup": [
+              [
+                "cba2d625-c1ce-468d-836e-81fdda0e86c4"
+              ]
+            ],
+            "restoredId": "accepted-original",
+            "writes": 1,
+            "knownAccepted": true,
+            "filesPersisted": false
+          }
+        }
+      ],
+      "command": "npx vitest run src/w0/endpoint-w0.spec.ts src/w0/templates-history-w0.spec.ts --maxWorkers=1 --reporter=verbose --reporter=json --outputFile=/workspace/react-full-w0-evidence/templates-endpoint-final-v5.json",
+      "exit_code": 1
+    },
+    {
+      "id": "B4.1",
+      "title": "Document 取消确认窗的异步 scope",
+      "status": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "counts": {
+        "REPRODUCED_FAIL": 1,
+        "PASS": 2
+      },
+      "finding": "A modal pending→真实同组件路由 B→confirm 后实际 POST A，结果把 B run 变 A；当前 A 正常 confirm 单次 POST、reject 零 POST 两正控通过。",
+      "source_anchors": [
+        "frontend/src/views/DocumentTemplateView.vue:62",
+        "frontend/src/views/DocumentTemplateView.vue:65",
+        "frontend/src/views/DocumentTemplateView.vue:70"
+      ],
+      "subcases": [
+        {
+          "name": "B4.1 pending confirm A followed by real route B must never POST stale cancellation",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 203,
+          "failure_first": "AssertionError: expected \"documentTemplateCommand\" to not be called at all, but actually been called 1 times",
+          "assertion_locations": [
+            "src/w0/templates-history-w0.spec.ts:210:28",
+            "src/w0/templates-history-w0.spec.ts:210:85"
+          ]
+        },
+        {
+          "name": "B4.1 reject real modal leaves original A and issues zero writes",
+          "status": "PASS",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 212,
+          "failure_first": "",
+          "assertion_locations": []
+        },
+        {
+          "name": "B4.1 current modal confirm submits exactly once with original A CAS",
+          "status": "PASS",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 217,
+          "failure_first": "",
+          "assertion_locations": []
+        }
+      ],
+      "remaining_or_scope_limits": [
+        "A stale POST 的失败回执、modal pending 时根卸载未另测。",
+        "原页面允许 A→B 为本次基线红；不把测试路由能力称成安全回退。"
+      ],
+      "request_evidence": [
+        {
+          "subcase": "B4.1/stale-modal",
+          "evidence": {
+            "route": "/template-tasks/document-runs/B",
+            "writes": [
+              [
+                "A",
+                "cancel",
+                {
+                  "action": "cancel",
+                  "requestKey": "10a31dce-81a3-4b4e-bb17-a082f75492d3",
+                  "expectedVersion": 3
+                }
+              ]
+            ],
+            "visibleRun": "A",
+            "acting": false
+          }
+        },
+        {
+          "subcase": "B4.1/current-modal",
+          "evidence": [
+            [
+              "A",
+              "cancel",
+              {
+                "action": "cancel",
+                "requestKey": "db7787e6-9043-4748-b09b-47b0f631ed32",
+                "expectedVersion": 3
+              }
+            ]
+          ]
+        }
+      ],
+      "command": "npx vitest run src/w0/endpoint-w0.spec.ts src/w0/templates-history-w0.spec.ts --maxWorkers=1 --reporter=verbose --reporter=json --outputFile=/workspace/react-full-w0-evidence/templates-endpoint-final-v5.json",
+      "exit_code": 1
+    },
+    {
+      "id": "B4.2",
+      "title": "已发 Document A POST 的强制退役隔离",
+      "status": "PASS",
+      "coverage": "partial",
+      "counts": {
+        "PASS": 2
+      },
+      "finding": "A actual cancel POST 发出后强制根卸载/new B root，A success/error 都不能污染 B run/error/acting；保原 A key/CAS。",
+      "source_anchors": [
+        "frontend/src/views/DocumentTemplateView.vue:71",
+        "frontend/src/views/DocumentTemplateView.vue:79"
+      ],
+      "subcases": [
+        {
+          "name": "B4.2 success: already-sent A POST after forced retirement cannot pollute new B owner",
+          "status": "PASS",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 222,
+          "failure_first": "",
+          "assertion_locations": []
+        },
+        {
+          "name": "B4.2 error: already-sent A POST after forced retirement cannot pollute new B owner",
+          "status": "PASS",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 222,
+          "failure_first": "",
+          "assertion_locations": []
+        }
+      ],
+      "remaining_or_scope_limits": [
+        "此 PASS 仅代表强制退役的 late callback 防线，不代表未知导航安全；前置 B3.2 hard-block 合同是红。",
+        "未模拟浏览器 refresh/hard close。"
+      ],
+      "request_evidence": [
+        {
+          "subcase": "B4.2/success",
+          "evidence": {
+            "forcedRetirement": true,
+            "original": [
+              "A",
+              "cancel",
+              {
+                "action": "cancel",
+                "requestKey": "6710992a-570d-4ed4-a422-2e06fcb07623",
+                "expectedVersion": 3
+              }
+            ],
+            "route": "/template-tasks/document-runs/B",
+            "current": "B"
+          }
+        },
+        {
+          "subcase": "B4.2/error",
+          "evidence": {
+            "forcedRetirement": true,
+            "original": [
+              "A",
+              "cancel",
+              {
+                "action": "cancel",
+                "requestKey": "ab73738d-6e16-45f7-8349-fe75d1de2a3a",
+                "expectedVersion": 3
+              }
+            ],
+            "route": "/template-tasks/document-runs/B",
+            "current": "B"
+          }
+        }
+      ],
+      "command": "npx vitest run src/w0/endpoint-w0.spec.ts src/w0/templates-history-w0.spec.ts --maxWorkers=1 --reporter=verbose --reporter=json --outputFile=/workspace/react-full-w0-evidence/templates-endpoint-final-v5.json",
+      "exit_code": 1
+    },
+    {
+      "id": "B8.1",
+      "title": "历史查询、游标与退休 owner",
+      "status": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "counts": {
+        "REPRODUCED_FAIL": 4
+      },
+      "finding": "B 新查询先回、A 旧回覆盖 list/facets/cursor；旧 cursor append 混入 B；卸载后旧 read success/error 仍改退休 refs，但 debounce 被清，不新增 read。",
+      "source_anchors": [
+        "frontend/src/views/DesignerHistoryView.vue:97",
+        "frontend/src/views/DesignerHistoryView.vue:113",
+        "frontend/src/views/DesignerHistoryView.vue:199"
+      ],
+      "subcases": [
+        {
+          "name": "B8.1 search B resolves before A: list/facets/cursor must stay in B query",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 239,
+          "failure_first": "AssertionError: expected [ 'A' ] to deeply equal [ 'B' ]",
+          "assertion_locations": [
+            "src/w0/templates-history-w0.spec.ts:244:140",
+            "src/w0/templates-history-w0.spec.ts:244:190",
+            "src/w0/templates-history-w0.spec.ts:244:65"
+          ]
+        },
+        {
+          "name": "B8.1 old cursor append after new filter cannot append A into B",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 246,
+          "failure_first": "AssertionError: expected [ 'B', 'A-next' ] to deeply equal [ 'B' ]",
+          "assertion_locations": [
+            "src/w0/templates-history-w0.spec.ts:251:60"
+          ]
+        },
+        {
+          "name": "B8.1 success: unmount prevents late retired-owner writes and debounce revival",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 253,
+          "failure_first": "AssertionError: expected [ { id: 'A', projectId: 'p', …(11) } ] to deeply equal []",
+          "assertion_locations": [
+            "src/w0/templates-history-w0.spec.ts:259:135",
+            "src/w0/templates-history-w0.spec.ts:259:34"
+          ]
+        },
+        {
+          "name": "B8.1 error: unmount prevents late retired-owner writes and debounce revival",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 253,
+          "failure_first": "AssertionError: expected '无法读取历史设计' to be '' // Object.is equality",
+          "assertion_locations": [
+            "src/w0/templates-history-w0.spec.ts:259:135",
+            "src/w0/templates-history-w0.spec.ts:259:86"
+          ]
+        }
+      ],
+      "remaining_or_scope_limits": [
+        "旧 ref 变化只证明 retired-scope 合同差异；未证明它污染一个新根实例。",
+        "搜索+游标已测，项目/状态/归档/排序逐字段与选择 UI 未穷举；没有触发业务写按钮。"
+      ],
+      "request_evidence": [
+        {
+          "subcase": "B8.1/query",
+          "evidence": {
+            "requests": [
+              [
+                {
+                  "archive": "ACTIVE",
+                  "order": "newest"
+                }
+              ],
+              [
+                {
+                  "archive": "ACTIVE",
+                  "order": "newest",
+                  "q": "B"
+                }
+              ]
+            ],
+            "route": "/designs?q=B",
+            "list": [
+              "A"
+            ],
+            "facets": {
+              "ARCHIVED_TOTAL": 1
+            },
+            "cursor": "A-cursor"
+          }
+        },
+        {
+          "subcase": "B8.1/cursor",
+          "evidence": {
+            "requests": [
+              [
+                {
+                  "archive": "ACTIVE",
+                  "order": "newest"
+                }
+              ],
+              [
+                {
+                  "archive": "ACTIVE",
+                  "order": "newest",
+                  "cursor": "A-cursor"
+                }
+              ],
+              [
+                {
+                  "archive": "ACTIVE",
+                  "order": "newest",
+                  "q": "B"
+                }
+              ]
+            ],
+            "list": [
+              "B",
+              "A-next"
+            ],
+            "cursor": "A-next-cursor"
+          }
+        },
+        {
+          "subcase": "B8.1/retired-success",
+          "evidence": {
+            "before": {
+              "designs": [],
+              "error": "",
+              "loading": true
+            },
+            "after": {
+              "designs": [
+                {
+                  "id": "A",
+                  "projectId": "p",
+                  "projectName": "项目",
+                  "state": "WAITING_INPUT",
+                  "workflowPhase": "FAILED",
+                  "createdAt": "2026-09-01",
+                  "updatedAt": "2026-09-01",
+                  "draftId": "draft-A",
+                  "draftStatus": "DRAFT_READY",
+                  "goal": "设计A",
+                  "archived": false,
+                  "resumable": true,
+                  "stopRetryAvailable": false
+                }
+              ],
+              "error": "",
+              "loading": false
+            },
+            "readCalls": 1
+          }
+        },
+        {
+          "subcase": "B8.1/retired-error",
+          "evidence": {
+            "before": {
+              "designs": [],
+              "error": "",
+              "loading": true
+            },
+            "after": {
+              "designs": [],
+              "error": "无法读取历史设计",
+              "loading": false
+            },
+            "readCalls": 1
+          }
+        }
+      ],
+      "command": "npx vitest run src/w0/endpoint-w0.spec.ts src/w0/templates-history-w0.spec.ts --maxWorkers=1 --reporter=verbose --reporter=json --outputFile=/workspace/react-full-w0-evidence/templates-endpoint-final-v5.json",
+      "exit_code": 1
+    },
+    {
+      "id": "B8.2",
+      "title": "冻结 Task 设计与附件 cache scope",
+      "status": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "counts": {
+        "REPRODUCED_FAIL": 4
+      },
+      "finding": "A record 后回覆盖 B；同 attachment id 的 A late 正文进 B cache；A 已缓存跨 B 不重新读取，显示 A；退休 record error 改旧 busy/error。",
+      "source_anchors": [
+        "frontend/src/views/TaskDesignHistoryView.vue:27",
+        "frontend/src/views/TaskDesignHistoryView.vue:52",
+        "frontend/src/views/TaskDesignHistoryView.vue:62"
+      ],
+      "subcases": [
+        {
+          "name": "B8.2 frozen record A arriving after real route B cannot overwrite B",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 261,
+          "failure_first": "AssertionError: expected 'A' to be 'B' // Object.is equality",
+          "assertion_locations": [
+            "src/w0/templates-history-w0.spec.ts:264:181"
+          ]
+        },
+        {
+          "name": "B8.2 attachment A late with same file ID cannot populate B cache",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 266,
+          "failure_first": "AssertionError: expected 'A冻结正文' to be undefined",
+          "assertion_locations": [
+            "src/w0/templates-history-w0.spec.ts:269:212"
+          ]
+        },
+        {
+          "name": "B8.2 cached A same attachment ID must be invalidated when route becomes B",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 271,
+          "failure_first": "AssertionError: expected last \"getTaskDesignAttachmentPreview\" call to have been called with [ 'B', 'same-file' ]",
+          "assertion_locations": [
+            "src/w0/templates-history-w0.spec.ts:274:224"
+          ]
+        },
+        {
+          "name": "B8.2 retired record error must not clear old busy or add error",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 276,
+          "failure_first": "AssertionError: expected false to be true // Object.is equality",
+          "assertion_locations": [
+            "src/w0/templates-history-w0.spec.ts:278:115",
+            "src/w0/templates-history-w0.spec.ts:278:154"
+          ]
+        }
+      ],
+      "remaining_or_scope_limits": [
+        "同路由 id-watch 已测；真实 remount 附件 success/error 及缓存独立再建 owner未穷举。",
+        "退休旧 refs 不能等同新页污染；跨 id cache/record 的实际 B 污染分别有证据。"
+      ],
+      "request_evidence": [
+        {
+          "subcase": "B8.2/record",
+          "evidence": {
+            "requests": [
+              [
+                "A"
+              ],
+              [
+                "B"
+              ]
+            ],
+            "route": "/tasks/B/design",
+            "record": "A"
+          }
+        },
+        {
+          "subcase": "B8.2/attachment-late",
+          "evidence": {
+            "requests": [
+              [
+                "A",
+                "same-file"
+              ]
+            ],
+            "cache": {
+              "same-file": "A冻结正文"
+            },
+            "route": "/tasks/B/design"
+          }
+        },
+        {
+          "subcase": "B8.2/attachment-cache",
+          "evidence": {
+            "requests": [
+              [
+                "A",
+                "same-file"
+              ]
+            ],
+            "cache": {
+              "same-file": "A冻结正文"
+            }
+          }
+        },
+        {
+          "subcase": "B8.2/retired-error",
+          "evidence": {
+            "loading": false,
+            "error": "无法读取历史设计记录"
+          }
+        }
+      ],
+      "command": "npx vitest run src/w0/endpoint-w0.spec.ts src/w0/templates-history-w0.spec.ts --maxWorkers=1 --reporter=verbose --reporter=json --outputFile=/workspace/react-full-w0-evidence/templates-endpoint-final-v5.json",
+      "exit_code": 1
+    },
+    {
+      "id": "B8.3",
+      "title": "Document Sources/Clarification/Supplement 子 owner 退役",
+      "status": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "counts": {
+        "REPRODUCED_FAIL": 5,
+        "PASS": 1
+      },
+      "finding": "目录/正文、补传 options 卸载后写旧 refs；回答/补传 POST 完成后清旧草稿/Files。Vue unmount 自身屏蔽 updated emit，实测没有跨根业务 emit；新 B clarification 草稿未变。运行 id/revision 的既有 clarification watcher 正控通过。",
+      "source_anchors": [
+        "frontend/src/components/DocumentSourcesPanel.vue:14",
+        "frontend/src/components/DocumentSourcesPanel.vue:17",
+        "frontend/src/components/DocumentClarificationForm.vue:11",
+        "frontend/src/components/DocumentClarificationForm.vue:14",
+        "frontend/src/components/DocumentSupplementForm.vue:16",
+        "frontend/src/components/DocumentSupplementForm.vue:17",
+        "frontend/src/components/DocumentSupplementForm.vue:33"
+      ],
+      "subcases": [
+        {
+          "name": "B8.3 sources/directory: late response after root unmount cannot mutate retired refs",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 280,
+          "failure_first": "AssertionError: expected { file: { items: [ { …(5) } ], …(1) } } to deeply equal {}",
+          "assertion_locations": [
+            "src/w0/templates-history-w0.spec.ts:286:67"
+          ]
+        },
+        {
+          "name": "B8.3 sources/body: late response after root unmount cannot mutate retired refs",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 280,
+          "failure_first": "AssertionError: expected { 'file:0': { fileId: 'file', …(5) } } to deeply equal {}",
+          "assertion_locations": [
+            "src/w0/templates-history-w0.spec.ts:286:67"
+          ]
+        },
+        {
+          "name": "B8.3 clarification sent POST after forced root retirement cannot emit updated or clear draft",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 288,
+          "failure_first": "AssertionError: expected '' to be '原始回答' // Object.is equality",
+          "assertion_locations": [
+            "src/w0/templates-history-w0.spec.ts:293:90"
+          ]
+        },
+        {
+          "name": "B8.3 supplement options read after unmount cannot open retired form",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 295,
+          "failure_first": "AssertionError: expected true to be false // Object.is equality",
+          "assertion_locations": [
+            "src/w0/templates-history-w0.spec.ts:297:307",
+            "src/w0/templates-history-w0.spec.ts:297:349",
+            "src/w0/templates-history-w0.spec.ts:297:392"
+          ]
+        },
+        {
+          "name": "B8.3 supplement sent upload after forced root retirement cannot emit updated",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 299,
+          "failure_first": "AssertionError: expected [] to have a length of 1 but got +0",
+          "assertion_locations": [
+            "src/w0/templates-history-w0.spec.ts:302:281"
+          ]
+        },
+        {
+          "name": "B8.3 existing prop scope guards reject old child callbacks without unmount",
+          "status": "PASS",
+          "test_file": "frontend/src/w0/templates-history-w0.spec.ts",
+          "test_line": 304,
+          "failure_first": "",
+          "assertion_locations": []
+        }
+      ],
+      "remaining_or_scope_limits": [
+        "目录/正文/options/两 POST success root-retire 已测；迟到 error、新 B Supplement/options 的所有组合未测。",
+        "Sources/Supplement props change 正控未新增（相邻存在的断言未借作本轮已通过）。",
+        "强制卸载仅验证第二道防线，正常离开必须先阻断未知写，B3 当前红。"
+      ],
+      "request_evidence": [
+        {
+          "subcase": "B8.3/sources/directory",
+          "evidence": {
+            "requests": [
+              [
+                "A",
+                "file",
+                0
+              ]
+            ],
+            "before": {},
+            "after": {
+              "file": {
+                "items": [
+                  {
+                    "fileId": "file",
+                    "ordinal": 0,
+                    "title": "章节",
+                    "characters": 5,
+                    "sha256": "sectionhash"
+                  }
+                ],
+                "nextOffset": null
+              }
+            },
+            "busy": {
+              "index:file": false
+            }
+          }
+        },
+        {
+          "subcase": "B8.3/sources/body",
+          "evidence": {
+            "requests": [
+              [
+                "A",
+                "file",
+                0,
+                "filehash"
+              ]
+            ],
+            "before": {},
+            "after": {
+              "file:0": {
+                "fileId": "file",
+                "ordinal": 0,
+                "title": "章节",
+                "characters": 5,
+                "sha256": "sectionhash",
+                "content": "A原文"
+              }
+            },
+            "busy": {
+              "index:file": false,
+              "file:0": false
+            }
+          }
+        },
+        {
+          "subcase": "B8.3/clarification",
+          "evidence": {
+            "request": [
+              "A",
+              {
+                "requestKey": "6d95fb43-301b-424a-9ac6-61e1057e23f7",
+                "expectedVersion": 3,
+                "requirementRevision": 1,
+                "answers": [
+                  {
+                    "requirementKey": "REQ-1",
+                    "answer": "原始回答"
+                  }
+                ]
+              }
+            ],
+            "retiredDraft": "",
+            "nextDraft": "B草稿",
+            "forcedRetirement": true
+          }
+        },
+        {
+          "subcase": "B8.3/supplement-options",
+          "evidence": {
+            "opened": true,
+            "options": {
+              "available": true,
+              "message": "补传",
+              "request": {
+                "requestKey": "supplement-request-key",
+                "expectedVersion": 3,
+                "expectedTaskVersion": -1
+              }
+            },
+            "busy": false
+          }
+        },
+        {
+          "subcase": "B8.3/supplement-upload",
+          "evidence": {
+            "request": [
+              "A",
+              {
+                "requestKey": "supplement-request-key",
+                "expectedVersion": 3,
+                "expectedTaskVersion": -1
+              }
+            ],
+            "files": [],
+            "forcedRetirement": true
+          }
+        }
+      ],
+      "command": "npx vitest run src/w0/endpoint-w0.spec.ts src/w0/templates-history-w0.spec.ts --maxWorkers=1 --reporter=verbose --reporter=json --outputFile=/workspace/react-full-w0-evidence/templates-endpoint-final-v5.json",
+      "exit_code": 1
+    },
+    {
+      "id": "B9.1",
+      "title": "四种无 key endpoint 与非自动重写",
+      "status": "PASS",
+      "coverage": "partial",
+      "counts": {
+        "PASS": 6
+      },
+      "finding": "实际 API fetch 的 start/batch/question/message 每次未知仅1 POST，body 无虚构 key；actual batch reload/props/render/三 applySkin/recovery open 以及 actual question 1200ms poll/props/三 applySkin 无自动重写。",
+      "source_anchors": [
+        "frontend/src/api/client.ts:1697",
+        "frontend/src/api/client.ts:1705",
+        "frontend/src/api/client.ts:1849",
+        "frontend/src/api/client.ts:1989",
+        "frontend/src/components/TemplateBatchRecoveryPanel.vue:52",
+        "frontend/src/components/SessionMonitorPanel.vue:123"
+      ],
+      "subcases": [
+        {
+          "name": "B9.1 start: real fetch sends one unkeyed request on uncertain delivery",
+          "status": "PASS",
+          "test_file": "frontend/src/w0/endpoint-w0.spec.ts",
+          "test_line": 36,
+          "failure_first": "",
+          "assertion_locations": []
+        },
+        {
+          "name": "B9.1 batch: real fetch sends one unkeyed request on uncertain delivery",
+          "status": "PASS",
+          "test_file": "frontend/src/w0/endpoint-w0.spec.ts",
+          "test_line": 36,
+          "failure_first": "",
+          "assertion_locations": []
+        },
+        {
+          "name": "B9.1 question: real fetch sends one unkeyed request on uncertain delivery",
+          "status": "PASS",
+          "test_file": "frontend/src/w0/endpoint-w0.spec.ts",
+          "test_line": 36,
+          "failure_first": "",
+          "assertion_locations": []
+        },
+        {
+          "name": "B9.1 message: real fetch sends one unkeyed request on uncertain delivery",
+          "status": "PASS",
+          "test_file": "frontend/src/w0/endpoint-w0.spec.ts",
+          "test_line": 36,
+          "failure_first": "",
+          "assertion_locations": []
+        },
+        {
+          "name": "B9.1 batch unknown then rerender/read refresh/theme and recovery open never retry automatically",
+          "status": "PASS",
+          "test_file": "frontend/src/w0/endpoint-w0.spec.ts",
+          "test_line": 45,
+          "failure_first": "",
+          "assertion_locations": []
+        },
+        {
+          "name": "B9.1 question unknown then real poll read/same-props/skin changes never resubmit",
+          "status": "PASS",
+          "test_file": "frontend/src/w0/endpoint-w0.spec.ts",
+          "test_line": 51,
+          "failure_first": "",
+          "assertion_locations": []
+        }
+      ],
+      "remaining_or_scope_limits": [
+        "四 transport 无重试已测；start/message 的实际 page rerender/recovery open 未测；message UI owner由 A 组专题覆盖，不能借本文件 transport 替代。",
+        "当前命令 owner 是 Vue，无 React StrictMode 路径（UNREPRODUCED_OR_UNREACHABLE），setProps 不是 StrictMode。",
+        "Question 无手动刷新按钮，真实 poll 已测；不宣称点击不存在按钮。",
+        "no-key 不等于可以安全用户重发；本场景 PASS 只禁止自动重写，不证明 read-before-retry 恢复。"
+      ],
+      "request_evidence": [
+        {
+          "subcase": "B9.1/transport/start",
+          "evidence": {
+            "url": "/api/template-tasks/task%2FA/start",
+            "method": "POST",
+            "headers": {
+              "Accept": "application/json",
+              "X-Loopper-Local-UI": "1"
+            },
+            "requests": 1,
+            "VueStrictMode": "no current React command owner"
+          }
+        },
+        {
+          "subcase": "B9.1/transport/batch",
+          "evidence": {
+            "url": "/api/template-tasks/task%2FA/batches/batch-1/retry",
+            "method": "POST",
+            "headers": {
+              "Accept": "application/json",
+              "Content-Type": "application/json",
+              "X-Loopper-Local-UI": "1"
+            },
+            "body": {
+              "expectedVersion": 3
+            },
+            "requests": 1,
+            "VueStrictMode": "no current React command owner"
+          }
+        },
+        {
+          "subcase": "B9.1/transport/question",
+          "evidence": {
+            "url": "/api/tasks/task%2FA/sessions/execution%3Alocal-1/questions/question%2FA/reply",
+            "method": "POST",
+            "headers": {
+              "Accept": "application/json",
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "answers": [
+                [
+                  "原回答"
+                ]
+              ]
+            },
+            "requests": 1,
+            "VueStrictMode": "no current React command owner"
+          }
+        },
+        {
+          "subcase": "B9.1/transport/message",
+          "evidence": {
+            "url": "/api/designer-sessions/designer%2FA/messages",
+            "method": "POST",
+            "headers": {
+              "Accept": "application/json",
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "content": "原消息"
+            },
+            "requests": 1,
+            "VueStrictMode": "no current React command owner"
+          }
+        },
+        {
+          "subcase": "B9.1/batch-owner",
+          "evidence": {
+            "writes": [
+              [
+                "task-A",
+                [
+                  {
+                    "id": "batch-1",
+                    "expectedVersion": 3
+                  }
+                ]
+              ]
+            ],
+            "reads": 3,
+            "recoveryOpened": true
+          }
+        },
+        {
+          "subcase": "B9.1/question-owner",
+          "evidence": {
+            "writes": [
+              [
+                "task-A",
+                "execution:local-1",
+                "question-1",
+                [
+                  [
+                    "按原范围"
+                  ]
+                ]
+              ]
+            ],
+            "reads": 2,
+            "manualRefresh": "no button in current panel",
+            "realPollIntervalMs": 1200,
+            "skins": [
+              "spdb",
+              "tech-blue",
+              "github-white"
+            ]
+          }
+        }
+      ],
+      "command": "npx vitest run src/w0/endpoint-w0.spec.ts src/w0/templates-history-w0.spec.ts --maxWorkers=1 --reporter=verbose --reporter=json --outputFile=/workspace/react-full-w0-evidence/templates-endpoint-final-v5.json",
+      "exit_code": 1
+    },
+    {
+      "id": "B9.2",
+      "title": "keyed create/multipart/diagnostic 的各自合同",
+      "status": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "counts": {
+        "REPRODUCED_FAIL": 1,
+        "PASS": 3
+      },
+      "finding": "report 外部 owner draft 改后恢复会替 key（UI 可编辑路径另有 B3.1）；multipart 两次同 File 确认 metadata/key/actual bytes/hash/name 相同；diagnostic unknown retry 原 action/CAS/commandId 相同；mock server samekey/different digest 返回409。",
+      "source_anchors": [
+        "frontend/src/stores/templateTaskStore.ts:12",
+        "frontend/src/api/client.ts:1657",
+        "frontend/src/api/client.ts:1794",
+        "frontend/src/components/TemplateSessionDiagnosticsPanel.vue:150"
+      ],
+      "subcases": [
+        {
+          "name": "B9.2 report external-owner negative control: changing then restoring unknown draft cannot replace original key",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/endpoint-w0.spec.ts",
+          "test_line": 59,
+          "failure_first": "AssertionError: expected { …(7) } to deeply equal { …(7) }",
+          "assertion_locations": [
+            "src/w0/endpoint-w0.spec.ts:61:171",
+            "src/w0/endpoint-w0.spec.ts:61:244"
+          ]
+        },
+        {
+          "name": "B9.2 multipart real File bytes and metadata identical on explicit unchanged retry",
+          "status": "PASS",
+          "test_file": "frontend/src/w0/endpoint-w0.spec.ts",
+          "test_line": 63,
+          "failure_first": "",
+          "assertion_locations": []
+        },
+        {
+          "name": "B9.2 diagnostic unknown retry keeps original action/CAS/commandId",
+          "status": "PASS",
+          "test_file": "frontend/src/w0/endpoint-w0.spec.ts",
+          "test_line": 70,
+          "failure_first": "",
+          "assertion_locations": []
+        },
+        {
+          "name": "B9.2 mock server rejects same key/different digest; does not claim actual Java validation",
+          "status": "PASS",
+          "test_file": "frontend/src/w0/endpoint-w0.spec.ts",
+          "test_line": 74,
+          "failure_first": "",
+          "assertion_locations": []
+        }
+      ],
+      "remaining_or_scope_limits": [
+        "report draft 三态只读 owner 负控，不是直接篡改 disabled UI；B3.1 独立真实 UI。",
+        "multipart 本项同字节 explicit retry；B3.4 独立真实 reselect 字节/顺序 negative control。",
+        "409 是确定性 mock 约束并验证 client error，未运行 Java/真实后端，不证明其完整 digest 或幂等实现。",
+        "accepted 后只读合同放 B9.3；并非所有 keyed API 共用一套 CAS。"
+      ],
+      "request_evidence": [
+        {
+          "subcase": "B9.2/report/owner-negative",
+          "evidence": {
+            "requests": [
+              {
+                "templateId": "SNAPSHOT_CODE_REVIEW",
+                "templateVersion": "1",
+                "projectId": "p",
+                "branchId": "local:main",
+                "reviewMode": "FULL",
+                "documentPath": "/report",
+                "requestKey": "40ff4b0e-2dcb-4db2-bd0e-b536e6f3165e"
+              },
+              {
+                "templateId": "SNAPSHOT_CODE_REVIEW",
+                "templateVersion": "1",
+                "projectId": "p",
+                "branchId": "local:main",
+                "reviewMode": "FULL",
+                "documentPath": "/changed",
+                "requestKey": "2f870514-316d-4227-b94e-6a5ab0b0a134"
+              },
+              {
+                "templateId": "SNAPSHOT_CODE_REVIEW",
+                "templateVersion": "1",
+                "projectId": "p",
+                "branchId": "local:main",
+                "reviewMode": "FULL",
+                "documentPath": "/report",
+                "requestKey": "1f494ad1-a259-482d-9585-60f896674732"
+              }
+            ],
+            "actualEditableUI": "separately B3.1/report"
+          }
+        },
+        {
+          "subcase": "B9.2/multipart",
+          "evidence": {
+            "routes": [
+              "/api/template-tasks/document-runs",
+              "/api/template-tasks/document-runs"
+            ],
+            "metadata": [
+              {
+                "templateId": "REQUIREMENT_CODE_REVIEW",
+                "templateVersion": "1",
+                "projectId": "p",
+                "branchId": "local:main",
+                "requestKey": "02727f65-5add-4939-9481-fbcccdbe5701"
+              },
+              {
+                "templateId": "REQUIREMENT_CODE_REVIEW",
+                "templateVersion": "1",
+                "projectId": "p",
+                "branchId": "local:main",
+                "requestKey": "02727f65-5add-4939-9481-fbcccdbe5701"
+              }
+            ],
+            "names": [
+              [
+                "需求.md"
+              ],
+              [
+                "需求.md"
+              ]
+            ],
+            "sha256": [
+              "d7b5a30799a22274bcf5755cdcaeff1dc18a6015af1623fbb92276fb8339321e",
+              "d7b5a30799a22274bcf5755cdcaeff1dc18a6015af1623fbb92276fb8339321e"
+            ],
+            "localUi": [
+              "1",
+              "1"
+            ]
+          }
+        },
+        {
+          "subcase": "B9.2/diagnostic",
+          "evidence": {
+            "original": [
+              "task-A",
+              "batch-12",
+              {
+                "action": "FINALIZE",
+                "expectedVersion": 7,
+                "commandId": "2fb047a9-5243-4bdb-8c34-0c6e610e1cdc"
+              }
+            ],
+            "retry": [
+              "task-A",
+              "batch-12",
+              {
+                "action": "FINALIZE",
+                "expectedVersion": 7,
+                "commandId": "2fb047a9-5243-4bdb-8c34-0c6e610e1cdc"
+              }
+            ]
+          }
+        },
+        {
+          "subcase": "B9.2/mock-server-negative",
+          "evidence": {
+            "requests": 2,
+            "requestKey": "original-request-key",
+            "actualJavaExecuted": false
+          }
+        }
+      ],
+      "command": "npx vitest run src/w0/endpoint-w0.spec.ts src/w0/templates-history-w0.spec.ts --maxWorkers=1 --reporter=verbose --reporter=json --outputFile=/workspace/react-full-w0-evidence/templates-endpoint-final-v5.json",
+      "exit_code": 1
+    },
+    {
+      "id": "B9.3",
+      "title": "接受阶段不能重新创建/写，batch CAS/stop proof 区分",
+      "status": "REPRODUCED_FAIL",
+      "coverage": "partial",
+      "counts": {
+        "PASS": 2,
+        "REPRODUCED_FAIL": 3
+      },
+      "finding": "report 同草稿确实复用已知 Task id，仅事实正控，未实现先 GET；改后恢复 create3次。batch unknown GET version3→4 后重新发新 CAS；服务端 ready=false/STOPPING 投影阻断为正控。diagnostic accepted 后 GET失败/再旧 read 后重新 POST 同 commandId=2，丢 accepted 阶段。",
+      "source_anchors": [
+        "frontend/src/stores/templateTaskStore.ts:17",
+        "frontend/src/components/TemplateBatchRecoveryPanel.vue:52",
+        "frontend/src/components/TemplateSessionDiagnosticsPanel.vue:150",
+        "frontend/src/components/TemplateSessionDiagnosticsPanel.vue:168"
+      ],
+      "subcases": [
+        {
+          "name": "B9.3 accepted Task/start unknown unchanged retry only starts known Task",
+          "status": "PASS",
+          "test_file": "frontend/src/w0/endpoint-w0.spec.ts",
+          "test_line": 79,
+          "failure_first": "",
+          "assertion_locations": []
+        },
+        {
+          "name": "B9.3 accepted Task/start unknown changed then restored draft must never create another Task",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/endpoint-w0.spec.ts",
+          "test_line": 83,
+          "failure_first": "AssertionError: expected \"createTemplateTask\" to be called 1 times, but got 3 times",
+          "assertion_locations": [
+            "src/w0/endpoint-w0.spec.ts:85:188"
+          ]
+        },
+        {
+          "name": "B9.3 batch unknown GET advances CAS: original retry cannot silently become new version",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/endpoint-w0.spec.ts",
+          "test_line": 87,
+          "failure_first": "AssertionError: expected { task: 'task-A', …(1) } to deeply equal { task: 'task-A', …(1) }",
+          "assertion_locations": [
+            "src/w0/endpoint-w0.spec.ts:89:213"
+          ]
+        },
+        {
+          "name": "B9.3 stop-proof projection blocks retry without inventing key",
+          "status": "PASS",
+          "test_file": "frontend/src/w0/endpoint-w0.spec.ts",
+          "test_line": 91,
+          "failure_first": "",
+          "assertion_locations": []
+        },
+        {
+          "name": "B9.3 diagnostic accepted response followed by read failure must never rePOST receipt",
+          "status": "REPRODUCED_FAIL",
+          "test_file": "frontend/src/w0/endpoint-w0.spec.ts",
+          "test_line": 94,
+          "failure_first": "AssertionError: expected \"recoverTemplateSession\" to be called 1 times, but got 2 times",
+          "assertion_locations": [
+            "src/w0/endpoint-w0.spec.ts:96:174"
+          ]
+        }
+      ],
+      "remaining_or_scope_limits": [
+        "未调用真实 backend stop/CAS；这里只测试现前端依服务端投影守卫及旧 read 负控。",
+        "unchanged start2 仅原 TaskID 复用，不能计完整安全恢复 PASS；要求明确先读确认、unknown 保留，no-key 不盲重发。",
+        "diagnostic accepted/read-fail 真实 UI 重新可点，但 GET旧 canFinalize=true 是独立模拟陈旧读，不声称真实服务必返此组合。"
+      ],
+      "request_evidence": [
+        {
+          "subcase": "B9.3/report-known-task",
+          "evidence": {
+            "create": [
+              [
+                {
+                  "templateId": "SNAPSHOT_CODE_REVIEW",
+                  "templateVersion": "1",
+                  "projectId": "p",
+                  "branchId": "local:main",
+                  "reviewMode": "FULL",
+                  "documentPath": "/report",
+                  "requestKey": "bbd22190-553c-4612-8172-79bc5af764a4"
+                }
+              ]
+            ],
+            "start": [
+              [
+                "task-created"
+              ],
+              [
+                "task-created"
+              ]
+            ]
+          }
+        },
+        {
+          "subcase": "B9.3/report-known-task-new-draft",
+          "evidence": {
+            "create": [
+              [
+                {
+                  "templateId": "SNAPSHOT_CODE_REVIEW",
+                  "templateVersion": "1",
+                  "projectId": "p",
+                  "branchId": "local:main",
+                  "reviewMode": "FULL",
+                  "documentPath": "/report",
+                  "requestKey": "80944df8-bbb8-477e-adde-a61892ccc1e1"
+                }
+              ],
+              [
+                {
+                  "templateId": "SNAPSHOT_CODE_REVIEW",
+                  "templateVersion": "1",
+                  "projectId": "p",
+                  "branchId": "local:main",
+                  "reviewMode": "FULL",
+                  "documentPath": "/changed",
+                  "requestKey": "285a1dd5-d62b-496f-8e7b-06b0b08e5dda"
+                }
+              ],
+              [
+                {
+                  "templateId": "SNAPSHOT_CODE_REVIEW",
+                  "templateVersion": "1",
+                  "projectId": "p",
+                  "branchId": "local:main",
+                  "reviewMode": "FULL",
+                  "documentPath": "/report",
+                  "requestKey": "a870d64d-a899-425d-879d-03c71d0868a8"
+                }
+              ]
+            ],
+            "start": [
+              [
+                "task-created"
+              ],
+              [
+                "task-created"
+              ],
+              [
+                "task-created"
+              ]
+            ],
+            "scope": "external owner negative control, actual UI separately B3.1"
+          }
+        },
+        {
+          "subcase": "B9.3/batch-CAS",
+          "evidence": [
+            {
+              "task": "task-A",
+              "batches": [
+                {
+                  "id": "batch-1",
+                  "expectedVersion": 3
+                }
+              ]
+            },
+            {
+              "task": "task-A",
+              "batches": [
+                {
+                  "id": "batch-1",
+                  "expectedVersion": 4
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "subcase": "B9.3/stop-proof",
+          "evidence": {
+            "writes": 1,
+            "ready": false,
+            "status": "STOPPING"
+          }
+        },
+        {
+          "subcase": "B9.3/diagnostic-accepted-read-fail",
+          "evidence": {
+            "reads": 4,
+            "writes": [
+              [
+                "task-A",
+                "batch-12",
+                {
+                  "action": "FINALIZE",
+                  "expectedVersion": 7,
+                  "commandId": "405c670b-a6c2-4bd0-a321-de0f180248e0"
+                }
+              ],
+              [
+                "task-A",
+                "batch-12",
+                {
+                  "action": "FINALIZE",
+                  "expectedVersion": 7,
+                  "commandId": "405c670b-a6c2-4bd0-a321-de0f180248e0"
+                }
+              ]
+            ],
+            "knownAccepted": true,
+            "staleReadCanFinalize": true
+          }
+        }
+      ],
+      "command": "npx vitest run src/w0/endpoint-w0.spec.ts src/w0/templates-history-w0.spec.ts --maxWorkers=1 --reporter=verbose --reporter=json --outputFile=/workspace/react-full-w0-evidence/templates-endpoint-final-v5.json",
+      "exit_code": 1
+    }
+  ],
+  "method_limits": [
+    "Deterministic API/SSE transport, actual Vue stores/guards/RouterView/Element Plus; jsdom only, no browser/backend/full tests executed by this author.",
+    "Mocks prove frontend identity and scope behavior, not database row changes, permission, stop proof, task creation side effects or physical memory retention.",
+    "Unreachability and remaining variants listed separately; not counted as green tests.",
+    "Retired refs remain observable because probe holds old closure deliberately; this is not evidence of heap leak or new page pollution. Vue suppresses emits after unmount; two form callbacks still mutate retired private refs."
+  ],
+  "superseded_contract_correction": {
+    "case": "B3.4",
+    "affected_runs": [
+      "templates-endpoint-final-v2",
+      "templates-endpoint-final-v3"
+    ],
+    "reason": "GET200 already confirms original run; cannot classify subsequent explicit new draft as UNKNOWN. final-v5 uses actual ApiError404 and independent accepted-read control; checks all actual POST File bytes/order and permits changed-input refusal without POST."
+  },
+  "superseded_fixture_runs": [
+    {
+      "run": "templates-history-first",
+      "tests": 38,
+      "passed": 3,
+      "failed": 35,
+      "fixture_failures": 7,
+      "kinds": [
+        "Cannot redefine File.arrayBuffer 1",
+        "DataCloneError Vue Proxy 6"
+      ]
+    },
+    {
+      "run": "endpoint-first",
+      "tests": 15,
+      "passed": 9,
+      "failed": 6,
+      "fixture_failures": 2,
+      "kinds": [
+        "fake timers FileReader timeout 2"
+      ]
+    },
+    {
+      "run": "templates-endpoint-final",
+      "tests": 53,
+      "passed": 15,
+      "failed": 38,
+      "fixture_failures": 1,
+      "kinds": [
+        "batch props read clears unknown error before button lookup; reordered real reload 1"
+      ]
+    }
+  ],
+  "automations_destination": "Approved design selection: TemplateTasks explicit read-only four-tab Drawer, nine existing GET consumers; currently absent; no retired write revived."
+}

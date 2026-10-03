@@ -1,0 +1,1174 @@
+{
+  "kind": "w0-historical-failures",
+  "baseline": "008542f0bf02dc1c1b76f1e75429aab8452b797d",
+  "author": "/root/react_ppt_canvas",
+  "historicalStartupConfiguration": {
+    "model": "gpt-6.1-sol",
+    "reasoningEffort": "xhigh",
+    "livePlatformReadable": false
+  },
+  "status": "PARTIAL_COMPLETE_ONE_VISIBLE_UI_CONTRACT_FAIL",
+  "evidenceDirectory": "/workspace/react-full-w0-evidence",
+  "historicalEvidence": {
+    "source": "c26bf3bf7590424bd95bf83c093ae5740a068572",
+    "log": "/workspace/react-canvas-evidence/e2e-baseline.log",
+    "failed": 11,
+    "sha256": "4712fd07a68eaa797f89b1443f2ef55e2cb31a375118706d54fb6011d357675f"
+  },
+  "sourceSha256": {
+    "frontend/e2e/database-progress.spec.ts": "263f13bc9996b87da5d1b7423fe720d6b267b044e82a4a43db4a43e7fb42b0dc",
+    "frontend/e2e/document-template-tasks.spec.ts": "327db21c718ca4ef7eaf3333bedac6ecbb57117a0aa05e39704325846627cb1b",
+    "frontend/e2e/read-consistency.spec.ts": "52c04d8ae1a47b9d1d7aefa38d27fd0ee3b48e5b10c132ea7e705c0d35bed388",
+    "frontend/e2e/roles.spec.ts": "b3d48eb64ab8c80f9ca4a448fff7bc3704a0da97ddea156be9d2ea2054286330",
+    "frontend/src/components/DatabaseConnectionDrawer.vue": "984180ce41b98816ce4caf39116df9ce0e6d4d67b69adcb06943be60c190c85d",
+    "frontend/src/views/RoleManagementView.vue": "ffbc197af70d198cc1178a661c9950331f3939db0543b54aa77516500dfb612c",
+    "frontend/src/router/index.ts": "5fb11830ca2f6af68d44b2384328f15e511efc7644aca8477b0925872a855e96",
+    "frontend/src/components/AutomationHealth.vue": "2a0e04a4a6a45107d746c70cc5e8c10b261d889d19c823352334916441711fea",
+    "frontend/src/components/AutomationHealth.spec.ts": "ea968ea19b2cc7f09faa8e35279c00cf0473d2ffd7884b3b717edc2a359e20d2",
+    "frontend/src/api/client.ts": "089fbac370eae83e99212f42b22734ef5d57d3d7aa8f68eef9a44a7e6934ec64"
+  },
+  "browserRuns": [
+    {
+      "phase": "before",
+      "cwd": "/workspace/opencode-loopper-react-full/frontend",
+      "command": "PLAYWRIGHT_CHROME_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_JSON_OUTPUT_NAME=/workspace/react-full-w0-evidence/historical-before-results.json ./node_modules/.bin/playwright test database-progress.spec.ts document-template-tasks.spec.ts read-consistency.spec.ts roles.spec.ts --grep '数据库分区配置|文档评审上传重试|自动化页面显示检测失败|角色权限预估' --workers=1 --output=/workspace/react-full-w0-evidence/historical-before-browser --reporter=list,json",
+      "exitCode": 1,
+      "stats": {
+        "startTime": "2026-10-03T09:10:32.407Z",
+        "duration": 129933.448,
+        "expected": 0,
+        "skipped": 0,
+        "unexpected": 11,
+        "flaky": 0
+      },
+      "report": "/workspace/react-full-w0-evidence/historical-before-results.json",
+      "reportSha256": "d65eb5b485b0fb91e8aba85328d95cb44579af15db900f3dd3ce279ab43d9d9f",
+      "log": "/workspace/react-full-w0-evidence/historical-before.log",
+      "logSha256": "771ad1a2de1d3ef889b60e519057ac9e08faba16c5020e3aca001acf6235c5e0",
+      "sourceArchive": "/workspace/react-full-w0-evidence/historical-before-source"
+    },
+    {
+      "phase": "after",
+      "cwd": "/workspace/opencode-loopper-react-full/frontend",
+      "command": "PLAYWRIGHT_CHROME_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_JSON_OUTPUT_NAME=/workspace/react-full-w0-evidence/historical-after-results.json ./node_modules/.bin/playwright test database-progress.spec.ts document-template-tasks.spec.ts read-consistency.spec.ts roles.spec.ts --workers=1 --output=/workspace/react-full-w0-evidence/historical-after-browser --reporter=list,json",
+      "exitCode": 1,
+      "stats": {
+        "startTime": "2026-10-03T09:16:30.089Z",
+        "duration": 46543.481,
+        "expected": 19,
+        "skipped": 0,
+        "unexpected": 1,
+        "flaky": 0
+      },
+      "report": "/workspace/react-full-w0-evidence/historical-after-results.json",
+      "reportSha256": "311c17334579fe54675a4a13a974e1ca765cac21c6cc219ab6e172eb06768750",
+      "log": "/workspace/react-full-w0-evidence/historical-after.log",
+      "logSha256": "527cb31a9c6851261d4720452ffbc394f509b7c28e21dab08654de867d3da6f6",
+      "sourceArchive": "/workspace/react-full-w0-evidence/historical-after-source"
+    }
+  ],
+  "cases": [
+    {
+      "id": "HF-DB-1440",
+      "file": "frontend/e2e/database-progress.spec.ts",
+      "title": "数据库分区配置与真实步骤投影 1440px",
+      "historicalFailure": "等待旧主机文本框超时",
+      "preservedContracts": [
+        "test=1/save=0",
+        "JDBC/input/probe invalidation",
+        "Task 12/14,85%,Session2/4",
+        "narrow overflow"
+      ],
+      "reactMapping": "W2 database / W4 Task",
+      "classification": "STALE_EXPECTATION",
+      "before": {
+        "status": "FAIL",
+        "command": "PLAYWRIGHT_CHROME_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_JSON_OUTPUT_NAME=/workspace/react-full-w0-evidence/historical-before-results.json ./node_modules/.bin/playwright test database-progress.spec.ts document-template-tasks.spec.ts read-consistency.spec.ts roles.spec.ts --grep '数据库分区配置|文档评审上传重试|自动化页面显示检测失败|角色权限预估' --workers=1 --output=/workspace/react-full-w0-evidence/historical-before-browser --reporter=list,json",
+        "exitCode": 1,
+        "playwrightStatus": "timedOut",
+        "failedAssertion": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+        "errorLocation": null,
+        "artifacts": [
+          {
+            "name": "screenshot",
+            "contentType": "image/png",
+            "path": "/workspace/react-full-w0-evidence/historical-before-browser/database-progress-数据库分区配置与真实步骤投影-1440px-local-chrome/test-failed-1.png"
+          },
+          {
+            "name": "error-context",
+            "contentType": "text/markdown",
+            "path": "/workspace/react-full-w0-evidence/historical-before-browser/database-progress-数据库分区配置与真实步骤投影-1440px-local-chrome/error-context.md"
+          },
+          {
+            "name": "trace",
+            "contentType": "application/zip",
+            "path": "/workspace/react-full-w0-evidence/historical-before-browser/database-progress-数据库分区配置与真实步骤投影-1440px-local-chrome/trace.zip"
+          }
+        ],
+        "durationMs": 30293
+      },
+      "after": {
+        "status": "PASS",
+        "command": "PLAYWRIGHT_CHROME_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_JSON_OUTPUT_NAME=/workspace/react-full-w0-evidence/historical-after-results.json ./node_modules/.bin/playwright test database-progress.spec.ts document-template-tasks.spec.ts read-consistency.spec.ts roles.spec.ts --workers=1 --output=/workspace/react-full-w0-evidence/historical-after-browser --reporter=list,json",
+        "exitCode": 1,
+        "playwrightStatus": "passed",
+        "failedAssertion": null,
+        "errorLocation": null,
+        "artifacts": [],
+        "durationMs": 3663,
+        "sourceSha256": "32e7672d4bde19fc50c66b5577a6a688f00d1bc6c9e667743fb5bfd7d11ea94d"
+      },
+      "baselineSourceSha256": "263f13bc9996b87da5d1b7423fe720d6b267b044e82a4a43db4a43e7fb42b0dc",
+      "remainingCoverage": "完整浏览器case已越过首错执行；模拟API不证明真实后端、数据库连接或模型/File解析。",
+      "currentScope": {
+        "status": "IN_SCOPE_DESKTOP",
+        "viewport": {
+          "width": 1440,
+          "height": 1000
+        },
+        "reason": "Desktop behavior/compatibility contract remains in current scope.",
+        "assertionsPreserved": true,
+        "rawResultPreserved": true
+      }
+    },
+    {
+      "id": "HF-DB-390",
+      "file": "frontend/e2e/database-progress.spec.ts",
+      "title": "数据库分区配置与真实步骤投影 390px",
+      "historicalFailure": "等待旧主机文本框超时",
+      "preservedContracts": [
+        "test=1/save=0",
+        "JDBC/input/probe invalidation",
+        "Task 12/14,85%,Session2/4",
+        "narrow overflow"
+      ],
+      "reactMapping": "W2 database / W4 Task",
+      "classification": "STALE_EXPECTATION",
+      "before": {
+        "status": "FAIL",
+        "command": "PLAYWRIGHT_CHROME_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_JSON_OUTPUT_NAME=/workspace/react-full-w0-evidence/historical-before-results.json ./node_modules/.bin/playwright test database-progress.spec.ts document-template-tasks.spec.ts read-consistency.spec.ts roles.spec.ts --grep '数据库分区配置|文档评审上传重试|自动化页面显示检测失败|角色权限预估' --workers=1 --output=/workspace/react-full-w0-evidence/historical-before-browser --reporter=list,json",
+        "exitCode": 1,
+        "playwrightStatus": "timedOut",
+        "failedAssertion": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+        "errorLocation": null,
+        "artifacts": [
+          {
+            "name": "screenshot",
+            "contentType": "image/png",
+            "path": "/workspace/react-full-w0-evidence/historical-before-browser/database-progress-数据库分区配置与真实步骤投影-390px-local-chrome/test-failed-1.png"
+          },
+          {
+            "name": "error-context",
+            "contentType": "text/markdown",
+            "path": "/workspace/react-full-w0-evidence/historical-before-browser/database-progress-数据库分区配置与真实步骤投影-390px-local-chrome/error-context.md"
+          },
+          {
+            "name": "trace",
+            "contentType": "application/zip",
+            "path": "/workspace/react-full-w0-evidence/historical-before-browser/database-progress-数据库分区配置与真实步骤投影-390px-local-chrome/trace.zip"
+          }
+        ],
+        "durationMs": 30238
+      },
+      "after": {
+        "status": "PASS",
+        "command": "PLAYWRIGHT_CHROME_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_JSON_OUTPUT_NAME=/workspace/react-full-w0-evidence/historical-after-results.json ./node_modules/.bin/playwright test database-progress.spec.ts document-template-tasks.spec.ts read-consistency.spec.ts roles.spec.ts --workers=1 --output=/workspace/react-full-w0-evidence/historical-after-browser --reporter=list,json",
+        "exitCode": 1,
+        "playwrightStatus": "passed",
+        "failedAssertion": null,
+        "errorLocation": null,
+        "artifacts": [],
+        "durationMs": 2781,
+        "sourceSha256": "32e7672d4bde19fc50c66b5577a6a688f00d1bc6c9e667743fb5bfd7d11ea94d"
+      },
+      "baselineSourceSha256": "263f13bc9996b87da5d1b7423fe720d6b267b044e82a4a43db4a43e7fb42b0dc",
+      "remainingCoverage": "完整浏览器case已越过首错执行；模拟API不证明真实后端、数据库连接或模型/File解析。",
+      "currentScope": {
+        "status": "OUT_OF_SCOPE",
+        "viewport": {
+          "width": 390,
+          "height": 1000
+        },
+        "reason": "User withdrew narrow-screen design/adaptation acceptance after the frozen W0 run; retain this executed case as historical evidence only.",
+        "assertionsPreserved": true,
+        "rawResultPreserved": true
+      }
+    },
+    {
+      "id": "HF-DOC-1440",
+      "file": "frontend/e2e/document-template-tasks.spec.ts",
+      "title": "文档评审上传重试、刷新与按需报告 1440px",
+      "historicalFailure": "/private/tmp截图ENOENT",
+      "preservedContracts": [
+        "same requestKey twice POST",
+        "File upload",
+        "section body once on demand",
+        "report body once on demand",
+        "download and reload without new create",
+        "narrow overflow"
+      ],
+      "reactMapping": "W3 TemplateTasks / Document branch",
+      "classification": "FIXTURE_ENV",
+      "before": {
+        "status": "FAIL",
+        "command": "PLAYWRIGHT_CHROME_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_JSON_OUTPUT_NAME=/workspace/react-full-w0-evidence/historical-before-results.json ./node_modules/.bin/playwright test database-progress.spec.ts document-template-tasks.spec.ts read-consistency.spec.ts roles.spec.ts --grep '数据库分区配置|文档评审上传重试|自动化页面显示检测失败|角色权限预估' --workers=1 --output=/workspace/react-full-w0-evidence/historical-before-browser --reporter=list,json",
+        "exitCode": 1,
+        "playwrightStatus": "failed",
+        "failedAssertion": "Error: ENOENT: no such file or directory, open '/private/tmp/loopper-document-template-1440.png'",
+        "errorLocation": {
+          "file": "/workspace/opencode-loopper-react-full/frontend/e2e/document-template-tasks.spec.ts",
+          "column": 5,
+          "line": 63
+        },
+        "artifacts": [
+          {
+            "name": "screenshot",
+            "contentType": "image/png",
+            "path": "/workspace/react-full-w0-evidence/historical-before-browser/document-template-tasks-文档评审上传重试、刷新与按需报告-1440px-local-chrome/test-failed-1.png"
+          },
+          {
+            "name": "error-context",
+            "contentType": "text/markdown",
+            "path": "/workspace/react-full-w0-evidence/historical-before-browser/document-template-tasks-文档评审上传重试、刷新与按需报告-1440px-local-chrome/error-context.md"
+          },
+          {
+            "name": "trace",
+            "contentType": "application/zip",
+            "path": "/workspace/react-full-w0-evidence/historical-before-browser/document-template-tasks-文档评审上传重试、刷新与按需报告-1440px-local-chrome/trace.zip"
+          }
+        ],
+        "durationMs": 3844
+      },
+      "after": {
+        "status": "PASS",
+        "command": "PLAYWRIGHT_CHROME_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_JSON_OUTPUT_NAME=/workspace/react-full-w0-evidence/historical-after-results.json ./node_modules/.bin/playwright test database-progress.spec.ts document-template-tasks.spec.ts read-consistency.spec.ts roles.spec.ts --workers=1 --output=/workspace/react-full-w0-evidence/historical-after-browser --reporter=list,json",
+        "exitCode": 1,
+        "playwrightStatus": "passed",
+        "failedAssertion": null,
+        "errorLocation": null,
+        "artifacts": [],
+        "durationMs": 2730,
+        "sourceSha256": "a182139a9f1442df560839146451df4357116eeb22c5605648bd0357d8075315"
+      },
+      "baselineSourceSha256": "327db21c718ca4ef7eaf3333bedac6ecbb57117a0aa05e39704325846627cb1b",
+      "remainingCoverage": "完整浏览器case已越过首错执行；模拟API不证明真实后端、数据库连接或模型/File解析。",
+      "currentScope": {
+        "status": "IN_SCOPE_DESKTOP",
+        "viewport": {
+          "width": 1440,
+          "height": 1000
+        },
+        "reason": "Desktop behavior/compatibility contract remains in current scope.",
+        "assertionsPreserved": true,
+        "rawResultPreserved": true
+      }
+    },
+    {
+      "id": "HF-DOC-390",
+      "file": "frontend/e2e/document-template-tasks.spec.ts",
+      "title": "文档评审上传重试、刷新与按需报告 390px",
+      "historicalFailure": "/private/tmp截图ENOENT",
+      "preservedContracts": [
+        "same requestKey twice POST",
+        "File upload",
+        "section body once on demand",
+        "report body once on demand",
+        "download and reload without new create",
+        "narrow overflow"
+      ],
+      "reactMapping": "W3 TemplateTasks / Document branch",
+      "classification": "FIXTURE_ENV",
+      "before": {
+        "status": "FAIL",
+        "command": "PLAYWRIGHT_CHROME_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_JSON_OUTPUT_NAME=/workspace/react-full-w0-evidence/historical-before-results.json ./node_modules/.bin/playwright test database-progress.spec.ts document-template-tasks.spec.ts read-consistency.spec.ts roles.spec.ts --grep '数据库分区配置|文档评审上传重试|自动化页面显示检测失败|角色权限预估' --workers=1 --output=/workspace/react-full-w0-evidence/historical-before-browser --reporter=list,json",
+        "exitCode": 1,
+        "playwrightStatus": "failed",
+        "failedAssertion": "Error: ENOENT: no such file or directory, open '/private/tmp/loopper-document-template-390.png'",
+        "errorLocation": {
+          "file": "/workspace/opencode-loopper-react-full/frontend/e2e/document-template-tasks.spec.ts",
+          "column": 5,
+          "line": 63
+        },
+        "artifacts": [
+          {
+            "name": "screenshot",
+            "contentType": "image/png",
+            "path": "/workspace/react-full-w0-evidence/historical-before-browser/document-template-tasks-文档评审上传重试、刷新与按需报告-390px-local-chrome/test-failed-1.png"
+          },
+          {
+            "name": "error-context",
+            "contentType": "text/markdown",
+            "path": "/workspace/react-full-w0-evidence/historical-before-browser/document-template-tasks-文档评审上传重试、刷新与按需报告-390px-local-chrome/error-context.md"
+          },
+          {
+            "name": "trace",
+            "contentType": "application/zip",
+            "path": "/workspace/react-full-w0-evidence/historical-before-browser/document-template-tasks-文档评审上传重试、刷新与按需报告-390px-local-chrome/trace.zip"
+          }
+        ],
+        "durationMs": 3227
+      },
+      "after": {
+        "status": "PASS",
+        "command": "PLAYWRIGHT_CHROME_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_JSON_OUTPUT_NAME=/workspace/react-full-w0-evidence/historical-after-results.json ./node_modules/.bin/playwright test database-progress.spec.ts document-template-tasks.spec.ts read-consistency.spec.ts roles.spec.ts --workers=1 --output=/workspace/react-full-w0-evidence/historical-after-browser --reporter=list,json",
+        "exitCode": 1,
+        "playwrightStatus": "passed",
+        "failedAssertion": null,
+        "errorLocation": null,
+        "artifacts": [],
+        "durationMs": 2610,
+        "sourceSha256": "a182139a9f1442df560839146451df4357116eeb22c5605648bd0357d8075315"
+      },
+      "baselineSourceSha256": "327db21c718ca4ef7eaf3333bedac6ecbb57117a0aa05e39704325846627cb1b",
+      "remainingCoverage": "完整浏览器case已越过首错执行；模拟API不证明真实后端、数据库连接或模型/File解析。",
+      "currentScope": {
+        "status": "OUT_OF_SCOPE",
+        "viewport": {
+          "width": 390,
+          "height": 1000
+        },
+        "reason": "User withdrew narrow-screen design/adaptation acceptance after the frozen W0 run; retain this executed case as historical evidence only.",
+        "assertionsPreserved": true,
+        "rawResultPreserved": true
+      }
+    },
+    {
+      "id": "HF-AUTOMATIONS",
+      "file": "frontend/e2e/read-consistency.spec.ts",
+      "title": "自动化页面显示检测失败并在服务端恢复后清除旧告警",
+      "historicalFailure": "redirect后旧health元素不存在",
+      "preservedContracts": [
+        "redirect and no retired mutation",
+        "health failure count/error and read projection recovery",
+        "actual archive consumer remains missing"
+      ],
+      "reactMapping": "W0 mapping / W3 approved history consumer",
+      "classification": "STALE_EXPECTATION",
+      "before": {
+        "status": "FAIL",
+        "command": "PLAYWRIGHT_CHROME_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_JSON_OUTPUT_NAME=/workspace/react-full-w0-evidence/historical-before-results.json ./node_modules/.bin/playwright test database-progress.spec.ts document-template-tasks.spec.ts read-consistency.spec.ts roles.spec.ts --grep '数据库分区配置|文档评审上传重试|自动化页面显示检测失败|角色权限预估' --workers=1 --output=/workspace/react-full-w0-evidence/historical-before-browser --reporter=list,json",
+        "exitCode": 1,
+        "playwrightStatus": "failed",
+        "failedAssertion": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: getByLabel('自动化检测状态')\nExpected string: \u001b[32m\"检测失败 · 连续 2 次\"\u001b[39m\nReceived: <element(s) not found>\nTimeout: 5000ms\n\nCall log:\n\u001b[2m  - Expect \"toContainText\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByLabel('自动化检测状态')\u001b[22m\n",
+        "errorLocation": {
+          "file": "/workspace/opencode-loopper-react-full/frontend/e2e/read-consistency.spec.ts",
+          "column": 44,
+          "line": 45
+        },
+        "artifacts": [
+          {
+            "name": "screenshot",
+            "contentType": "image/png",
+            "path": "/workspace/react-full-w0-evidence/historical-before-browser/read-consistency-自动化页面显示检测失败并在服务端恢复后清除旧告警-local-chrome/test-failed-1.png"
+          },
+          {
+            "name": "error-context",
+            "contentType": "text/markdown",
+            "path": "/workspace/react-full-w0-evidence/historical-before-browser/read-consistency-自动化页面显示检测失败并在服务端恢复后清除旧告警-local-chrome/error-context.md"
+          },
+          {
+            "name": "trace",
+            "contentType": "application/zip",
+            "path": "/workspace/react-full-w0-evidence/historical-before-browser/read-consistency-自动化页面显示检测失败并在服务端恢复后清除旧告警-local-chrome/trace.zip"
+          }
+        ],
+        "durationMs": 6320
+      },
+      "after": {
+        "status": "FAIL",
+        "command": "PLAYWRIGHT_CHROME_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_JSON_OUTPUT_NAME=/workspace/react-full-w0-evidence/historical-after-results.json ./node_modules/.bin/playwright test database-progress.spec.ts document-template-tasks.spec.ts read-consistency.spec.ts roles.spec.ts --workers=1 --output=/workspace/react-full-w0-evidence/historical-after-browser --reporter=list,json",
+        "exitCode": 1,
+        "playwrightStatus": "failed",
+        "failedAssertion": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: getByLabel('自动化检测状态')\nExpected string: \u001b[32m\"检测失败 · 连续 2 次\"\u001b[39m\nReceived: <element(s) not found>\nTimeout: 5000ms\n\nCall log:\n\u001b[2m  - Expect \"toContainText\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByLabel('自动化检测状态')\u001b[22m\n",
+        "errorLocation": {
+          "file": "/workspace/opencode-loopper-react-full/frontend/e2e/read-consistency.spec.ts",
+          "column": 44,
+          "line": 48
+        },
+        "artifacts": [
+          {
+            "name": "screenshot",
+            "contentType": "image/png",
+            "path": "/workspace/react-full-w0-evidence/historical-after-browser/read-consistency-自动化页面显示检测失败并在服务端恢复后清除旧告警-local-chrome/test-failed-1.png"
+          },
+          {
+            "name": "error-context",
+            "contentType": "text/markdown",
+            "path": "/workspace/react-full-w0-evidence/historical-after-browser/read-consistency-自动化页面显示检测失败并在服务端恢复后清除旧告警-local-chrome/error-context.md"
+          },
+          {
+            "name": "trace",
+            "contentType": "application/zip",
+            "path": "/workspace/react-full-w0-evidence/historical-after-browser/read-consistency-自动化页面显示检测失败并在服务端恢复后清除旧告警-local-chrome/trace.zip"
+          }
+        ],
+        "durationMs": 5970,
+        "sourceSha256": "739be36043330ecb24e1a6f96a3686cbbe6c185da3eccc18526816f83575a649"
+      },
+      "baselineSourceSha256": "52c04d8ae1a47b9d1d7aefa38d27fd0ee3b48e5b10c132ea7e705c0d35bed388",
+      "remainingCoverage": "CURRENT_MISSING_CONSUMER：原可见health失败→服务端新读→清错UI合同仍FAIL；额外redirect和纯health组件/解析合同不能替代。未实现React归档消费者。",
+      "primaryCause": "STALE_ROUTE_EXPECTATION",
+      "secondaryCause": "COMPATIBILITY_CONSUMER_GAP",
+      "currentScope": {
+        "status": "IN_SCOPE_DESKTOP",
+        "viewport": {
+          "width": 1280,
+          "height": 720
+        },
+        "reason": "Desktop behavior/compatibility contract remains in current scope.",
+        "assertionsPreserved": true,
+        "rawResultPreserved": true
+      }
+    },
+    {
+      "id": "HF-ROLE-spdb-1440",
+      "file": "frontend/e2e/roles.spec.ts",
+      "title": "spdb 1440px 角色权限预估可读且布局不重叠",
+      "historicalFailure": "旧仍需运行时核定文案失配",
+      "preservedContracts": [
+        "CONFIG_ONLY/complete=false",
+        "limitations and tool source",
+        "required tools",
+        "no horizontal overflow",
+        "two-column/mobile no overlap"
+      ],
+      "reactMapping": "W2 RoleManagement",
+      "classification": "STALE_EXPECTATION",
+      "before": {
+        "status": "FAIL",
+        "command": "PLAYWRIGHT_CHROME_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_JSON_OUTPUT_NAME=/workspace/react-full-w0-evidence/historical-before-results.json ./node_modules/.bin/playwright test database-progress.spec.ts document-template-tasks.spec.ts read-consistency.spec.ts roles.spec.ts --grep '数据库分区配置|文档评审上传重试|自动化页面显示检测失败|角色权限预估' --workers=1 --output=/workspace/react-full-w0-evidence/historical-before-browser --reporter=list,json",
+        "exitCode": 1,
+        "playwrightStatus": "failed",
+        "failedAssertion": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.preview-status')\nExpected string: \u001b[32m\"\u001b[7m仍需\u001b[27m运行时核定\"\u001b[39m\nReceived string: \u001b[31m\"\u001b[7m阶段绑定配置 · 调用条件待\u001b[27m运行时核定\"\u001b[39m\nTimeout: 5000ms\n\nCall log:\n\u001b[2m  - Expect \"toContainText\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('.preview-status')\u001b[22m\n\u001b[2m    9 × locator resolved to <p data-v-546242ad=\"\" class=\"preview-status\">…</p>\u001b[22m\n\u001b[2m      - unexpected value \"阶段绑定配置 · 调用条件待运行时核定\"\u001b[22m\n",
+        "errorLocation": {
+          "file": "/workspace/opencode-loopper-react-full/frontend/e2e/roles.spec.ts",
+          "column": 53,
+          "line": 151
+        },
+        "artifacts": [
+          {
+            "name": "screenshot",
+            "contentType": "image/png",
+            "path": "/workspace/react-full-w0-evidence/historical-before-browser/roles-spdb-1440px-角色权限预估可读且布局不重叠-local-chrome/test-failed-1.png"
+          },
+          {
+            "name": "error-context",
+            "contentType": "text/markdown",
+            "path": "/workspace/react-full-w0-evidence/historical-before-browser/roles-spdb-1440px-角色权限预估可读且布局不重叠-local-chrome/error-context.md"
+          },
+          {
+            "name": "trace",
+            "contentType": "application/zip",
+            "path": "/workspace/react-full-w0-evidence/historical-before-browser/roles-spdb-1440px-角色权限预估可读且布局不重叠-local-chrome/trace.zip"
+          }
+        ],
+        "durationMs": 7073
+      },
+      "after": {
+        "status": "PASS",
+        "command": "PLAYWRIGHT_CHROME_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_JSON_OUTPUT_NAME=/workspace/react-full-w0-evidence/historical-after-results.json ./node_modules/.bin/playwright test database-progress.spec.ts document-template-tasks.spec.ts read-consistency.spec.ts roles.spec.ts --workers=1 --output=/workspace/react-full-w0-evidence/historical-after-browser --reporter=list,json",
+        "exitCode": 1,
+        "playwrightStatus": "passed",
+        "failedAssertion": null,
+        "errorLocation": null,
+        "artifacts": [
+          {
+            "name": "角色页视觉证据",
+            "contentType": "image/png",
+            "path": "/workspace/react-full-w0-evidence/historical-after-browser/roles-spdb-1440px-角色权限预估可读且布局不重叠-local-chrome/attachments/角色页视觉证据-dadf9044b761cd9e9dc068da6b77e4a551fff183.png"
+          }
+        ],
+        "durationMs": 1538,
+        "sourceSha256": "dc4455d5da8230e507e234ea833a657a3c4f1bb1fbbc184a2854a66404f1c12d"
+      },
+      "baselineSourceSha256": "b3d48eb64ab8c80f9ca4a448fff7bc3704a0da97ddea156be9d2ea2054286330",
+      "remainingCoverage": "完整浏览器case已越过首错执行；模拟API不证明真实后端、数据库连接或模型/File解析。",
+      "currentScope": {
+        "status": "IN_SCOPE_DESKTOP",
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "reason": "Desktop behavior/compatibility contract remains in current scope.",
+        "assertionsPreserved": true,
+        "rawResultPreserved": true
+      }
+    },
+    {
+      "id": "HF-ROLE-spdb-390",
+      "file": "frontend/e2e/roles.spec.ts",
+      "title": "spdb 390px 角色权限预估可读且布局不重叠",
+      "historicalFailure": "旧仍需运行时核定文案失配",
+      "preservedContracts": [
+        "CONFIG_ONLY/complete=false",
+        "limitations and tool source",
+        "required tools",
+        "no horizontal overflow",
+        "two-column/mobile no overlap"
+      ],
+      "reactMapping": "W2 RoleManagement",
+      "classification": "STALE_EXPECTATION",
+      "before": {
+        "status": "FAIL",
+        "command": "PLAYWRIGHT_CHROME_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_JSON_OUTPUT_NAME=/workspace/react-full-w0-evidence/historical-before-results.json ./node_modules/.bin/playwright test database-progress.spec.ts document-template-tasks.spec.ts read-consistency.spec.ts roles.spec.ts --grep '数据库分区配置|文档评审上传重试|自动化页面显示检测失败|角色权限预估' --workers=1 --output=/workspace/react-full-w0-evidence/historical-before-browser --reporter=list,json",
+        "exitCode": 1,
+        "playwrightStatus": "failed",
+        "failedAssertion": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.preview-status')\nExpected string: \u001b[32m\"\u001b[7m仍需\u001b[27m运行时核定\"\u001b[39m\nReceived string: \u001b[31m\"\u001b[7m阶段绑定配置 · 调用条件待\u001b[27m运行时核定\"\u001b[39m\nTimeout: 5000ms\n\nCall log:\n\u001b[2m  - Expect \"toContainText\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('.preview-status')\u001b[22m\n\u001b[2m    9 × locator resolved to <p data-v-546242ad=\"\" class=\"preview-status\">…</p>\u001b[22m\n\u001b[2m      - unexpected value \"阶段绑定配置 · 调用条件待运行时核定\"\u001b[22m\n",
+        "errorLocation": {
+          "file": "/workspace/opencode-loopper-react-full/frontend/e2e/roles.spec.ts",
+          "column": 53,
+          "line": 151
+        },
+        "artifacts": [
+          {
+            "name": "screenshot",
+            "contentType": "image/png",
+            "path": "/workspace/react-full-w0-evidence/historical-before-browser/roles-spdb-390px-角色权限预估可读且布局不重叠-local-chrome/test-failed-1.png"
+          },
+          {
+            "name": "error-context",
+            "contentType": "text/markdown",
+            "path": "/workspace/react-full-w0-evidence/historical-before-browser/roles-spdb-390px-角色权限预估可读且布局不重叠-local-chrome/error-context.md"
+          },
+          {
+            "name": "trace",
+            "contentType": "application/zip",
+            "path": "/workspace/react-full-w0-evidence/historical-before-browser/roles-spdb-390px-角色权限预估可读且布局不重叠-local-chrome/trace.zip"
+          }
+        ],
+        "durationMs": 6866
+      },
+      "after": {
+        "status": "PASS",
+        "command": "PLAYWRIGHT_CHROME_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_JSON_OUTPUT_NAME=/workspace/react-full-w0-evidence/historical-after-results.json ./node_modules/.bin/playwright test database-progress.spec.ts document-template-tasks.spec.ts read-consistency.spec.ts roles.spec.ts --workers=1 --output=/workspace/react-full-w0-evidence/historical-after-browser --reporter=list,json",
+        "exitCode": 1,
+        "playwrightStatus": "passed",
+        "failedAssertion": null,
+        "errorLocation": null,
+        "artifacts": [
+          {
+            "name": "角色页视觉证据",
+            "contentType": "image/png",
+            "path": "/workspace/react-full-w0-evidence/historical-after-browser/roles-spdb-390px-角色权限预估可读且布局不重叠-local-chrome/attachments/角色页视觉证据-bee98ee5274f229f90e1df626b72bfa73fa636bf.png"
+          }
+        ],
+        "durationMs": 1437,
+        "sourceSha256": "dc4455d5da8230e507e234ea833a657a3c4f1bb1fbbc184a2854a66404f1c12d"
+      },
+      "baselineSourceSha256": "b3d48eb64ab8c80f9ca4a448fff7bc3704a0da97ddea156be9d2ea2054286330",
+      "remainingCoverage": "完整浏览器case已越过首错执行；模拟API不证明真实后端、数据库连接或模型/File解析。",
+      "currentScope": {
+        "status": "OUT_OF_SCOPE",
+        "viewport": {
+          "width": 390,
+          "height": 900
+        },
+        "reason": "User withdrew narrow-screen design/adaptation acceptance after the frozen W0 run; retain this executed case as historical evidence only.",
+        "assertionsPreserved": true,
+        "rawResultPreserved": true
+      }
+    },
+    {
+      "id": "HF-ROLE-tech-blue-1440",
+      "file": "frontend/e2e/roles.spec.ts",
+      "title": "tech-blue 1440px 角色权限预估可读且布局不重叠",
+      "historicalFailure": "旧仍需运行时核定文案失配",
+      "preservedContracts": [
+        "CONFIG_ONLY/complete=false",
+        "limitations and tool source",
+        "required tools",
+        "no horizontal overflow",
+        "two-column/mobile no overlap"
+      ],
+      "reactMapping": "W2 RoleManagement",
+      "classification": "STALE_EXPECTATION",
+      "before": {
+        "status": "FAIL",
+        "command": "PLAYWRIGHT_CHROME_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_JSON_OUTPUT_NAME=/workspace/react-full-w0-evidence/historical-before-results.json ./node_modules/.bin/playwright test database-progress.spec.ts document-template-tasks.spec.ts read-consistency.spec.ts roles.spec.ts --grep '数据库分区配置|文档评审上传重试|自动化页面显示检测失败|角色权限预估' --workers=1 --output=/workspace/react-full-w0-evidence/historical-before-browser --reporter=list,json",
+        "exitCode": 1,
+        "playwrightStatus": "failed",
+        "failedAssertion": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.preview-status')\nExpected string: \u001b[32m\"\u001b[7m仍需\u001b[27m运行时核定\"\u001b[39m\nReceived string: \u001b[31m\"\u001b[7m阶段绑定配置 · 调用条件待\u001b[27m运行时核定\"\u001b[39m\nTimeout: 5000ms\n\nCall log:\n\u001b[2m  - Expect \"toContainText\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('.preview-status')\u001b[22m\n\u001b[2m    9 × locator resolved to <p data-v-546242ad=\"\" class=\"preview-status\">…</p>\u001b[22m\n\u001b[2m      - unexpected value \"阶段绑定配置 · 调用条件待运行时核定\"\u001b[22m\n",
+        "errorLocation": {
+          "file": "/workspace/opencode-loopper-react-full/frontend/e2e/roles.spec.ts",
+          "column": 53,
+          "line": 151
+        },
+        "artifacts": [
+          {
+            "name": "screenshot",
+            "contentType": "image/png",
+            "path": "/workspace/react-full-w0-evidence/historical-before-browser/roles-tech-blue-1440px-角色权限预估可读且布局不重叠-local-chrome/test-failed-1.png"
+          },
+          {
+            "name": "error-context",
+            "contentType": "text/markdown",
+            "path": "/workspace/react-full-w0-evidence/historical-before-browser/roles-tech-blue-1440px-角色权限预估可读且布局不重叠-local-chrome/error-context.md"
+          },
+          {
+            "name": "trace",
+            "contentType": "application/zip",
+            "path": "/workspace/react-full-w0-evidence/historical-before-browser/roles-tech-blue-1440px-角色权限预估可读且布局不重叠-local-chrome/trace.zip"
+          }
+        ],
+        "durationMs": 7182
+      },
+      "after": {
+        "status": "PASS",
+        "command": "PLAYWRIGHT_CHROME_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_JSON_OUTPUT_NAME=/workspace/react-full-w0-evidence/historical-after-results.json ./node_modules/.bin/playwright test database-progress.spec.ts document-template-tasks.spec.ts read-consistency.spec.ts roles.spec.ts --workers=1 --output=/workspace/react-full-w0-evidence/historical-after-browser --reporter=list,json",
+        "exitCode": 1,
+        "playwrightStatus": "passed",
+        "failedAssertion": null,
+        "errorLocation": null,
+        "artifacts": [
+          {
+            "name": "角色页视觉证据",
+            "contentType": "image/png",
+            "path": "/workspace/react-full-w0-evidence/historical-after-browser/roles-tech-blue-1440px-角色权限预估可读且布局不重叠-local-chrome/attachments/角色页视觉证据-db4823633edca9955a46a7c26a569a286d763602.png"
+          }
+        ],
+        "durationMs": 1727,
+        "sourceSha256": "dc4455d5da8230e507e234ea833a657a3c4f1bb1fbbc184a2854a66404f1c12d"
+      },
+      "baselineSourceSha256": "b3d48eb64ab8c80f9ca4a448fff7bc3704a0da97ddea156be9d2ea2054286330",
+      "remainingCoverage": "完整浏览器case已越过首错执行；模拟API不证明真实后端、数据库连接或模型/File解析。",
+      "currentScope": {
+        "status": "IN_SCOPE_DESKTOP",
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "reason": "Desktop behavior/compatibility contract remains in current scope.",
+        "assertionsPreserved": true,
+        "rawResultPreserved": true
+      }
+    },
+    {
+      "id": "HF-ROLE-tech-blue-390",
+      "file": "frontend/e2e/roles.spec.ts",
+      "title": "tech-blue 390px 角色权限预估可读且布局不重叠",
+      "historicalFailure": "旧仍需运行时核定文案失配",
+      "preservedContracts": [
+        "CONFIG_ONLY/complete=false",
+        "limitations and tool source",
+        "required tools",
+        "no horizontal overflow",
+        "two-column/mobile no overlap"
+      ],
+      "reactMapping": "W2 RoleManagement",
+      "classification": "STALE_EXPECTATION",
+      "before": {
+        "status": "FAIL",
+        "command": "PLAYWRIGHT_CHROME_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_JSON_OUTPUT_NAME=/workspace/react-full-w0-evidence/historical-before-results.json ./node_modules/.bin/playwright test database-progress.spec.ts document-template-tasks.spec.ts read-consistency.spec.ts roles.spec.ts --grep '数据库分区配置|文档评审上传重试|自动化页面显示检测失败|角色权限预估' --workers=1 --output=/workspace/react-full-w0-evidence/historical-before-browser --reporter=list,json",
+        "exitCode": 1,
+        "playwrightStatus": "failed",
+        "failedAssertion": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.preview-status')\nExpected string: \u001b[32m\"\u001b[7m仍需\u001b[27m运行时核定\"\u001b[39m\nReceived string: \u001b[31m\"\u001b[7m阶段绑定配置 · 调用条件待\u001b[27m运行时核定\"\u001b[39m\nTimeout: 5000ms\n\nCall log:\n\u001b[2m  - Expect \"toContainText\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('.preview-status')\u001b[22m\n\u001b[2m    9 × locator resolved to <p data-v-546242ad=\"\" class=\"preview-status\">…</p>\u001b[22m\n\u001b[2m      - unexpected value \"阶段绑定配置 · 调用条件待运行时核定\"\u001b[22m\n",
+        "errorLocation": {
+          "file": "/workspace/opencode-loopper-react-full/frontend/e2e/roles.spec.ts",
+          "column": 53,
+          "line": 151
+        },
+        "artifacts": [
+          {
+            "name": "screenshot",
+            "contentType": "image/png",
+            "path": "/workspace/react-full-w0-evidence/historical-before-browser/roles-tech-blue-390px-角色权限预估可读且布局不重叠-local-chrome/test-failed-1.png"
+          },
+          {
+            "name": "error-context",
+            "contentType": "text/markdown",
+            "path": "/workspace/react-full-w0-evidence/historical-before-browser/roles-tech-blue-390px-角色权限预估可读且布局不重叠-local-chrome/error-context.md"
+          },
+          {
+            "name": "trace",
+            "contentType": "application/zip",
+            "path": "/workspace/react-full-w0-evidence/historical-before-browser/roles-tech-blue-390px-角色权限预估可读且布局不重叠-local-chrome/trace.zip"
+          }
+        ],
+        "durationMs": 6995
+      },
+      "after": {
+        "status": "PASS",
+        "command": "PLAYWRIGHT_CHROME_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_JSON_OUTPUT_NAME=/workspace/react-full-w0-evidence/historical-after-results.json ./node_modules/.bin/playwright test database-progress.spec.ts document-template-tasks.spec.ts read-consistency.spec.ts roles.spec.ts --workers=1 --output=/workspace/react-full-w0-evidence/historical-after-browser --reporter=list,json",
+        "exitCode": 1,
+        "playwrightStatus": "passed",
+        "failedAssertion": null,
+        "errorLocation": null,
+        "artifacts": [
+          {
+            "name": "角色页视觉证据",
+            "contentType": "image/png",
+            "path": "/workspace/react-full-w0-evidence/historical-after-browser/roles-tech-blue-390px-角色权限预估可读且布局不重叠-local-chrome/attachments/角色页视觉证据-1b6b48546142a6962b7ae9b248902150ce69441e.png"
+          }
+        ],
+        "durationMs": 1485,
+        "sourceSha256": "dc4455d5da8230e507e234ea833a657a3c4f1bb1fbbc184a2854a66404f1c12d"
+      },
+      "baselineSourceSha256": "b3d48eb64ab8c80f9ca4a448fff7bc3704a0da97ddea156be9d2ea2054286330",
+      "remainingCoverage": "完整浏览器case已越过首错执行；模拟API不证明真实后端、数据库连接或模型/File解析。",
+      "currentScope": {
+        "status": "OUT_OF_SCOPE",
+        "viewport": {
+          "width": 390,
+          "height": 900
+        },
+        "reason": "User withdrew narrow-screen design/adaptation acceptance after the frozen W0 run; retain this executed case as historical evidence only.",
+        "assertionsPreserved": true,
+        "rawResultPreserved": true
+      }
+    },
+    {
+      "id": "HF-ROLE-github-white-1440",
+      "file": "frontend/e2e/roles.spec.ts",
+      "title": "github-white 1440px 角色权限预估可读且布局不重叠",
+      "historicalFailure": "旧仍需运行时核定文案失配",
+      "preservedContracts": [
+        "CONFIG_ONLY/complete=false",
+        "limitations and tool source",
+        "required tools",
+        "no horizontal overflow",
+        "two-column/mobile no overlap"
+      ],
+      "reactMapping": "W2 RoleManagement",
+      "classification": "STALE_EXPECTATION",
+      "before": {
+        "status": "FAIL",
+        "command": "PLAYWRIGHT_CHROME_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_JSON_OUTPUT_NAME=/workspace/react-full-w0-evidence/historical-before-results.json ./node_modules/.bin/playwright test database-progress.spec.ts document-template-tasks.spec.ts read-consistency.spec.ts roles.spec.ts --grep '数据库分区配置|文档评审上传重试|自动化页面显示检测失败|角色权限预估' --workers=1 --output=/workspace/react-full-w0-evidence/historical-before-browser --reporter=list,json",
+        "exitCode": 1,
+        "playwrightStatus": "failed",
+        "failedAssertion": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.preview-status')\nExpected string: \u001b[32m\"\u001b[7m仍需\u001b[27m运行时核定\"\u001b[39m\nReceived string: \u001b[31m\"\u001b[7m阶段绑定配置 · 调用条件待\u001b[27m运行时核定\"\u001b[39m\nTimeout: 5000ms\n\nCall log:\n\u001b[2m  - Expect \"toContainText\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('.preview-status')\u001b[22m\n\u001b[2m    9 × locator resolved to <p data-v-546242ad=\"\" class=\"preview-status\">…</p>\u001b[22m\n\u001b[2m      - unexpected value \"阶段绑定配置 · 调用条件待运行时核定\"\u001b[22m\n",
+        "errorLocation": {
+          "file": "/workspace/opencode-loopper-react-full/frontend/e2e/roles.spec.ts",
+          "column": 53,
+          "line": 151
+        },
+        "artifacts": [
+          {
+            "name": "screenshot",
+            "contentType": "image/png",
+            "path": "/workspace/react-full-w0-evidence/historical-before-browser/roles-github-white-1440px-角色权限预估可读且布局不重叠-local-chrome/test-failed-1.png"
+          },
+          {
+            "name": "error-context",
+            "contentType": "text/markdown",
+            "path": "/workspace/react-full-w0-evidence/historical-before-browser/roles-github-white-1440px-角色权限预估可读且布局不重叠-local-chrome/error-context.md"
+          },
+          {
+            "name": "trace",
+            "contentType": "application/zip",
+            "path": "/workspace/react-full-w0-evidence/historical-before-browser/roles-github-white-1440px-角色权限预估可读且布局不重叠-local-chrome/trace.zip"
+          }
+        ],
+        "durationMs": 7141
+      },
+      "after": {
+        "status": "PASS",
+        "command": "PLAYWRIGHT_CHROME_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_JSON_OUTPUT_NAME=/workspace/react-full-w0-evidence/historical-after-results.json ./node_modules/.bin/playwright test database-progress.spec.ts document-template-tasks.spec.ts read-consistency.spec.ts roles.spec.ts --workers=1 --output=/workspace/react-full-w0-evidence/historical-after-browser --reporter=list,json",
+        "exitCode": 1,
+        "playwrightStatus": "passed",
+        "failedAssertion": null,
+        "errorLocation": null,
+        "artifacts": [
+          {
+            "name": "角色页视觉证据",
+            "contentType": "image/png",
+            "path": "/workspace/react-full-w0-evidence/historical-after-browser/roles-github-white-1440px-角色权限预估可读且布局不重叠-local-chrome/attachments/角色页视觉证据-592aa5f3e0fdaaeaf021a73d00fee4e0ac702507.png"
+          }
+        ],
+        "durationMs": 1538,
+        "sourceSha256": "dc4455d5da8230e507e234ea833a657a3c4f1bb1fbbc184a2854a66404f1c12d"
+      },
+      "baselineSourceSha256": "b3d48eb64ab8c80f9ca4a448fff7bc3704a0da97ddea156be9d2ea2054286330",
+      "remainingCoverage": "完整浏览器case已越过首错执行；模拟API不证明真实后端、数据库连接或模型/File解析。",
+      "currentScope": {
+        "status": "IN_SCOPE_DESKTOP",
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "reason": "Desktop behavior/compatibility contract remains in current scope.",
+        "assertionsPreserved": true,
+        "rawResultPreserved": true
+      }
+    },
+    {
+      "id": "HF-ROLE-github-white-390",
+      "file": "frontend/e2e/roles.spec.ts",
+      "title": "github-white 390px 角色权限预估可读且布局不重叠",
+      "historicalFailure": "旧仍需运行时核定文案失配",
+      "preservedContracts": [
+        "CONFIG_ONLY/complete=false",
+        "limitations and tool source",
+        "required tools",
+        "no horizontal overflow",
+        "two-column/mobile no overlap"
+      ],
+      "reactMapping": "W2 RoleManagement",
+      "classification": "STALE_EXPECTATION",
+      "before": {
+        "status": "FAIL",
+        "command": "PLAYWRIGHT_CHROME_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_JSON_OUTPUT_NAME=/workspace/react-full-w0-evidence/historical-before-results.json ./node_modules/.bin/playwright test database-progress.spec.ts document-template-tasks.spec.ts read-consistency.spec.ts roles.spec.ts --grep '数据库分区配置|文档评审上传重试|自动化页面显示检测失败|角色权限预估' --workers=1 --output=/workspace/react-full-w0-evidence/historical-before-browser --reporter=list,json",
+        "exitCode": 1,
+        "playwrightStatus": "failed",
+        "failedAssertion": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.preview-status')\nExpected string: \u001b[32m\"\u001b[7m仍需\u001b[27m运行时核定\"\u001b[39m\nReceived string: \u001b[31m\"\u001b[7m阶段绑定配置 · 调用条件待\u001b[27m运行时核定\"\u001b[39m\nTimeout: 5000ms\n\nCall log:\n\u001b[2m  - Expect \"toContainText\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('.preview-status')\u001b[22m\n\u001b[2m    9 × locator resolved to <p data-v-546242ad=\"\" class=\"preview-status\">…</p>\u001b[22m\n\u001b[2m      - unexpected value \"阶段绑定配置 · 调用条件待运行时核定\"\u001b[22m\n",
+        "errorLocation": {
+          "file": "/workspace/opencode-loopper-react-full/frontend/e2e/roles.spec.ts",
+          "column": 53,
+          "line": 151
+        },
+        "artifacts": [
+          {
+            "name": "screenshot",
+            "contentType": "image/png",
+            "path": "/workspace/react-full-w0-evidence/historical-before-browser/roles-github-white-390px-角色权限预估可读且布局不重叠-local-chrome/test-failed-1.png"
+          },
+          {
+            "name": "error-context",
+            "contentType": "text/markdown",
+            "path": "/workspace/react-full-w0-evidence/historical-before-browser/roles-github-white-390px-角色权限预估可读且布局不重叠-local-chrome/error-context.md"
+          },
+          {
+            "name": "trace",
+            "contentType": "application/zip",
+            "path": "/workspace/react-full-w0-evidence/historical-before-browser/roles-github-white-390px-角色权限预估可读且布局不重叠-local-chrome/trace.zip"
+          }
+        ],
+        "durationMs": 7330
+      },
+      "after": {
+        "status": "PASS",
+        "command": "PLAYWRIGHT_CHROME_EXECUTABLE=/usr/bin/chromium PLAYWRIGHT_JSON_OUTPUT_NAME=/workspace/react-full-w0-evidence/historical-after-results.json ./node_modules/.bin/playwright test database-progress.spec.ts document-template-tasks.spec.ts read-consistency.spec.ts roles.spec.ts --workers=1 --output=/workspace/react-full-w0-evidence/historical-after-browser --reporter=list,json",
+        "exitCode": 1,
+        "playwrightStatus": "passed",
+        "failedAssertion": null,
+        "errorLocation": null,
+        "artifacts": [
+          {
+            "name": "角色页视觉证据",
+            "contentType": "image/png",
+            "path": "/workspace/react-full-w0-evidence/historical-after-browser/roles-github-white-390px-角色权限预估可读且布局不重叠-local-chrome/attachments/角色页视觉证据-c3dc4b34a132c1ebb615b12eea8f3283d04dd7e9.png"
+          }
+        ],
+        "durationMs": 1409,
+        "sourceSha256": "dc4455d5da8230e507e234ea833a657a3c4f1bb1fbbc184a2854a66404f1c12d"
+      },
+      "baselineSourceSha256": "b3d48eb64ab8c80f9ca4a448fff7bc3704a0da97ddea156be9d2ea2054286330",
+      "remainingCoverage": "完整浏览器case已越过首错执行；模拟API不证明真实后端、数据库连接或模型/File解析。",
+      "currentScope": {
+        "status": "OUT_OF_SCOPE",
+        "viewport": {
+          "width": 390,
+          "height": 900
+        },
+        "reason": "User withdrew narrow-screen design/adaptation acceptance after the frozen W0 run; retain this executed case as historical evidence only.",
+        "assertionsPreserved": true,
+        "rawResultPreserved": true
+      }
+    }
+  ],
+  "browserVersion": "Chromium 151.0.7922.173 built on Debian GNU/Linux 13 (trixie)",
+  "afterSourceSha256": {
+    "frontend/e2e/database-progress.spec.ts": "32e7672d4bde19fc50c66b5577a6a688f00d1bc6c9e667743fb5bfd7d11ea94d",
+    "frontend/e2e/document-template-tasks.spec.ts": "a182139a9f1442df560839146451df4357116eeb22c5605648bd0357d8075315",
+    "frontend/e2e/read-consistency.spec.ts": "739be36043330ecb24e1a6f96a3686cbbe6c185da3eccc18526816f83575a649",
+    "frontend/e2e/roles.spec.ts": "dc4455d5da8230e507e234ea833a657a3c4f1bb1fbbc184a2854a66404f1c12d",
+    "frontend/src/components/DatabaseConnectionDrawer.vue": "984180ce41b98816ce4caf39116df9ce0e6d4d67b69adcb06943be60c190c85d",
+    "frontend/src/views/RoleManagementView.vue": "ffbc197af70d198cc1178a661c9950331f3939db0543b54aa77516500dfb612c",
+    "frontend/src/router/index.ts": "5fb11830ca2f6af68d44b2384328f15e511efc7644aca8477b0925872a855e96",
+    "frontend/src/components/AutomationHealth.vue": "2a0e04a4a6a45107d746c70cc5e8c10b261d889d19c823352334916441711fea",
+    "frontend/src/components/AutomationHealth.spec.ts": "ea968ea19b2cc7f09faa8e35279c00cf0473d2ffd7884b3b717edc2a359e20d2",
+    "frontend/src/api/client.ts": "089fbac370eae83e99212f42b22734ef5d57d3d7aa8f68eef9a44a7e6934ec64"
+  },
+  "pureHealthRun": {
+    "command": "./node_modules/.bin/vitest run src/components/AutomationHealth.spec.ts src/api/client.spec.ts -t 'distinguishes never checked, failure and recovered detection from rule enablement|automation detection health' --maxWorkers=1 --reporter=verbose --reporter=json --outputFile.json=/workspace/react-full-w0-evidence/historical-health-results.json",
+    "cwd": "/workspace/opencode-loopper-react-full/frontend",
+    "exitCode": 0,
+    "selectedPassed": 2,
+    "selectedFailed": 0,
+    "unselectedByNameFilter": 76,
+    "newSkipCode": false,
+    "scope": "existing health parser and Vue component props contract; no current route consumer",
+    "tests": [
+      {
+        "name": "automation detection health preserves detection errors and recovery timestamps without inventing unchecked success",
+        "status": "passed",
+        "source": "/workspace/opencode-loopper-react-full/frontend/src/api/client.spec.ts"
+      },
+      {
+        "name": "distinguishes never checked, failure and recovered detection from rule enablement",
+        "status": "passed",
+        "source": "/workspace/opencode-loopper-react-full/frontend/src/components/AutomationHealth.spec.ts"
+      }
+    ],
+    "report": "/workspace/react-full-w0-evidence/historical-health-results.json",
+    "reportSha256": "f44cbbd702a129bce86c00733725a818f7be51a14944b07b832feba2d949eb83",
+    "log": "/workspace/react-full-w0-evidence/historical-health.log",
+    "logSha256": "b3f3cc3308cf1391465425d80f37881beb55795f51dbe77aa3a542c33a3e0cb1"
+  },
+  "relatedCases": [
+    {
+      "title": "较晚返回的旧筛选响应不能替换当前列表",
+      "file": "read-consistency.spec.ts",
+      "status": "passed",
+      "currentScope": {
+        "status": "IN_SCOPE_DESKTOP",
+        "scopeRecordId": "RELATED-1",
+        "viewport": {
+          "width": 1280,
+          "height": 720
+        },
+        "assertionsPreserved": true,
+        "rawResultPreserved": true
+      }
+    },
+    {
+      "title": "退役自动化深链和刷新进入模板任务，不读取或重开历史自动化写入口",
+      "file": "read-consistency.spec.ts",
+      "status": "passed",
+      "currentScope": {
+        "status": "IN_SCOPE_DESKTOP",
+        "scopeRecordId": "RELATED-2",
+        "viewport": {
+          "width": 1280,
+          "height": 720
+        },
+        "assertionsPreserved": true,
+        "rawResultPreserved": true
+      }
+    },
+    {
+      "title": "深层路由、静态模板、历史版本与差异在重载后可重新查看",
+      "file": "roles.spec.ts",
+      "status": "passed",
+      "currentScope": {
+        "status": "IN_SCOPE_DESKTOP",
+        "scopeRecordId": "RELATED-3",
+        "viewport": {
+          "width": 1280,
+          "height": 720
+        },
+        "assertionsPreserved": true,
+        "rawResultPreserved": true
+      }
+    },
+    {
+      "title": "导入失败保留 ZIP，绑定冲突后重新校验并使用新的预期版本发布",
+      "file": "roles.spec.ts",
+      "status": "passed",
+      "currentScope": {
+        "status": "IN_SCOPE_DESKTOP",
+        "scopeRecordId": "RELATED-4",
+        "viewport": {
+          "width": 1280,
+          "height": 720
+        },
+        "assertionsPreserved": true,
+        "rawResultPreserved": true
+      }
+    },
+    {
+      "title": "角色列表无网络时可重试，空结果与未选角色有明确状态",
+      "file": "roles.spec.ts",
+      "status": "passed",
+      "currentScope": {
+        "status": "IN_SCOPE_DESKTOP",
+        "scopeRecordId": "RELATED-5",
+        "viewport": {
+          "width": 1280,
+          "height": 720
+        },
+        "assertionsPreserved": true,
+        "rawResultPreserved": true
+      }
+    },
+    {
+      "title": "桌面双栏独立滚动且分页常驻，工具权限可各自折叠",
+      "file": "roles.spec.ts",
+      "status": "passed",
+      "currentScope": {
+        "status": "IN_SCOPE_DESKTOP",
+        "scopeRecordId": "RELATED-6",
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "assertionsPreserved": true,
+        "rawResultPreserved": true
+      }
+    },
+    {
+      "title": "spdb 角色流程采用真实ReactFlow且版本入口可达（模拟数据）",
+      "file": "roles.spec.ts",
+      "status": "passed",
+      "currentScope": {
+        "status": "IN_SCOPE_DESKTOP",
+        "scopeRecordId": "RELATED-7",
+        "viewport": {
+          "width": 1440,
+          "height": 1000
+        },
+        "assertionsPreserved": true,
+        "rawResultPreserved": true
+      }
+    },
+    {
+      "title": "tech-blue 角色流程采用真实ReactFlow且版本入口可达（模拟数据）",
+      "file": "roles.spec.ts",
+      "status": "passed",
+      "currentScope": {
+        "status": "IN_SCOPE_DESKTOP",
+        "scopeRecordId": "RELATED-8",
+        "viewport": {
+          "width": 1440,
+          "height": 1000
+        },
+        "assertionsPreserved": true,
+        "rawResultPreserved": true
+      }
+    },
+    {
+      "title": "github-white 角色流程采用真实ReactFlow且版本入口可达（模拟数据）",
+      "file": "roles.spec.ts",
+      "status": "passed",
+      "currentScope": {
+        "status": "IN_SCOPE_DESKTOP",
+        "scopeRecordId": "RELATED-9",
+        "viewport": {
+          "width": 1440,
+          "height": 1000
+        },
+        "assertionsPreserved": true,
+        "rawResultPreserved": true
+      }
+    }
+  ],
+  "summary": {
+    "beforeOriginal": {
+      "passed": 0,
+      "failed": 11,
+      "skipped": 0
+    },
+    "afterOriginal": {
+      "passed": 10,
+      "failed": 1,
+      "skipped": 0
+    },
+    "afterRelatedBrowserTotal": {
+      "passed": 19,
+      "failed": 1,
+      "skipped": 0,
+      "flaky": 0
+    },
+    "additionalRedirect": {
+      "passed": 1,
+      "failed": 0
+    },
+    "originalRelatedOthers": {
+      "passed": 8,
+      "failed": 0
+    },
+    "pureHealthSelectedUnit": {
+      "passed": 2,
+      "failed": 0
+    },
+    "classifications": {
+      "STALE_EXPECTATION": 9,
+      "FIXTURE_ENV": 2
+    },
+    "productionGate": "BLOCKED_CURRENT_MISSING_AUTOMATION_HEALTH_CONSUMER",
+    "productionChanges": false,
+    "backendChanges": false,
+    "testSkipsAdded": false,
+    "rootCausePresentation": {
+      "staleFieldOrTextExpectation": 8,
+      "fixtureEnvironment": 2,
+      "compoundStaleRouteAndMissingConsumer": 1
+    },
+    "currentDesktopScope": {
+      "policy": "Desktop only per latest user steering; preserve previously executed narrow cases as OUT_OF_SCOPE historical evidence, do not delete tests/assertions or rerun W0.",
+      "original11": {
+        "inScopeDesktop": {
+          "total": 6,
+          "beforePassed": 0,
+          "beforeFailed": 6,
+          "afterPassed": 5,
+          "afterFailed": 1
+        },
+        "historicalOutOfScope390": {
+          "total": 5,
+          "beforePassed": 0,
+          "beforeFailed": 5,
+          "afterPassed": 5,
+          "afterFailed": 0
+        }
+      },
+      "after20": {
+        "inScopeDesktop": {
+          "total": 15,
+          "passed": 14,
+          "failed": 1
+        },
+        "historicalOutOfScope390": {
+          "total": 5,
+          "passed": 5,
+          "failed": 0
+        }
+      },
+      "after20ByViewport": [
+        {
+          "width": 1280,
+          "height": 720,
+          "scope": "IN_SCOPE_DESKTOP",
+          "total": 6,
+          "passed": 5,
+          "failed": 1
+        },
+        {
+          "width": 1440,
+          "height": 900,
+          "scope": "IN_SCOPE_DESKTOP",
+          "total": 4,
+          "passed": 4,
+          "failed": 0
+        },
+        {
+          "width": 1440,
+          "height": 1000,
+          "scope": "IN_SCOPE_DESKTOP",
+          "total": 5,
+          "passed": 5,
+          "failed": 0
+        },
+        {
+          "width": 390,
+          "height": 900,
+          "scope": "OUT_OF_SCOPE",
+          "total": 3,
+          "passed": 3,
+          "failed": 0
+        },
+        {
+          "width": 390,
+          "height": 1000,
+          "scope": "OUT_OF_SCOPE",
+          "total": 2,
+          "passed": 2,
+          "failed": 0
+        }
+      ],
+      "viewportBasis": [
+        "frontend/e2e/database-progress.spec.ts:24 and document-template-tasks.spec.ts:37 explicit viewport",
+        "frontend/e2e/roles.spec.ts:144,175,223 explicit viewport; other cases preserve default Desktop Chrome",
+        "frontend/playwright.config.ts uses devices[Desktop Chrome]; installed playwright-core/lib/server/deviceDescriptorsSource.json defines 1280x720"
+      ],
+      "pureHealthUnit": {
+        "total": 2,
+        "passed": 2,
+        "scope": "IN_SCOPE_CONTRACT_NO_VIEWPORT",
+        "doesNotProveCurrentUIConsumer": true
+      },
+      "rawRunsUnchanged": true,
+      "testsChangedForScopeSteering": false,
+      "newNarrowAcceptanceAdded": false
+    }
+  }
+}

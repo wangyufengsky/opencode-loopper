@@ -148,7 +148,7 @@ for (const skin of skins.map(item => item.id)) {
       await expect(page.locator('html')).toHaveAttribute('data-skin', skin)
       await selectRole(page)
       await page.getByRole('button', { name: '权限与 MCP' }).click()
-      await expect(page.locator('.preview-status')).toContainText('仍需运行时核定')
+      await expect(page.locator('.preview-status')).toHaveText('阶段绑定配置 · 调用条件待运行时核定')
       await expect(page.locator('.limitations')).toContainText('工具目录及项目授权要在会话创建时核定。')
       await expect(page.locator('.detail-section .tool-list').last()).toContainText('mcp__loopper__read_package')
       await expect(page.locator('.detail-section .tool-list').last()).toContainText('配置声明')
