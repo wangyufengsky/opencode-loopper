@@ -9,14 +9,23 @@ const usage = { inputTokens: null, outputTokens: null, totalTokens: null, unknow
 const slot = 'PACKAGE_DESIGN_CANDIDATE_V2_READ_ONLY'
 export const role = { roleId: 'builtin.package-designer', displayName: '工作包设计师 · 模拟', description: '整理工作包设计', origin: 'BUILTIN', latestRevisionId: 'revision-2', latestRevisionNumber: 2, activeSlots: [slot], groupKey: 'package-designer', groupLabel: '工作包设计师' }
 const task = { id: 'w2-task', title: '报表核对任务 · 模拟', goal: '核对报表', goalPreview: '核对报表', projectId: project.id, projectName: project.name, status: 'SUCCEEDED', executionMode: 'WORKTREE', version: 3, archived: false, attemptCount: 1, maxAttempts: 3, hasDesignHistory: true, branch: 'main', createdAt: '2026-10-03T00:00:00Z', updatedAt: '2026-10-03T00:00:00Z' }
-export async function productFixture(page: Page, write?: (route: Route) => Promise<void>) {
+export async function productFixture(page: Page, write?: (route: Route) => Promise<void>, options: { nativeTaskStreams?: boolean } = {}) {
   const errors: string[] = [], unexpected: string[] = [], requests: { method: string; path: string; body: string | null }[] = []
   page.on('pageerror', error => errors.push(error.message))
-  await page.addInitScript(() => {
+  await page.addInitScript(options => {
     const streams = { opened: [] as string[], closed: [] as string[] }; (window as unknown as { __w2Streams: typeof streams }).__w2Streams = streams
     class SimulatedStream extends EventTarget { onopen: ((event: Event) => void) | null = null; onmessage = null; onerror = null; readyState = 1; constructor(readonly url: string) { super(); streams.opened.push(url); queueMicrotask(() => this.onopen?.(new Event('open'))) } close() { this.readyState = 2; streams.closed.push(this.url) } }
-    window.EventSource = SimulatedStream as unknown as typeof EventSource
-  })
+    const Native = window.EventSource
+    class RecordedTaskStream extends Native {
+      constructor(url: string | URL, config?: EventSourceInit) { super(url, config); streams.opened.push(String(url)) }
+      close() { if (this.readyState !== Native.CLOSED) streams.closed.push(this.url.replace(location.origin, '')); super.close() }
+    }
+    // Test transport option only: the real browser owns Task reconnect/cursor.
+    // Existing W2/W3 fixtures retain their original simulated streams unchanged.
+    window.EventSource = (options.nativeTaskStreams ? class {
+      constructor(url: string | URL, config?: EventSourceInit) { return /\/api\/tasks\/[^/]+\/events(?:\?|$)/.test(String(url)) ? new RecordedTaskStream(url, config) : new SimulatedStream(String(url)) }
+    } : SimulatedStream) as unknown as typeof EventSource
+  }, options)
   await page.route('**/*', async route => {
     const url = new URL(route.request().url())
     if (!['127.0.0.1', 'localhost'].includes(url.hostname)) { unexpected.push(`external ${url.origin}`); return route.abort('blockedbyclient') }

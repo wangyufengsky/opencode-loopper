@@ -1,0 +1,7 @@
+.loopper-foundation .w4-history-selection { display: grid; grid-template-columns: 244px minmax(0, 1fr); gap: 20px; align-items: start; }
+.loopper-foundation .w4-history-selection .ui-context-panel { width: auto; max-width: none; min-width: 0; }
+.loopper-foundation .w4-history-selection .ui-selectable-list { padding: 0; list-style: none; }
+.loopper-foundation .w4-history-selection .ui-selectable-list button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 14px; text-align: left; }
+.loopper-foundation .w4-history-selection article { min-width: 0; padding-block: 12px; }
+.loopper-foundation .w4-history-sha, .loopper-foundation .w4-history-selection pre { overflow-wrap: anywhere; white-space: pre-wrap; }
+.loopper-foundation .w4-history-selection .ui-context-panel > section { padding: 16px; }

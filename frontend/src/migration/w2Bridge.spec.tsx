@@ -6,6 +6,7 @@ import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import { createMemoryHistory, createRouter, RouterView, type Router } from 'vue-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import W2RouteBridge from './W2RouteBridge.vue'
+import type { ReactViewHost } from './reactViewLifecycle'
 import { useLeaveGuard, useRetainedOwner } from '@/pages/w2/shared'
 import type { W2LeaveGuard, W2PageProps } from '@/pages/w2/shared/types'
 import { createOperationOwner } from '@/foundation/contracts/receipt'
@@ -61,6 +62,38 @@ afterEach(async () => {
   document.body.innerHTML = ''; vi.restoreAllMocks(); vi.unstubAllGlobals(); applySkin('spdb')
 })
 describe('W2 actual Vue history / React lifetime boundary', () => {
+  it.each(['pending', 'unknown', 'dirty'])('public instance disposal refuses %s without releasing original owners or writes', async kind => {
+    const { root } = await setup()
+    risk = () => kind === 'dirty' ? { kind: 'CONFIRM_DISCARD', description: '保留原草稿', draftRevision: 1 } : { kind: 'BLOCK', reason: '保留原操作', recoveryAction: '恢复原操作' }
+    const instance = root.findComponent(W2RouteBridge).vm as unknown as { disposeIfSafe(): boolean }
+    const host = root.find('[data-w2-route-bridge]').element as ReactViewHost
+    expect(host.reactViewLifecycle?.disposeIfSafe).toBe(instance.disposeIfSafe)
+    expect(host.reactViewLifecycle!.disposeIfSafe()).toBe(false)
+    expect(attached).toBe(1); expect(retired).toBe(0); expect(written).toBe(0)
+    expect(document.body.textContent).toContain('React production island')
+  })
+  it('public safe disposal immediately unmounts only its React root and cannot remount or write on theme changes', async () => {
+    const { root, router } = await setup()
+    const instance = root.findComponent(W2RouteBridge).vm as unknown as { disposeIfSafe(): boolean }
+    const host = root.find('[data-w2-route-bridge]').element as ReactViewHost
+    expect(Object.isFrozen(host.reactViewLifecycle)).toBe(true)
+    expect(Object.getOwnPropertyDescriptor(host, 'reactViewLifecycle')).toEqual({ value: host.reactViewLifecycle, writable: false, enumerable: false, configurable: true })
+    expect(host.reactViewLifecycle?.disposeIfSafe).toBe(instance.disposeIfSafe)
+    await act(async () => { expect(host.reactViewLifecycle!.disposeIfSafe()).toBe(true) })
+    expect(attached).toBe(0); expect(retired).toBe(1); expect(written).toBe(0)
+    await act(async () => { props.setSkin('github-white'); await flushPromises() })
+    expect(attached).toBe(0); expect(retired).toBe(1); expect(written).toBe(0)
+    expect(instance.disposeIfSafe()).toBe(true); expect(retired).toBe(1)
+    await move(router, '/exit'); expect(host.reactViewLifecycle).toBeUndefined()
+  })
+  it('public disposal reports a failing owner while still releasing this React root and all remaining owners', async () => {
+    const { root } = await setup(); cleanupThrows = true
+    const instance = root.findComponent(W2RouteBridge).vm as unknown as { disposeIfSafe(): boolean }
+    await act(async () => { expect(instance.disposeIfSafe()).toBe(false); await flushPromises() })
+    expect(attached).toBe(0); expect(retired).toBe(1); expect(written).toBe(0)
+    expect(document.body.textContent).toContain('页面资源未完全释放')
+    expect(instance.disposeIfSafe()).toBe(false); expect(retired).toBe(1)
+  })
   it.each(['/template-tasks', '/template-tasks/document-runs/doc-original', '/template-tasks/source-runs/source-original', '/knowledge', '/knowledge/conversation-original', '/ppt/ppt-original'])('W3 real history route %s forwards original params and holds the same owner across theme and blocked navigation', async path => {
     const { router } = await setup(path)
     expect(props.route.fullPath).toBe(path)

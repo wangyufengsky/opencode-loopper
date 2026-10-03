@@ -1,4 +1,5 @@
 import { subscribeTaskEvents, type TaskEventStream } from '@/api/client'
+import { OwnedResourceCleanupError } from '@/foundation/contracts/resource'
 import type { TaskEvent } from '@/types/domain'
 
 /** Owns one subscription and its two independent coalescing timers. */
@@ -17,12 +18,17 @@ export function createTaskEventSubscription(handlers: {
 
   function stop() {
     generation += 1
-    stream?.close()
+    const previous = stream
     stream = undefined
     if (snapshotTimer !== undefined) window.clearTimeout(snapshotTimer)
     if (auditTimer !== undefined) window.clearTimeout(auditTimer)
     snapshotTimer = auditTimer = undefined
-    handlers.state('idle')
+    // Invalidate and clear both independent timers even if native close or a
+    // consumer notification fails. This subscription owns no other resources.
+    const failures: unknown[] = []
+    try { previous?.close() } catch (cause) { failures.push(cause) }
+    try { handlers.state('idle') } catch (cause) { failures.push(cause) }
+    if (failures.length) throw new OwnedResourceCleanupError(failures)
   }
 
   function watch(id: string) {

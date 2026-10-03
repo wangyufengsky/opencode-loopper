@@ -1,0 +1,5 @@
+import { UiActionButton,UiConfirmDialog } from '@/foundation/components'
+import type { PanelState } from './owner'
+import { CommandNotice,ReadNotice } from '../shared/parts'
+export function PanelNotice({state,owner}:{state:Readonly<PanelState>;owner:{recover():Promise<void>;confirmationValid():boolean;acceptConfirmation():Promise<void>;cancelConfirmation():void}}){return <><ReadNotice loading={state.loading} error={state.error}/><CommandNotice command={state.command} recover={()=>void owner.recover()}/><UiConfirmDialog open={!!state.confirmation} title={state.confirmation?.title||'确认操作'} confirmActionKey={state.confirmation?.actionKey||'ui.save'} onConfirm={()=>void owner.acceptConfirmation()} onCancel={owner.cancelConfirmation} policy={owner.confirmationValid()?{kind:'allow'}:{kind:'block',reason:'原草稿、目标或版本已变化，请返回核对。'}}>{state.confirmation?.description}</UiConfirmDialog></>}
+export function ReadOriginal({load}:{load:()=>Promise<unknown>}){return <UiActionButton actionKey="ui.refresh" onAction={()=>void load()}/>}

@@ -1,10 +1,10 @@
 # 全站 React 迁移：第二阶段规划与设计审查
 
-**W0取证及W1有限范围已冻结；W2已有限验收；项目经理已批准W3模板、Knowledge、PPT和历史只读消费者本地实施。W4及后续未批准。** 设计发布授权已执行完毕，没有新增push/PR/merge/deploy授权。当前可看[桌面五类页×三皮肤28图与单HTML](prototype/desktop-v2/README.md)、[W0固定证据](evidence/w0/README.md)、[W1实现与验证](evidence/w1/README.md)、[W2生产迁移与验证](evidence/w2/README.md)及[W3生产迁移与验证](evidence/w3/README.md)。原[29图](prototype/README.md)保留历史。
+**W0取证及W1有限范围已冻结；W2/W3已有限验收；项目经理批准的W4 Task、Inbox、Recovery已完成本地有限验收。W5及后续未批准。** 设计发布授权已执行完毕，没有新增push/PR/merge/deploy授权。当前可看[桌面五类页×三皮肤28图与单HTML](prototype/desktop-v2/README.md)、[W0固定证据](evidence/w0/README.md)、[W1实现与验证](evidence/w1/README.md)、[W2生产迁移与验证](evidence/w2/README.md)、[W3生产迁移与验证](evidence/w3/README.md)及[W4生产迁移、27张三皮肤图与验证](evidence/w4/README.md)。原[29图](prototype/README.md)保留历史。
 
 **结论：先按现代产品设计翻新壳、导航和信息层级，再按模块迁移页面与业务所有者，最后彻底移除 Vue。** 保留第一阶段已验证的 React Flow、PPT、Mermaid 画布，以及API／DTO和纯TypeScript协议；主要基础UI选择Ant Design，产品设计不会照搬库默认样式。临时路由／状态适配器只服务过渡，不作为最终交付。
 
-规划及设计已交付；项目经理实际预览五类页面与三皮肤代表状态，候选方向原则认可。本轮在设计基线 `008542f0bf02dc1c1b76f1e75429aab8452b797d` 执行 W0 取证，**W0取证冻结、W1有限基础工程通过；现批准W3本地实施，W4+未批准**。第一阶段基线 `a3c692d38925206883f2b0a1255479108cfd439e`，独立分支 `feat/react-full-migration`，工作区 `/workspace/opencode-loopper-react-full`。第一阶段成果及原29图保留。W1已正式锁定Ant 6.6.5；新增隔离基础组件、纯TS owner和测试入口，没有修改既有页面、history owner、Vue/Pinia入口或已验收画布。main、网络和凭据未改。桌面原型与真实React/Ant测试入口分别验收。用户已撤回所有窄屏要求；旧窄屏方案/图/断言只保留历史，当前桌面与统一语义规范见下方新增入口。
+规划及设计已交付；项目经理实际预览五类页面与三皮肤代表状态，候选方向原则认可。本轮在设计基线 `008542f0bf02dc1c1b76f1e75429aab8452b797d` 执行 W0 取证，**W0取证冻结、W1有限基础工程通过；W3已验收、W4本地有限验收完成；W5+未批准**。第一阶段基线 `a3c692d38925206883f2b0a1255479108cfd439e`，独立分支 `feat/react-full-migration`，工作区 `/workspace/opencode-loopper-react-full`。第一阶段成果及原29图保留。W1已正式锁定Ant 6.6.5；新增隔离基础组件、纯TS owner和测试入口，没有修改既有页面、history owner、Vue/Pinia入口或已验收画布。main、网络和凭据未改。桌面原型与真实React/Ant测试入口分别验收。用户已撤回所有窄屏要求；旧窄屏方案/图/断言只保留历史，当前桌面与统一语义规范见下方新增入口。
 
 ## 1. 可审查报告入口
 
@@ -75,7 +75,7 @@
 | `/template-tasks/document-runs/:id` | 文档模板 run | workflow | W3 |
 | `/template-tasks/source-runs/:id` | 源码模板 run | workflow | W3 |
 | `/tasks/:id` | Task 生命周期／输出／问题／制品／阶段图 | legacy | W4 |
-| `/tasks/:id/recovery` | RecoveryStudio 版本／差异／修复草稿 | legacy | W4 |
+| `/tasks/:id/recovery` | RecoveryStudio 原失败上下文／三模式创建／lineage／原child导航 | legacy | W4 |
 | `/tasks/:id/design` | Task 冻结设计历史 | legacy | W4 |
 | `/runtime` | 运行环境／启动重启 owner 校验 | legacy | W2 |
 | `/tools` | 工具、MCP、Skills 与许可投影 | legacy | W2 |
@@ -130,11 +130,11 @@ flowchart TD
 
 ## 6. 开发波次及可验证里程碑
 
-P0（规划盘点）→D0（设计）及补充已交付；W0真实证据已由项目经理认可为完成候选并冻结。W1已有限验收，W2已有限验收，W3现获本地授权。冻结84项W0原红测按对应波次保留断言并转向真实React路径；不扩展W0，不把剩余红测算通过。W4–W7仍待项目经理门禁。
+P0（规划盘点）→D0（设计）及补充已交付；W0真实证据已由项目经理认可为完成候选并冻结。W1–W3已有限验收，W4本地有限验收完成。冻结84项W0原红测按对应波次保留断言并转向真实React路径；不扩展W0，不把剩余W5的41红测算通过。W5–W7仍待项目经理门禁。
 
 | 波次 | 前置依赖与实现范围 | 退出门槛／负责人 |
 | --- | --- | --- |
-| W0 合同与债务基线 | 先结清[B1–B9红测／证据](w0-evidence-ledger.md)、[Automations兼容映射](automations-compatibility-map.md)与原11根因／保留断言；统一PM已决定离开合同，逐项复现静态风险 | 当前尚未通过；每项有红测与后续绿测／根因证据、原断言等价消费者、原数据兼容及独立审查；对应波次保留并修复红证据，不skip/drop；组长集成、原三人交叉审 |
+| W0 合同与债务基线 | 先结清[B1–B9红测／证据](w0-evidence-ledger.md)、[Automations兼容映射](automations-compatibility-map.md)与原11根因／保留断言；统一PM已决定离开合同，逐项复现静态风险 | 取证已冻结，非全部业务已通过；每项有红测与后续绿测／根因证据、原断言等价消费者、原数据兼容及独立审查；对应波次保留并修复红证据，不skip/drop；组长集成、原三人交叉审 |
 | W1 基础 UI 与 owner | Ant tokens、UiButton/Form/Dialog/Table、导航 port、snapshot/controller模式、全局accounting；五类翻新代表页的正式React样例与有用途的CSS动效；纯读scope／receipt contract | 三皮肤、键盘焦点、reduced-motion、pending关闭、输入与草稿保留、双实例/StrictMode；冻结共享接口与实测包体预算；组长主责、原三人复核 |
 | W2 列表／核心系统 | 依分工迁移 Home/Projects/Runtime/Tools/Database/Settings/Roles、列表与历史/Insights | 对应每个 route 首进/深链/refresh/back/empty/error、全部原动作输入输出与权限；相关 unit/Chromium；不以只读列表覆盖隐藏写入弹窗 |
 | W3 文档／知识／PPT | template/Document/Source run、Knowledge会话、PPT页面owner与配套编辑组件 | 原 key/File/multipart/accepted读取/cursor/409/epoch/自动保存/SSE清理；保持已验收 React 内层；对应 store contract + 实页 E2E |
@@ -172,13 +172,13 @@ W2–W5 的故障回退是下一次安全导航选择已验收视图，或回到
 
 普通组件／token／接口取舍已在设计中作出，不再回问用户。项目经理审查并决定：
 
-- **阶段门禁：**W0冻结、W1有限通过、W2已有限验收、W3本地获批；W4及后续页面波次未批准。W1新增失败单列，不能用W0既知红测遮蔽，也不能以W0全绿作为禁止实现W1的循环条件。
+- **阶段门禁：**W0冻结、W1–W3有限通过、W4本地有限验收完成；W5及后续页面波次未批准。W1新增失败单列，不能用W0既知红测遮蔽，也不能以W0全绿作为禁止实现W1的循环条件。
 - **离开策略已决定，勿再回问普通取舍：**pending／unknown写入默认阻离开，直到用原身份核对或恢复到安全状态；accepted后只读／限定已知receipt目标交接。普通dirty／未发送File只能明确confirm后放弃，不自动重发write或换幂等身份。SPA硬阻断与beforeunload提示限制分别披露；无持久化／by-request能力不承诺跨刷新完整恢复。已实施波次的实际恢复入口与测试见对应证据报告；未迁页面不计通过，原型查询只是模拟。详见[设计合同](controller-interfaces.md#3-草稿file与视图的交接)。
-- **W0仍是生产前门禁：**[B1–B9计划](w0-evidence-ledger.md)保留设计时源码风险，[运行证据](evidence/w0/README.md)单列实测分类与原11根因；W0取证当时未修生产，W2/W3按原合同迁移和修复，当前余45红仍独立保留，不用文档或截图当绿测。其它[核心基线差异](core-ui-inventory.md#现存基线差异和待验证合同)沿用同一门槛。
+- **W0仍是生产前门禁：**[B1–B9计划](w0-evidence-ledger.md)保留设计时源码风险，[运行证据](evidence/w0/README.md)单列实测分类与原11根因；W0取证当时未修生产，W2–W4按原合同迁移和修复，当前余41红仍独立保留，不用文档或截图当绿测。其它[核心基线差异](core-ui-inventory.md#现存基线差异和待验证合同)沿用同一门槛。
 - **Automations真实退役边界：**旧view不可达，后端旧写入口明确报LEGACY_AUTOMATION_RETIRED；历史GET／导出仍存在；规划时TemplateTasks没有等价消费者，本轮W3补显式历史归档read/export并有真实React消费者验收。保留redirect、原数据和仍适用读取／安全断言；不复活已退役写入，不因去Vue删历史能力。规划[兼容与归档映射](automations-compatibility-map.md)保留；当前合法消费者、九GET和两导出见[W3专项](evidence/w3/knowledge-catalog-history.md)。
 - **验证交付边界：**如果最后仍无法运行真实后端，允许交付“全React前端及模拟API契约验收”，同时保留真实后端/模型/解析未验证标签；不能批准“全部真实功能已验证”的表述。此项不要求现在测试付费模型。
 
-这些是项目经理的阶段审查议题；当前W3本地实施／有限验证见专项报告，W4及发布仍需项目经理门禁。
+这些是项目经理的阶段审查议题；当前W4本地实施／有限验证见专项报告，W5及发布仍需项目经理门禁。
 
 ## 10. 0717a4a规划提交的历史完成与检查
 
@@ -205,4 +205,8 @@ W2–W5 的故障回退是下一次安全导航选择已验收视图，或回到
 
 ## 当前 W3 本地交付
 
-模板目录及源码／文档运行、Knowledge 新建／已有会话、PPT Studio和明确进入的历史Automations只读归档，见[W3本地报告与实际生产截图](evidence/w3/README.md)。原型、W0／W1／W2报告保留各自时点记录；后续当前结论以W3报告为准。没有新的推送授权，W4及后续仍待项目经理放行。
+模板目录及源码／文档运行、Knowledge 新建／已有会话、PPT Studio和明确进入的历史Automations只读归档，见[W3本地报告与实际生产截图](evidence/w3/README.md)。原型、W0／W1／W2报告保留各自时点记录；当前续接结论以W4报告为准。没有新的推送授权，W5及后续仍待项目经理放行。
+
+## 当前 W4 本地交付
+
+实际 Task详情、冻结设计历史、Inbox、Recovery 四路由及页内审批/处置/发布接入，见[W4本地报告](evidence/w4/README.md)及[三皮肤桌面27图](evidence/w4/screenshots/README.md)。四项B8.2原红转绿；W0仍41项W5失败。最终unit2016/2057通过、41失败，W4真实production browser29/29与44退出首样通过，W1–W3分别回归；准确计数/未测边界见本波报告。W5尚未实施/批准，不发布、不提前history接管或去Vue。

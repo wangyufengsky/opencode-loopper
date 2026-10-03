@@ -1,0 +1,674 @@
+{
+  "schemaVersion": 1,
+  "baseline": "73d851b83c6d392d9f61cbbb93dbd180906d5175",
+  "scope": "W4 existing production actions, no new backend capability",
+  "objects": {},
+  "actions": {
+    "history.previewAttachment": {
+      "label": "安全预览",
+      "name": "安全预览",
+      "icon": "scan-eye",
+      "intent": "history.previewAttachment",
+      "scope": "read",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "history.openOriginal": {
+      "label": "打开原文件",
+      "name": "打开原文件",
+      "icon": "file",
+      "intent": "history.openOriginal",
+      "scope": "read",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "judge.approve": {
+      "label": "人工认定通过",
+      "name": "人工认定通过",
+      "icon": "shield-check",
+      "intent": "judge.approve",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "decision.continue": {
+      "label": "继续当前任务",
+      "name": "继续当前任务",
+      "icon": "play",
+      "intent": "decision.continue",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "decision.inherit": {
+      "label": "新任务继承修改",
+      "name": "新任务继承修改",
+      "icon": "git-branch-plus",
+      "intent": "decision.inherit",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "decision.rework": {
+      "label": "新任务全部重做",
+      "name": "新任务全部重做",
+      "icon": "refresh-ccw",
+      "intent": "decision.rework",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "decision.audit": {
+      "label": "直接审计",
+      "name": "直接审计",
+      "icon": "scan-eye",
+      "intent": "decision.audit",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "decision.accept": {
+      "label": "接受结果",
+      "name": "接受结果",
+      "icon": "check-check",
+      "intent": "decision.accept",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "workspace.refresh": {
+      "label": "刷新文件列表",
+      "name": "刷新文件列表",
+      "icon": "refresh-cw",
+      "intent": "workspace.refresh",
+      "scope": "read",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "workspace.resolve": {
+      "label": "重新检查并继续",
+      "name": "重新检查并继续",
+      "icon": "shield-check",
+      "intent": "workspace.resolve",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "scope.review": {
+      "label": "审阅文件",
+      "name": "审阅文件",
+      "icon": "git-compare-arrows",
+      "intent": "scope.review",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "scope.allow": {
+      "label": "接受此文件",
+      "name": "接受此文件",
+      "icon": "check",
+      "intent": "scope.allow",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "scope.reject": {
+      "label": "拒绝此文件",
+      "name": "拒绝此文件",
+      "icon": "x",
+      "intent": "scope.reject",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "scope.submit": {
+      "label": "确认决定并继续验证",
+      "name": "确认决定并继续验证",
+      "icon": "shield-check",
+      "intent": "scope.submit",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "rolling.approve": {
+      "label": "确认本包设计",
+      "name": "确认本包设计",
+      "icon": "shield-check",
+      "intent": "rolling.approve",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "rolling.start": {
+      "label": "开始本包执行",
+      "name": "开始本包执行",
+      "icon": "play",
+      "intent": "rolling.start",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "rolling.redesign": {
+      "label": "重新设计本包",
+      "name": "重新设计本包",
+      "icon": "refresh-ccw",
+      "intent": "rolling.redesign",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "rolling.resume": {
+      "label": "继续当前包设计",
+      "name": "继续当前包设计",
+      "icon": "play",
+      "intent": "rolling.resume",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "rolling.checkpoint": {
+      "label": "重新检查并释放租约",
+      "name": "重新检查并释放租约",
+      "icon": "lock-keyhole",
+      "intent": "rolling.checkpoint",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "rolling.discuss": {
+      "label": "提交补充讨论",
+      "name": "提交补充讨论",
+      "icon": "send",
+      "intent": "rolling.discuss",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "rolling.failureContinue": {
+      "label": "继续失败候选",
+      "name": "继续失败候选",
+      "icon": "play",
+      "intent": "rolling.failureContinue",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "rolling.failureRedesign": {
+      "label": "回到上一事实点重新设计",
+      "name": "回到上一事实点重新设计",
+      "icon": "rotate-ccw",
+      "intent": "rolling.failureRedesign",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "rolling.aiReplan": {
+      "label": "AI调整剩余拆包",
+      "name": "AI调整剩余拆包",
+      "icon": "sparkles",
+      "intent": "rolling.aiReplan",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "rolling.manualReplan": {
+      "label": "人工调整剩余拆包",
+      "name": "人工调整剩余拆包",
+      "icon": "list-tree",
+      "intent": "rolling.manualReplan",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "rolling.correction": {
+      "label": "新增修正包",
+      "name": "新增修正包",
+      "icon": "plus",
+      "intent": "rolling.correction",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "rolling.propose": {
+      "label": "预览计划影响",
+      "name": "预览计划影响",
+      "icon": "scan-eye",
+      "intent": "rolling.propose",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "rolling.confirmPlan": {
+      "label": "替换未执行包",
+      "name": "替换未执行包",
+      "icon": "check",
+      "intent": "rolling.confirmPlan",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "publication.commit": {
+      "label": "提交任务变更",
+      "name": "提交任务变更",
+      "icon": "git-commit-horizontal",
+      "intent": "publication.commit",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "publication.commitLocal": {
+      "label": "提交本地任务分支",
+      "name": "提交本地任务分支",
+      "icon": "git-commit-horizontal",
+      "intent": "publication.commitLocal",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "publication.push": {
+      "label": "继续推送",
+      "name": "继续推送",
+      "icon": "cloud-upload",
+      "intent": "publication.push",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "publication.confirmLocal": {
+      "label": "确认本地提交",
+      "name": "确认本地提交",
+      "icon": "git-commit-horizontal",
+      "intent": "publication.confirmLocal",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "publication.createMergeRequest": {
+      "label": "创建合并请求",
+      "name": "创建合并请求",
+      "icon": "git-pull-request-create",
+      "intent": "publication.createMergeRequest",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "publication.reopenMergeRequest": {
+      "label": "重新打开创建页",
+      "name": "重新打开创建页",
+      "icon": "external-link",
+      "intent": "publication.reopenMergeRequest",
+      "scope": "read",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "publication.viewMergeRequest": {
+      "label": "查看合并请求",
+      "name": "查看合并请求",
+      "icon": "external-link",
+      "intent": "publication.viewMergeRequest",
+      "scope": "read",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "publication.checkMerge": {
+      "label": "检查合并状态",
+      "name": "检查合并状态",
+      "icon": "refresh-cw",
+      "intent": "publication.checkMerge",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "publication.resolveLocal": {
+      "label": "解决同步冲突",
+      "name": "解决同步冲突",
+      "icon": "git-merge",
+      "intent": "publication.resolveLocal",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "publication.refreshConflicts": {
+      "label": "刷新预检",
+      "name": "刷新预检",
+      "icon": "refresh-cw",
+      "intent": "publication.refreshConflicts",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "publication.applyLocal": {
+      "label": "确认合并并同步",
+      "name": "确认合并并同步",
+      "icon": "git-merge",
+      "intent": "publication.applyLocal",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "publication.acceptSource": {
+      "label": "整文件采用源项目",
+      "name": "整文件采用源项目",
+      "icon": "move-left",
+      "intent": "publication.acceptSource",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "publication.acceptTask": {
+      "label": "整文件采用任务",
+      "name": "整文件采用任务",
+      "icon": "move-right",
+      "intent": "publication.acceptTask",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "publication.acceptSourceBlock": {
+      "label": "本段采用源项目",
+      "name": "本段采用源项目",
+      "icon": "move-left",
+      "intent": "publication.acceptSourceBlock",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "publication.acceptTaskBlock": {
+      "label": "本段采用任务",
+      "name": "本段采用任务",
+      "icon": "move-right",
+      "intent": "publication.acceptTaskBlock",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "publication.saveMerge": {
+      "label": "保存手工合并",
+      "name": "保存手工合并",
+      "icon": "save",
+      "intent": "publication.saveMerge",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "publication.requestSuggestion": {
+      "label": "AI建议（内容将外发）",
+      "name": "AI建议（内容将外发）",
+      "icon": "sparkles",
+      "intent": "publication.requestSuggestion",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式执行现有动作；保留原身份与版本；关闭面板不取消服务端命令"
+    },
+    "publication.loadSuggestion": {
+      "label": "载入编辑器",
+      "name": "载入编辑器",
+      "icon": "file-pen",
+      "intent": "publication.loadSuggestion",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原有读取或本地草稿操作，不制造服务端接受事实"
+    },
+    "inbox.recommend": {
+      "label": "采用全部推荐项",
+      "name": "采用全部推荐项",
+      "icon": "sparkles",
+      "intent": "inbox.recommend",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅用户显式提交现有QUESTION原version／答案；无自动回答，不将关闭视为拒绝"
+    },
+    "inbox.answer": {
+      "label": "提交回答并继续",
+      "name": "提交回答并继续",
+      "icon": "send",
+      "intent": "inbox.answer",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅用户显式提交现有QUESTION原version／答案；无自动回答，不将关闭视为拒绝"
+    },
+    "rolling.moveUp": {
+      "label": "上移",
+      "name": "上移",
+      "icon": "arrow-up",
+      "intent": "rolling.moveUp",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "仅更改原本地计划草稿；保留原关联与依赖；尚未向服务端确认"
+    },
+    "rolling.moveDown": {
+      "label": "下移",
+      "name": "下移",
+      "icon": "arrow-down",
+      "intent": "rolling.moveDown",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "仅更改原本地计划草稿；保留原关联与依赖；尚未向服务端确认"
+    },
+    "rolling.split": {
+      "label": "拆分",
+      "name": "拆分",
+      "icon": "split",
+      "intent": "rolling.split",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "仅更改原本地计划草稿；保留原关联与依赖；尚未向服务端确认"
+    },
+    "rolling.merge": {
+      "label": "并入上一个",
+      "name": "并入上一个",
+      "icon": "merge",
+      "intent": "rolling.merge",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "仅更改原本地计划草稿；保留原关联与依赖；尚未向服务端确认"
+    },
+    "rolling.add": {
+      "label": "新增工作包",
+      "name": "新增工作包",
+      "icon": "plus",
+      "intent": "rolling.add",
+      "scope": "local",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "仅更改原本地计划草稿；保留原关联与依赖；尚未向服务端确认"
+    },
+    "task.reconcileQueue": {
+      "label": "重新检查并释放",
+      "name": "重新检查并释放队列",
+      "icon": "refresh-cw",
+      "intent": "task.reconcileQueue",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅用户显式keyless POST原任务queue/reconcile；unknown保留原身份，只GET核对；writer停止须权威证明"
+    },
+    "task.terminateQueueWriter": {
+      "label": "终止遗留会话并释放",
+      "name": "终止遗留会话并释放队列",
+      "icon": "circle-stop",
+      "intent": "task.terminateQueueWriter",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅用户显式keyless POST原任务queue/reconcile；unknown保留原身份，只GET核对；writer停止须权威证明"
+    }
+  }
+}

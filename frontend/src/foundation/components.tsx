@@ -142,7 +142,10 @@ export function UiConfirmDialog({ open, title, children, confirmActionKey, onCon
     wasOpen.current = open
   }, [open])
   if (!portalReady) return null
+  // CSS reduced-motion removes the animation-end event rc-dialog otherwise
+  // waits for before hiding its wrap. Public empty names close immediately.
   return <Modal open={open} title={title} getContainer={container} closable={false}
+    transitionName="" maskTransitionName=""
     mask={{ closable: false }} keyboard={!busy} focusable={{ trap: true, focusTriggerAfterClose: false }}
     destroyOnHidden={false} className="ui-confirm-dialog" onCancel={() => { if (!busy) onCancel() }}
     modalRender={content => <div tabIndex={-1} data-foundation-component="dialog-focus-scope" onKeyDownCapture={containDialogTab}>{content}</div>}

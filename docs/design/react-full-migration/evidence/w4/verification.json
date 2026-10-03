@@ -1,0 +1,202 @@
+{
+  "schema": 1,
+  "baseCommit": "73d851b83c6d392d9f61cbbb93dbd180906d5175",
+  "scope": "W4有限本地验收，非全站全绿",
+  "uniqueNewW4Unit": 205,
+  "relatedIncludingExistingBridge": 220,
+  "relatedExistingBridge": 15,
+  "authorUnit": {
+    "A": 41,
+    "B": 73,
+    "C": 62
+  },
+  "permanentIndependentProbes": 3,
+  "rootNewContracts": 26,
+  "runs": [
+    {
+      "label": "W4相关unit",
+      "command": "npm run test:w4 -- --maxWorkers=1 --reporter=json",
+      "rawFile": "w4-unit-release.json",
+      "rawSha256": "bf82c4aa7cb9190767cbbdbc5ba4330456420359eaafbbd3e8a7ef65c0b8e5e6",
+      "result": {
+        "total": 220,
+        "passed": 220,
+        "failed": 0,
+        "skipped": 0,
+        "exitCode": 0
+      }
+    },
+    {
+      "label": "W1 foundation unit",
+      "command": "npm run test:foundation -- --maxWorkers=1 --reporter=json",
+      "rawFile": "foundation-final.json",
+      "rawSha256": "47705e6725e75d9e1b3727b37514056c9ed52ef6da7bddf9595e077aa8ddd320",
+      "result": {
+        "total": 69,
+        "passed": 69,
+        "failed": 0,
+        "skipped": 0,
+        "exitCode": 0
+      }
+    },
+    {
+      "label": "全量unit最终串行",
+      "command": "npm test -- --maxWorkers=1 --reporter=default --reporter=json",
+      "rawFile": "unit-all-serial-final.json",
+      "rawSha256": "b9c7c6fb87bf289a0c27b3409b2d246563413ba4abf4c88d999f6145bc14e436",
+      "result": {
+        "total": 2057,
+        "passed": 2016,
+        "failed": 41,
+        "skipped": 0,
+        "exitCode": 1
+      }
+    },
+    {
+      "label": "W0全量",
+      "command": "npx --no-install vitest run src/w0 --maxWorkers=1 --reporter=json",
+      "rawFile": "w0-final.json",
+      "rawSha256": "d00c334707781cf5b2b6cb386af21e6203e7285431d6470066b9dc45bc93a79a",
+      "result": {
+        "total": 111,
+        "passed": 70,
+        "failed": 41,
+        "skipped": 0,
+        "exitCode": 1
+      }
+    },
+    {
+      "label": "W4最终production browser",
+      "command": "CANVAS_W4_EVIDENCE_DIR=<outside> npm run test:w4-browser -- --reporter=json",
+      "rawFile": "browser-w4-delivery.json",
+      "rawSha256": "193dd41b6ad760dfa3fc105e15dac04370be9938b20d03552c873cf6171434c1",
+      "result": {
+        "total": 29,
+        "passed": 29,
+        "failed": 0,
+        "skipped": 0,
+        "flaky": 0,
+        "exitCode": 0
+      }
+    },
+    {
+      "label": "W2 production browser回归",
+      "command": "npm run test:w2-browser -- --reporter=json",
+      "rawFile": "w2-browser-final.json",
+      "rawSha256": "1df5576c66638c0cc4dcbaf710bd4393efa6f236d4f3233826c047944af5bfd9",
+      "result": {
+        "total": 49,
+        "passed": 49,
+        "failed": 0,
+        "skipped": 0,
+        "flaky": 0,
+        "exitCode": 0
+      }
+    },
+    {
+      "label": "W3 production browser回归",
+      "command": "CANVAS_W3_EVIDENCE_DIR=<outside> npm run test:w3-browser -- --reporter=json",
+      "rawFile": "w3-browser-final.json",
+      "rawSha256": "398186d6d483712a104f15e62404d26c80cfc414eb553e9e206097d3e6ebeeff",
+      "result": {
+        "total": 31,
+        "passed": 31,
+        "failed": 0,
+        "skipped": 0,
+        "flaky": 0,
+        "exitCode": 0
+      }
+    },
+    {
+      "label": "W1真实React/Ant browser回归",
+      "command": "W1_FOUNDATION_EVIDENCE_DIR=<outside> W1_FOUNDATION_SCREENSHOT_DIR=<outside> npm run test:foundation-browser",
+      "rawFile": "w1-browser/evidence.json",
+      "rawSha256": "fcc00e5fdbf052aac8a305ba50f234a030e89a93c612544b45327c5f99bcbeac",
+      "result": {
+        "total": 41,
+        "passed": 41,
+        "failed": 0,
+        "exitCode": 0,
+        "executionComplete": true,
+        "strictUnmounts": 18
+      }
+    },
+    {
+      "label": "typecheck",
+      "command": "npm run typecheck",
+      "rawFile": "type-release.log",
+      "rawSha256": "d68d4967c7dcc37e3b03a518b6b3e155e239ef9b958ce6c46c7dfc458a38fa5f",
+      "result": {
+        "exitCode": 0
+      }
+    },
+    {
+      "label": "production build",
+      "command": "npm run build",
+      "rawFile": "build-source-frozen.log",
+      "rawSha256": "8786d2c2501c1041104edcb3fbed7131c2d856a06161c1910fc3f146be1b0329",
+      "result": {
+        "exitCode": 0
+      }
+    },
+    {
+      "label": "tooling",
+      "command": "npm run test:tooling",
+      "rawFile": "tooling-final.log",
+      "rawSha256": "bd6580c4d9191c9a819d511bdb510ab85fb51839207419a62c37df50a7b33a33",
+      "result": {
+        "exitCode": 0,
+        "tests": {
+          "node": 33,
+          "python": [
+            6,
+            4
+          ]
+        }
+      }
+    },
+    {
+      "label": "accounting",
+      "command": "npm run test:accounting",
+      "rawFile": "accounting-final-permitted.log",
+      "rawSha256": "bbf0f1a3c2e691816a1c1d049dd6aeee226693427785f9966222eb2c81ce07cf",
+      "result": {
+        "exitCode": 0,
+        "tests": {
+          "node": 13
+        }
+      }
+    },
+    {
+      "label": "W1 preview build",
+      "command": "npm run build:foundation-preview",
+      "rawFile": "foundation-build-final.log",
+      "rawSha256": "363e436f962b4dea252da7f4441af281d689dbc5c3406f0a7b3443c6c0bc60eb",
+      "result": {
+        "exitCode": 0
+      }
+    }
+  ],
+  "candidateResults": [
+    {
+      "rawFile": "unit-all-frozen.json",
+      "sha256": "0ba26019c924117a32fc54ebccb8bb8415fc9ae7a4f3f044a1315700307cb788",
+      "classification": "并行全量2011通过46失败：41W5+5既有Settings；Settings隔离23通过，具体并发原因未证明；最终同断言/默认timeout串行2016/41。"
+    },
+    {
+      "rawFile": "browser-w4-release.json",
+      "sha256": "562864b91645bb0f7901d1f96ed423fb17c1967a9324947f1036273b77e27f0c",
+      "classification": "强化native beforeunload后28/29：浏览器真实阻止导航，无commit导致runner等待60s；只调整等待3000ms并保两次实际dialog/owner/body/POST断言，最终delivery29/29。"
+    }
+  ],
+  "notRun": [
+    "全站Playwright所有文件",
+    "W5生产路径",
+    "W6 history/deVue",
+    "W7干净npm ci/no Vue",
+    "真实后端/模型/文件解析/真实Git发布/物理触控/heap GC",
+    "窄屏（用户取消范围）"
+  ],
+  "dependencies": "本波无新依赖、无lock变更；没有本波clean npm ci证据",
+  "lint": "package无lint脚本，不声称lint通过"
+}

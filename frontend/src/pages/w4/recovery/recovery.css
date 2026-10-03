@@ -1,0 +1,4 @@
+.w4-recovery-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(320px,1fr);gap:var(--space-4,16px)}
+.w4-recovery-grid>section{padding:20px;border:1px solid var(--color-border-default);border-radius:var(--radius-control);background:var(--color-bg-surface)}
+.w4-recovery-grid p,.w4-recovery-grid dd{white-space:pre-wrap;overflow-wrap:anywhere}.w4-recovery-grid dl{display:grid;grid-template-columns:auto 1fr;gap:10px 16px}.w4-recovery-grid dd{margin:0}
+.w4-recovery-grid fieldset{display:grid;gap:14px;border:0;padding:0 0 20px}.w4-recovery-grid fieldset label{display:flex;gap:10px;align-items:center}.w4-recovery-lineage{grid-column:1/-1}.w4-recovery-lineage article+article{border-top:1px solid var(--color-border-default);margin-top:16px;padding-top:16px}

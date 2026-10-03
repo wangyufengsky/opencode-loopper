@@ -1,0 +1,3955 @@
+{
+  "scope": "首次React根断开时的同步/首microtask关系快照；未等待自然输入释放。",
+  "assertionSource": "frontend/e2e/w2/resources.ts（与W3基线字节相同）",
+  "w4Total": 44,
+  "w4OrdinaryRouteCycles": 36,
+  "w4DirectRoot": 4,
+  "w4NativeSseExits": 2,
+  "w4ActivePanExits": 2,
+  "w3Recheck": 69,
+  "w2Recheck": {
+    "ordinary": 42,
+    "activePan": 9
+  },
+  "w1Recheck": 18,
+  "wholeVueApp": "旧Story/ElementPlus 200ms卸载timer不属于本波React根门槛；未修、未称全App strict0。",
+  "gcBoundary": "ledger为审计保留强引用；disconnect证明关系释放，不能证明全部对象GC。",
+  "samples": [
+    {
+      "wave": "W4",
+      "evidence": "active-stage-pan-root.json",
+      "sample": 0,
+      "rawSha256": "420ef31a74d1aaf9b92d5f52681462910745b74af6e8733dd9af88a837743f66",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 11,
+        "observers": 4,
+        "pendingFrames": 0,
+        "captures": 1,
+        "timers": 2
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "active-stage-pan-route.json",
+      "sample": 0,
+      "rawSha256": "7e15169b0261f71d118fa3ce8a1fac3a1ab8d73b51891db3d593f526947103fc",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 11,
+        "observers": 4,
+        "pendingFrames": 0,
+        "captures": 1,
+        "timers": 2
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "github-white-history-threecycles.json",
+      "sample": 0,
+      "rawSha256": "8a6afdbe7cf0942c8f38486d7cb6de67b52af2318bfce1e06c7adb90a99b2144",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "github-white-history-threecycles.json",
+      "sample": 1,
+      "rawSha256": "8a6afdbe7cf0942c8f38486d7cb6de67b52af2318bfce1e06c7adb90a99b2144",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "github-white-history-threecycles.json",
+      "sample": 2,
+      "rawSha256": "8a6afdbe7cf0942c8f38486d7cb6de67b52af2318bfce1e06c7adb90a99b2144",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "github-white-inbox-threecycles.json",
+      "sample": 0,
+      "rawSha256": "533540696c88e3744e9055aceb714029c2c673e05c9977e0142468e7bd53aabd",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "github-white-inbox-threecycles.json",
+      "sample": 1,
+      "rawSha256": "533540696c88e3744e9055aceb714029c2c673e05c9977e0142468e7bd53aabd",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "github-white-inbox-threecycles.json",
+      "sample": 2,
+      "rawSha256": "533540696c88e3744e9055aceb714029c2c673e05c9977e0142468e7bd53aabd",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "github-white-recovery-threecycles.json",
+      "sample": 0,
+      "rawSha256": "6bd23bc63b374d201b4bacdc7255e12647f90f9794ed0a72bb62c2278d2c5d3e",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "github-white-recovery-threecycles.json",
+      "sample": 1,
+      "rawSha256": "6bd23bc63b374d201b4bacdc7255e12647f90f9794ed0a72bb62c2278d2c5d3e",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "github-white-recovery-threecycles.json",
+      "sample": 2,
+      "rawSha256": "6bd23bc63b374d201b4bacdc7255e12647f90f9794ed0a72bb62c2278d2c5d3e",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "github-white-task-threecycles.json",
+      "sample": 0,
+      "rawSha256": "11a9df5fa96dbbb0d2e7669fb9439a48a72baaa71a4e86badef12d0162900125",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 6,
+        "observers": 4,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 2
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "github-white-task-threecycles.json",
+      "sample": 1,
+      "rawSha256": "11a9df5fa96dbbb0d2e7669fb9439a48a72baaa71a4e86badef12d0162900125",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 2
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "github-white-task-threecycles.json",
+      "sample": 2,
+      "rawSha256": "11a9df5fa96dbbb0d2e7669fb9439a48a72baaa71a4e86badef12d0162900125",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 2
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "history-root-shutdown.json",
+      "sample": 0,
+      "rawSha256": "e5c0f2e51efd1e868381d38158fa08fd0925fcdfea2531c6cef9706e8fdf8062",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "inbox-root-shutdown.json",
+      "sample": 0,
+      "rawSha256": "f5e28497bde5c5f461a313af74e604c0b6c477bda50e2827e128aa0eab80b15b",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "native-sse-authority-exit-root.json",
+      "sample": 0,
+      "rawSha256": "5655ea3a0f3cdd4970621887a4d4400f971a4072bcdcac7415b55109ae212f23",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 2
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "native-sse-authority-exit-route.json",
+      "sample": 0,
+      "rawSha256": "5ae35fd670285c11074a0cb14a98d59af529b446a0ea324abbb83faa3f24ee8e",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 2
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "recovery-root-shutdown.json",
+      "sample": 0,
+      "rawSha256": "56e481b030efc8a1b5cbe4abe6f75e70f7e32743e96e01de2b4bac295e6aaa2a",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "spdb-history-threecycles.json",
+      "sample": 0,
+      "rawSha256": "8a5eb711771f260bb44f0495d53805473aa0133f5a6648e27273f2ceee891e8a",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "spdb-history-threecycles.json",
+      "sample": 1,
+      "rawSha256": "8a5eb711771f260bb44f0495d53805473aa0133f5a6648e27273f2ceee891e8a",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "spdb-history-threecycles.json",
+      "sample": 2,
+      "rawSha256": "8a5eb711771f260bb44f0495d53805473aa0133f5a6648e27273f2ceee891e8a",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "spdb-inbox-threecycles.json",
+      "sample": 0,
+      "rawSha256": "823991973117f64b2732f8ad39c03992f7d3914042239f4f404566474d374974",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "spdb-inbox-threecycles.json",
+      "sample": 1,
+      "rawSha256": "823991973117f64b2732f8ad39c03992f7d3914042239f4f404566474d374974",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "spdb-inbox-threecycles.json",
+      "sample": 2,
+      "rawSha256": "823991973117f64b2732f8ad39c03992f7d3914042239f4f404566474d374974",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "spdb-recovery-threecycles.json",
+      "sample": 0,
+      "rawSha256": "368c1e298b06778c3d3171e407ca27b0956dabb8e6200e6865bd1f57def6e693",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "spdb-recovery-threecycles.json",
+      "sample": 1,
+      "rawSha256": "368c1e298b06778c3d3171e407ca27b0956dabb8e6200e6865bd1f57def6e693",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "spdb-recovery-threecycles.json",
+      "sample": 2,
+      "rawSha256": "368c1e298b06778c3d3171e407ca27b0956dabb8e6200e6865bd1f57def6e693",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "spdb-task-threecycles.json",
+      "sample": 0,
+      "rawSha256": "81f3779fa694c3fb4e47b7b6d38310ced933a80749542470b56d2bbc759e6571",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 6,
+        "observers": 4,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 2
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "spdb-task-threecycles.json",
+      "sample": 1,
+      "rawSha256": "81f3779fa694c3fb4e47b7b6d38310ced933a80749542470b56d2bbc759e6571",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 2
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "spdb-task-threecycles.json",
+      "sample": 2,
+      "rawSha256": "81f3779fa694c3fb4e47b7b6d38310ced933a80749542470b56d2bbc759e6571",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 2
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "task-root-shutdown.json",
+      "sample": 0,
+      "rawSha256": "787046af9e7fc24c2bae257de0ca98bb40c01f2172c0782cbc7a031b540cf139",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 2
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "tech-blue-history-threecycles.json",
+      "sample": 0,
+      "rawSha256": "4d204edc96c466dc863152c0ad0eea055f4346a77a7cdc659a8c2b95390d06a5",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "tech-blue-history-threecycles.json",
+      "sample": 1,
+      "rawSha256": "4d204edc96c466dc863152c0ad0eea055f4346a77a7cdc659a8c2b95390d06a5",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "tech-blue-history-threecycles.json",
+      "sample": 2,
+      "rawSha256": "4d204edc96c466dc863152c0ad0eea055f4346a77a7cdc659a8c2b95390d06a5",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "tech-blue-inbox-threecycles.json",
+      "sample": 0,
+      "rawSha256": "62908d1f66f1e7b89308bb06567b60a5537301502d24d330a45f09140d912962",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "tech-blue-inbox-threecycles.json",
+      "sample": 1,
+      "rawSha256": "62908d1f66f1e7b89308bb06567b60a5537301502d24d330a45f09140d912962",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "tech-blue-inbox-threecycles.json",
+      "sample": 2,
+      "rawSha256": "62908d1f66f1e7b89308bb06567b60a5537301502d24d330a45f09140d912962",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "tech-blue-recovery-threecycles.json",
+      "sample": 0,
+      "rawSha256": "1da3974e593c071b467fe53fdbe0b51aec32b1b1047f1f3ec22cc8d632bbb6cd",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "tech-blue-recovery-threecycles.json",
+      "sample": 1,
+      "rawSha256": "1da3974e593c071b467fe53fdbe0b51aec32b1b1047f1f3ec22cc8d632bbb6cd",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "tech-blue-recovery-threecycles.json",
+      "sample": 2,
+      "rawSha256": "1da3974e593c071b467fe53fdbe0b51aec32b1b1047f1f3ec22cc8d632bbb6cd",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "tech-blue-task-threecycles.json",
+      "sample": 0,
+      "rawSha256": "4077ee09e8896b0d26fcd387b369ccfe1bc866483dad99141c90b366dd471895",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 6,
+        "observers": 4,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 2
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "tech-blue-task-threecycles.json",
+      "sample": 1,
+      "rawSha256": "4077ee09e8896b0d26fcd387b369ccfe1bc866483dad99141c90b366dd471895",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 2
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W4",
+      "evidence": "tech-blue-task-threecycles.json",
+      "sample": 2,
+      "rawSha256": "4077ee09e8896b0d26fcd387b369ccfe1bc866483dad99141c90b366dd471895",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 2
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "github-white-catalog-threecycles.json",
+      "sample": 0,
+      "rawSha256": "8271ff4b2025ed83c562fa2b2485c89d27141c11f65a54ae77abf772499fb327",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 44,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "github-white-catalog-threecycles.json",
+      "sample": 1,
+      "rawSha256": "8271ff4b2025ed83c562fa2b2485c89d27141c11f65a54ae77abf772499fb327",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 44,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "github-white-catalog-threecycles.json",
+      "sample": 2,
+      "rawSha256": "8271ff4b2025ed83c562fa2b2485c89d27141c11f65a54ae77abf772499fb327",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 44,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "github-white-document-threecycles.json",
+      "sample": 0,
+      "rawSha256": "9acb4a30a9ea6fe157294bb355a7eafae6ce70cbfc3f896633a6894969c9d927",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "github-white-document-threecycles.json",
+      "sample": 1,
+      "rawSha256": "9acb4a30a9ea6fe157294bb355a7eafae6ce70cbfc3f896633a6894969c9d927",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "github-white-document-threecycles.json",
+      "sample": 2,
+      "rawSha256": "9acb4a30a9ea6fe157294bb355a7eafae6ce70cbfc3f896633a6894969c9d927",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "github-white-history-archive-exit.json",
+      "sample": 0,
+      "rawSha256": "488210df7af44e1a3db2a344c59a0f5488a8fe6b085bb55cdf5b992c4fcf8a3a",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 44,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "github-white-knowledge-existing-threecycles.json",
+      "sample": 0,
+      "rawSha256": "b57c24513be93237c8ee0134e91fc8d8fc2fdcce3b7a3a95a661b94ce1da1a70",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "github-white-knowledge-existing-threecycles.json",
+      "sample": 1,
+      "rawSha256": "b57c24513be93237c8ee0134e91fc8d8fc2fdcce3b7a3a95a661b94ce1da1a70",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "github-white-knowledge-existing-threecycles.json",
+      "sample": 2,
+      "rawSha256": "b57c24513be93237c8ee0134e91fc8d8fc2fdcce3b7a3a95a661b94ce1da1a70",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "github-white-knowledge-new-threecycles.json",
+      "sample": 0,
+      "rawSha256": "23c042c842064db346ecc34519364f10f2fc82d62fc6c937b73ae3167109a9a1",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "github-white-knowledge-new-threecycles.json",
+      "sample": 1,
+      "rawSha256": "23c042c842064db346ecc34519364f10f2fc82d62fc6c937b73ae3167109a9a1",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "github-white-knowledge-new-threecycles.json",
+      "sample": 2,
+      "rawSha256": "23c042c842064db346ecc34519364f10f2fc82d62fc6c937b73ae3167109a9a1",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "github-white-ppt-default-exit.json",
+      "sample": 0,
+      "rawSha256": "42e2f5125922260b1bc0b89656de5a7e23cd4c79b5956ce30a68a5558e8dbc3e",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "github-white-ppt-drag-threecycles.json",
+      "sample": 0,
+      "rawSha256": "ef18f3de18356b13f0c8640e2bd16948f97818f9477774032f09dca8f07e1a6a",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 1,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "github-white-ppt-drag-threecycles.json",
+      "sample": 1,
+      "rawSha256": "ef18f3de18356b13f0c8640e2bd16948f97818f9477774032f09dca8f07e1a6a",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 1,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "github-white-ppt-drag-threecycles.json",
+      "sample": 2,
+      "rawSha256": "ef18f3de18356b13f0c8640e2bd16948f97818f9477774032f09dca8f07e1a6a",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 1,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "github-white-ppt-resize-threecycles.json",
+      "sample": 0,
+      "rawSha256": "3968d71de35954da30963281829df74292462cd98dfbcebf96bad6dd01b74544",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 1,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "github-white-ppt-resize-threecycles.json",
+      "sample": 1,
+      "rawSha256": "3968d71de35954da30963281829df74292462cd98dfbcebf96bad6dd01b74544",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 1,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "github-white-ppt-resize-threecycles.json",
+      "sample": 2,
+      "rawSha256": "3968d71de35954da30963281829df74292462cd98dfbcebf96bad6dd01b74544",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 1,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "github-white-source-threecycles.json",
+      "sample": 0,
+      "rawSha256": "17e9cb02821403ce44fd0cc59ddf203710505b4d819d887ca56645e59ff8f4b3",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "github-white-source-threecycles.json",
+      "sample": 1,
+      "rawSha256": "17e9cb02821403ce44fd0cc59ddf203710505b4d819d887ca56645e59ff8f4b3",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "github-white-source-threecycles.json",
+      "sample": 2,
+      "rawSha256": "17e9cb02821403ce44fd0cc59ddf203710505b4d819d887ca56645e59ff8f4b3",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "spdb-catalog-threecycles.json",
+      "sample": 0,
+      "rawSha256": "c5891c9db7ea6002e5a2c6c60c5fa624ab437ec65b110dff18754dc29f7905be",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 44,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "spdb-catalog-threecycles.json",
+      "sample": 1,
+      "rawSha256": "c5891c9db7ea6002e5a2c6c60c5fa624ab437ec65b110dff18754dc29f7905be",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 44,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "spdb-catalog-threecycles.json",
+      "sample": 2,
+      "rawSha256": "c5891c9db7ea6002e5a2c6c60c5fa624ab437ec65b110dff18754dc29f7905be",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 44,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "spdb-document-threecycles.json",
+      "sample": 0,
+      "rawSha256": "a1d3d2d57659adb87210a905a59c6be22f6d8494cc7994388971bb6a662d3908",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "spdb-document-threecycles.json",
+      "sample": 1,
+      "rawSha256": "a1d3d2d57659adb87210a905a59c6be22f6d8494cc7994388971bb6a662d3908",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "spdb-document-threecycles.json",
+      "sample": 2,
+      "rawSha256": "a1d3d2d57659adb87210a905a59c6be22f6d8494cc7994388971bb6a662d3908",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "spdb-history-archive-exit.json",
+      "sample": 0,
+      "rawSha256": "e8145eedfa5623b74d7b6b331d54b853849fe20059ab221c6c763268c84a0cfe",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 44,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "spdb-knowledge-existing-threecycles.json",
+      "sample": 0,
+      "rawSha256": "0d5d17c0b26d1e4f2f6d9b4b088b8c84d35e29709346c28d59f3f26d36c7e887",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "spdb-knowledge-existing-threecycles.json",
+      "sample": 1,
+      "rawSha256": "0d5d17c0b26d1e4f2f6d9b4b088b8c84d35e29709346c28d59f3f26d36c7e887",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "spdb-knowledge-existing-threecycles.json",
+      "sample": 2,
+      "rawSha256": "0d5d17c0b26d1e4f2f6d9b4b088b8c84d35e29709346c28d59f3f26d36c7e887",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "spdb-knowledge-new-threecycles.json",
+      "sample": 0,
+      "rawSha256": "d492dbf431e882545f14acc3d3a712f6603b396e48fca75f6c2579617da3cf9a",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "spdb-knowledge-new-threecycles.json",
+      "sample": 1,
+      "rawSha256": "d492dbf431e882545f14acc3d3a712f6603b396e48fca75f6c2579617da3cf9a",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "spdb-knowledge-new-threecycles.json",
+      "sample": 2,
+      "rawSha256": "d492dbf431e882545f14acc3d3a712f6603b396e48fca75f6c2579617da3cf9a",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "spdb-ppt-default-exit.json",
+      "sample": 0,
+      "rawSha256": "6eccfd6981a467e97408844ebd3bbbbb9c0d6f03d4781f9955dcc1d89360bfd9",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "spdb-ppt-drag-threecycles.json",
+      "sample": 0,
+      "rawSha256": "b6a10adfb7d44178a4a2cae783426f751fe29e6515976bbf51f1581f52dc948f",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 1,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "spdb-ppt-drag-threecycles.json",
+      "sample": 1,
+      "rawSha256": "b6a10adfb7d44178a4a2cae783426f751fe29e6515976bbf51f1581f52dc948f",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 1,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "spdb-ppt-drag-threecycles.json",
+      "sample": 2,
+      "rawSha256": "b6a10adfb7d44178a4a2cae783426f751fe29e6515976bbf51f1581f52dc948f",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 1,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "spdb-ppt-resize-threecycles.json",
+      "sample": 0,
+      "rawSha256": "429351444556ffe49033d0d01291476e5ad43f7ea984359fcfa15c83099cab89",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 1,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "spdb-ppt-resize-threecycles.json",
+      "sample": 1,
+      "rawSha256": "429351444556ffe49033d0d01291476e5ad43f7ea984359fcfa15c83099cab89",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 1,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "spdb-ppt-resize-threecycles.json",
+      "sample": 2,
+      "rawSha256": "429351444556ffe49033d0d01291476e5ad43f7ea984359fcfa15c83099cab89",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 1,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "spdb-source-threecycles.json",
+      "sample": 0,
+      "rawSha256": "c65a194a5014dc0ee88c3c65705a46f1f09297c5408e3802e026c872238cd24a",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "spdb-source-threecycles.json",
+      "sample": 1,
+      "rawSha256": "c65a194a5014dc0ee88c3c65705a46f1f09297c5408e3802e026c872238cd24a",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "spdb-source-threecycles.json",
+      "sample": 2,
+      "rawSha256": "c65a194a5014dc0ee88c3c65705a46f1f09297c5408e3802e026c872238cd24a",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "tech-blue-catalog-threecycles.json",
+      "sample": 0,
+      "rawSha256": "d0722661cdc27a4a872129331f70758318cf34005452a21b5004b72cf96bcb75",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 44,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "tech-blue-catalog-threecycles.json",
+      "sample": 1,
+      "rawSha256": "d0722661cdc27a4a872129331f70758318cf34005452a21b5004b72cf96bcb75",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 44,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "tech-blue-catalog-threecycles.json",
+      "sample": 2,
+      "rawSha256": "d0722661cdc27a4a872129331f70758318cf34005452a21b5004b72cf96bcb75",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 44,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "tech-blue-document-threecycles.json",
+      "sample": 0,
+      "rawSha256": "bdc2fd40cd1de618082ddc5ca5e16860f0723ea787f6ae79027e1e94f2d27999",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "tech-blue-document-threecycles.json",
+      "sample": 1,
+      "rawSha256": "bdc2fd40cd1de618082ddc5ca5e16860f0723ea787f6ae79027e1e94f2d27999",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "tech-blue-document-threecycles.json",
+      "sample": 2,
+      "rawSha256": "bdc2fd40cd1de618082ddc5ca5e16860f0723ea787f6ae79027e1e94f2d27999",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "tech-blue-history-archive-exit.json",
+      "sample": 0,
+      "rawSha256": "474d9af13b249ab60fdcef8c862d705d2722a64597c83694d6e536bf78f12154",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 44,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "tech-blue-knowledge-existing-threecycles.json",
+      "sample": 0,
+      "rawSha256": "fb8bd5cde3e68c3e7ab2abc1e9f8fe707015b312bd631e2db5610ba8f5751e4c",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "tech-blue-knowledge-existing-threecycles.json",
+      "sample": 1,
+      "rawSha256": "fb8bd5cde3e68c3e7ab2abc1e9f8fe707015b312bd631e2db5610ba8f5751e4c",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "tech-blue-knowledge-existing-threecycles.json",
+      "sample": 2,
+      "rawSha256": "fb8bd5cde3e68c3e7ab2abc1e9f8fe707015b312bd631e2db5610ba8f5751e4c",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "tech-blue-knowledge-new-threecycles.json",
+      "sample": 0,
+      "rawSha256": "18361e02b890e3a3e3602ba3330abf9ef984c3a717437c7c41954f51d441685f",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "tech-blue-knowledge-new-threecycles.json",
+      "sample": 1,
+      "rawSha256": "18361e02b890e3a3e3602ba3330abf9ef984c3a717437c7c41954f51d441685f",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "tech-blue-knowledge-new-threecycles.json",
+      "sample": 2,
+      "rawSha256": "18361e02b890e3a3e3602ba3330abf9ef984c3a717437c7c41954f51d441685f",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "tech-blue-ppt-default-exit.json",
+      "sample": 0,
+      "rawSha256": "92c63c8225dc16fe2c786da3f3747d3738fb4ca589586aec49e31d699383e88c",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "tech-blue-ppt-drag-threecycles.json",
+      "sample": 0,
+      "rawSha256": "7e311d2411a9f3f3e507aa4425e97a0f58d6c66cb3beafa5986f30cd19a751fd",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 1,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "tech-blue-ppt-drag-threecycles.json",
+      "sample": 1,
+      "rawSha256": "7e311d2411a9f3f3e507aa4425e97a0f58d6c66cb3beafa5986f30cd19a751fd",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 1,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "tech-blue-ppt-drag-threecycles.json",
+      "sample": 2,
+      "rawSha256": "7e311d2411a9f3f3e507aa4425e97a0f58d6c66cb3beafa5986f30cd19a751fd",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 1,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "tech-blue-ppt-resize-threecycles.json",
+      "sample": 0,
+      "rawSha256": "fcdb350cc299e034b77b3cd24a3970928a05110e8bf4169eb961400b1a64b6d6",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 1,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "tech-blue-ppt-resize-threecycles.json",
+      "sample": 1,
+      "rawSha256": "fcdb350cc299e034b77b3cd24a3970928a05110e8bf4169eb961400b1a64b6d6",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 1,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "tech-blue-ppt-resize-threecycles.json",
+      "sample": 2,
+      "rawSha256": "fcdb350cc299e034b77b3cd24a3970928a05110e8bf4169eb961400b1a64b6d6",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 3,
+        "observers": 1,
+        "pendingFrames": 0,
+        "captures": 1,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "tech-blue-source-threecycles.json",
+      "sample": 0,
+      "rawSha256": "7f11c8e1c6bb7bc1b0de127dc3e09ec364fd7230160166a096a212d6a5571337",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "tech-blue-source-threecycles.json",
+      "sample": 1,
+      "rawSha256": "7f11c8e1c6bb7bc1b0de127dc3e09ec364fd7230160166a096a212d6a5571337",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W3",
+      "evidence": "tech-blue-source-threecycles.json",
+      "sample": 2,
+      "rawSha256": "7f11c8e1c6bb7bc1b0de127dc3e09ec364fd7230160166a096a212d6a5571337",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "01-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "b526711c34a20c4bd7e2e4d79412c3978c0f62c1fbcebb025342e0d68d21f9f5",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "02-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "66dfc3db0598cf2efb8c4e2fbf52a9b3f11da0ac41d1e1ec109e18070aa877e6",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "03-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "092d125d0a02e5b6588008ffa30a4b25312ecd04d3f0dac960adf5d6ece70e81",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "04-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "512a537be5e4c21c31442a5f76cadeec2c75d06de400e339dd98931f15945259",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "05-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "c6ae184207009e7d2c814937f0536a7d3e6211b5b314eb71d0cbe5f1a9f74ee5",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 10,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "06-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "5e63b4d6991fe0e207238a56cf2d48c70c2a98dffb56f82e1f9e0fad29b923d3",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 17,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "07-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "27a2e4536746093c15f8649dfcac859aa774ff0ae9df7a19b1ecffea0c665952",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 41,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "08-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "15c72038ef32210c63b2ba43c66b8dce5151bac0ac539c85930e78d2cbd3cfea",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 9,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "09-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "2853c5f8c697b00dcd9da566f7648fac910a1f8baedae89121c272f9d6764a76",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "10-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "0b96dc365bfd586909146f7335706712c73dbc81dd6d8ed02c4d354aec2d944a",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "11-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "5ef4ae4317a4caee61d5a358b2ed23459d8d13413ed22db0a17d56fcecf31ece",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "12-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "4e4212931575e5a02adaf683fb95d23a5b12c6201da0bec3579306cedca6b7c5",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "13-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "a5873292a57cd6ae4d7a92b919f63808614da9de68ddca43089abd0752095e58",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 254,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "14-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "e778b75dc9944903e79347f1c3a66f6a1f9991d3764431ccc8069c2c84c56a9f",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 9,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "15-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "51623720f4d036cb1f4c254c3e3224d62df9c048418058f183b61d0dd0814d12",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "16-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "a5dcac9a52fa186c302ebb31d31e848c028dd96350e65b8956771a489a42ec0a",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "17-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "0dd127debdffa902320bc64d5b86121cb6543c7b0f7b95c75b43d2682b4ecb86",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "18-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "c28b44db985aec80ddc62608903a5da2b71c51d08ef7362f384eac2d3fd21e7b",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "19-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "e76e943094797cf3884f4f26f978efc47ab2da2bbe8a70337ca8c0f259829fd3",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 10,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "20-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "20bdad9507699edd7d91fc6839372efd853771e4bdae5f459414d07a3104de8d",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 17,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "21-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "60ab87d5c47f8131bb604859bfe11484fb6d65b1f0ef12726dacdef3c3508f90",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 41,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "22-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "cbf395de052e77e399d49c6cf44f5dd7b8b5ddb4fd99d89c520935c837cfe0a8",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 9,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "23-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "6fdf2bf96de7345b48c2676fe73612a4fe80b5fcd4091c9c03f9c305195e3e65",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "24-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "a872cc005ce50d0ec3477d9ac2d536fb5ea828f1c779aa853b231dddc5e9550c",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "25-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "87903478bc3c61030b8e17d094b3109f730dc1b6b1e0cda58241d56edc568e18",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "26-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "650ec44c991356459e6df3d432d286b320dad6f6df4bf6843b78d8c5a83c06e9",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "27-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "22f95272ffae12cc84e2f3530e5bd07bc0e5a0f4bc17c2ec9b90b7a6915edbe6",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 254,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "28-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "d71700d50ffc74df5b7d51c91011155d992371561bb245d1dd01348c05df39d2",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 9,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "29-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "078d03270a9171ae8921bfd1707dab5f7757efb2b222f5ae17df4066368e406b",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "30-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "813dfa9b6e6f01eb2a6207458a6c32e686f524270e554f91f63705bf612ef186",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "31-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "44639315e3ebec140d71c9252b9176eda323e013769f0cbe89bdd5c2529cd04c",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "32-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "572ee2a91d048c6666a4179db616ab2cac4d31f10a7cdbcadc7f14c090aceafa",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "33-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "c8af6271e21643011043f917242beb7d9866e985fde91e3196dc309186b883a9",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 10,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "34-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "dcfdb3394853243a384d6837745be5fcc004d93b70409974d4ef7f06893af887",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 17,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "35-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "e271cc251faada43564ac6857f185ce183cd7ebabac1f090379543889e36904b",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 41,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "36-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "86ed3a33751e604bf89b1cf71fbc9806cda12c73efe0761761e5c5cf5cc993da",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 9,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 1
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "37-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "7b9b91bb2dba9eb107efe7b2c73ac39b0f094b5cbe95122d9fa08f81d1330950",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "38-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "da524253c224d346f45dc9e951a4784246eb7e33ce81f486149bbb3fff6e6016",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "39-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "23c752ddefd369d619faeb2e4382f9512b5eec03717c39ef38c79e609c3ce9ee",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "40-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "38618b7c144b9171253e04588d4b6e7b02ad42b617635811633cb843f04f7ce4",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 2,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "41-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "97a10a06327d3536ee1839222b07f9c4cb979d3a1d40e641021ab1734624ee32",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 254,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "42-firstsnapshot.json",
+      "sample": 0,
+      "rawSha256": "56d5eec6d49e58b2ffacaafc92d5e83b3ed64ba27ee8ecb32b9cca4698ee69f0",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 9,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "43-threecycles.json",
+      "sample": 0,
+      "rawSha256": "84d6729c754a896da44c949dcc3fd83b73fe6d1b1c45802912f850206c48f8dd",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 17,
+        "observers": 3,
+        "pendingFrames": 0,
+        "captures": 1,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "43-threecycles.json",
+      "sample": 1,
+      "rawSha256": "84d6729c754a896da44c949dcc3fd83b73fe6d1b1c45802912f850206c48f8dd",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 17,
+        "observers": 3,
+        "pendingFrames": 0,
+        "captures": 1,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "43-threecycles.json",
+      "sample": 2,
+      "rawSha256": "84d6729c754a896da44c949dcc3fd83b73fe6d1b1c45802912f850206c48f8dd",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 17,
+        "observers": 3,
+        "pendingFrames": 0,
+        "captures": 1,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "44-threecycles.json",
+      "sample": 0,
+      "rawSha256": "30b7b6430a8bcee328cdd7f262e191f8a50fe762098b1a30a1f0304ab6c5a634",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 17,
+        "observers": 3,
+        "pendingFrames": 0,
+        "captures": 1,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "44-threecycles.json",
+      "sample": 1,
+      "rawSha256": "30b7b6430a8bcee328cdd7f262e191f8a50fe762098b1a30a1f0304ab6c5a634",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 17,
+        "observers": 3,
+        "pendingFrames": 0,
+        "captures": 1,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "44-threecycles.json",
+      "sample": 2,
+      "rawSha256": "30b7b6430a8bcee328cdd7f262e191f8a50fe762098b1a30a1f0304ab6c5a634",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 17,
+        "observers": 3,
+        "pendingFrames": 0,
+        "captures": 1,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "45-threecycles.json",
+      "sample": 0,
+      "rawSha256": "290fab609f6cbbe86f31937e256b05d471362a4cbd988c093b64e3eedc8d25a9",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 17,
+        "observers": 3,
+        "pendingFrames": 0,
+        "captures": 1,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "45-threecycles.json",
+      "sample": 1,
+      "rawSha256": "290fab609f6cbbe86f31937e256b05d471362a4cbd988c093b64e3eedc8d25a9",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 17,
+        "observers": 3,
+        "pendingFrames": 0,
+        "captures": 1,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    },
+    {
+      "wave": "W2",
+      "evidence": "45-threecycles.json",
+      "sample": 2,
+      "rawSha256": "290fab609f6cbbe86f31937e256b05d471362a4cbd988c093b64e3eedc8d25a9",
+      "sameDocument": true,
+      "rootRemoved": true,
+      "ownedBefore": {
+        "listeners": 17,
+        "observers": 3,
+        "pendingFrames": 0,
+        "captures": 1,
+        "timers": 0
+      },
+      "ownedRemainingFirstSample": {
+        "listeners": 0,
+        "observers": 0,
+        "pendingFrames": 0,
+        "captures": 0,
+        "timers": 0
+      },
+      "foreignSentinelPreserved": true,
+      "subsequentGestureOrWindowBlurEventsBeforeSample": 0
+    }
+  ]
+}

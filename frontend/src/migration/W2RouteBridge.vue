@@ -13,13 +13,16 @@ import { createRouteLeaveCoordinator } from '@/pages/w2/shared/leave'
 import { createW2TaskPort } from './w2TaskPort'
 import { w2PageLoaders } from './w2Routes'
 import { w3PageLoader } from './w3Routes'
+import { w4PageLoader } from './w4Routes'
+import { createW4TaskBoundary } from './w4TaskBoundary'
+import type { ReactViewHost } from './reactViewLifecycle'
 import { W2BridgeView, type BridgeDialogSnapshot, type BridgeDialogPort } from './w2BridgeView'
 
 const route = useRoute(), router = useRouter(), store = useTaskStore(), host = ref<HTMLElement>()
 const failed = ref('')
 type ViewProps = Parameters<typeof W2BridgeView>[0]
 let view: ReturnType<typeof mountReactView<ViewProps>> | undefined
-let currentPath = '', sequence = 0, active = true
+let currentPath = '', sequence = 0, active = true, cleanupHealthy = true
 let component: ComponentType<W2PageProps> | undefined
 let pageProps: W2PageProps | undefined
 let taskBoundary: ReturnType<typeof createW2TaskPort> | undefined
@@ -67,7 +70,7 @@ function destroyPage() {
   window.removeEventListener('beforeunload', beforeUnload)
   resolveConfirmation?.(false); resolveConfirmation = undefined; readConfirmation = undefined
   leaves.dispose()
-  let cleanupFailed = false
+  let cleanupFailed = !cleanupHealthy
   try { view?.unmount() } catch { cleanupFailed = true }
   view = undefined
   const cleanups = [...owners.values()]; owners.clear()
@@ -78,19 +81,30 @@ function destroyPage() {
   pageProps = undefined; component = undefined
   dialogListeners.clear(); dialogSnapshot = { open: false, reason: '', blocked: false, notice: '' }
   if (cleanupFailed) failed.value = '页面资源未完全释放，请保留当前操作身份并重新检查'
-  return !cleanupFailed
+  cleanupHealthy = !cleanupFailed
+  return cleanupHealthy
 }
+/** Public instance disposal retires only this view and never overrides a live owner. */
+function disposeIfSafe() {
+  if (!active) return cleanupHealthy
+  if (leaves.read().kind !== 'ALLOW') return false
+  active = false
+  return destroyPage()
+}
+const lifecycle = Object.freeze({ disposeIfSafe })
+let exposedHost: ReactViewHost | undefined
+defineExpose(lifecycle)
 async function mountPage() {
   failed.value = ''
   if (!destroyPage()) return
   leaves = coordinator(); currentPath = route.path
   const ticket = sequence, path = currentPath
-  const load = w2PageLoaders[path] ?? w3PageLoader(path)
+  const load = w2PageLoaders[path] ?? w3PageLoader(path) ?? w4PageLoader(path)
   if (!load || !host.value) { failed.value = '此页面尚未接入，请返回原入口'; return }
   try {
     const loaded = await load()
     if (!active || ticket !== sequence || route.path !== path || !host.value) return
-    taskBoundary = createW2TaskPort(store)
+    taskBoundary = w4PageLoader(path) ? createW4TaskBoundary() : createW2TaskPort(store)
     component = loaded
     const go = async (to: W2Target, replace = false, handoff?: NavigationRequest['handoff']): Promise<boolean> => {
       if (!active || !pageProps || route.path !== path) return false
@@ -119,6 +133,9 @@ async function mountPage() {
   } catch { if (active && ticket === sequence) failed.value = '页面加载失败，请返回并重新打开' }
 }
 async function canNavigate(to: { fullPath: string }) {
+  // This instance is terminal after safe disposal; a successful cleanup may
+  // leave its empty Vue host, while a failed cleanup remains fail-closed.
+  if (!active) return cleanupHealthy
   const request = requested?.destination === to.fullPath ? requested : { destination: to.fullPath }
   const result = await leaves.allow(request)
   if (!result && active) {
@@ -133,11 +150,19 @@ function beforeUnload(event: BeforeUnloadEvent) {
   if (leaves.read().kind === 'ALLOW') return
   event.preventDefault(); event.returnValue = ''
 }
-onMounted(() => { void mountPage() })
+onMounted(() => {
+  exposedHost = host.value
+  if (exposedHost) Object.defineProperty(exposedHost, 'reactViewLifecycle', { value: lifecycle, writable: false, enumerable: false, configurable: true })
+  void mountPage()
+})
 watch(() => [route.fullPath, currentSkin.value.id], () => {
   if (route.path !== currentPath) void mountPage()
   else render()
 }, { flush: 'post' })
-onBeforeUnmount(() => { active = false; destroyPage() })
+onBeforeUnmount(() => {
+  active = false; destroyPage()
+  if (exposedHost?.reactViewLifecycle === lifecycle) delete (exposedHost as HTMLElement & { reactViewLifecycle?: typeof lifecycle }).reactViewLifecycle
+  exposedHost = undefined
+})
 </script>
 <template><p v-if="failed" role="alert">{{ failed }}</p><div ref="host" data-page-runtime="react" data-w2-route-bridge /></template>

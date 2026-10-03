@@ -13,7 +13,8 @@ const repo = resolve(here, '../../..')
 const url = process.env.W1_FOUNDATION_URL ?? 'http://127.0.0.1:41784/e2e/w1/preview.html'
 assert.equal(new URL(url).hostname, '127.0.0.1')
 const raw = resolve(process.env.W1_FOUNDATION_EVIDENCE_DIR ?? join(repo, '../react-full-w1-evidence/browser'))
-const shots = join(here, 'screenshots')
+// Later waves keep the original W1 screenshot bytes while rechecking shared UI.
+const shots = resolve(process.env.W1_FOUNDATION_SCREENSHOT_DIR ?? join(here, 'screenshots'))
 await Promise.all([mkdir(raw, { recursive: true }), mkdir(shots, { recursive: true })])
 await mkdir(join(raw, 'screenshots'), { recursive: true })
 const sha = bytes => createHash('sha256').update(bytes).digest('hex')

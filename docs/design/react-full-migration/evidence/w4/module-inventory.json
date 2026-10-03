@@ -1,0 +1,739 @@
+{
+  "task": {
+    "productionFiles": 8,
+    "components": [
+      {
+        "name": "TemplateReportsPanel",
+        "file": "frontend/src/pages/w4/task/TaskEvidencePanels.tsx",
+        "line": 15
+      },
+      {
+        "name": "SnapshotReviewPartialReportPanel",
+        "file": "frontend/src/pages/w4/task/TaskEvidencePanels.tsx",
+        "line": 35
+      },
+      {
+        "name": "ExecutionEvidencePanel",
+        "file": "frontend/src/pages/w4/task/TaskEvidencePanels.tsx",
+        "line": 40
+      },
+      {
+        "name": "TaskAuditEvidencePanel",
+        "file": "frontend/src/pages/w4/task/TaskEvidencePanels.tsx",
+        "line": 59
+      },
+      {
+        "name": "LayeredTaskError",
+        "file": "frontend/src/pages/w4/task/TaskEvidencePanels.tsx",
+        "line": 75
+      },
+      {
+        "name": "SnapshotBatchesPanel",
+        "file": "frontend/src/pages/w4/task/TaskEvidencePanels.tsx",
+        "line": 80
+      },
+      {
+        "name": "TaskDetailPage",
+        "file": "frontend/src/pages/w4/task/TaskDetailPage.tsx",
+        "line": 49
+      },
+      {
+        "name": "SessionTodoCard",
+        "file": "frontend/src/pages/w4/task/SessionMonitorPanel.tsx",
+        "line": 12
+      },
+      {
+        "name": "SessionMonitorPanel",
+        "file": "frontend/src/pages/w4/task/SessionMonitorPanel.tsx",
+        "line": 25
+      }
+    ],
+    "apiReferences": [
+      {
+        "method": "getTaskOverview",
+        "file": "frontend/src/pages/w4/task/taskController.ts",
+        "line": 74
+      },
+      {
+        "method": "getTaskAudit",
+        "file": "frontend/src/pages/w4/task/taskController.ts",
+        "line": 81
+      },
+      {
+        "method": "getTaskQueue",
+        "file": "frontend/src/pages/w4/task/taskController.ts",
+        "line": 95
+      },
+      {
+        "method": "getTaskOverview",
+        "file": "frontend/src/pages/w4/task/taskController.ts",
+        "line": 139
+      },
+      {
+        "method": "getTaskQueue",
+        "file": "frontend/src/pages/w4/task/taskController.ts",
+        "line": 151
+      },
+      {
+        "method": "reconcileTaskQueue",
+        "file": "frontend/src/pages/w4/task/taskController.ts",
+        "line": 152
+      },
+      {
+        "method": "createTaskRecovery",
+        "file": "frontend/src/pages/w4/task/taskController.ts",
+        "line": 160
+      },
+      {
+        "method": "getTaskOverview",
+        "file": "frontend/src/pages/w4/task/taskController.ts",
+        "line": 164
+      },
+      {
+        "method": "getTaskOverview",
+        "file": "frontend/src/pages/w4/task/taskController.ts",
+        "line": 171
+      },
+      {
+        "method": "startTask",
+        "file": "frontend/src/pages/w4/task/taskController.ts",
+        "line": 176
+      },
+      {
+        "method": "pauseTask",
+        "file": "frontend/src/pages/w4/task/taskController.ts",
+        "line": 176
+      },
+      {
+        "method": "resumeTask",
+        "file": "frontend/src/pages/w4/task/taskController.ts",
+        "line": 176
+      },
+      {
+        "method": "cancelTask",
+        "file": "frontend/src/pages/w4/task/taskController.ts",
+        "line": 176
+      },
+      {
+        "method": "retryTaskJudges",
+        "file": "frontend/src/pages/w4/task/taskController.ts",
+        "line": 176
+      },
+      {
+        "method": "retryWaitingTaskLoop",
+        "file": "frontend/src/pages/w4/task/taskController.ts",
+        "line": 176
+      },
+      {
+        "method": "getTaskOverview",
+        "file": "frontend/src/pages/w4/task/taskController.ts",
+        "line": 184
+      },
+      {
+        "method": "getTaskOverview",
+        "file": "frontend/src/pages/w4/task/taskController.ts",
+        "line": 188
+      },
+      {
+        "method": "startTask",
+        "file": "frontend/src/pages/w4/task/taskController.ts",
+        "line": 190
+      },
+      {
+        "method": "getTaskSessions",
+        "file": "frontend/src/pages/w4/task/sessionController.ts",
+        "line": 37
+      },
+      {
+        "method": "getTaskSessionActivity",
+        "file": "frontend/src/pages/w4/task/sessionController.ts",
+        "line": 44
+      },
+      {
+        "method": "getTaskSessionActivity",
+        "file": "frontend/src/pages/w4/task/sessionController.ts",
+        "line": 76
+      },
+      {
+        "method": "rejectTaskSessionQuestion",
+        "file": "frontend/src/pages/w4/task/sessionController.ts",
+        "line": 81
+      },
+      {
+        "method": "replyTaskSessionQuestion",
+        "file": "frontend/src/pages/w4/task/sessionController.ts",
+        "line": 82
+      },
+      {
+        "method": "getTaskSessionActivity",
+        "file": "frontend/src/pages/w4/task/sessionController.ts",
+        "line": 86
+      },
+      {
+        "method": "getTaskSessionRole",
+        "file": "frontend/src/pages/w4/task/sessionController.ts",
+        "line": 121
+      },
+      {
+        "method": "getVerificationEvidence",
+        "file": "frontend/src/pages/w4/task/evidenceController.ts",
+        "line": 42
+      },
+      {
+        "method": "getArtifactContent",
+        "file": "frontend/src/pages/w4/task/evidenceController.ts",
+        "line": 42
+      },
+      {
+        "method": "getErrorEvidence",
+        "file": "frontend/src/pages/w4/task/evidenceController.ts",
+        "line": 42
+      },
+      {
+        "method": "getJudgeOutput",
+        "file": "frontend/src/pages/w4/task/evidenceController.ts",
+        "line": 42
+      },
+      {
+        "method": "getTaskDiffPreview",
+        "file": "frontend/src/pages/w4/task/evidenceController.ts",
+        "line": 56
+      },
+      {
+        "method": "snapshotReviewPartialReport",
+        "file": "frontend/src/pages/w4/task/evidenceController.ts",
+        "line": 58
+      },
+      {
+        "method": "downloadTemplateReport",
+        "file": "frontend/src/pages/w4/task/evidenceController.ts",
+        "line": 61
+      },
+      {
+        "method": "executionEvidence",
+        "file": "frontend/src/pages/w4/task/evidenceController.ts",
+        "line": 66
+      },
+      {
+        "method": "evidenceFailures",
+        "file": "frontend/src/pages/w4/task/evidenceController.ts",
+        "line": 68
+      },
+      {
+        "method": "executionEvidenceBody",
+        "file": "frontend/src/pages/w4/task/evidenceController.ts",
+        "line": 70
+      },
+      {
+        "method": "evidenceFailure",
+        "file": "frontend/src/pages/w4/task/evidenceController.ts",
+        "line": 71
+      },
+      {
+        "method": "searchExecutionEvidence",
+        "file": "frontend/src/pages/w4/task/evidenceController.ts",
+        "line": 73
+      },
+      {
+        "method": "snapshotReviewBatches",
+        "file": "frontend/src/pages/w4/task/evidenceController.ts",
+        "line": 74
+      }
+    ]
+  },
+  "actions": {
+    "productionFiles": 10,
+    "components": [
+      {
+        "name": "GitDiffScopeApprovalDialog",
+        "file": "frontend/src/pages/w4/actions/scope.tsx",
+        "line": 23
+      },
+      {
+        "name": "DirtyWorkspaceDialog",
+        "file": "frontend/src/pages/w4/actions/dirty.tsx",
+        "line": 29
+      },
+      {
+        "name": "TaskDecisionPanel",
+        "file": "frontend/src/pages/w4/actions/decision.tsx",
+        "line": 37
+      },
+      {
+        "name": "RollingPackageWorkbench",
+        "file": "frontend/src/pages/w4/actions/rolling.tsx",
+        "line": 15
+      },
+      {
+        "name": "PanelNotice",
+        "file": "frontend/src/pages/w4/actions/parts.tsx",
+        "line": 4
+      },
+      {
+        "name": "ReadOriginal",
+        "file": "frontend/src/pages/w4/actions/parts.tsx",
+        "line": 5
+      },
+      {
+        "name": "TaskJudgeApprovalPanel",
+        "file": "frontend/src/pages/w4/actions/judge.tsx",
+        "line": 20
+      }
+    ],
+    "apiReferences": [
+      {
+        "method": "getGitDiffScopeApprovalPreview",
+        "file": "frontend/src/pages/w4/actions/scope.tsx",
+        "line": 15
+      },
+      {
+        "method": "getGitDiffScopeApproval",
+        "file": "frontend/src/pages/w4/actions/scope.tsx",
+        "line": 16
+      },
+      {
+        "method": "resolveGitDiffScopeApproval",
+        "file": "frontend/src/pages/w4/actions/scope.tsx",
+        "line": 19
+      },
+      {
+        "method": "getGitDiffScopeApproval",
+        "file": "frontend/src/pages/w4/actions/scope.tsx",
+        "line": 19
+      },
+      {
+        "method": "getGitDiffScopeApproval",
+        "file": "frontend/src/pages/w4/actions/scope.tsx",
+        "line": 19
+      },
+      {
+        "method": "getDirtyWorkspace",
+        "file": "frontend/src/pages/w4/actions/dirty.tsx",
+        "line": 14
+      },
+      {
+        "method": "resolveDirtyWorkspace",
+        "file": "frontend/src/pages/w4/actions/dirty.tsx",
+        "line": 21
+      },
+      {
+        "method": "getDirtyWorkspace",
+        "file": "frontend/src/pages/w4/actions/dirty.tsx",
+        "line": 21
+      },
+      {
+        "method": "getTask",
+        "file": "frontend/src/pages/w4/actions/dirty.tsx",
+        "line": 21
+      },
+      {
+        "method": "getTask",
+        "file": "frontend/src/pages/w4/actions/dirty.tsx",
+        "line": 22
+      },
+      {
+        "method": "cancelDirtyWorkspace",
+        "file": "frontend/src/pages/w4/actions/dirty.tsx",
+        "line": 26
+      },
+      {
+        "method": "getTask",
+        "file": "frontend/src/pages/w4/actions/dirty.tsx",
+        "line": 26
+      },
+      {
+        "method": "getTask",
+        "file": "frontend/src/pages/w4/actions/dirty.tsx",
+        "line": 26
+      },
+      {
+        "method": "getTaskDecision",
+        "file": "frontend/src/pages/w4/actions/decision.tsx",
+        "line": 16
+      },
+      {
+        "method": "continueTaskDecision",
+        "file": "frontend/src/pages/w4/actions/decision.tsx",
+        "line": 27
+      },
+      {
+        "method": "deriveTaskDecision",
+        "file": "frontend/src/pages/w4/actions/decision.tsx",
+        "line": 27
+      },
+      {
+        "method": "auditTaskDecision",
+        "file": "frontend/src/pages/w4/actions/decision.tsx",
+        "line": 27
+      },
+      {
+        "method": "acceptTaskDecision",
+        "file": "frontend/src/pages/w4/actions/decision.tsx",
+        "line": 27
+      },
+      {
+        "method": "cancelTaskDecision",
+        "file": "frontend/src/pages/w4/actions/decision.tsx",
+        "line": 27
+      },
+      {
+        "method": "getTaskDecision",
+        "file": "frontend/src/pages/w4/actions/decision.tsx",
+        "line": 28
+      },
+      {
+        "method": "getTaskDecision",
+        "file": "frontend/src/pages/w4/actions/decision.tsx",
+        "line": 32
+      },
+      {
+        "method": "getRollingPackageWorkbench",
+        "file": "frontend/src/pages/w4/actions/rollingController.ts",
+        "line": 18
+      },
+      {
+        "method": "getRollingPackageDetail",
+        "file": "frontend/src/pages/w4/actions/rollingController.ts",
+        "line": 20
+      },
+      {
+        "method": "getRollingPackageWorkbench",
+        "file": "frontend/src/pages/w4/actions/rollingController.ts",
+        "line": 31
+      },
+      {
+        "method": "approveRollingPackageDesign",
+        "file": "frontend/src/pages/w4/actions/rollingController.ts",
+        "line": 32
+      },
+      {
+        "method": "startRollingPackage",
+        "file": "frontend/src/pages/w4/actions/rollingController.ts",
+        "line": 32
+      },
+      {
+        "method": "redesignRollingPackage",
+        "file": "frontend/src/pages/w4/actions/rollingController.ts",
+        "line": 32
+      },
+      {
+        "method": "resumeRollingPackageDesign",
+        "file": "frontend/src/pages/w4/actions/rollingController.ts",
+        "line": 32
+      },
+      {
+        "method": "retryRollingPackageCheckpoint",
+        "file": "frontend/src/pages/w4/actions/rollingController.ts",
+        "line": 32
+      },
+      {
+        "method": "discussRollingPackage",
+        "file": "frontend/src/pages/w4/actions/rollingController.ts",
+        "line": 32
+      },
+      {
+        "method": "resolveRollingPackageFailure",
+        "file": "frontend/src/pages/w4/actions/rollingController.ts",
+        "line": 38
+      },
+      {
+        "method": "getRollingPackageWorkbench",
+        "file": "frontend/src/pages/w4/actions/rollingController.ts",
+        "line": 38
+      },
+      {
+        "method": "getRollingPlanRevisions",
+        "file": "frontend/src/pages/w4/actions/rollingController.ts",
+        "line": 51
+      },
+      {
+        "method": "getRollingPlanRevisions",
+        "file": "frontend/src/pages/w4/actions/rollingController.ts",
+        "line": 65
+      },
+      {
+        "method": "proposeRollingPlan",
+        "file": "frontend/src/pages/w4/actions/rollingController.ts",
+        "line": 66
+      },
+      {
+        "method": "suggestRollingPlan",
+        "file": "frontend/src/pages/w4/actions/rollingController.ts",
+        "line": 66
+      },
+      {
+        "method": "addRollingCorrection",
+        "file": "frontend/src/pages/w4/actions/rollingController.ts",
+        "line": 66
+      },
+      {
+        "method": "confirmRollingPlan",
+        "file": "frontend/src/pages/w4/actions/rollingController.ts",
+        "line": 71
+      },
+      {
+        "method": "getRollingPlanRevisions",
+        "file": "frontend/src/pages/w4/actions/rollingController.ts",
+        "line": 71
+      },
+      {
+        "method": "getJudgeApproval",
+        "file": "frontend/src/pages/w4/actions/judge.tsx",
+        "line": 13
+      },
+      {
+        "method": "approveJudges",
+        "file": "frontend/src/pages/w4/actions/judge.tsx",
+        "line": 16
+      },
+      {
+        "method": "getJudgeApproval",
+        "file": "frontend/src/pages/w4/actions/judge.tsx",
+        "line": 16
+      },
+      {
+        "method": "getJudgeApproval",
+        "file": "frontend/src/pages/w4/actions/judge.tsx",
+        "line": 16
+      }
+    ]
+  },
+  "history": {
+    "productionFiles": 2,
+    "components": [
+      {
+        "name": "TaskDesignHistoryPage",
+        "file": "frontend/src/pages/w4/history/index.tsx",
+        "line": 15
+      }
+    ],
+    "apiReferences": [
+      {
+        "method": "getTaskDesignHistory",
+        "file": "frontend/src/pages/w4/history/controller.ts",
+        "line": 12
+      },
+      {
+        "method": "getTaskDesignAttachmentPreview",
+        "file": "frontend/src/pages/w4/history/controller.ts",
+        "line": 19
+      },
+      {
+        "method": "taskDesignAttachmentContentUrl",
+        "file": "frontend/src/pages/w4/history/index.tsx",
+        "line": 38
+      }
+    ]
+  },
+  "inbox": {
+    "productionFiles": 2,
+    "components": [
+      {
+        "name": "InboxPage",
+        "file": "frontend/src/pages/w4/inbox/index.tsx",
+        "line": 12
+      }
+    ],
+    "apiReferences": [
+      {
+        "method": "getInteractions",
+        "file": "frontend/src/pages/w4/inbox/controller.ts",
+        "line": 17
+      },
+      {
+        "method": "getInteractions",
+        "file": "frontend/src/pages/w4/inbox/controller.ts",
+        "line": 27
+      },
+      {
+        "method": "resolveInteraction",
+        "file": "frontend/src/pages/w4/inbox/controller.ts",
+        "line": 28
+      },
+      {
+        "method": "getInteractions",
+        "file": "frontend/src/pages/w4/inbox/controller.ts",
+        "line": 34
+      }
+    ]
+  },
+  "recovery": {
+    "productionFiles": 3,
+    "components": [
+      {
+        "name": "RecoveryStudioPage",
+        "file": "frontend/src/pages/w4/recovery/RecoveryStudioPage.tsx",
+        "line": 10
+      }
+    ],
+    "apiReferences": [
+      {
+        "method": "getTask",
+        "file": "frontend/src/pages/w4/recovery/controller.ts",
+        "line": 43
+      },
+      {
+        "method": "getTaskRecoveries",
+        "file": "frontend/src/pages/w4/recovery/controller.ts",
+        "line": 43
+      },
+      {
+        "method": "getTaskRecoveries",
+        "file": "frontend/src/pages/w4/recovery/controller.ts",
+        "line": 65
+      },
+      {
+        "method": "createTaskRecovery",
+        "file": "frontend/src/pages/w4/recovery/controller.ts",
+        "line": 69
+      },
+      {
+        "method": "getTask",
+        "file": "frontend/src/pages/w4/recovery/controller.ts",
+        "line": 75
+      },
+      {
+        "method": "getTaskRecoveries",
+        "file": "frontend/src/pages/w4/recovery/controller.ts",
+        "line": 75
+      }
+    ]
+  },
+  "publication": {
+    "productionFiles": 4,
+    "components": [
+      {
+        "name": "TaskPublicationActions",
+        "file": "frontend/src/pages/w4/publication/TaskPublicationActions.tsx",
+        "line": 29
+      }
+    ],
+    "apiReferences": [
+      {
+        "method": "getTaskPublication",
+        "file": "frontend/src/pages/w4/publication/controller.ts",
+        "line": 62
+      },
+      {
+        "method": "getTaskPublication",
+        "file": "frontend/src/pages/w4/publication/controller.ts",
+        "line": 84
+      },
+      {
+        "method": "generateTaskCommitMessage",
+        "file": "frontend/src/pages/w4/publication/controller.ts",
+        "line": 94
+      },
+      {
+        "method": "publishTask",
+        "file": "frontend/src/pages/w4/publication/controller.ts",
+        "line": 112
+      },
+      {
+        "method": "getTaskPublication",
+        "file": "frontend/src/pages/w4/publication/controller.ts",
+        "line": 117
+      },
+      {
+        "method": "reconcileTaskPublication",
+        "file": "frontend/src/pages/w4/publication/controller.ts",
+        "line": 128
+      },
+      {
+        "method": "getTaskPublication",
+        "file": "frontend/src/pages/w4/publication/controller.ts",
+        "line": 129
+      },
+      {
+        "method": "createTaskMergeRequestDraft",
+        "file": "frontend/src/pages/w4/publication/controller.ts",
+        "line": 145
+      },
+      {
+        "method": "getTaskPublication",
+        "file": "frontend/src/pages/w4/publication/controller.ts",
+        "line": 147
+      },
+      {
+        "method": "getLocalSyncConflictFiles",
+        "file": "frontend/src/pages/w4/publication/controller.ts",
+        "line": 156
+      },
+      {
+        "method": "getLocalSyncConflictContent",
+        "file": "frontend/src/pages/w4/publication/controller.ts",
+        "line": 159
+      },
+      {
+        "method": "getLocalSyncConflictSession",
+        "file": "frontend/src/pages/w4/publication/controller.ts",
+        "line": 177
+      },
+      {
+        "method": "createLocalSyncConflictSession",
+        "file": "frontend/src/pages/w4/publication/controller.ts",
+        "line": 187
+      },
+      {
+        "method": "getTaskPublication",
+        "file": "frontend/src/pages/w4/publication/controller.ts",
+        "line": 191
+      },
+      {
+        "method": "getLocalSyncConflictSession",
+        "file": "frontend/src/pages/w4/publication/controller.ts",
+        "line": 193
+      },
+      {
+        "method": "getLocalSyncConflictContent",
+        "file": "frontend/src/pages/w4/publication/controller.ts",
+        "line": 203
+      },
+      {
+        "method": "saveLocalSyncResolution",
+        "file": "frontend/src/pages/w4/publication/controller.ts",
+        "line": 224
+      },
+      {
+        "method": "getLocalSyncConflictSession",
+        "file": "frontend/src/pages/w4/publication/controller.ts",
+        "line": 226
+      },
+      {
+        "method": "getLocalSyncConflictContent",
+        "file": "frontend/src/pages/w4/publication/controller.ts",
+        "line": 232
+      },
+      {
+        "method": "suggestLocalSyncResolution",
+        "file": "frontend/src/pages/w4/publication/controller.ts",
+        "line": 241
+      },
+      {
+        "method": "getLocalSyncConflictContent",
+        "file": "frontend/src/pages/w4/publication/controller.ts",
+        "line": 245
+      },
+      {
+        "method": "applyLocalSyncConflict",
+        "file": "frontend/src/pages/w4/publication/controller.ts",
+        "line": 256
+      },
+      {
+        "method": "getTaskPublication",
+        "file": "frontend/src/pages/w4/publication/controller.ts",
+        "line": 260
+      },
+      {
+        "method": "getLocalSyncConflictSession",
+        "file": "frontend/src/pages/w4/publication/controller.ts",
+        "line": 264
+      }
+    ]
+  },
+  "shared": {
+    "productionFiles": 3,
+    "components": [],
+    "apiReferences": []
+  }
+}

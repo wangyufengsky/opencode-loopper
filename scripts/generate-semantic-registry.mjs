@@ -4,7 +4,7 @@ const root = new URL('../', import.meta.url)
 const read = name => JSON.parse(readFileSync(new URL(name, root), 'utf8'))
 const base = read('docs/design/react-full-migration/prototype/desktop-v2/semantic-registry.json')
 const additional = { objects: {}, actions: {} }
-for (const wave of ['w2', 'w3']) for (const section of ['objects', 'actions']) {
+for (const wave of ['w2', 'w3', 'w4']) for (const section of ['objects', 'actions']) {
   for (const [key, entry] of Object.entries(read(`docs/design/react-full-migration/semantic-${wave}-additions.json`)[section])) {
     assert(!(key in base[section]) && !(key in additional[section]), `禁止覆盖已冻结语义：${key}`)
     additional[section][key] = entry

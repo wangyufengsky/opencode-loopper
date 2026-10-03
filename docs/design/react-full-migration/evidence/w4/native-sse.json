@@ -1,0 +1,30 @@
+{
+  "server": "本地正式EventSource测试传输，不是真实Java后端",
+  "connections": [
+    {
+      "path": "/api/tasks/native-cursor-route/events",
+      "cursor": null,
+      "closed": true
+    },
+    {
+      "path": "/api/tasks/native-cursor-route/events",
+      "cursor": "17",
+      "closed": true
+    },
+    {
+      "path": "/api/tasks/native-cursor-root/events",
+      "cursor": null,
+      "closed": true
+    },
+    {
+      "path": "/api/tasks/native-cursor-root/events",
+      "cursor": "17",
+      "closed": true
+    }
+  ],
+  "eventHint": "CANCELLED",
+  "authoritativeRest": "RUNNING",
+  "constructorPerTask": 1,
+  "afterExitClosed": true,
+  "implicitWrites": 0
+}

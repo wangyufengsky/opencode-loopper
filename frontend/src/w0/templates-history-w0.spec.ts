@@ -1,4 +1,4 @@
-/** W0 titles/contracts frozen; W2/W3 approved scopes now exercise production React; W4/W5 remain red. */
+/** W0 titles/contracts frozen; W2–W4 approved scopes now exercise production React; W5 remains red. */
 import { createHash, webcrypto } from 'node:crypto'
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import { defineComponent, h, type Component } from 'vue'
@@ -19,6 +19,7 @@ import DesignerHistoryView from '@/views/DesignerHistoryView.vue'
 import { foundationDOM } from '@/pages/w2/workflow/page.test-support'
 import { designerHistoryW0Contract } from '@/pages/w2/workflow/designer-history-w0-contract'
 import TaskDesignHistoryView from '@/views/TaskDesignHistoryView.vue'
+import { historyScopeW0Contract } from '@/pages/w4/history/w0-contract'
 import DocumentClarificationForm from '@/components/DocumentClarificationForm.vue'
 import type { DocumentTemplateOverview, SourceTemplateOverview, TaskDesignHistory, TemplateTaskCatalog } from '@/types/domain'
 
@@ -174,23 +175,20 @@ describe('W0 B8 history and child retirement', () => {
     await designerHistoryW0Contract(`retired-${outcome}`, { read: api.listDesignerHistoryPage, page: historyPage, proof })
   })
   it('B8.2 frozen record A arriving after real route B cannot overwrite B', async () => {
-    const a = deferred<TaskDesignHistory>(); const read = mock('getTaskDesignHistory').mockReturnValueOnce(a.promise).mockResolvedValue(record('B'))
-    const page = await routeRoot(TaskDesignHistoryView, '/tasks/A/design'); await page.router.push('/tasks/B/design'); await flushPromises(); expect(state(page.view).record.taskId).toBe('B'); a.resolve(record('A')); await flushPromises()
-    proof('B8.2/record', { requests: read.mock.calls, route: page.router.currentRoute.value.path, record: state(page.view).record.taskId }); expect(state(page.view).record.taskId).toBe('B')
+    foundationDOM(); mock('getTaskDesignHistory')
+    await historyScopeW0Contract('record', { record, proof })
   })
   it('B8.2 attachment A late with same file ID cannot populate B cache', async () => {
-    mock('getTaskDesignHistory').mockImplementation(async (id: string) => record(id)); const a = deferred<any>(); const read = mock('getTaskDesignAttachmentPreview').mockReturnValue(a.promise)
-    const page = await routeRoot(TaskDesignHistoryView, '/tasks/A/design'); await button(page.view, '安全预览'); await page.router.push('/tasks/B/design'); await flushPromises(); a.resolve({ text: 'A冻结正文' }); await flushPromises()
-    proof('B8.2/attachment-late', { requests: read.mock.calls, cache: state(page.view).attachmentPreviews, route: page.router.currentRoute.value.path }); expect(state(page.view).attachmentPreviews['same-file']).toBeUndefined()
+    foundationDOM(); mock('getTaskDesignHistory'); mock('getTaskDesignAttachmentPreview')
+    await historyScopeW0Contract('attachment-late', { record, proof })
   })
   it('B8.2 cached A same attachment ID must be invalidated when route becomes B', async () => {
-    mock('getTaskDesignHistory').mockImplementation(async (id: string) => record(id)); const read = mock('getTaskDesignAttachmentPreview').mockImplementation(async (id: string) => ({ text: `${id}冻结正文` }))
-    const page = await routeRoot(TaskDesignHistoryView, '/tasks/A/design'); await button(page.view, '安全预览'); expect(state(page.view).attachmentPreviews['same-file']).toBe('A冻结正文')
-    await page.router.push('/tasks/B/design'); await flushPromises(); await button(page.view, '安全预览'); proof('B8.2/attachment-cache', { requests: read.mock.calls, cache: state(page.view).attachmentPreviews }); expect(read).toHaveBeenLastCalledWith('B', 'same-file'); expect(state(page.view).attachmentPreviews['same-file']).toBe('B冻结正文')
+    foundationDOM(); mock('getTaskDesignHistory'); mock('getTaskDesignAttachmentPreview')
+    await historyScopeW0Contract('attachment-cache', { record, proof })
   })
   it('B8.2 retired record error must not clear old busy or add error', async () => {
-    const a = deferred<any>(); mock('getTaskDesignHistory').mockReturnValue(a.promise); const page = await routeRoot(TaskDesignHistoryView, '/tasks/A/design'); const retired = state(page.view); page.root.unmount(); a.reject(new Error('retired attachment owner')); await flushPromises()
-    proof('B8.2/retired-error', { loading: retired.loading, error: retired.error }); expect.soft(retired.loading).toBe(true); expect.soft(retired.error).toBe('')
+    foundationDOM(); mock('getTaskDesignHistory')
+    await historyScopeW0Contract('retired-error', { record, proof })
   })
   for (const kind of ['directory', 'body'] as const) it(`B8.3 sources/${kind}: late response after root unmount cannot mutate retired refs`, async () => {
     await templateSourcesRetirementW0Contract(kind, { run: withFile(), page: sectionPage, section: { ...section, content: 'A原文' }, proof })

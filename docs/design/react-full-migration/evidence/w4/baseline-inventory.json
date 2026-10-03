@@ -1,0 +1,351 @@
+{
+  "baseline": "73d851b83c6d392d9f61cbbb93dbd180906d5175",
+  "routes": [
+    "/tasks/:id",
+    "/tasks/:id/design",
+    "/tasks/:id/recovery",
+    "/inbox"
+  ],
+  "scope": "现有生产入口及其递归Vue组件依赖盘点，不代表每个共享读取组件都需独立重写；原canvas与纯TSlogic复用",
+  "oldComponentFiles": 35,
+  "oldApiCallNames": 73,
+  "files": [
+    {
+      "file": "frontend/src/components/AttemptTimeline.vue",
+      "lines": 29,
+      "sha256": "c492a1d3a3ba89266623d29be5c230d451537ff50173fe688f0fa5d19979176d",
+      "apiCalls": []
+    },
+    {
+      "file": "frontend/src/components/CodeMergeEditor.vue",
+      "lines": 158,
+      "sha256": "6614411e68423ca4e81b2d5f667e5ef013f14c44122c41a29b03c5819196ea32",
+      "apiCalls": []
+    },
+    {
+      "file": "frontend/src/components/DesignerDiscussionHistory.vue",
+      "lines": 64,
+      "sha256": "455113a4a5a933a163157a04b3db22ce6bb710462ebe55805807557bb663cd0c",
+      "apiCalls": []
+    },
+    {
+      "file": "frontend/src/components/DirtyWorkspaceDialog.vue",
+      "lines": 208,
+      "sha256": "8cee705312d89afe662d795e8f5569dbefc8a451147212e2d2e9f716c8df7bdb",
+      "apiCalls": [
+        "getDirtyWorkspace"
+      ]
+    },
+    {
+      "file": "frontend/src/components/ExecutionEvidencePanel.vue",
+      "lines": 66,
+      "sha256": "7b8a792eff2ebab0a9b0efe5616a46c31fa1360c344f685aedc493c9e6df8bf1",
+      "apiCalls": [
+        "evidenceFailure",
+        "evidenceFailures",
+        "executionEvidence",
+        "executionEvidenceBody",
+        "searchExecutionEvidence"
+      ]
+    },
+    {
+      "file": "frontend/src/components/GitDiffScopeApprovalDialog.vue",
+      "lines": 298,
+      "sha256": "28e2f69ee00e117a127c2e08ae2dcd9dd4f536d3d04fd8935e9316b464aa6353",
+      "apiCalls": [
+        "getGitDiffScopeApproval",
+        "getGitDiffScopeApprovalPreview",
+        "resolveGitDiffScopeApproval"
+      ]
+    },
+    {
+      "file": "frontend/src/components/JudgeReviewCard.vue",
+      "lines": 86,
+      "sha256": "385063c57667ce422f74012caeb912f51b4ffb8da1587a7aa3c7ac13acb8ff21",
+      "apiCalls": []
+    },
+    {
+      "file": "frontend/src/components/LayeredErrorPanel.vue",
+      "lines": 108,
+      "sha256": "fd3171654d71542afc2f7e4578fc74bac53a8c1a92180213ea68c438453f5cd9",
+      "apiCalls": []
+    },
+    {
+      "file": "frontend/src/components/MarkdownDocument.vue",
+      "lines": 324,
+      "sha256": "290e7b2b7cdcea2f52d5f8653433af0027f7444a2913f040eeae0fcf15b7c68d",
+      "apiCalls": []
+    },
+    {
+      "file": "frontend/src/components/MarkdownDocumentLegacy.vue",
+      "lines": 313,
+      "sha256": "836bf8483fa2e9259a0e7e48dba5efc3780d8aa9319b03f1702cba84dcc72ff8",
+      "apiCalls": []
+    },
+    {
+      "file": "frontend/src/components/OpenCodeTodoProgress.vue",
+      "lines": 107,
+      "sha256": "dff91eca589970e792c56eaccb7b12290df7da8d8c31849f8044b69d0543d444",
+      "apiCalls": []
+    },
+    {
+      "file": "frontend/src/components/PageHeader.vue",
+      "lines": 39,
+      "sha256": "e11033bcbf78289d68be315c9dcb63096a5b9db1a4cab14bc91b4aa61b300082",
+      "apiCalls": []
+    },
+    {
+      "file": "frontend/src/components/PendingQuestionCard.vue",
+      "lines": 104,
+      "sha256": "1f065e49befd14d529dde8b9d2cf0564e1e88fcc4d787672914a21b77bb633f4",
+      "apiCalls": []
+    },
+    {
+      "file": "frontend/src/components/RollingPackageWorkbench.vue",
+      "lines": 356,
+      "sha256": "c2fc2678f64ee0d13c9d43d7bac47e889271017c634c8c2e3d1ec193580c1196",
+      "apiCalls": [
+        "addRollingCorrection",
+        "approveRollingPackageDesign",
+        "confirmRollingPlan",
+        "discussRollingPackage",
+        "getRollingPackageDetail",
+        "getRollingPackageWorkbench",
+        "getRollingPlanRevisions",
+        "proposeRollingPlan",
+        "redesignRollingPackage",
+        "resolveRollingPackageFailure",
+        "resumeRollingPackageDesign",
+        "retryRollingPackageCheckpoint",
+        "startRollingPackage",
+        "suggestRollingPlan"
+      ]
+    },
+    {
+      "file": "frontend/src/components/SessionMonitorPanel.vue",
+      "lines": 403,
+      "sha256": "f0d83769ccde9ca89faefe97336b9bcbd0cd10d94b0493a4d3ffb47fe039fb9e",
+      "apiCalls": [
+        "getTaskSessionActivity",
+        "getTaskSessions",
+        "rejectTaskSessionQuestion",
+        "replyTaskSessionQuestion"
+      ]
+    },
+    {
+      "file": "frontend/src/components/SessionRoleSummary.vue",
+      "lines": 107,
+      "sha256": "6000b349cde92b20a9c748e5c5cc63d1be164b1c352bb788a43d31ec95113368",
+      "apiCalls": [
+        "getTaskSessionRole"
+      ]
+    },
+    {
+      "file": "frontend/src/components/SnapshotReviewBatchesPanel.vue",
+      "lines": 45,
+      "sha256": "2f14fbdb1ccacd9d9a37fb5443a1891be6e8f71b413543fed09694abd2680cff",
+      "apiCalls": [
+        "snapshotReviewBatches"
+      ]
+    },
+    {
+      "file": "frontend/src/components/SnapshotReviewPartialReport.vue",
+      "lines": 43,
+      "sha256": "06579dcada706d02725f6639598fdb5de78ca72cbc223ddb2d849525060c97ad",
+      "apiCalls": [
+        "snapshotReviewPartialReport"
+      ]
+    },
+    {
+      "file": "frontend/src/components/StageRail.vue",
+      "lines": 19,
+      "sha256": "c111608a5fca9e5025a3566106cec998c56fa9db509b1117cfed27e06697bf45",
+      "apiCalls": []
+    },
+    {
+      "file": "frontend/src/components/StageRailLegacy.vue",
+      "lines": 118,
+      "sha256": "652637e93a2c332137dcf2c3014dac61ef5a6f709148651ded969dbae78e2aab",
+      "apiCalls": []
+    },
+    {
+      "file": "frontend/src/components/StatusBadge.vue",
+      "lines": 19,
+      "sha256": "2b14c4ff3ecd9b0f892a4254a82e5a7a1c64000e6113fbb736fd7ed570b78d4b",
+      "apiCalls": []
+    },
+    {
+      "file": "frontend/src/components/TaskAuditEvidencePanel.vue",
+      "lines": 244,
+      "sha256": "f12d59ce91ce915693c5ed73b6fb8966be955ba8b4dc0f65a6e7192bc1e6a0d0",
+      "apiCalls": [
+        "getArtifactContent",
+        "getTaskDiffPreview",
+        "getVerificationEvidence"
+      ]
+    },
+    {
+      "file": "frontend/src/components/TaskDecisionPanel.vue",
+      "lines": 195,
+      "sha256": "2d3dc26c1f0e34486b6bd63844482b6dfcc15f5e790e5a13f28e96fd0c8d1552",
+      "apiCalls": [
+        "acceptTaskDecision",
+        "auditTaskDecision",
+        "cancelTaskDecision",
+        "continueTaskDecision",
+        "deriveTaskDecision",
+        "getTaskDecision"
+      ]
+    },
+    {
+      "file": "frontend/src/components/TaskJudgeApprovalPanel.vue",
+      "lines": 53,
+      "sha256": "677ca492fe08e25ad2ce2671b4701c8dd31a074c3bfa67f3d1ca28b4afaa7988",
+      "apiCalls": [
+        "approveJudges",
+        "getJudgeApproval"
+      ]
+    },
+    {
+      "file": "frontend/src/components/TaskPublicationActions.vue",
+      "lines": 620,
+      "sha256": "abea0f0596407923b3b2d9b8baee8fb5054ace99ced930871ce30ee0b935d680",
+      "apiCalls": [
+        "applyLocalSyncConflict",
+        "createLocalSyncConflictSession",
+        "createTaskMergeRequestDraft",
+        "generateTaskCommitMessage",
+        "getLocalSyncConflictContent",
+        "getLocalSyncConflictFiles",
+        "getLocalSyncConflictSession",
+        "getTaskPublication",
+        "publishTask",
+        "reconcileTaskPublication",
+        "saveLocalSyncResolution",
+        "suggestLocalSyncResolution"
+      ]
+    },
+    {
+      "file": "frontend/src/components/TemplateBatchRecoveryPanel.vue",
+      "lines": 121,
+      "sha256": "0e363dcc69717bc218e6fceb159e01e8d4c858a042626d4868dd02c1f9831d49",
+      "apiCalls": [
+        "documentFailedBatches",
+        "recheckTemplateTask",
+        "retrySelectedDocumentBatches",
+        "retrySelectedTemplateBatches",
+        "templateFailedBatches"
+      ]
+    },
+    {
+      "file": "frontend/src/components/TemplateReportsPanel.vue",
+      "lines": 114,
+      "sha256": "7ee9e838b4349bcd93e3422da9e7d663cf0ee6a3b7e7e9dd6898998221569315",
+      "apiCalls": [
+        "downloadTemplateReport",
+        "getArtifactContent"
+      ]
+    },
+    {
+      "file": "frontend/src/components/TemplateSessionDiagnosticsPanel.vue",
+      "lines": 250,
+      "sha256": "334c6802a8e6032f17240e56978459a496b05078462c52fffd92c5ca63d965d6",
+      "apiCalls": [
+        "checkTemplateSession",
+        "getTemplateSessionDiagnostic",
+        "getTemplateSessionDiagnostics",
+        "recoverTemplateSession"
+      ]
+    },
+    {
+      "file": "frontend/src/components/TemplateTaskProgressPanel.vue",
+      "lines": 80,
+      "sha256": "c4b0b46108ac59c4fccde9f1598bfe0aabe7dff031a57fe66c09f8af5707a115",
+      "apiCalls": []
+    },
+    {
+      "file": "frontend/src/components/TemplateTaskProgressPanelLegacy.vue",
+      "lines": 69,
+      "sha256": "6ede3c4a250b893895bd01f4a46f76c2f8687a9628d761cab8abff17261f6da0",
+      "apiCalls": []
+    },
+    {
+      "file": "frontend/src/components/TokenUsageWindow.vue",
+      "lines": 109,
+      "sha256": "dfce7f2db262cb2d8f31ed4c8a9b01f50935224ebc7ec7927428bad0ed0cc2c9",
+      "apiCalls": []
+    },
+    {
+      "file": "frontend/src/views/InboxView.vue",
+      "lines": 133,
+      "sha256": "c2a1cbd040e999eda11f53e0dd2a06a725d773c373d7a82cc6f36f155e0405f2",
+      "apiCalls": [
+        "getInteractions",
+        "resolveInteraction"
+      ]
+    },
+    {
+      "file": "frontend/src/views/RecoveryStudioView.vue",
+      "lines": 116,
+      "sha256": "307896472833d039e27cdd61358f495c84eceb3d4f83350dd5608f2cde335812",
+      "apiCalls": [
+        "createTaskRecovery",
+        "getTask",
+        "getTaskRecoveries"
+      ]
+    },
+    {
+      "file": "frontend/src/views/TaskDesignHistoryView.vue",
+      "lines": 227,
+      "sha256": "6406942a2d20c0abfbd0019359cd7216cd1be14e34f3e7433368c15210f7d716",
+      "apiCalls": [
+        "getTaskDesignAttachmentPreview",
+        "getTaskDesignHistory",
+        "taskDesignAttachmentContentUrl"
+      ]
+    },
+    {
+      "file": "frontend/src/views/TaskDetailView.vue",
+      "lines": 491,
+      "sha256": "ccc91ddcc8e1395a6f07a7634ac6698be94176c6ac49f7dc0afe6689f766193d",
+      "apiCalls": [
+        "getTaskQueue",
+        "reconcileTaskQueue"
+      ]
+    }
+  ],
+  "oldTaskOwnerDependencies": [
+    {
+      "file": "frontend/src/stores/taskStore.ts",
+      "apiCalls": [
+        "archiveTask",
+        "cancelDirtyWorkspace",
+        "cancelTask",
+        "createTaskRecovery",
+        "deleteArchivedTask",
+        "getProjects",
+        "getRuntime",
+        "getTask",
+        "getTaskAudit",
+        "getTaskOverview",
+        "getTaskSummaries",
+        "getTasks",
+        "pauseTask",
+        "resolveDirtyWorkspace",
+        "restartRuntime",
+        "restoreArchivedTask",
+        "resumeTask",
+        "retryTaskJudges",
+        "retryWaitingTaskLoop",
+        "startRuntime",
+        "startTask"
+      ],
+      "scope": "旧Task详情使用的store／pure订阅协作者，直接组件API引用73之外另列；W4核心不delegate该Vue store"
+    },
+    {
+      "file": "frontend/src/stores/taskEventSubscription.ts",
+      "apiCalls": [],
+      "scope": "旧Task详情使用的store／pure订阅协作者，直接组件API引用73之外另列；W4核心不delegate该Vue store"
+    }
+  ]
+}
