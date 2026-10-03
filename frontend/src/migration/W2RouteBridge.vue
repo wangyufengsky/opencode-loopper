@@ -12,6 +12,7 @@ import type { W2PageProps, W2Target } from '@/pages/w2/shared/types'
 import { createRouteLeaveCoordinator } from '@/pages/w2/shared/leave'
 import { createW2TaskPort } from './w2TaskPort'
 import { w2PageLoaders } from './w2Routes'
+import { w3PageLoader } from './w3Routes'
 import { W2BridgeView, type BridgeDialogSnapshot, type BridgeDialogPort } from './w2BridgeView'
 
 const route = useRoute(), router = useRouter(), store = useTaskStore(), host = ref<HTMLElement>()
@@ -61,6 +62,9 @@ function render() {
 }
 function destroyPage() {
   sequence++
+  // This guard belongs to the current page, even when RouterView reuses this
+  // bridge for the next React route. Release before mounting its next owner.
+  window.removeEventListener('beforeunload', beforeUnload)
   resolveConfirmation?.(false); resolveConfirmation = undefined; readConfirmation = undefined
   leaves.dispose()
   let cleanupFailed = false
@@ -81,7 +85,7 @@ async function mountPage() {
   if (!destroyPage()) return
   leaves = coordinator(); currentPath = route.path
   const ticket = sequence, path = currentPath
-  const load = w2PageLoaders[path]
+  const load = w2PageLoaders[path] ?? w3PageLoader(path)
   if (!load || !host.value) { failed.value = '此页面尚未接入，请返回原入口'; return }
   try {
     const loaded = await load()
@@ -111,6 +115,7 @@ async function mountPage() {
       },
     }
     view = mountReactView(host.value, W2BridgeView, { strict: true }); render()
+    window.addEventListener('beforeunload', beforeUnload)
   } catch { if (active && ticket === sequence) failed.value = '页面加载失败，请返回并重新打开' }
 }
 async function canNavigate(to: { fullPath: string }) {
@@ -128,11 +133,11 @@ function beforeUnload(event: BeforeUnloadEvent) {
   if (leaves.read().kind === 'ALLOW') return
   event.preventDefault(); event.returnValue = ''
 }
-onMounted(() => { window.addEventListener('beforeunload', beforeUnload); void mountPage() })
+onMounted(() => { void mountPage() })
 watch(() => [route.fullPath, currentSkin.value.id], () => {
   if (route.path !== currentPath) void mountPage()
   else render()
 }, { flush: 'post' })
-onBeforeUnmount(() => { active = false; window.removeEventListener('beforeunload', beforeUnload); destroyPage() })
+onBeforeUnmount(() => { active = false; destroyPage() })
 </script>
 <template><p v-if="failed" role="alert">{{ failed }}</p><div ref="host" data-page-runtime="react" data-w2-route-bridge /></template>

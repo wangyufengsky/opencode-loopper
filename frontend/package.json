@@ -23,7 +23,9 @@
     "test:accounting": "node --test ../scripts/aicoding/guard.test.mjs ../scripts/tests/package-semantic-guard.test.mjs ../scripts/tests/knowledge-native-guard.test.mjs",
     "typecheck": "vue-tsc -b",
     "test:w2": "node ../scripts/generate-semantic-registry.mjs --check && node ../scripts/generate-foundation-icons.mjs --check && vitest run src/pages/w2 src/migration/w2",
-    "test:w2-browser": "playwright test --config e2e/w2/playwright.config.ts"
+    "test:w2-browser": "playwright test --config e2e/w2/playwright.config.ts",
+    "test:w3": "node ../scripts/generate-semantic-registry.mjs --check && node ../scripts/generate-foundation-icons.mjs --check && vitest run src/pages/w3 src/migration/w3Routes.spec.ts src/migration/w2Bridge.spec.tsx",
+    "test:w3-browser": "playwright test --config e2e/w3/playwright.config.ts"
   },
   "dependencies": {
     "@codemirror/lang-java": "^6.0.2",

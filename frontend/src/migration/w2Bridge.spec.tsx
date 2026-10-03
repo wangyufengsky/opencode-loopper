@@ -16,6 +16,8 @@ const harness = vi.hoisted(() => ({ load: null as null | (() => Promise<unknown>
 vi.mock('./w2Routes', () => ({ w2PageLoaders: {
   '/projects': () => harness.load!(), '/tasks': () => harness.load!(),
 } }))
+vi.mock('./w3Routes', () => ({ w3PageLoader: (path: string) =>
+  /^\/(template-tasks|knowledge|ppt)(\/|$)/.test(path) ? () => harness.load!() : undefined }))
 let props: W2PageProps, risk: W2LeaveGuard
 let attached = 0, setups = 0, detached = 0, retired = 0, written = 0, cleanupThrows = false
 const roots: VueWrapper[] = []
@@ -34,6 +36,11 @@ async function settle() { await act(async () => { await flushPromises(); await f
 async function setup(path = '/projects') {
   const router = createRouter({ history: createMemoryHistory(), routes: [
     { path: '/projects', component: W2RouteBridge }, { path: '/tasks', component: W2RouteBridge },
+    { path: '/template-tasks', component: W2RouteBridge },
+    { path: '/template-tasks/document-runs/:id', component: W2RouteBridge },
+    { path: '/template-tasks/source-runs/:id', component: W2RouteBridge },
+    { path: '/knowledge/:conversationId?', component: W2RouteBridge },
+    { path: '/ppt/:id', component: W2RouteBridge },
     { path: '/exit', component: { template: '<p>原 Vue 路由仍可用</p>' } },
   ] })
   await router.push(path); await router.isReady()
@@ -54,6 +61,19 @@ afterEach(async () => {
   document.body.innerHTML = ''; vi.restoreAllMocks(); vi.unstubAllGlobals(); applySkin('spdb')
 })
 describe('W2 actual Vue history / React lifetime boundary', () => {
+  it.each(['/template-tasks', '/template-tasks/document-runs/doc-original', '/template-tasks/source-runs/source-original', '/knowledge', '/knowledge/conversation-original', '/ppt/ppt-original'])('W3 real history route %s forwards original params and holds the same owner across theme and blocked navigation', async path => {
+    const { router } = await setup(path)
+    expect(props.route.fullPath).toBe(path)
+    if (path.includes('original')) expect(Object.values(props.route.params)).toContain(path.split('/').at(-1))
+    expect(attached).toBe(1); expect(retired).toBe(0); expect(written).toBe(0)
+    risk = () => ({ kind: 'BLOCK', reason: '保留原 File 与未知写入身份', recoveryAction: '恢复原操作' })
+    await move(router, '/projects'); expect(router.currentRoute.value.path).toBe(path)
+    await move(router, `${path}?other=1`); expect(router.currentRoute.value.fullPath).toBe(path)
+    await act(async () => { props.setSkin('github-white'); await flushPromises() })
+    expect(attached).toBe(1); expect(retired).toBe(0); expect(written).toBe(0)
+    risk = () => ({ kind: 'ALLOW' }); await move(router, '/exit')
+    expect(retired).toBe(1); expect(attached).toBe(0); expect(written).toBe(0)
+  })
   it('StrictMode replay and skin change do not write or retire; actual route exit immediately retires once', async () => {
     const { router } = await setup()
     expect(document.body.textContent).toContain('React production island'); expect(attached).toBe(1); expect(setups).toBe(2); expect(detached).toBe(1); expect(retired).toBe(0); expect(written).toBe(0)
@@ -100,6 +120,22 @@ describe('W2 actual Vue history / React lifetime boundary', () => {
     const { router } = await setup()
     for (let i = 0; i < 4; i++) { await move(router, i % 2 ? '/projects' : '/tasks'); expect(attached).toBe(1); expect(retired).toBe(i + 1); expect(written).toBe(0) }
     await move(router, '/exit'); expect(attached).toBe(0); expect(retired).toBe(5)
+  })
+  it('a reused bridge releases the previous page beforeunload guard and binds exactly one guard to the new owner', async () => {
+    const add = vi.spyOn(window, 'addEventListener'), remove = vi.spyOn(window, 'removeEventListener')
+    const registrations = () => add.mock.calls.filter(([type]) => type === 'beforeunload')
+    const releases = () => remove.mock.calls.filter(([type]) => type === 'beforeunload')
+    const { router } = await setup()
+    expect(registrations()).toHaveLength(1); expect(releases()).toHaveLength(1)
+    risk = () => ({ kind: 'BLOCK', reason: '保留原身份', recoveryAction: '恢复原操作' })
+    const blocked = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(blocked); expect(blocked.defaultPrevented).toBe(true)
+    await move(router, '/tasks'); expect(registrations()).toHaveLength(1); expect(releases()).toHaveLength(1); expect(retired).toBe(0)
+    risk = () => ({ kind: 'ALLOW' }); await move(router, '/tasks')
+    expect(registrations()).toHaveLength(2); expect(releases()).toHaveLength(2); expect(retired).toBe(1)
+    expect(releases()[1]![1]).toBe(registrations()[0]![1])
+    await move(router, '/exit'); expect(releases()).toHaveLength(3); expect(attached).toBe(0)
+    const left = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(left); expect(left.defaultPrevented).toBe(false)
+    expect(written).toBe(0)
   })
   it('a deferred page import cannot mount after real root retirement', async () => {
     let resolve!: (component: unknown) => void; harness.load = () => new Promise(done => { resolve = done })

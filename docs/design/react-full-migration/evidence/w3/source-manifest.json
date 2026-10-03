@@ -1,0 +1,1078 @@
+{
+  "baseline": "a77b86ac40f458b9633acc3691fd2209125cb7a3",
+  "description": "冻结生产代码／测试／注册表及实际最终PNG；不含环境日志、trace、临时账号或私有状态。docs正文可继续收尾，不循环计算自身hash。",
+  "files": [
+    {
+      "file": "docs/design/react-full-migration/semantic-w3-additions.json",
+      "bytes": 15080,
+      "sha256": "9a39b8b3c7834573d493dc02f7597f997f978acefe3bd100ea38dfcbdf3d201f"
+    },
+    {
+      "file": "frontend/e2e/read-consistency.spec.ts",
+      "bytes": 5663,
+      "sha256": "21583c60d2a85d764a51743824a59851b77590e93b7c3d50a6eec4bec257176e"
+    },
+    {
+      "file": "frontend/e2e/w2/product-routes.spec.ts",
+      "bytes": 21498,
+      "sha256": "1e9a37d423daf02876c0d7fc8812a5b531305b68fa653ae20c5d4bfd8ca470eb"
+    },
+    {
+      "file": "frontend/e2e/w3/evidence.ts",
+      "bytes": 2467,
+      "sha256": "aa765382e7bc2a0c9b3c7651a23932d1c2d9b3f7864615dd60e9a875f8e79c5f"
+    },
+    {
+      "file": "frontend/e2e/w3/historical-consumers.spec.ts",
+      "bytes": 245,
+      "sha256": "20283f30b2ab38aa55c6c2016f36aaba7506d1cc99ecfcb81564040c3c4acb67"
+    },
+    {
+      "file": "frontend/e2e/w3/playwright.config.ts",
+      "bytes": 1006,
+      "sha256": "b150a461b70944dd62f851ce2961a35467db3cee189b1deb9e34ab7d06fed6a8"
+    },
+    {
+      "file": "frontend/e2e/w3/ppt-studio.spec.ts",
+      "bytes": 11143,
+      "sha256": "4cfc22338f0c89a1a32c94bb4dd9b515c15aa50109f83ac8e8f1e5d202cd5030"
+    },
+    {
+      "file": "frontend/e2e/w3/pptFixture.ts",
+      "bytes": 4950,
+      "sha256": "508d8eb72c40def26cc7f25385611fb44cf1b43b8bcbbda5df76733e13d301e3"
+    },
+    {
+      "file": "frontend/e2e/w3/productFixture.ts",
+      "bytes": 10688,
+      "sha256": "3abd36598e6caef607cd77c35974c1d062959aff7ef7ab2b4a6c3a45fcdf94af"
+    },
+    {
+      "file": "frontend/e2e/w3/production-routes.spec.ts",
+      "bytes": 10913,
+      "sha256": "025711709a4aa398a68e9c1fd63b905482cd4862e26ce7d38476597750b0929d"
+    },
+    {
+      "file": "frontend/e2e/w3/semantics.ts",
+      "bytes": 678,
+      "sha256": "2fda3cd03eb14c8207414105da78fe43640e6a35a88f463d46c728297b2739fd"
+    },
+    {
+      "file": "frontend/package.json",
+      "bytes": 3227,
+      "sha256": "0a96c9fe1a56101cb8114734a619937fb3952c27f466d9b477074852953d24f2"
+    },
+    {
+      "file": "frontend/src/foundation/ownership.spec.ts",
+      "bytes": 2293,
+      "sha256": "f939709ee943323d8622672dd9d0a73ae00e6e0dfa3de12af6fe93db38b74c16"
+    },
+    {
+      "file": "frontend/src/foundation/semantic-glyphs.json",
+      "bytes": 32551,
+      "sha256": "6c47a6823cde166931d7780427c3dafdcb1658af5ea982646e517909abc5c909"
+    },
+    {
+      "file": "frontend/src/foundation/semantic-registry-data.json",
+      "bytes": 127023,
+      "sha256": "a74a3471175b2e08b7c0d9625a86c233108a53d392e794617536fef266546b72"
+    },
+    {
+      "file": "frontend/src/migration/W2RouteBridge.vue",
+      "bytes": 7715,
+      "sha256": "fd856be4d696290c2aa8186bd791614a79a8b31a2cf38c33adcc4b1abceaf4a9"
+    },
+    {
+      "file": "frontend/src/migration/w2Bridge.spec.tsx",
+      "bytes": 11876,
+      "sha256": "4582b3b9c165a225c9e113aa66708a1142295f5e0b22a6842f48186a87fa1291"
+    },
+    {
+      "file": "frontend/src/migration/w3Routes.spec.ts",
+      "bytes": 1112,
+      "sha256": "5b2a4d89f46f147554347352e6716a1969ddd86999177beb172e2e1448032d9f"
+    },
+    {
+      "file": "frontend/src/migration/w3Routes.ts",
+      "bytes": 1417,
+      "sha256": "8dbd6bf03ee36c547e1ec3a640d5a3f18968d376096f0e9df5088bdfb7ccf84c"
+    },
+    {
+      "file": "frontend/src/pages/w3/knowledge/Activity.tsx",
+      "bytes": 2451,
+      "sha256": "c9278bf187261393c27c8cf186766ff5405dd8bc7859ccefb79751589d8f7bac"
+    },
+    {
+      "file": "frontend/src/pages/w3/knowledge/Evidence.tsx",
+      "bytes": 5022,
+      "sha256": "b2332f6e4ff5d56d4c0ac51cb03b9bcc28406965a314ceaee95f7118df508a8d"
+    },
+    {
+      "file": "frontend/src/pages/w3/knowledge/KnowledgePage.tsx",
+      "bytes": 13032,
+      "sha256": "cfc78d6314dc159476d47f861f1a3a771fea3f04fd4b4b4a7f1923d1346a61db"
+    },
+    {
+      "file": "frontend/src/pages/w3/knowledge/Question.tsx",
+      "bytes": 2861,
+      "sha256": "28c41e9324c9338c8e8a187ae77e8c06ad2257d9106ccb17f3a2f4e18963d8f2"
+    },
+    {
+      "file": "frontend/src/pages/w3/knowledge/SourcesPanel.tsx",
+      "bytes": 11667,
+      "sha256": "9eb8f81c614a5f43a0feac6280a0cbd840aea91f4b7a3e246cf58c7880ff91b6"
+    },
+    {
+      "file": "frontend/src/pages/w3/knowledge/Usage.tsx",
+      "bytes": 993,
+      "sha256": "48a538af3762ad367ea4d2473420b53a18d4888e3a868ab328f1608be223de50"
+    },
+    {
+      "file": "frontend/src/pages/w3/knowledge/browser.spec.ts",
+      "bytes": 4909,
+      "sha256": "789530e240643a4cce91df11ffc2cdaf88e3b939d3b30a1fbe466d50223cd160"
+    },
+    {
+      "file": "frontend/src/pages/w3/knowledge/browser.ts",
+      "bytes": 7148,
+      "sha256": "6ab56cce21ca9d97c271bc6e38215b654ba1bdca3873e2eae561e69d0f8da39d"
+    },
+    {
+      "file": "frontend/src/pages/w3/knowledge/controller.spec.ts",
+      "bytes": 12747,
+      "sha256": "d78f4dff53bb18ea8f5a557575b3420ba6ab2fa5174d1431fc9fc1a0b19e1917"
+    },
+    {
+      "file": "frontend/src/pages/w3/knowledge/controller.ts",
+      "bytes": 35423,
+      "sha256": "e5bffaeb50e1c99054041e1aaf93666a800e5d6faed8f496fd7bcf463d7ca78a"
+    },
+    {
+      "file": "frontend/src/pages/w3/knowledge/fixtures.ts",
+      "bytes": 996,
+      "sha256": "e0f9d7efb8f0dd50f564bda75dffc6c142796e1d2ede140518f64c03d49dd4d8"
+    },
+    {
+      "file": "frontend/src/pages/w3/knowledge/index.tsx",
+      "bytes": 105,
+      "sha256": "78d391df2e865a8c01569258dd78f7345804a7b454f7c7e98752b39af4db2978"
+    },
+    {
+      "file": "frontend/src/pages/w3/knowledge/knowledge.css",
+      "bytes": 4462,
+      "sha256": "639321b76c82fc26a1abea3f67505050c2c8aef9934bdca0ac2716b44b475f5c"
+    },
+    {
+      "file": "frontend/src/pages/w3/knowledge/pages.spec.tsx",
+      "bytes": 14887,
+      "sha256": "a71f88e85bb13fa91e0d6ea5abbb22f78ab39957a9d4ef1217830d3bdb24a670"
+    },
+    {
+      "file": "frontend/src/pages/w3/knowledge/useEvidenceWidth.ts",
+      "bytes": 2826,
+      "sha256": "f558daffb059c536df51620d6cdc8c40d3dd54b38adf2d6be9176308d106f9e2"
+    },
+    {
+      "file": "frontend/src/pages/w3/ppt/Chat.tsx",
+      "bytes": 8562,
+      "sha256": "7842b9bb02d0fefa561989c891ef5178399bc896e706aeb0f9f67ab97451828f"
+    },
+    {
+      "file": "frontend/src/pages/w3/ppt/Details.tsx",
+      "bytes": 7047,
+      "sha256": "efe6f6b0bfde6dc694bcb733d4c912b2f132eb745901bb5f17a82d29a6163ab9"
+    },
+    {
+      "file": "frontend/src/pages/w3/ppt/Download.tsx",
+      "bytes": 2842,
+      "sha256": "03ee035e3de41d51fa9c38ab67ec904901e3fcc472c2ab9625c91d40ba75f4f5"
+    },
+    {
+      "file": "frontend/src/pages/w3/ppt/Plan.tsx",
+      "bytes": 10833,
+      "sha256": "cc8acf81d9c66b43f84c6cc0e5950d7809ef847b0177b4e5bbe66a6dccabdf31"
+    },
+    {
+      "file": "frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx",
+      "bytes": 14930,
+      "sha256": "1de6117bf8f63b57148619db0eca70e60ac42e43927cd88d2bd9ae4ff093c37b"
+    },
+    {
+      "file": "frontend/src/pages/w3/ppt/PptStudioPage.tsx",
+      "bytes": 27647,
+      "sha256": "0d744c2211a7ed32f7b6c091db322fe619d84ec45ec056f5ed7ef52f68507712"
+    },
+    {
+      "file": "frontend/src/pages/w3/ppt/Properties.tsx",
+      "bytes": 8109,
+      "sha256": "b4ff2f3da8dfdbf9993b8bbb859500ce65301d1dcf765b5d80c983d6be232bd3"
+    },
+    {
+      "file": "frontend/src/pages/w3/ppt/controller.spec.ts",
+      "bytes": 16492,
+      "sha256": "2847292a86a69fb74a329b315531809fa68e504d5e5101656620f85eba2d99d3"
+    },
+    {
+      "file": "frontend/src/pages/w3/ppt/controller.ts",
+      "bytes": 38051,
+      "sha256": "ca4d510736a2af3b7e89b3777c158fd72ff009f9ae59c86b6501f7fe54a60084"
+    },
+    {
+      "file": "frontend/src/pages/w3/ppt/editors.spec.tsx",
+      "bytes": 6793,
+      "sha256": "a3b0d0d4a78c6cc933625b31f2f7d1f6127b649fdef4eb57bbbbad322cea1072"
+    },
+    {
+      "file": "frontend/src/pages/w3/ppt/index.tsx",
+      "bytes": 48,
+      "sha256": "770d05916e27d774d8f157e4a1b9ee1a22202daddb9be94f13fa2fd2d211e652"
+    },
+    {
+      "file": "frontend/src/pages/w3/ppt/studio.css",
+      "bytes": 3406,
+      "sha256": "d6cb8f715280654a235bdf19b0667fd9a18a69d26821321cb9dc8b7ba331dffd"
+    },
+    {
+      "file": "frontend/src/pages/w3/ppt/testFixture.ts",
+      "bytes": 5631,
+      "sha256": "551d6e287d5f83b8673efdc76eaa9ddd357819a0ef779ddc109f85e1db646a89"
+    },
+    {
+      "file": "frontend/src/pages/w3/shared/ReadOnlyCode.tsx",
+      "bytes": 2567,
+      "sha256": "b2af293550d5bd604c1fcf49a94ed9a6c96c1dc2528df1cbb3fc95d2ae727272"
+    },
+    {
+      "file": "frontend/src/pages/w3/shared/RichDocument.tsx",
+      "bytes": 7109,
+      "sha256": "6bfe446ca504f8514fd5b1d2d365816cc9db86152ebe6a184c59f2dbfdef6083"
+    },
+    {
+      "file": "frontend/src/pages/w3/shared/documents.css",
+      "bytes": 2125,
+      "sha256": "cce69cb8b55afd71285f51de21933e4195b8fbe00a4c49733b6bca76c6a489db"
+    },
+    {
+      "file": "frontend/src/pages/w3/shared/documents.spec.tsx",
+      "bytes": 6514,
+      "sha256": "6b1f3bc6ebebedad1ec71e6070f4dc865314b8742fdf682a8b3c5ffe4188220f"
+    },
+    {
+      "file": "frontend/src/pages/w3/templates/catalog/CreationRecovery.tsx",
+      "bytes": 2372,
+      "sha256": "b88a6a14bcaa97c7d6ae017a3b4cdc7ea499bbd622f334c967d01d89f44df3db"
+    },
+    {
+      "file": "frontend/src/pages/w3/templates/catalog/HistoryDrawer.tsx",
+      "bytes": 8109,
+      "sha256": "b8e10624753a538d765ff7e4fadd238fea70c134d4e20c6e33879c4f6ec4a138"
+    },
+    {
+      "file": "frontend/src/pages/w3/templates/catalog/TemplateTasksPage.tsx",
+      "bytes": 11027,
+      "sha256": "255ee6aea60aace9d74f5740a4afec7225a6b171511f4f103b85076684ea0711"
+    },
+    {
+      "file": "frontend/src/pages/w3/templates/catalog/catalog.css",
+      "bytes": 1250,
+      "sha256": "6dd30f7198688b265d3c63a8ac6f8e3db3ec30bf2667a3ff08961128476614e0"
+    },
+    {
+      "file": "frontend/src/pages/w3/templates/catalog/controller.spec.ts",
+      "bytes": 5567,
+      "sha256": "972bad4281e7fe2ba0c7fa70f3d2c87e1be70186af8ca6ea1911fc876fa8f649"
+    },
+    {
+      "file": "frontend/src/pages/w3/templates/catalog/controller.ts",
+      "bytes": 14656,
+      "sha256": "cdcff649de1640e7fd6a18b06f14437322d08d298b8e81a7b44b8203c1ace173"
+    },
+    {
+      "file": "frontend/src/pages/w3/templates/catalog/creation.spec.ts",
+      "bytes": 8206,
+      "sha256": "ceac180a5a8fd24363936c9f4a7fd65d83a9db41b9e5e569d37cf582c8f113c7"
+    },
+    {
+      "file": "frontend/src/pages/w3/templates/catalog/creation.ts",
+      "bytes": 17944,
+      "sha256": "28ab62c37369d60767060d8f90dfa84cec24f255c68fc87caa891f52c5940ba4"
+    },
+    {
+      "file": "frontend/src/pages/w3/templates/catalog/fixtures.ts",
+      "bytes": 4122,
+      "sha256": "1b0a35b2ee6da46ff75dae6b3fbbd422d7fa7963db18df39252ed4ef098d1a47"
+    },
+    {
+      "file": "frontend/src/pages/w3/templates/catalog/history.spec.ts",
+      "bytes": 6460,
+      "sha256": "5eac76b1e6f4745e237c93b0ea690b95ab7f3ae36d2a64c406c349b0de7d918f"
+    },
+    {
+      "file": "frontend/src/pages/w3/templates/catalog/history.ts",
+      "bytes": 14146,
+      "sha256": "a7f5cf14a80527c391e6d5c4db8a96c392124a92605bd83a6bc1b3e564369981"
+    },
+    {
+      "file": "frontend/src/pages/w3/templates/catalog/index.tsx",
+      "bytes": 119,
+      "sha256": "6bd133a35ac150b5161ae18f88cec02f1e1448612062080823f73f536a86fb8c"
+    },
+    {
+      "file": "frontend/src/pages/w3/templates/catalog/pages.spec.tsx",
+      "bytes": 10918,
+      "sha256": "54aa589152d9c0f56880583e0b3ab3f350a2e33c76c553419133d5dc9802b0e7"
+    },
+    {
+      "file": "frontend/src/pages/w3/templates/catalog/w0Creation.ts",
+      "bytes": 416,
+      "sha256": "8f0e23983e8dbeedaa0325254934d1e58fc7da44b42c6a617abc73e497993a8a"
+    },
+    {
+      "file": "frontend/src/pages/w3/templates/runs/ContentPanels.tsx",
+      "bytes": 4384,
+      "sha256": "56630f5414447971ed4602283dac19bd45e1e3eddc6624f343e29d931c410be0"
+    },
+    {
+      "file": "frontend/src/pages/w3/templates/runs/DocumentPanels.tsx",
+      "bytes": 12842,
+      "sha256": "e8e501cb312e34999078f92c48b8341ae7d066d7d57149196b6cd508248b8fc3"
+    },
+    {
+      "file": "frontend/src/pages/w3/templates/runs/RecoveryPanels.tsx",
+      "bytes": 8810,
+      "sha256": "53df9da61536188ddb8971132e5e5688f9b04921072d0b1bbebee9bee5238906"
+    },
+    {
+      "file": "frontend/src/pages/w3/templates/runs/RunPages.tsx",
+      "bytes": 13101,
+      "sha256": "39766e1ba86eada6dbf40cdbd481976854fd60c30eeb010a43aa0d94f4252b89"
+    },
+    {
+      "file": "frontend/src/pages/w3/templates/runs/batchCasOperation.ts",
+      "bytes": 3199,
+      "sha256": "b8a2b4483f0b9a77f86739ccf230832c5d44051a09bc618dc0598f8199bc6e51"
+    },
+    {
+      "file": "frontend/src/pages/w3/templates/runs/contentOwners.ts",
+      "bytes": 8807,
+      "sha256": "cb5e07d538aa7200f7df80d332392f513a156e9f498eb7dfb6a555975222a471"
+    },
+    {
+      "file": "frontend/src/pages/w3/templates/runs/core.ts",
+      "bytes": 4680,
+      "sha256": "3b2772f175368d31cbcb2a0ccee5ee5229cc2bfcf6f5026916c9a0d7d3eec286"
+    },
+    {
+      "file": "frontend/src/pages/w3/templates/runs/documentOwners.ts",
+      "bytes": 9115,
+      "sha256": "754872b4bea6d97c4d812b54a31b027c094fa33b35fe8b2cf3b7c0eb48b3aedc"
+    },
+    {
+      "file": "frontend/src/pages/w3/templates/runs/index.tsx",
+      "bytes": 299,
+      "sha256": "27f023370284423080c132a5e353ea75e8a9c33b9ed7e126ec730260cf97a54e"
+    },
+    {
+      "file": "frontend/src/pages/w3/templates/runs/parts.tsx",
+      "bytes": 3307,
+      "sha256": "d8dac6ecb9ba4a355020242ffee00c20e2f6e0b3b6fa65e2c3c825387c51badc"
+    },
+    {
+      "file": "frontend/src/pages/w3/templates/runs/recoveryOwners.ts",
+      "bytes": 13982,
+      "sha256": "edee153b498be2032fd1e64de060924c695d405ff5a97499de312c325a1b0cb6"
+    },
+    {
+      "file": "frontend/src/pages/w3/templates/runs/run-child-w0-contract.tsx",
+      "bytes": 14357,
+      "sha256": "c07543ceb68d3ec0fa15fbdb93295295daa47356fbb163cb41490575e07c475c"
+    },
+    {
+      "file": "frontend/src/pages/w3/templates/runs/run-w0-contract.tsx",
+      "bytes": 9216,
+      "sha256": "537b28e4a6783b86960271e40999857f3f7a18b0d6f888e022f2e036ad17f3b4"
+    },
+    {
+      "file": "frontend/src/pages/w3/templates/runs/runChildren.spec.tsx",
+      "bytes": 1745,
+      "sha256": "0c032b07c22dc03b2fec4faffc283da44f1478a0178380570067f16b8aa3c90a"
+    },
+    {
+      "file": "frontend/src/pages/w3/templates/runs/runController.ts",
+      "bytes": 11252,
+      "sha256": "36d240aec01c76c69a234019e03a8107947b16b07013a186307fcfae3183ebdc"
+    },
+    {
+      "file": "frontend/src/pages/w3/templates/runs/runOwners.spec.ts",
+      "bytes": 16319,
+      "sha256": "c4444d08962daacb0d9335689898b16c3e99f57e6399b26d3eb30bc1c7a4e2ba"
+    },
+    {
+      "file": "frontend/src/pages/w3/templates/runs/runProjection.spec.tsx",
+      "bytes": 6663,
+      "sha256": "b5ee7adf9674aa99c51a66dcb1a36aab910e7c8484b10d24a6d5c9253c4a2058"
+    },
+    {
+      "file": "frontend/src/pages/w3/templates/runs/runRoutes.spec.tsx",
+      "bytes": 2203,
+      "sha256": "d8ce4fa5ec44ee93f58fb8743aca8fc84a80c437bf8545b06dbfc7e5147b23f8"
+    },
+    {
+      "file": "frontend/src/pages/w3/templates/runs/runs.css",
+      "bytes": 1546,
+      "sha256": "298b01711bfbc6e8e16b9372caa105d09e707a67886c4ef9a6479b6a3e63bd83"
+    },
+    {
+      "file": "frontend/src/pages/w3/templates/runs/test-support.ts",
+      "bytes": 2753,
+      "sha256": "f16110d417833b238aa728f1d78bdf2f4b3658dec2a8327f283c598834f2992f"
+    },
+    {
+      "file": "frontend/src/router/index.ts",
+      "bytes": 2942,
+      "sha256": "340c12e848a424fc0fe11ac6f170ff15ca244f981b771187ab10fe819b5d0b81"
+    },
+    {
+      "file": "frontend/src/w0/endpoint-w0.spec.ts",
+      "bytes": 12443,
+      "sha256": "dbed2cecdb4cdb3fe94115c3ace57de1f52fbc0c09797b08ebd742c216f5fb26"
+    },
+    {
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "bytes": 24316,
+      "sha256": "996b48c3cbc95184237eb9f78ab590a0500d57be6ee98395233387e31ccfe591"
+    },
+    {
+      "file": "frontend/src/w0/w3-creation-contract.tsx",
+      "bytes": 7221,
+      "sha256": "43a0c412f8522c86a45c7cd473aebdfaa5ea32af09fab93d2e48131b055e436d"
+    },
+    {
+      "file": "scripts/generate-semantic-registry.mjs",
+      "bytes": 1710,
+      "sha256": "10ae39533ab420055f422940bf0d84d68fe7a9392636e3686c0712b371a91e2a"
+    }
+  ],
+  "screenshots": [
+    {
+      "file": "screenshots/spdb-catalog-default.png",
+      "skin": "spdb",
+      "state": "catalog-default",
+      "title": "任务模板 · 默认创建区",
+      "bytes": 115853,
+      "width": 1440,
+      "height": 1000,
+      "sha256": "d12fe7fee8894ed6e6b2db4b543fcd25bbb3d8d9b02258192215436a9e5add0a",
+      "stableConsecutiveExactBuffers": true
+    },
+    {
+      "file": "screenshots/spdb-document-default.png",
+      "skin": "spdb",
+      "state": "document-default",
+      "title": "文档执行 · 默认主区",
+      "bytes": 100726,
+      "width": 1440,
+      "height": 1000,
+      "sha256": "0c65b24f8ad24baa82b8754886559d898945bc9cd25f26a4c31928a852b27021",
+      "stableConsecutiveExactBuffers": true
+    },
+    {
+      "file": "screenshots/spdb-document-selected.png",
+      "skin": "spdb",
+      "state": "document-selected",
+      "title": "文档执行 · 已选择报告（详情位于下方）",
+      "bytes": 102964,
+      "width": 1440,
+      "height": 1000,
+      "sha256": "60452d5e7796ae6b8ffb85ff30007920d2ddbcb647c6408f50464ef7af20509a",
+      "stableConsecutiveExactBuffers": true
+    },
+    {
+      "file": "screenshots/spdb-source-default.png",
+      "skin": "spdb",
+      "state": "source-default",
+      "title": "源码执行 · 默认主区",
+      "bytes": 83291,
+      "width": 1440,
+      "height": 1000,
+      "sha256": "b0b39b43c33c9d8539865dc98d862a30da73bad1ba7a1cec648e3faa8f204dfd",
+      "stableConsecutiveExactBuffers": true
+    },
+    {
+      "file": "screenshots/spdb-source-selected.png",
+      "skin": "spdb",
+      "state": "source-selected",
+      "title": "源码执行 · 已选择覆盖与报告",
+      "bytes": 94761,
+      "width": 1440,
+      "height": 1000,
+      "sha256": "f0f621cfe228f28f5abfd625473099100bc22beb07dc3936a2d453b4d2a8b4c9",
+      "stableConsecutiveExactBuffers": true
+    },
+    {
+      "file": "screenshots/spdb-knowledge-new-default.png",
+      "skin": "spdb",
+      "state": "knowledge-new-default",
+      "title": "知识库 · 新会话",
+      "bytes": 95283,
+      "width": 1440,
+      "height": 1000,
+      "sha256": "07d7b421163958dbc3c1a620e88e5e9b834919cc001b823d193a5b7d0f91fcf4",
+      "stableConsecutiveExactBuffers": true
+    },
+    {
+      "file": "screenshots/spdb-knowledge-existing-default.png",
+      "skin": "spdb",
+      "state": "knowledge-existing-default",
+      "title": "知识库 · 既有会话",
+      "bytes": 101801,
+      "width": 1440,
+      "height": 1000,
+      "sha256": "7177baabbb69ae778f7feb83e8a52f5105360e624a8d165009383eb0b19f1220",
+      "stableConsecutiveExactBuffers": true
+    },
+    {
+      "file": "screenshots/spdb-knowledge-existing-selected.png",
+      "skin": "spdb",
+      "state": "knowledge-existing-selected",
+      "title": "知识库 · 选中引用详情",
+      "bytes": 119161,
+      "width": 1440,
+      "height": 1000,
+      "sha256": "03eb1208be39bf9cfa305e7ecfad476e6829ed9ff1b2d4551ec3ef5423cb523b",
+      "stableConsecutiveExactBuffers": true
+    },
+    {
+      "file": "screenshots/spdb-history-archive-selected.png",
+      "skin": "spdb",
+      "state": "history-archive-selected",
+      "title": "合法历史归档 · 显式打开导出说明",
+      "bytes": 157939,
+      "width": 1440,
+      "height": 1000,
+      "sha256": "5ea7c3ed39ff3491c5841ffba52851de07a2f39fabad7321e2c0a383018aad28",
+      "stableConsecutiveExactBuffers": true
+    },
+    {
+      "file": "screenshots/spdb-ppt-default.png",
+      "skin": "spdb",
+      "state": "ppt-default",
+      "title": "PPT · 默认预览",
+      "bytes": 50534,
+      "width": 1440,
+      "height": 1000,
+      "sha256": "3bb41833f861e619b9190b7f6633bf5192d6ca86f8249b5aef6484f3a7f633d8",
+      "stableConsecutiveExactBuffers": true
+    },
+    {
+      "file": "screenshots/spdb-ppt-selected.png",
+      "skin": "spdb",
+      "state": "ppt-selected",
+      "title": "PPT · 选中自由对象与属性",
+      "bytes": 89366,
+      "width": 1440,
+      "height": 1000,
+      "sha256": "1719a9a922ff4ef33ae0d9386cd742dcb1f81a562dcc8d56397bb4c840624534",
+      "stableConsecutiveExactBuffers": true
+    },
+    {
+      "file": "screenshots/tech-blue-catalog-default.png",
+      "skin": "tech-blue",
+      "state": "catalog-default",
+      "title": "任务模板 · 默认创建区",
+      "bytes": 138136,
+      "width": 1440,
+      "height": 1000,
+      "sha256": "f56d00d39861c2fd51efcbc20bf3638232163f51bc2c5257373a5f56ddeb1afc",
+      "stableConsecutiveExactBuffers": true
+    },
+    {
+      "file": "screenshots/tech-blue-document-default.png",
+      "skin": "tech-blue",
+      "state": "document-default",
+      "title": "文档执行 · 默认主区",
+      "bytes": 120026,
+      "width": 1440,
+      "height": 1000,
+      "sha256": "fde1e571e375532f911486af96c79bff0b751a802ffaef65999dcf00fd22551e",
+      "stableConsecutiveExactBuffers": true
+    },
+    {
+      "file": "screenshots/tech-blue-document-selected.png",
+      "skin": "tech-blue",
+      "state": "document-selected",
+      "title": "文档执行 · 已选择报告（详情位于下方）",
+      "bytes": 122206,
+      "width": 1440,
+      "height": 1000,
+      "sha256": "dffb88fc602b5208360d5a4c86bc727723b1cf5cc3ab1cf3a48b794235c64a37",
+      "stableConsecutiveExactBuffers": true
+    },
+    {
+      "file": "screenshots/tech-blue-source-default.png",
+      "skin": "tech-blue",
+      "state": "source-default",
+      "title": "源码执行 · 默认主区",
+      "bytes": 102194,
+      "width": 1440,
+      "height": 1000,
+      "sha256": "e9235c2c40ad02b61d29ac60c097655d419bde1924a0000a1282285d2ad7aaa3",
+      "stableConsecutiveExactBuffers": true
+    },
+    {
+      "file": "screenshots/tech-blue-source-selected.png",
+      "skin": "tech-blue",
+      "state": "source-selected",
+      "title": "源码执行 · 已选择覆盖与报告",
+      "bytes": 113609,
+      "width": 1440,
+      "height": 1000,
+      "sha256": "af251a8b7bbb16d6594e6a9018005e7cee42a0aaf52d32ee521ccd4224fd3f39",
+      "stableConsecutiveExactBuffers": true
+    },
+    {
+      "file": "screenshots/tech-blue-knowledge-new-default.png",
+      "skin": "tech-blue",
+      "state": "knowledge-new-default",
+      "title": "知识库 · 新会话",
+      "bytes": 117265,
+      "width": 1440,
+      "height": 1000,
+      "sha256": "16ccdb03e98e1a488807fe60b337b0b5116b347c68672c3fbf571c3c2038e82c",
+      "stableConsecutiveExactBuffers": true
+    },
+    {
+      "file": "screenshots/tech-blue-knowledge-existing-default.png",
+      "skin": "tech-blue",
+      "state": "knowledge-existing-default",
+      "title": "知识库 · 既有会话",
+      "bytes": 123343,
+      "width": 1440,
+      "height": 1000,
+      "sha256": "1e9441abcb20693a1cc51868771108c4d61ddaf65f22e963f7abdf5c01a09125",
+      "stableConsecutiveExactBuffers": true
+    },
+    {
+      "file": "screenshots/tech-blue-knowledge-existing-selected.png",
+      "skin": "tech-blue",
+      "state": "knowledge-existing-selected",
+      "title": "知识库 · 选中引用详情",
+      "bytes": 140446,
+      "width": 1440,
+      "height": 1000,
+      "sha256": "0ac50a1a3d6b0ff0554480260329763ced86b590a841b12f5c80bb95d553aa54",
+      "stableConsecutiveExactBuffers": true
+    },
+    {
+      "file": "screenshots/tech-blue-history-archive-selected.png",
+      "skin": "tech-blue",
+      "state": "history-archive-selected",
+      "title": "合法历史归档 · 显式打开导出说明",
+      "bytes": 180315,
+      "width": 1440,
+      "height": 1000,
+      "sha256": "fc0eab42131a1128449fe4371605b4a5f694f4bad8ab0b644f8ba0773bc445e7",
+      "stableConsecutiveExactBuffers": true
+    },
+    {
+      "file": "screenshots/tech-blue-ppt-default.png",
+      "skin": "tech-blue",
+      "state": "ppt-default",
+      "title": "PPT · 默认预览",
+      "bytes": 51778,
+      "width": 1440,
+      "height": 1000,
+      "sha256": "082ef9b8f9760dfb353e7d74f009caf7c9e195d5aae06ac12cc2060c9c2dbcb7",
+      "stableConsecutiveExactBuffers": true
+    },
+    {
+      "file": "screenshots/tech-blue-ppt-selected.png",
+      "skin": "tech-blue",
+      "state": "ppt-selected",
+      "title": "PPT · 选中自由对象与属性",
+      "bytes": 90760,
+      "width": 1440,
+      "height": 1000,
+      "sha256": "5276f1429e9df15d2306fa65458cefe1c2c9a28be1d0d050f19b460bbbc2010a",
+      "stableConsecutiveExactBuffers": true
+    },
+    {
+      "file": "screenshots/github-white-catalog-default.png",
+      "skin": "github-white",
+      "state": "catalog-default",
+      "title": "任务模板 · 默认创建区",
+      "bytes": 109216,
+      "width": 1280,
+      "height": 1000,
+      "sha256": "4c99846b1c29038f9a5986bfd66f1527758e73e67e493f5f398a3f381e952055",
+      "stableConsecutiveExactBuffers": true
+    },
+    {
+      "file": "screenshots/github-white-document-default.png",
+      "skin": "github-white",
+      "state": "document-default",
+      "title": "文档执行 · 默认主区",
+      "bytes": 97747,
+      "width": 1280,
+      "height": 1000,
+      "sha256": "e747fa1094fe58a8cbf5bab52d25f5ec84179d32aa380329891d631d8b798061",
+      "stableConsecutiveExactBuffers": true
+    },
+    {
+      "file": "screenshots/github-white-document-selected.png",
+      "skin": "github-white",
+      "state": "document-selected",
+      "title": "文档执行 · 已选择报告（详情位于下方）",
+      "bytes": 100285,
+      "width": 1280,
+      "height": 1000,
+      "sha256": "b4f7d6e18de9f4bef680a0cab48fcf2f5bd2b5c182a0e2828707a5a805c39a6e",
+      "stableConsecutiveExactBuffers": true
+    },
+    {
+      "file": "screenshots/github-white-source-default.png",
+      "skin": "github-white",
+      "state": "source-default",
+      "title": "源码执行 · 默认主区",
+      "bytes": 81224,
+      "width": 1280,
+      "height": 1000,
+      "sha256": "ed9242f2dfd12cc4a838b876aae65a1352f01c48086d12203c9e83ef5382cedf",
+      "stableConsecutiveExactBuffers": true
+    },
+    {
+      "file": "screenshots/github-white-source-selected.png",
+      "skin": "github-white",
+      "state": "source-selected",
+      "title": "源码执行 · 已选择覆盖与报告",
+      "bytes": 92427,
+      "width": 1280,
+      "height": 1000,
+      "sha256": "41872c406680aa182b134c195588cf35512914c0d20738f5463c258eef483922",
+      "stableConsecutiveExactBuffers": true
+    },
+    {
+      "file": "screenshots/github-white-knowledge-new-default.png",
+      "skin": "github-white",
+      "state": "knowledge-new-default",
+      "title": "知识库 · 新会话",
+      "bytes": 89368,
+      "width": 1280,
+      "height": 1000,
+      "sha256": "4f024a2bdf35bcfc58e2779a97a6061e08c6cfe8a30b5140e140328092b5df44",
+      "stableConsecutiveExactBuffers": true
+    },
+    {
+      "file": "screenshots/github-white-knowledge-existing-default.png",
+      "skin": "github-white",
+      "state": "knowledge-existing-default",
+      "title": "知识库 · 既有会话",
+      "bytes": 95744,
+      "width": 1280,
+      "height": 1000,
+      "sha256": "ddfb3cfa1bcd98e3bcc46a849edb0f7859fb109160d34367f0179a949105ffbc",
+      "stableConsecutiveExactBuffers": true
+    },
+    {
+      "file": "screenshots/github-white-knowledge-existing-selected.png",
+      "skin": "github-white",
+      "state": "knowledge-existing-selected",
+      "title": "知识库 · 选中引用详情",
+      "bytes": 111291,
+      "width": 1280,
+      "height": 1000,
+      "sha256": "bdeaa19a5c20f5c03ef02af7b3d05ecd871b8f7223c6429cb3d88d83d615483c",
+      "stableConsecutiveExactBuffers": true
+    },
+    {
+      "file": "screenshots/github-white-history-archive-selected.png",
+      "skin": "github-white",
+      "state": "history-archive-selected",
+      "title": "合法历史归档 · 显式打开导出说明",
+      "bytes": 152401,
+      "width": 1440,
+      "height": 1000,
+      "sha256": "fef1c5856a85037c62eb75bd026e76ed03f785acbdd2727f06bee4b6c7aabf75",
+      "stableConsecutiveExactBuffers": true
+    },
+    {
+      "file": "screenshots/github-white-ppt-default.png",
+      "skin": "github-white",
+      "state": "ppt-default",
+      "title": "PPT · 默认预览",
+      "bytes": 48923,
+      "width": 1440,
+      "height": 1000,
+      "sha256": "8303c99d343a7b14f96fed3934271fa86e43e935b6d77a98a58e8dd46797bd18",
+      "stableConsecutiveExactBuffers": true
+    },
+    {
+      "file": "screenshots/github-white-ppt-selected.png",
+      "skin": "github-white",
+      "state": "ppt-selected",
+      "title": "PPT · 选中自由对象与属性",
+      "bytes": 87472,
+      "width": 1440,
+      "height": 1000,
+      "sha256": "23bdb1269ddf5b45391e110bbf280edd78b0176f44e1aa3f3f5f4d532bc5a50c",
+      "stableConsecutiveExactBuffers": true
+    }
+  ],
+  "preservedPaths": [
+    {
+      "file": "frontend/src/react/ppt/PptCanvasImmediate.spec.tsx",
+      "unchangedFromW2": true,
+      "sha256": "b59ae964992b3342d932f89c941c5b1e8e01fd3cc7c7c357d361e378739d5198"
+    },
+    {
+      "file": "frontend/src/react/ppt/PptCanvasView.spec.tsx",
+      "unchangedFromW2": true,
+      "sha256": "a9504e6114296a890a7a7cb4418762290a326039f6a584a9914485dee1ba308c"
+    },
+    {
+      "file": "frontend/src/react/ppt/PptCanvasView.tsx",
+      "unchangedFromW2": true,
+      "sha256": "ebfaa243ae29f242b122de470427b5c971928220211d97dcd321979856aebc5d"
+    },
+    {
+      "file": "frontend/src/react/ppt/PptSlideNavigatorView.spec.tsx",
+      "unchangedFromW2": true,
+      "sha256": "e91743056b1fc9ddaccce5bf49a68815ca3541092f7b4410dccde89ba8c31d5a"
+    },
+    {
+      "file": "frontend/src/react/ppt/PptSlideNavigatorView.tsx",
+      "unchangedFromW2": true,
+      "sha256": "6591f790d199738e65cc0612756ec43670067709a47c0ca9b2f99b0bd35e634d"
+    },
+    {
+      "file": "frontend/src/react/ppt/previews.ts",
+      "unchangedFromW2": true,
+      "sha256": "b560fa429c809e3b8941584986ea01ad7011dfb0781fead1fbbd6817c7501266"
+    },
+    {
+      "file": "frontend/src/react/ppt/snapshot.ts",
+      "unchangedFromW2": true,
+      "sha256": "396b114305f9326da5871d4efb12be53dbe91ebe9202b83fb87dedcb2703a760"
+    },
+    {
+      "file": "frontend/src/components/ppt/PptArtifactDownload.spec.ts",
+      "unchangedFromW2": true,
+      "sha256": "4cd15f507b75134f310ceb55d6e8cf8e561a350a7320d1fca819bb2667cf28f7"
+    },
+    {
+      "file": "frontend/src/components/ppt/PptArtifactDownload.vue",
+      "unchangedFromW2": true,
+      "sha256": "e23a5195ba079da75e301c68d7ec3c04b3af45f83348a3eec067e64d4548b07c"
+    },
+    {
+      "file": "frontend/src/components/ppt/PptCanvas.spec.ts",
+      "unchangedFromW2": true,
+      "sha256": "18ee33fd749e4e554fc3dfa239e5e39730551fa93c3303eb20b3f210ed275c88"
+    },
+    {
+      "file": "frontend/src/components/ppt/PptCanvas.vue",
+      "unchangedFromW2": true,
+      "sha256": "af707df8d9513146b3d695288b4c946fd4fdfc2d5ee67989c31e13f9f86fff65"
+    },
+    {
+      "file": "frontend/src/components/ppt/PptCanvasBridge.spec.tsx",
+      "unchangedFromW2": true,
+      "sha256": "776059020981ba1de539d0e34713a460d409c625050caa422227f3e859922478"
+    },
+    {
+      "file": "frontend/src/components/ppt/PptCanvasLegacy.vue",
+      "unchangedFromW2": true,
+      "sha256": "25334d4484aa6127533c0719dc87b0d52d9c6cb7fe0e23376ba527d1589f0d04"
+    },
+    {
+      "file": "frontend/src/components/ppt/PptCanvasRecovery.spec.tsx",
+      "unchangedFromW2": true,
+      "sha256": "11551f3ce92800a533023d0cad88f676371bbd7f617ec50887ce78ee0ec71c78"
+    },
+    {
+      "file": "frontend/src/components/ppt/PptChat.spec.ts",
+      "unchangedFromW2": true,
+      "sha256": "b5f7736fc482aee52d357a87d466c196dbd1b60fbe684a9df52f17cf6af1f9de"
+    },
+    {
+      "file": "frontend/src/components/ppt/PptChat.vue",
+      "unchangedFromW2": true,
+      "sha256": "e16245270d11ba890dbd521b76b160def48b46a8c4927f74cc2a702b7e14581a"
+    },
+    {
+      "file": "frontend/src/components/ppt/PptDetailsDialog.vue",
+      "unchangedFromW2": true,
+      "sha256": "e452ab6e659afa7264793c8d81e78d22c38ac9a135d0617764818bab74348f5c"
+    },
+    {
+      "file": "frontend/src/components/ppt/PptDownloadControl.vue",
+      "unchangedFromW2": true,
+      "sha256": "060a3db06284ad48fe0b74e3e35a91b7f17a3cbd79e2e5bfcc9f5eb9d58cee91"
+    },
+    {
+      "file": "frontend/src/components/ppt/PptEditorToolbar.vue",
+      "unchangedFromW2": true,
+      "sha256": "ab40f04869d3391c08b581dc731f6d2347b6cac17cf6d4b8fbebd007fbe651eb"
+    },
+    {
+      "file": "frontend/src/components/ppt/PptGenerationStatus.spec.ts",
+      "unchangedFromW2": true,
+      "sha256": "84b5bbd3511000287e612ff1bf906844d94a1a324c58919ffde8b72fcad3aad2"
+    },
+    {
+      "file": "frontend/src/components/ppt/PptGenerationStatus.vue",
+      "unchangedFromW2": true,
+      "sha256": "3229ad30c96389ce7f8b4dcfb786a89453f3817193813714c6e855526aeb807e"
+    },
+    {
+      "file": "frontend/src/components/ppt/PptHistory.vue",
+      "unchangedFromW2": true,
+      "sha256": "2cd06e30801006cf96a13f9110902036c38ba27aa8a8a82a95017abefa3cce2a"
+    },
+    {
+      "file": "frontend/src/components/ppt/PptPlanEditor.spec.ts",
+      "unchangedFromW2": true,
+      "sha256": "8333b09ab4819e1c681d9bfdafc6369abd50bb0710ac6a8293197709d8711a33"
+    },
+    {
+      "file": "frontend/src/components/ppt/PptPlanEditor.vue",
+      "unchangedFromW2": true,
+      "sha256": "a73eaeb76213f10d3d78dc28c764a6e279052450dbcb2cb9cbf2be0cfdc3083e"
+    },
+    {
+      "file": "frontend/src/components/ppt/PptPlanNarrative.vue",
+      "unchangedFromW2": true,
+      "sha256": "657a2950e2ac2682e82c9e3450f3339d8c94ff6405a6df40b5b6718f9c45025a"
+    },
+    {
+      "file": "frontend/src/components/ppt/PptPlanPresentation.vue",
+      "unchangedFromW2": true,
+      "sha256": "df1fee6d328f3606dfe3c012d31035c72008c285f905d02ec11bc9d5262ee72c"
+    },
+    {
+      "file": "frontend/src/components/ppt/PptProgress.vue",
+      "unchangedFromW2": true,
+      "sha256": "de37649d4e93826f9ea33b8b28d264d3a48ed089a3e6752027f376676442d915"
+    },
+    {
+      "file": "frontend/src/components/ppt/PptProjectPicker.spec.ts",
+      "unchangedFromW2": true,
+      "sha256": "7b93bc56c19487ddb66b40f2cd4a7d3f88e3d3380f0f742db5bdff4bc0bca999"
+    },
+    {
+      "file": "frontend/src/components/ppt/PptProjectPicker.vue",
+      "unchangedFromW2": true,
+      "sha256": "b152c0881f1befd80c0da9f964a0cf83292e6be53cbf3a5df2fcd4afd2bff5b1"
+    },
+    {
+      "file": "frontend/src/components/ppt/PptProjectSources.spec.ts",
+      "unchangedFromW2": true,
+      "sha256": "a4067ada8ffedc0eb6aa7b8878bcc2ce2c6f7a30c755faae708851a52b235ab7"
+    },
+    {
+      "file": "frontend/src/components/ppt/PptProjectSources.vue",
+      "unchangedFromW2": true,
+      "sha256": "b68fb66afc6757c4a641097cd95079f6017ea4aa986ce766c50678baaa68bf9f"
+    },
+    {
+      "file": "frontend/src/components/ppt/PptPromptInput.vue",
+      "unchangedFromW2": true,
+      "sha256": "7d299ae5fa79d334f2e70d9ebff8e5b79f9fbb08067d172adffaece0eaf585e8"
+    },
+    {
+      "file": "frontend/src/components/ppt/PptProperties.spec.ts",
+      "unchangedFromW2": true,
+      "sha256": "c3220a0559eafcb244c1b04f64fe26d031d9453ad092a30eb5abb1def3947765"
+    },
+    {
+      "file": "frontend/src/components/ppt/PptProperties.vue",
+      "unchangedFromW2": true,
+      "sha256": "aff10d54e9bdfe82def7115102a9f04e44963c405da4cae5aacced8d7b1b7eb3"
+    },
+    {
+      "file": "frontend/src/components/ppt/PptSlideNavigator.vue",
+      "unchangedFromW2": true,
+      "sha256": "91d08a420838418844b9605ffd8be03c6e97bb3aed4cfa4fa845cef1f7987c92"
+    },
+    {
+      "file": "frontend/src/components/ppt/PptSlideNavigatorLegacy.vue",
+      "unchangedFromW2": true,
+      "sha256": "4204418d663abfba3832b2ddeb5f9f2326632edc318db64aa830f5c967eaac3d"
+    },
+    {
+      "file": "frontend/src/components/ppt/PptSlideProperties.vue",
+      "unchangedFromW2": true,
+      "sha256": "d2421a9ee19a7cefad74afb8e90016e3601bb252f01abd1dfd5b54a869a4a16e"
+    },
+    {
+      "file": "frontend/src/components/ppt/PptSources.vue",
+      "unchangedFromW2": true,
+      "sha256": "3def8083888bd3edf9ef24e718b1f5cfc3fb092d5e9bdd11eadc138f71e5c4fd"
+    },
+    {
+      "file": "frontend/src/components/ppt/ppt.css",
+      "unchangedFromW2": true,
+      "sha256": "5cdd786d785d9523f5ddf7c49a166c1a558b3fb50eb8ff0cf8b2d29616b7fce7"
+    },
+    {
+      "file": "frontend/src/components/ppt/pptBase.css",
+      "unchangedFromW2": true,
+      "sha256": "e8701c666f0d3444407e54066d210bbd0e2e6f1f27281be8fcd5250789accc92"
+    },
+    {
+      "file": "frontend/src/components/ppt/pptEditor.css",
+      "unchangedFromW2": true,
+      "sha256": "c591097cc8d796683baa25cc0e70e149a4d94d999c3f745fdbaf8615b1622cb4"
+    },
+    {
+      "file": "frontend/src/components/ppt/pptLanding.css",
+      "unchangedFromW2": true,
+      "sha256": "a16faec3af16e55e5f91f609991a8ff209b934ec149aa90ced611c764878f14d"
+    },
+    {
+      "file": "frontend/src/components/ppt/pptProject.css",
+      "unchangedFromW2": true,
+      "sha256": "6f3d3515aa55f97fe12e0269f2340626b1bc94679f176d6200c2c8215bc6cf14"
+    },
+    {
+      "file": "frontend/src/components/ppt/pptTestFixtures.ts",
+      "unchangedFromW2": true,
+      "sha256": "9fc6c4c5c1cafeac6dfa90d5eb13d99ff33bd212d044d49dcabc72e16a250ecf"
+    },
+    {
+      "file": "frontend/src/components/ppt/pptWorkspace.css",
+      "unchangedFromW2": true,
+      "sha256": "9c25d87fddffd5f34fd3f08d28ae321c75ad37f9140f8bb851891141113aae45"
+    },
+    {
+      "file": "frontend/src/components/ppt/usePptAutosave.ts",
+      "unchangedFromW2": true,
+      "sha256": "44ad3201a5c221cabc1ec97eb96ef0c478e0fbad93377cb4f96e98be4bf4bb6f"
+    },
+    {
+      "file": "frontend/src/components/ppt/usePptCreation.spec.ts",
+      "unchangedFromW2": true,
+      "sha256": "203a154af48427ea8155327176269f9311e9ce7aa2d51cdae936538620d83b91"
+    },
+    {
+      "file": "frontend/src/components/ppt/usePptCreation.ts",
+      "unchangedFromW2": true,
+      "sha256": "2f0d3924076058da9ac12d77bc670308bd94d10ddd11465cb5c1ed053a461f20"
+    },
+    {
+      "file": "frontend/src/components/ppt/usePptPanels.ts",
+      "unchangedFromW2": true,
+      "sha256": "9f7b92bed6299496966807d8a455b384911eeb492416f87b09a11e914e2c696a"
+    },
+    {
+      "file": "frontend/package-lock.json",
+      "unchangedFromW2": true,
+      "sha256": "9531ee279895657bd4045c180164ad4fd276eb3c50ffd8d4526f44700bbfee72"
+    },
+    {
+      "file": "scripts/patch-xyflow-react.mjs",
+      "unchangedFromW2": true,
+      "sha256": "ee7470c172e619920477e4faf96f4bb4884815698e493a13285a3eb716666db3"
+    }
+  ]
+}

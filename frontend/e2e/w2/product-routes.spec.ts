@@ -68,7 +68,11 @@ for (const skin of ['spdb', 'tech-blue', 'github-white']) for (const route of ro
     // These events occur only after the strict first sample; they cannot clean it.
     await page.keyboard.press('Shift'); const sentinel = await page.evaluate(() => window.__w2Resources.snapshot().sentinel); expect(sentinel.calls).toBeGreaterThan(immediate.sentinel.calls)
     await page.goBack(); await expect(page).toHaveURL(new RegExp(`${route.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`)); await expect(chrome.getByRole('heading', { name: route.title, exact: true })).toBeVisible(); await expect(page.locator('[data-w2-route-bridge][data-page-runtime="react"]')).toHaveCount(1)
-    await page.goForward(); await expect(page).toHaveURL(/\/template-tasks$/); await expect(chrome).toHaveCount(0)
+    // W3 now renders the destination with React too. The strict first snapshot
+    // above still proves the original root was retired, without a cleanup input.
+    await page.goForward(); await expect(page).toHaveURL(/\/template-tasks$/)
+    await expect(page.locator('[data-react-page="nav.templateTasks"]')).toHaveCount(1)
+    await expect(page.getByRole('heading', { name: '任务模板', exact: true })).toBeVisible()
     expect(fixture.requests.filter(row => row.method !== 'GET')).toEqual([]); expect(fixture.errors).toEqual([]); expect(fixture.unexpected).toEqual([])
   })
 }
@@ -138,7 +142,7 @@ for (const skin of ['spdb', 'tech-blue', 'github-white']) test(`${skin} real Rol
     const before = await page.evaluate(() => window.__w2Resources.snapshot()); expect(before.captures).toHaveLength(1); expect(before.rootConnected).toBe(true)
     const immediate = await immediateW2Exit(page); records.push({ cycle, at, start, translated: { x: start.x + 105, y: start.y + 20 }, before, immediate }); await mkdir(evidence, { recursive: true }); await writeFile(join(evidence, `${skin}-roles-active-threecycles.json`), JSON.stringify(records, null, 2)); assertW2Disposed(before, immediate)
     // Reset the actual device only AFTER the strict first sample and its no-input assertion.
-    await page.mouse.up(); await expect(page.getByRole('heading', { name: '模板任务', exact: true })).toBeVisible()
+    await page.mouse.up(); await expect(page.getByRole('heading', { name: '任务模板', exact: true })).toBeVisible()
   }
   await info.attach('threecycles', { body: JSON.stringify(records), contentType: 'application/json' }); expect(fixture.requests.filter(row => row.method !== 'GET')).toEqual([]); expect(fixture.errors).toEqual([]); expect(fixture.unexpected).toEqual([])
 })

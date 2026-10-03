@@ -1,0 +1,24 @@
+.w3-ppt-studio{position:relative;min-width:0;color:var(--color-text-primary)}
+.w3-ppt-studio .w2-main{padding:16px;min-width:0}
+.w3-ppt-studio .ui-context-panel{width:var(--w3-ppt-panel-width,340px);min-width:280px;flex:none}
+.w3-ppt-meta{font-size:12px;color:var(--color-text-secondary);margin:0 0 12px}
+.w3-ppt-actions,.w3-ppt-scene-heading{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.w3-ppt-scene-heading{justify-content:space-between;margin:10px 0}.w3-ppt-scene-heading h2{font-size:18px;margin:0}
+.w3-ppt-critical{border:1px solid var(--color-border-default);background:var(--color-bg-elevated);border-radius:8px;padding:12px;margin:8px 0}
+.w3-ppt-generation{max-width:880px;margin:24px auto}.w3-ppt-generation h2{font-size:22px}
+.w3-ppt-chat .ppt-chat-timeline{max-height:52vh;overflow:auto;padding:8px}.w3-ppt-chat-spacious .ppt-chat-timeline{max-height:initial}
+.w3-ppt-message{margin:14px 0}.w3-ppt-message details{margin:6px 0}.w3-ppt-message summary{cursor:pointer}
+.w3-ppt-chat textarea,.w3-ppt-studio .ppt-properties input,.w3-ppt-studio .ppt-properties textarea,.w3-ppt-studio .ppt-plan input,.w3-ppt-studio .ppt-plan textarea{font:inherit;background:var(--color-bg-surface);color:inherit;border:1px solid var(--color-border-default);border-radius:6px;padding:8px;box-sizing:border-box;max-width:100%}
+.w3-ppt-chat textarea{width:100%;resize:vertical}.w3-ppt-chat footer{display:flex;gap:8px;justify-content:flex-end;align-items:center;flex-wrap:wrap}
+.w3-ppt-chat footer>span{margin-right:auto;font-size:12px;color:var(--color-text-secondary)}
+.w3-ppt-chat fieldset,.w3-ppt-studio .ppt-properties fieldset,.w3-ppt-studio .ppt-plan fieldset{border:0;margin:0;padding:0;min-width:0}
+.w3-ppt-studio label{display:flex;flex-direction:column;gap:5px;margin:8px 0}.w3-ppt-studio label.ppt-check,.w3-ppt-studio label:has(input[type=radio]),.w3-ppt-studio label:has(input[type=checkbox]){flex-direction:row;align-items:center}
+.w3-ppt-menus{position:relative}.w3-ppt-popup{position:absolute;top:100%;right:0;z-index:9;background:var(--color-bg-surface);border:1px solid var(--color-border-default);border-radius:8px;box-shadow:var(--shadow-card);padding:12px;min-width:260px;max-width:480px}
+.w3-ppt-selection{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0}
+.w3-ppt-studio .ppt-page-rail{margin-top:12px}.w3-ppt-scene{position:relative}
+.w3-ppt-resize{position:absolute;right:-8px;top:0;bottom:0;width:8px;cursor:col-resize;touch-action:none}.w3-ppt-resize:focus-visible{outline:2px solid var(--color-accent-cyan)}
+.w3-ppt-detail-host>.ui-context-panel{position:fixed;right:24px;top:96px;bottom:24px;width:min(860px,75vw);z-index:10;overflow:auto;background:var(--color-bg-surface);border:1px solid var(--color-border-default);box-shadow:var(--shadow-card);border-radius:12px;padding:16px}
+.w3-ppt-studio .ppt-resource img{max-width:100%;max-height:180px;object-fit:contain}
+.w3-ppt-studio .ppt-history-item,.w3-ppt-studio .ppt-resource,.w3-ppt-studio .ppt-direction,.w3-ppt-studio .ppt-plan-slide{border-bottom:1px solid var(--color-border-default);padding:12px 0}
+.w3-ppt-studio .ppt-tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}.w3-ppt-studio .ppt-tabs button[aria-selected=true]{background:var(--color-bg-hover);color:var(--color-accent-cyan)}
+.w3-ppt-draft-marker{font-size:12px;color:var(--color-text-secondary);padding:4px 16px;display:block}

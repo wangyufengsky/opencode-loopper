@@ -1,0 +1,206 @@
+{
+  "method": "TypeScript AST，生产大写命名 JSX 函数/变量，不含测试、W1/W2或既有画布。数量不是功能验收。",
+  "total": 40,
+  "components": [
+    {
+      "component": "KnowledgeActivity",
+      "file": "frontend/src/pages/w3/knowledge/Activity.tsx",
+      "line": 8
+    },
+    {
+      "component": "KnowledgeEvidence",
+      "file": "frontend/src/pages/w3/knowledge/Evidence.tsx",
+      "line": 10
+    },
+    {
+      "component": "KnowledgePage",
+      "file": "frontend/src/pages/w3/knowledge/KnowledgePage.tsx",
+      "line": 22
+    },
+    {
+      "component": "KnowledgeQuestion",
+      "file": "frontend/src/pages/w3/knowledge/Question.tsx",
+      "line": 7
+    },
+    {
+      "component": "KnowledgeSourcesPanel",
+      "file": "frontend/src/pages/w3/knowledge/SourcesPanel.tsx",
+      "line": 12
+    },
+    {
+      "component": "KnowledgeUsage",
+      "file": "frontend/src/pages/w3/knowledge/Usage.tsx",
+      "line": 3
+    },
+    {
+      "component": "PptChat",
+      "file": "frontend/src/pages/w3/ppt/Chat.tsx",
+      "line": 10
+    },
+    {
+      "component": "PptSources",
+      "file": "frontend/src/pages/w3/ppt/Details.tsx",
+      "line": 11
+    },
+    {
+      "component": "PptHistory",
+      "file": "frontend/src/pages/w3/ppt/Details.tsx",
+      "line": 25
+    },
+    {
+      "component": "ArtifactDownload",
+      "file": "frontend/src/pages/w3/ppt/Download.tsx",
+      "line": 27
+    },
+    {
+      "component": "PptPlanEditor",
+      "file": "frontend/src/pages/w3/ppt/Plan.tsx",
+      "line": 9
+    },
+    {
+      "component": "PptStudioPage",
+      "file": "frontend/src/pages/w3/ppt/PptStudioPage.tsx",
+      "line": 20
+    },
+    {
+      "component": "StudioBody",
+      "file": "frontend/src/pages/w3/ppt/PptStudioPage.tsx",
+      "line": 24
+    },
+    {
+      "component": "PptProperties",
+      "file": "frontend/src/pages/w3/ppt/Properties.tsx",
+      "line": 7
+    },
+    {
+      "component": "ReadOnlyCode",
+      "file": "frontend/src/pages/w3/shared/ReadOnlyCode.tsx",
+      "line": 9
+    },
+    {
+      "component": "LazyFigure",
+      "file": "frontend/src/pages/w3/shared/RichDocument.tsx",
+      "line": 16
+    },
+    {
+      "component": "RichDocument",
+      "file": "frontend/src/pages/w3/shared/RichDocument.tsx",
+      "line": 51
+    },
+    {
+      "component": "CreationRecovery",
+      "file": "frontend/src/pages/w3/templates/catalog/CreationRecovery.tsx",
+      "line": 7
+    },
+    {
+      "component": "Health",
+      "file": "frontend/src/pages/w3/templates/catalog/HistoryDrawer.tsx",
+      "line": 12
+    },
+    {
+      "component": "Rule",
+      "file": "frontend/src/pages/w3/templates/catalog/HistoryDrawer.tsx",
+      "line": 21
+    },
+    {
+      "component": "Run",
+      "file": "frontend/src/pages/w3/templates/catalog/HistoryDrawer.tsx",
+      "line": 29
+    },
+    {
+      "component": "ArchiveTabs",
+      "file": "frontend/src/pages/w3/templates/catalog/HistoryDrawer.tsx",
+      "line": 34
+    },
+    {
+      "component": "HistoryDrawer",
+      "file": "frontend/src/pages/w3/templates/catalog/HistoryDrawer.tsx",
+      "line": 44
+    },
+    {
+      "component": "TemplateTasksPage",
+      "file": "frontend/src/pages/w3/templates/catalog/TemplateTasksPage.tsx",
+      "line": 13
+    },
+    {
+      "component": "SourceCoveragePanel",
+      "file": "frontend/src/pages/w3/templates/runs/ContentPanels.tsx",
+      "line": 11
+    },
+    {
+      "component": "ArtifactsPanel",
+      "file": "frontend/src/pages/w3/templates/runs/ContentPanels.tsx",
+      "line": 19
+    },
+    {
+      "component": "DocumentSourcesPanel",
+      "file": "frontend/src/pages/w3/templates/runs/DocumentPanels.tsx",
+      "line": 17
+    },
+    {
+      "component": "DocumentClarificationForm",
+      "file": "frontend/src/pages/w3/templates/runs/DocumentPanels.tsx",
+      "line": 29
+    },
+    {
+      "component": "DocumentSupplementForm",
+      "file": "frontend/src/pages/w3/templates/runs/DocumentPanels.tsx",
+      "line": 41
+    },
+    {
+      "component": "DocumentRequirementsPanel",
+      "file": "frontend/src/pages/w3/templates/runs/DocumentPanels.tsx",
+      "line": 53
+    },
+    {
+      "component": "TemplateBatchRecoveryPanel",
+      "file": "frontend/src/pages/w3/templates/runs/RecoveryPanels.tsx",
+      "line": 13
+    },
+    {
+      "component": "TemplateSessionDiagnosticsPanel",
+      "file": "frontend/src/pages/w3/templates/runs/RecoveryPanels.tsx",
+      "line": 28
+    },
+    {
+      "component": "ChildOperations",
+      "file": "frontend/src/pages/w3/templates/runs/RunPages.tsx",
+      "line": 16
+    },
+    {
+      "component": "RunLinks",
+      "file": "frontend/src/pages/w3/templates/runs/RunPages.tsx",
+      "line": 24
+    },
+    {
+      "component": "RunActions",
+      "file": "frontend/src/pages/w3/templates/runs/RunPages.tsx",
+      "line": 28
+    },
+    {
+      "component": "ConfirmRun",
+      "file": "frontend/src/pages/w3/templates/runs/RunPages.tsx",
+      "line": 32
+    },
+    {
+      "component": "DocumentTemplatePage",
+      "file": "frontend/src/pages/w3/templates/runs/RunPages.tsx",
+      "line": 39
+    },
+    {
+      "component": "SourceTemplatePage",
+      "file": "frontend/src/pages/w3/templates/runs/RunPages.tsx",
+      "line": 61
+    },
+    {
+      "component": "CommandNotice",
+      "file": "frontend/src/pages/w3/templates/runs/parts.tsx",
+      "line": 29
+    },
+    {
+      "component": "ReadNotice",
+      "file": "frontend/src/pages/w3/templates/runs/parts.tsx",
+      "line": 36
+    }
+  ]
+}

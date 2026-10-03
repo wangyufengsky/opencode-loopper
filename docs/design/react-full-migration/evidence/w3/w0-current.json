@@ -1,0 +1,657 @@
+{
+  "baseline": "a77b86ac40f458b9633acc3691fd2209125cb7a3",
+  "execution": "最终 production CSS/bridge 修正后全量 npm test -- --maxWorkers=1；unit-delivery.json",
+  "total": 111,
+  "passed": 66,
+  "failed": 45,
+  "skipped": 0,
+  "w3OriginalRed": 31,
+  "w3NowPassed": 31,
+  "cases": [
+    {
+      "group": "B9.2",
+      "wave": "W3",
+      "file": "frontend/src/w0/endpoint-w0.spec.ts",
+      "title": "W0 B9 endpoint contracts B9.2 report external-owner negative control: changing then restoring unknown draft cannot replace original key",
+      "status": "passed",
+      "caseNumber": 1,
+      "implementationOwner": "B /root/react_legacy_canvas",
+      "reactContractModule": "frontend/src/pages/w3/templates/catalog/creation.ts",
+      "assertionPolicy": "保留原 case title、数量与业务断言；UI 真实 React／唯一 Router，禁改 UI 负控与纯 TS 原 key/body owner 合同独立；本轮最终全量实际通过",
+      "baselineStatus": "failed"
+    },
+    {
+      "group": "B9.3",
+      "wave": "W3",
+      "file": "frontend/src/w0/endpoint-w0.spec.ts",
+      "title": "W0 B9 endpoint contracts B9.3 accepted Task/start unknown changed then restored draft must never create another Task",
+      "status": "passed",
+      "caseNumber": 2,
+      "implementationOwner": "B /root/react_legacy_canvas",
+      "reactContractModule": "frontend/src/pages/w3/templates/catalog/creation.ts",
+      "assertionPolicy": "保留原 case title、数量与业务断言；UI 真实 React／唯一 Router，禁改 UI 负控与纯 TS 原 key/body owner 合同独立；本轮最终全量实际通过",
+      "baselineStatus": "failed"
+    },
+    {
+      "group": "B9.3",
+      "wave": "W3",
+      "file": "frontend/src/w0/endpoint-w0.spec.ts",
+      "title": "W0 B9 endpoint contracts B9.3 batch unknown GET advances CAS: original retry cannot silently become new version",
+      "status": "passed",
+      "caseNumber": 3,
+      "implementationOwner": "A /root/react_flow_workflow",
+      "reactContractModule": "frontend/src/pages/w3/templates/runs/run-child-w0-contract.tsx",
+      "assertionPolicy": "保留原 case title、数量与业务断言；UI 真实 React／唯一 Router，禁改 UI 负控与纯 TS 原 key/body owner 合同独立；本轮最终全量实际通过",
+      "baselineStatus": "failed"
+    },
+    {
+      "group": "B9.3",
+      "wave": "W3",
+      "file": "frontend/src/w0/endpoint-w0.spec.ts",
+      "title": "W0 B9 endpoint contracts B9.3 diagnostic accepted response followed by read failure must never rePOST receipt",
+      "status": "passed",
+      "caseNumber": 4,
+      "implementationOwner": "A /root/react_flow_workflow",
+      "reactContractModule": "frontend/src/pages/w3/templates/runs/run-child-w0-contract.tsx",
+      "assertionPolicy": "保留原 case title、数量与业务断言；UI 真实 React／唯一 Router，禁改 UI 负控与纯 TS 原 key/body owner 合同独立；本轮最终全量实际通过",
+      "baselineStatus": "failed"
+    },
+    {
+      "group": "B3.1",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.1 report: real create in flight must block route leave; disabled inputs cannot be mutated",
+      "status": "passed",
+      "caseNumber": 5,
+      "implementationOwner": "B /root/react_legacy_canvas",
+      "reactContractModule": "frontend/src/w0/w3-creation-contract.tsx",
+      "assertionPolicy": "保留原 case title、数量与业务断言；UI 真实 React／唯一 Router，禁改 UI 负控与纯 TS 原 key/body owner 合同独立；本轮最终全量实际通过",
+      "baselineStatus": "failed"
+    },
+    {
+      "group": "B3.1",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.1 source: real create in flight must block route leave; disabled inputs cannot be mutated",
+      "status": "passed",
+      "caseNumber": 6,
+      "implementationOwner": "B /root/react_legacy_canvas",
+      "reactContractModule": "frontend/src/w0/w3-creation-contract.tsx",
+      "assertionPolicy": "保留原 case title、数量与业务断言；UI 真实 React／唯一 Router，禁改 UI 负控与纯 TS 原 key/body owner 合同独立；本轮最终全量实际通过",
+      "baselineStatus": "failed"
+    },
+    {
+      "group": "B3.1",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.1 document: real create in flight must block route leave; disabled inputs cannot be mutated",
+      "status": "passed",
+      "caseNumber": 7,
+      "implementationOwner": "B /root/react_legacy_canvas",
+      "reactContractModule": "frontend/src/w0/w3-creation-contract.tsx",
+      "assertionPolicy": "保留原 case title、数量与业务断言；UI 真实 React／唯一 Router，禁改 UI 负控与纯 TS 原 key/body owner 合同独立；本轮最终全量实际通过",
+      "baselineStatus": "failed"
+    },
+    {
+      "group": "B3.1",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.1 document: hashing really active before any POST must block leave",
+      "status": "passed",
+      "caseNumber": 8,
+      "implementationOwner": "B /root/react_legacy_canvas",
+      "reactContractModule": "frontend/src/w0/w3-creation-contract.tsx",
+      "assertionPolicy": "保留原 case title、数量与业务断言；UI 真实 React／唯一 Router，禁改 UI 负控与纯 TS 原 key/body owner 合同独立；本轮最终全量实际通过",
+      "baselineStatus": "failed"
+    },
+    {
+      "group": "B3.1",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.1 report: unknown receipt cannot replace original intent via editable UI",
+      "status": "passed",
+      "caseNumber": 9,
+      "implementationOwner": "B /root/react_legacy_canvas",
+      "reactContractModule": "frontend/src/w0/w3-creation-contract.tsx",
+      "assertionPolicy": "保留原 case title、数量与业务断言；UI 真实 React／唯一 Router，禁改 UI 负控与纯 TS 原 key/body owner 合同独立；本轮最终全量实际通过",
+      "baselineStatus": "failed"
+    },
+    {
+      "group": "B3.1",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.1 source: unknown receipt cannot replace original intent via editable UI",
+      "status": "passed",
+      "caseNumber": 10,
+      "implementationOwner": "B /root/react_legacy_canvas",
+      "reactContractModule": "frontend/src/w0/w3-creation-contract.tsx",
+      "assertionPolicy": "保留原 case title、数量与业务断言；UI 真实 React／唯一 Router，禁改 UI 负控与纯 TS 原 key/body owner 合同独立；本轮最终全量实际通过",
+      "baselineStatus": "failed"
+    },
+    {
+      "group": "B3.1",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.1 document: unknown receipt cannot replace original intent via editable UI",
+      "status": "passed",
+      "caseNumber": 11,
+      "implementationOwner": "B /root/react_legacy_canvas",
+      "reactContractModule": "frontend/src/w0/w3-creation-contract.tsx",
+      "assertionPolicy": "保留原 case title、数量与业务断言；UI 真实 React／唯一 Router，禁改 UI 负控与纯 TS 原 key/body owner 合同独立；本轮最终全量实际通过",
+      "baselineStatus": "failed"
+    },
+    {
+      "group": "B3.1",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.1 report/start-inflight: accepted Task identity blocks leave and survives real editable draft",
+      "status": "passed",
+      "caseNumber": 12,
+      "implementationOwner": "B /root/react_legacy_canvas",
+      "reactContractModule": "frontend/src/w0/w3-creation-contract.tsx",
+      "assertionPolicy": "保留原 case title、数量与业务断言；UI 真实 React／唯一 Router，禁改 UI 负控与纯 TS 原 key/body owner 合同独立；本轮最终全量实际通过",
+      "baselineStatus": "failed"
+    },
+    {
+      "group": "B3.1",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.1 report/start-unknown: accepted Task identity blocks leave and survives real editable draft",
+      "status": "passed",
+      "caseNumber": 13,
+      "implementationOwner": "B /root/react_legacy_canvas",
+      "reactContractModule": "frontend/src/w0/w3-creation-contract.tsx",
+      "assertionPolicy": "保留原 case title、数量与业务断言；UI 真实 React／唯一 Router，禁改 UI 负控与纯 TS 原 key/body owner 合同独立；本轮最终全量实际通过",
+      "baselineStatus": "failed"
+    },
+    {
+      "group": "B3.2",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.2 source/inflight: same-record and exit navigation preserve pending scope",
+      "status": "passed",
+      "caseNumber": 14,
+      "implementationOwner": "A /root/react_flow_workflow",
+      "reactContractModule": "frontend/src/pages/w3/templates/runs/run-w0-contract.tsx",
+      "assertionPolicy": "保留原 case title、数量与业务断言；UI 真实 React／唯一 Router，禁改 UI 负控与纯 TS 原 key/body owner 合同独立；本轮最终全量实际通过",
+      "baselineStatus": "failed"
+    },
+    {
+      "group": "B3.2",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.2 source/unknown: same-record and exit navigation preserve pending scope",
+      "status": "passed",
+      "caseNumber": 15,
+      "implementationOwner": "A /root/react_flow_workflow",
+      "reactContractModule": "frontend/src/pages/w3/templates/runs/run-w0-contract.tsx",
+      "assertionPolicy": "保留原 case title、数量与业务断言；UI 真实 React／唯一 Router，禁改 UI 负控与纯 TS 原 key/body owner 合同独立；本轮最终全量实际通过",
+      "baselineStatus": "failed"
+    },
+    {
+      "group": "B3.2",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.2 document/inflight: same-record and exit navigation preserve pending scope",
+      "status": "passed",
+      "caseNumber": 16,
+      "implementationOwner": "A /root/react_flow_workflow",
+      "reactContractModule": "frontend/src/pages/w3/templates/runs/run-w0-contract.tsx",
+      "assertionPolicy": "保留原 case title、数量与业务断言；UI 真实 React／唯一 Router，禁改 UI 负控与纯 TS 原 key/body owner 合同独立；本轮最终全量实际通过",
+      "baselineStatus": "failed"
+    },
+    {
+      "group": "B3.2",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.2 document/unknown: same-record and exit navigation preserve pending scope",
+      "status": "passed",
+      "caseNumber": 17,
+      "implementationOwner": "A /root/react_flow_workflow",
+      "reactContractModule": "frontend/src/pages/w3/templates/runs/run-w0-contract.tsx",
+      "assertionPolicy": "保留原 case title、数量与业务断言；UI 真实 React／唯一 Router，禁改 UI 负控与纯 TS 原 key/body owner 合同独立；本轮最终全量实际通过",
+      "baselineStatus": "failed"
+    },
+    {
+      "group": "B3.3",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.3 source/cancel: refresh version and batch selection must not mint a new unknown command",
+      "status": "passed",
+      "caseNumber": 18,
+      "implementationOwner": "A /root/react_flow_workflow",
+      "reactContractModule": "frontend/src/pages/w3/templates/runs/run-w0-contract.tsx",
+      "assertionPolicy": "保留原 case title、数量与业务断言；UI 真实 React／唯一 Router，禁改 UI 负控与纯 TS 原 key/body owner 合同独立；本轮最终全量实际通过",
+      "baselineStatus": "failed"
+    },
+    {
+      "group": "B3.3",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.3 source/retry: refresh version and batch selection must not mint a new unknown command",
+      "status": "passed",
+      "caseNumber": 19,
+      "implementationOwner": "A /root/react_flow_workflow",
+      "reactContractModule": "frontend/src/pages/w3/templates/runs/run-w0-contract.tsx",
+      "assertionPolicy": "保留原 case title、数量与业务断言；UI 真实 React／唯一 Router，禁改 UI 负控与纯 TS 原 key/body owner 合同独立；本轮最终全量实际通过",
+      "baselineStatus": "failed"
+    },
+    {
+      "group": "B3.3",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.3 document/resume: refresh version and batch selection must not mint a new unknown command",
+      "status": "passed",
+      "caseNumber": 20,
+      "implementationOwner": "A /root/react_flow_workflow",
+      "reactContractModule": "frontend/src/pages/w3/templates/runs/run-w0-contract.tsx",
+      "assertionPolicy": "保留原 case title、数量与业务断言；UI 真实 React／唯一 Router，禁改 UI 负控与纯 TS 原 key/body owner 合同独立；本轮最终全量实际通过",
+      "baselineStatus": "failed"
+    },
+    {
+      "group": "B3.3",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.3 document/cancel: refresh version and batch selection must not mint a new unknown command",
+      "status": "passed",
+      "caseNumber": 21,
+      "implementationOwner": "A /root/react_flow_workflow",
+      "reactContractModule": "frontend/src/pages/w3/templates/runs/run-w0-contract.tsx",
+      "assertionPolicy": "保留原 case title、数量与业务断言；UI 真实 React／唯一 Router，禁改 UI 负控与纯 TS 原 key/body owner 合同独立；本轮最终全量实际通过",
+      "baselineStatus": "failed"
+    },
+    {
+      "group": "B3.4",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.4 report: denied get/set storage retains in-memory original identity and blocks leave",
+      "status": "passed",
+      "caseNumber": 22,
+      "implementationOwner": "B /root/react_legacy_canvas",
+      "reactContractModule": "frontend/src/w0/w3-creation-contract.tsx",
+      "assertionPolicy": "保留原 case title、数量与业务断言；UI 真实 React／唯一 Router，禁改 UI 负控与纯 TS 原 key/body owner 合同独立；本轮最终全量实际通过",
+      "baselineStatus": "failed"
+    },
+    {
+      "group": "B3.4",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.4 source: denied get/set storage retains in-memory original identity and blocks leave",
+      "status": "passed",
+      "caseNumber": 23,
+      "implementationOwner": "B /root/react_legacy_canvas",
+      "reactContractModule": "frontend/src/w0/w3-creation-contract.tsx",
+      "assertionPolicy": "保留原 case title、数量与业务断言；UI 真实 React／唯一 Router，禁改 UI 负控与纯 TS 原 key/body owner 合同独立；本轮最终全量实际通过",
+      "baselineStatus": "failed"
+    },
+    {
+      "group": "B3.4",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.4 document: denied get/set storage retains in-memory original identity and blocks leave",
+      "status": "passed",
+      "caseNumber": 24,
+      "implementationOwner": "B /root/react_legacy_canvas",
+      "reactContractModule": "frontend/src/w0/w3-creation-contract.tsx",
+      "assertionPolicy": "保留原 case title、数量与业务断言；UI 真实 React／唯一 Router，禁改 UI 负控与纯 TS 原 key/body owner 合同独立；本轮最终全量实际通过",
+      "baselineStatus": "failed"
+    },
+    {
+      "group": "B3.4",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B3 creation/run identity and navigation B3.4 document: by-request 404 remains unknown; actual File bytes/order cannot replace original operation",
+      "status": "passed",
+      "caseNumber": 25,
+      "implementationOwner": "B /root/react_legacy_canvas",
+      "reactContractModule": "frontend/src/pages/w3/templates/catalog/creation.ts",
+      "assertionPolicy": "保留原 case title、数量与业务断言；UI 真实 React／唯一 Router，禁改 UI 负控与纯 TS 原 key/body owner 合同独立；本轮最终全量实际通过",
+      "baselineStatus": "failed"
+    },
+    {
+      "group": "B4.1",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B4 document cancellation scope B4.1 pending confirm A followed by real route B must never POST stale cancellation",
+      "status": "passed",
+      "caseNumber": 26,
+      "implementationOwner": "A /root/react_flow_workflow",
+      "reactContractModule": "frontend/src/pages/w3/templates/runs/run-w0-contract.tsx",
+      "assertionPolicy": "保留原 case title、数量与业务断言；UI 真实 React／唯一 Router，禁改 UI 负控与纯 TS 原 key/body owner 合同独立；本轮最终全量实际通过",
+      "baselineStatus": "failed"
+    },
+    {
+      "group": "B8.3",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B8 history and child retirement B8.3 sources/directory: late response after root unmount cannot mutate retired refs",
+      "status": "passed",
+      "caseNumber": 27,
+      "implementationOwner": "A /root/react_flow_workflow",
+      "reactContractModule": "frontend/src/pages/w3/templates/runs/run-child-w0-contract.tsx",
+      "assertionPolicy": "保留原 case title、数量与业务断言；UI 真实 React／唯一 Router，禁改 UI 负控与纯 TS 原 key/body owner 合同独立；本轮最终全量实际通过",
+      "baselineStatus": "failed"
+    },
+    {
+      "group": "B8.3",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B8 history and child retirement B8.3 sources/body: late response after root unmount cannot mutate retired refs",
+      "status": "passed",
+      "caseNumber": 28,
+      "implementationOwner": "A /root/react_flow_workflow",
+      "reactContractModule": "frontend/src/pages/w3/templates/runs/run-child-w0-contract.tsx",
+      "assertionPolicy": "保留原 case title、数量与业务断言；UI 真实 React／唯一 Router，禁改 UI 负控与纯 TS 原 key/body owner 合同独立；本轮最终全量实际通过",
+      "baselineStatus": "failed"
+    },
+    {
+      "group": "B8.3",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B8 history and child retirement B8.3 clarification sent POST after forced root retirement cannot emit updated or clear draft",
+      "status": "passed",
+      "caseNumber": 29,
+      "implementationOwner": "A /root/react_flow_workflow",
+      "reactContractModule": "frontend/src/pages/w3/templates/runs/run-child-w0-contract.tsx",
+      "assertionPolicy": "保留原 case title、数量与业务断言；UI 真实 React／唯一 Router，禁改 UI 负控与纯 TS 原 key/body owner 合同独立；本轮最终全量实际通过",
+      "baselineStatus": "failed"
+    },
+    {
+      "group": "B8.3",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B8 history and child retirement B8.3 supplement options read after unmount cannot open retired form",
+      "status": "passed",
+      "caseNumber": 30,
+      "implementationOwner": "A /root/react_flow_workflow",
+      "reactContractModule": "frontend/src/pages/w3/templates/runs/run-child-w0-contract.tsx",
+      "assertionPolicy": "保留原 case title、数量与业务断言；UI 真实 React／唯一 Router，禁改 UI 负控与纯 TS 原 key/body owner 合同独立；本轮最终全量实际通过",
+      "baselineStatus": "failed"
+    },
+    {
+      "group": "B8.3",
+      "wave": "W3",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B8 history and child retirement B8.3 supplement sent upload after forced root retirement cannot emit updated",
+      "status": "passed",
+      "caseNumber": 31,
+      "implementationOwner": "A /root/react_flow_workflow",
+      "reactContractModule": "frontend/src/pages/w3/templates/runs/run-child-w0-contract.tsx",
+      "assertionPolicy": "保留原 case title、数量与业务断言；UI 真实 React／唯一 Router，禁改 UI 负控与纯 TS 原 key/body owner 合同独立；本轮最终全量实际通过",
+      "baselineStatus": "failed"
+    }
+  ],
+  "remaining": [
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/designer-w0.spec.ts",
+      "title": "B5.1 ordinary Designer drafts require real route confirmation initial-text: declining leave preserves draft",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/designer-w0.spec.ts",
+      "title": "B5.1 ordinary Designer drafts require real route confirmation followup-text: declining leave preserves draft",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/designer-w0.spec.ts",
+      "title": "B5.1 ordinary Designer drafts require real route confirmation initial-file: declining leave preserves draft",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/designer-w0.spec.ts",
+      "title": "B5.1 ordinary Designer drafts require real route confirmation followup-file: declining leave preserves draft",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/designer-w0.spec.ts",
+      "title": "B5.2 unresolved Designer writes forbid route leave initial/sending retains File owner",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/designer-w0.spec.ts",
+      "title": "B5.2 unresolved Designer writes forbid route leave initial/unknown retains File owner",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/designer-w0.spec.ts",
+      "title": "B5.2 unresolved Designer writes forbid route leave followup/sending retains File owner",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/designer-w0.spec.ts",
+      "title": "B5.2 unresolved Designer writes forbid route leave followup/unknown retains File owner",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/designer-w0.spec.ts",
+      "title": "B5.3 accepted Task handoff retains original identity guard-false: confirmed Task retains an explicit navigation-only recovery",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/designer-w0.spec.ts",
+      "title": "B5.3 accepted Task handoff retains original identity reject: confirmed Task retains an explicit navigation-only recovery",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/designer-w0.spec.ts",
+      "title": "B6.1 retired question callbacks stay with original owner reply accepted after retirement must not launch a new A refresh or alter independent B",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/designer-w0.spec.ts",
+      "title": "B6.2 profile preview/modal await scope preview: retirement invalidates profile action before mutation",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/designer-w0.spec.ts",
+      "title": "B6.2 profile preview/modal await scope modal: retirement invalidates profile action before mutation",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/designer-w0.spec.ts",
+      "title": "B6.3 follow-up immutable multipart operation and later draft unknown recovery uses original body/File and leaves later reachable edits unsent",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/designer-w0.spec.ts",
+      "title": "B6.3 follow-up immutable multipart operation and later draft typing while a real send is in-flight remains an unsent draft after original acknowledgement",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/designer-w0.spec.ts",
+      "title": "B7.1 owned terminal retry timeout immediate retirement first snapshot clears active retry before any natural callback completes",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/designer-w0.spec.ts",
+      "title": "B7.2 owned composer focus RAF immediate retirement retirement cancels queued composer focus before it can focus another page",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/designer-w0.spec.ts",
+      "title": "B7.3 storage failures cannot discard accepted identity accepted initial File receipt stays recoverable when workspace persistence fails",
+      "status": "failed"
+    },
+    {
+      "wave": "W4",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B8 history and child retirement B8.2 frozen record A arriving after real route B cannot overwrite B",
+      "status": "failed"
+    },
+    {
+      "wave": "W4",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B8 history and child retirement B8.2 attachment A late with same file ID cannot populate B cache",
+      "status": "failed"
+    },
+    {
+      "wave": "W4",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B8 history and child retirement B8.2 cached A same attachment ID must be invalidated when route becomes B",
+      "status": "failed"
+    },
+    {
+      "wave": "W4",
+      "file": "frontend/src/w0/templates-history-w0.spec.ts",
+      "title": "W0 B8 history and child retirement B8.2 retired record error must not clear old busy or add error",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B1.1 New unresolved create navigation sending/push must retain original owner",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B1.1 New unresolved create navigation sending/replace must retain original owner",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B1.1 New unresolved create navigation sending/back must retain original owner",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B1.1 New unresolved create navigation unknown/push must retain original owner",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B1.1 New unresolved create navigation unknown/replace must retain original owner",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B1.1 New unresolved create navigation unknown/back must retain original owner",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B1.3 accepted New receipt survives failed handoff guard-false retains receipt and offers navigation-only recovery",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B1.3 accepted New receipt survives failed handoff cancelled retains receipt and offers navigation-only recovery",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B2.1 real nested command guards human/sending refuses leaving actual command panel",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B2.1 real nested command guards human/unknown refuses leaving actual command panel",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B2.1 real nested command guards candidate/sending refuses leaving actual command panel",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B2.1 real nested command guards candidate/unknown refuses leaving actual command panel",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B2.1 real nested command guards finish/sending refuses leaving actual command panel",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B2.1 real nested command guards finish/unknown refuses leaving actual command panel",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B2.1 real nested command guards commit/sending refuses leaving actual command panel",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B2.1 real nested command guards commit/unknown refuses leaving actual command panel",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B2.1 real nested command guards push/sending refuses leaving actual command panel",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B2.1 real nested command guards push/unknown refuses leaving actual command panel",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B2.1 real nested command guards writeback/sending refuses leaving actual command panel",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B2.1 real nested command guards writeback/unknown refuses leaving actual command panel",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B2.1 real nested command guards actual Requirement parent refuses route leave while its Finish child is unknown",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B2.2 original process stop identity retains command version/attempt on explicit retry and blocks leaving unknown stop",
+      "status": "failed"
+    },
+    {
+      "wave": "W5",
+      "file": "frontend/src/w0/workflow-w0.spec.ts",
+      "title": "B2.3 accepted write/readback split actual Finish child retains accepted readback and only rereads on recovery",
+      "status": "failed"
+    }
+  ],
+  "resultSha256": "b76e080e86b294df493f58cdee3dfe2a1bc3870ad11a61efc11ffd9fcbc61459"
+}

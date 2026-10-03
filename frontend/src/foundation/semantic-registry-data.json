@@ -3039,6 +3039,482 @@
       "scope": "navigation",
       "guard": [],
       "behavior": "进入准确已有会话，不创建或重复投递命令"
+    },
+    "ppt.addSlide": {
+      "label": "增加页面",
+      "name": "增加页面",
+      "icon": "plus",
+      "intent": "ppt.addSlide",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式调用现有业务合同；关闭面板不取消命令；冻结原输入与版本"
+    },
+    "ppt.duplicateSlide": {
+      "label": "复制页面",
+      "name": "复制页面",
+      "icon": "copy",
+      "intent": "ppt.duplicateSlide",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式调用现有业务合同；关闭面板不取消命令；冻结原输入与版本"
+    },
+    "ppt.deleteSlide": {
+      "label": "删除页面",
+      "name": "删除页面",
+      "icon": "trash-2",
+      "intent": "ppt.deleteSlide",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式调用现有业务合同；关闭面板不取消命令；冻结原输入与版本"
+    },
+    "ppt.moveSlideUp": {
+      "label": "上移页面",
+      "name": "上移页面",
+      "icon": "arrow-up",
+      "intent": "ppt.moveSlideUp",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式调用现有业务合同；关闭面板不取消命令；冻结原输入与版本"
+    },
+    "ppt.moveSlideDown": {
+      "label": "下移页面",
+      "name": "下移页面",
+      "icon": "arrow-down",
+      "intent": "ppt.moveSlideDown",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式调用现有业务合同；关闭面板不取消命令；冻结原输入与版本"
+    },
+    "ppt.lockSlide": {
+      "label": "锁定页面",
+      "name": "锁定页面",
+      "icon": "lock",
+      "intent": "ppt.lockSlide",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式调用现有业务合同；关闭面板不取消命令；冻结原输入与版本"
+    },
+    "ppt.unlockSlide": {
+      "label": "解锁页面",
+      "name": "解锁页面",
+      "icon": "lock-open",
+      "intent": "ppt.unlockSlide",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式调用现有业务合同；关闭面板不取消命令；冻结原输入与版本"
+    },
+    "ppt.lockObject": {
+      "label": "锁定对象",
+      "name": "锁定对象",
+      "icon": "lock",
+      "intent": "ppt.lockObject",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式调用现有业务合同；关闭面板不取消命令；冻结原输入与版本"
+    },
+    "ppt.unlockObject": {
+      "label": "解锁对象",
+      "name": "解锁对象",
+      "icon": "lock-open",
+      "intent": "ppt.unlockObject",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式调用现有业务合同；关闭面板不取消命令；冻结原输入与版本"
+    },
+    "ppt.addObject": {
+      "label": "插入对象",
+      "name": "插入对象",
+      "icon": "plus",
+      "intent": "ppt.addObject",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式调用现有业务合同；关闭面板不取消命令；冻结原输入与版本"
+    },
+    "ppt.applyLayout": {
+      "label": "应用版式",
+      "name": "应用版式",
+      "icon": "layout-template",
+      "intent": "ppt.applyLayout",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式调用现有业务合同；关闭面板不取消命令；冻结原输入与版本"
+    },
+    "ppt.applyTheme": {
+      "label": "应用演示主题",
+      "name": "应用演示主题",
+      "icon": "palette",
+      "intent": "ppt.applyTheme",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式调用现有业务合同；关闭面板不取消命令；冻结原输入与版本"
+    },
+    "ppt.bringToFront": {
+      "label": "对象置顶",
+      "name": "对象置顶",
+      "icon": "bring-to-front",
+      "intent": "ppt.bringToFront",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式调用现有业务合同；关闭面板不取消命令；冻结原输入与版本"
+    },
+    "ppt.sendToBack": {
+      "label": "对象置底",
+      "name": "对象置底",
+      "icon": "send-to-back",
+      "intent": "ppt.sendToBack",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式调用现有业务合同；关闭面板不取消命令；冻结原输入与版本"
+    },
+    "ppt.openSources": {
+      "label": "资料与素材",
+      "name": "资料与素材",
+      "icon": "paperclip",
+      "intent": "ppt.openSources",
+      "scope": "client",
+      "guard": [
+        "OWNER_CONTEXT"
+      ],
+      "behavior": "仅披露当前对象上下文；不触发写入"
+    },
+    "ppt.openHistory": {
+      "label": "版本与导出",
+      "name": "版本与导出",
+      "icon": "history",
+      "intent": "ppt.openHistory",
+      "scope": "client",
+      "guard": [
+        "OWNER_CONTEXT"
+      ],
+      "behavior": "仅披露当前对象上下文；不触发写入"
+    },
+    "ppt.openPlan": {
+      "label": "制作方案",
+      "name": "制作方案",
+      "icon": "notebook-pen",
+      "intent": "ppt.openPlan",
+      "scope": "client",
+      "guard": [
+        "OWNER_CONTEXT"
+      ],
+      "behavior": "仅披露当前对象上下文；不触发写入"
+    },
+    "ppt.reopenPlan": {
+      "label": "修改方案",
+      "name": "修改方案",
+      "icon": "pencil",
+      "intent": "ppt.reopenPlan",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式调用现有业务合同；关闭面板不取消命令；冻结原输入与版本"
+    },
+    "ppt.preview": {
+      "label": "生成页面预览",
+      "name": "生成页面预览",
+      "icon": "image",
+      "intent": "ppt.preview",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式调用现有业务合同；关闭面板不取消命令；冻结原输入与版本"
+    },
+    "ppt.uploadSource": {
+      "label": "添加资料",
+      "name": "添加资料",
+      "icon": "upload",
+      "intent": "ppt.uploadSource",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式调用现有业务合同；关闭面板不取消命令；冻结原输入与版本"
+    },
+    "ppt.uploadImage": {
+      "label": "添加图片",
+      "name": "添加图片",
+      "icon": "image-plus",
+      "intent": "ppt.uploadImage",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式调用现有业务合同；关闭面板不取消命令；冻结原输入与版本"
+    },
+    "template.stopBatch": {
+      "label": "停止此批次",
+      "name": "停止此批次",
+      "icon": "circle-stop",
+      "intent": "template.stopBatch",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式调用现有业务合同；关闭面板不取消命令；冻结原输入与版本"
+    },
+    "template.finalizeSession": {
+      "label": "结束会话并收尾",
+      "name": "结束会话并收尾",
+      "icon": "check-check",
+      "intent": "template.finalizeSession",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式调用现有业务合同；关闭面板不取消命令；冻结原输入与版本"
+    },
+    "template.checkSession": {
+      "label": "重新检查会话",
+      "name": "重新检查会话",
+      "icon": "refresh-cw",
+      "intent": "template.checkSession",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式调用现有业务合同；关闭面板不取消命令；冻结原输入与版本"
+    },
+    "template.uploadSupplement": {
+      "label": "上传并重新复核需求",
+      "name": "上传并重新复核需求",
+      "icon": "file-up",
+      "intent": "template.uploadSupplement",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式调用现有业务合同；关闭面板不取消命令；冻结原输入与版本"
+    },
+    "template.answerClarification": {
+      "label": "提交回答并复核",
+      "name": "提交回答并复核",
+      "icon": "message-circle",
+      "intent": "template.answerClarification",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅显式调用现有业务合同；关闭面板不取消命令；冻结原输入与版本"
+    },
+    "knowledge.reply": {
+      "label": "提交回答并继续",
+      "name": "提交回答并继续",
+      "icon": "send",
+      "intent": "knowledge.reply",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "用户显式调用已有业务合同，冻结原身份和输入；关闭不取消命令"
+    },
+    "knowledge.retryQuestion": {
+      "label": "重新提问",
+      "name": "重新提问",
+      "icon": "rotate-ccw",
+      "intent": "knowledge.retryQuestion",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "用户显式调用已有业务合同，冻结原身份和输入；关闭不取消命令"
+    },
+    "knowledge.uploadDocuments": {
+      "label": "上传文档",
+      "name": "上传文档",
+      "icon": "upload",
+      "intent": "knowledge.uploadDocuments",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "用户显式调用已有业务合同，冻结原身份和输入；关闭不取消命令"
+    },
+    "knowledge.addDirectory": {
+      "label": "登记目录",
+      "name": "登记目录",
+      "icon": "folder-plus",
+      "intent": "knowledge.addDirectory",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "用户显式调用已有业务合同，冻结原身份和输入；关闭不取消命令"
+    },
+    "knowledge.refreshSource": {
+      "label": "刷新资料",
+      "name": "刷新资料",
+      "icon": "refresh-cw",
+      "intent": "knowledge.refreshSource",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "用户显式调用已有业务合同，冻结原身份和输入；关闭不取消命令"
+    },
+    "knowledge.searchSources": {
+      "label": "搜索资料",
+      "name": "搜索资料",
+      "icon": "search",
+      "intent": "knowledge.searchSources",
+      "scope": "read",
+      "guard": [
+        "OWNER_CONTEXT"
+      ],
+      "behavior": "用户显式读取/导出已有合同，不复活退役写入"
+    },
+    "knowledge.queryGit": {
+      "label": "查询提交",
+      "name": "查询提交",
+      "icon": "git-commit-horizontal",
+      "intent": "knowledge.queryGit",
+      "scope": "read",
+      "guard": [
+        "OWNER_CONTEXT"
+      ],
+      "behavior": "用户显式读取/导出已有合同，不复活退役写入"
+    },
+    "template.startReview": {
+      "label": "开始评审",
+      "name": "开始评审",
+      "icon": "play",
+      "intent": "template.startReview",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "用户显式调用已有业务合同，冻结原身份和输入；关闭不取消命令"
+    },
+    "template.checkScope": {
+      "label": "检查处理范围",
+      "name": "检查处理范围",
+      "icon": "scan-search",
+      "intent": "template.checkScope",
+      "scope": "read",
+      "guard": [
+        "OWNER_CONTEXT"
+      ],
+      "behavior": "用户显式读取/导出已有合同，不复活退役写入"
+    },
+    "automation.exportLatest": {
+      "label": "导出该模板最新合同",
+      "name": "导出该模板最新合同",
+      "icon": "download",
+      "intent": "automation.exportLatest",
+      "scope": "read",
+      "guard": [
+        "OWNER_CONTEXT"
+      ],
+      "behavior": "用户显式读取/导出已有合同，不复活退役写入"
+    },
+    "automation.exportWorkspace": {
+      "label": "导出旧模板与规则格式",
+      "name": "导出旧模板与规则格式",
+      "icon": "download",
+      "intent": "automation.exportWorkspace",
+      "scope": "read",
+      "guard": [
+        "OWNER_CONTEXT"
+      ],
+      "behavior": "用户显式读取/导出已有合同，不复活退役写入"
+    },
+    "automation.verifyTask": {
+      "label": "核对关联任务",
+      "name": "核对关联任务",
+      "icon": "shield-check",
+      "intent": "automation.verifyTask",
+      "scope": "read",
+      "guard": [
+        "OWNER_CONTEXT"
+      ],
+      "behavior": "用户显式读取/导出已有合同，不复活退役写入"
     }
   },
   "guards": {

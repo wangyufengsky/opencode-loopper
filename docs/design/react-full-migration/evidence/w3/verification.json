@@ -1,0 +1,237 @@
+{
+  "baseline": "a77b86ac40f458b9633acc3691fd2209125cb7a3",
+  "branch": "feat/react-full-migration",
+  "localOnly": true,
+  "routeRecords": 5,
+  "pathStates": 6,
+  "productionRoutes": [
+    "/template-tasks",
+    "/template-tasks/document-runs/:id",
+    "/template-tasks/source-runs/:id",
+    "/knowledge",
+    "/knowledge/:conversationId",
+    "/ppt/:id"
+  ],
+  "legacyRedirect": "/automations → /template-tasks；显式历史read/export消费者，不恢复write",
+  "componentDefinitions": 40,
+  "historyOwner": "原 Vue Router 唯一 owner，W6 尚未执行",
+  "unit": {
+    "total": 1852,
+    "passed": 1807,
+    "failed": 45,
+    "skipped": 0,
+    "physicalTestFiles": 230,
+    "exitCode": 1,
+    "allFailuresArePreservedW0": true,
+    "resultSha256": "b76e080e86b294df493f58cdee3dfe2a1bc3870ad11a61efc11ffd9fcbc61459",
+    "command": "npm test -- --maxWorkers=1 --reporter=json --outputFile=<local-evidence>/unit-delivery.json"
+  },
+  "W3Focused": {
+    "total": 226,
+    "passed": 226,
+    "failed": 0,
+    "skipped": 0,
+    "physicalTestFiles": 17,
+    "exitCode": 0,
+    "newCasesSinceW2": 218,
+    "retainedBridgeCases": 8,
+    "resultSha256": "267fde6e24658cd8a6484cf4806ff5662b67385ed08bca6bda3c534be2e9f06d",
+    "command": "npm run test:w3 -- --maxWorkers=1 --reporter=json --outputFile=<local-evidence>/w3-delivery.json",
+    "files": [
+      {
+        "file": "src/migration/w2Bridge.spec.tsx",
+        "tests": 15,
+        "passed": 15
+      },
+      {
+        "file": "src/migration/w3Routes.spec.ts",
+        "tests": 16,
+        "passed": 16
+      },
+      {
+        "file": "src/pages/w3/knowledge/browser.spec.ts",
+        "tests": 6,
+        "passed": 6
+      },
+      {
+        "file": "src/pages/w3/knowledge/controller.spec.ts",
+        "tests": 18,
+        "passed": 18
+      },
+      {
+        "file": "src/pages/w3/knowledge/pages.spec.tsx",
+        "tests": 21,
+        "passed": 21
+      },
+      {
+        "file": "src/pages/w3/ppt/PptStudioPage.spec.tsx",
+        "tests": 13,
+        "passed": 13
+      },
+      {
+        "file": "src/pages/w3/ppt/controller.spec.ts",
+        "tests": 21,
+        "passed": 21
+      },
+      {
+        "file": "src/pages/w3/ppt/editors.spec.tsx",
+        "tests": 5,
+        "passed": 5
+      },
+      {
+        "file": "src/pages/w3/shared/documents.spec.tsx",
+        "tests": 7,
+        "passed": 7
+      },
+      {
+        "file": "src/pages/w3/templates/catalog/controller.spec.ts",
+        "tests": 6,
+        "passed": 6
+      },
+      {
+        "file": "src/pages/w3/templates/catalog/creation.spec.ts",
+        "tests": 18,
+        "passed": 18
+      },
+      {
+        "file": "src/pages/w3/templates/catalog/history.spec.ts",
+        "tests": 18,
+        "passed": 18
+      },
+      {
+        "file": "src/pages/w3/templates/catalog/pages.spec.tsx",
+        "tests": 9,
+        "passed": 9
+      },
+      {
+        "file": "src/pages/w3/templates/runs/runChildren.spec.tsx",
+        "tests": 10,
+        "passed": 10
+      },
+      {
+        "file": "src/pages/w3/templates/runs/runOwners.spec.ts",
+        "tests": 27,
+        "passed": 27
+      },
+      {
+        "file": "src/pages/w3/templates/runs/runProjection.spec.tsx",
+        "tests": 5,
+        "passed": 5
+      },
+      {
+        "file": "src/pages/w3/templates/runs/runRoutes.spec.tsx",
+        "tests": 11,
+        "passed": 11
+      }
+    ]
+  },
+  "W0": {
+    "total": 111,
+    "passed": 66,
+    "failed": 45,
+    "skipped": 0,
+    "W3BeforeRed": 31,
+    "W3NowGreen": 31,
+    "remainingByWave": {
+      "W4": 4,
+      "W5": 41
+    }
+  },
+  "typecheckFoundation": {
+    "command": "npm run typecheck:foundation",
+    "exitCode": 0,
+    "resultSha256": "dc6027aca3b5b19433c290e8b25ddb6ea9e803ef3a7c6d57fd6ba3150cda855a"
+  },
+  "typecheck": {
+    "command": "npm run typecheck",
+    "exitCode": 0,
+    "resultSha256": "d68d4967c7dcc37e3b03a518b6b3e155e239ef9b958ce6c46c7dfc458a38fa5f"
+  },
+  "build": {
+    "command": "npm run build",
+    "exitCode": 0,
+    "lockedXyflowPatchCheckPassed": true,
+    "resultSha256": "a87b9ab97c798db0ebc38231c0d1c40b250b7b64c45650a76a08426a327f54f4",
+    "warnings": [
+      "existing Rollup PURE annotation",
+      "chunk larger than 500 kB"
+    ]
+  },
+  "tooling": {
+    "command": "npm run test:tooling",
+    "total": 33,
+    "passed": 33,
+    "failed": 0,
+    "exitCode": 0,
+    "resultSha256": "8c1aba5d4358579303b834231806c17339b332cf7ff7795ec4ab08efc8619c3d"
+  },
+  "accounting": {
+    "command": "npm run test:accounting",
+    "total": 13,
+    "passed": 13,
+    "failed": 0,
+    "exitCode": 0,
+    "resultSha256": "6766ef077c7f658db734b915ec92ef220ff05c4e3de23abeded94279928230b8"
+  },
+  "browserW3": {
+    "command": "CANVAS_W3_EVIDENCE_DIR=<local-evidence>/browser-delivery PLAYWRIGHT_CHROME_EXECUTABLE=/usr/bin/chromium npm run test:w3-browser",
+    "total": 31,
+    "passed": 31,
+    "failed": 0,
+    "skipped": 0,
+    "exitCode": 0,
+    "newCases": 28,
+    "originalReadConsistencyCases": 3,
+    "strictImmediateSnapshots": 69,
+    "activePptDragResizeSnapshots": 18,
+    "actualStablePngs": 33,
+    "resultSha256": "807a029e63e40e10636da4c4ccd70f693e79c8b850359bad644e192e44384be7"
+  },
+  "browserW2Related": {
+    "command": "W2_EVIDENCE_DIR=<local-evidence>/w2-regression-delivery PLAYWRIGHT_CHROME_EXECUTABLE=/usr/bin/chromium npm run test:w2-browser",
+    "total": 49,
+    "passed": 49,
+    "failed": 0,
+    "skipped": 0,
+    "exitCode": 0,
+    "ordinaryRouteExits": 42,
+    "activeReadonlyPan": 9,
+    "resultSha256": "0b470c82b6ba0a12bf14a526a92fb5a191224136e9b36bffea56f58bfa477b25"
+  },
+  "beforeEvidence": {
+    "browserFirst": {
+      "total": 31,
+      "passed": 6,
+      "failed": 25,
+      "resultSha256": "0832f3d7a3df6bac7058c4f447b58ba8eeba256d7f1d3f7bf000903aba9fcf93"
+    },
+    "browserSecond": {
+      "total": 31,
+      "passed": 19,
+      "failed": 12,
+      "resultSha256": "99d68ca8c8ecdd140635fbbe433b8baeb13b380e37e721f7088ef3cc1dcd3f5c"
+    },
+    "W2RelatedOldDestinationExpectations": {
+      "total": 49,
+      "passed": 4,
+      "failed": 45,
+      "classification": "旧 Vue root0/旧标题目的地期待失效；旧页面严格首样断言保留",
+      "resultSha256": "c91597afcf299655be20b38b7347014df70ac514479f0cc80bcd17f5fe670241"
+    }
+  },
+  "dependencies": "W3未改锁文件或依赖；未新增npm ci证明，W7干净安装及零Vue门槛待后续",
+  "lint": "没有独立lint脚本／配置；已执行typecheck与项目tooling，不声称lint通过",
+  "notRun": [
+    "全站剩余E2E",
+    "真实Java后端及Provider/模型",
+    "真实文件解析及PPTX排版/生成",
+    "物理触控硬件",
+    "GC retaining-path/所有对象释放",
+    "W7干净npm ci与零Vue验收"
+  ],
+  "outOfScope": [
+    "窄屏",
+    "W4/W5/W6生产页面",
+    "push/PR/merge/deploy"
+  ]
+}

@@ -1,4 +1,4 @@
-/** W0 frozen contract probes. W2 retargets only B8.1 to the actual React production page; other waves remain red. */
+/** W0 titles/contracts frozen; W2/W3 approved scopes now exercise production React; W4/W5 remain red. */
 import { createHash, webcrypto } from 'node:crypto'
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import { defineComponent, h, type Component } from 'vue'
@@ -8,7 +8,10 @@ import ElementPlus, { ElMessageBox } from 'element-plus'
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { api, ApiError } from '@/api/client'
 import { useTaskStore } from '@/stores/taskStore'
-import { useDocumentTemplateStore } from '@/stores/documentTemplateStore'
+import { createDocumentCreationController } from '@/pages/w3/templates/catalog/creation'
+import { creationUiW0Contract } from './w3-creation-contract'
+import { templateRunNavigationW0Contract, templateRunIdentityW0Contract, templateCancelScopeW0Contract, templateRunReadonlyLeaveW0Contract } from '@/pages/w3/templates/runs/run-w0-contract'
+import { templateSourcesRetirementW0Contract, templateClarificationRetirementW0Contract, templateSupplementRetirementW0Contract } from '@/pages/w3/templates/runs/run-child-w0-contract'
 import TemplateTasksView from '@/views/TemplateTasksView.vue'
 import SourceTemplateView from '@/views/SourceTemplateView.vue'
 import DocumentTemplateView from '@/views/DocumentTemplateView.vue'
@@ -16,9 +19,7 @@ import DesignerHistoryView from '@/views/DesignerHistoryView.vue'
 import { foundationDOM } from '@/pages/w2/workflow/page.test-support'
 import { designerHistoryW0Contract } from '@/pages/w2/workflow/designer-history-w0-contract'
 import TaskDesignHistoryView from '@/views/TaskDesignHistoryView.vue'
-import DocumentSourcesPanel from '@/components/DocumentSourcesPanel.vue'
 import DocumentClarificationForm from '@/components/DocumentClarificationForm.vue'
-import DocumentSupplementForm from '@/components/DocumentSupplementForm.vue'
 import type { DocumentTemplateOverview, SourceTemplateOverview, TaskDesignHistory, TemplateTaskCatalog } from '@/types/domain'
 
 function clone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) }
@@ -27,7 +28,7 @@ function mock(name: keyof typeof api) { return vi.spyOn(api, name) as Mock }
 function proof(subcase: string, evidence: unknown) { console.info('W0_IDENTITY', JSON.stringify({ subcase, evidence })) }
 const roots: VueWrapper[] = []
 const streams: { close: ReturnType<typeof vi.fn> }[] = []
-function stream() { const value = { close: vi.fn(), addEventListener: vi.fn(), onopen: null, onerror: null }; streams.push(value); return value }
+function stream() { const value = { close: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), onopen: null, onerror: null }; streams.push(value); return value }
 const header = { template: '<header><slot name="actions" /></header>' }
 const stubs = { Icon: true, PageHeader: header, MarkdownDocument: { props: ['content'], template: '<pre>{{ content }}</pre>' }, SourceCoveragePanel: true, SourceArtifactsPanel: true, DocumentRequirementsPanel: true, DocumentReportsPanel: true, TemplateBatchRecoveryPanel: true, DesignerDiscussionHistory: true, TemplateTaskProgressPanel: true }
 function state(wrapper: VueWrapper) { return (wrapper.vm.$ as unknown as { setupState: Record<string, any> }).setupState }
@@ -53,22 +54,10 @@ function file(content = '原始文档', name = '需求.md') {
   Object.defineProperty(value, 'arrayBuffer', { configurable: true, value: () => new Promise<ArrayBuffer>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result as ArrayBuffer); reader.onerror = reject; reader.readAsArrayBuffer(value) }) })
   return value
 }
-async function choose(wrapper: VueWrapper, files: File[]) { const input = wrapper.get('input[type=file]'); expect(input.attributes('disabled')).toBeUndefined(); Object.defineProperty(input.element, 'files', { configurable: true, value: files }); await input.trigger('change'); await flushPromises() }
 async function settleHash(predicate: () => unknown) { await vi.waitFor(() => expect(predicate()).toBeTruthy(), { timeout: 1500, interval: 20 }); await flushPromises() }
 function catalog(kind: 'report' | 'source' | 'document') {
   const templates = [{ id: kind === 'report' ? 'SNAPSHOT_CODE_REVIEW' : kind === 'source' ? 'UNIT_TEST_DEVELOPMENT' : 'REQUIREMENT_CODE_REVIEW', version: '1', title: `W0${kind}`, description: '真实分支夹具', category: '测试', inputs: { branch: kind !== 'source', dates: false, documents: kind === 'document', sourcePath: kind === 'source', testOutputPath: kind === 'source', documentOutputPath: false, extensions: ['md'], maxFiles: 10, maxFileMiB: 20, maxTotalMiB: 50 } }]
   return { templates, dimensions: [], defaultStartDate: '2026-09-01', defaultEndDate: '2026-09-14' } as unknown as TemplateTaskCatalog
-}
-async function createPage(kind: 'report' | 'source' | 'document') {
-  mock('templateCatalog').mockResolvedValue(catalog(kind))
-  const page = await routeRoot(TemplateTasksView, '/template-tasks?projectId=p')
-  if (kind === 'source') {
-    await page.view.get('input[aria-label="源码路径"]').setValue('src/main')
-    mock('sourcePreview').mockResolvedValue({ sourcePath: 'src/main', manifestSha256: 'sha', targetCount: 1, excludedCount: 0, moduleCount: 1, truncated: false, files: [], testProfile: { manifestSha256: 'sha', modules: [] }, configurationProblem: null })
-    await button(page.view, '检查处理范围')
-  }
-  if (kind === 'document') await choose(page.view, [file()])
-  return page
 }
 beforeEach(() => {
   vi.useFakeTimers(); sessionStorage.clear(); setActivePinia(createPinia()); streams.length = 0
@@ -77,109 +66,48 @@ beforeEach(() => {
   mock('templateBranches').mockResolvedValue({ page: { items: [branch], facets: {}, nextCursor: null }, defaultBranch: branch, defaultBranchId: branch.id, remoteAvailable: true })
   mock('sourceTemplate').mockImplementation(async (id: string) => sourceRun(id)); mock('documentTemplate').mockImplementation(async (id: string) => documentRun(id))
   mock('sourceEvents').mockImplementation(stream); mock('documentEvents').mockImplementation(stream)
+  for (const name of ['documentSections', 'documentSection', 'answerDocumentRequirements', 'documentSupplementOptions', 'uploadDocumentSupplement'] as const) mock(name)
   useTaskStore().projects = [{ id: 'p', name: '项目', createdAt: 'now' }] as any
 })
 afterEach(() => { roots.splice(0).forEach(root => { if (root.exists()) root.unmount() }); vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers(); sessionStorage.clear() })
 
 describe('W0 B3 creation/run identity and navigation', () => {
   for (const kind of ['report', 'source', 'document'] as const) it(`B3.1 ${kind}: real create in flight must block route leave; disabled inputs cannot be mutated`, async () => {
-    const pending = deferred<any>(); const write = mock(kind === 'report' ? 'createTemplateTask' : kind === 'source' ? 'createSourceTemplate' : 'createDocumentTemplate').mockReturnValue(pending.promise)
-    const page = await createPage(kind); await page.view.get('form').trigger('submit'); await flushPromises()
-    if (kind === 'document') await settleHash(() => write.mock.calls.length)
-    expect(write).toHaveBeenCalledTimes(1)
-    expect(page.view.get(kind === 'source' ? 'input[aria-label="源码路径"]' : kind === 'document' ? 'input[type=file]' : 'input[aria-label="项目"]').attributes('disabled')).toBeDefined()
-    await page.router.push('/exit'); await flushPromises()
-    proof(`B3.1/${kind}/create`, { route: page.router.currentRoute.value.fullPath, request: write.mock.calls[0]?.[0], calls: write.mock.calls.length, inputLocked: true })
-    expect.soft(page.router.currentRoute.value.path).toBe('/template-tasks')
-    pending.reject(new Error('确定性未知回执')); await flushPromises(); expect(write).toHaveBeenCalledTimes(1)
+    await creationUiW0Contract(kind, 'inflight', { catalog, file, proof })
   })
   it('B3.1 document: hashing really active before any POST must block leave', async () => {
-    const read = deferred<ArrayBuffer>(); const input = file(); Object.defineProperty(input, 'arrayBuffer', { configurable: true, value: () => read.promise })
-    const write = mock('createDocumentTemplate'); const page = await createPage('document'); await choose(page.view, [input]); await page.view.get('form').trigger('submit'); await flushPromises()
-    expect(useDocumentTemplateStore().submitting).toBe(true); expect(write).not.toHaveBeenCalled(); await page.router.push('/exit'); await flushPromises()
-    proof('B3.1/document/hash', { route: page.router.currentRoute.value.path, submitting: useDocumentTemplateStore().submitting, writes: write.mock.calls.length })
-    expect.soft(page.router.currentRoute.value.path).toBe('/template-tasks'); read.reject(new Error('测试终止本次读取')); await flushPromises()
+    await creationUiW0Contract('document', 'hash', { catalog, file, proof })
   })
   for (const kind of ['report', 'source', 'document'] as const) it(`B3.1 ${kind}: unknown receipt cannot replace original intent via editable UI`, async () => {
-    const write = mock(kind === 'report' ? 'createTemplateTask' : kind === 'source' ? 'createSourceTemplate' : 'createDocumentTemplate').mockRejectedValue(new Error('回执丢失'))
-    const page = await createPage(kind); await page.view.get('form').trigger('submit'); await flushPromises(); if (kind === 'document') await settleHash(() => write.mock.calls.length && !useDocumentTemplateStore().submitting)
-    const original = clone(write.mock.calls[0]?.[0]); expect(original.requestKey).toBeTruthy()
-    if (kind === 'source') { const input = page.view.get('input[aria-label="源码路径"]'); expect(input.attributes('disabled')).toBeUndefined(); await input.setValue('src/changed'); await button(page.view, '检查处理范围') }
-    else if (kind === 'document') await choose(page.view, [file('另一份实际字节')])
-    else { const input = page.view.get('input[aria-label="文档生成路径"]'); expect(input.attributes('disabled')).toBeUndefined(); await input.setValue('/changed') }
-    await page.view.get('form').trigger('submit'); await flushPromises(); if (kind === 'document') await settleHash(() => write.mock.calls.length === 2)
-    await page.router.push('/exit'); await flushPromises()
-    proof(`B3.1/${kind}/unknown-new-intent`, { original, retry: write.mock.calls[1]?.[0], route: page.router.currentRoute.value.path })
-    expect.soft(write.mock.calls[1]?.[0]).toEqual(original); expect.soft(page.router.currentRoute.value.path).toBe('/template-tasks')
+    await creationUiW0Contract(kind, 'unknown', { catalog, file, proof })
   })
   for (const phase of ['inflight', 'unknown'] as const) it(`B3.1 report/start-${phase}: accepted Task identity blocks leave and survives real editable draft`, async () => {
-    const create = mock('createTemplateTask').mockResolvedValue({ id: 'task-accepted' }); const receipt = deferred<any>(); const start = mock('startTemplateTask').mockReturnValue(receipt.promise)
-    const page = await createPage('report'); await page.view.get('form').trigger('submit'); await flushPromises(); expect(create).toHaveBeenCalledTimes(1); expect(start).toHaveBeenCalledWith('task-accepted')
-    if (phase === 'unknown') {
-      receipt.reject(new Error('start回执未知')); await flushPromises(); start.mockRejectedValue(new Error('原操作start未知'))
-      const input = page.view.get('input[aria-label="文档生成路径"]'); expect(input.attributes('disabled')).toBeUndefined(); const original = (input.element as HTMLInputElement).value
-      await input.setValue('/changed-after-accepted'); await page.view.get('form').trigger('submit'); await flushPromises()
-      await input.setValue(original); await page.view.get('form').trigger('submit'); await flushPromises()
-    }
-    await page.router.push('/exit'); await flushPromises(); proof(`B3.1/report/start-${phase}`, { create: create.mock.calls, start: start.mock.calls, route: page.router.currentRoute.value.path, knownTaskId: 'task-accepted' })
-    expect.soft(create).toHaveBeenCalledTimes(1); expect.soft(start.mock.calls.every(call => call[0] === 'task-accepted')).toBe(true); expect.soft(page.router.currentRoute.value.path).toBe('/template-tasks')
-    if (phase === 'inflight') { receipt.reject(new Error('late start unknown')); await flushPromises() }
+    await creationUiW0Contract('report', phase === 'inflight' ? 'start-inflight' : 'start-unknown', { catalog, file, proof })
   })
   for (const kind of ['source', 'document'] as const) it(`B3.2 ${kind}: read-only owner without local command may leave and closes SSE without stop POST`, async () => {
-    const write = mock(kind === 'source' ? 'sourceTemplateCommand' : 'documentTemplateCommand')
-    const page = await routeRoot(kind === 'source' ? SourceTemplateView : DocumentTemplateView, `/template-tasks/${kind}-runs/A`); expect(streams).toHaveLength(1)
-    await page.router.push('/exit'); await flushPromises(); proof(`B3.2/${kind}/read-only-leave`, { route: page.router.currentRoute.value.path, closed: streams[0]!.close.mock.calls.length, writes: write.mock.calls.length })
-    expect(page.router.currentRoute.value.path).toBe('/exit'); expect(streams[0]!.close).toHaveBeenCalledTimes(1); expect(write).not.toHaveBeenCalled()
+    mock(kind === 'source' ? 'sourceTemplateCommand' : 'documentTemplateCommand')
+    await templateRunReadonlyLeaveW0Contract(kind, { proof })
   })
   for (const kind of ['source', 'document'] as const) for (const phase of ['inflight', 'unknown'] as const) it(`B3.2 ${kind}/${phase}: same-record and exit navigation preserve pending scope`, async () => {
-    const pending = deferred<any>(); const write = mock(kind === 'source' ? 'sourceTemplateCommand' : 'documentTemplateCommand').mockReturnValue(pending.promise)
-    const component = kind === 'source' ? SourceTemplateView : DocumentTemplateView; const path = `/template-tasks/${kind}-runs/A`
-    const page = await routeRoot(component, path); await button(page.view, kind === 'source' ? '开始执行' : '从冻结输入恢复')
-    expect(write).toHaveBeenCalledTimes(1)
-    if (phase === 'unknown') { pending.reject(new Error('未知回执')); await flushPromises() }
-    await page.router.push(`/template-tasks/${kind}-runs/B`); await flushPromises()
-    proof(`B3.2/${kind}/${phase}`, { original: write.mock.calls[0], route: page.router.currentRoute.value.path, streamsClosed: streams.map(s => s.close.mock.calls.length) })
-    expect.soft(page.router.currentRoute.value.path).toBe(path)
-    await page.router.push('/exit'); await flushPromises(); expect.soft(page.router.currentRoute.value.path).toBe(path)
-    if (phase === 'inflight') { pending.reject(new Error('retired owner late error')); await flushPromises() }
-    expect(write).toHaveBeenCalledTimes(1)
+    mock(kind === 'source' ? 'sourceTemplateCommand' : 'documentTemplateCommand')
+    await templateRunNavigationW0Contract(kind, phase, { proof })
   })
   for (const kind of ['source', 'document'] as const) for (const action of (kind === 'source' ? ['cancel', 'retry'] : ['resume', 'cancel'])) it(`B3.3 ${kind}/${action}: refresh version and batch selection must not mint a new unknown command`, async () => {
-    const write = mock(kind === 'source' ? 'sourceTemplateCommand' : 'documentTemplateCommand').mockRejectedValue(new Error('未知回执'))
-    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
-    if (kind === 'source' && action === 'retry') {
-      vi.mocked(api.sourceTemplate).mockResolvedValue({ ...sourceRun(), templateId: 'DETAILED_DESIGN_WRITING', canResume: true })
-      mock('sourceBatches').mockResolvedValue({ items: [{ id: 'batch-a', ordinal: 0, attempt: 1, state: 'FAILED', retryable: true }, { id: 'batch-b', ordinal: 1, attempt: 1, state: 'FAILED', retryable: true }], nextCursor: null })
-    }
-    const page = await routeRoot(kind === 'source' ? SourceTemplateView : DocumentTemplateView, `/template-tasks/${kind}-runs/A`)
-    const label = action === 'retry' ? '重试所选失败批次' : action === 'resume' ? '从冻结输入恢复' : '取消任务'
-    if (action === 'retry') await page.view.findAll('input[type=checkbox]')[0]!.setValue(true)
-    await button(page.view, label); const original = clone(write.mock.calls[0]); expect(original).toBeDefined()
-    if (kind === 'source') vi.mocked(api.sourceTemplate).mockResolvedValue({ ...sourceRun('A', 4), templateId: action === 'retry' ? 'DETAILED_DESIGN_WRITING' : 'UNIT_TEST_DEVELOPMENT', canResume: action === 'retry' })
-    else vi.mocked(api.documentTemplate).mockResolvedValue(documentRun('A', 4))
-    await button(page.view, '刷新')
-    if (action === 'retry') await page.view.findAll('input[type=checkbox]')[1]!.setValue(true)
-    await button(page.view, label)
-    proof(`B3.3/${kind}/${action}`, { original, retry: write.mock.calls[1] })
-    expect(write.mock.calls[1]).toEqual(original)
+    mock(kind === 'source' ? 'sourceTemplateCommand' : 'documentTemplateCommand')
+    if (kind === 'source' && action === 'retry') mock('sourceBatches').mockResolvedValue({ items: [{ id: 'batch-a', ordinal: 0, attempt: 1, state: 'FAILED', retryable: true }, { id: 'batch-b', ordinal: 1, attempt: 1, state: 'FAILED', retryable: true }], nextCursor: null })
+    await templateRunIdentityW0Contract(kind, action as 'cancel' | 'retry' | 'resume', { source: sourceRun, document: documentRun, proof })
   })
   for (const kind of ['report', 'source', 'document'] as const) it(`B3.4 ${kind}: denied get/set storage retains in-memory original identity and blocks leave`, async () => {
-    const storage = { getItem: vi.fn(() => { throw new Error('storage get denied') }), setItem: vi.fn(() => { throw new Error('storage set denied') }), removeItem: vi.fn(() => { throw new Error('storage remove denied') }) }; vi.stubGlobal('sessionStorage', storage)
-    const write = mock(kind === 'report' ? 'createTemplateTask' : kind === 'source' ? 'createSourceTemplate' : 'createDocumentTemplate').mockRejectedValue(new Error('未知回执'))
-    const page = await createPage(kind); await page.view.get('form').trigger('submit'); await flushPromises(); if (kind === 'document') await settleHash(() => write.mock.calls.length && !useDocumentTemplateStore().submitting)
-    await page.view.get('form').trigger('submit'); await flushPromises(); if (kind === 'document') await settleHash(() => write.mock.calls.length === 2)
-    expect(write.mock.calls[1]?.[0]).toEqual(write.mock.calls[0]?.[0]); await page.router.push('/exit'); await flushPromises()
-    proof(`B3.4/${kind}/storage`, { requests: write.mock.calls.map(c => c[0]), storageCalls: { get: storage.getItem.mock.calls.length, set: storage.setItem.mock.calls.length, remove: storage.removeItem.mock.calls.length }, removeReachability: 'no removal path in these stores', route: page.router.currentRoute.value.path })
-    expect(page.router.currentRoute.value.path).toBe('/template-tasks')
+    await creationUiW0Contract(kind, 'storage', { catalog, file, proof })
   })
   it('B3.4 document: by-request 404 remains unknown; actual File bytes/order cannot replace original operation', async () => {
     vi.useRealTimers()
     const write = mock('createDocumentTemplate').mockRejectedValue(new Error('未知回执')); const read = mock('documentTemplateRequest').mockRejectedValue(new ApiError('未找到原请求', 404))
-    const files = [file('字节一', 'one.md'), file('字节二', 'two.md')]; let store = useDocumentTemplateStore()
+    const files = [file('字节一', 'one.md'), file('字节二', 'two.md')]; let store = createDocumentCreationController()
     const first = store.start(documentInput, files).catch(() => undefined); await settleHash(() => write.mock.calls.length === 1); await first
     const original = clone(write.mock.calls[0]?.[0]); const metadata = sessionStorage.getItem('loopper.document-template-upload.v1')!
-    expect(metadata).not.toContain('字节一'); setActivePinia(createPinia()); store = useDocumentTemplateStore(); await store.restore(); expect(read).toHaveBeenCalledWith(original.requestKey); expect(write).toHaveBeenCalledTimes(1)
-    for (const selected of [[file('字节一', 'one.md'), file('字节二', 'two.md')], [file('不同字节', 'one.md'), file('字节二', 'two.md')], [files[1]!, files[0]!]]) { const next = store.start(documentInput, selected).catch(() => undefined); await settleHash(() => !store.submitting); await next }
+    expect(metadata).not.toContain('字节一'); setActivePinia(createPinia()); store = createDocumentCreationController(); await store.restore(); expect(read).toHaveBeenCalledWith(original.requestKey); expect(write).toHaveBeenCalledTimes(1)
+    for (const selected of [[file('字节一', 'one.md'), file('字节二', 'two.md')], [file('不同字节', 'one.md'), file('字节二', 'two.md')], [files[1]!, files[0]!]]) { const next = store.start(documentInput, selected).catch(() => undefined); await settleHash(() => !store.getSnapshot().busy); await next }
     const uploads = await Promise.all(write.mock.calls.map(async call => Promise.all((call[1] as File[]).map(async selected => ({ name: selected.name, sha256: createHash('sha256').update(new Uint8Array(await selected.arrayBuffer())).digest('hex'), sameOriginalInstance: files.includes(selected) })))))
     proof('B3.4/document/bytes-order', { requests: write.mock.calls.map(c => c[0]), uploads, metadataOnly: JSON.parse(metadata), scope: 'external store negative control; UI edit path covered B3.1', byRequestStatus: 404, knownAccepted: false, allowedAlternative: 'reject changed input without POST OR resume frozen original bytes/order' })
     // Same-byte reselect after reload uses new File objects, but the endpoint identity remains original.
@@ -191,25 +119,20 @@ describe('W0 B3 creation/run identity and navigation', () => {
 
   })
   it('B3.4 document: accepted by-request receipt performs reads only and identifies original run', async () => {
-    const write = mock('createDocumentTemplate').mockRejectedValue(new Error('未知原创建回执')); const store = useDocumentTemplateStore()
-    const pending = store.start(documentInput, [file('原字节')]).catch(() => undefined); await settleHash(() => !store.submitting); await pending
+    const write = mock('createDocumentTemplate').mockRejectedValue(new Error('未知原创建回执')); const store = createDocumentCreationController()
+    const pending = store.start(documentInput, [file('原字节')]).catch(() => undefined); await settleHash(() => !store.getSnapshot().busy); await pending
     const original = clone(write.mock.calls[0]?.[0]); const read = mock('documentTemplateRequest').mockResolvedValue(documentRun('accepted-original'))
-    setActivePinia(createPinia()); const restored = useDocumentTemplateStore(); await restored.restore()
-    proof('B3.4/document/accepted-read', { requestKey: original.requestKey, lookup: read.mock.calls, restoredId: restored.previousRun?.id, writes: write.mock.calls.length, knownAccepted: true, filesPersisted: false })
-    expect(read).toHaveBeenCalledWith(original.requestKey); expect(restored.previousRun?.id).toBe('accepted-original'); expect(write).toHaveBeenCalledTimes(1)
+    setActivePinia(createPinia()); const restored = createDocumentCreationController(); await restored.restore()
+    proof('B3.4/document/accepted-read', { requestKey: original.requestKey, lookup: read.mock.calls, restoredId: restored.getSnapshot().knownId, writes: write.mock.calls.length, knownAccepted: true, filesPersisted: false })
+    expect(read).toHaveBeenCalledWith(original.requestKey); expect(restored.getSnapshot().knownId).toBe('accepted-original'); expect(write).toHaveBeenCalledTimes(1)
     // Accepted GET closes the UNKNOWN branch: no changed-draft retry is forced here.
   })
 })
 
 describe('W0 B4 document cancellation scope', () => {
   it('B4.1 pending confirm A followed by real route B must never POST stale cancellation', async () => {
-    const confirm = deferred<any>(); vi.spyOn(ElMessageBox, 'confirm').mockReturnValue(confirm.promise)
-    const write = mock('documentTemplateCommand').mockResolvedValue(documentRun('A', 4))
-    const page = await routeRoot(DocumentTemplateView, '/template-tasks/document-runs/A'); await button(page.view, '取消任务')
-    expect(write).not.toHaveBeenCalled(); await page.router.push('/template-tasks/document-runs/B'); await flushPromises(); expect(state(page.view).run.id).toBe('B')
-    confirm.resolve('confirm'); await flushPromises()
-    proof('B4.1/stale-modal', { route: page.router.currentRoute.value.path, writes: write.mock.calls, visibleRun: state(page.view).run.id, acting: state(page.view).acting })
-    expect.soft(write).not.toHaveBeenCalled(); expect.soft(state(page.view).run.id).toBe('B'); expect.soft(state(page.view).error).toBe('')
+    mock('documentTemplateCommand')
+    await templateCancelScopeW0Contract({ proof })
   })
   it('B4.1 reject real modal leaves original A and issues zero writes', async () => {
     vi.spyOn(ElMessageBox, 'confirm').mockRejectedValue('cancel'); const write = mock('documentTemplateCommand')
@@ -270,28 +193,16 @@ describe('W0 B8 history and child retirement', () => {
     proof('B8.2/retired-error', { loading: retired.loading, error: retired.error }); expect.soft(retired.loading).toBe(true); expect.soft(retired.error).toBe('')
   })
   for (const kind of ['directory', 'body'] as const) it(`B8.3 sources/${kind}: late response after root unmount cannot mutate retired refs`, async () => {
-    const a = deferred<any>(); const read = mock(kind === 'directory' ? 'documentSections' : 'documentSection').mockReturnValue(a.promise)
-    if (kind === 'body') mock('documentSections').mockResolvedValue(sectionPage)
-    const wrapper = direct(DocumentSourcesPanel, { run: withFile() }); await button(wrapper, '读取目录'); if (kind === 'body') await button(wrapper, '读取原文')
-    const retired = state(wrapper); const before = clone(kind === 'directory' ? retired.pages : retired.bodies); wrapper.unmount(); a.resolve(kind === 'directory' ? sectionPage : { ...section, content: 'A原文' }); await flushPromises()
-    proof(`B8.3/sources/${kind}`, { requests: read.mock.calls, before, after: kind === 'directory' ? retired.pages : retired.bodies, busy: retired.busy })
-    expect(kind === 'directory' ? retired.pages : retired.bodies).toEqual(before)
+    await templateSourcesRetirementW0Contract(kind, { run: withFile(), page: sectionPage, section: { ...section, content: 'A原文' }, proof })
   })
   it('B8.3 clarification sent POST after forced root retirement cannot emit updated or clear draft', async () => {
-    const a = deferred<any>(); const write = mock('answerDocumentRequirements').mockReturnValue(a.promise); const wrapper = direct(DocumentClarificationForm, { run: documentRun(), requirementKey: 'REQ-1' })
-    await wrapper.get('textarea').setValue('原始回答'); await wrapper.get('form').trigger('submit'); await flushPromises(); expect(wrapper.get('textarea').attributes('disabled')).toBeDefined(); const retired = state(wrapper); wrapper.unmount()
-    const next = direct(DocumentClarificationForm, { run: documentRun('B'), requirementKey: 'REQ-1' }); await next.get('textarea').setValue('B草稿'); a.resolve(documentRun('A', 4)); await flushPromises()
-    proof('B8.3/clarification', { request: write.mock.calls[0], retiredEmit: wrapper.emitted('updated'), retiredDraft: retired.answer, nextDraft: state(next).answer, forcedRetirement: true })
-    expect.soft(wrapper.emitted('updated')).toBeUndefined(); expect.soft(retired.answer).toBe('原始回答'); expect(state(next).answer).toBe('B草稿'); expect(next.emitted('updated')).toBeUndefined()
+    await templateClarificationRetirementW0Contract({ run: documentRun(), proof })
   })
   it('B8.3 supplement options read after unmount cannot open retired form', async () => {
-    const a = deferred<any>(); mock('documentSupplementOptions').mockReturnValue(a.promise); const wrapper = direct(DocumentSupplementForm, { run: documentRun() }); await button(wrapper, '补充需求文档'); const retired = state(wrapper); wrapper.unmount()
-    a.resolve({ available: true, message: '补传', request: { requestKey: 'supplement-request-key', expectedVersion: 3, expectedTaskVersion: -1 } }); await flushPromises(); proof('B8.3/supplement-options', { opened: retired.opened, options: retired.options, busy: retired.busy }); expect.soft(retired.opened).toBe(false); expect.soft(retired.options).toBeUndefined(); expect.soft(retired.busy).toBe(true)
+    await templateSupplementRetirementW0Contract('options', { run: documentRun(), proof })
   })
   it('B8.3 supplement sent upload after forced root retirement cannot emit updated', async () => {
-    mock('documentSupplementOptions').mockResolvedValue({ available: true, message: '补传', request: { requestKey: 'supplement-request-key', expectedVersion: 3, expectedTaskVersion: -1 } }); const a = deferred<any>(); const write = mock('uploadDocumentSupplement').mockReturnValue(a.promise)
-    const wrapper = direct(DocumentSupplementForm, { run: documentRun() }); await button(wrapper, '补充需求文档'); await choose(wrapper, [file()]); await button(wrapper, '上传并重新复核需求'); const retired = state(wrapper); expect(wrapper.get('input[type=file]').attributes('disabled')).toBeDefined(); wrapper.unmount(); a.resolve(documentRun('A', 4)); await flushPromises()
-    proof('B8.3/supplement-upload', { request: write.mock.calls[0]?.slice(0, 2), retiredEmit: wrapper.emitted('updated'), files: retired.files.map((f: File) => f.name), forcedRetirement: true }); expect.soft(wrapper.emitted('updated')).toBeUndefined(); expect.soft(retired.files).toHaveLength(1)
+    await templateSupplementRetirementW0Contract('upload', { run: documentRun(), file: file(), proof })
   })
   it('B8.3 existing prop scope guards reject old child callbacks without unmount', async () => {
     const a = deferred<any>(); mock('answerDocumentRequirements').mockReturnValue(a.promise); const wrapper = direct(DocumentClarificationForm, { run: documentRun(), requirementKey: 'REQ-1' }); await wrapper.get('textarea').setValue('A回答'); await wrapper.get('form').trigger('submit'); await flushPromises(); await wrapper.setProps({ run: documentRun('B') }); await wrapper.get('textarea').setValue('B回答'); a.resolve(documentRun('A', 4)); await flushPromises(); expect(wrapper.emitted('updated')).toBeUndefined(); expect(state(wrapper).answer).toBe('B回答')
