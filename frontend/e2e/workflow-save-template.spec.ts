@@ -3,6 +3,8 @@ import { expect, test } from '@playwright/test'
 import { requirement, execution } from '../src/components/workflow/workflowRunTestFixtures'
 import type { WorkflowSaveTemplate, WorkflowTemplateSelection } from '../src/types/workflow'
 
+const evidence = process.env.CANVAS_EVIDENCE_DIR ?? 'test-results'
+
 // Real browser interaction with explicit HTTP fixtures; backend persistence is covered separately.
 for (const width of [1600, 390]) test(`另存流程先预览、保留当前步骤及未知回执 ${width}`, async ({ page }) => {
   const req = requirement(), snapshot = execution(); const saves: WorkflowSaveTemplate[] = [], selections: WorkflowTemplateSelection[] = []
@@ -41,7 +43,7 @@ for (const width of [1600, 390]) test(`另存流程先预览、保留当前步�
   await dialog.locator('.workflow-node').first().click(); await expect(dialog.getByLabel('节点设置')).toBeVisible()
   await expect(dialog.getByLabel('节点设置').getByLabel('名称', { exact: true })).toBeDisabled()
   expect(await page.locator('body').evaluate(el => el.scrollWidth <= innerWidth + 1)).toBe(true)
-  await page.screenshot({ path: `test-results/workflow-save-template-${width}.png`, fullPage: true })
+  await page.screenshot({ path: `${evidence}/workflow-save-template-${width}.png`, fullPage: true })
   await dialog.getByRole('button', { name: '确认保存为新流程', exact: true }).click()
   await expect(dialog.getByRole('button', { name: '返回任务画布', exact: true })).toBeDisabled()
   await dialog.getByRole('button', { name: '重试原保存操作', exact: true }).click()

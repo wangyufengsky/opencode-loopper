@@ -56,4 +56,21 @@ describe('真实 React Flow 只读图', () => {
     expect(container.querySelector('[aria-current="step"]')).toBeNull()
     await waitFor(() => expect(container.querySelectorAll('.react-flow__edge')).toHaveLength(0))
   })
+
+  it('长序列的后续阶段可通过键盘聚焦定位，保持只读并允许选择目标文字', async () => {
+    const stages: Stage[] = Array.from({ length: 20 }, (_, index) => ({ id: `stage-${index}`, ordinal: index + 1, objective: `阶段 ${index + 1} 的完整目标`, status: 'PENDING', attempts: [] }))
+    const { container } = render(<StageDiagram stages={stages} />)
+    const last = container.querySelector<HTMLElement>('[data-id="stage-19"]')!
+    const viewport = container.querySelector<HTMLElement>('.react-flow__viewport')!
+    expect(last.tabIndex).toBe(0)
+    expect(last.style.pointerEvents).toBe('all'); expect(last.style.userSelect).toBe('text')
+    expect(last.classList.contains('nopan')).toBe(true)
+    await waitFor(() => expect(last.style.visibility).toBe('visible'))
+    const originalViewport = viewport.style.transform, originalPosition = last.style.transform
+    last.focus(); fireEvent.focus(last)
+    await waitFor(() => expect(viewport.style.transform).not.toBe(originalViewport))
+    for (const key of ['ArrowRight', 'Enter', ' ', 'Delete']) fireEvent.keyDown(last, { key })
+    expect(last.style.transform).toBe(originalPosition)
+    expect(last.classList.contains('selected')).toBe(false); expect(container.querySelectorAll('.react-flow__node')).toHaveLength(20)
+  })
 })

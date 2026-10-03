@@ -204,7 +204,13 @@ function discard() {
   if (locked.value || !base.value || dirty.value && !window.confirm('放弃当前画布调整，回到已经生效的计划？候选记录仍然保留。')) return
   accept(base.value); surface.value = 'none'; selected.value = ''; edgeId.value = ''; connecting.value = ''; notice.value = ''
 }
-function canLeave() { if (publicationPanel.value && !publicationPanel.value.canLeave()) return false; if (exportPanel.value && !exportPanel.value.canLeave()) return false; if (uploadBusy.value || uploadPending.value) return false; if (finishPanel.value && !finishPanel.value.canLeave()) return false; if (candidates.value && !candidates.value.canLeave()) return false; if (inspector.value && !inspector.value.canLeave()) return false; return !(dirty.value || command.pending.value) || window.confirm('当前计划有未保存或待确认的操作，仍要离开？') }
+function canLeave() {
+  if (command.busy.value || command.pending.value) {
+    error.value = command.busy.value ? '操作仍在处理中，请等待结果后再离开。' : command.pending.value?.accepted ? '操作已接受，请刷新操作结果，确认结果后再离开。' : '操作结果仍待确认，请重试原操作，确认结果后再离开。'
+    return false
+  }
+  if (publicationPanel.value && !publicationPanel.value.canLeave()) return false; if (exportPanel.value && !exportPanel.value.canLeave()) return false; if (uploadBusy.value || uploadPending.value) return false; if (finishPanel.value && !finishPanel.value.canLeave()) return false; if (candidates.value && !candidates.value.canLeave()) return false; if (inspector.value && !inspector.value.canLeave()) return false; return !dirty.value || window.confirm('当前计划有未保存的修改，仍要离开？')
+}
 async function reload() { if (canLeave()) { exportDraft.value = null; planSave.value = null; await load() } }
 onBeforeRouteLeave(canLeave); onBeforeRouteUpdate(canLeave)
 const unload = (event: BeforeUnloadEvent) => { if (exportDraft.value || dirty.value || command.pending.value || uploadBusy.value || uploadPending.value || nodeBusy.value || candidateBusy.value || finishBusy.value || publicationBusy.value) { event.preventDefault(); event.returnValue = '' } }

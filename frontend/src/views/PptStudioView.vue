@@ -156,6 +156,9 @@ watch(() => store.agent?.questions.some(question => question.state === 'PENDING'
 watch(propertyDirty, (dirty) => {
   if (!dirty && localError.value.startsWith('修改尚未保存')) localError.value = ''
 })
+watch(() => !!store.busy || !!store.pending, (blocked) => {
+  if (!blocked && (localError.value.startsWith('操作正在保存') || localError.value.startsWith('上一项操作结果尚未核对'))) localError.value = ''
+})
 function protectDraft() {
   if (!propertyDirty.value) return true
   localError.value = '修改尚未保存，请先在属性中保存或处理冲突，再切换选择。'
@@ -164,7 +167,7 @@ function protectDraft() {
   return false
 }
 function beforeUnload(event: BeforeUnloadEvent) {
-  if (!propertyDirty.value) return
+  if (!propertyDirty.value && !store.busy && !store.pending) return
   event.preventDefault()
   event.returnValue = ''
 }
@@ -176,10 +179,19 @@ onMounted(() => {
   document.addEventListener('pointerdown', closeMoreOutside)
 })
 function canLeaveDraft() {
+  if (store.busy || store.pending) {
+    localError.value = store.busy
+      ? '操作正在保存，请等待结果后再离开。'
+      : '上一项操作结果尚未核对，请先重试原操作，再离开。'
+    return false
+  }
   return !propertyDirty.value || window.confirm('属性修改尚未保存。确定离开？未保存的输入会保留在此浏览器中。')
 }
 onBeforeRouteLeave(canLeaveDraft)
-onBeforeRouteUpdate((to, from) => to.params.id === from.params.id || canLeaveDraft())
+onBeforeRouteUpdate((to, from) => {
+  if (store.busy || store.pending) return canLeaveDraft()
+  return to.params.id === from.params.id || canLeaveDraft()
+})
 const timer = setInterval(() => {
   if (store.active || store.jobsActive || store.disconnected) void store.refresh()
 }, 4000)
@@ -485,8 +497,8 @@ function locateIssue(slide: string, element: string) {
         </div>
       </div>
     </header>
-    <div v-if="store.error || localError" role="alert" class="ppt-notice ppt-page-notice">
-      {{ store.error || localError }}
+    <div v-if="store.error || localError || store.pending" role="alert" class="ppt-notice ppt-page-notice">
+      {{ store.error || localError || (store.busy ? '操作正在保存，请等待结果。' : '上一项操作结果尚未核对，请重试原操作。') }}
       <button :disabled="store.busy" @click="recheck">重新核对</button>
       <button v-if="store.pending" :disabled="store.busy" @click="store.retryPending">
         重试原操作

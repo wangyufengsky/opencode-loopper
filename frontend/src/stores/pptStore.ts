@@ -41,6 +41,7 @@ const explain = (value: unknown) =>
     ? value.message
     : '暂时无法完成操作，请重新核对状态后重试'
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
+const pendingRecoveryMessage = '上一项操作结果尚未核对，请重试原操作。'
 export const usePptStore = defineStore('ppt', () => {
   const document = ref<PptDocument | null>(null),
     deck = ref<PptDeck | null>(null),
@@ -80,7 +81,7 @@ export const usePptStore = defineStore('ppt', () => {
   const jobsActive = computed(() =>
     jobs.value.some((job) => ['PREPARED', 'PENDING', 'QUEUED', 'RUNNING'].includes(job.state)),
   )
-  const editable = computed(() => !!document.value && !document.value.archived && !busy.value)
+  const editable = computed(() => !!document.value && !document.value.archived && !busy.value && !pending.value)
   const storageKey = (id: string) => `loopper.ppt.pending.${id}`
 
   function persist(id: string, value: Pending | null) {
@@ -143,6 +144,7 @@ export const usePptStore = defineStore('ppt', () => {
       clearAcceptedDraft(id, pending.value)
       pending.value = null
       persist(id, null)
+      if (error.value === pendingRecoveryMessage) error.value = ''
     }
   }
 
@@ -242,7 +244,7 @@ export const usePptStore = defineStore('ppt', () => {
     }
     const ticket = epoch
     loading.value = true
-    error.value = ''
+    error.value = pending.value ? pendingRecoveryMessage : ''
     await Promise.all([
       refresh(),
       api

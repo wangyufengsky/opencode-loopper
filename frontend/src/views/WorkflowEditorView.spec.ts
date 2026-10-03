@@ -48,6 +48,32 @@ describe('workflow authoring', () => {
     await clickButton('保存流程'); await flushPromises(); expect(wrapper!.get('fieldset').attributes('disabled')).toBeDefined()
     await clickButton('重试保存'); await flushPromises(); expect(api.revise.mock.calls[0]).toEqual(api.revise.mock.calls[1]); expect(wrapper!.text()).toContain('流程已保存')
   })
+  it('retains an unknown save across attempted leaving and reload, then leaves after the original retry succeeds', async () => {
+    const router = await render(); await clickButton('流程设置'); await wrapper!.get('input').setValue('待确认流程')
+    api.revise.mockRejectedValueOnce(new Error('unknown receipt')).mockResolvedValue({ id: 'example', revision: 3, version: 4, layoutVersion: 4, state: 'ACTIVE' })
+    api.layout.mockResolvedValue({ id: 'example', revision: 3, version: 4, layoutVersion: 5, state: 'ACTIVE' })
+    await clickButton('保存流程'); await flushPromises(); const original = api.revise.mock.calls[0]
+    vi.mocked(window.confirm).mockClear()
+    await router.push('/workflows'); await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/workflows/example'); expect(window.confirm).not.toHaveBeenCalled()
+    expect(wrapper!.text()).toContain('请重试原保存操作'); const reads = api.get.mock.calls.length
+    await clickButton('重新加载'); await flushPromises(); expect(api.get).toHaveBeenCalledTimes(reads)
+    await clickButton('重试保存'); await flushPromises(); expect(api.revise.mock.calls[1]).toEqual(original)
+    await router.push('/workflows'); await flushPromises(); expect(router.currentRoute.value.path).toBe('/workflows')
+  })
+  it('blocks leaving while a save is running and only rereads its accepted result after a failed readback', async () => {
+    const router = await render(); await clickButton('流程设置'); await wrapper!.get('input').setValue('处理中流程')
+    let resolve!: (value: Awaited<ReturnType<typeof workflowApi.revise>>) => void
+    api.revise.mockImplementation(() => new Promise(done => { resolve = done }))
+    api.layout.mockResolvedValue({ id: 'example', revision: 3, version: 4, layoutVersion: 5, state: 'ACTIVE' })
+    await clickButton('保存流程'); await router.push('/workflows'); await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/workflows/example'); expect(wrapper!.text()).toContain('请等待结果')
+    api.get.mockRejectedValueOnce(new Error('readback offline'))
+    resolve({ id: 'example', revision: 3, version: 4, layoutVersion: 4, state: 'ACTIVE' }); await flushPromises()
+    await router.push('/workflows'); await flushPromises(); expect(router.currentRoute.value.path).toBe('/workflows/example')
+    await clickButton('重试保存'); await flushPromises(); expect(api.revise).toHaveBeenCalledOnce(); expect(api.layout).toHaveBeenCalledOnce()
+    await router.push('/workflows'); await flushPromises(); expect(router.currentRoute.value.path).toBe('/workflows')
+  })
   it('retains the local draft on version conflict and offers an explicit new copy', async () => {
     await render(); await clickButton('流程设置'); await wrapper!.get('input').setValue('本地草稿'); api.revise.mockRejectedValue(new ApiError('流程已被修改，请重新读取', 409))
     await clickButton('保存流程'); await flushPromises(); expect(wrapper!.get('input').element.value).toBe('本地草稿'); expect(button('草稿另存为新流程').exists()).toBe(true)

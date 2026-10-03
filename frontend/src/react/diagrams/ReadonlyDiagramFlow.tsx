@@ -17,8 +17,9 @@ export function ReadonlyDiagramFlow({ nodes, edges, nodeTypes, label, height, ki
 }) {
   return <div className={`readonly-diagram ${className}`} style={{ height }} aria-label={label} data-canvas-runtime="react" data-canvas-kind={kind}>
     <ReactFlow
-      nodes={nodes} edges={edges.map(edge => ({ ...edge, type: 'sequence' }))} nodeTypes={nodeTypes} edgeTypes={edgeTypes}
-      nodesDraggable={false} nodesConnectable={false} nodesFocusable={false} edgesFocusable={false} elementsSelectable={false}
+      nodes={nodes.map(node => ({ ...node, className: `${node.className ?? ''} nopan`, style: { ...node.style, pointerEvents: 'all', userSelect: 'text' } }))}
+      edges={edges.map(edge => ({ ...edge, type: 'sequence' }))} nodeTypes={nodeTypes} edgeTypes={edgeTypes}
+      nodesDraggable={false} nodesConnectable={false} nodesFocusable autoPanOnNodeFocus edgesFocusable={false} elementsSelectable={false}
       deleteKeyCode={null} selectionOnDrag={false} zoomOnScroll={false} minZoom={0.2} maxZoom={2}
       defaultViewport={{ x: 14, y: 12, zoom: 1 }}
       ariaLabelConfig={{ 'node.a11yDescription.default': '已保存的步骤与状态。', 'node.a11yDescription.keyboardDisabled': '已保存的步骤与状态。', 'edge.a11yDescription.default': '步骤之间的顺序连接。', 'controls.ariaLabel': '流程图视图操作', 'controls.zoomIn.ariaLabel': '放大流程图', 'controls.zoomOut.ariaLabel': '缩小流程图', 'controls.fitView.ariaLabel': '适应流程图', 'handle.ariaLabel': '节点连接位置' }}

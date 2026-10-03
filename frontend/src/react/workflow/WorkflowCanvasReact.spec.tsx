@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { StrictMode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { template } from '@/components/workflow/workflowTestFixtures'
 import { WorkflowCanvasView } from './WorkflowCanvasReact'
@@ -159,6 +160,125 @@ describe('real React Flow workflow canvas', () => {
     await waitFor(() => expect(props.onLayout).toHaveBeenCalledTimes(1))
     expect(props.onLayout).toHaveBeenLastCalledWith(expect.objectContaining({ x: 92, y: 86, zoom: 1 }))
     expect(props.onCancel).not.toHaveBeenCalled(); expect(props.layout).toMatchObject({ x: 32, y: 36, zoom: 1 })
+  })
+
+  it('keeps an authoritative viewport when the previous pan continues and finishes late', async () => {
+    const props = fixture(), view = render(<WorkflowCanvasView {...props} />)
+    await connected(view.container)
+    const pane = view.container.querySelector<HTMLElement>('.react-flow__pane')!, browserWindow = pane.ownerDocument.defaultView!
+    mouse(pane, 'mousedown', 200, 200, browserWindow)
+    mouse(browserWindow, 'mousemove', 260, 250, browserWindow)
+    const accepted = { ...props.layout, x: 400, y: 500, zoom: .5 }
+    view.rerender(<WorkflowCanvasView {...props} layout={accepted} />)
+    mouse(browserWindow, 'mousemove', 280, 270, browserWindow)
+    mouse(browserWindow, 'mouseup', 280, 270, browserWindow)
+    expect(props.onLayout).not.toHaveBeenCalled()
+    expect(view.container.querySelector('.react-flow__viewport')!.getAttribute('style')).toContain('translate(400px,500px) scale(0.5)')
+    mouse(pane, 'mousedown', 200, 200, browserWindow)
+    mouse(browserWindow, 'mousemove', 220, 230, browserWindow)
+    mouse(browserWindow, 'mouseup', 220, 230, browserWindow)
+    await waitFor(() => expect(props.onLayout).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ x: 420, y: 530, zoom: .5 })))
+  })
+
+  it('does not turn a programmatic reveal during a pan into a saved viewport edit', async () => {
+    let handle: WorkflowCanvasHandle | undefined
+    const props = fixture({ onReady: value => { handle = value } }), view = render(<WorkflowCanvasView {...props} />)
+    await connected(view.container)
+    const pane = view.container.querySelector<HTMLElement>('.react-flow__pane')!, browserWindow = pane.ownerDocument.defaultView!
+    mouse(pane, 'mousedown', 200, 200, browserWindow)
+    mouse(browserWindow, 'mousemove', 260, 250, browserWindow)
+    act(() => handle!.reveal('later'))
+    const revealed = view.container.querySelector('.react-flow__viewport')!.getAttribute('style')
+    mouse(browserWindow, 'mousemove', 280, 270, browserWindow)
+    mouse(browserWindow, 'mouseup', 280, 270, browserWindow)
+    await act(async () => { await new Promise(done => setTimeout(done, 0)) })
+    expect(props.onLayout).not.toHaveBeenCalled()
+    expect(view.container.querySelector('.react-flow__viewport')!.getAttribute('style')).toBe(revealed)
+  })
+
+  it.each(['node', 'connection'] as const)('does not allocate auto-pan frames for a native %s gesture before or after unmount', async gesture => {
+    const props = fixture({ selected: 'review' }), view = render(<StrictMode><WorkflowCanvasView {...props} /></StrictMode>)
+    await connected(view.container)
+    vi.spyOn(view.container.querySelector('.react-flow')!, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 800, 600))
+    const pending = new Map<number, FrameRequestCallback>(); let nextFrame = 1
+    vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation(callback => { const id = nextFrame++; pending.set(id, callback); return id })
+    vi.spyOn(globalThis, 'cancelAnimationFrame').mockImplementation(id => { pending.delete(id) })
+    const source = gesture === 'connection' ? node(view.container).querySelector<HTMLElement>('.react-flow__handle.source')! : node(view.container), browserWindow = source.ownerDocument.defaultView!
+    const original = Object.getOwnPropertyDescriptor(document, 'elementFromPoint')
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => null })
+    try {
+      mouse(source, 'mousedown', 100, 100, browserWindow)
+      mouse(gesture === 'connection' ? document : browserWindow, 'mousemove', 200, 250, browserWindow)
+      expect(pending.size).toBe(0)
+      view.unmount()
+      expect(pending.size).toBe(0)
+    } finally {
+      mouse(gesture === 'connection' ? document : browserWindow, 'mouseup', 200, 250, browserWindow)
+      if (original) Object.defineProperty(document, 'elementFromPoint', original); else Reflect.deleteProperty(document, 'elementFromPoint')
+    }
+  })
+
+  it.each([false, true])('releases the upstream connection listeners on the next native event after unmount (started=%s)', async started => {
+    const props = fixture({ selected: 'review' }), view = render(<StrictMode><WorkflowCanvasView {...props} /></StrictMode>)
+    await connected(view.container)
+    vi.spyOn(view.container.querySelector('.react-flow')!, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 800, 600))
+    const source = node(view.container).querySelector<HTMLElement>('.react-flow__handle.source')!, browserWindow = source.ownerDocument.defaultView!
+    const add = vi.spyOn(document, 'addEventListener'), remove = vi.spyOn(document, 'removeEventListener')
+    const original = Object.getOwnPropertyDescriptor(document, 'elementFromPoint')
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => null })
+    try {
+      mouse(source, 'mousedown', 100, 100, browserWindow)
+      if (started) mouse(document, 'mousemove', 200, 250, browserWindow)
+      const owned = add.mock.calls.filter(([type]) => ['mousemove', 'mouseup', 'touchmove', 'touchend'].includes(type))
+      expect(owned).toHaveLength(4)
+      view.unmount(); view.unmount()
+      // XYHandle has no public listener disposer: cancellation clears its
+      // store; its next native event runs its own listener cleanup.
+      mouse(document, 'mousemove', 205, 255, browserWindow)
+      for (const [type, listener] of owned) expect(remove).toHaveBeenCalledWith(type, listener)
+      mouse(document, 'mouseup', 205, 255, browserWindow)
+      expect(props.onConnectPair).not.toHaveBeenCalled(); expect(props.onCancel).not.toHaveBeenCalled(); expect(props.onLayout).not.toHaveBeenCalled()
+    } finally {
+      mouse(document, 'mouseup', 205, 255, browserWindow)
+      if (original) Object.defineProperty(document, 'elementFromPoint', original); else Reflect.deleteProperty(document, 'elementFromPoint')
+    }
+  })
+
+  it.each([.5, 1, 2])('preserves the first 105px / 20px pointer delta at zoom %s', async zoom => {
+    const props = fixture({ layout: { ...fixture().layout, zoom } }), view = render(<WorkflowCanvasView {...props} />)
+    await connected(view.container)
+    vi.spyOn(view.container.querySelector('.react-flow')!, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 800, 600))
+    const browserWindow = node(view.container).ownerDocument.defaultView!
+    mouse(node(view.container), 'mousedown', 100, 100, browserWindow)
+    mouse(browserWindow, 'mousemove', 205, 120, browserWindow)
+    expect(node(view.container).parentElement!.style.transform).toBe(`translate(${105 / zoom}px,${20 / zoom}px)`)
+    mouse(browserWindow, 'mouseup', 205, 120, browserWindow)
+    expect(props.onLayout).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ positions: { review: { x: 105 / zoom, y: 20 / zoom } }, zoom }))
+    expect(props.onSelect).toHaveBeenCalledExactlyOnceWith('review')
+  })
+
+  it.each(['node', 'viewport', 'connection'] as const)('disposes an active %s gesture across repeated StrictMode mounts', async gesture => {
+    const original = Object.getOwnPropertyDescriptor(document, 'elementFromPoint'), below = vi.fn<() => HTMLElement | null>(() => null)
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: below })
+    try {
+    for (let cycle = 0; cycle < 3; cycle++) {
+      const props = fixture({ selected: 'review' }), view = render(<StrictMode><WorkflowCanvasView {...props} /></StrictMode>)
+      await connected(view.container)
+      vi.spyOn(view.container.querySelector('.react-flow')!, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 800, 600))
+      const browserWindow = node(view.container).ownerDocument.defaultView!
+      const source = gesture === 'viewport' ? view.container.querySelector<HTMLElement>('.react-flow__pane')!
+        : gesture === 'connection' ? node(view.container).querySelector<HTMLElement>('.react-flow__handle.source')! : node(view.container)
+      below.mockReturnValue(gesture === 'connection' ? node(view.container, 'later').querySelector<HTMLElement>('.react-flow__handle.target') : null)
+      mouse(source, 'mousedown', 100, 100, browserWindow)
+      mouse(gesture === 'connection' ? document : browserWindow, 'mousemove', 150, 120, browserWindow)
+      vi.mocked(props.onSelect).mockClear()
+      view.unmount()
+      mouse(gesture === 'connection' ? document : browserWindow, 'mousemove', 205, 120, browserWindow)
+      mouse(gesture === 'connection' ? document : browserWindow, 'mouseup', 205, 120, browserWindow)
+      expect(props.onLayout).not.toHaveBeenCalled(); expect(props.onSelect).not.toHaveBeenCalled()
+      expect(props.onConnectPair).not.toHaveBeenCalled(); expect(props.onCancel).not.toHaveBeenCalled()
+    }
+    } finally { if (original) Object.defineProperty(document, 'elementFromPoint', original); else Reflect.deleteProperty(document, 'elementFromPoint') }
   })
 
   it('rolls back an in-progress drag when movement is locked, preserving reveal and the next keyboard edit', async () => {

@@ -1,4 +1,5 @@
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resolveSkin } from '@/themes/registry'
 import { MermaidDiagram } from './MermaidDiagram'
@@ -59,5 +60,45 @@ describe('React 托管 Mermaid', () => {
     const { container } = render(<MermaidDiagram source="flowchart LR" skin={skin} />)
     expect((await screen.findByRole('status')).textContent).toBe('流程图语法无法渲染，请检查 Mermaid 文本。')
     expect(container.querySelector('svg')).toBeNull()
+  })
+  it('根 StrictMode 重放实际渲染 effect，旧渲染不绑定且卸载清除全部引擎产物', async () => {
+    let release!: (value: { svg: string; bindFunctions: (element: Element) => void }) => void
+    const obsoleteBind = vi.fn(), currentBind = vi.fn(), status = vi.fn()
+    mocks.render.mockImplementationOnce((id: string) => {
+      for (const prefix of ['', 'd', 'i']) {
+        const residue = document.createElement('div'); residue.id = `${prefix}${id}`; document.body.append(residue)
+      }
+      return new Promise(resolve => { release = resolve })
+    }).mockResolvedValue({ svg: '<svg><text>StrictMode 当前图</text></svg>', bindFunctions: currentBind })
+    const { container, unmount } = render(<StrictMode><MermaidDiagram source={'flowchart LR\n A --> B'} skin={skin} onStatus={status} /></StrictMode>)
+    await waitFor(() => expect(mocks.render).toHaveBeenCalledTimes(1))
+    // Replayed setup queued a second render; the first effect has already been disposed.
+    await act(async () => { release({ svg: '<svg><text>StrictMode 旧 effect 图</text></svg>', bindFunctions: obsoleteBind }) })
+    await waitFor(() => expect(mocks.render).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(currentBind).toHaveBeenCalledTimes(1))
+    expect(obsoleteBind).not.toHaveBeenCalled(); expect(container.textContent).not.toContain('旧 effect')
+    expect(status.mock.calls.filter(([value]) => value === 'ready')).toHaveLength(1)
+    expect(document.querySelector('[id^="dloopper-mermaid-"], [id^="iloopper-mermaid-"]')).toBeNull()
+    unmount(); expect(container.innerHTML).toBe('')
+    expect(document.querySelector('[id^="loopper-mermaid-"]')).toBeNull()
+  })
+  it('反复挂载卸载时迟到成功和失败不通知已卸载组件，也不保留渲染产物', async () => {
+    for (const fail of [false, true]) {
+      let release!: () => void
+      const status = vi.fn(), bind = vi.fn()
+      mocks.render.mockImplementationOnce((id: string) => new Promise((resolve, reject) => {
+        release = () => {
+          const residue = document.createElement('div'); residue.id = `d${id}`; document.body.append(residue)
+          if (fail) reject(new Error('obsolete render failed'))
+          else resolve({ svg: '<svg><text>卸载后结果</text></svg>', bindFunctions: bind })
+        }
+      }))
+      const count = mocks.render.mock.calls.length, { container, unmount } = render(<MermaidDiagram source={`flowchart LR\n A --> ${fail ? 'C' : 'B'}`} skin={skin} onStatus={status} />)
+      await waitFor(() => expect(mocks.render).toHaveBeenCalledTimes(count + 1))
+      unmount(); const notified = status.mock.calls.length
+      await act(async () => { release() })
+      expect(status).toHaveBeenCalledTimes(notified); expect(bind).not.toHaveBeenCalled()
+      expect(container.innerHTML).toBe(''); expect(document.querySelector('[id^="dloopper-mermaid-"]')).toBeNull()
+    }
   })
 })

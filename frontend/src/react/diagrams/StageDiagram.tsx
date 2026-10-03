@@ -26,6 +26,6 @@ function StageNode({ data }: NodeProps<StageNodeType>) {
 const nodeTypes = { stage: StageNode }
 export function StageDiagram({ stages }: { stages: Stage[] }) {
   const projection = useMemo(() => projectStages(stages), [stages])
-  const nodes = projection.nodes.map(node => ({ ...node, type: 'stage' }))
+  const nodes = projection.nodes.map(node => ({ ...node, type: 'stage', ariaLabel: `阶段 ${node.data.stage.ordinal}，${statusLabel(node.data.stage.status)}` }))
   return <ReadonlyDiagramFlow nodes={nodes} edges={projection.edges} nodeTypes={nodeTypes} height={projection.height} label="阶段进度" kind="stages" className="stage-map stage-diagram" />
 }

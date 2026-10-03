@@ -14,5 +14,5 @@ function TemplateStepNode({ data }: NodeProps<TemplateNode>) {
 const nodeTypes = { templateStep: TemplateStepNode }
 export function TemplateStepDiagram({ steps }: { steps: TemplateStep[] }) {
   const projection = projectTemplateSteps(steps)
-  return <ReadonlyDiagramFlow nodes={projection.nodes.map(node => ({ ...node, type: 'templateStep' }))} edges={projection.edges} nodeTypes={nodeTypes} height={projection.height} label="执行流程" kind="template-progress" className="flow template-step-diagram" />
+  return <ReadonlyDiagramFlow nodes={projection.nodes.map(node => ({ ...node, type: 'templateStep', ariaLabel: node.data.step.label }))} edges={projection.edges} nodeTypes={nodeTypes} height={projection.height} label="执行流程" kind="template-progress" className="flow template-step-diagram" />
 }

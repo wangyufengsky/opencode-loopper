@@ -20,9 +20,18 @@ function WorkflowCanvasContent(props: WorkflowCanvasProps) {
   const [local, setLocal] = useState(layoutRef.current), [minimap, setMinimap] = useState(false), [connectionDragging, setConnectionDragging] = useState(false)
   const incomingLayout = JSON.stringify(props.layout), acceptedLayout = useRef(incomingLayout)
   const pointerStart = useRef<WorkflowPoint | undefined>(undefined), gestureMoved = useRef(false)
-  const viewportStart = useRef<Viewport | undefined>(undefined)
+  const layoutGeneration = useRef(0)
+  const viewportStart = useRef<{ viewport: Viewport; generation: number; startedAt: number } | undefined>(undefined)
   const nodeStart = useRef<{ id: string; position: WorkflowPoint; positions: WorkflowLayout['positions']; moved: boolean } | undefined>(undefined)
-  const connectionCancelled = useRef(false)
+  const connectionCancelled = useRef(false), mounted = useRef(false)
+  useLayoutEffect(() => {
+    mounted.current = true; connectionCancelled.current = false
+    return () => {
+      mounted.current = false; nodeStart.current = undefined; viewportStart.current = undefined; connectionCancelled.current = true
+      flowStore.getState().cancelConnection()
+      flowStore.setState({ connectionClickStartHandle: null })
+    }
+  }, [flowStore])
   useLayoutEffect(() => { root.current?.querySelector('.react-flow__viewport')?.classList.add('workflow-canvas-world') }, [])
   const updateLayout = useCallback((layout: WorkflowLayout, save = false) => {
     layoutRef.current = layout; setLocal(layout)
@@ -31,6 +40,7 @@ function WorkflowCanvasContent(props: WorkflowCanvasProps) {
   useLayoutEffect(() => {
     if (acceptedLayout.current !== incomingLayout) {
       nodeStart.current = undefined
+      layoutGeneration.current++
       acceptedLayout.current = incomingLayout; updateLayout(copyLayout(props.layout))
     }
   }, [incomingLayout, props.layout, updateLayout])
@@ -47,9 +57,9 @@ function WorkflowCanvasContent(props: WorkflowCanvasProps) {
     const node = id ? [...(root.current?.querySelectorAll<HTMLElement>('[data-node-id]') || [])].find(element => element.dataset.nodeId === id) : null
     ;(node || root.current)?.focus({ preventScroll: true })
   }, [])
-  const fit = useCallback(() => { const { width, height } = dimensions(); updateLayout(fitLayout(latest.current.graph, layoutRef.current, width, height), true) }, [dimensions, updateLayout])
+  const fit = useCallback(() => { const { width, height } = dimensions(); layoutGeneration.current++; updateLayout(fitLayout(latest.current.graph, layoutRef.current, width, height), true) }, [dimensions, updateLayout])
   const reveal = useCallback((id: string) => {
-    const { width, height } = dimensions(); updateLayout(revealLayout(latest.current.graph, layoutRef.current, id, width, height))
+    const { width, height } = dimensions(); layoutGeneration.current++; updateLayout(revealLayout(latest.current.graph, layoutRef.current, id, width, height))
   }, [dimensions, updateLayout])
   const controller = useMemo<WorkflowCanvasHandle>(() => ({ fit, focus, reveal }), [fit, focus, reveal])
   const cancel = useCallback(() => {
@@ -58,7 +68,7 @@ function WorkflowCanvasContent(props: WorkflowCanvasProps) {
     latest.current.onCancel()
   }, [flowStore])
   useLayoutEffect(() => { props.onReady?.(controller); return () => props.onReady?.(undefined) }, [controller, props.onReady])
-  const scale = useCallback((amount: number) => { const { width, height } = dimensions(); updateLayout(zoomLayout(layoutRef.current, amount, width, height), true) }, [dimensions, updateLayout])
+  const scale = useCallback((amount: number) => { const { width, height } = dimensions(); layoutGeneration.current++; updateLayout(zoomLayout(layoutRef.current, amount, width, height), true) }, [dimensions, updateLayout])
   const choose = useCallback((id: string) => {
     if (gestureMoved.current) { gestureMoved.current = false; return }
     focus(id); latest.current.connecting ? latest.current.onConnect(id) : latest.current.onSelect(id)
@@ -96,7 +106,7 @@ function WorkflowCanvasContent(props: WorkflowCanvasProps) {
     if (changed) updateLayout({ ...layoutRef.current, positions })
   }
   function connect(connection: Connection) {
-    if (!connectionCancelled.current && !latest.current.readonly && connection.source && connection.target) latest.current.onConnectPair?.(connection.source, connection.target)
+    if (mounted.current && !connectionCancelled.current && !latest.current.readonly && connection.source && connection.target) latest.current.onConnectPair?.(connection.source, connection.target)
   }
   function startGesture(x: number, y: number) { pointerStart.current = { x, y }; gestureMoved.current = false }
   function moveGesture(x: number, y: number) {
@@ -111,14 +121,26 @@ function WorkflowCanvasContent(props: WorkflowCanvasProps) {
     onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); cancel() } }}>
     <ReactFlow<WorkflowFlowNode, WorkflowFlowEdge> nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes}
       defaultViewport={{ x: props.layout.x, y: props.layout.y, zoom: props.layout.zoom }}
-      viewport={{ x: local.x, y: local.y, zoom: local.zoom }} onViewportChange={viewport => updateLayout({ ...layoutRef.current, ...viewport })}
-      onMoveStart={(event, viewport) => { if (event?.type) viewportStart.current = { ...viewport } }}
+      viewport={{ x: local.x, y: local.y, zoom: local.zoom }} onViewportChange={viewport => {
+        if (viewportStart.current && viewportStart.current.generation !== layoutGeneration.current) {
+          // The engine still owns the old pointer gesture. Restore both its
+          // transform and our controlled viewport until that gesture finishes.
+          const accepted = layoutRef.current
+          flowStore.getState().panZoom?.syncViewport(accepted)
+          flowStore.setState({ transform: [accepted.x, accepted.y, accepted.zoom] })
+          return
+        }
+        updateLayout({ ...layoutRef.current, ...viewport })
+      }}
+      onMoveStart={(event, viewport) => { if (event?.type) viewportStart.current = { viewport: { ...viewport }, generation: layoutGeneration.current, startedAt: event.timeStamp } }}
       onMoveEnd={(event, viewport) => {
-        const start = viewportStart.current
+        const gesture = viewportStart.current
         // Controlled viewport synchronization can carry an internal object as
         // sourceEvent. Only browser input events represent a layout edit.
-        if (event?.type && start && (start.x !== viewport.x || start.y !== viewport.y || start.zoom !== viewport.zoom)) updateLayout({ ...layoutRef.current, ...viewport }, true)
+        if (!event?.type || !gesture || event.timeStamp < gesture.startedAt) return
         viewportStart.current = undefined
+        const start = gesture.viewport
+        if (gesture.generation === layoutGeneration.current && (start.x !== viewport.x || start.y !== viewport.y || start.zoom !== viewport.zoom)) updateLayout({ ...layoutRef.current, ...viewport }, true)
       }}
       onNodesChange={changes} onNodeDragStart={(_event, node) => {
         if (latest.current.readonly && !latest.current.movable) return
@@ -138,10 +160,14 @@ function WorkflowCanvasContent(props: WorkflowCanvasProps) {
         if (start.position.x !== node.position.x || start.position.y !== node.position.y)
           updateLayout({ ...layoutRef.current, positions: { ...layoutRef.current.positions, [node.id]: { ...node.position } } }, true)
       }}
-      onConnect={connect} onConnectStart={() => { connectionCancelled.current = false; setConnectionDragging(true) }} onConnectEnd={() => setConnectionDragging(false)}
+      onConnect={connect} onConnectStart={() => {
+        if (!mounted.current || latest.current.readonly) { flowStore.getState().cancelConnection(); return }
+        connectionCancelled.current = false; setConnectionDragging(true)
+      }} onConnectEnd={() => { if (mounted.current) setConnectionDragging(false) }}
       onClickConnectStart={() => { connectionCancelled.current = false; setConnectionDragging(true) }} onClickConnectEnd={() => setConnectionDragging(false)}
       onPaneClick={() => { if (!gestureMoved.current) cancel(); gestureMoved.current = false }}
       minZoom={.1} maxZoom={4} nodeDragThreshold={0} nodeClickDistance={3} nodesDraggable={!props.readonly || !!props.movable} nodesConnectable={!props.readonly}
+      autoPanOnConnect={false} autoPanOnNodeDrag={false}
       nodesFocusable={false} edgesFocusable={false} disableKeyboardA11y deleteKeyCode={null} selectionKeyCode={null} multiSelectionKeyCode={null}
       selectNodesOnDrag={false} panActivationKeyCode={null} zoomOnScroll={false} zoomOnPinch zoomOnDoubleClick={false} attributionPosition="top-right">
       {minimap && !!props.graph.nodes.length && <MiniMap className="workflow-minimap" ariaLabel="流程缩略图" nodeColor="var(--color-action-primary)" maskColor="var(--color-bg-canvas)" />}

@@ -3,6 +3,7 @@
 .readonly-diagram .react-flow__attribution { background: var(--color-bg-surface); }
 .readonly-diagram .react-flow__attribution a { color: var(--color-text-secondary); }
 .readonly-diagram .react-flow__handle { opacity: 0; pointer-events: none; }
+.readonly-diagram .react-flow__node:focus-visible { outline: 2px solid var(--color-accent-cyan); outline-offset: 3px; }
 .readonly-diagram .stage-connector { stroke: var(--color-border-default); stroke-width: 2; }
 .readonly-diagram .connector-complete { stroke: var(--color-success); }
 .readonly-diagram .connector-active { stroke: var(--color-accent-cyan); }

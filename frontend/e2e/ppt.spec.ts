@@ -10,6 +10,7 @@ import {
   pptPlan,
 } from '../src/components/ppt/pptTestFixtures'
 import type { PptAgentStatus, PptGeneration, PptJob, PptMessage, PptOperation, PptPhase } from '../src/types/ppt'
+import { CANVAS_RUNTIME_STORAGE } from '../src/migration/canvasRuntime'
 
 const documentId = '11111111-1111-4111-8111-111111111111'
 const evidenceDir = process.env.CANVAS_EVIDENCE_DIR || 'test-results'
@@ -30,7 +31,9 @@ async function fixture(page: Page, initial: 'ready' | 'draft' = 'ready') {
   let agent: PptAgentStatus = pptAgent()
   let generation: PptGeneration | null =
     initial === 'ready' ? { ...pptGeneration('COMPLETED'), step: 'EXPORT' } : null
-  const operations: { expectedRevision: number; operations: PptOperation[] }[] = []
+  const operations: { expectedRevision: number; idempotencyKey: string; operations: PptOperation[] }[] = []
+  let loseOperationReceipt = false
+  let conflictingText: string | undefined
   const messages: PptMessage[] = [],
     jobs: PptJob[] = [],
     actions: string[] = [],
@@ -245,6 +248,17 @@ async function fixture(page: Page, initial: 'ready' | 'draft' = 'ready') {
     }
     if (path.endsWith('/operations')) {
       operations.push(body)
+      if (loseOperationReceipt) {
+        loseOperationReceipt = false
+        // A missing receipt says nothing about acceptance. This fixture takes
+        // the unapplied outcome; retry must still retain the original request.
+        return route.abort('connectionreset')
+      }
+      if (conflictingText !== undefined) {
+        deck.slides[0]!.elements[0]!.text = conflictingText
+        conflictingText = undefined
+        document.revision++
+      }
       if (body.expectedRevision !== document.revision)
         return route.fulfill({ status: 409, json: { detail: '页面已修改，请重新读取' } })
       for (const operation of body.operations as PptOperation[]) {
@@ -307,6 +321,8 @@ async function fixture(page: Page, initial: 'ready' | 'draft' = 'ready') {
     resumes,
     replies,
     uploads,
+    loseNextOperationReceipt: () => { loseOperationReceipt = true },
+    conflictNextOperation: (text: string) => { conflictingText = text },
     markSimulation: () => { document.title = '季度汇报 · 模拟数据' },
     finish,
     question,
@@ -627,4 +643,135 @@ test('手动拖拽和缩放使用稳定画布坐标，取消拖动不提交', as
   await page.mouse.up()
   await expect(page.getByRole('region', { name: '当前选择' })).toHaveCount(0)
   expect(state.operations).toHaveLength(2)
+})
+
+test('未知保存回执阻止离开，原身份恢复后安全回退（模拟数据）', async ({ page }) => {
+  const state = await fixture(page)
+  await page.goto(`/ppt/${documentId}`)
+  const canvas = page.locator('[data-canvas-kind="ppt"]')
+  const navigator = page.locator('[data-canvas-kind="ppt-navigator"]')
+  await expect(canvas).toHaveAttribute('data-canvas-runtime', 'react')
+  await expect(navigator).toHaveAttribute('data-canvas-runtime', 'react')
+  await canvas.evaluate(element => element.setAttribute('data-original-instance', 'yes'))
+  await page.getByRole('button', { name: '手动编辑', exact: true }).click()
+  await page.getByRole('button', { name: '文本框：本季度核心成果' }).click()
+  state.loseNextOperationReceipt()
+  await page.getByLabel('文字', { exact: true }).fill('断线期间保留的标题')
+  await expect.poll(() => state.operations.length).toBe(1)
+  await expect(page.getByRole('button', { name: '重试原操作' })).toBeVisible()
+  const original = state.operations[0]!
+  const pendingKey = `loopper.ppt.pending.${documentId}`
+  const draftKey = `loopper.ppt.element.${documentId}.text-1`
+  const pending = await page.evaluate(key => sessionStorage.getItem(key), pendingKey)
+  expect(JSON.parse(pending!)).toMatchObject({ key: original.idempotencyKey, revision: 3, payload: { operations: original.operations } })
+
+  await page.evaluate(key => {
+    localStorage.setItem(key, JSON.stringify({ ppt: 'vue' }))
+    window.dispatchEvent(new StorageEvent('storage', { key }))
+  }, CANVAS_RUNTIME_STORAGE)
+  await expect(canvas).toHaveAttribute('data-canvas-runtime', 'react')
+  await expect(canvas).toHaveAttribute('data-original-instance', 'yes')
+  await expect(navigator).toHaveAttribute('data-canvas-runtime', 'react')
+  const confirmations: string[] = []
+  page.on('dialog', async dialog => { confirmations.push(dialog.message()); await dialog.dismiss() })
+  await page.getByRole('link', { name: '返回作品列表' }).click()
+  await expect(page).toHaveURL(`/ppt/${documentId}`)
+  await expect(page.getByLabel('文字', { exact: true })).toHaveValue('断线期间保留的标题')
+  expect(confirmations).toEqual([])
+  expect(await page.evaluate(key => sessionStorage.getItem(key), pendingKey)).toBe(pending)
+  expect(JSON.parse((await page.evaluate(key => sessionStorage.getItem(key), draftKey))!)).toMatchObject({ revision: 3, draft: { text: '断线期间保留的标题' } })
+  await expect(page.getByRole('button', { name: '重试原操作' })).toBeVisible()
+  expect(state.operations).toHaveLength(1)
+  await page.getByRole('button', { name: '重试原操作' }).click()
+  await expect.poll(() => state.operations.length).toBe(2)
+  expect(state.operations[1]).toEqual(original)
+  await expect(page.getByRole('button', { name: '完成编辑', exact: true })).toBeEnabled()
+  expect(await page.evaluate(key => sessionStorage.getItem(key), pendingKey)).toBeNull()
+  expect(await page.evaluate(key => sessionStorage.getItem(key), draftKey)).toBeNull()
+  await expect(page.getByLabel('文字', { exact: true })).toHaveValue('断线期间保留的标题')
+  await expect(canvas).toHaveAttribute('data-canvas-runtime', 'react')
+  await page.getByRole('link', { name: '返回作品列表' }).click()
+  await expect(page).toHaveURL('/ppt')
+  await page.goto(`/ppt/${documentId}`)
+  await expect(canvas).toHaveAttribute('data-canvas-runtime', 'vue')
+  await expect(navigator).toHaveAttribute('data-canvas-runtime', 'vue')
+  await page.getByRole('button', { name: '手动编辑', exact: true }).click()
+  await page.getByRole('button', { name: '文本框：断线期间保留的标题' }).click()
+  await expect(page.getByLabel('文字', { exact: true })).toHaveValue('断线期间保留的标题')
+  expect(state.operations).toHaveLength(2)
+  expect(confirmations).toEqual([])
+  await page.screenshot({ path: screenshot('ppt-unknown-receipt-safe-fallback-mock'), fullPage: true })
+})
+
+test('React 属性自动保存遇到409保留输入和基线，禁止旧修订继续写入（模拟数据）', async ({ page }) => {
+  const state = await fixture(page)
+  await page.goto(`/ppt/${documentId}`)
+  await expect(page.locator('[data-canvas-kind="ppt"]')).toHaveAttribute('data-canvas-runtime', 'react')
+  await page.getByRole('button', { name: '手动编辑', exact: true }).click()
+  const object = page.getByRole('button', { name: '文本框：本季度核心成果' })
+  await object.click()
+  state.conflictNextOperation('其他编辑者的标题')
+  await page.getByLabel('文字', { exact: true }).fill('我的冲突草稿')
+  await expect.poll(() => state.operations.length).toBe(1)
+  await expect(page.getByRole('alert').filter({ hasText: '你的输入仍保留' })).toBeVisible()
+  await expect(page.getByLabel('文字', { exact: true })).toHaveValue('我的冲突草稿')
+  await expect(page.getByRole('button', { name: '立即保存属性' })).toBeDisabled()
+  const stored = await page.evaluate(key => sessionStorage.getItem(key), `loopper.ppt.element.${documentId}.text-1`)
+  expect(JSON.parse(stored!)).toMatchObject({ revision: 3, draft: { text: '我的冲突草稿' } })
+  expect(await page.evaluate(key => sessionStorage.getItem(key), `loopper.ppt.pending.${documentId}`)).toBeNull()
+  await page.getByRole('button', { name: '文本框：其他编辑者的标题' }).focus()
+  await page.keyboard.press('ArrowRight')
+  await page.getByRole('button', { name: '下一页', exact: true }).click()
+  await expect(page.getByRole('region', { name: '当前选择' })).toBeVisible()
+  await expect(page.getByLabel('文字', { exact: true })).toHaveValue('我的冲突草稿')
+  expect(state.operations).toHaveLength(1)
+  await page.screenshot({ path: screenshot('ppt-react-property-conflict-mock'), fullPage: true })
+  await page.getByRole('button', { name: '读取最新对象' }).click()
+  await expect(page.getByLabel('文字', { exact: true })).toHaveValue('其他编辑者的标题')
+  await expect(page.getByRole('button', { name: '完成编辑', exact: true })).toBeEnabled()
+  expect(state.operations).toHaveLength(1)
+})
+
+test('存储不可写且无属性草稿时，未知键盘操作阻止回退直到原操作恢复（模拟数据）', async ({ page }) => {
+  await page.addInitScript(() => {
+    const write = Storage.prototype.setItem
+    Storage.prototype.setItem = function (key, value) {
+      if (this === sessionStorage && key.startsWith('loopper.ppt.pending.'))
+        throw new DOMException('Storage unavailable', 'SecurityError')
+      return write.call(this, key, value)
+    }
+  })
+  const state = await fixture(page)
+  await page.goto(`/ppt/${documentId}`)
+  const canvas = page.locator('[data-canvas-kind="ppt"]')
+  await page.getByRole('button', { name: '手动编辑', exact: true }).click()
+  const object = page.getByRole('button', { name: '文本框：本季度核心成果' })
+  await object.click()
+  state.loseNextOperationReceipt()
+  await object.focus()
+  await page.keyboard.press('ArrowRight')
+  await expect.poll(() => state.operations.length).toBe(1)
+  await expect(page.getByRole('button', { name: '重试原操作' })).toBeVisible()
+  const original = state.operations[0]!
+  expect(await page.evaluate(key => sessionStorage.getItem(key), `loopper.ppt.pending.${documentId}`)).toBeNull()
+  expect(await page.evaluate(key => sessionStorage.getItem(key), `loopper.ppt.element.${documentId}.text-1`)).toBeNull()
+  await page.evaluate(key => localStorage.setItem(key, JSON.stringify({ ppt: 'vue' })), CANVAS_RUNTIME_STORAGE)
+  const confirmations: string[] = []
+  page.on('dialog', async dialog => { confirmations.push(dialog.message()); await dialog.dismiss() })
+  await page.getByRole('link', { name: '返回作品列表' }).click()
+  await expect(page).toHaveURL(`/ppt/${documentId}`)
+  await expect(canvas).toHaveAttribute('data-canvas-runtime', 'react')
+  expect(confirmations).toEqual([])
+  expect(state.operations).toHaveLength(1)
+  await page.getByRole('button', { name: '重试原操作' }).click()
+  await expect.poll(() => state.operations.length).toBe(2)
+  expect(state.operations[1]).toEqual(original)
+  await expect(page.getByLabel('横向位置', { exact: true })).toHaveValue('81')
+  await page.getByRole('link', { name: '返回作品列表' }).click()
+  await expect(page).toHaveURL('/ppt')
+  await page.goto(`/ppt/${documentId}`)
+  await expect(canvas).toHaveAttribute('data-canvas-runtime', 'vue')
+  expect(state.operations).toHaveLength(2)
+  expect(confirmations).toEqual([])
+  await page.screenshot({ path: screenshot('ppt-volatile-pending-safe-fallback-mock'), fullPage: true })
 })

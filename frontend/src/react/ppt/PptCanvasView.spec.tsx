@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { StrictMode } from 'react'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { PptCanvasView, type PptCanvasViewProps } from './PptCanvasView'
 import { pptDeck } from '@/components/ppt/pptTestFixtures'
@@ -241,5 +242,61 @@ describe('React PPT free object canvas', () => {
     unmount()
     expect(releasePointerCapture).toHaveBeenCalledExactlyOnceWith(4)
     expect(props.onPatch).not.toHaveBeenCalled()
+  })
+
+  it('replays the real canvas effects in root StrictMode and cleans every observer and active capture', () => {
+    const observers: { callback: ResizeObserverCallback; observe: ReturnType<typeof vi.fn>; disconnect: ReturnType<typeof vi.fn> }[] = []
+    vi.stubGlobal('ResizeObserver', class {
+      callback: ResizeObserverCallback
+      observe = vi.fn()
+      unobserve = vi.fn()
+      disconnect = vi.fn()
+      constructor(callback: ResizeObserverCallback) {
+        this.callback = callback
+        observers.push(this)
+      }
+    })
+    try {
+      const deck = pptDeck()
+      const props: PptCanvasViewProps = {
+        deck, slide: deck.slides[0]!, selected: 'text-1', revision: 3,
+        onSelect: vi.fn(), onPatch: vi.fn(), onRemove: vi.fn(),
+      }
+      const view = render(<StrictMode><PptCanvasView {...props} /></StrictMode>)
+      const surface = screen.getByLabelText('幻灯片画布')
+      const viewport = screen.getByLabelText('幻灯片画布视口')
+      const object = screen.getByRole('button', { name: '文本框：本季度核心成果' })
+      surface.getBoundingClientRect = () => ({ width: 480 }) as DOMRect
+      expect(observers.length).toBeGreaterThan(1)
+      for (const observer of observers) expect(observer.observe).toHaveBeenCalledExactlyOnceWith(viewport)
+      for (const observer of observers.slice(0, -1)) expect(observer.disconnect).toHaveBeenCalledOnce()
+      expect(observers.at(-1)!.disconnect).not.toHaveBeenCalled()
+      expect(props.onSelect).not.toHaveBeenCalled()
+      expect(props.onPatch).not.toHaveBeenCalled()
+      expect(props.onRemove).not.toHaveBeenCalled()
+
+      const releasePointerCapture = vi.fn()
+      Object.assign(object, { setPointerCapture: vi.fn(), hasPointerCapture: () => true, releasePointerCapture })
+      start(object, 7)
+      act(() => observers.at(-1)!.callback([{ contentRect: { width: 320, height: 240 } } as ResizeObserverEntry], {} as ResizeObserver))
+      fireEvent.pointerMove(surface, { clientX: 120, clientY: 110, pointerId: 7 })
+      const latest = { ...props, onSelect: vi.fn(), onPatch: vi.fn() }
+      view.rerender(<StrictMode><PptCanvasView {...latest} /></StrictMode>)
+      fireEvent.pointerUp(surface, { pointerId: 7 })
+      expect(props.onPatch).not.toHaveBeenCalled()
+      expect(latest.onPatch).toHaveBeenCalledExactlyOnceWith('text-1', { x: 120, y: 90, width: 400, height: 90 }, 3)
+      expect(surface.style.width).toBe('272px')
+
+      start(object, 8)
+      fireEvent.pointerMove(surface, { clientX: 150, clientY: 160, pointerId: 8 })
+      view.unmount()
+      for (const observer of observers) expect(observer.disconnect).toHaveBeenCalledOnce()
+      expect(releasePointerCapture.mock.calls).toEqual([[7], [8]])
+      fireEvent.pointerUp(object, { pointerId: 8 })
+      expect(latest.onPatch).toHaveBeenCalledTimes(1)
+      expect(latest.onSelect).toHaveBeenCalledExactlyOnceWith('text-1')
+    } finally {
+      vi.stubGlobal('ResizeObserver', undefined)
+    }
   })
 })

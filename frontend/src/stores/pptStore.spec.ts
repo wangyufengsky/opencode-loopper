@@ -315,4 +315,77 @@ describe('PPT authoritative workspace', () => {
     expect(api.resume).toHaveBeenLastCalledWith('doc', 3, pending.key, '减少到六页，保留表格')
     expect(store.pending).toBeNull()
   })
+
+  it('shows recovery immediately for a restored request and blocks editing until its explicit retry', async () => {
+    const first = usePptStore()
+    await first.load('first')
+    api.operations.mockRejectedValueOnce(new Error('network receipt lost'))
+    await first.operations([{ op: 'update_element', slideId: 'slide-1', elementId: 'text-1', patch: { x: 81 } }], 3)
+    const original = api.operations.mock.calls[0]!
+    first.close()
+    setActivePinia(createPinia())
+    const restored = usePptStore()
+    await restored.load('first')
+    expect(restored.pending).toMatchObject({ key: original[3], revision: 3 })
+    expect(restored.error).toContain('请重试原操作')
+    expect(restored.editable).toBe(false)
+    expect(api.operations).toHaveBeenCalledTimes(1)
+    api.operations.mockResolvedValueOnce({ revision: 3, deck: pptDeck(), createdIds: {} })
+    expect(await restored.retryPending()).toBe(true)
+    expect(api.operations.mock.calls[1]).toEqual(original)
+    expect(restored.editable).toBe(true)
+    expect(restored.pending).toBeNull()
+    expect(restored.error).toBe('')
+    restored.close()
+  })
+
+  it('retains an accepted operation with a missing receipt while reading a newer revision and retrying the same document', async () => {
+    const store = usePptStore()
+    await store.load('doc')
+    api.operations.mockRejectedValueOnce(new Error('network receipt lost'))
+    await store.operations([{ op: 'update_element', slideId: 'slide-1', elementId: 'text-1', patch: { x: 81 } }], 3)
+    const original = api.operations.mock.calls[0]!
+    const accepted = pptDeck()
+    accepted.slides[0]!.elements[0]!.x = 81
+    api.get.mockResolvedValue({ ...pptDocument('doc'), revision: 4 })
+    api.plan.mockResolvedValue({ plan: pptPlan(), revision: 4 })
+    api.deck.mockResolvedValue(accepted)
+    await store.refresh()
+    await store.load('doc')
+    expect(store.document?.revision).toBe(4)
+    expect(store.deck!.slides[0]!.elements[0]!.x).toBe(81)
+    expect(store.pending).toMatchObject({ key: original[3], revision: 3 })
+    expect(store.error).toContain('请重试原操作')
+    expect(store.editable).toBe(false)
+    expect(api.operations).toHaveBeenCalledTimes(1)
+    api.operations.mockResolvedValueOnce({ revision: 4, deck: accepted, createdIds: {} })
+    expect(await store.retryPending()).toBe(true)
+    expect(api.operations.mock.calls[1]).toEqual(original)
+    expect(store.pending).toBeNull()
+    expect(store.editable).toBe(true)
+    store.close()
+  })
+
+  it('clears the restored retry hint when an authoritative message proves its original request was accepted', async () => {
+    const first = usePptStore()
+    await first.load('doc')
+    api.send.mockRejectedValueOnce(new Error('network receipt lost'))
+    await first.send('缩短标题', { kind: 'DOCUMENT' })
+    const original = api.send.mock.calls[0]![1]
+    first.close()
+    api.messages.mockResolvedValue({ items: [{
+      id: 'accepted-message', documentId: 'doc', idempotencyKey: original.idempotencyKey,
+      text: original.text, answer: '已修改', state: 'COMPLETED', detail: '',
+      scope: original.scope, expectedRevision: 3, version: 0, createdAt: '', updatedAt: '', questions: [],
+    }], facets: {} })
+    setActivePinia(createPinia())
+    const restored = usePptStore()
+    await restored.load('doc')
+    expect(restored.pending).toBeNull()
+    expect(restored.error).toBe('')
+    expect(restored.editable).toBe(true)
+    expect(api.send).toHaveBeenCalledTimes(1)
+    expect(sessionStorage.getItem('loopper.ppt.pending.doc')).toBeNull()
+    restored.close()
+  })
 })

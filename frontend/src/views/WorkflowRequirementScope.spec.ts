@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { defineComponent } from 'vue'
-import { createMemoryHistory, createRouter, RouterView } from 'vue-router'
+import { createMemoryHistory, createRouter, RouterView, type Router } from 'vue-router'
 import { workflowRuns } from '@/api/workflowRuns'
 import { execution, requirement } from '@/components/workflow/workflowRunTestFixtures'
 import type { WorkflowExecution, WorkflowLayout, WorkflowReceipt, WorkflowRequirement } from '@/types/domain'
@@ -84,13 +84,20 @@ function expectB() {
   expect(wrapper!.get('[aria-label="流程画布"]').text()).toContain('节点 B')
   expect(wrapper!.get('[aria-label="流程画布"]').text()).not.toContain('节点 A')
 }
+async function forceRoute(router: Router, id: string) {
+  // Deliberately bypass leave guards to exercise scope invalidation when an
+  // external host replaces a route while a transport request is still alive.
+  const resolved = router.resolve(`/requirements/${id}`)
+  router.currentRoute.value = { ...resolved, name: resolved.name ?? undefined }
+  await flushPromises()
+}
 
 describe('requirement command scope across a reused route component', () => {
   it('ignores a late A write receipt and keeps the newer B command locked', async () => {
     const first = deferred<WorkflowReceipt>(), second = deferred<WorkflowReceipt>()
     api.confirm.mockImplementation(id => id === 'A' ? first.promise : second.promise)
     const router = await render(), instance = wrapper!.getComponent(WorkflowRequirementView).vm.$.uid
-    await click('确认计划'); await router.push('/requirements/B'); await flushPromises()
+    await click('确认计划'); await forceRoute(router, 'B')
     expect(wrapper!.getComponent(WorkflowRequirementView).vm.$.uid).toBe(instance); expectB()
     await click('确认计划'); first.resolve(receipt('A')); await flushPromises()
     expectB(); expect(button('确认计划')!.attributes('disabled')).toBeDefined()
@@ -108,7 +115,7 @@ describe('requirement command scope across a reused route component', () => {
     api.get.mockImplementation(id => id === 'A' ? first.promise : Promise.resolve(structuredClone(values[id]!)))
     await changeLayout(75); await click('确认计划')
     expect(api.get.mock.calls.map(call => call[0])).toEqual(['A', 'A'])
-    await router.push('/requirements/B'); await flushPromises(); await changeLayout(260)
+    await forceRoute(router, 'B'); await changeLayout(260)
     first.resolve(requirement({ id: 'A', title: '迟到需求 A', state: 'PENDING_START' })); await flushPromises()
     expectB(); expect(wrapper!.getComponent(ScopeCanvas).props('layout').positions['node-B']).toEqual({ x: 260, y: 40 })
     expect(wrapper!.find('.workflow-notice').exists()).toBe(false)
@@ -121,7 +128,7 @@ describe('requirement command scope across a reused route component', () => {
     const first = deferred<WorkflowRequirement>(), router = await render()
     api.get.mockImplementation(id => id === 'A' ? first.promise : Promise.resolve(structuredClone(values[id]!)))
     await changeLayout(90); await click('保存计划'); expect(api.layout.mock.calls[0]![0]).toBe('A')
-    await router.push('/requirements/B'); await flushPromises()
+    await forceRoute(router, 'B')
     first.resolve(requirement({ id: 'A', title: '迟到保存 A', layoutVersion: 5 })); await flushPromises()
     expectB(); expect(wrapper!.find('.workflow-notice').exists()).toBe(false)
     expect(button('确认计划')!.attributes('disabled')).toBeUndefined()
@@ -135,7 +142,7 @@ describe('requirement command scope across a reused route component', () => {
     const first = deferred<WorkflowExecution>(), router = await render()
     api.execution.mockImplementation(id => id === 'A' ? first.promise : Promise.resolve(structuredClone(snapshots[id]!)))
     await click('调整后续计划'); expect(api.pause).toHaveBeenCalledTimes(active ? 1 : 0)
-    await router.push('/requirements/B'); await flushPromises()
+    await forceRoute(router, 'B')
     first.resolve({ ...snapshots.A!, execution: { ...snapshots.A!.execution, state: 'PAUSED' } }); await flushPromises()
     expectB(); expect(button('放弃调整')).toBeUndefined(); expect(button('添加节点')).toBeUndefined()
     expect(button('暂停后续派发')!.attributes('disabled')).toBeUndefined()
@@ -143,17 +150,32 @@ describe('requirement command scope across a reused route component', () => {
     expect(api.start).not.toHaveBeenCalled()
   })
 
-  it('retains the original command and request key when the existing navigation guard rejects leaving', async () => {
+  it('blocks leaving an unknown command even when ordinary draft confirmation would allow it', async () => {
     const router = await render()
     api.confirm.mockRejectedValueOnce(new Error('unknown receipt'))
-    await click('确认计划'); vi.mocked(window.confirm).mockReturnValue(false)
+    await click('确认计划'); vi.mocked(window.confirm).mockClear()
     await router.push('/requirements/B'); await flushPromises()
     expect(router.currentRoute.value.path).toBe('/requirements/A'); expect(wrapper!.get('h1').text()).toBe('需求 A')
+    expect(window.confirm).not.toHaveBeenCalled(); expect(wrapper!.text()).toContain('请重试原操作')
     expect(button('重试原操作')).toBeDefined(); expect(button('确认计划')!.attributes('disabled')).toBeDefined()
     await click('重试原操作')
     expect(api.confirm.mock.calls[1]).toEqual(api.confirm.mock.calls[0])
     expect(api.confirm.mock.calls[1]![1]).toBe(api.confirm.mock.calls[0]![1])
     expect(api.get.mock.calls.map(call => call[0])).toEqual(['A', 'A'])
     expect(button('确认计划')!.attributes('disabled')).toBeUndefined()
+    await router.push('/requirements/B'); await flushPromises(); expectB()
+  })
+
+  it('blocks leaving a running write and an accepted command whose readback failed', async () => {
+    const write = deferred<WorkflowReceipt>(), router = await render()
+    api.confirm.mockReturnValue(write.promise)
+    await click('确认计划'); await router.push('/requirements/B'); await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/requirements/A'); expect(wrapper!.text()).toContain('请等待结果')
+    api.get.mockRejectedValueOnce(new Error('readback offline'))
+    write.resolve(receipt('A')); await flushPromises()
+    await router.push('/requirements/B'); await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/requirements/A'); expect(wrapper!.text()).toContain('请刷新操作结果')
+    await click('刷新操作结果'); expect(api.confirm).toHaveBeenCalledOnce()
+    await router.push('/requirements/B'); await flushPromises(); expectB()
   })
 })

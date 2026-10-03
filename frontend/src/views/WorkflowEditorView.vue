@@ -129,10 +129,15 @@ async function save(asNew = false) {
     if (failure instanceof ApiError && failure.status === 400 && !pending.value?.graphReceipt) pending.value = null
   } finally { if (ticket === generation) busy.value = false }
 }
-async function reload() { if (!dirty.value || window.confirm('放弃当前草稿并读取最新流程？之前已成功保存的内容会保留。')) await load() }
-const canLeave = () => navigatingAfterSave || !dirty.value || window.confirm('当前画布有未保存或待确认的修改，仍要离开？')
+function unsettledSave() {
+  if (busy.value) { error.value = '操作仍在处理中，请等待结果后再离开。'; return true }
+  if (pending.value) { error.value = '保存结果仍待确认，请重试原保存操作，确认结果后再离开。'; return true }
+  return false
+}
+async function reload() { if (!unsettledSave() && (!dirty.value || window.confirm('放弃当前草稿并读取最新流程？之前已成功保存的内容会保留。'))) await load() }
+const canLeave = () => navigatingAfterSave || !unsettledSave() && (!dirty.value || window.confirm('当前画布有未保存的修改，仍要离开？'))
 onBeforeRouteLeave(canLeave); onBeforeRouteUpdate(canLeave)
-const beforeUnload = (event: BeforeUnloadEvent) => { if (dirty.value) { event.preventDefault(); event.returnValue = '' } }
+const beforeUnload = (event: BeforeUnloadEvent) => { if (dirty.value || busy.value) { event.preventDefault(); event.returnValue = '' } }
 window.addEventListener('beforeunload', beforeUnload)
 onBeforeUnmount(() => { generation++; window.removeEventListener('beforeunload', beforeUnload) })
 watch(() => route.params.id, () => { if (!navigatingAfterSave) void load() }, { immediate: true })
