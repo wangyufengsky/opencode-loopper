@@ -1,0 +1,80 @@
+import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
+import { StrictMode } from 'react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { template } from '@/components/workflow/workflowTestFixtures'
+import { WorkflowCanvasView } from './WorkflowCanvasReact'
+import type { WorkflowCanvasProps } from './types'
+
+afterEach(() => { cleanup(); vi.restoreAllMocks() })
+
+function fixture(): WorkflowCanvasProps {
+  const value = template()
+  value.graph.nodes.push({ ...value.graph.nodes[0]!, id: 'later', title: '后续检查' })
+  value.graph.edges = [{ id: 'edge', from: 'review', to: 'later', outcome: null }]
+  return { graph: value.graph, layout: value.layout, selected: 'review', onSelect: vi.fn(), onEdge: vi.fn(),
+    onConnect: vi.fn(), onConnectPair: vi.fn(), onLayout: vi.fn(), onRemove: vi.fn(), onCancel: vi.fn() }
+}
+
+function mouse(target: HTMLElement | Document | Window, type: string, x: number, y: number, browserWindow: Window) {
+  const event = new MouseEvent(type, { bubbles: true, cancelable: true, button: 0, buttons: 1, clientX: x, clientY: y })
+  Object.defineProperty(event, 'view', { value: browserWindow })
+  fireEvent(target, event)
+}
+
+const types = new Set(['mousemove', 'mouseup', 'touchmove', 'touchend', 'touchcancel', 'dragstart', 'selectstart'])
+const capture = (options?: boolean | AddEventListenerOptions | EventListenerOptions) => typeof options === 'boolean' ? options : options?.capture ?? false
+
+describe('strict immediate cleanup diagnostics, no post-unmount input', () => {
+  it.each(['connection-pending', 'connection-started', 'node-drag'] as const)('owns no external listener or RAF immediately after %s unmount', async scenario => {
+    const props = fixture(), view = render(<StrictMode><WorkflowCanvasView {...props} /></StrictMode>)
+    await waitFor(() => expect(view.container.querySelectorAll('.react-flow__edge')).toHaveLength(1))
+    vi.spyOn(view.container.querySelector('.react-flow')!, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 800, 600))
+    const node = view.container.querySelector<HTMLElement>('[data-node-id="review"]')!
+    const browserWindow = node.ownerDocument.defaultView!
+    const registrations = [
+      { target: 'document', add: vi.spyOn(document, 'addEventListener'), remove: vi.spyOn(document, 'removeEventListener') },
+      { target: 'window', add: vi.spyOn(browserWindow, 'addEventListener'), remove: vi.spyOn(browserWindow, 'removeEventListener') },
+    ]
+    const pendingFrames = new Map<number, FrameRequestCallback>(); let nextFrame = 1
+    vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation(callback => { const id = nextFrame++; pendingFrames.set(id, callback); return id })
+    vi.spyOn(globalThis, 'cancelAnimationFrame').mockImplementation(id => { pendingFrames.delete(id) })
+    const listenerIds = new WeakMap<object, number>(); let nextListener = 1
+    function remainingListeners() {
+      const live = new Map<string, { target: string; type: string; capture: boolean; listener: number }>()
+      for (const registration of registrations) {
+        const changes = [
+          ...registration.add.mock.calls.map((call, index) => ({ add: true, call, order: registration.add.mock.invocationCallOrder[index]! })),
+          ...registration.remove.mock.calls.map((call, index) => ({ add: false, call, order: registration.remove.mock.invocationCallOrder[index]! })),
+        ].sort((first, second) => first.order - second.order)
+        for (const change of changes) {
+          const [type, listener, options] = change.call
+          if (!types.has(type) || !listener) continue
+          if (!listenerIds.has(listener)) listenerIds.set(listener, nextListener++)
+          const id = listenerIds.get(listener)!, capturing = capture(options)
+          const key = `${registration.target}:${type}:${capturing}:${id}`
+          if (change.add) live.set(key, { target: registration.target, type, capture: capturing, listener: id })
+          else live.delete(key)
+        }
+      }
+      return [...live.values()]
+    }
+    const original = Object.getOwnPropertyDescriptor(document, 'elementFromPoint')
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => null })
+    try {
+      const source = scenario === 'node-drag' ? node : node.querySelector<HTMLElement>('.react-flow__handle.source')!
+      mouse(source, 'mousedown', 100, 100, browserWindow)
+      if (scenario !== 'connection-pending') mouse(scenario === 'node-drag' ? browserWindow : document, 'mousemove', 205, 120, browserWindow)
+      const before = remainingListeners()
+      expect(before.length).toBeGreaterThan(0)
+      view.unmount()
+      // This snapshot and assertion happen before any later move, release,
+      // touch event, retry, timer wait, or second unmount can repair the leak.
+      const after = remainingListeners()
+      console.info(JSON.stringify({ scenario, before, after, pendingFrames: pendingFrames.size, layoutCalls: vi.mocked(props.onLayout).mock.calls.length, connectCalls: vi.mocked(props.onConnectPair!).mock.calls.length }))
+      expect(pendingFrames.size).toBe(0)
+      expect(after).toEqual([])
+    } finally {
+      if (original) Object.defineProperty(document, 'elementFromPoint', original); else Reflect.deleteProperty(document, 'elementFromPoint')
+    }
+  })
+})

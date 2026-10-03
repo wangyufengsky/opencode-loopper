@@ -1,0 +1,86 @@
+// Temporary strict diagnostic. It observes resources but never removes listeners,
+// sends a synthetic release, or patches production/library state.
+import { expect, test } from '@playwright/test'
+import { canvasReviewFixture } from './fixtures/canvasReview'
+import { writeFile } from 'node:fs/promises'
+
+for (const gesture of ['connection-pressed', 'connection-mouse', 'connection-touch', 'node-mouse']) {
+  test(`strict immediate cleanup: ${gesture}`, async ({ page }, info) => {
+    const fixture = await canvasReviewFixture(page)
+    await page.addInitScript(() => {
+      const types = new Set(['mousemove', 'mouseup', 'touchmove', 'touchend', 'dragstart', 'selectstart'])
+      const add = EventTarget.prototype.addEventListener, remove = EventTarget.prototype.removeEventListener
+      const entries: { id: number; target: EventTarget; type: string; listener: EventListenerOrEventListenerObject; capture: boolean; active: boolean }[] = []
+      let sequence = 0, mark = Infinity
+      const capture = (options: boolean | AddEventListenerOptions | EventListenerOptions | undefined) => typeof options === 'boolean' ? options : !!options?.capture
+      EventTarget.prototype.addEventListener = function(type, listener, options) {
+        if (listener && (this === window || this === document) && types.has(type) && !entries.some(row => row.active && row.target === this && row.type === type && row.listener === listener && row.capture === capture(options))) {
+          entries.push({ id: ++sequence, target: this, type, listener, capture: capture(options), active: true })
+        }
+        return add.call(this, type, listener, options)
+      }
+      EventTarget.prototype.removeEventListener = function(type, listener, options) {
+        for (const row of entries) if (row.active && row.target === this && row.type === type && row.listener === listener && row.capture === capture(options)) row.active = false
+        return remove.call(this, type, listener, options)
+      }
+      const request = window.requestAnimationFrame.bind(window), cancel = window.cancelAnimationFrame.bind(window)
+      const frames = new Set<number>()
+      window.requestAnimationFrame = callback => {
+        const id = request(time => { frames.delete(id); callback(time) })
+        frames.add(id); return id
+      }
+      window.cancelAnimationFrame = id => { frames.delete(id); cancel(id) }
+      Object.assign(window, { __strictProbe: {
+        start: () => { mark = sequence },
+        snapshot: () => ({
+          location: location.pathname,
+          roots: document.querySelectorAll('[data-canvas-kind="workflow"]').length,
+          listeners: entries.filter(row => row.active && row.id > mark).map(row => ({ target: row.target === document ? 'document' : 'window', type: row.type, capture: row.capture, callback: typeof row.listener === 'function' ? row.listener.name : 'object' })),
+          pendingAnimationFrames: frames.size,
+        }),
+      } })
+    })
+    await page.setViewportSize({ width: 1600, height: 1000 })
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.goto('/workflows/canvas-review')
+    const canvas = page.locator('[data-canvas-runtime="react"][data-canvas-kind="workflow"]')
+    await expect(canvas.locator('.react-flow__node')).toHaveCount(3)
+    const source = canvas.locator('.workflow-node').filter({ hasText: '确认需求' })
+    await source.click()
+    const target = gesture === 'node-mouse' ? source : canvas.locator('.react-flow__handle.source[data-nodeid="scope"]')
+    const box = (await target.boundingBox())!
+    const x = gesture === 'node-mouse' ? box.x + 80 : box.x + box.width / 2
+    const y = gesture === 'node-mouse' ? box.y + 25 : box.y + box.height / 2
+    await page.evaluate(() => (window as any).__strictProbe.start())
+    if (gesture === 'connection-touch') {
+      const cdp = await page.context().newCDPSession(page)
+      await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true })
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y, id: 1 }] })
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x + 105, y: y + 20, id: 1 }] })
+    } else {
+      await page.mouse.move(x, y); await page.mouse.down()
+      if (gesture !== 'connection-pressed') await page.mouse.move(x + 105, y + 20)
+    }
+    const during = await page.evaluate(() => (window as any).__strictProbe.snapshot())
+    const oldRoot = await canvas.elementHandle()
+    // DOM click invokes RouterLink without dispatching pointer/mouse up or move.
+    await page.getByRole('link', { name: '返回流程库', exact: true }).evaluate(element => (element as HTMLElement).click())
+    await expect(page).toHaveURL('/workflows')
+    await expect(canvas).toHaveCount(0)
+    expect(await oldRoot!.evaluate(element => element.isConnected)).toBe(false)
+    const immediate = await page.evaluate(() => (window as any).__strictProbe.snapshot())
+    // Time alone must not be mistaken for the missing natural release event.
+    await page.evaluate(() => new Promise(resolve => setTimeout(resolve, 100)))
+    const settled = await page.evaluate(() => (window as any).__strictProbe.snapshot())
+    const result = { gesture, during, immediate, settled, mutations: fixture.mutations, errors: fixture.errors }
+    const json = JSON.stringify(result, null, 2)
+    await info.attach('strict-cleanup-metrics', { body: json, contentType: 'application/json' })
+    await writeFile(`/workspace/react-canvas-immediate-review/${gesture}.json`, json + '\n')
+    console.log(JSON.stringify(result))
+    expect(fixture.errors).toEqual([]); expect(fixture.mutations).toEqual([])
+    expect.soft(immediate.listeners).toEqual([])
+    expect.soft(settled.listeners).toEqual([])
+    expect(settled.pendingAnimationFrames).toBe(0)
+    // No mouseup/touchend is sent after route exit, including test cleanup.
+  })
+}
