@@ -81,6 +81,8 @@ Vue Router（唯一 history 所有者）
 3. 经原离开守卫安全离开，再进入目标页面。节点/文件/草稿守卫拒绝离开时保持原实例，不强行回退。
 4. 验证兼容画布后继续原操作。恢复新版时按同样步骤选择新版并重新进入。
 
+交叉验收补强了 Editor、Requirement、PPT 的 busy/pending 导航保护：未知回执不能通过普通 dirty 确认丢弃，存储不可写时也保留活动内存中的原请求；PPT 恢复 pending 后立即提供原操作重试入口并暂停自动保存。已接受但读取失败的命令继续只重读。普通草稿的原确认语义保留。具体合同与浏览器证据见 [交叉验收](../deliveries/react-canvas-cross-review/README.md)。
+
 在开发者需要诊断时，可检查 `data-canvas-runtime="react|vue"` 与 `data-canvas-kind`。这些标记也用于 E2E 确认真正跑过 React 路径。它不是服务端能力或授权状态。
 
 回退不撤销已接受的服务端写入；不要把重装旧前端当作清除未知回执的办法。若代码本身需回滚，可切回基线构建；同样应先恢复在途操作并使用原守卫退出，不删除服务端记录或本地待处理数据。
@@ -95,6 +97,8 @@ Vue Router（唯一 history 所有者）
 - 运行 `npm ci`、`npm run typecheck`、`npm test`、`npm run build`、`npm run test:tooling`、`npm run test:accounting` 和 Chromium E2E。仓库未配置独立 lint 脚本，不把其他检查冒称 lint。
 
 具体计数、截图和限制见 [交付与验证记录](react-canvas-validation.md)；模拟 API 验收不证明真实后端、模型、文件解析或外部发布链路可用。
+
+后续交叉审查发现 React Flow 活动连线没有公开的即时监听 disposer。本轮关闭节点与连线的边缘自动平移以消除悬挂 RAF，并禁止卸载后的连接写回；手动平移与原生拖动/连接继续可用。四个上游 document 监听仍需合适的自然鼠标事件才解除，不能声称满足“卸载瞬间零监听”。限制、测试和后续门槛见 [资源清理记录](../deliveries/react-canvas-cross-review/README.md#尚未满足的资源清理门槛)。
 
 ## 后续全站替换清单与 Vue 退场条件
 

@@ -1,0 +1,272 @@
+{
+  "code_commit": "628ab18d88173910139dd9709054b17d10e534cb",
+  "captured_date_utc": "2026-10-03",
+  "browser": "Chromium",
+  "mock_data": true,
+  "images": [
+    {
+      "file": "screenshots/spdb-editor.png",
+      "title": "默认画布 · 模拟数据",
+      "width": 1600,
+      "height": 1000,
+      "bytes": 51678,
+      "sha256": "7db5f84d3dadc8c86c7d4f03388abde1af8355e7fb23cdf6a6cd6921ace366ca"
+    },
+    {
+      "file": "screenshots/spdb-selected.png",
+      "title": "选中节点与上下文操作 · 模拟数据",
+      "width": 1600,
+      "height": 1000,
+      "bytes": 71125,
+      "sha256": "5f0ef4fe8d45d65d5260e783b8021a8dc64ad8caca3e37fdc727a7dacc751557"
+    },
+    {
+      "file": "screenshots/tech-blue-editor.png",
+      "title": "默认画布 · 模拟数据",
+      "width": 1600,
+      "height": 1000,
+      "bytes": 52340,
+      "sha256": "4d2c96b5700ce6f63b732062936c6f6d92f098aafe20e7021335eb13a803c789"
+    },
+    {
+      "file": "screenshots/tech-blue-selected.png",
+      "title": "选中节点与上下文操作 · 模拟数据",
+      "width": 1600,
+      "height": 1000,
+      "bytes": 71355,
+      "sha256": "7816ffc8376011e55676694d8b8be1c70b9c3d53351af2596e3a597cacdc698e"
+    },
+    {
+      "file": "screenshots/github-white-editor.png",
+      "title": "默认画布 · 模拟数据",
+      "width": 1600,
+      "height": 1000,
+      "bytes": 45209,
+      "sha256": "a4f3156ff58c092cf8f1015f38ad6483113336f1ead647807861846473179cab"
+    },
+    {
+      "file": "screenshots/github-white-selected.png",
+      "title": "选中节点与上下文操作 · 模拟数据",
+      "width": 1600,
+      "height": 1000,
+      "bytes": 63008,
+      "sha256": "4d6e47b7c84d39e7e620ffd21ce427325a6b866db34d35cf744a80828d66fcf7"
+    },
+    {
+      "file": "screenshots/spdb-empty.png",
+      "title": "spdb 空白新建画布 · 模拟数据",
+      "width": 1600,
+      "height": 1000,
+      "bytes": 35320,
+      "sha256": "e3baa0043a4c39d4553cff1813f20aea30ac08b1c23fae4a275eab53c5d55cac"
+    },
+    {
+      "file": "screenshots/workflow-builtin-preview.png",
+      "title": "spdb 内置流程只读预览 · 模拟数据",
+      "width": 1600,
+      "height": 1000,
+      "bytes": 72296,
+      "sha256": "926b93c961399bc5e68115c99c97fa418f8fd059b5f312f86fc8a13d3d964932"
+    },
+    {
+      "file": "screenshots/spdb-planning-selected.png",
+      "title": "spdb 需求规划选中节点 · 模拟数据",
+      "width": 1600,
+      "height": 1000,
+      "bytes": 71187,
+      "sha256": "e4832ce10c61408b30e6d7967edfa65b9d50590bebee35fe321079b93e48b1d6"
+    },
+    {
+      "file": "screenshots/tech-blue-execution-selected.png",
+      "title": "tech-blue 需求执行选中节点 · 模拟数据",
+      "width": 1600,
+      "height": 1000,
+      "bytes": 75016,
+      "sha256": "bd6ce7cce846ba2136bbfc5272e1ed355c0cb9bc0ab40f43e99340f2bb5131f9"
+    },
+    {
+      "file": "screenshots/workflow-candidate-preview.png",
+      "title": "spdb 候选计划画布预览 · 模拟数据",
+      "width": 1600,
+      "height": 1000,
+      "bytes": 98862,
+      "sha256": "075e397f9974019cfd55c01a608ef7c5fb6bc95612e68537e35b8077dcdf88a0"
+    },
+    {
+      "file": "screenshots/workflow-save-template-1600.png",
+      "title": "spdb 另存模板桌面预览 · 模拟数据",
+      "width": 1600,
+      "height": 1000,
+      "bytes": 99174,
+      "sha256": "35f65d31527bb69c7dfdc30257c0b91db8029288596e9a2bce4a686988f17b52"
+    },
+    {
+      "file": "screenshots/react-flow-drag-connect.png",
+      "title": "spdb React Flow 原生拖动与端口连线 · 模拟数据",
+      "width": 1600,
+      "height": 1000,
+      "bytes": 69977,
+      "sha256": "d2e8f0402825c43e3bbddca05c9dd0a5d6ff708f394514899f1c0053934cc690"
+    },
+    {
+      "file": "screenshots/ppt-spdb-default-mock.png",
+      "title": "默认画布与缩略预览 · 模拟数据",
+      "width": 1600,
+      "height": 1000,
+      "bytes": 64716,
+      "sha256": "905de08e1c45dfa4f4027e26b15704e5840fde09f67ab5cf5cb548a305fa21a7"
+    },
+    {
+      "file": "screenshots/ppt-spdb-selected-mock.png",
+      "title": "选中对象 · 模拟数据",
+      "width": 1600,
+      "height": 1000,
+      "bytes": 69004,
+      "sha256": "6b39e49e33d01e4f4d819bbbb200d66272c57cb1e41f33cc068812554a8486f9"
+    },
+    {
+      "file": "screenshots/ppt-tech-blue-default-mock.png",
+      "title": "默认画布与缩略预览 · 模拟数据",
+      "width": 1600,
+      "height": 1000,
+      "bytes": 65252,
+      "sha256": "3331891cecfffe57309fa67ea9f6ae00c310a2922ef94a9e9b6ba36a3d7eabbe"
+    },
+    {
+      "file": "screenshots/ppt-tech-blue-selected-mock.png",
+      "title": "选中对象 · 模拟数据",
+      "width": 1600,
+      "height": 1000,
+      "bytes": 69639,
+      "sha256": "77551698862dd8759ad4d41eb2be896f8b8f803aaec2893f2c6c009bda530e42"
+    },
+    {
+      "file": "screenshots/ppt-github-white-default-mock.png",
+      "title": "默认画布与缩略预览 · 模拟数据",
+      "width": 1600,
+      "height": 1000,
+      "bytes": 64142,
+      "sha256": "4fa6709902891ee8f388fc4fb1355782a83d4fa3f0034f1cbd75001fb42d14f6"
+    },
+    {
+      "file": "screenshots/ppt-github-white-selected-mock.png",
+      "title": "选中对象 · 模拟数据",
+      "width": 1600,
+      "height": 1000,
+      "bytes": 67040,
+      "sha256": "70dfd883814c8b33289149e3ef91edc59576d4ee9d9275c23caf0623adce7590"
+    },
+    {
+      "file": "screenshots/spdb-stages.png",
+      "title": "spdb 普通任务阶段 · 模拟数据",
+      "width": 1440,
+      "height": 1914,
+      "bytes": 273407,
+      "sha256": "18e4203d9277529183459eed1ee219d0891b8be1301e5b7e9b575f9f4e8ec66b"
+    },
+    {
+      "file": "screenshots/tech-blue-template-progress.png",
+      "title": "tech-blue 模板步骤与展开的阶段详情 · 模拟数据",
+      "width": 1440,
+      "height": 2783,
+      "bytes": 683282,
+      "sha256": "81c04311532f2faf250eaa37157764069ff776463d4335e39476b38861ae745f"
+    },
+    {
+      "file": "screenshots/github-white-roles.png",
+      "title": "github-white 角色阶段流程 · 模拟数据",
+      "width": 1440,
+      "height": 1000,
+      "bytes": 142849,
+      "sha256": "1f64ec4f76728717dd8fbdfad1e393acfc2bab41b42cb19d763bd6ebe72b162a"
+    },
+    {
+      "file": "screenshots/spdb-designer-mermaid.png",
+      "title": "spdb 旧 Designer 历史文档 Mermaid · 模拟数据",
+      "width": 1600,
+      "height": 1583,
+      "bytes": 268719,
+      "sha256": "cc700e2d0240e1563240805484acd59a192e83e773f109af59ee99205b44830d"
+    },
+    {
+      "file": "screenshots/tech-blue-workflow-mobile-selected.png",
+      "title": "tech-blue 390px 流程节点上下文 · 模拟数据",
+      "width": 390,
+      "height": 881,
+      "bytes": 36122,
+      "sha256": "5b2597272a06ce8a37f344d7f896aa43906bd9a482cd783b710fb542abaa7ffd"
+    },
+    {
+      "file": "screenshots/workflow-save-template-390.png",
+      "title": "spdb 390px 另存模板预览 · 模拟数据",
+      "width": 390,
+      "height": 2153,
+      "bytes": 111291,
+      "sha256": "fe282423654b5777f12fdbe150e002c03a5310b705633b24e79c659a99c3473f"
+    },
+    {
+      "file": "screenshots/ppt-github-white-mobile-mock.png",
+      "title": "github-white 390px PPT 手动编辑 · 模拟数据",
+      "width": 390,
+      "height": 844,
+      "bytes": 43846,
+      "sha256": "d3850aa78faee79c4f4aaaeccb7dd4a1ac0e885c411c42860e5371de9e30a302"
+    },
+    {
+      "file": "screenshots/spdb-stages-mobile.png",
+      "title": "spdb 390px 普通任务阶段 · 模拟数据",
+      "width": 390,
+      "height": 2476,
+      "bytes": 176503,
+      "sha256": "c77bf14a086e27ebb49e375684c08507b294af667828765f3b4c8378433885cf"
+    },
+    {
+      "file": "screenshots/github-white-template-progress-mobile.png",
+      "title": "github-white 390px 模板步骤 · 模拟数据",
+      "width": 390,
+      "height": 3613,
+      "bytes": 249429,
+      "sha256": "c59cfb8d7d395c476f4b2380678bfdd46089577f90489ea9f22c6e873ba774e3"
+    },
+    {
+      "file": "screenshots/tech-blue-roles-mobile.png",
+      "title": "tech-blue 390px 角色流程 · 模拟数据",
+      "width": 390,
+      "height": 1491,
+      "bytes": 154947,
+      "sha256": "87d4cef0f003d940435d64313ce5464e91a6c62adc4487a858e41dd88297c367"
+    },
+    {
+      "file": "screenshots/github-white-designer-mermaid-mobile.png",
+      "title": "github-white 390px 旧 Designer 文档图示 · 模拟数据",
+      "width": 390,
+      "height": 2567,
+      "bytes": 163198,
+      "sha256": "e1ccb73e2afd567488b9975a8bf791bad5e8a63c307754b5b58d06853591fe70"
+    },
+    {
+      "file": "screenshots/tech-blue-stages-long-keyboard.png",
+      "title": "tech-blue 320px 长任务序列键盘定位末节点 · 模拟数据",
+      "width": 320,
+      "height": 2476,
+      "bytes": 235416,
+      "sha256": "efc1df5566a9d1a0f30ad9e7b0498d984ac51d1b66083b64ae1c63246fbaf659"
+    },
+    {
+      "file": "screenshots/tech-blue-template-progress-long-keyboard.png",
+      "title": "tech-blue 320px 长模板序列键盘定位末节点 · 模拟数据",
+      "width": 320,
+      "height": 3324,
+      "bytes": 359648,
+      "sha256": "f2a521585cf53c43c5b45fc9a7f5c600aa877543290d0823c2d796c1ebcb18c3"
+    },
+    {
+      "file": "screenshots/ppt-react-property-conflict-mock.png",
+      "title": "spdb PPT 属性自动保存遇到 409 后保留输入 · 模拟数据",
+      "width": 1280,
+      "height": 720,
+      "bytes": 78599,
+      "sha256": "fc7e87c8087714ba4642602241c8bf83aa91a0bd41a7dad527ad8be4ac845320"
+    }
+  ]
+}
