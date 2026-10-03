@@ -102,7 +102,7 @@ Vue Router（唯一 history 所有者）
 
 用户授权后，工作流画布用公开配置在启动前关闭上游节点拖动、连接与关联视口手势，改由实例级 Pointer Events 管理 capture、四个 section 监听和 ownerWindow blur；Ctrl＋滚轮监听也由实例精确释放。React Flow 仍负责真实节点/边、Handle 测量和受控视口；坐标与实测尺寸只通过公开实例 API 读取。业务 API、布局 DTO、撤销及存储仍由原页面单一持有，不增加订阅或命令所有者。工作流交互替换、严格卸载矩阵、代价和设备边界见 [阶段验收](../deliveries/react-canvas-cross-review/pointer-gesture-review.md)。
 
-后续共享 `ReadonlyDiagramFlow` 同样通过公开开关关闭原生 pan/zoom，由实例 Pointer owner 保留等价视口操作；只抽取工作流原资源函数复用，工作流状态机与 PPT 生产实现不改。[全部类别验收](../deliveries/react-canvas-all-cleanup/README.md) 记录每类根卸载、路由退出、重复挂载和确切未测项。该轮新增原生观察器账本发现锁定 React Flow 的 renderer ResizeObserver cleanup 依赖已清空 ref，公开尺寸参数及实例 API 无法销毁其闭包资源；严格全资源门槛仍有阻塞，不能用已通过的 Pointer 监听检查替代。
+后续共享 `ReadonlyDiagramFlow` 同样通过公开开关关闭原生 pan/zoom，由实例 Pointer owner 保留等价视口操作；只抽取工作流原资源函数复用，工作流状态机与 PPT 生产实现不改。[全部类别验收](../deliveries/react-canvas-all-cleanup/README.md) 记录每类根卸载、路由退出、重复挂载和确切未测项。该轮新增原生观察器账本发现锁定 React Flow 的 renderer ResizeObserver cleanup 依赖已清空 ref，公开尺寸参数及实例 API 无法销毁其闭包资源。用户随后授权最小锁定依赖补丁，覆盖 React hook、system extent observer 及 React UMD 内嵌副本；当前结果、干净安装机制和升级拒绝策略见 [续接验收](../deliveries/react-canvas-all-cleanup/resize-observer-patch.md)，不能用旧 Pointer 监听检查替代 RO 证据。
 
 ## 后续全站替换清单与 Vue 退场条件
 

@@ -4,6 +4,11 @@ import { join } from 'node:path'
 
 export const allCanvasEvidence = process.env.CANVAS_ALL_CLEANUP_EVIDENCE_DIR ?? 'test-results/react-all-canvas-cleanup'
 const roots = '.readonly-diagram[data-canvas-runtime="react"], .ppt-canvas-wrap[data-canvas-runtime="react"], .react-mermaid-diagram[data-canvas-runtime="react"]'
+export type CanvasFrameOwner = {
+  kind: 'destination-table'; instanceId: number; targetId: number; callbackId: number;
+  location: string; connected: boolean; className: string; refsAgree: boolean;
+  closureSource: { url: string; sha256: string }
+}
 export type AllCanvasSnapshot = {
   documentIdentity: string
   location: string
@@ -11,14 +16,23 @@ export type AllCanvasSnapshot = {
   listeners: { target: string; targetId: number; type: string; capture: boolean; callbackId: number }[]
   instanceWheel: { targetId: number; callbackId: number; capture: boolean }[]
   pendingFrames: number[]
-  frameLedger: { id: number; active: boolean; callback: string; stack: string; observerId?: number; rootIds: number[] }[]
+  pendingCanvasFrames: number[]
+  externalPendingFrames: number[]
+  frameLedger: { id: number; active: boolean; callback: string; stack: string; observerId?: number; rootIds: number[]; owner?: CanvasFrameOwner }[]
   captures: { targetId: number; target: string; pointerId: number; connected: boolean }[]
   observers: { observerId: number; kind: 'resize' | 'intersection'; targets: { targetId: number; target: string; connected: boolean }[] }[]
   observerLedger: { observerId: number; kind: 'resize' | 'intersection'; observed: number[]; unobserved: number[]; disconnects: number; activeTargets: number[] }[]
   events: { type: string; target: string; targetId: number; trusted: boolean; pointerId?: number; pointerType?: string; clientX?: number; clientY?: number }[]
   sentinel: { listener: boolean; moves: number; frames: number }
 }
-declare global { interface Window { __allCanvasResources: { arm(): void; disarm(): void; snapshot(): AllCanvasSnapshot } } }
+declare global { interface Window { __allCanvasResources: {
+  arm(): void; disarm(): void; snapshot(): AllCanvasSnapshot
+  isArmed(): boolean
+  callbackIdentity(callback: FrameRequestCallback): number
+  lastDestinationCallbackForNegativeControl(): FrameRequestCallback | undefined
+  identifyDestinationTable(callback: FrameRequestCallback, table: unknown, expectedCallbackId: number,
+    closureSource: CanvasFrameOwner['closureSource']): CanvasFrameOwner | null
+} } }
 
 /** Transparent observation only: exact identities, native capture and native RO lifecycle. */
 export async function observeAllCanvasResources(page: Page) {
@@ -39,6 +53,8 @@ export async function observeAllCanvasResources(page: Page) {
       capture: boolean; owned: boolean; active: boolean; signal?: AbortSignal }[] = []
     const frames = new Map<number, boolean>()
     const frameLedger: (AllCanvasSnapshot['frameLedger'][number] & { owned: boolean })[] = []
+    const callbackOwners = new WeakMap<FrameRequestCallback, CanvasFrameOwner>()
+    let lastDestinationCallback: WeakRef<FrameRequestCallback> | undefined
     let currentObserver: ResizeObserver | IntersectionObserver | undefined
     const captures: { target: Element; pointerId: number }[] = []
     const observers: { observer: ResizeObserver | IntersectionObserver; kind: 'resize' | 'intersection'; targets: Map<Element, boolean>;
@@ -61,13 +77,16 @@ export async function observeAllCanvasResources(page: Page) {
       return result
     }
     window.requestAnimationFrame = callback => {
+      // Provenance is per registration: a retired Table callback cannot reuse an old positive tag.
+      callbackOwners.delete(callback)
       const id = request(time => {
         frames.delete(id); const row = frameLedger.find(frame => frame.id === id); if (row) row.active = false
         callback(time)
       })
       frames.set(id, armed)
       frameLedger.push({ id, owned: armed, active: true, callback: callback.name, stack: new Error('Observed RAF registration').stack ?? '',
-        observerId: currentObserver ? identity(currentObserver) : undefined, rootIds: [...document.querySelectorAll(rootSelector)].map(identity) })
+        observerId: currentObserver ? identity(currentObserver) : undefined, rootIds: [...document.querySelectorAll(rootSelector)].map(identity),
+        owner: callbackOwners.get(callback) })
       return id
     }
     window.cancelAnimationFrame = id => { frames.delete(id); const row = frameLedger.find(frame => frame.id === id); if (row) row.active = false; cancel(id) }
@@ -120,8 +139,29 @@ export async function observeAllCanvasResources(page: Page) {
     request(tick)
     const documentIdentity = crypto.randomUUID()
     window.__allCanvasResources = {
+      callbackIdentity: callback => identity(callback),
+      lastDestinationCallbackForNegativeControl: () => lastDestinationCallback?.deref(),
+      identifyDestinationTable: (callback, value, expectedCallbackId, closureSource) => {
+        callbackOwners.delete(callback)
+        // CDP supplies the actual lexical Table instance and the same callback identity.
+        // No callback name, allocation stack or absence of canvas roots grants ownership.
+        if (!value || typeof value !== 'object' || identity(callback) !== expectedCallbackId) return null
+        const table = value as { vnode?: { el?: unknown }; refs?: { tableWrapper?: unknown } }
+        const target = table.vnode?.el, wrapper = table.refs?.tableWrapper
+        if (!(target instanceof Element) || target !== wrapper || !target.matches('.el-table') || !target.isConnected
+          || target.closest(rootSelector) || location.pathname !== '/tasks'
+          || !/^https?:\/\/[^/]+\/node_modules\/\.vite\/deps\/element-plus\.js(?:\?|$)/.test(closureSource.url)
+          || !/^[a-f0-9]{64}$/.test(closureSource.sha256)) return null
+        const owner: CanvasFrameOwner = { kind: 'destination-table', instanceId: identity(table), targetId: identity(target),
+          callbackId: expectedCallbackId, location: location.pathname, connected: target.isConnected,
+          className: target.getAttribute('class') ?? '', refsAgree: target === wrapper, closureSource }
+        callbackOwners.set(callback, owner)
+        lastDestinationCallback = new WeakRef(callback)
+        return owner
+      },
       // Preserve the resource ledger across cycles. arm only clears the event window.
       arm: () => { armed = true; events.length = 0 }, disarm: () => { armed = false },
+      isArmed: () => armed,
       snapshot: () => ({ documentIdentity, location: location.pathname,
         roots: [...document.querySelectorAll(rootSelector)].map(element => ({ id: identity(element), kind: element.getAttribute('data-canvas-kind') })),
         listeners: listeners.filter(row => row.active && row.owned && !row.signal?.aborted).map(row => ({
@@ -130,6 +170,10 @@ export async function observeAllCanvasResources(page: Page) {
         instanceWheel: listeners.filter(row => row.active && row.type === 'wheel' && !row.signal?.aborted
           && row.target instanceof Element && row.target.matches(rootSelector)).map(row => ({ targetId: identity(row.target), callbackId: identity(row.listener), capture: row.capture })),
         pendingFrames: [...frames].filter(([, owned]) => owned).map(([id]) => id),
+        // Raw IDs remain intact. Only a positively identified other instance is outside this gate.
+        // Unknown and canvas callbacks remain in pendingCanvasFrames and fail the same strict [].
+        pendingCanvasFrames: [...frames].filter(([id, owned]) => owned && !frameLedger.find(row => row.id === id)?.owner).map(([id]) => id),
+        externalPendingFrames: [...frames].filter(([id, owned]) => owned && !!frameLedger.find(row => row.id === id)?.owner).map(([id]) => id),
         frameLedger: frameLedger.filter(frame => frame.owned).map(({ owned: _owned, ...frame }) => ({ ...frame })),
         captures: captures.filter(row => row.target.hasPointerCapture(row.pointerId)).map(row => ({
           targetId: identity(row.target), target: label(row.target), pointerId: row.pointerId, connected: row.target.isConnected,
@@ -152,8 +196,8 @@ export function assertCanvasDisposed(snapshot: AllCanvasSnapshot, continueAfterF
   expect(snapshot.roots).toEqual([]); expect(snapshot.listeners).toEqual([]); expect(snapshot.instanceWheel).toEqual([])
   // Soft checks keep the identical strict [] expectation and keep the test red;
   // only repeated probes opt in so later cycles can expose cumulative ownership.
-  if (continueAfterFramesAndObservers) expect.soft(snapshot.pendingFrames).toEqual([])
-  else expect(snapshot.pendingFrames).toEqual([])
+  if (continueAfterFramesAndObservers) expect.soft(snapshot.pendingCanvasFrames).toEqual([])
+  else expect(snapshot.pendingCanvasFrames).toEqual([])
   expect(snapshot.captures).toEqual([])
   if (continueAfterFramesAndObservers) expect.soft(snapshot.observers).toEqual([])
   else expect(snapshot.observers).toEqual([])

@@ -1,7 +1,14 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { allCanvasReviewFixture, type ReadonlyKind } from './fixtures/allCanvasReview'
 import { allCanvasEvidence, allCanvasSnapshot, assertCanvasDisposed, assertNoCleanupInput, observeAllCanvasResources, recordAllCanvas } from './fixtures/allCanvasResources'
+import { observeCanvasRAFProvenance, stopCanvasRAFProvenance } from './fixtures/canvasRAFProvenance'
 import { SKIN_STORAGE_KEY } from '../src/themes/registry'
+
+test.afterEach(async ({ page }, info) => {
+  const provenance = await stopCanvasRAFProvenance(page)
+  await recordAllCanvas(info, 'raf-instance-provenance', provenance)
+  expect(provenance.errors).toEqual([])
+})
 
 const viewport = (canvas: Locator) => canvas.locator('.react-flow__viewport').evaluate(element => {
   const matrix = new DOMMatrixReadOnly(getComputedStyle(element).transform)
@@ -28,6 +35,7 @@ for (const skin of ['spdb', 'tech-blue', 'github-white']) {
       await page.addInitScript(({ key, skin }) => localStorage.setItem(key, skin), { key: SKIN_STORAGE_KEY, skin })
       await page.setViewportSize({ width: 390, height: 844 }); await page.emulateMedia({ reducedMotion: 'reduce' })
       await page.goto('/tasks')
+      await observeCanvasRAFProvenance(page)
       const canvas = await enter(page, kind, fixture.task.title), nodes = canvas.locator('.react-flow__node')
       const originalStreams = await page.evaluate(() => window.__allCanvasStreams)
       const at = await panePoint(canvas), before = await viewport(canvas)
@@ -106,6 +114,7 @@ for (const skin of ['spdb', 'tech-blue', 'github-white']) {
         await recordAllCanvas(info, `${skin}-${kind}-normal`, { ended, viewport: await viewport(canvas), streams: originalStreams })
         await page.screenshot({ path: `${allCanvasEvidence}/${skin}-${kind}-390-keyboard.png`, fullPage: true })
       }
+      await page.evaluate(() => window.__allCanvasResources.arm())
       await leave(page, kind); await expect(canvas).toHaveCount(0)
       const immediate = await allCanvasSnapshot(page)
       await recordAllCanvas(info, `${skin}-${kind}-normal-exit`, { ended, immediate, viewportBeforeSelection: beforeSelection,
@@ -138,6 +147,7 @@ for (const kind of ['stages', 'template-progress', 'roles'] as const) {
     await page.setViewportSize({ width: 1600, height: 1000 })
     await page.emulateMedia({ reducedMotion: 'reduce' })
     await page.goto('/tasks')
+    await observeCanvasRAFProvenance(page)
     const identity = (await allCanvasSnapshot(page)).documentIdentity
     const rootIds = new Set<number>()
     for (let cycle = 0; cycle < 3; cycle++) {
@@ -173,7 +183,10 @@ for (const kind of ['stages', 'template-progress', 'roles'] as const) {
       // Natural input device reset happens only AFTER the strict first-snapshot gate.
       await page.evaluate(() => window.__allCanvasResources.disarm()); await page.mouse.up()
       await page.mouse.move(7, 9)
-      await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
+      // Device input can be coalesced after the CDP acknowledgement. This health check is
+      // strictly after the immutable disposal/no-cleanup-input gate and cannot repair it.
+      await expect.poll(async () => (await allCanvasSnapshot(page)).sentinel.moves).toBeGreaterThan(immediate.sentinel.moves)
+      await expect.poll(async () => (await allCanvasSnapshot(page)).sentinel.frames).toBeGreaterThan(immediate.sentinel.frames)
       const unaffected = await allCanvasSnapshot(page)
       expect(unaffected.sentinel.moves).toBeGreaterThan(immediate.sentinel.moves)
       expect(unaffected.sentinel.frames).toBeGreaterThan(immediate.sentinel.frames)
@@ -185,6 +198,7 @@ for (const kind of ['stages', 'template-progress', 'roles'] as const) {
 test('readonly stages Chromium双指缩放后单指续pan活动SPA退出立即清理（模拟数据）', async ({ page }, info) => {
   const fixture = await allCanvasReviewFixture(page, 'stages'); await observeAllCanvasResources(page)
   await page.setViewportSize({ width: 1600, height: 1000 }); await page.goto('/tasks')
+  await observeCanvasRAFProvenance(page)
   const canvas = await enter(page, 'stages', fixture.task.title), at = await panePoint(canvas)
   const second = { x: at.x + 150, y: at.y }
   expect(await canvas.evaluate((element, point) => document.elementFromPoint(point.x, point.y) === element.querySelector('.react-flow__pane'), second)).toBe(true)
@@ -222,6 +236,7 @@ test('readonly stages Chromium双指缩放后单指续pan活动SPA退出立即�
 test('readonly stages Chromium touchCancel回滚pan并移除活动资源（模拟数据）', async ({ page }, info) => {
   const fixture = await allCanvasReviewFixture(page, 'stages'); await observeAllCanvasResources(page)
   await page.setViewportSize({ width: 1600, height: 1000 }); await page.goto('/tasks')
+  await observeCanvasRAFProvenance(page)
   const canvas = await enter(page, 'stages', fixture.task.title), at = await panePoint(canvas), before = await viewport(canvas)
   const cdp = await page.context().newCDPSession(page)
   await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 2 })
