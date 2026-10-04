@@ -1,7 +1,7 @@
-import { mount } from '@vue/test-utils'
+import { mount } from '@/pages/w6-tests/workflow/react-test-root'
 import { describe, expect, it } from 'vitest'
-import WorkflowTestDesignReport from './WorkflowTestDesignReport.vue'
-import WorkflowNodeEditor from './WorkflowNodeEditor.vue'
+import { WorkflowTestDesignReport as WorkflowTestDesignReport } from '@/pages/w5/workflow/reports'
+import { WorkflowNodeEditor as WorkflowNodeEditor } from '@/pages/w5/workflow/WorkflowNodeEditor'
 import type { WorkflowNode } from '@/types/workflow'
 const scenario = { key: 'private-scenario', path: 'src/calculator.py', category: 'NORMAL', title: '整数求和', steps: ['调用 total(1, 2)'], expected: '返回 3', references: [{ path: 'src/calculator.py', startLine: 1, endLine: 1, quote: 'def total(a, b):' }] }
 const result = { version: 1, type: 'SOURCE_TEST_DESIGN', sourceAttemptId: 'private-source', profileAttemptId: 'private-profile', design: { title: '加法测试设计', summary: '覆盖正常和边界', scenarios: [scenario], limitations: ['需人工确认边界值'] } }
@@ -21,7 +21,7 @@ describe('单测场景交付', () => {
   })
   it('允许设置本批源码并保留配置，完成方式不显示业务结果', async () => {
     const node: WorkflowNode = { id: 'design', title: '场景', kind: 'WORK', moduleId: 'source.test-design', moduleVersion: 1, roleId: 'designer', task: '设计', inputs: [], outputs: [], outcomes: [], completion: { kind: 'DELIVERABLES', criterion: '完整覆盖', expectedOutcome: null }, maxRetries: 0, pauseAfter: true, parameters: { keep: 'original' } }
-    const view = mount(WorkflowNodeEditor, { props: { node, graph: { schemaVersion: 1, nodes: [node], edges: [], inputs: [] } }, global: { stubs: { WorkflowRolePicker: true } } })
+    const view = mount(WorkflowNodeEditor, { props: { node, graph: { schemaVersion: 1, nodes: [node], edges: [], inputs: [] } } })
     await view.get('textarea[placeholder="每行一个项目内路径；留空使用全部适用目标"]').setValue('src/a.py\nsrc/b.py')
     expect((view.emitted('change')?.at(-1)?.[0] as WorkflowNode).parameters).toEqual({ keep: 'original', targetPaths: '["src/a.py","src/b.py"]' })
     expect(view.find('option[value="OUTCOME"]').exists()).toBe(false); await view.setProps({ disabled: true }); expect(view.get('textarea[placeholder="每行一个项目内路径；留空使用全部适用目标"]').element.closest('fieldset')?.disabled).toBe(true)

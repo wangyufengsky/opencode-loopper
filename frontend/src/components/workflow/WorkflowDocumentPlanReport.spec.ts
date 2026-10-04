@@ -1,6 +1,6 @@
-import { mount } from '@vue/test-utils'
+import { mount } from '@/pages/w6-tests/workflow/react-test-root'
 import { describe, expect, it } from 'vitest'
-import WorkflowDocumentPlanReport from './WorkflowDocumentPlanReport.vue'
+import { WorkflowDocumentPlanReport as WorkflowDocumentPlanReport } from '@/pages/w5/workflow/reports'
 const report = { version: 1, type: 'DOCUMENT_REVIEW_PLAN', complete: true, sectionCount: 2, batchCount: 2, batches: [{ ordinal: 0, characters: 49000, sections: [{ fileId: 'DOC-1', section: 1 }] }, { ordinal: 1, characters: 10, sections: [{ fileId: 'DOC-1', section: 2 }] }] }
 describe('原文分批候选', () => {
   it('完整展示超长单章及明确的人工确认步骤', () => {

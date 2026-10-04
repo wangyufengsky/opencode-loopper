@@ -1,5 +1,4 @@
-import { computed, ref } from 'vue'
-import { defineStore } from 'pinia'
+import { captureDto } from '@/foundation/contracts/immutable'
 import { api, ApiError, type TaskSummaryQuery } from '@/api/client'
 import { demoArtifacts, demoProjects, demoRuntime, demoTasks, demoTaskStatusGroups } from '@/mock/demoData'
 import type { TaskListItem, Artifact, DirtyWorkspaceAction, Project, RuntimeInfo, Task, TaskEvent, TaskStatus } from '@/types/domain'
@@ -52,21 +51,28 @@ export function aiOutputNotice(event: TaskEvent): string | undefined {
     : `${role} 重复工具调用已停止，正在使用一次 MCP-only 收口会话`
 }
 
-export const useTaskStore = defineStore('task', () => {
-  const projects = ref<Project[]>([])
-  const tasks = ref<Task[]>([])
-  const taskItems = ref<TaskListItem[]>([])
-  const runtime = ref<RuntimeInfo>()
-  const artifacts = ref<Artifact[]>([])
-  const loading = ref(false)
-  const auditLoading = ref<Record<string, boolean>>({})
-  const auditErrors = ref<Record<string, string>>({})
-  const taskNextCursor = ref<string>()
-  const taskFacets = ref<Record<string, number>>({})
-  const error = ref<string>()
-  const usingDemo = ref(import.meta.env.VITE_DEMO === 'true')
-  const taskNotices = ref<Record<string, string[]>>({})
-  const streamState = ref<'connected' | 'reconnecting' | 'idle'>('idle')
+export interface TaskApplicationSnapshot {
+  projects: Project[]; tasks: Task[]; taskItems: TaskListItem[]; runtime?: RuntimeInfo; artifacts: Artifact[]
+  loading: boolean; auditLoading: Record<string, boolean>; auditErrors: Record<string, string>
+  taskNextCursor?: string; taskFacets: Record<string, number>; error?: string; usingDemo: boolean
+  taskNotices: Record<string, string[]>; streamState: 'connected' | 'reconnecting' | 'idle'
+}
+
+/** The App creates and owns this one framework-independent application projection.
+ * No read, subscription or business write starts merely by creating the owner. */
+export function createTaskApplicationOwner() {
+  let active = true, epoch = 0, projectEpoch = 0, runtimeEpoch = 0, overviewEpoch = 0
+  const listeners = new Set<() => void>()
+  const state: TaskApplicationSnapshot = { projects: [], tasks: [], taskItems: [], artifacts: [], loading: false,
+    auditLoading: {}, auditErrors: {}, taskFacets: {}, usingDemo: import.meta.env.VITE_DEMO === 'true', taskNotices: {}, streamState: 'idle' }
+  let snapshot: Readonly<TaskApplicationSnapshot> = captureDto(state)
+  const publish = () => { if (!active) return; snapshot = captureDto(state); for (const listener of [...listeners]) listener() }
+  const cell = <K extends keyof TaskApplicationSnapshot>(key: K) => ({ get value(): TaskApplicationSnapshot[K] { return state[key] }, set value(value: TaskApplicationSnapshot[K]) { if (active) { state[key] = value; publish() } } })
+  const projects = cell('projects'), tasks = cell('tasks'), taskItems = cell('taskItems'), runtime = cell('runtime'), artifacts = cell('artifacts')
+  const loading = cell('loading'), auditLoading = cell('auditLoading'), auditErrors = cell('auditErrors'), taskNextCursor = cell('taskNextCursor'), taskFacets = cell('taskFacets')
+  const error = cell('error'), usingDemo = cell('usingDemo'), taskNotices = cell('taskNotices'), streamState = cell('streamState')
+  const current = (original: number, demo = false) => active && epoch === original && usingDemo.value === demo
+  function invalidateApplicationReads() { epoch++; projectEpoch++; runtimeEpoch++; overviewEpoch++; for (const id of new Set([...overviewRequests.keys(), ...auditRequests.keys()])) invalidateTaskReads(id) }
   let summaryGeneration = 0
   let summaryQuery = ''
   let watchedTaskId: string | undefined
@@ -80,7 +86,7 @@ export const useTaskStore = defineStore('task', () => {
   function invalidateTaskReads(id: string) {
     nextRequest(overviewRequests, id)
     nextRequest(auditRequests, id)
-    auditLoading.value[id] = false
+    auditLoading.value = { ...auditLoading.value, [id]: false }
   }
   function invalidateTaskSummaries() {
     summaryGeneration += 1
@@ -88,10 +94,12 @@ export const useTaskStore = defineStore('task', () => {
     loading.value = false
   }
 
-  const selectedTask = (id: string) => computed(() => tasks.value.find((task) => task.id === id))
+  const selectedTask = (id: string) => ({ get value() { return tasks.value.find(task => task.id === id) } })
 
   function activateDemo() {
+    if (!active) return
     stopWatching()
+    invalidateApplicationReads()
     invalidateTaskSummaries()
     usingDemo.value = true
     projects.value = copy(demoProjects)
@@ -111,6 +119,8 @@ export const useTaskStore = defineStore('task', () => {
   }
 
   async function deactivateDemo() {
+    if (!active) return
+    stopWatching(); invalidateApplicationReads(); invalidateTaskSummaries()
     usingDemo.value = false
     projects.value = []
     tasks.value = []
@@ -122,6 +132,8 @@ export const useTaskStore = defineStore('task', () => {
   }
 
   async function loadOverview() {
+    if (!active) return
+    const original = epoch, serial = ++overviewEpoch
     loading.value = true
     error.value = undefined
     if (usingDemo.value) {
@@ -131,31 +143,37 @@ export const useTaskStore = defineStore('task', () => {
     }
     try {
       const [projectData, taskData, runtimeData] = await Promise.all([api.getProjects(), api.getTasks(), api.getRuntime()])
+      if (!current(original) || serial !== overviewEpoch) return
       projects.value = projectData
       tasks.value = taskData
       runtime.value = runtimeData
     } catch (cause) {
-      error.value = cause instanceof ApiError ? cause.message : '无法连接本地服务'
+      if (current(original) && serial === overviewEpoch) error.value = cause instanceof ApiError ? cause.message : '无法连接本地服务'
     } finally {
-      loading.value = false
+      if (current(original) && serial === overviewEpoch) loading.value = false
     }
   }
 
   async function loadProjects(refresh = false) {
+    if (!active) return projects.value
+    const original = epoch, serial = ++projectEpoch
     if (usingDemo.value) {
       projects.value = copy(demoProjects)
       return projects.value
     }
     try {
-      projects.value = await api.getProjects(refresh)
-      return projects.value
+      const value = await api.getProjects(refresh)
+      if (current(original) && serial === projectEpoch) { projects.value = value; error.value = undefined }
+      return value
     } catch (cause) {
-      error.value = cause instanceof Error ? cause.message : '项目列表加载失败'
+      if (current(original) && serial === projectEpoch) error.value = cause instanceof Error ? cause.message : '项目列表加载失败'
       return projects.value
     }
   }
 
   async function loadTaskSummaries(query: TaskSummaryQuery = {}, append = false) {
+    if (!active) return
+    const original = epoch
     const queryKey = JSON.stringify(query)
     if (append && (loading.value || !taskNextCursor.value || queryKey !== summaryQuery)) return
     const generation = ++summaryGeneration
@@ -171,7 +189,7 @@ export const useTaskStore = defineStore('task', () => {
     }
     try {
       const page = await api.getTaskSummaries({ ...query, ...(append ? { cursor: taskNextCursor.value } : {}) })
-      if (generation !== summaryGeneration || usingDemo.value) return
+      if (generation !== summaryGeneration || !current(original)) return
       taskItems.value = append ? [...taskItems.value, ...page.items.filter(item => !taskItems.value.some(task => task.id === item.id))] : page.items
       // Only real Task entries enter the executable detail cache.
       tasks.value = taskItems.value.filter(item => !item.documentRunId && !item.sourceRunId).map(item => ({ ...item,
@@ -180,22 +198,24 @@ export const useTaskStore = defineStore('task', () => {
       taskNextCursor.value = page.nextCursor
       taskFacets.value = page.facets
     } catch (cause) {
-      if (generation === summaryGeneration) error.value = cause instanceof ApiError ? cause.message : '任务列表加载失败'
+      if (generation === summaryGeneration && current(original)) error.value = cause instanceof ApiError ? cause.message : '任务列表加载失败'
     } finally {
-      if (generation === summaryGeneration) loading.value = false
+      if (generation === summaryGeneration && current(original)) loading.value = false
     }
   }
 
   async function loadTaskOverview(id: string) {
+    if (!active) return tasks.value.find(task => task.id === id)
+    const original = epoch
     if (usingDemo.value) return tasks.value.find((task) => task.id === id)
     const request = nextRequest(overviewRequests, id)
     let overview: Task
     try { overview = await api.getTaskOverview(id) }
     catch (cause) {
-      if (request !== overviewRequests.get(id) || usingDemo.value) return tasks.value.find(task => task.id === id)
+      if (request !== overviewRequests.get(id) || !current(original)) return tasks.value.find(task => task.id === id)
       throw cause
     }
-    if (request !== overviewRequests.get(id) || usingDemo.value) return tasks.value.find(task => task.id === id)
+    if (request !== overviewRequests.get(id) || !current(original)) return tasks.value.find(task => task.id === id)
     const index = tasks.value.findIndex((task) => task.id === id)
     const previous = index < 0 ? undefined : tasks.value[index]
     if (previous?.version !== undefined && overview.version !== undefined && overview.version < previous.version) return previous
@@ -207,8 +227,7 @@ export const useTaskStore = defineStore('task', () => {
       errors: overview.errors ?? previous.errors,
       judges: overview.judges ?? previous.judges,
     } : overview
-    if (index === -1) tasks.value.push(detail)
-    else tasks.value[index] = detail
+    tasks.value = index === -1 ? [...tasks.value, detail] : tasks.value.map((value, i) => i === index ? detail : value)
     if (previous && overview.templateProgress?.reportCount !== previous.templateProgress?.reportCount) {
       void loadTaskAudit(id)
     }
@@ -216,44 +235,48 @@ export const useTaskStore = defineStore('task', () => {
   }
 
   async function loadTaskAudit(id: string) {
+    if (!active) return
+    const original = epoch
     if (usingDemo.value) return
     const request = nextRequest(auditRequests, id)
-    auditLoading.value[id] = true
-    delete auditErrors.value[id]
+    auditLoading.value = { ...auditLoading.value, [id]: true }
+    const { [id]: _previousError, ...remainingErrors } = auditErrors.value; auditErrors.value = remainingErrors
     try {
       const audit = await api.getTaskAudit(id)
-      if (request !== auditRequests.get(id) || usingDemo.value) return
+      if (request !== auditRequests.get(id) || !current(original)) return
       artifacts.value = [...artifacts.value.filter((artifact) => artifact.taskId !== id), ...(audit.artifacts ?? [])]
       // Overview owns current errors and Judge metadata; audit may be an older snapshot.
       tasks.value = tasks.value.map((task) => task.id === id ? { ...task, attempts: audit.attempts, artifacts: audit.artifacts,
         stages: task.stages?.map(stage => ({ ...stage, attempts: (audit.attempts ?? []).filter(attempt => attempt.stageId === stage.id) })),
       } : task)
     } catch (cause) {
-      if (request === auditRequests.get(id)) auditErrors.value[id] = cause instanceof Error ? cause.message : '审计信息加载失败'
+      if (request === auditRequests.get(id) && current(original)) auditErrors.value = { ...auditErrors.value, [id]: cause instanceof Error ? cause.message : '审计信息加载失败' }
     } finally {
-      if (request === auditRequests.get(id)) auditLoading.value[id] = false
+      if (request === auditRequests.get(id) && current(original)) auditLoading.value = { ...auditLoading.value, [id]: false }
     }
   }
 
   async function loadTask(id: string) {
+    if (!active) return tasks.value.find(task => task.id === id)
+    const original = epoch
     if (usingDemo.value) return tasks.value.find((task) => task.id === id)
     const expected = (overviewRequests.get(id) ?? 0) + 1
     try {
       const detail = await loadTaskOverview(id)
-      if (overviewRequests.get(id) !== expected || usingDemo.value) return detail
+      if (overviewRequests.get(id) !== expected || !current(original)) return detail
       void loadTaskAudit(id)
       return detail
     } catch (cause) {
-      if (overviewRequests.get(id) !== expected || usingDemo.value) return tasks.value.find(task => task.id === id)
+      if (overviewRequests.get(id) !== expected || !current(original)) return tasks.value.find(task => task.id === id)
       try {
         const legacy = await api.getTask(id)
-        if (overviewRequests.get(id) !== expected || usingDemo.value) return tasks.value.find(task => task.id === id)
+        if (overviewRequests.get(id) !== expected || !current(original)) return tasks.value.find(task => task.id === id)
         const index = tasks.value.findIndex((task) => task.id === id)
-        if (index === -1) tasks.value.push(legacy)
-        else tasks.value[index] = legacy
+        tasks.value = index === -1 ? [...tasks.value, legacy] : tasks.value.map((value, i) => i === index ? legacy : value)
         artifacts.value = [...artifacts.value.filter((artifact) => artifact.taskId !== id), ...(legacy.artifacts ?? [])]
         return legacy
       } catch {
+        if (!current(original) || overviewRequests.get(id) !== expected) return tasks.value.find(task => task.id === id)
         error.value = cause instanceof Error ? cause.message : '无法加载任务详情'
         return tasks.value.find((task) => task.id === id)
       }
@@ -261,6 +284,8 @@ export const useTaskStore = defineStore('task', () => {
   }
 
   async function updateTask(id: string, action: 'start' | 'pause' | 'resume' | 'cancel') {
+    if (!active) throw new Error('应用已退出，不能开始新操作。')
+    const original = epoch
     const old = tasks.value.find((task) => task.id === id)
     if (!old) return
     if (usingDemo.value) {
@@ -272,15 +297,18 @@ export const useTaskStore = defineStore('task', () => {
     error.value = undefined
     try {
       const changed = await update(id)
+      if (!current(original)) return
       invalidateTaskReads(id)
-      tasks.value = tasks.value.map((task) => task.id === id ? changed : task)
+      if (current(original)) tasks.value = tasks.value.map((task) => task.id === id ? changed : task)
     } catch (cause) {
-      error.value = cause instanceof Error ? cause.message : '任务操作失败'
+      if (current(original)) error.value = cause instanceof Error ? cause.message : '任务操作失败'
       if (action === 'cancel') throw cause
     }
   }
 
   async function retryJudges(id: string) {
+    if (!active) throw new Error('应用已退出，不能开始新操作。')
+    const original = epoch
     const old = tasks.value.find((task) => task.id === id)
     if (!old) return
     if (usingDemo.value) {
@@ -290,14 +318,16 @@ export const useTaskStore = defineStore('task', () => {
     error.value = undefined
     try {
       const changed = await api.retryTaskJudges(id)
-      tasks.value = tasks.value.map((task) => task.id === id ? changed : task)
+      if (current(original)) tasks.value = tasks.value.map((task) => task.id === id ? changed : task)
     } catch (cause) {
-      error.value = cause instanceof Error ? cause.message : '双评审启动失败'
+      if (current(original)) error.value = cause instanceof Error ? cause.message : '双评审启动失败'
       throw cause
     }
   }
 
   async function retryWaitingLoop(id: string) {
+    if (!active) throw new Error('应用已退出，不能开始新操作。')
+    const original = epoch
     const old = tasks.value.find((task) => task.id === id)
     if (!old) return
     if (usingDemo.value) {
@@ -307,9 +337,9 @@ export const useTaskStore = defineStore('task', () => {
     error.value = undefined
     try {
       const changed = await api.retryWaitingTaskLoop(id)
-      tasks.value = tasks.value.map((task) => task.id === id ? changed : task)
+      if (current(original)) tasks.value = tasks.value.map((task) => task.id === id ? changed : task)
     } catch (cause) {
-      error.value = cause instanceof Error ? cause.message : '循环重试启动失败'
+      if (current(original)) error.value = cause instanceof Error ? cause.message : '循环重试启动失败'
       throw cause
     }
   }
@@ -319,53 +349,62 @@ export const useTaskStore = defineStore('task', () => {
     resolutions: Array<{ path: string; action: DirtyWorkspaceAction }>
     commitMessage?: string
   }) {
+    if (!active) throw new Error('应用已退出，不能开始新操作。')
+    const original = epoch
     error.value = undefined
     try {
       const result = await api.resolveDirtyWorkspace(id, input)
-      tasks.value = tasks.value.map((task) => task.id === id ? result.task : task)
+      if (current(original)) tasks.value = tasks.value.map((task) => task.id === id ? result.task : task)
       return result
     } catch (cause) {
-      error.value = cause instanceof Error ? cause.message : '未提交文件处理失败'
+      if (current(original)) error.value = cause instanceof Error ? cause.message : '未提交文件处理失败'
       throw cause
     }
   }
 
   async function cancelDirtyWorkspace(id: string) {
+    if (!active) throw new Error('应用已退出，不能开始新操作。')
+    const original = epoch
     error.value = undefined
     try {
       const changed = await api.cancelDirtyWorkspace(id)
-      tasks.value = tasks.value.map((task) => task.id === id ? changed : task)
+      if (current(original)) tasks.value = tasks.value.map((task) => task.id === id ? changed : task)
       return changed
     } catch (cause) {
-      error.value = cause instanceof Error ? cause.message : '无法终止等待清理的任务'
+      if (current(original)) error.value = cause instanceof Error ? cause.message : '无法终止等待清理的任务'
       throw cause
     }
   }
 
   async function reworkTask(id: string) {
+    if (!active) throw new Error('应用已退出，不能开始新操作。')
+    const original = epoch
     const parent = tasks.value.find((task) => task.id === id)
     if (!parent) return undefined
     if (usingDemo.value) {
       const child = { ...copy(parent), id: `${parent.id}-rework`, title: `${parent.title} · 重做`, status: 'RUNNING' as const,
         branch: `loopper/${parent.id}-rework`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
-      tasks.value.push(child)
+      tasks.value = [...tasks.value, child]
       return child.id
     }
     error.value = undefined
     try {
       const recovery = await api.createTaskRecovery(id, 'REWORK_ALL_STAGES')
+      if (!current(original)) return recovery.taskId
       const child = await api.startTask(recovery.taskId)
+      if (!current(original)) return recovery.taskId
       const index = tasks.value.findIndex((task) => task.id === child.id)
-      if (index === -1) tasks.value.push(child)
-      else tasks.value[index] = child
+      tasks.value = index === -1 ? [...tasks.value, child] : tasks.value.map((value, i) => i === index ? child : value)
       return child.id
     } catch (cause) {
-      error.value = cause instanceof Error ? cause.message : '新分支重做启动失败'
+      if (current(original)) error.value = cause instanceof Error ? cause.message : '新分支重做启动失败'
       throw cause
     }
   }
 
   async function setTaskArchived(id: string, archived: boolean) {
+    if (!active) throw new Error('应用已退出，不能开始新操作。')
+    const original = epoch
     const old = tasks.value.find((task) => task.id === id)
     if (!old) return
     if (usingDemo.value) {
@@ -374,14 +413,16 @@ export const useTaskStore = defineStore('task', () => {
     }
     try {
       const changed = archived ? await api.archiveTask(id) : await api.restoreArchivedTask(id)
-      tasks.value = tasks.value.map((task) => task.id === id ? changed : task)
+      if (current(original)) tasks.value = tasks.value.map((task) => task.id === id ? changed : task)
     } catch (cause) {
-      error.value = cause instanceof Error ? cause.message : archived ? '任务归档失败' : '任务恢复失败'
+      if (current(original)) error.value = cause instanceof Error ? cause.message : archived ? '任务归档失败' : '任务恢复失败'
       throw cause
     }
   }
 
   async function deleteArchivedTask(id: string) {
+    if (!active) throw new Error('应用已退出，不能开始新操作。')
+    const original = epoch
     const old = tasks.value.find((task) => task.id === id)
     if (!old) return
     if (!old.archived) throw new Error('请先归档任务，再永久删除')
@@ -392,10 +433,11 @@ export const useTaskStore = defineStore('task', () => {
     }
     try {
       await api.deleteArchivedTask(id)
+      if (!current(original)) return
       tasks.value = tasks.value.filter((task) => task.id !== id)
       artifacts.value = artifacts.value.filter((artifact) => artifact.taskId !== id)
     } catch (cause) {
-      error.value = cause instanceof Error ? cause.message : '历史任务删除失败'
+      if (current(original)) error.value = cause instanceof Error ? cause.message : '历史任务删除失败'
       throw cause
     }
   }
@@ -404,7 +446,7 @@ export const useTaskStore = defineStore('task', () => {
     receive(id, event) {
       tasks.value = tasks.value.map(task => task.id === id ? reduceTaskEvent(task, event) : task)
       const notice = aiOutputNotice(event)
-      if (notice) taskNotices.value[id] = [...new Set([...(taskNotices.value[id] ?? []), notice])].slice(-4)
+      if (notice) taskNotices.value = { ...taskNotices.value, [id]: [...new Set([...(taskNotices.value[id] ?? []), notice])].slice(-4) }
     },
     overview: loadTaskOverview,
     audit: loadTaskAudit,
@@ -414,6 +456,7 @@ export const useTaskStore = defineStore('task', () => {
   })
 
   function watchTask(id: string) {
+    if (!active || usingDemo.value) return
     if (watchedTaskId) invalidateTaskReads(watchedTaskId)
     watchedTaskId = id
     subscription.watch(id)
@@ -425,43 +468,33 @@ export const useTaskStore = defineStore('task', () => {
     subscription.stop()
   }
 
-  async function refreshRuntime() {
-    if (usingDemo.value) {
-      runtime.value = { ...demoRuntime, status: 'STARTING', checkedAt: new Date().toISOString() }
-      window.setTimeout(() => { runtime.value = { ...demoRuntime, checkedAt: new Date().toISOString() } }, 900)
-      return
-    }
-    try { runtime.value = await api.getRuntime() } catch (cause) { error.value = cause instanceof Error ? cause.message : 'Runtime 状态检查失败' }
-  }
-
-  async function restartRuntime() {
-    if (usingDemo.value) {
-      runtime.value = { ...demoRuntime, status: 'STARTING', checkedAt: new Date().toISOString() }
-      window.setTimeout(() => { runtime.value = { ...demoRuntime, checkedAt: new Date().toISOString() } }, 900)
-      return
-    }
-    error.value = undefined
-    try { runtime.value = await api.restartRuntime() } catch (cause) { error.value = cause instanceof Error ? cause.message : 'Runtime 重启失败' }
-  }
-
-  async function startRuntime() {
-    if (usingDemo.value) {
-      runtime.value = { ...demoRuntime, checkedAt: new Date().toISOString() }
-      return runtime.value
-    }
+  async function readRuntime(action: 'read' | 'start' | 'restart') {
+    if (!active) return undefined
+    const original = epoch, serial = ++runtimeEpoch, demo = usingDemo.value
     error.value = undefined
     try {
-      runtime.value = await api.startRuntime()
-      return runtime.value
-    } catch (cause) {
-      error.value = cause instanceof Error ? cause.message : 'OpenCode 启动与连接检查失败'
-      return undefined
-    }
+      const value = demo ? { ...demoRuntime, checkedAt: new Date().toISOString() } : await (action === 'read' ? api.getRuntime() : action === 'start' ? api.startRuntime() : api.restartRuntime())
+      if (current(original, demo) && serial === runtimeEpoch) runtime.value = value
+      return value
+    } catch (cause) { if (current(original, demo) && serial === runtimeEpoch) error.value = cause instanceof Error ? cause.message : action === 'read' ? 'Runtime 状态检查失败' : action === 'start' ? 'OpenCode 启动与连接检查失败' : 'Runtime 重启失败'; return undefined }
   }
-
-  return { projects, tasks, taskItems, runtime, artifacts, taskNotices, loading, auditLoading, auditErrors,
-    taskNextCursor, taskFacets, error, usingDemo, streamState, selectedTask, activateDemo,
-    deactivateDemo, loadOverview, loadProjects, loadTaskSummaries, invalidateTaskSummaries, loadTaskOverview, loadTaskAudit, loadTask,
-    updateTask, retryJudges, retryWaitingLoop, resolveDirtyWorkspace, cancelDirtyWorkspace, reworkTask,
-    setTaskArchived, deleteArchivedTask, watchTask, stopWatching, refreshRuntime, restartRuntime, startRuntime }
-})
+  const refreshRuntime = () => readRuntime('read'), restartRuntime = () => readRuntime('restart'), startRuntime = () => readRuntime('start')
+  const methods = { selectedTask, activateDemo, deactivateDemo, loadOverview, loadProjects, loadTaskSummaries,
+    invalidateTaskSummaries, loadTaskOverview, loadTaskAudit, loadTask, updateTask, retryJudges, retryWaitingLoop,
+    resolveDirtyWorkspace, cancelDirtyWorkspace, reworkTask, setTaskArchived, deleteArchivedTask, watchTask, stopWatching,
+    refreshRuntime, restartRuntime, startRuntime,
+    getSnapshot: () => snapshot,
+    subscribe(listener: () => void) { if (!active) return () => undefined; listeners.add(listener); return () => { listeners.delete(listener) } },
+    dispose() { if (!active) return; active = false; epoch++; overviewEpoch++; projectEpoch++; runtimeEpoch++; summaryGeneration++; listeners.clear(); stopWatching() },
+  }
+  const owner = methods as typeof methods & TaskApplicationSnapshot
+  function expose<K extends keyof TaskApplicationSnapshot>(key: K) {
+    Object.defineProperty(owner, key, { enumerable: true, get: () => state[key],
+      set: (value: TaskApplicationSnapshot[K]) => { if (active) { state[key] = value; publish() } } })
+  }
+  for (const key of Object.keys(state) as (keyof TaskApplicationSnapshot)[]) expose(key)
+  // Optional fields also need writable accessors before their first real response.
+  for (const key of ['runtime', 'error', 'taskNextCursor'] as const) if (!Object.prototype.hasOwnProperty.call(owner, key)) expose(key)
+  return owner
+}
+export type TaskApplicationOwner = ReturnType<typeof createTaskApplicationOwner>

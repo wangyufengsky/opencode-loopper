@@ -31,7 +31,7 @@ export interface TaskPortSnapshot {
   error?: string
   loading: boolean
 }
-/** Transitional projection of the existing sole Pinia owner; no new SSE or task writer. */
+/** Projection of the single TypeScript application owner; no new SSE or task writer. */
 export interface TaskPort extends SnapshotPort<TaskPortSnapshot> {
   loadProjects(refresh?: boolean): Promise<Project[]>
   loadTaskSummaries(query?: TaskSummaryQuery, append?: boolean): Promise<void>
@@ -47,7 +47,7 @@ export interface TaskPort extends SnapshotPort<TaskPortSnapshot> {
   addProject(project: Project): void
   removeProject(id: string): void
 }
-/** Retained for the actual Vue route lifetime, not a replayed React view effect. */
+/** Retained for the committed application route lifetime, not a replayed React view effect. */
 export interface W2Lifecycle { retain(key: object, dispose: () => void): void }
 export interface W2PageProps {
   route: W2Route

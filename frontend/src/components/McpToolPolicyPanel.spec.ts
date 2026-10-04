@@ -1,30 +1,12 @@
-import { flushPromises, mount } from '@vue/test-utils'
-import ElementPlus from 'element-plus'
+import { fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/api/client'
-import McpToolPolicyPanel from './McpToolPolicyPanel.vue'
-afterEach(() => vi.restoreAllMocks())
-describe('tool policy', () => {
-  it('uses the project revision and retains server state when a save conflicts', async () => {
-    vi.spyOn(api, 'getMcpToolPolicies').mockResolvedValue({ complete: true, detail: '', tools: [{ name: 'read_document', configurable: true, writes: false, globalEnabled: true, projectOverride: 'INHERIT', enabled: true, source: 'GLOBAL', globalVersion: 3, projectVersion: -1 }] })
-    const save = vi.spyOn(api, 'updateMcpToolPolicy').mockRejectedValue(new Error('配置已改变，请刷新'))
-    const wrapper = mount(McpToolPolicyPanel, { props: { projectId: 'project', serverId: '@loopper-assist' }, global: { plugins: [ElementPlus] } })
-    await flushPromises(); wrapper.findComponent({ name: 'ElSelect' }).vm.$emit('change', 0); await flushPromises()
-    expect(save).toHaveBeenCalledWith({ projectId: 'project', serverId: '@loopper-assist', toolName: 'read_document', enabled: 0, version: -1 })
-    expect(wrapper.text()).toContain('请刷新'); expect(wrapper.text()).toContain('继承全局'); wrapper.unmount()
-  })
-  it('disables all tools in one versioned request and reports a conflict without changing switches', async () => {
-    vi.spyOn(api, 'getMcpToolPolicies').mockResolvedValue({ complete: true, detail: '', tools: ['one', 'two'].map(name => ({ name, configurable: true, writes: false, globalEnabled: true, projectOverride: 'INHERIT', enabled: true, source: 'GLOBAL', globalVersion: 3, projectVersion: -1 })) })
-    const save = vi.spyOn(api, 'disableMcpSource').mockRejectedValue(new Error('配置已改变，请刷新'))
-    const wrapper = mount(McpToolPolicyPanel, { props: { projectId: '', serverId: 'external' }, global: { plugins: [ElementPlus] } }); await flushPromises()
-    await wrapper.findAll('button').find(button => button.text().includes('关闭此来源全部工具'))!.trigger('click'); await flushPromises()
-    expect(save).toHaveBeenCalledWith({ projectId: '', serverId: 'external', tools: [{ toolName: 'one', version: 3 }, { toolName: 'two', version: 3 }] })
-    expect(wrapper.findAllComponents({ name: 'ElSwitch' }).every(item => item.props('modelValue') === true)).toBe(true)
-    expect(wrapper.text()).toContain('请刷新'); wrapper.unmount()
-  })
-  it('renders required tools without switches', async () => {
-    vi.spyOn(api, 'getMcpToolPolicies').mockResolvedValue({ complete: true, detail: '', tools: [{ name: 'submit_candidate', configurable: false, writes: false, globalEnabled: true, projectOverride: 'INHERIT', enabled: true, source: 'SYSTEM', globalVersion: -1, projectVersion: -1 }] })
-    const wrapper = mount(McpToolPolicyPanel, { props: { projectId: '', serverId: '@loopper-internal' }, global: { plugins: [ElementPlus] } }); await flushPromises()
-    expect(wrapper.find('.el-select').exists()).toBe(false); expect(wrapper.text()).toContain('不可关闭'); wrapper.unmount()
-  })
+import { toolsFixture,action,project } from '@/pages/w6-tests/ordinary/tools'
+import { flushPromises } from '@/pages/w6-tests/ordinary/render'
+const base={configurable:true,writes:false,globalEnabled:true,projectOverride:'INHERIT' as const,enabled:true,source:'GLOBAL' as const,globalVersion:3,projectVersion:-1}
+afterEach(()=>vi.restoreAllMocks())
+describe('tool policy',()=>{
+ it('uses the project revision and retains server state when a save conflicts',async()=>{vi.spyOn(api,'getMcpToolPolicies').mockResolvedValue({complete:true,detail:'',tools:[{name:'read_document',...base}]});const save=vi.spyOn(api,'updateMcpToolPolicy').mockRejectedValue(new Error('配置已改变，请刷新'));await toolsFixture();await project('project');fireEvent.click(screen.getByRole('button',{name:/Loopper 内网辅助工具/}));await flushPromises();fireEvent.change(screen.getByLabelText('read_document 工具策略'),{target:{value:'0'}});await flushPromises();expect(save).toHaveBeenCalledWith({projectId:'project',serverId:'@loopper-assist',toolName:'read_document',enabled:0,version:-1});expect(screen.getAllByRole('alert').some(n=>n.textContent?.includes('请刷新'))).toBe(true);expect(screen.getByLabelText('read_document 工具策略')).toHaveProperty('value','-1')})
+ it('disables all tools in one versioned request and reports a conflict without changing switches',async()=>{vi.spyOn(api,'getMcpToolPolicies').mockResolvedValue({complete:true,detail:'',tools:['one','two'].map(name=>({name,...base}))});const save=vi.spyOn(api,'disableMcpSource').mockRejectedValue(new Error('配置已改变，请刷新'));await toolsFixture();fireEvent.click(screen.getByRole('button',{name:/外部工具/}));await flushPromises();await action('tools.disableSource');const dialog=screen.getByRole('dialog');fireEvent.click(within(dialog).getByRole('button',{name:'停用 MCP 来源'}));await flushPromises();expect(save).toHaveBeenCalledWith({projectId:'',serverId:'external',tools:[{toolName:'one',version:3},{toolName:'two',version:3}]});expect(screen.getAllByRole('checkbox').every(item=>(item as HTMLInputElement).checked)).toBe(true);expect(screen.getAllByRole('alert').some(n=>n.textContent?.includes('请刷新'))).toBe(true)})
+ it('renders required tools without switches',async()=>{vi.spyOn(api,'getMcpToolPolicies').mockResolvedValue({complete:true,detail:'',tools:[{name:'submit_candidate',...base,configurable:false,source:'SYSTEM',globalVersion:-1}]});await toolsFixture();fireEvent.click(screen.getByRole('button',{name:/系统工具/}));await flushPromises();expect(screen.queryByRole('checkbox')).toBeNull();expect(screen.queryByRole('combobox',{name:'submit_candidate 工具策略'})).toBeNull();expect(screen.getByText('系统必需，不可关闭')).toBeTruthy()})
 })

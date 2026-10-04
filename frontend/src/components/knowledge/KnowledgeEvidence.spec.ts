@@ -1,6 +1,6 @@
-import { mount } from '@vue/test-utils'
+import { mount } from '@/pages/w6-tests/knowledge-ppt-template/react-test-root'
 import { describe, expect, it } from 'vitest'
-import KnowledgeEvidence from './KnowledgeEvidence.vue'
+import { KnowledgeEvidence } from '@/pages/w3/knowledge/Evidence'
 
 describe('保存的资料概览', () => {
   it('shows captured metadata and incomplete coverage without a text body', () => {

@@ -1,8 +1,7 @@
-import { flushPromises, mount } from '@vue/test-utils'
-import { ElButton } from 'element-plus'
+import { flushPromises, mount } from '@/pages/w6-tests/knowledge-ppt-template/react-test-root'
 import { afterEach, expect, it, vi } from 'vitest'
 import { api } from '@/api/client'
-import SourceArtifactsPanel from './SourceArtifactsPanel.vue'
+import { SourceArtifactsPanel } from '@/pages/w6-tests/knowledge-ppt-template/template-react'
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -10,10 +9,10 @@ it('renders document read failures with production component registration and cl
   vi.spyOn(api, 'sourceArtifacts').mockRejectedValueOnce(new Error('文档目录读取失败，请重试'))
     .mockResolvedValue({ items: [], facets: {} })
   const wrapper = mount(SourceArtifactsPanel, { props: { runId: 's1', version: 1, completed: true },
-    global: { plugins: [ElButton], stubs: { MarkdownDocument: true } } })
+    global: { plugins: [], stubs: { MarkdownDocument: true } } })
   await flushPromises()
   expect(wrapper.get('[role="alert"]').text()).toContain('文档目录读取失败，请重试')
-  await wrapper.findAll('button').find(button => button.text() === '重新读取')!.trigger('click'); await flushPromises()
+  await wrapper.findAll('button').find(button => button.attributes('data-semantic') === 'ui.retry')!.trigger('click'); await flushPromises()
   expect(wrapper.find('[role="alert"]').exists()).toBe(false)
   wrapper.unmount()
 })

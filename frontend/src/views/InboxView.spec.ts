@@ -1,11 +1,17 @@
-import { flushPromises, mount } from '@vue/test-utils'
-import ElementPlus from 'element-plus'
+import { flushPromises, mount } from '@/pages/w6-tests/ordinary/render'
+import {InboxPage} from '@/pages/w4/inbox'
+import {coreFixture} from '@/pages/w2/core/coreTestHelpers'
+import {action} from '@/pages/w6-tests/ordinary/actions'
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import InboxView from '@/views/InboxView.vue'
+
 import type { Interaction } from '@/types/domain'
 
-const mocks = vi.hoisted(() => ({ getInteractions: vi.fn(), resolveInteraction: vi.fn() }))
-vi.mock('@/api/client', () => ({ api: mocks }))
+import {api} from '@/api/client'
+const mocks={getInteractions:vi.fn(),resolveInteraction:vi.fn()}
+const fixtures:ReturnType<typeof coreFixture>[]=[]
+async function openFirst(){await action('selection.select')}
+function mountInbox(){const f=coreFixture();fixtures.push(f);return mount(InboxPage,{props:f.props})}
 
 const pendingPermission: Interaction = {
   id: 'permission-local', kind: 'PERMISSION', state: 'PENDING', taskId: 'task-12345678', sessionId: 'session-1',
@@ -20,18 +26,18 @@ const hardDenied: Interaction = {
 }
 
 beforeEach(() => {
+  vi.spyOn(api,'getInteractions').mockImplementation(mocks.getInteractions);vi.spyOn(api,'resolveInteraction').mockImplementation(mocks.resolveInteraction)
   mocks.getInteractions.mockReset().mockResolvedValue([pendingPermission, hardDenied])
   mocks.resolveInteraction.mockReset().mockResolvedValue({ ...pendingPermission, state: 'RESOLVED', version: 6 })
 })
-afterEach(() => vi.useRealTimers())
+afterEach(() => {fixtures.splice(0).forEach(f=>f.dispose());vi.useRealTimers()})
 
 describe('统一待处理中心', () => {
   it('renders server-authoritative permissions and submits the current optimistic version', async () => {
-    const wrapper = mount(InboxView, {
-      global: { plugins: [ElementPlus], stubs: { Icon: true, PageHeader: { template: '<header><slot name="actions" /></header>' } } },
-    })
+    const wrapper = mountInbox()
     await flushPromises()
 
+    await openFirst()
     expect(wrapper.text()).toContain('1 项等待处理')
     expect(wrapper.text()).toContain('git push 不可由运行会话授权')
     expect(wrapper.findAll('button').filter((button) => button.text().includes('本会话允许'))).toHaveLength(1)
@@ -44,9 +50,7 @@ describe('统一待处理中心', () => {
 
   it('keeps the persisted snapshot visible when a refresh fails', async () => {
     mocks.getInteractions.mockResolvedValueOnce([pendingPermission]).mockRejectedValueOnce(new Error('OpenCode 暂时不可达'))
-    const wrapper = mount(InboxView, {
-      global: { plugins: [ElementPlus], stubs: { Icon: true, PageHeader: { template: '<header><slot name="actions" /></header>' } } },
-    })
+    const wrapper = mountInbox()
     await flushPromises()
     await wrapper.findAll('button').find((button) => button.text().includes('刷新'))!.trigger('click')
     await flushPromises()
@@ -58,13 +62,12 @@ describe('统一待处理中心', () => {
   it('keeps submission errors visible through successful reconciliation and automatic refresh', async () => {
     vi.useFakeTimers()
     mocks.resolveInteraction.mockRejectedValueOnce(new Error('投递结果尚未确认，请等待重新核验'))
-    const wrapper = mount(InboxView, { global: { plugins: [ElementPlus], stubs: {
-      Icon: true, PageHeader: { template: '<header><slot name="actions" /></header>' },
-    } } })
+    const wrapper = mountInbox()
     await flushPromises()
-    await wrapper.findAll('button').find(button => button.text().includes('仅本次允许'))!.trigger('click')
+    await openFirst();await action('inbox.allowOnce')
     await flushPromises()
     expect(wrapper.text()).toContain('投递结果尚未确认，请等待重新核验')
+    await vi.advanceTimersByTimeAsync(1500);await flushPromises()
     expect(mocks.getInteractions).toHaveBeenCalledTimes(2)
     await vi.advanceTimersByTimeAsync(1500)
     expect(mocks.getInteractions).toHaveBeenCalledTimes(3)
@@ -77,7 +80,8 @@ describe('统一待处理中心', () => {
     let resolve!: (items: Interaction[]) => void
     let reject!: (error: Error) => void
     mocks.getInteractions.mockReturnValueOnce(new Promise<Interaction[]>((yes, no) => { resolve = yes; reject = no }))
-    const wrapper = mount(InboxView, { global: { plugins: [ElementPlus], stubs: { Icon: true, PageHeader: true } } })
+    const wrapper = mountInbox()
+    await flushPromises()
     expect(mocks.getInteractions).toHaveBeenCalledTimes(1)
     wrapper.unmount()
     if (settlement === 'resolve') resolve([pendingPermission])
@@ -91,9 +95,7 @@ describe('统一待处理中心', () => {
     vi.useFakeTimers()
     let finish!: (items: Interaction[]) => void
     mocks.getInteractions.mockReturnValueOnce(new Promise<Interaction[]>(resolve => { finish = resolve }))
-    const wrapper = mount(InboxView, { global: { plugins: [ElementPlus], stubs: {
-      Icon: true, PageHeader: { template: '<header><slot name="actions" /></header>' },
-    } } })
+    const wrapper = mountInbox()
     await vi.advanceTimersByTimeAsync(6000)
     expect(mocks.getInteractions).toHaveBeenCalledTimes(1)
     finish([pendingPermission])
@@ -113,14 +115,13 @@ describe('统一待处理中心', () => {
 
   it('serializes a post-submit refresh behind a pending read and ignores repeated submits', async () => {
     vi.useFakeTimers()
-    const wrapper = mount(InboxView, { global: { plugins: [ElementPlus], stubs: {
-      Icon: true, PageHeader: { template: '<header><slot name="actions" /></header>' },
-    } } })
+    const wrapper = mountInbox()
     await flushPromises()
     let finishRead!: (items: Interaction[]) => void
     mocks.getInteractions.mockReturnValueOnce(new Promise<Interaction[]>(resolve => { finishRead = resolve }))
     await vi.advanceTimersByTimeAsync(1500)
-    const allow = wrapper.findAll('button').find(button => button.text().includes('仅本次允许'))!
+    await openFirst()
+    const allow = wrapper.get('[data-semantic="inbox.allowOnce"]')
     await allow.trigger('click')
     await flushPromises()
     await allow.trigger('click')

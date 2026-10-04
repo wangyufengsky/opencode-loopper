@@ -1,6 +1,6 @@
-import { mount } from '@vue/test-utils'
+import { mount } from '@/pages/w6-tests/ordinary/render'
 import { describe, expect, it } from 'vitest'
-import ExecutionAcceptancePanel from './ExecutionAcceptancePanel.vue'
+import { ExecutionAcceptancePanel } from '@/pages/w4/task/ExecutionAcceptancePanel'
 
 describe('ExecutionAcceptancePanel', () => {
   it('shows the machine checks and warns when Designer supplied only GIT_DIFF', () => {

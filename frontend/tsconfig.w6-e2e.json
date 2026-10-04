@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": { "tsBuildInfoFile": "./node_modules/.tmp/w6-e2e.tsbuildinfo", "types": ["node", "vite/client"], "noEmit": true },
+  "include": ["e2e/w6/**/*.ts", "e2e/w6/**/*.tsx", "e2e/fixtures/skins.tsx"]
+}

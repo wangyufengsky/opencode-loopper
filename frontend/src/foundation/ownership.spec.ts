@@ -10,6 +10,8 @@ describe('W1 ownership boundary', () => {
     const w3 = JSON.parse(readFileSync(resolve(process.cwd(), '../docs/design/react-full-migration/semantic-w3-additions.json'), 'utf8'))
     const w4 = JSON.parse(readFileSync(resolve(process.cwd(), '../docs/design/react-full-migration/semantic-w4-additions.json'), 'utf8'))
     const w5 = JSON.parse(readFileSync(resolve(process.cwd(), '../docs/design/react-full-migration/semantic-w5-additions.json'), 'utf8'))
+    const w6 = JSON.parse(readFileSync(resolve(process.cwd(), '../docs/design/react-full-migration/semantic-w6-additions.json'), 'utf8'))
+    const routes = JSON.parse(readFileSync(resolve(process.cwd(), '../docs/design/react-full-migration/semantic-w6-routes.json'), 'utf8'))
     for (const key of ['objects', 'actions'] as const) {
       for (const name of Object.keys(additions[key])) expect(design[key]).not.toHaveProperty(name)
       for (const name of Object.keys(w3[key])) {
@@ -27,9 +29,10 @@ describe('W1 ownership boundary', () => {
         expect(w3[key]).not.toHaveProperty(name)
         expect(w4[key]).not.toHaveProperty(name)
       }
-      expect(uiSemantics[key]).toEqual({ ...design[key], ...additions[key], ...w3[key], ...w4[key], ...w5[key] })
+      expect(uiSemantics[key]).toEqual({ ...design[key], ...additions[key], ...w3[key], ...w4[key], ...w5[key], ...w6[key] })
     }
-    for (const key of ['guards', 'components', 'routes'] as const) expect(uiSemantics[key]).toEqual(design[key])
+    for (const key of ['guards', 'components'] as const) expect(uiSemantics[key]).toEqual(design[key])
+    expect(uiSemantics.routes).toEqual(design.routes.map((route: {path:string}) => ({...route,...routes[route.path]})))
   })
   it('foundation does not import Vue, issue transport commands, or create another history owner', () => {
     const directory = resolve(process.cwd(), 'src/foundation')

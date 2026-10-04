@@ -1,3 +1,4 @@
+import * as documentOwners from './documentOwners'
 /** W0 uses real React child panels and actual retained-root disposal before any late result. */
 import { act, fireEvent, render } from '@testing-library/react'
 import { expect, vi } from 'vitest'
@@ -59,8 +60,8 @@ export async function templateClarificationRetirementW0Contract(options: { run?:
     await view.unmountRoot(); const before = a.getSnapshot(), b = createClarificationOwner({ ...run, id: 'B' }, 'REQ-1', updated)
     next = await mountRunChild(props => <DocumentClarificationForm run={{ ...run, id: 'B' }} requirementKey="REQ-1" props={props} controller={b} updated={updated} />)
     fireEvent.change(next.container.querySelector('textarea')!, { target: { value: 'B草稿' } }); await settleChild(); pending.resolve({ ...run, version: 4 }); await settleChild()
-    expect.soft(updated).not.toHaveBeenCalled(); expect.soft(a.getSnapshot().answer).toBe('原始回答'); expect(b.getSnapshot().answer).toBe('B草稿'); expect(a.getSnapshot()).toEqual(before)
-    options.proof?.('B8.3/clarification', { request: write.mock.calls[0], retiredEmit: undefined, retiredDraft: a.getSnapshot().answer, nextDraft: b.getSnapshot().answer, forcedRetirement: true, actualReact: true })
+    expect.soft(updated).not.toHaveBeenCalled(); expect.soft(a.getSnapshot().answer).toBe('原始回答'); expect(b!.getSnapshot().answer).toBe('B草稿'); expect(a.getSnapshot()).toEqual(before)
+    options.proof?.('B8.3/clarification', { request: write.mock.calls[0], retiredEmit: undefined, retiredDraft: a.getSnapshot().answer, nextDraft: b!.getSnapshot().answer, forcedRetirement: true, actualReact: true })
   } finally { await view.unmountRoot(); await next?.unmountRoot() }
 }
 export async function templateSupplementRetirementW0Contract(kind: 'options' | 'upload', options: { run?: DocumentTemplateOverview; file?: File; proof?: Proof } = {}) {
@@ -105,4 +106,26 @@ export async function templateDiagnosticW0Contract(mode: 'accepted-read-failure'
     if (mode === 'unknown-identity') { for (const skin of skins) { view.rerender(<FoundationProvider skin={skin} reducedMotion><TemplateSessionDiagnosticsPanel taskId="task-A" active={false} props={{ ...view.props, skin }} controller={owner} /></FoundationProvider>); await settleChild(); expect(view.container.querySelector('[data-foundation-skin]')?.getAttribute('data-foundation-skin')).toBe(skin.id); expect(write).toHaveBeenCalledTimes(1) } await childClick(view.container, 'receipt.retryOriginal'); expect(write.mock.calls[1]).toEqual(write.mock.calls[0]); expect(write.mock.calls[0]![2]).toEqual({ action: 'FINALIZE', expectedVersion: 7, commandId: expect.any(String) }); options.proof?.('B9.2/diagnostic', { original: write.mock.calls[0], retry: write.mock.calls[1], actualReact: true }) }
     else { const button = [...view.container.querySelectorAll<HTMLButtonElement>('button')].find(button => button.getAttribute('aria-label') === semanticName('template.finalizeSession')); button?.click(); await settleChild(); expect(write).toHaveBeenCalledTimes(1); expect(owner.getSnapshot().command.phase).toBe('ACCEPTED_READBACK'); await childClick(view.container, 'receipt.readOriginal'); expect(write).toHaveBeenCalledTimes(1); options.proof?.('B9.3/diagnostic-accepted-read-fail', { reads: read.mock.calls.length, writes: write.mock.calls, knownAccepted: true, staleReadCanFinalize: true, actualReact: true }) }
   } finally { await view.unmountRoot() }
+}
+
+/** Same React root, independent B owner draft; never mutate A's disabled pending input. */
+export async function templateClarificationPropScopeW0Contract(options: {run:DocumentTemplateOverview;proof?:Proof}) {
+  const run=options.run,pending=deferred<DocumentTemplateOverview>(),updated=vi.fn()
+  vi.mocked(api.answerDocumentRequirements).mockReturnValue(pending.promise)
+  const factory=vi.spyOn(documentOwners,'createClarificationOwner')
+  const view=await mountRunChild(props=><DocumentClarificationForm run={run} requirementKey="REQ-1" props={props} updated={updated}/> )
+  const a=factory.mock.results[0]!.value as ReturnType<typeof createClarificationOwner>
+  let b: ReturnType<typeof createClarificationOwner>|undefined
+  try {
+    await act(async()=>a.changeAnswer('A回答'))
+    await childClick(view.container,'template.answerClarification');expect(vi.mocked(api.answerDocumentRequirements)).toHaveBeenCalledTimes(1)
+    await act(async()=>view.rerender(pageFrame(<DocumentClarificationForm run={{...run,id:'B'}} requirementKey="REQ-1" props={view.props} updated={updated}/>)))
+    b=factory.mock.results.at(-1)!.value as ReturnType<typeof createClarificationOwner>
+    expect(b).not.toBe(a);b.changeAnswer('B回答')
+    expect(view.container.querySelector<HTMLTextAreaElement>('textarea')?.disabled).toBe(true)
+    expect(a.operation()?.getSnapshot().phase).toBe('SENDING')
+    pending.resolve({...run,version:run.version+1});await settleChild()
+    expect(updated).not.toHaveBeenCalled();expect(b!.getSnapshot().answer).toBe('B回答')
+    options.proof?.('B8.3/prop-scope',{sameRoot:true,originalPendingFieldDisabled:true,bDraft:b!.getSnapshot().answer,updates:updated.mock.calls,original:vi.mocked(api.answerDocumentRequirements).mock.calls[0]})
+  }finally{await view.unmountRoot();a.retire(true);b?.retire(true);factory.mockRestore()}
 }

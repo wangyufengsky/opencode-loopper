@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { mount } from '@vue/test-utils'
-import WorkflowPublicInputs from './WorkflowPublicInputs.vue'
+import { mount } from '@/pages/w6-tests/workflow/react-test-root'
+import { WorkflowPublicInputs as WorkflowPublicInputs } from '@/pages/w5/workflow/WorkflowPublicInputs'
 import { requirement } from './workflowRunTestFixtures'
 import type { WorkflowGraph } from '@/types/domain'
 describe('public input editing', () => {

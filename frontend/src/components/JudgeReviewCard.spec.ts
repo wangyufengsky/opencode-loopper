@@ -1,6 +1,6 @@
-import { mount } from '@vue/test-utils'
+import { mount } from '@/pages/w6-tests/ordinary/render'
 import { describe, expect, it } from 'vitest'
-import JudgeReviewCard from '@/components/JudgeReviewCard.vue'
+import { JudgeReviewCard } from '@/pages/w4/task/JudgeReviewCard'
 import type { JudgeRun } from '@/types/domain'
 
 const judge: JudgeRun = {
@@ -23,7 +23,7 @@ describe('JudgeReviewCard', () => {
 
     expect(wrapper.get('.judge-role strong').text()).toBe('需求评审员')
     expect(wrapper.get('.judge-verdict').text()).toContain('通过')
-    expect(wrapper.get('.markdown-document > p').text()).toBe('All objectives met.')
+    expect(wrapper.get('.markdown-body-segment > p').text()).toBe('All objectives met.')
     expect(wrapper.findAll('.markdown-document ol > li')).toHaveLength(2)
     expect(wrapper.get('.markdown-document code').text()).toBe('javac')
     expect(wrapper.get('.markdown-document strong').text()).toBe('PASS')

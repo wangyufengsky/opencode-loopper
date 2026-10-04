@@ -1,0 +1,453 @@
+{
+  "screenshots": 56,
+  "files": [
+    {
+      "file": "spdb-designer.png",
+      "label": "spdb 默认/初始生产页面 · 模拟数据",
+      "origin": "browser-final-v3/spdb-designer.png",
+      "bytes": 92780,
+      "sha256": "a01fe0f79d3efa78200b3ff3fccf20312a7971b6ec9ab0b3e318a927f04fcc02",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "spdb-home.png",
+      "label": "spdb 默认/初始生产页面 · 模拟数据",
+      "origin": "browser-final-v3/spdb-home.png",
+      "bytes": 75698,
+      "sha256": "0733537eca6daef8a0c429203c3ba45123c5406aec86b376252dbe2b8b1f66b6",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "spdb-inbox.png",
+      "label": "spdb 默认/初始生产页面 · 模拟数据",
+      "origin": "browser-final-v3/spdb-inbox.png",
+      "bytes": 74857,
+      "sha256": "6bc11bbf0c7f0c462289db6fc4b1e5834a7c387d7d2b9cdecd070109ece8a6ae",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "spdb-knowledge.png",
+      "label": "spdb 默认/初始生产页面 · 模拟数据",
+      "origin": "browser-final-v3/spdb-knowledge.png",
+      "bytes": 101890,
+      "sha256": "abe9d9c9feefc9a7b90fe0e196accdfb13bf071d8860b6f030d249402795be2f",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "spdb-ppt.png",
+      "label": "spdb 默认/初始生产页面 · 模拟数据",
+      "origin": "browser-final-v3/spdb-ppt.png",
+      "bytes": 50001,
+      "sha256": "70c814f0c9dca11edb3279321a2f407997bcf53b4a644e55575307a3eba08305",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "spdb-projects.png",
+      "label": "spdb 默认/初始生产页面 · 模拟数据",
+      "origin": "browser-final-v3/spdb-projects.png",
+      "bytes": 69430,
+      "sha256": "09db5cf69eb06caf15c88b094a39da795f94762b83d25740c2d3a10df8b31698",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "spdb-requirement.png",
+      "label": "spdb 默认/初始生产页面 · 模拟数据",
+      "origin": "browser-final-v3/spdb-requirement.png",
+      "bytes": 52165,
+      "sha256": "e1b411e05ada67608a6f6d95864c356b2afa13b05a2c78b8553cca4c103932c5",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "spdb-settings.png",
+      "label": "spdb 默认/初始生产页面 · 模拟数据",
+      "origin": "browser-final-v3/spdb-settings.png",
+      "bytes": 101339,
+      "sha256": "371b23ada4f7f846fd379662e9034faf03c3d155ddde593e5dd8ce8dc77ebceb",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "spdb-task-design.png",
+      "label": "spdb 默认/初始生产页面 · 模拟数据",
+      "origin": "browser-final-v3/spdb-task-design.png",
+      "bytes": 78067,
+      "sha256": "a695702fa737ae113d885b39933a303502ddccd25b8862c699743d966ceb23b5",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "spdb-task.png",
+      "label": "spdb 默认/初始生产页面 · 模拟数据",
+      "origin": "browser-final-v3/spdb-task.png",
+      "bytes": 97872,
+      "sha256": "067d455a1eb06b07b835589c994876b03404b53c091daef53f8644d2e725a7f5",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "spdb-templates.png",
+      "label": "spdb 默认/初始生产页面 · 模拟数据",
+      "origin": "browser-final-v3/spdb-templates.png",
+      "bytes": 115897,
+      "sha256": "2037b3ed357f7302ce91228e68a08a0bf8012e55a38dc6476dcbfcf1d1cb2342",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "spdb-workflow.png",
+      "label": "spdb 默认/初始生产页面 · 模拟数据",
+      "origin": "browser-final-v3/spdb-workflow.png",
+      "bytes": 46401,
+      "sha256": "8bba807703eb4068074ce1c41aceedc706a72883406ba17116eaab4f2c611e47",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "spdb-roles-selected.png",
+      "label": "spdb 角色流程选中 · 模拟数据",
+      "origin": "w2-final-v3/screenshots/spdb-roles-selected.png",
+      "bytes": 96460,
+      "sha256": "63d193111740005ba952745a713d45fb34554b4a5123868e1887c3fe1f720ac6",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "spdb-task-progress.png",
+      "label": "spdb 任务阶段图选中 · 模拟数据",
+      "origin": "w4-final-v3/spdb-task-progress.png",
+      "bytes": 139191,
+      "sha256": "93546147f422a25413caa2d8b2238b9d517628ebb44a3161b8f1480a6c06eb93",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "spdb-history-selected.png",
+      "label": "spdb 任务设计历史选中 · 模拟数据",
+      "origin": "w4-final-v3/spdb-history-selected.png",
+      "bytes": 97819,
+      "sha256": "5480bbfddfc89fdfdd11aa38ad79ae3ff83303d93f4cc95e7263288da53b74dd",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "spdb-ppt-selected.png",
+      "label": "spdb PPT自由对象选中 · 模拟数据",
+      "origin": "w3-final-v3/spdb-ppt-selected.png",
+      "bytes": 89266,
+      "sha256": "b80841238e2d3583409d67d3bf586be5c26d7e3d993f06ed251cbf0d0d69bdec",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "spdb-workflow-edit-selected.png",
+      "label": "spdb 工作流节点选中 · 模拟数据",
+      "origin": "w5-final-v3/spdb-workflow-edit-selected.png",
+      "bytes": 66887,
+      "sha256": "06103881f6492c12473e4f6340d645d58098e06b4104e6c733ba6e5f809559e5",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "spdb-requirement-plan-selected.png",
+      "label": "spdb 需求规划节点选中 · 模拟数据",
+      "origin": "w5-final-v3/spdb-requirement-plan-selected.png",
+      "bytes": 73273,
+      "sha256": "5e959f7e7c513cbbffa47196e04ae753a5cf5014952d7edc35035336a62e42ed",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "tech-blue-designer.png",
+      "label": "tech-blue 默认/初始生产页面 · 模拟数据",
+      "origin": "browser-final-v3/tech-blue-designer.png",
+      "bytes": 131123,
+      "sha256": "6dcabf717a6fb1769a31f2e3d73e3568dbe0625effe9f5ccd819aee93d23102d",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "tech-blue-home.png",
+      "label": "tech-blue 默认/初始生产页面 · 模拟数据",
+      "origin": "browser-final-v3/tech-blue-home.png",
+      "bytes": 117654,
+      "sha256": "65b1bc5077e186b888502a2f0e68fd80a4485cfe7f5c95131b57239890fc702c",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "tech-blue-inbox.png",
+      "label": "tech-blue 默认/初始生产页面 · 模拟数据",
+      "origin": "browser-final-v3/tech-blue-inbox.png",
+      "bytes": 116414,
+      "sha256": "7ff097ad5f769b933075677858b524e5ec4352277265c005a53fac9a0955494b",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "tech-blue-knowledge.png",
+      "label": "tech-blue 默认/初始生产页面 · 模拟数据",
+      "origin": "browser-final-v3/tech-blue-knowledge.png",
+      "bytes": 148501,
+      "sha256": "986c437f5420c45e0da3ccb755dff730d693578da987257c1a9b23d1afba9383",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "tech-blue-ppt.png",
+      "label": "tech-blue 默认/初始生产页面 · 模拟数据",
+      "origin": "browser-final-v3/tech-blue-ppt.png",
+      "bytes": 81553,
+      "sha256": "945cd37aee2da5f949d9fff42385280949dec257b1799fb55eddafdbee9a306a",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "tech-blue-projects.png",
+      "label": "tech-blue 默认/初始生产页面 · 模拟数据",
+      "origin": "browser-final-v3/tech-blue-projects.png",
+      "bytes": 110901,
+      "sha256": "59d5fffc33f4bb3fce4205568413dbe77bf7c8188da84c8342e9d3930e7fd8da",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "tech-blue-requirement.png",
+      "label": "tech-blue 默认/初始生产页面 · 模拟数据",
+      "origin": "browser-final-v3/tech-blue-requirement.png",
+      "bytes": 81787,
+      "sha256": "85bbba7cfdfe989079be28828ab4fc41c006e596c43ba450796292ed8f690f9d",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "tech-blue-settings.png",
+      "label": "tech-blue 默认/初始生产页面 · 模拟数据",
+      "origin": "browser-final-v3/tech-blue-settings.png",
+      "bytes": 143911,
+      "sha256": "454df5d9f0207dc8bab8e6ea756e978c91e58790e95e97192084602178119e8e",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "tech-blue-task-design.png",
+      "label": "tech-blue 默认/初始生产页面 · 模拟数据",
+      "origin": "browser-final-v3/tech-blue-task-design.png",
+      "bytes": 122499,
+      "sha256": "b7c0e3b0d0f8e598a3d9fcd770b850735c30ee765f1bb19bcd731cb7e3d0d42d",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "tech-blue-task.png",
+      "label": "tech-blue 默认/初始生产页面 · 模拟数据",
+      "origin": "browser-final-v3/tech-blue-task.png",
+      "bytes": 146237,
+      "sha256": "bf5d72519e3682b65da4809843c6a65e6e871920c28427efa13fad1bc6ee37ae",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "tech-blue-templates.png",
+      "label": "tech-blue 默认/初始生产页面 · 模拟数据",
+      "origin": "browser-final-v3/tech-blue-templates.png",
+      "bytes": 157533,
+      "sha256": "6c7672d7258df07131bd0c70ac0d2ba210ec247040258de78db149f60d9d11a5",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "tech-blue-workflow.png",
+      "label": "tech-blue 默认/初始生产页面 · 模拟数据",
+      "origin": "browser-final-v3/tech-blue-workflow.png",
+      "bytes": 76682,
+      "sha256": "84dd39329902413a7e7237ec87a51b35223d87f04700bf91589dfe7cffa5bacb",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "tech-blue-task-progress.png",
+      "label": "tech-blue 任务阶段图选中 · 模拟数据",
+      "origin": "w4-final-v3/tech-blue-task-progress.png",
+      "bytes": 193298,
+      "sha256": "cd1eeca2ba6b8811e43aa5a23db6521935b83cb84e16e3c8a87b4490d862562c",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "tech-blue-history-selected.png",
+      "label": "tech-blue 任务设计历史选中 · 模拟数据",
+      "origin": "w4-final-v3/tech-blue-history-selected.png",
+      "bytes": 141265,
+      "sha256": "fa172803fcd06c8806b162e1cee0c94b1c6c2bc1c4a9ff6c5a9936d6989ce148",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "tech-blue-ppt-selected.png",
+      "label": "tech-blue PPT自由对象选中 · 模拟数据",
+      "origin": "w3-final-v3/tech-blue-ppt-selected.png",
+      "bytes": 117550,
+      "sha256": "d438674177cc68fb6e0a299568d0be261c1cef2c5d2b1fdd9dbad1297e3fa11e",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "tech-blue-workflow-edit-selected.png",
+      "label": "tech-blue 工作流节点选中 · 模拟数据",
+      "origin": "w5-final-v3/tech-blue-workflow-edit-selected.png",
+      "bytes": 97202,
+      "sha256": "42ec815f06e387a041a9b5ec88d1add75ee59d37814701afa41153d7f70c8b66",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "tech-blue-requirement-plan-selected.png",
+      "label": "tech-blue 需求规划节点选中 · 模拟数据",
+      "origin": "w5-final-v3/tech-blue-requirement-plan-selected.png",
+      "bytes": 102198,
+      "sha256": "d25be5dcaa8fca5aeced9cee7b985a53965107a49778c497497f2e62b0efbd3c",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "github-white-designer.png",
+      "label": "github-white 默认/初始生产页面 · 模拟数据",
+      "origin": "browser-final-v3/github-white-designer.png",
+      "bytes": 91350,
+      "sha256": "07f3356f48cee1d387476a40ac4cd92f9ba0b6eaed274bcf20395b98c8bb84ba",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "github-white-home.png",
+      "label": "github-white 默认/初始生产页面 · 模拟数据",
+      "origin": "browser-final-v3/github-white-home.png",
+      "bytes": 70325,
+      "sha256": "6be30cf6be708f6601d0717002a32df17243c91766ec8300cad6ac054c904448",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "github-white-inbox.png",
+      "label": "github-white 默认/初始生产页面 · 模拟数据",
+      "origin": "browser-final-v3/github-white-inbox.png",
+      "bytes": 70003,
+      "sha256": "4d24193c72e960ee156499b1235e44c35fa748734b7e1115eab8b3095cffd400",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "github-white-knowledge.png",
+      "label": "github-white 默认/初始生产页面 · 模拟数据",
+      "origin": "browser-final-v3/github-white-knowledge.png",
+      "bytes": 97116,
+      "sha256": "46ac53d6831a64dc9b97a2c1329ac0869db15c20bd2ca818e561e51273fdcad8",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "github-white-ppt.png",
+      "label": "github-white 默认/初始生产页面 · 模拟数据",
+      "origin": "browser-final-v3/github-white-ppt.png",
+      "bytes": 48435,
+      "sha256": "b221a83fb7e2c13655c2560b9745c0cd95aab59b58bd533eae6c62c9d3f1d27c",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "github-white-projects.png",
+      "label": "github-white 默认/初始生产页面 · 模拟数据",
+      "origin": "browser-final-v3/github-white-projects.png",
+      "bytes": 64129,
+      "sha256": "5e8382084bf48d641271d03f2ddac19978df9aa6b68d1425d297eae9c73e3d37",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "github-white-requirement.png",
+      "label": "github-white 默认/初始生产页面 · 模拟数据",
+      "origin": "browser-final-v3/github-white-requirement.png",
+      "bytes": 48510,
+      "sha256": "94683cc971027264ab7568238a47474cfd45e2f167161371da3f6a76fb01f72d",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "github-white-settings.png",
+      "label": "github-white 默认/初始生产页面 · 模拟数据",
+      "origin": "browser-final-v3/github-white-settings.png",
+      "bytes": 95983,
+      "sha256": "48b90c90e932816366bc1f154b8d0306d18497c2c6a7bd6477852b6d0bef3bef",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "github-white-task-design.png",
+      "label": "github-white 默认/初始生产页面 · 模拟数据",
+      "origin": "browser-final-v3/github-white-task-design.png",
+      "bytes": 73008,
+      "sha256": "34651805fef07efbbb670431a4a12f2750a2a0caf2dd2c5950822a69328cacf6",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "github-white-task.png",
+      "label": "github-white 默认/初始生产页面 · 模拟数据",
+      "origin": "browser-final-v3/github-white-task.png",
+      "bytes": 92369,
+      "sha256": "c2ed791c3117ccd1c7ebd67b17d6a29b8e4b732f4a665519acbf8e2db6f06909",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "github-white-templates.png",
+      "label": "github-white 默认/初始生产页面 · 模拟数据",
+      "origin": "browser-final-v3/github-white-templates.png",
+      "bytes": 110559,
+      "sha256": "6085c202a1c4234c351bc7ebb085de9ea0bb89bc3c4983f5c3f54c7c9f74818f",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "github-white-workflow.png",
+      "label": "github-white 默认/初始生产页面 · 模拟数据",
+      "origin": "browser-final-v3/github-white-workflow.png",
+      "bytes": 43107,
+      "sha256": "456853dbc2c58672f342389c78a17c9d46a8be46070413a06eef2c60e09cbc08",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "github-white-roles-selected.png",
+      "label": "github-white 角色流程选中 · 模拟数据",
+      "origin": "w2-final-v3/screenshots/github-white-roles-selected.png",
+      "bytes": 92568,
+      "sha256": "1fe8315052a8657a33ab5595e690eaaaf6dc0a3d6889cc47dc0a963a44dc8355",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "github-white-task-progress.png",
+      "label": "github-white 任务阶段图选中 · 模拟数据",
+      "origin": "w4-final-v3/github-white-task-progress.png",
+      "bytes": 132945,
+      "sha256": "37dae9e560bcf28d263872e1523c8d1a2ee1619df40d110e2a483eeb852d8454",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "github-white-history-selected.png",
+      "label": "github-white 任务设计历史选中 · 模拟数据",
+      "origin": "w4-final-v3/github-white-history-selected.png",
+      "bytes": 92776,
+      "sha256": "71c3a4ec301047793eba72b62810212040caf9ffdd0cfa5925b98049e5fe378f",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "github-white-ppt-selected.png",
+      "label": "github-white PPT自由对象选中 · 模拟数据",
+      "origin": "w3-final-v3/github-white-ppt-selected.png",
+      "bytes": 87370,
+      "sha256": "94118257af115a2d081abf99ede5efb30347ca1ed4af277a7f1f1a190505a297",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "github-white-workflow-edit-selected.png",
+      "label": "github-white 工作流节点选中 · 模拟数据",
+      "origin": "w5-final-v3/github-white-workflow-edit-selected.png",
+      "bytes": 63659,
+      "sha256": "4959e87d38d0d961750dcff0ef30a1e0292d81098a9c576b53c506705942b938",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "github-white-requirement-plan-selected.png",
+      "label": "github-white 需求规划节点选中 · 模拟数据",
+      "origin": "w5-final-v3/github-white-requirement-plan-selected.png",
+      "bytes": 69468,
+      "sha256": "2e99ddd7152f5cccf9f424a239393c16cff97b0bf8dbfbaed01d15a00d0453b9",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "spdb-document-selected.png",
+      "label": "文档模板报告选中 · 模拟数据",
+      "origin": "w3-final-v3/spdb-document-selected.png",
+      "bytes": 107537,
+      "sha256": "f4d5269b197f9d65ca1862dff7f6a63483c7929d37a3d2a6a252f86bca0504a5",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "tech-blue-source-selected.png",
+      "label": "源码模板证据选中 · 模拟数据",
+      "origin": "w3-final-v3/tech-blue-source-selected.png",
+      "bytes": 141348,
+      "sha256": "1798ed52b55d53b5572e0d26d377dab8c7fe616edb82ed9c6a8ea1ba3cbc40cd",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    },
+    {
+      "file": "spdb-knowledge-existing-selected.png",
+      "label": "知识库引用选中 · 模拟数据",
+      "origin": "w3-final-v3/spdb-knowledge-existing-selected.png",
+      "bytes": 119256,
+      "sha256": "a1f6156ea8fcd5b4334f75ee6380f355ae5f1dee358513ee906b3e99a480b36c",
+      "kind": "actual production Chromium screenshot; synthetic API data; desktop"
+    }
+  ]
+}

@@ -1,7 +1,8 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Input, Select } from 'antd'
 import { UiActionButton, UiConfirmDialog, UiContextPanel, UiField, UiSelectableList } from '@/foundation/components'
 import { semanticLabel, semanticName } from '@/foundation/semanticRegistry'
+import { createResourceScope } from '@/foundation/contracts/resource'
 import { PageChrome, PageLink } from '@/pages/w2/shared'
 import type { W2PageProps } from '@/pages/w2/shared/types'
 import type { WorkflowTemplateSummary } from '@/types/domain'
@@ -12,17 +13,30 @@ import { CommandNotice, focusSelection, ReadNotice, usePageOwner } from './pageP
 export function WorkflowLibraryPage(props: W2PageProps & { controller?: ReturnType<typeof createWorkflowLibraryController> }) {
   const [owner] = useState(() => props.controller ?? createWorkflowLibraryController({ goAccepted: (to, permit) => props.navigation.goAccepted(to, permit) }))
   const s = usePageOwner(props, owner), trigger = useRef<HTMLElement | null>(null)
+  const contextBody = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!s.selectedId) return
+    const resources = createResourceScope(owner.identity)
+    const outside = (event: PointerEvent) => {
+      const target = event.target
+      if (!(target instanceof Node) || contextBody.current?.closest('aside')?.contains(target) || trigger.current?.contains(target)) return
+      owner.select('') // Disclosure alone never retires the retained command owner.
+    }
+    document.addEventListener('pointerdown', outside)
+    resources.own(() => document.removeEventListener('pointerdown', outside))
+    return () => resources.dispose()
+  }, [owner, s.selectedId])
   const [deleting, setDeleting] = useState<WorkflowTemplateSummary | null>(null)
   const selected = s.rows.find(row => row.id === s.selectedId), locked = unresolved(s.command)
   return <PageChrome title={semanticLabel('nav.workflows')} objectKey="object.workflow" actions={<UiActionButton actionKey="workflow.newDefinition" variant="primary" onAction={() => { void props.navigation.go('/workflows/new') }} />}
     status={<><ReadNotice error={s.error} busy={s.loading} retry={() => { void owner.load() }}>正在读取流程…</ReadNotice><CommandNotice command={s.command} recover={() => { void owner.recover() }} /></>}
     context={<UiContextPanel open={!!selected} title={selected?.title ?? '流程详情'} returnFocus={trigger} onClose={() => owner.select('')}>
-      {selected && <><p>{selected.description || '暂无说明'}</p><p>{selected.builtin ? '程序内置 · 只读' : '自定义'} · 版本 {selected.headRevision}</p>
+      <div ref={contextBody}>{selected && <><p>{selected.description || '暂无说明'}</p><p>{selected.builtin ? '程序内置 · 只读' : '自定义'} · 版本 {selected.headRevision}</p>
         <div className="w2-actions"><PageLink navigation={props.navigation} to={`/workflows/${encodeURIComponent(selected.id)}`} aria-label={semanticName('ui.open', selected.title)}>{selected.builtin ? '查看流程' : '编辑流程'}</PageLink>
           <PageLink navigation={props.navigation} to={{ path: '/requirements/new', query: { template: selected.id } }} aria-label={semanticName('workflow.newRequirement', selected.title)}>使用流程</PageLink>
           <UiActionButton actionKey="workflow.copyDefinition" target={selected.title} availability={locked ? { kind: 'disabled', reason: '请先恢复原操作。' } : { kind: 'enabled' }} onAction={() => { void owner.act(selected, 'copy') }} />
           {!selected.builtin && <UiActionButton actionKey="workflow.deleteDefinition" target={selected.title} variant="danger" availability={locked ? { kind: 'disabled', reason: '请先恢复原操作。' } : { kind: 'enabled' }} onAction={() => setDeleting(selected)} />}
-        </div></>}
+        </div></>}</div>
     </UiContextPanel>}>
     <form className="w2-module-toolbar" onSubmit={event => { event.preventDefault(); owner.search() }}>
       <UiField labelKey="field.query">{field => <Input {...field} aria-label="搜索流程" placeholder="搜索名称或说明" value={s.query} onChange={event => owner.query(event.target.value)} />}</UiField>

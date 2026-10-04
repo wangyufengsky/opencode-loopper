@@ -1,7 +1,7 @@
-import { mount } from '@vue/test-utils'
+import { mount } from '@/pages/w6-tests/workflow/react-test-root'
 import { describe, expect, it } from 'vitest'
-import WorkflowTestProfileReport from './WorkflowTestProfileReport.vue'
-import WorkflowNodeEditor from './WorkflowNodeEditor.vue'
+import { WorkflowTestProfileReport as WorkflowTestProfileReport } from '@/pages/w5/workflow/reports'
+import { WorkflowNodeEditor as WorkflowNodeEditor } from '@/pages/w5/workflow/WorkflowNodeEditor'
 import type { WorkflowNode } from '@/types/workflow'
 const module = { root: '.', framework: 'junit', sourcePaths: ['src/main/java/Main.java'], testRoots: ['src/test/java'], fixtureRoots: ['src/test/resources'], command: ['mvn', '-f', 'a module/pom.xml', 'test'] }
 const profile = { version: 1, type: 'SOURCE_TEST_PROFILE', sourceAttemptId: 'private-attempt', source: { snapshotId: 'private-source' }, profile: { manifestSha256: 'a'.repeat(64), modules: [module] } }
@@ -9,7 +9,7 @@ describe('固定测试配置', () => {
   it('显示原生命令的参数边界和范围，不把识别当作测试通过', () => {
     const view = mount(WorkflowTestProfileReport, { props: { content: profile } })
     expect(view.text()).toContain('测试尚未执行'); expect(view.text()).toContain('JUnit'); expect(view.text()).toContain('src/test/resources')
-    expect(view.findAll('.workflow-test-command code').map(el => el.text())).toEqual(module.command)
+    expect(JSON.parse(view.findAll('[aria-label="原生测试命令"] .w3-code-text').map(el => el.text()).join('\n'))).toEqual(module.command)
     expect(view.text()).not.toContain('测试通过'); expect(view.text()).not.toContain('private-attempt'); expect(view.text()).not.toContain('private-source')
   })
   it('失败保留明确的文件原因并转义不可信文本', () => {

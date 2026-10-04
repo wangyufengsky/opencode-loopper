@@ -3,6 +3,7 @@ import { SemanticIcon, semanticName, type UiObjectKey } from '@/foundation/seman
 import { skins } from '@/themes/registry'
 import type { SnapshotPort } from '@/foundation/contracts/types'
 import type { W2LeaveGuard, W2PageProps, W2Target } from './types'
+import { PageTitle } from '@/app/PageTitle'
 import './page.css'
 export * from './types'
 
@@ -23,7 +24,7 @@ export function PageChrome({ title, objectKey, actions, status, context, childre
   title: string; objectKey: UiObjectKey; actions?: ReactNode; status?: ReactNode; context?: ReactNode; children: ReactNode
 }) {
   return <section className="w2-page" data-react-page={objectKey}>
-    <header className="w2-heading"><div><SemanticIcon semanticKey={objectKey} /><h1>{title}</h1></div><div className="w2-actions">{actions}</div></header>
+    <header className="w2-heading"><div><SemanticIcon semanticKey={objectKey} /><PageTitle title={title} /></div><div className="w2-actions">{actions}</div></header>
     {status && <div className="w2-status" aria-live="polite">{status}</div>}
     <div className="w2-body"><main id="main-content" tabIndex={-1} className="w2-main ui-shell-main" aria-label={semanticName('app.workspace')}>{children}</main>{context}</div>
   </section>

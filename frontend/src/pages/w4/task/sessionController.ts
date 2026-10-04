@@ -52,7 +52,7 @@ export function createSessionMonitorController(taskId: string, parent?: TaskPare
     if (locked() || !s.sessions.some(row => row.key === key)) return false
     if (s.dirty && discardRevision !== s.draftRevision) return false
     ticket('sessions'); ticket('role'); releaseDelta()
-    patch({ selected: key, activity: undefined, answers: {}, custom: {}, draftQuestions: {}, dirty: false, draftRevision: s.draftRevision + 1, role: undefined, roleOpened: false, roleError: '', tokenDelta: 0, expanded: [], switching: undefined })
+    patch({ selected: key, activity: undefined, answers: {}, custom: {}, draftQuestions: {}, dirty: false, draftRevision: s.draftRevision + 1, role: undefined, roleOpened: false, roleError: '', totalTokens: null, tokenDelta: 0, expanded: [], switching: undefined })
     await load(); return true
   }
   function question(id: string) { const s = base.getSnapshot(); return s.draftQuestions[id] ?? s.activity?.pendingQuestions.find(row => row.id === id) }

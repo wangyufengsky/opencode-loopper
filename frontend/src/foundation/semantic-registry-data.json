@@ -5222,6 +5222,105 @@
         "SERVER_AUTHORITY"
       ],
       "behavior": "用户显式恢复原创建key/body；accepted只完成原交接，不重复创建"
+    },
+    "accounting.cancel": {
+      "label": "取消本次统计，继续任务",
+      "name": "取消本次故事点统计并继续任务",
+      "icon": "circle-x",
+      "intent": "accounting.cancel",
+      "scope": "command",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "仅用户显式触发原故事点统计API，关闭不等于取消"
+    },
+    "accounting.retry": {
+      "label": "重新发起",
+      "name": "重新发起故事点统计",
+      "icon": "rotate-ccw",
+      "intent": "accounting.retry",
+      "scope": "command",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "仅用户显式触发原故事点统计API，关闭不等于取消"
+    },
+    "session.refreshSnapshot": {
+      "label": "刷新快照",
+      "name": "刷新快照",
+      "icon": "refresh-cw",
+      "intent": "session.refreshSnapshot",
+      "scope": "read",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原SessionLifecycle合法API，用户显式操作；unknown保留原身份，仅合法GET核对，不自动重复write"
+    },
+    "session.syncTodos": {
+      "label": "同步真实 todo",
+      "name": "同步真实 todo",
+      "icon": "list-checks",
+      "intent": "session.syncTodos",
+      "scope": "command",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原SessionLifecycle合法API，用户显式操作；unknown保留原身份，仅合法GET核对，不自动重复write"
+    },
+    "session.createCheckpoint": {
+      "label": "创建 checkpoint",
+      "name": "创建 checkpoint",
+      "icon": "bookmark-plus",
+      "intent": "session.createCheckpoint",
+      "scope": "command",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原SessionLifecycle合法API，用户显式操作；unknown保留原身份，仅合法GET核对，不自动重复write"
+    },
+    "session.forkTranscript": {
+      "label": "分叉会话记录",
+      "name": "分叉会话记录",
+      "icon": "git-fork",
+      "intent": "session.forkTranscript",
+      "scope": "command",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原SessionLifecycle合法API，用户显式操作；unknown保留原身份，仅合法GET核对，不自动重复write"
+    },
+    "session.revertWorktree": {
+      "label": "回退 worktree",
+      "name": "回退 worktree",
+      "icon": "undo-2",
+      "intent": "session.revertWorktree",
+      "scope": "command",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原SessionLifecycle合法API，用户显式操作；unknown保留原身份，仅合法GET核对，不自动重复write"
+    },
+    "session.requestSummary": {
+      "label": "请求总结",
+      "name": "请求总结",
+      "icon": "file-text",
+      "intent": "session.requestSummary",
+      "scope": "command",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原SessionLifecycle合法API，用户显式操作；unknown保留原身份，仅合法GET核对，不自动重复write"
+    },
+    "accounting.dismiss": {
+      "label": "关闭统计结果",
+      "name": "关闭统计结果",
+      "icon": "x",
+      "intent": "accounting.dismiss",
+      "scope": "command",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "仅显式关闭已结束统计的合法dismiss；不关闭或停止活动统计"
     }
   },
   "guards": {
@@ -5391,8 +5490,8 @@
       "id": "home",
       "path": "/",
       "nav": "nav.home",
-      "view": "HomeView",
-      "routerLine": 8,
+      "view": "HomePage",
+      "routerLine": 9,
       "actions": [
         "project.select",
         "workflow.newRequirement",
@@ -5402,15 +5501,15 @@
       ],
       "behavior": "主页入口不隐式发命令",
       "evidence": [
-        "frontend/src/router/index.ts:8",
-        "frontend/src/views/HomeView.vue"
+        "frontend/src/router/index.tsx:9",
+        "frontend/src/pages/w2/secondary/HomePage.tsx"
       ]
     },
     {
       "id": "projects",
       "path": "/projects",
       "nav": "nav.projects",
-      "view": "ProjectsView",
+      "view": "ProjectsPage",
       "routerLine": 9,
       "actions": [
         "project.register",
@@ -5424,16 +5523,16 @@
       ],
       "behavior": "?project 定位；原公约/文档/Git 隐藏入口保持",
       "evidence": [
-        "frontend/src/router/index.ts:9",
-        "frontend/src/views/ProjectsView.vue"
+        "frontend/src/router/index.tsx:9",
+        "frontend/src/pages/w2/core/ProjectsPage.tsx"
       ]
     },
     {
       "id": "pptList",
       "path": "/ppt",
       "nav": "nav.ppt",
-      "view": "PptListView",
-      "routerLine": 10,
+      "view": "PptListPage",
+      "routerLine": 9,
       "actions": [
         "ppt.create",
         "ppt.archive",
@@ -5443,16 +5542,16 @@
       ],
       "behavior": "服务端查询/游标和归档范围",
       "evidence": [
-        "frontend/src/router/index.ts:10",
-        "frontend/src/views/PptListView.vue"
+        "frontend/src/router/index.tsx:9",
+        "frontend/src/pages/w2/secondary/PptListPage.tsx"
       ]
     },
     {
       "id": "pptStudio",
       "path": "/ppt/:id",
       "nav": "nav.ppt",
-      "view": "PptStudioView",
-      "routerLine": 11,
+      "view": "PptStudioPage",
+      "routerLine": 9,
       "actions": [
         "ppt.send",
         "ppt.confirm",
@@ -5473,16 +5572,16 @@
       ],
       "behavior": "busy/pending/手动 dirty；助手与人工编辑互斥；原 SSE/4s 协调读",
       "evidence": [
-        "frontend/src/router/index.ts:11",
-        "frontend/src/views/PptStudioView.vue"
+        "frontend/src/router/index.tsx:9",
+        "frontend/src/pages/w3/ppt/PptStudioPage.tsx"
       ]
     },
     {
       "id": "knowledgeHistory",
       "path": "/knowledge/history",
       "nav": "nav.knowledge",
-      "view": "KnowledgeHistoryView",
-      "routerLine": 12,
+      "view": "KnowledgeHistoryPage",
+      "routerLine": 9,
       "actions": [
         "knowledge.newConversation",
         "knowledge.archive",
@@ -5493,16 +5592,16 @@
       ],
       "behavior": "路由次序先于可选会话；过滤 URL/scroll/depth 恢复",
       "evidence": [
-        "frontend/src/router/index.ts:12",
-        "frontend/src/views/KnowledgeHistoryView.vue"
+        "frontend/src/router/index.tsx:9",
+        "frontend/src/pages/w2/secondary/KnowledgeHistoryPage.tsx"
       ]
     },
     {
       "id": "knowledge",
       "path": "/knowledge/:conversationId?",
       "nav": "nav.knowledge",
-      "view": "KnowledgeView",
-      "routerLine": 13,
+      "view": "KnowledgePage",
+      "routerLine": 9,
       "actions": [
         "knowledge.newConversation",
         "knowledge.openHistory",
@@ -5519,16 +5618,16 @@
       ],
       "behavior": "模型/资料冻结；上下文默认隐藏；精确引用/文件预览；草稿与消息 owner 分开",
       "evidence": [
-        "frontend/src/router/index.ts:13",
-        "frontend/src/views/KnowledgeView.vue"
+        "frontend/src/router/index.tsx:9",
+        "frontend/src/pages/w3/knowledge/KnowledgePage.tsx"
       ]
     },
     {
       "id": "designer",
       "path": "/designer",
       "nav": "nav.designs",
-      "view": "DesignerView",
-      "routerLine": 14,
+      "view": "DesignerPage",
+      "routerLine": 9,
       "actions": [
         "designer.openHistory",
         "designer.editSettings",
@@ -5540,16 +5639,16 @@
       ],
       "behavior": "sessionId 精确历史；无 ID 由 designerEntry 恢复或转 /requirements/new；不虚构独立画布",
       "evidence": [
-        "frontend/src/router/index.ts:14",
-        "frontend/src/views/DesignerView.vue"
+        "frontend/src/router/index.tsx:9",
+        "frontend/src/pages/w5/designer/DesignerPage.tsx"
       ]
     },
     {
       "id": "requirements",
       "path": "/requirements",
       "nav": "nav.requirements",
-      "view": "WorkflowRequirementListView",
-      "routerLine": 15,
+      "view": "RequirementListPage",
+      "routerLine": 9,
       "actions": [
         "workflow.newRequirement",
         "ui.search",
@@ -5557,32 +5656,32 @@
       ],
       "behavior": "read generation/项目/query/cursor；打开精确需求",
       "evidence": [
-        "frontend/src/router/index.ts:15",
-        "frontend/src/views/WorkflowRequirementListView.vue"
+        "frontend/src/router/index.tsx:9",
+        "frontend/src/pages/w2/workflow/RequirementListPage.tsx"
       ]
     },
     {
       "id": "requirementNew",
       "path": "/requirements/new",
       "nav": "nav.requirements",
-      "view": "WorkflowRequirementNewView",
-      "routerLine": 16,
+      "view": "NewRequirementPage",
+      "routerLine": 9,
       "actions": [
         "workflow.createRequirement",
         "nav.back"
       ],
       "behavior": "project/templateRevision/title/goal；当前没有 File；新目标未知 BLOCK 是目标合同，W0 已复现基线差异",
       "evidence": [
-        "frontend/src/router/index.ts:16",
-        "frontend/src/views/WorkflowRequirementNewView.vue"
+        "frontend/src/router/index.tsx:9",
+        "frontend/src/pages/w5/requirements/NewRequirementPage.tsx"
       ]
     },
     {
       "id": "requirement",
       "path": "/requirements/:id",
       "nav": "nav.requirements",
-      "view": "WorkflowRequirementView",
-      "routerLine": 17,
+      "view": "RequirementPage",
+      "routerLine": 9,
       "actions": [
         "workflow.savePlanning",
         "workflow.confirmPlan",
@@ -5606,16 +5705,16 @@
       ],
       "behavior": "顶层/子 owner 及 run/node scopes；confirm/start 分离；2.5s 原协调读",
       "evidence": [
-        "frontend/src/router/index.ts:17",
-        "frontend/src/views/WorkflowRequirementView.vue"
+        "frontend/src/router/index.tsx:9",
+        "frontend/src/pages/w5/requirements/RequirementPage.tsx"
       ]
     },
     {
       "id": "workflows",
       "path": "/workflows",
       "nav": "nav.workflows",
-      "view": "WorkflowLibraryView",
-      "routerLine": 18,
+      "view": "WorkflowLibraryPage",
+      "routerLine": 9,
       "actions": [
         "workflow.newDefinition",
         "workflow.copyDefinition",
@@ -5626,16 +5725,16 @@
       ],
       "behavior": "内置原定义不可改删；复制按原 key，菜单焦点恢复",
       "evidence": [
-        "frontend/src/router/index.ts:18",
-        "frontend/src/views/WorkflowLibraryView.vue"
+        "frontend/src/router/index.tsx:9",
+        "frontend/src/pages/w2/workflow/WorkflowLibraryPage.tsx"
       ]
     },
     {
       "id": "workflowNew",
       "path": "/workflows/new",
       "nav": "nav.workflows",
-      "view": "WorkflowEditorView",
-      "routerLine": 19,
+      "view": "WorkflowEditorPage",
+      "routerLine": 9,
       "actions": [
         "workflow.save",
         "workflow.undo",
@@ -5650,16 +5749,16 @@
       ],
       "behavior": "新定义，图/布局回执独立；unknown/busy 硬阻离开",
       "evidence": [
-        "frontend/src/router/index.ts:19",
-        "frontend/src/views/WorkflowEditorView.vue"
+        "frontend/src/router/index.tsx:9",
+        "frontend/src/pages/w5/workflow/WorkflowEditorPage.tsx"
       ]
     },
     {
       "id": "workflowEdit",
       "path": "/workflows/:id",
       "nav": "nav.workflows",
-      "view": "WorkflowEditorView",
-      "routerLine": 20,
+      "view": "WorkflowEditorPage",
+      "routerLine": 9,
       "actions": [
         "workflow.save",
         "workflow.undo",
@@ -5674,16 +5773,16 @@
       ],
       "behavior": "编辑精确定义；105px/20px 首帧合同及程序化视口不污染撤销",
       "evidence": [
-        "frontend/src/router/index.ts:20",
-        "frontend/src/views/WorkflowEditorView.vue"
+        "frontend/src/router/index.tsx:9",
+        "frontend/src/pages/w5/workflow/WorkflowEditorPage.tsx"
       ]
     },
     {
       "id": "designs",
       "path": "/designs",
       "nav": "nav.designs",
-      "view": "DesignerHistoryView",
-      "routerLine": 21,
+      "view": "DesignerHistoryPage",
+      "routerLine": 9,
       "actions": [
         "designer.openHistory",
         "workflow.newRequirement",
@@ -5697,16 +5796,16 @@
       ],
       "behavior": "查询 URL/历史会话归档/停止，未被 task 冻结历史取代",
       "evidence": [
-        "frontend/src/router/index.ts:21",
-        "frontend/src/views/DesignerHistoryView.vue"
+        "frontend/src/router/index.tsx:9",
+        "frontend/src/pages/w2/workflow/DesignerHistoryPage.tsx"
       ]
     },
     {
       "id": "tasks",
       "path": "/tasks",
       "nav": "nav.tasks",
-      "view": "TasksView",
-      "routerLine": 22,
+      "view": "TasksPage",
+      "routerLine": 9,
       "actions": [
         "task.open",
         "task.create",
@@ -5721,16 +5820,16 @@
       ],
       "behavior": "状态/项目/类型/归档/排序/分组与列表恢复",
       "evidence": [
-        "frontend/src/router/index.ts:22",
-        "frontend/src/views/TasksView.vue"
+        "frontend/src/router/index.tsx:9",
+        "frontend/src/pages/w2/core/TasksPage.tsx"
       ]
     },
     {
       "id": "inbox",
       "path": "/inbox",
       "nav": "nav.inbox",
-      "view": "InboxView",
-      "routerLine": 23,
+      "view": "InboxPage",
+      "routerLine": 9,
       "actions": [
         "inbox.open",
         "inbox.reject",
@@ -5740,16 +5839,16 @@
       ],
       "behavior": "当前真实等待事项和权限 scope",
       "evidence": [
-        "frontend/src/router/index.ts:23",
-        "frontend/src/views/InboxView.vue"
+        "frontend/src/router/index.tsx:9",
+        "frontend/src/pages/w4/inbox/index.tsx"
       ]
     },
     {
       "id": "insights",
       "path": "/insights",
       "nav": "nav.insights",
-      "view": "InsightsDashboardView",
-      "routerLine": 24,
+      "view": "InsightsPage",
+      "routerLine": 9,
       "actions": [
         "ui.filter",
         "ui.resetFilters",
@@ -5759,28 +5858,28 @@
       ],
       "behavior": "Task 用量/质量非伪进度，项目/状态/归档过滤",
       "evidence": [
-        "frontend/src/router/index.ts:24",
-        "frontend/src/views/InsightsDashboardView.vue"
+        "frontend/src/router/index.tsx:9",
+        "frontend/src/pages/w2/secondary/InsightsPage.tsx"
       ]
     },
     {
       "id": "automationsRedirect",
       "path": "/automations",
       "nav": "nav.templateTasks",
-      "view": null,
-      "routerLine": 25,
+      "view": "ReactRedirect",
+      "routerLine": 13,
       "actions": [],
-      "behavior": "redirect /template-tasks；旧 AutomationsView 不可达；9 GET/导出当前无消费者，10写退役",
+      "behavior": "唯一 React Router redirect /template-tasks；现行历史 GET/导出由 W3 HistoricalConsumers 可达；已退役的 create/start/rule/import 等写入口保持退役",
       "evidence": [
-        "frontend/src/router/index.ts:25"
+        "frontend/src/router/index.tsx:13"
       ]
     },
     {
       "id": "templateTasks",
       "path": "/template-tasks",
       "nav": "nav.templateTasks",
-      "view": "TemplateTasksView",
-      "routerLine": 26,
+      "view": "TemplateTasksPage",
+      "routerLine": 9,
       "actions": [
         "template.select",
         "template.previewScope",
@@ -5790,18 +5889,18 @@
         "automation.readArchive",
         "automation.exportArchive"
       ],
-      "behavior": "通用、Source、Document 三家族非等价；legacy 单 templateTask controller；archive 为已结清目标，当前未实现",
+      "behavior": "现行通用/Source/Document 三家族均由独立纯 TS owner 持有；W3 历史 Automations 合法读取/导出可达；写命令按原 identity/receipt 保护",
       "evidence": [
-        "frontend/src/router/index.ts:26",
-        "frontend/src/views/TemplateTasksView.vue"
+        "frontend/src/router/index.tsx:9",
+        "frontend/src/pages/w3/templates/catalog/TemplateTasksPage.tsx"
       ]
     },
     {
       "id": "documentRun",
       "path": "/template-tasks/document-runs/:id",
       "nav": "nav.templateTasks",
-      "view": "DocumentTemplateView",
-      "routerLine": 27,
+      "view": "RunPages",
+      "routerLine": 9,
       "actions": [
         "template.cancel",
         "template.resume",
@@ -5815,16 +5914,16 @@
       ],
       "behavior": "原 File/hash/order；SSE+10s/180ms，澄清/补传子 owner，UNKNOWN 离开 W0 基线差异",
       "evidence": [
-        "frontend/src/router/index.ts:27",
-        "frontend/src/views/DocumentTemplateView.vue"
+        "frontend/src/router/index.tsx:9",
+        "frontend/src/pages/w3/templates/runs/RunPages.tsx"
       ]
     },
     {
       "id": "sourceRun",
       "path": "/template-tasks/source-runs/:id",
       "nav": "nav.templateTasks",
-      "view": "SourceTemplateView",
-      "routerLine": 28,
+      "view": "RunPages",
+      "routerLine": 9,
       "actions": [
         "template.start",
         "template.cancel",
@@ -5837,16 +5936,16 @@
       ],
       "behavior": "Source 冻结范围/模型/expectedVersion；batch CAS 与 linked execution disposition 分开",
       "evidence": [
-        "frontend/src/router/index.ts:28",
-        "frontend/src/views/SourceTemplateView.vue"
+        "frontend/src/router/index.tsx:9",
+        "frontend/src/pages/w3/templates/runs/RunPages.tsx"
       ]
     },
     {
       "id": "taskDetail",
       "path": "/tasks/:id",
       "nav": "nav.tasks",
-      "view": "TaskDetailView",
-      "routerLine": 29,
+      "view": "TaskDetailPage",
+      "routerLine": 9,
       "actions": [
         "task.start",
         "task.pause",
@@ -5869,16 +5968,16 @@
       ],
       "behavior": "Task/Stage/Attempt/Session/Judge/Queue 独立；只按 server flags；单Task stream",
       "evidence": [
-        "frontend/src/router/index.ts:29",
-        "frontend/src/views/TaskDetailView.vue"
+        "frontend/src/router/index.tsx:9",
+        "frontend/src/pages/w4/task/TaskDetailPage.tsx"
       ]
     },
     {
       "id": "recovery",
       "path": "/tasks/:id/recovery",
       "nav": "nav.tasks",
-      "view": "RecoveryStudioView",
-      "routerLine": 30,
+      "view": "RecoveryStudioPage",
+      "routerLine": 9,
       "actions": [
         "task.createRecovery",
         "ui.refresh",
@@ -5887,16 +5986,16 @@
       ],
       "behavior": "FROM_FAILED_STAGE/ALL_STAGES/VERIFY_ONLY；FAILED/CANCELLED；创建不等于 Start",
       "evidence": [
-        "frontend/src/router/index.ts:30",
-        "frontend/src/views/RecoveryStudioView.vue"
+        "frontend/src/router/index.tsx:9",
+        "frontend/src/pages/w4/recovery/RecoveryStudioPage.tsx"
       ]
     },
     {
       "id": "taskDesign",
       "path": "/tasks/:id/design",
       "nav": "nav.tasks",
-      "view": "TaskDesignHistoryView",
-      "routerLine": 31,
+      "view": "TaskDesignHistoryPage",
+      "routerLine": 9,
       "actions": [
         "ui.open",
         "nav.back",
@@ -5904,16 +6003,16 @@
       ],
       "behavior": "冻结 task 设计/LoopSpec/附件只读；不继续当前 Designer，会话不追新",
       "evidence": [
-        "frontend/src/router/index.ts:31",
-        "frontend/src/views/TaskDesignHistoryView.vue"
+        "frontend/src/router/index.tsx:9",
+        "frontend/src/pages/w4/history/index.tsx"
       ]
     },
     {
       "id": "runtime",
       "path": "/runtime",
       "nav": "nav.runtime",
-      "view": "RuntimeView",
-      "routerLine": 32,
+      "view": "RuntimePage",
+      "routerLine": 9,
       "actions": [
         "runtime.restart",
         "runtime.start",
@@ -5921,16 +6020,16 @@
       ],
       "behavior": "只有原三条件动作；无 stop/kill 新入口；Loopper/CLI 版本分开",
       "evidence": [
-        "frontend/src/router/index.ts:32",
-        "frontend/src/views/RuntimeView.vue"
+        "frontend/src/router/index.tsx:9",
+        "frontend/src/pages/w2/secondary/RuntimePage.tsx"
       ]
     },
     {
       "id": "tools",
       "path": "/tools",
       "nav": "nav.tools",
-      "view": "ToolsView",
-      "routerLine": 33,
+      "view": "ToolsPage",
+      "routerLine": 9,
       "actions": [
         "tools.refresh",
         "tools.openPolicy",
@@ -5940,16 +6039,16 @@
       ],
       "behavior": "MCP/Skills；global/project/inherit 与必需工具，按需展开",
       "evidence": [
-        "frontend/src/router/index.ts:33",
-        "frontend/src/views/ToolsView.vue"
+        "frontend/src/router/index.tsx:9",
+        "frontend/src/pages/w2/secondary/ToolsPage.tsx"
       ]
     },
     {
       "id": "databases",
       "path": "/databases",
       "nav": "nav.databases",
-      "view": "DatabaseView",
-      "routerLine": 34,
+      "view": "DatabasePage",
+      "routerLine": 9,
       "actions": [
         "database.create",
         "database.edit",
@@ -5962,16 +6061,16 @@
       ],
       "behavior": "connection.version、表单 snapshot、秘密清理、driver/test/兼容验收分开",
       "evidence": [
-        "frontend/src/router/index.ts:34",
-        "frontend/src/views/DatabaseView.vue"
+        "frontend/src/router/index.tsx:9",
+        "frontend/src/pages/w2/secondary/DatabasePage.tsx"
       ]
     },
     {
       "id": "settings",
       "path": "/settings",
       "nav": "nav.settings",
-      "view": "SettingsView",
-      "routerLine": 35,
+      "view": "SettingsPage",
+      "routerLine": 9,
       "actions": [
         "settings.save",
         "settings.refreshModels",
@@ -5980,30 +6079,30 @@
         "settings.changeCanvasPreference",
         "settings.toggleDemo"
       ],
-      "behavior": "原 PUT 无 CAS；跨 section 草稿；canvas 偏好只下次实例；demo 为真实接口非prototype",
+      "behavior": "无 CAS 的原 PUT 保留原 body/unknown；跨 section 草稿与显示状态受单 owner 保护；全站固定 React，旧 runtime Vue 偏好不会复活已删除的运行时",
       "evidence": [
-        "frontend/src/router/index.ts:35",
-        "frontend/src/views/SettingsView.vue"
+        "frontend/src/router/index.tsx:9",
+        "frontend/src/pages/w2/core/SettingsPage.tsx"
       ]
     },
     {
       "id": "rolesRedirect",
       "path": "/settings/roles",
       "nav": "nav.roles",
-      "view": null,
-      "routerLine": 36,
+      "view": "ReactRedirect",
+      "routerLine": 13,
       "actions": [],
       "behavior": "redirect /roles；角色发布不并入 settings.save",
       "evidence": [
-        "frontend/src/router/index.ts:36"
+        "frontend/src/router/index.tsx:13"
       ]
     },
     {
       "id": "roles",
       "path": "/roles",
       "nav": "nav.roles",
-      "view": "RoleManagementView",
-      "routerLine": 37,
+      "view": "RoleManagementPage",
+      "routerLine": 9,
       "actions": [
         "roles.import",
         "roles.validate",
@@ -6020,20 +6119,20 @@
       ],
       "behavior": "ZIP/sourceSha256/key/activationVersion；current published/actual bound/history 分开；权限图只读",
       "evidence": [
-        "frontend/src/router/index.ts:37",
-        "frontend/src/views/RoleManagementView.vue"
+        "frontend/src/router/index.tsx:9",
+        "frontend/src/pages/w2/roles/RoleManagementPage.tsx"
       ]
     },
     {
       "id": "fallback",
-      "path": "/:pathMatch(.*)*",
+      "path": "*",
       "nav": "nav.home",
-      "view": null,
-      "routerLine": 38,
+      "view": "ReactRedirect",
+      "routerLine": 13,
       "actions": [],
       "behavior": "redirect /；未知 API 不能返回 HTML",
       "evidence": [
-        "frontend/src/router/index.ts:38"
+        "frontend/src/router/index.tsx:13"
       ]
     }
   ]

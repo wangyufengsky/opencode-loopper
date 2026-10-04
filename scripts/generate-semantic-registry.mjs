@@ -4,7 +4,7 @@ const root = new URL('../', import.meta.url)
 const read = name => JSON.parse(readFileSync(new URL(name, root), 'utf8'))
 const base = read('docs/design/react-full-migration/prototype/desktop-v2/semantic-registry.json')
 const additional = { objects: {}, actions: {} }
-for (const wave of ['w2', 'w3', 'w4', 'w5']) for (const section of ['objects', 'actions']) {
+for (const wave of ['w2', 'w3', 'w4', 'w5', 'w6']) for (const section of ['objects', 'actions']) {
   for (const [key, entry] of Object.entries(read(`docs/design/react-full-migration/semantic-${wave}-additions.json`)[section])) {
     assert(!(key in base[section]) && !(key in additional[section]), `禁止覆盖已冻结语义：${key}`)
     additional[section][key] = entry
@@ -12,6 +12,8 @@ for (const wave of ['w2', 'w3', 'w4', 'w5']) for (const section of ['objects', '
 }
 const generated = Object.fromEntries(['schemaVersion', 'objects', 'actions', 'guards', 'components', 'routes'].map(key => [key,
   key === 'objects' || key === 'actions' ? { ...base[key], ...additional[key] } : base[key]]))
+const w6Routes = read('docs/design/react-full-migration/semantic-w6-routes.json')
+generated.routes = base.routes.map(route => { assert(w6Routes[route.path], `W6必须保留页面 ${route.path}`); return { ...route, ...w6Routes[route.path] } })
 const labels = new Map()
 for (const entry of [...Object.values(generated.objects), ...Object.values(generated.actions)]) {
   if (labels.has(entry.label)) assert.equal(entry.icon, labels.get(entry.label), `同名必须同图标：${entry.label}`)

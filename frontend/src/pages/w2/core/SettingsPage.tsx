@@ -23,10 +23,10 @@ function CanvasPreferencesForm() {
     setMessage(saved ? '已保存。下次重新进入对应页面时使用所选画布；当前打开的页面保持不变。' : '浏览器未能保存偏好，请检查本地存储权限后重试。')
   }
   return <>
-    <p>遇到显示或交互问题时，可选择兼容画布。偏好仅保存在此浏览器，下次重新进入对应页面时生效。</p>
+    <p>全部画布现由 React 渲染。业务身份、文件和草稿由当前页面所有者保护，切换皮肤不会替换画布运行时。</p>
     <p>请先完成或恢复当前操作、保存草稿后再离开；更改偏好不会刷新页面，也不会重发操作。</p>
     {canvasAreas.map(area => <Field key={area.id} label={area.title}>{id => <select id={id} className="core-select" aria-label={area.title} value={preferences[area.id] ?? 'react'} onChange={event => change(area.id, event.target.value as CanvasRuntime)}>
-      <option value="react">新版画布</option><option value="vue">兼容画布</option>
+      <option value="react">React 画布</option>
     </select>}</Field>)}
     {message && <Alert role={failed ? 'alert' : 'status'} type={failed ? 'error' : 'success'} title={message} />}
   </>

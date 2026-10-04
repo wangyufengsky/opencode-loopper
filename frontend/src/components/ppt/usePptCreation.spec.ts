@@ -1,107 +1,19 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { effectScope, nextTick } from 'vue'
-import { webcrypto } from 'node:crypto'
-import { pptApi } from '@/api/ppt'
-import { pptTitleFromPrompt, usePptCreation } from './usePptCreation'
-import { pptDocument } from './pptTestFixtures'
-
-vi.mock('@/api/ppt', () => ({
-  pptApi: {
-    create: vi.fn(),
-    get: vi.fn(),
-    upload: vi.fn(),
-  },
-}))
-const api = vi.mocked(pptApi)
-beforeEach(() => {
-  vi.clearAllMocks()
-  sessionStorage.clear()
-  vi.stubGlobal('crypto', webcrypto)
-  api.create.mockResolvedValue(pptDocument())
-  api.get.mockResolvedValue(pptDocument())
+import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest'
+import {webcrypto} from 'node:crypto'
+import {pptApi} from '@/api/ppt'
+import {createPptCreation,pptTitleFromPrompt} from '@/pages/w2/secondary/pptCreation'
+import {pageProps,message} from '@/pages/w3/ppt/testFixture'
+import {pptDocument} from './pptTestFixtures'
+const owners:ReturnType<typeof createPptCreation>[]=[]
+function owner(){const props=pageProps().props;vi.mocked(props.navigation.goAccepted).mockResolvedValue(false);const value=createPptCreation(pptApi,props.navigation);owners.push(value);return {value,props}}
+beforeEach(()=>{sessionStorage.clear();vi.stubGlobal('crypto',webcrypto);vi.spyOn(pptApi,'create').mockResolvedValue(pptDocument());vi.spyOn(pptApi,'get').mockResolvedValue(pptDocument());vi.spyOn(pptApi,'upload').mockResolvedValue({id:'source',kind:'DOCUMENT',name:'材料.md',bytes:10,sha256:'sha',state:'READY',detail:'',sections:1,limitations:[],createdAt:'now',mediaType:'text/markdown'});vi.spyOn(pptApi,'send').mockImplementation(async(_id,input)=>message(input.idempotencyKey,input.text,input.scope,input.expectedRevision));vi.spyOn(pptApi,'messages').mockResolvedValue({items:[],facets:{}})})
+afterEach(()=>{owners.splice(0).forEach(value=>value.retire());vi.restoreAllMocks();vi.unstubAllGlobals()})
+describe('PPT initial request recovery',()=>{
+ it('retains the exact generation identity across reload even when the server revision advances',async()=>{const first=owner();first.value.setPrompt('面向管理层的季度经营汇报');first.value.setProject({id:'project-1',name:'支付平台'});vi.mocked(pptApi.send).mockRejectedValueOnce(new Error('lost'));await first.value.submit();expect(pptApi.create).toHaveBeenCalledWith(expect.objectContaining({title:first.value.getSnapshot().prompt,projectId:'project-1'}));const initial=vi.mocked(pptApi.send).mock.calls[0]![1];first.value.retire();vi.mocked(pptApi.get).mockResolvedValue({...pptDocument(),revision:20});const restored=owner();expect(restored.value.getSnapshot().locked).toBe(true);expect(restored.value.getSnapshot().project).toEqual({id:'project-1',name:'支付平台'});vi.mocked(restored.props.navigation.goAccepted).mockResolvedValue(true);await restored.value.submit();expect(vi.mocked(pptApi.send).mock.calls[1]![1]).toEqual(initial);expect(pptApi.create).toHaveBeenCalledTimes(1);expect(restored.value.getSnapshot().locked).toBe(false);expect(restored.value.getSnapshot().project).toBeNull()})
+ it('allows an independent presentation without any project lookup or association',async()=>{const {value}=owner();value.setPrompt('做一份读书分享');await value.submit();expect(pptApi.create).toHaveBeenCalledTimes(1);expect(vi.mocked(pptApi.create).mock.calls[0]![0]).not.toHaveProperty('projectId');expect(pptApi.send).toHaveBeenCalledOnce()})
+ it('requires original file reselection after reload and replays an uncertain upload with its original identity',async()=>{const file=new File(['# 季度成果'],'材料.md',{type:'text/markdown',lastModified:100});Object.defineProperty(file,'arrayBuffer',{value:async()=>new TextEncoder().encode('# 季度成果').buffer});const first=owner();first.value.setPrompt('依据材料制作汇报');await first.value.addFiles([file]);vi.mocked(pptApi.upload).mockRejectedValueOnce(new Error('network'));await first.value.submit();const original=vi.mocked(pptApi.upload).mock.calls[0];first.value.retire();const restored=owner();await restored.value.submit();expect(restored.value.getSnapshot().error).toContain('重新选择');await restored.value.addFiles([file]);await restored.value.submit();expect(vi.mocked(pptApi.upload).mock.calls[1]).toEqual(original);expect(pptApi.create).toHaveBeenCalledTimes(1);expect(pptApi.send).toHaveBeenCalledOnce()})
 })
-
-describe('PPT initial request recovery', () => {
-  it('retains the exact generation identity across reload even when the server revision advances', async () => {
-    const first = effectScope()
-    const draft = first.run(usePptCreation)!
-    draft.prompt.value = '面向管理层的季度经营汇报'
-    draft.project.value = { id: 'project-1', name: '支付平台' }
-    const initial = await draft.prepare()
-    expect(api.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: draft.prompt.value,
-        projectId: 'project-1',
-      }),
-    )
-    first.stop()
-    api.get.mockResolvedValue({
-      ...pptDocument(),
-      revision: 20,
-    })
-    const second = effectScope()
-    const recovered = second.run(usePptCreation)!
-    expect(recovered.locked.value).toBe(true)
-    expect(recovered.project.value).toEqual({ id: 'project-1', name: '支付平台' })
-    expect(await recovered.prepare()).toEqual(initial)
-    expect(api.create).toHaveBeenCalledTimes(1)
-    recovered.accepted()
-    await nextTick()
-    expect(recovered.locked.value).toBe(false)
-    expect(recovered.project.value).toBeNull()
-    second.stop()
-  })
-  it('allows an independent presentation without any project lookup or association', async () => {
-    const scope = effectScope()
-    const draft = scope.run(usePptCreation)!
-    draft.prompt.value = '做一份读书分享'
-    expect(await draft.prepare()).not.toBeNull()
-    expect(api.create.mock.calls[0]?.[0]).not.toHaveProperty('projectId')
-    scope.stop()
-  })
-  it('requires original file reselection after reload and replays an uncertain upload with its original identity', async () => {
-    const file = new File(['# 季度成果'], '材料.md', {
-      type: 'text/markdown',
-      lastModified: 100,
-    })
-    const first = effectScope()
-    const draft = first.run(usePptCreation)!
-    draft.prompt.value = '依据材料制作汇报'
-    draft.addFiles([file])
-    api.upload.mockRejectedValueOnce(new Error('network'))
-    expect(await draft.prepare()).toBeNull()
-    const original = api.upload.mock.calls[0]
-    first.stop()
-    const second = effectScope()
-    const recovered = second.run(usePptCreation)!
-    expect(await recovered.prepare()).toBeNull()
-    expect(recovered.error.value).toContain('重新选择')
-    recovered.addFiles([file])
-    api.upload.mockResolvedValue({
-      state: 'READY',
-    } as never)
-    expect(await recovered.prepare()).not.toBeNull()
-    expect(api.upload.mock.calls[1]).toEqual(original)
-    expect(api.create).toHaveBeenCalledTimes(1)
-    second.stop()
-  })
-})
-
-describe('PPT concise naming', () => {
-  it('uses an explicitly named topic without shortening the actual requirement', () => {
-    const prompt =
-      '制作一份6页中文季度项目汇报，面向部门领导，5分钟讲完。主题是“服务质量提升”，简洁商务风。'
-    expect(pptTitleFromPrompt(prompt)).toBe('服务质量提升')
-    expect(pptTitleFromPrompt('主题为：2026年度工作计划。12页')).toBe('2026年度工作计划')
-  })
-  it('falls back to the first sentence and limits the title to 24 characters', () => {
-    expect(pptTitleFromPrompt('汇报季度成果。包含三项指标')).toBe('汇报季度成果')
-    expect(
-      Array.from(
-        pptTitleFromPrompt(
-          '做一份面向全公司管理层汇报年度数字化转型项目进展与下一年度重点工作安排的演示文稿',
-        ),
-      ),
-    ).toHaveLength(24)
-  })
+describe('PPT concise naming',()=>{
+ it('uses an explicitly named topic without shortening the actual requirement',()=>{const prompt='制作一份6页中文季度项目汇报，面向部门领导，5分钟讲完。主题是“服务质量提升”，简洁商务风。';expect(pptTitleFromPrompt(prompt)).toBe('服务质量提升');expect(pptTitleFromPrompt('主题为：2026年度工作计划。12页')).toBe('2026年度工作计划')})
+ it('falls back to the first sentence and limits the title to 24 characters',()=>{expect(pptTitleFromPrompt('汇报季度成果。包含三项指标')).toBe('汇报季度成果');expect(Array.from(pptTitleFromPrompt('做一份面向全公司管理层汇报年度数字化转型项目进展与下一年度重点工作安排的演示文稿'))).toHaveLength(24)})
 })

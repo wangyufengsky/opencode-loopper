@@ -1,6 +1,6 @@
-import { mount } from '@vue/test-utils'
+import { mount } from '@/pages/w6-tests/workflow/react-test-root'
 import { describe, expect, it } from 'vitest'
-import WorkflowHistoryReport from './WorkflowHistoryReport.vue'
+import { WorkflowHistoryReport as WorkflowHistoryReport } from '@/pages/w5/workflow/reports'
 const report = { version: 1, type: 'GIT_HISTORY', complete: true, branchId: 'remote:origin:refs/heads/main', commitSha: 'a'.repeat(40), projectPrefix: 'server', commitCount: 12, changeCount: 20, excludedCount: 1, startDate: '2026-09-01', endDate: '2026-09-11', timezone: 'Asia/Shanghai' }
 describe('固定分支代码报告', () => {
   it('显示精确提交与文件限制，转义用户分支名称', () => {

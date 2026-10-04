@@ -1,6 +1,8 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { UiActionButton } from '@/foundation/components'
 import { RichDocument } from '../shared/RichDocument'
+import { KnowledgeActivity } from '../knowledge/Activity'
+import '../knowledge/knowledge.css'
 import { splitThinkingContent } from '@/utils/thinkingContent'
 import { pptToolLabel } from '@/utils/displayLabels'
 import type { W2PageProps } from '@/pages/w2/shared'
@@ -27,14 +29,12 @@ export function PptChat({ owner, state: s, scope, scopeLabel, ready, disabled, s
     <div ref={timeline} className="ppt-chat-timeline" onScroll={() => { const element = timeline.current; if (element) { following.current = element.scrollHeight - element.clientHeight - element.scrollTop < 80; if (following.current) setUnseen(false) } }}>
       {!history && s.messages.length > 3 && <UiActionButton actionKey="ui.open" target="之前的讨论" onAction={() => { following.current = false; setHistory(true) }} />}
       {history && s.messageCursor && <UiActionButton actionKey="ui.loadMore" target="讨论消息" onAction={() => void owner.more('messages')} />}
-      {(history ? s.messages : s.messages.slice(-3)).map(message => {
+      {(history ? s.messages : s.messages.slice(-3)).map((message, index, messages) => {
         const parts = splitThinkingContent(message.answer), thinking = message.thinking || parts.filter(part => part.type === 'thinking').map(part => part.content).join('\n\n'), answer = parts.filter(part => part.type === 'content').map(part => part.content).join('\n\n')
         const long = answer.length > 600 && message.state !== 'FAILED'
         return <article key={message.id} className="w3-ppt-message" data-message-state={message.state}>
-          {message.text && <p className="ppt-user-message">{message.text}</p>}
-          {thinking && <details aria-label="思考"><summary>思考</summary><RichDocument content={thinking} skin={skin} /></details>}
-          {!!message.calls?.length && <details aria-label="工具调用"><summary>工具调用 · {message.calls.length}</summary>{message.calls.map(call => <p key={call.id}>{pptToolLabel(call.tool)} · {call.state}<br />{call.detail}</p>)}</details>}
-          {!answer && !thinking && !message.calls?.length && ['RUNNING', 'SENDING', 'PREPARED'].includes(message.state) && <p role="status" className="knowledge-waiting">正在思考…</p>}
+          {message.text && message.text !== messages[index - 1]?.text && <p className="ppt-user-message">{message.text}</p>}
+          <KnowledgeActivity message={message} thinking={thinking} answer={answer} skin={skin} toolLabel={pptToolLabel} />
           {answer && (long ? <details className="ppt-long-reply"><summary>{answer.trim().split(/\n\s*\n/).at(-1)?.slice(0, 300) || '查看完整回复'}</summary><div className="ppt-agent-message"><RichDocument content={answer} skin={skin} /></div></details> : <div className="ppt-agent-message"><RichDocument content={answer} skin={skin} /></div>)}
           {message.failure && <p role="alert">{message.failure.detail}</p>}
           {message.detail && message.detail !== generic && <p className="ppt-notice">{message.detail}</p>}

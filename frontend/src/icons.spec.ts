@@ -1,13 +1,13 @@
-import { getIcon } from '@iconify/vue'
+import { semanticGlyph } from '@/foundation/semanticRegistry'
+import { icons } from '@iconify-json/lucide'
 import { describe, expect, it } from 'vitest'
-import { registerBundledIcons } from '@/icons'
 
 describe('bundled icons', () => {
   it('registers representative Lucide icons without an Iconify API request', () => {
-    registerBundledIcons()
+    expect(semanticGlyph('nav.tasks')).toBeTruthy()
 
-    expect(getIcon('lucide:folder-open')).toBeTruthy()
-    expect(getIcon('lucide:orbit')).toBeTruthy()
-    expect(getIcon('lucide:triangle-alert')).toBeTruthy()
+    expect(icons.icons['folder-open']).toBeTruthy()
+    expect(icons.icons.orbit).toBeTruthy()
+    expect(icons.icons['triangle-alert']).toBeTruthy()
   })
 })

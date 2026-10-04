@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { mount } from '@vue/test-utils'
-import WorkflowDocumentReviewReport from './WorkflowDocumentReviewReport.vue'
+import { mount } from '@/pages/w6-tests/workflow/react-test-root'
+import { WorkflowDocumentReviewReport as WorkflowDocumentReviewReport } from '@/pages/w5/workflow/reports'
 const source = { fileId: 'DOC-1', section: 1 }
 const entry = { title: '金额校验', statement: '金额为正数', sources: [source], issues: [], assessment: { requirementKey: 'RQ-1', conclusion: 'SATISFIED', rationale: '正数条件存在', checkedPaths: ['code.java'], evidence: [{ path: 'code.java', blobSha: 'private-hash', startLine: 1, endLine: 1, quote: 'amount > 0' }], missingEntryEvidence: null, testSourceCoverage: '暂无测试源码', limitations: ['没有执行代码'] } }
 const candidate = { snapshotSha: 'private-commit', entries: [entry], findings: [], skippedSections: [], limitations: ['外部实现未知'] }
@@ -9,7 +9,7 @@ describe('原文代码评审报告', () => {
   it('显示业务结论和原文位置，明确静态评审未运行测试', () => {
     const view = mount(WorkflowDocumentReviewReport, { props: { content: candidate } })
     expect(view.text()).toContain('符合需求'); expect(view.text()).toContain('静态代码评审 · 未运行测试'); expect(view.text()).toContain('文档 1 · 第 1 章')
-    expect(view.get('pre').text()).toBe('amount > 0'); expect(view.text()).not.toContain('private-'); expect(view.text()).not.toContain('RQ-1'); expect(view.text()).not.toContain('DOC-1')
+    expect(view.get('.w3-code-text').text()).toBe('amount > 0'); expect(view.text()).not.toContain('private-'); expect(view.text()).not.toContain('RQ-1'); expect(view.text()).not.toContain('DOC-1')
   })
   it('问题明细区分缺陷和验证缺口，并保留影响程度', () => {
     const finding = { key: 'private-finding', kind: 'VALIDATION_GAP', severity: 'HIGH', title: '缺少边界验证', trigger: '金额溢出', impact: '错误金额可能通过', recommendation: '补充边界测试', evidence: [] }

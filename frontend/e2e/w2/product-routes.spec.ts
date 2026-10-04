@@ -39,7 +39,7 @@ for (const skin of ['spdb', 'tech-blue', 'github-white']) for (const route of ro
     const chrome = page.locator('[data-react-page]'); await expect(chrome).toHaveCount(1); await expect(chrome.getByRole('heading', { name: route.title, exact: true })).toBeVisible()
     // Real document reload must resolve the same production history route.
     await page.reload(); await expect(page).toHaveURL(new RegExp(`${route.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`)); await expect(chrome.getByRole('heading', { name: route.title, exact: true })).toBeVisible()
-    await expect(page.locator('[data-w2-route-bridge][data-page-runtime="react"]')).toHaveCount(1); await expect(chrome.locator('main#main-content')).toHaveCount(1)
+    await expect(page.locator('[data-app-route-owner][data-page-runtime="react"]')).toHaveCount(1); await expect(chrome.locator('main#main-content')).toHaveCount(1)
     await expect(page.locator('.app-sidebar')).toHaveCount(1); await expect(page.locator('html')).toHaveAttribute('data-skin', skin)
     // Complete actual reads before recording default, so loading does not substitute for content.
     if (route.item) await expect(chrome.getByRole('button', { name: new RegExp(route.item.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')) }).first()).toBeVisible()
@@ -60,14 +60,16 @@ for (const skin of ['spdb', 'tech-blue', 'github-white']) for (const route of ro
     const before = await page.evaluate(() => window.__w2Resources.snapshot())
     expect(before.rootConnected).toBe(true); expect(before.sentinel.active).toBe(true)
     expect(before.listeners.some(row => row.type === 'beforeunload' && row.targetKind === 'window')).toBe(true)
-    expect(before.listeners.some(row => row.type === 'change' && row.targetKind === 'MediaQueryList')).toBe(true)
+    // The sole App FoundationProvider now owns its persistent motion listener.
+    // Page listeners still fall under the unchanged strict [] exit gate below.
+    expect(before.applicationMediaListeners.some(row => row.type === 'change')).toBe(true)
     const immediate = await immediateW2Exit(page)
     await mkdir(evidence, { recursive: true }); const proof = { route, skin, before, immediate, requests: fixture.requests, streams: await page.evaluate(() => (window as unknown as { __w2Streams: unknown }).__w2Streams), errors: fixture.errors, unexpected: fixture.unexpected }
     await writeFile(join(evidence, `${skin}-${route.name}-firstsnapshot.json`), JSON.stringify(proof, null, 2)); await info.attach('firstsnapshot', { body: JSON.stringify(proof), contentType: 'application/json' })
-    assertW2Disposed(before, immediate); expect(fixture.errors).toEqual([]); expect(fixture.unexpected).toEqual([]); expect(fixture.requests.filter(row => row.method !== 'GET')).toEqual([])
+    assertW2Disposed(before, immediate); expect(immediate.applicationMediaListeners).toEqual(before.applicationMediaListeners); expect(fixture.errors).toEqual([]); expect(fixture.unexpected).toEqual([]); expect(fixture.requests.filter(row => row.method !== 'GET')).toEqual([])
     // These events occur only after the strict first sample; they cannot clean it.
     await page.keyboard.press('Shift'); const sentinel = await page.evaluate(() => window.__w2Resources.snapshot().sentinel); expect(sentinel.calls).toBeGreaterThan(immediate.sentinel.calls)
-    await page.goBack(); await expect(page).toHaveURL(new RegExp(`${route.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`)); await expect(chrome.getByRole('heading', { name: route.title, exact: true })).toBeVisible(); await expect(page.locator('[data-w2-route-bridge][data-page-runtime="react"]')).toHaveCount(1)
+    await page.goBack(); await expect(page).toHaveURL(new RegExp(`${route.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`)); await expect(chrome.getByRole('heading', { name: route.title, exact: true })).toBeVisible(); await expect(page.locator('[data-app-route-owner][data-page-runtime="react"]')).toHaveCount(1)
     // W3 now renders the destination with React too. The strict first snapshot
     // above still proves the original root was retired, without a cleanup input.
     await page.goForward(); await expect(page).toHaveURL(/\/template-tasks$/)

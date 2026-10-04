@@ -1,7 +1,9 @@
-import { flushPromises, mount } from '@vue/test-utils'
-import ElementPlus, { ElMessageBox } from 'element-plus'
+import {flushPromises} from '@/pages/w6-tests/ordinary/render'
+import {mountPanel} from '@/pages/w6-tests/ordinary/task'
+import {action,confirm} from '@/pages/w6-tests/ordinary/actions'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import RollingPackageWorkbench from '@/components/RollingPackageWorkbench.vue'
+import {RollingPackageWorkbench} from '@/pages/w4/actions/rolling'
 import type { RollingPackageRun, Task } from '@/types/domain'
 
 const apiMocks = vi.hoisted(() => ({
@@ -13,7 +15,7 @@ const apiMocks = vi.hoisted(() => ({
   proposeRollingPlan: vi.fn(), confirmRollingPlan: vi.fn(), addRollingCorrection: vi.fn(),
   suggestRollingPlan: vi.fn(), getRollingPlanRevisions: vi.fn(),
 }))
-vi.mock('@/api/client', () => ({ api: apiMocks }))
+import {api,ApiError} from '@/api/client'
 
 const frozen: RollingPackageRun = {
   id: 'run-1', packageKey: 'WP-1', ordinal: 0, title: '基础能力', state: 'FACT_FROZEN',
@@ -35,18 +37,11 @@ function task(run: RollingPackageRun, capabilities: NonNullable<Task['packageCap
   }
 }
 
-function mountWorkbench(input: Task) {
-  return mount(RollingPackageWorkbench, {
-    props: { task: input }, global: { plugins: [ElementPlus], stubs: {
-      Icon: true, StatusBadge: { props: ['status'], template: '<span>{{ status }}</span>' },
-      MarkdownDocument: { props: ['content'], template: '<div>{{ content }}</div>' },
-    } },
-  })
-}
+function mountWorkbench(input:Task){const p=mountPanel(RollingPackageWorkbench,input,{});return Object.assign(p.view,{parentRefresh:p.parent.refresh})}
 
 describe('RollingPackageWorkbench', () => {
   beforeEach(() => {
-    Object.values(apiMocks).forEach(mock => mock.mockReset())
+    Object.entries(apiMocks).forEach(([key,mock])=>{mock.mockReset();vi.spyOn(api,key as keyof typeof api).mockImplementation(mock)})
     apiMocks.getRollingPackageWorkbench.mockResolvedValue({
       taskId: 'task-1', title: '三包任务', taskState: 'PACKAGE_DESIGNING', taskVersion: 8,
       executionMode: 'ROLLING_PACKAGES', workspacePolicy: 'RELEASE_BETWEEN_PACKAGES',
@@ -151,11 +146,11 @@ describe('RollingPackageWorkbench', () => {
       externalSessionState: 'COMPLETED', createdAt: 'now', updatedAt: 'later' }])
     apiMocks.confirmRollingPlan.mockResolvedValue({ id: 'proposal-ai', revision: 3, state: 'ACTIVE',
       version: 3, planJson: '[]', impactJson: '{}', origin: 'AI', createdAt: 'now', updatedAt: 'later' })
-    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue({ action: 'confirm' } as never)
-    const wrapper = mountWorkbench(task(reviewing, capabilities))
+
+    mountWorkbench(task(reviewing, capabilities))
     await flushPromises()
 
-    await wrapper.findAll('button').find(button => button.text().includes('AI 调整剩余拆包'))!.trigger('click')
+    await action('rolling.aiReplan')
     await flushPromises()
 
     expect(apiMocks.suggestRollingPlan).toHaveBeenCalledWith('task-1', {
@@ -163,6 +158,8 @@ describe('RollingPackageWorkbench', () => {
       expectedDiscussionRevision: 5, expectedDesignRevision: 6,
     })
     expect(apiMocks.getRollingPlanRevisions).toHaveBeenCalledWith('task-1')
+    expect(apiMocks.confirmRollingPlan).not.toHaveBeenCalled()
+    await action('rolling.confirmPlan');await confirm('rolling.confirmPlan')
     expect(apiMocks.confirmRollingPlan).toHaveBeenCalledWith('task-1', 'proposal-ai', expect.objectContaining({
       expectedProposalVersion: 2,
     }))
@@ -251,16 +248,14 @@ describe('RollingPackageWorkbench', () => {
         canAddCorrectionPackage: false },
       packages: [frozen, designing],
     })
-    apiMocks.suggestRollingPlan.mockRejectedValue(Object.assign(
-      new Error('PACKAGE_COMMAND_NOT_AVAILABLE: 当前状态不允许调整剩余拆包'), { status: 409 },
-    ))
+    apiMocks.suggestRollingPlan.mockRejectedValue(new ApiError('PACKAGE_COMMAND_NOT_AVAILABLE: 当前状态不允许调整剩余拆包',409))
 
-    await wrapper.findAll('button').find(button => button.text().includes('AI 调整剩余拆包'))!.trigger('click')
+    await action('rolling.aiReplan')
     await flushPromises()
 
-    expect(apiMocks.getRollingPackageWorkbench).toHaveBeenCalledTimes(2)
+    expect(apiMocks.getRollingPackageWorkbench).toHaveBeenCalledTimes(3)
     expect(wrapper.text()).toContain('工作包状态已刷新')
     expect(wrapper.text()).not.toContain('AI 调整剩余拆包')
-    expect(wrapper.emitted('refresh')).toBeTruthy()
+    expect(wrapper.parentRefresh).toHaveBeenCalledOnce()
   })
 })

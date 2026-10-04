@@ -5,7 +5,7 @@ import { skinBootstrap, skinStyles, skinVariables } from './compile'
 import { githubWhite } from './githubWhite'
 import { techBlue } from './techBlue'
 import { spdb } from './spdb'
-import { applySkin, currentSkin, initializeSkin } from './state'
+import { applySkin, getSkinSnapshot, initializeSkin } from './state'
 import { DEFAULT_SKIN_ID, SKIN_STORAGE_KEY, skins } from './registry'
 import type { SkinDefinition } from './types'
 
@@ -37,31 +37,31 @@ describe('配置驱动皮肤', () => {
     expect(document.documentElement.dataset.skin).toBe('github-white')
     expect(document.querySelector('meta')?.content).toBe(githubWhite.colors.canvas)
     const stop = initializeSkin()
-    expect(currentSkin.value.id).toBe('github-white')
+    expect(getSkinSnapshot().id).toBe('github-white')
     applySkin('tech-blue')
     expect(localStorage.getItem(SKIN_STORAGE_KEY)).toBe('tech-blue')
     applySkin('removed-skin')
-    expect(currentSkin.value.id).toBe('spdb')
+    expect(getSkinSnapshot().id).toBe('spdb')
     stop()
     vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('denied') })
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('denied') })
     expect(() => new Function(skinBootstrap())()).not.toThrow()
     const stopUnavailable = initializeSkin()
-    expect(currentSkin.value.id).toBe('spdb')
+    expect(getSkinSnapshot().id).toBe('spdb')
     expect(() => applySkin('github-white')).not.toThrow()
-    expect(currentSkin.value.id).toBe('github-white')
+    expect(getSkinSnapshot().id).toBe('github-white')
     stopUnavailable()
   })
 
   it('同源标签同步主题及清空操作，忽略其他配置和 sessionStorage', () => {
     const stop = initializeSkin()
     window.dispatchEvent(new StorageEvent('storage', { key: SKIN_STORAGE_KEY, newValue: 'github-white', storageArea: localStorage }))
-    expect(currentSkin.value.id).toBe('github-white')
+    expect(getSkinSnapshot().id).toBe('github-white')
     window.dispatchEvent(new StorageEvent('storage', { key: 'other', newValue: 'tech-blue' }))
     window.dispatchEvent(new StorageEvent('storage', { key: SKIN_STORAGE_KEY, newValue: 'tech-blue', storageArea: sessionStorage }))
-    expect(currentSkin.value.id).toBe('github-white')
+    expect(getSkinSnapshot().id).toBe('github-white')
     window.dispatchEvent(new StorageEvent('storage', { key: null, storageArea: localStorage }))
-    expect(currentSkin.value.id).toBe('spdb')
+    expect(getSkinSnapshot().id).toBe('spdb')
     stop()
   })
 
@@ -74,7 +74,7 @@ describe('配置驱动皮肤', () => {
       new Function(skinBootstrap())()
       expect(document.documentElement.dataset.skin).toBe(expected)
       const stop = initializeSkin()
-      expect(currentSkin.value.id).toBe(expected)
+      expect(getSkinSnapshot().id).toBe(expected)
       stop()
     }
     for (const skin of skins) {
@@ -99,7 +99,7 @@ describe('配置驱动皮肤', () => {
     const scan = (directory: string): string[] => readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
       const path = resolve(directory, entry.name)
       if (entry.isDirectory()) return ['themes', 'mock', 'assets'].includes(entry.name) ? [] : scan(path)
-      return /\.(vue|css|ts)$/.test(path) && !path.endsWith('.spec.ts') ? [path] : []
+      return /\.(css|tsx?)$/.test(path) && !/\.spec\.tsx?$/.test(path) ? [path] : []
     })
     const offenders = scan(root).filter(path => /#[\da-f]{3,8}\b|\brgba?\(\s*\d/i.test(readFileSync(path, 'utf8')))
     expect(offenders).toEqual([])

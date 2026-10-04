@@ -12,7 +12,7 @@ export interface DesignerSnapshot {
   session?: DesignerSession; draft?: LoopDraft; editor: string; baseline?: number; conflict: boolean
   prompt: string; message: string; initialFiles: ReturnType<typeof fileMetadata>; files: ReturnType<typeof fileMetadata>
   projectId: string; projects: Project[]; profile?: ProfileDraft; profileEditing: boolean; routerOpen: boolean
-  selectedPackage: string; report?: AnalysisReport; activity?: DesignerActivity; previews: Record<string, string>
+  selectedPackage: string; report?: AnalysisReport; activity?: DesignerActivity; activityTokens: number | null; activityDelta: number; activityError: string; previews: Record<string, string>
   story: StoryBindingConfiguration; storyCapability?: StoryBindingCapability; storyChecking?: boolean; autoMode: boolean
   loading: boolean; error: string; notice: string; stream: 'idle' | 'connecting' | 'connected' | 'reconnecting'
   command: CommandState; assessment?: LoopSpecAssessment; acceptedTask: string; acceptedDesign?: { sessionId: string; draftId: string }; revision: number; now: number
@@ -30,13 +30,14 @@ export function createDesignerController(options: DesignerOptions) {
   const owner = createW4Owner<DesignerSnapshot>('designer', options.sessionId ?? initial?.id ?? 'initial', {
     session: initial, draft: initial?.draft, editor: initial?.draft ? json(initial.draft.spec) : '', baseline: initial?.draft?.version, conflict: false,
     prompt: readText(promptKey), message: readText(messageKey), initialFiles: [], files: [], projectId: initial?.projectId ?? '', projects: [], profile: initial ? profileOf(initial) : undefined, profileEditing: false, routerOpen: false,
-    selectedPackage: '', previews: {}, story: { enabled: false }, autoMode: false, loading: false, error: '', notice: '', stream: 'idle', command: { ...idleCommand }, acceptedTask: '', revision: 0, now: Date.now(),
+    selectedPackage: '', activityTokens: null, activityDelta: 0, activityError: '', previews: {}, story: { enabled: false }, autoMode: false, loading: false, error: '', notice: '', stream: 'idle', command: { ...idleCommand }, acceptedTask: '', revision: 0, now: Date.now(),
   }, state => {
     if (state.acceptedDesign) return { kind: 'BLOCK', reason: '新设计会话已创建，原交接尚未完成，请打开已创建设计。', recoveryAction: '打开已创建设计' }
     if (state.acceptedTask) return { kind: 'BLOCK', reason: '已创建任务，原交接尚未完成，请打开已创建任务。', recoveryAction: '打开已创建任务' }
     if (state.prompt.trim() || state.message.trim() || state.initialFiles.length || state.files.length || state.draft && state.editor !== json(state.draft.spec) || state.profileEditing) return { kind: 'CONFIRM_DISCARD', description: '设计草稿或附件尚未提交，离开将丢失当前内存输入。', draftRevision: state.revision }
     return { kind: 'ALLOW' }
   })
+  let activityDeltaRelease = () => {}
   const state = () => owner.base.getSnapshot()
   const patch = (changes: Partial<DesignerSnapshot>) => owner.patch(changes)
   const dirty = (changes: Partial<DesignerSnapshot>) => patch({ ...changes, revision: state().revision + 1 })
@@ -71,7 +72,7 @@ export function createDesignerController(options: DesignerOptions) {
   }
   function schedule() {
     pollRelease(); if (!current() || !shouldPoll(state().session)) return
-    pollRelease = owner.delay(() => { void refresh() }, failures ? Math.min(12000, 1500 * 2 ** failures) : state().session?.taskProfile.decisionState === 'ROUTING' ? 1200 : 1500)
+    pollRelease = owner.delay(() => { void refresh() }, failures ? Math.min(12000, 1500 * 2 ** failures) : state().session?.taskProfile.decisionState === 'ROUTING' || state().session?.state === 'RUNNING' ? 1200 : 1500)
   }
   async function refresh() {
     if (!current()) return false
@@ -87,10 +88,17 @@ export function createDesignerController(options: DesignerOptions) {
       projectSession(session); failures = 0
       const serverCompiler = session.compiler?.serverCompiled
       if ((session.state === 'RUNNING' && !serverCompiler && !session.pendingQuestions?.length) || session.taskProfile.decisionState === 'ROUTING') {
-        const activity = await api.getDesignerActivity(id)
-        if (!token.current() || epoch !== readEpoch) return false
-        patch({ activity: { ...activity, parts: activity.parts.length ? [activity.parts.at(-1)!] : !activity.connected ? state().activity?.parts ?? [] : [] } })
-      } else patch({ activity: undefined })
+        try {
+          const activity = await api.getDesignerActivity(id)
+          if (!token.current() || epoch !== readEpoch) return false
+          const previous = state().activityTokens, reported = activity.usage.totalTokens
+          const total = reported == null ? previous : previous == null ? reported : Math.max(previous, reported)
+          const delta = previous == null || total == null ? 0 : Math.max(0, total - previous)
+          activityDeltaRelease()
+          patch({ activity: { ...activity, parts: activity.parts.length ? [activity.parts.at(-1)!] : !activity.connected ? state().activity?.parts ?? [] : [] }, activityTokens: total, activityDelta: delta, activityError: '' })
+          if (delta) activityDeltaRelease = owner.delay(() => { if (token.current() && epoch === readEpoch) patch({ activityDelta: 0 }) }, 850)
+        } catch (cause) { if (!token.current() || epoch !== readEpoch) return false; patch({ activityError: userFacingError(cause, '当前角色活动暂时无法刷新') }) }
+      } else { activityDeltaRelease(); patch({ activity: undefined, activityDelta: 0, activityError: '' }) }
       const taskId = session.taskId || session.autoMode.taskId
       if (session.autoMode.enabled && taskId && taskId !== autoTaskAttempted && !hasUnsentDraft() && !['SENDING', 'UNKNOWN', 'ACCEPTED_READBACK'].includes(state().command.phase)) { autoTaskAttempted = taskId; void openKnownTask() }
       return true
@@ -98,8 +106,8 @@ export function createDesignerController(options: DesignerOptions) {
     finally { if (sequence !== refreshSequence) return; if (token.current() && epoch === readEpoch) { refreshing = false; patch({ loading: false }); if (queued) { queued = false; pollRelease = owner.delay(() => { void refresh() }, 100) } else schedule() } else refreshing = false }
   }
   async function refreshRequired(context: ReadContext, validate?: (session: DesignerSession) => void) { readEpoch++; owner.ticket('session'); requireCurrent(context); const id = state().session?.id; if (!id) throw new Error('原会话不存在。'); const session = await api.getDesignerSession(id); requireCurrent(context); if (session.id !== id) throw new Error('原会话身份不匹配。'); validate?.(session); projectSession(session); schedule() }
-  function run<B, R>(label: string, input: OperationInput<B>, write: (identity: OperationIdentity<B>) => Promise<R>, read: (receipt: Readonly<R>, context: ReadContext) => Promise<void>, capability: RecoveryCapability<B, R> = none, handoffTarget?: (receipt: Readonly<R>) => string, definitive?: (cause: unknown) => boolean) {
-    readEpoch++; refreshSequence++; refreshing = false; owner.ticket('session'); pollRelease(); const operation = owner.command({ label, input, write, read, capability, handoffTarget, changed: command => patch({ command }), isDefinitiveRejection: cause => definitive?.(cause) || cause instanceof ApiError && [400, 401, 403, 422].includes(cause.status) })
+  function run<B, R>(label: string, input: OperationInput<B>, write: (identity: OperationIdentity<B>) => Promise<R>, read: (receipt: Readonly<R>, context: ReadContext) => Promise<void>, capability: RecoveryCapability<B, R> = none, handoffTarget?: (receipt: Readonly<R>) => string, definitive?: (cause: unknown) => boolean, definitiveOverridesDefault = false) {
+    readEpoch++; refreshSequence++; refreshing = false; owner.ticket('session'); pollRelease(); const operation = owner.command({ label, input, write, read, capability, handoffTarget, changed: command => patch({ command }), isDefinitiveRejection: cause => definitiveOverridesDefault && definitive ? definitive(cause) : definitive?.(cause) || cause instanceof ApiError && [400, 401, 403, 422].includes(cause.status) })
     currentOperation = operation; return operation
   }
   async function invoke(action: () => Promise<unknown>) { try { await action(); if (current() && !['UNKNOWN', 'ACCEPTED_READBACK'].includes(state().command.phase)) patch({ error: '' }) } catch (cause) { if (current()) patch({ error: userFacingError(cause, '操作未结清，请保留原身份并恢复。') }) } }
@@ -111,10 +119,10 @@ export function createDesignerController(options: DesignerOptions) {
   function syncFiles() { dirty({ initialFiles: fileMetadata(initialFiles), files: fileMetadata(files) }) }
   function stageFiles(incoming: readonly File[]) {
     if (incoming.some(file => file.size > 20 * 1024 * 1024)) { patch({ error: '单个附件不能超过 20 MiB。' }); return }
-    const target = state().draft ? files : initialFiles, next = [...target]
+    const target = state().session ? files : initialFiles, next = [...target]
     for (const file of incoming) { const index = next.findIndex(item => item.name === file.name); if (index < 0) next.push(file); else next[index] = file }
     if (next.length > 10) { patch({ error: '每条消息最多携带 10 个附件。' }); return }
-    if (state().draft) { files = next; fileId ||= newId() } else { initialFiles = next; initialId ||= newId() }
+    if (state().session) { files = next; fileId ||= newId() } else { initialFiles = next; initialId ||= newId() }
     syncFiles()
   }
   async function initialSubmit() {
@@ -138,8 +146,9 @@ export function createDesignerController(options: DesignerOptions) {
         const later = state().prompt !== source.prompt ? state().prompt : ''
         patch({ session: undefined, prompt: '', message: later || state().message, initialFiles: fileMetadata(initialFiles), files: fileMetadata(files) }); storeText(promptKey, ''); storeText(messageKey, later || state().message)
         projectSession(receipt as DesignerSession)
-      }, capturedFiles.length ? { kind: 'IDEMPOTENT_KEY' } : none)
-      await operation.execute()
+      }, capturedFiles.length ? { kind: 'IDEMPOTENT_KEY' } : none, undefined, capturedFiles.length ? initialAttachmentRejectedBeforeCreate : undefined, !!capturedFiles.length)
+      try { await operation.execute() }
+      finally { if (operation.getSnapshot().phase === 'SETTLED' && !operation.getSnapshot().accepted) initialId = '' }
     })
   }
   async function send() {
@@ -298,3 +307,9 @@ export function createDesignerController(options: DesignerOptions) {
 }
 export type DesignerController = ReturnType<typeof createDesignerController>
 export type ProfileProposal = { preview: DesignerTaskProfileUpdatePreview; token: string; sessionId: string; profile: ProfileDraft; expectedVersion: number }
+
+/** prepare/inspect rejects these before sessions.create; generic 400 and session budget errors do not prove zero side effects. */
+function initialAttachmentRejectedBeforeCreate(cause: unknown) {
+  const prewriteCodes = new Set(['ATTACHMENT_FILE_COUNT_INVALID', 'ATTACHMENT_DUPLICATE_FILENAME', 'ATTACHMENT_EMPTY', 'ATTACHMENT_FILE_TOO_LARGE', 'ATTACHMENT_TYPE_UNSUPPORTED', 'ATTACHMENT_CONTEXT_TOO_LARGE', 'ATTACHMENT_PARSE_FAILED', 'ATTACHMENT_MAGIC_MISMATCH', 'ATTACHMENT_MACRO_FORBIDDEN', 'ATTACHMENT_FILENAME_INVALID', 'ATTACHMENT_UTF8_REQUIRED'])
+  return cause instanceof ApiError && cause.status === 400 && !!cause.code && prewriteCodes.has(cause.code)
+}

@@ -1,12 +1,12 @@
-import { mount } from '@vue/test-utils'
+import { mount } from '@/pages/w6-tests/workflow/react-test-root'
 import { describe, expect, it } from 'vitest'
-import WorkflowSnapshotReport from './WorkflowSnapshotReport.vue'
+import { WorkflowSnapshotReport as WorkflowSnapshotReport } from '@/pages/w5/workflow/reports'
 import { snapshotAnalysis, snapshotReview } from './snapshotTestFixtures'
 describe('版本代码审查交付', () => {
   it('以业务名称展示批次、问题、引用及覆盖，不显示内部身份', async () => {
     const view = mount(WorkflowSnapshotReport, { props: { content: snapshotAnalysis } })
     expect(view.text()).toContain('第 2 / 3 批版本分析'); expect(view.text()).toContain('空输入未被处理'); expect(view.text()).toContain('第 24–25 行'); expect(view.text()).toContain('归因未确定'); expect(view.text()).not.toContain('private-')
-    expect(view.find('pre').text()).toContain('validate(input)'); expect(view.text()).toContain('未运行的测试不能视为通过')
+    expect(view.find('.w3-code-text').text()).toContain('validate(input)'); expect(view.text()).toContain('未运行的测试不能视为通过')
   })
   it('没有候选问题也不宣称无缺陷或已经复核', () => {
     const content = { ...snapshotAnalysis, claims: { ...snapshotAnalysis.claims, findings: [] } }

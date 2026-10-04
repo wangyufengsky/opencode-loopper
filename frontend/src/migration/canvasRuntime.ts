@@ -1,4 +1,4 @@
-export type CanvasRuntime = 'react' | 'vue'
+export type CanvasRuntime = 'react'
 export type CanvasArea = 'workflow' | 'ppt' | 'tasks' | 'roles' | 'documents'
 export const CANVAS_RUNTIME_STORAGE = 'loopper.canvas.runtime.v1'
 export const canvasAreas: ReadonlyArray<{ id: CanvasArea; title: string }> = [
@@ -24,7 +24,7 @@ export function readCanvasPreferences(storage?: CanvasPreferenceStorage): Canvas
     if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
     return Object.fromEntries(canvasAreas.flatMap(({ id }) => {
       const runtime = (value as Record<string, unknown>)[id]
-      return runtime === 'react' || runtime === 'vue' ? [[id, runtime]] : []
+      return runtime === 'react' ? [[id, runtime]] : []
     }))
   } catch { return {} }
 }

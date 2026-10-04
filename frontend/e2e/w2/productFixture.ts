@@ -13,8 +13,8 @@ export async function productFixture(page: Page, write?: (route: Route) => Promi
   const errors: string[] = [], unexpected: string[] = [], requests: { method: string; path: string; body: string | null }[] = []
   page.on('pageerror', error => errors.push(error.message))
   await page.addInitScript(options => {
-    const streams = { opened: [] as string[], closed: [] as string[] }; (window as unknown as { __w2Streams: typeof streams }).__w2Streams = streams
-    class SimulatedStream extends EventTarget { onopen: ((event: Event) => void) | null = null; onmessage = null; onerror = null; readyState = 1; constructor(readonly url: string) { super(); streams.opened.push(url); queueMicrotask(() => this.onopen?.(new Event('open'))) } close() { this.readyState = 2; streams.closed.push(this.url) } }
+    const streams = { opened: [] as string[], closed: [] as string[], instances: [] as {id:number;url:string;closed:boolean;closeCalls:number}[] }; (window as unknown as { __w2Streams: typeof streams }).__w2Streams = streams
+    class SimulatedStream extends EventTarget { onopen: ((event: Event) => void) | null = null; onmessage = null; onerror = null; readyState = 1; row:{id:number;url:string;closed:boolean;closeCalls:number}; constructor(readonly url: string) { super(); this.row={id:streams.instances.length+1,url,closed:false,closeCalls:0};streams.instances.push(this.row);streams.opened.push(url); queueMicrotask(() => {if(this.readyState!==2)this.onopen?.(new Event('open'))}) } close() { this.row.closeCalls++;if(!this.row.closed){this.row.closed=true;this.readyState = 2; streams.closed.push(this.url)} } }
     const Native = window.EventSource
     class RecordedTaskStream extends Native {
       constructor(url: string | URL, config?: EventSourceInit) { super(url, config); streams.opened.push(String(url)) }

@@ -1,9 +1,9 @@
-import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+import { enableAutoUnmount, flushPromises, mount } from '@/pages/w6-tests/knowledge-ppt-template/react-test-root'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ElMessageBox } from 'element-plus'
+import {act,fireEvent,screen,within} from '@testing-library/react'
 import { api } from '@/api/client'
 import type { TemplateSessionDiagnostic, TemplateSessionDiagnosticPage } from '@/types/domain'
-import TemplateSessionDiagnosticsPanel from './TemplateSessionDiagnosticsPanel.vue'
+import {DiagnosticProjection as TemplateSessionDiagnosticsPanel} from '@/pages/w6-tests/knowledge-ppt-template/task-panels'
 
 enableAutoUnmount(afterEach)
 const row: TemplateSessionDiagnostic = {
@@ -33,9 +33,9 @@ describe('TemplateSessionDiagnosticsPanel', () => {
     expect(wrapper.text()).toContain('最后有效进展')
     expect(wrapper.text()).toContain('49 分钟无新活动')
     expect(wrapper.text()).not.toContain('ses_remote-12')
-    await wrapper.findAll('button').find(b => b.text() === '查看对应会话')!.trigger('click')
+    await wrapper.findAll('button').find(b => b.attributes('data-semantic')==='ui.open')!.trigger('click')
     expect(wrapper.emitted('select')).toEqual([['execution:local-12']])
-    await wrapper.findAll('button').find(b => b.text() === '下一页')!.trigger('click'); await flushPromises()
+    await wrapper.findAll('button').find(b => b.attributes('data-semantic')==='ui.next')!.trigger('click'); await flushPromises()
     expect(api.getTemplateSessionDiagnostics).toHaveBeenLastCalledWith('task-one', 'ATTENTION', 'next/a', 50)
     await wrapper.findAll('button').find(b => b.text() === '未完成')!.trigger('click'); await flushPromises()
     expect(api.getTemplateSessionDiagnostics).toHaveBeenLastCalledWith('task-one', 'ACTIVE', undefined, 50)
@@ -51,7 +51,7 @@ describe('TemplateSessionDiagnosticsPanel', () => {
     await wrapper.findAll('button').find(b => b.text() === '查看诊断详情')!.trigger('click'); await flushPromises()
     expect(api.getTemplateSessionDiagnostic).toHaveBeenCalledWith('task-one', 'batch-12')
     expect(wrapper.text()).toContain('ses_remote-12')
-    await wrapper.findAll('button').find(b => b.text() === '复制诊断摘要')!.trigger('click'); await flushPromises()
+    await wrapper.findAll('button').find(b => b.attributes('data-semantic')==='ui.copy')!.trigger('click'); await flushPromises()
     const copied = JSON.parse(writeText.mock.calls[0]![0])
     expect(copied).toMatchObject({ batchId: 'batch-12', batchVersion: 7, sessionKey: 'execution:local-12', externalSessionId: 'ses_remote-12', requestMessageId: 'msg-12' })
     expect(copied).not.toHaveProperty('password'); expect(copied).not.toHaveProperty('transcript')
@@ -60,7 +60,7 @@ describe('TemplateSessionDiagnosticsPanel', () => {
   it('posts exact batch version and preserves command identity after uncertain delivery', async () => {
     vi.mocked(api.recoverTemplateSession).mockRejectedValueOnce(new Error('connection lost'))
     const wrapper = render(); await flushPromises()
-    const finalize = () => wrapper.findAll('button').find(b => b.text() === '结束会话并收尾')!
+    const finalize = () => wrapper.findAll('button').find(b => b.attributes('data-semantic')==='template.finalizeSession')!
     expect(wrapper.text()).not.toContain('停止此批次')
     await finalize().trigger('click'); await flushPromises()
     const first = vi.mocked(api.recoverTemplateSession).mock.calls[0]!
@@ -68,7 +68,7 @@ describe('TemplateSessionDiagnosticsPanel', () => {
     expect(first[2]).toMatchObject({ action: 'FINALIZE', expectedVersion: 7 })
     expect(first[2].commandId).toMatch(/^[0-9a-f-]{36}$/)
     expect(finalize().attributes('disabled')).toBeDefined()
-    await wrapper.findAll('button').find(b => b.text() === '刷新状态')!.trigger('click'); await flushPromises()
+    await wrapper.findAll('button').find(b => b.attributes('data-semantic')==='receipt.retryOriginal')!.trigger('click'); await flushPromises()
     await finalize().trigger('click'); await flushPromises()
     expect(vi.mocked(api.recoverTemplateSession).mock.calls[1]![2].commandId).toBe(first[2].commandId)
     expect(wrapper.text()).toContain('恢复请求已记录')
@@ -76,17 +76,18 @@ describe('TemplateSessionDiagnosticsPanel', () => {
 
   it('requires explicit confirmation for stopping and prevents duplicate requests while pending', async () => {
     vi.mocked(api.getTemplateSessionDiagnostics).mockResolvedValue(page([{ ...row, canFinalize: false, canStop: true, acceptedAt: null }]))
-    const confirmation = vi.spyOn(ElMessageBox, 'confirm').mockRejectedValueOnce('cancel').mockResolvedValueOnce('confirm' as never)
+    let confirmation = 0
     const pending = deferred<TemplateSessionDiagnostic>()
     vi.mocked(api.recoverTemplateSession).mockReturnValue(pending.promise)
     const wrapper = render(); await flushPromises()
-    await wrapper.findAll('button').find(b => b.text() === '停止此批次')!.trigger('click'); await flushPromises()
+    await wrapper.findAll('button').find(b => b.attributes('data-semantic')==='template.stopBatch')!.trigger('click'); await flushPromises()
     expect(api.recoverTemplateSession).not.toHaveBeenCalled()
-    await wrapper.findAll('button').find(b => b.text() === '停止此批次')!.trigger('click'); await flushPromises()
-    expect(confirmation).toHaveBeenCalledTimes(2)
+    confirmation++;await act(async()=>fireEvent.click(within(screen.getByRole('dialog')).getByRole('button',{name:'留在当前页面'})))
+    await wrapper.findAll('button').find(b => b.attributes('data-semantic')==='template.stopBatch')!.trigger('click'); await flushPromises()
+    confirmation++;expect(api.recoverTemplateSession).not.toHaveBeenCalled();await act(async()=>fireEvent.click(within(screen.getByRole('dialog')).getByRole('button',{name:'停止此批次'})));await flushPromises();expect(confirmation).toBe(2)
     expect(api.recoverTemplateSession).toHaveBeenCalledTimes(1)
     expect(vi.mocked(api.recoverTemplateSession).mock.calls[0]![2].action).toBe('STOP')
-    expect(wrapper.findAll('button').find(b => b.text() === '请求处理中…')!.attributes('disabled')).toBeDefined()
+    expect(wrapper.get('button[data-semantic="template.stopBatch"]').attributes('disabled')).toBeDefined()
     pending.resolve({ ...row, canStop: false }); await flushPromises()
   })
 
@@ -116,10 +117,10 @@ describe('TemplateSessionDiagnosticsPanel', () => {
     const wrapper = render(); await flushPromises()
     expect(wrapper.text()).toContain('本轮自动重试已用 2/3 次')
     expect(wrapper.text()).toContain('连续 4 次未能完成检查')
-    await wrapper.findAll('button').find(b => b.text() === '重新检查会话')!.trigger('click'); await flushPromises()
+    await wrapper.findAll('button').find(b => b.attributes('data-semantic')==='template.checkSession')!.trigger('click'); await flushPromises()
     expect(checking).toHaveBeenCalledExactlyOnceWith('task-one', 'batch-12', 7)
     expect(api.recoverTemplateSession).not.toHaveBeenCalled()
-    expect(wrapper.text()).toContain('已请求重新检查原会话')
+    expect(wrapper.text()).toContain('恢复请求已记录')
   })
 
 })

@@ -1,7 +1,7 @@
-import { mount } from '@vue/test-utils'
+import { mount } from '@/pages/w6-tests/workflow/react-test-root'
 import { describe, expect, it } from 'vitest'
-import WorkflowNativeTestReport from './WorkflowNativeTestReport.vue'
-import WorkflowNodeEditor from './WorkflowNodeEditor.vue'
+import { WorkflowNativeTestReport as WorkflowNativeTestReport } from '@/pages/w5/workflow/reports'
+import { WorkflowNodeEditor as WorkflowNodeEditor } from '@/pages/w5/workflow/WorkflowNodeEditor'
 import { newNode } from './graph'
 const result = { version: 1, type: 'SOURCE_TEST_RUN', valid: true, passed: true, moduleRoot: '.', framework: 'junit', counts: { total: 3, passed: 2, failed: 0, skipped: 1 }, exitCode: 0, command: ['mvn', 'test'], files: [{ path: 'target/surefire-reports/TEST-Calculator.xml', sha256: 'private-hash' }], fileCount: 1, message: '已读取原生报告', scenarioCoverageVerified: false, producerAttempt: 'private-attempt' }
 const finalCode = { ...result, version: 2, inputUnchanged: true, writerLineage: ['private-attempt', 'private-first'], batches: [
@@ -21,7 +21,7 @@ describe('原生单测报告', () => {
   it('显示实际执行与跳过数量，区分场景覆盖，不泄露内部标识', async () => {
     const view = mount(WorkflowNativeTestReport, { props: { content: result } })
     expect(view.text()).toContain('原生测试通过'); expect(view.text()).toContain('实际执行 2 项：通过 2，失败 0，另有 1 项跳过')
-    expect(view.text()).toContain('测试数量不表示每个设计场景都已覆盖'); expect(view.text()).not.toContain('private-')
+    expect(view.text()).toContain('测试数量不表示每个设计场景已覆盖'); expect(view.text()).not.toContain('private-')
   })
   it('业务允许继续也显示真实失败，零测试不能显示通过', () => {
     const failed = mount(WorkflowNativeTestReport, { props: { content: { ...result, passed: false, exitCode: 1, counts: { total: 2, passed: 1, failed: 1, skipped: 0 } } } })
@@ -49,9 +49,9 @@ describe('原生单测报告', () => {
   })
   it('模块与时限可以修改，命令仍来自固定配置', async () => {
     const node = { ...newNode('free.readonly'), kind: 'SYSTEM' as const, moduleId: 'system.source.test-run', roleId: null, roleRevisionId: null, parameters: { testModuleRoot: '.', testTimeoutSeconds: '600' } }
-    const view = mount(WorkflowNodeEditor, { props: { node, graph: { schemaVersion: 1, nodes: [node], edges: [], inputs: [] } }, global: { stubs: { WorkflowRolePicker: true } } })
+    const view = mount(WorkflowNodeEditor, { props: { node, graph: { schemaVersion: 1, nodes: [node], edges: [], inputs: [] } } })
     await view.get('input[aria-label="测试模块路径"]').setValue('backend'); expect((view.emitted('change')![0]![0] as typeof node).parameters.testModuleRoot).toBe('backend')
-    expect(view.text()).toContain('命令从固定测试配置生成'); expect(view.find('textarea[aria-label="命令参数"]').exists()).toBe(false)
+    expect(view.text()).toContain('命令从固定配置生成'); expect(view.find('textarea[aria-label="命令参数"]').exists()).toBe(false)
     await view.setProps({ disabled: true }); expect((view.get('fieldset[aria-label="原生单测设置"]').element as HTMLFieldSetElement).disabled).toBe(true)
   })
 })

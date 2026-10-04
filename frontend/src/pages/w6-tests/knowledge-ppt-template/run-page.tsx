@@ -1,0 +1,4 @@
+import type {W2PageProps} from '@/pages/w2/shared'
+import {mountApplicationHarness} from '@/test/applicationHarness'
+import {ReactDOMQuery,flushPromises} from './react-test-root'
+export async function runPage(Component: React.ComponentType<W2PageProps>,path:string){const app=await mountApplicationHarness({initialEntries:[path],routes:[{path:'/template-tasks/source-runs/:id',Component},{path:'/template-tasks/document-runs/:id',Component},{path:'/tasks/:id',element:<main>任务执行</main>}],strict:false});await flushPromises();const view=Object.assign(new ReactDOMQuery(document.body),{unmount:app.unmount});const router={get currentRoute(){return {value:{path:app.router.state.location.pathname,query:Object.fromEntries(new URLSearchParams(app.router.state.location.search))}}},push:async(to:string)=>{await app.navigate(to);await flushPromises()}};return {wrapper:view,router,app}}

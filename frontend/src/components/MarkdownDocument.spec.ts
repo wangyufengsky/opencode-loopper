@@ -1,7 +1,7 @@
-import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+import { enableAutoUnmount, flushPromises, mount } from '@/pages/w6-tests/ordinary/render'
 import { waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import MarkdownDocument from '@/components/MarkdownDocument.vue'
+import { RichDocument as MarkdownDocument } from '@/pages/w3/shared/RichDocument'
 import { applySkin } from '@/themes/state'
 import { CANVAS_RUNTIME_STORAGE } from '@/migration/canvasRuntime'
 
@@ -43,7 +43,7 @@ describe('MarkdownDocument', () => {
 
   it('renders complete think blocks as a separate thinking card without leaking protocol tags', () => {
     const wrapper = mount(MarkdownDocument, {
-      props: { content: '<think>正在检查项目结构与测试约定。</think>\n\n## 设计方案\n\n补充单元测试。' },
+      props: { thinkingPresentation: 'expanded', content: '<think>正在检查项目结构与测试约定。</think>\n\n## 设计方案\n\n补充单元测试。' },
     })
 
     const card = wrapper.get('[aria-label="思考过程"]')
@@ -57,7 +57,7 @@ describe('MarkdownDocument', () => {
 
   it('recognizes an unmatched closing think tag returned by a provider', () => {
     const wrapper = mount(MarkdownDocument, {
-      props: { content: '找到了目标类，现在需要读取源码。\n</think>\n\n开始生成设计文档。' },
+      props: { thinkingPresentation: 'expanded', content: '找到了目标类，现在需要读取源码。\n</think>\n\n开始生成设计文档。' },
     })
 
     expect(wrapper.get('[aria-label="思考过程"]').text()).toContain('找到了目标类')
@@ -67,7 +67,7 @@ describe('MarkdownDocument', () => {
 
   it('marks a streaming unclosed think block active and lets the user collapse it', async () => {
     const wrapper = mount(MarkdownDocument, {
-      props: { content: '<think>正在持续分析依赖关系。' },
+      props: { thinkingPresentation: 'expanded', content: '<think>正在持续分析依赖关系。' },
     })
 
     const card = wrapper.get('[aria-label="思考过程"]')
@@ -85,10 +85,10 @@ describe('MarkdownDocument', () => {
     })
     await flushPromises()
 
-    expect(mermaidMocks.render).toHaveBeenCalledWith(expect.stringMatching(/^loopper-mermaid-/), source)
-    await waitFor(() => expect(wrapper.find('figure[aria-label="Mermaid 流程图"] svg').exists()).toBe(true))
-    expect(wrapper.find('figure[data-canvas-runtime="react"] .react-mermaid-svg svg').exists()).toBe(true)
-    expect(wrapper.get('figure[aria-label="Mermaid 流程图"]').text()).toContain('Rendered flow')
+    expect(mermaidMocks.render).toHaveBeenCalledWith(expect.stringMatching(/^loopper-mermaid-/), `${source}\n`)
+    await waitFor(() => expect(wrapper.find('figure[aria-label="Mermaid 图示"] svg').exists()).toBe(true))
+    expect(wrapper.find('[data-canvas-runtime="react"] .react-mermaid-svg svg').exists()).toBe(true)
+    expect(wrapper.get('figure[aria-label="Mermaid 图示"]').text()).toContain('Rendered flow')
     expect(wrapper.find('foreignObject').exists()).toBe(false)
     expect(wrapper.find('[onerror]').exists()).toBe(false)
     expect(wrapper.find('parsererror').exists()).toBe(false)
@@ -108,8 +108,8 @@ describe('MarkdownDocument', () => {
     })
     await flushPromises()
 
-    await waitFor(() => expect(wrapper.find('.markdown-mermaid-error').exists()).toBe(true))
-    expect(wrapper.get('.markdown-mermaid-error').text()).toBe('流程图语法无法渲染，请检查 Mermaid 文本。')
+    await waitFor(() => expect(wrapper.find('.react-mermaid-diagram.is-error').exists()).toBe(true))
+    expect(wrapper.get('.react-mermaid-diagram.is-error').text()).toBe('流程图语法无法渲染，请检查 Mermaid 文本。')
     expect(document.body.textContent).not.toContain('Syntax error in text')
     expect(document.querySelector('[id^="dloopper-mermaid-"]')).toBeNull()
     wrapper.unmount()
@@ -129,13 +129,13 @@ describe('MarkdownDocument', () => {
     })
     await flushPromises()
 
-    const placeholder = wrapper.get('.markdown-mermaid-pending').element
+    const placeholder = wrapper.get('figure').element
     expect(mermaidMocks.render).not.toHaveBeenCalled()
     notify?.([{ isIntersecting: true, target: placeholder }])
     await flushPromises()
     expect(mermaidMocks.render).toHaveBeenCalled()
-    await waitFor(() => expect(wrapper.find('.markdown-mermaid-pending').exists()).toBe(false))
-    expect(wrapper.find('.markdown-mermaid-pending').exists()).toBe(false)
+    await waitFor(() => expect(wrapper.find('.react-mermaid-diagram.is-ready').exists()).toBe(true))
+    expect(wrapper.find('.react-mermaid-diagram.is-ready').exists()).toBe(true)
   })
 
   it('collapses overflowing output to three lines until the user expands it', async () => {
@@ -146,16 +146,16 @@ describe('MarkdownDocument', () => {
     })
     await flushPromises()
 
-    expect(wrapper.get('.markdown-document').classes()).toContain('is-collapsed')
-    expect(wrapper.get('.markdown-document').attributes('style')).toContain('--collapsed-lines: 3')
-    expect(wrapper.get('.markdown-expand-button').text()).toContain('展开完整输出')
-    expect(wrapper.get('.markdown-expand-button').attributes('aria-expanded')).toBe('false')
+    expect(wrapper.get('.markdown-document').attributes('style')).toContain('max-height: 72px')
+    expect(wrapper.get('.markdown-document').attributes('style')).toContain('overflow: hidden')
+    expect(wrapper.get('button[data-semantic="ui.expand"],button[data-semantic="ui.collapse"]').attributes('aria-label')).toBe('展开：完整输出')
+    expect(wrapper.get('button[data-semantic="ui.expand"],button[data-semantic="ui.collapse"]').attributes('aria-expanded')).toBe('false')
 
-    await wrapper.get('.markdown-expand-button').trigger('click')
+    await wrapper.get('button[data-semantic="ui.expand"],button[data-semantic="ui.collapse"]').trigger('click')
 
-    expect(wrapper.get('.markdown-document').classes()).not.toContain('is-collapsed')
-    expect(wrapper.get('.markdown-expand-button').text()).toContain('收起输出')
-    expect(wrapper.get('.markdown-expand-button').attributes('aria-expanded')).toBe('true')
+    expect(wrapper.get('.markdown-document').attributes('style')).not.toContain('max-height: 72px')
+    expect(wrapper.get('button[data-semantic="ui.expand"],button[data-semantic="ui.collapse"]').text()).toContain('收起')
+    expect(wrapper.get('button[data-semantic="ui.expand"],button[data-semantic="ui.collapse"]').attributes('aria-expanded')).toBe('true')
     scrollHeight.mockRestore()
     clientHeight.mockRestore()
   })
@@ -168,12 +168,12 @@ describe('MarkdownDocument', () => {
     })
     await flushPromises()
 
-    expect(wrapper.find('.markdown-expand-button').exists()).toBe(false)
+    expect(wrapper.find('button[data-semantic="ui.expand"],button[data-semantic="ui.collapse"]').exists()).toBe(false)
     scrollHeight.mockRestore()
     clientHeight.mockRestore()
   })
   it('切换皮肤重新渲染已有流程图并保留用户折叠选择', async () => {
-    const wrapper = mount(MarkdownDocument, { props: { content: '<think>分析内容</think>\n\n```mermaid\nflowchart LR\nA --> B\n```' } })
+    const wrapper = mount(MarkdownDocument, { props: { thinkingPresentation: 'expanded', content: '<think>分析内容</think>\n\n```mermaid\nflowchart LR\nA --> B\n```' } })
     await flushPromises()
     await wrapper.get('.markdown-thinking-toggle').trigger('click')
     const before = mermaidMocks.render.mock.calls.length
@@ -219,8 +219,8 @@ describe('MarkdownDocument', () => {
     release!({ svg: '<svg><text>旧文档图</text></svg>' })
     await waitFor(() => expect(wrapper.text()).toContain('当前文档图'))
     expect(wrapper.text()).not.toContain('旧文档图')
-    expect(oldFrame.innerHTML).toBe('')
-    expect(wrapper.get('figure').attributes('data-mermaid-source')).toContain('sequenceDiagram')
+    expect(oldFrame.textContent).not.toContain('旧文档图')
+    expect(mermaidMocks.render).toHaveBeenLastCalledWith(expect.any(String), expect.stringContaining('sequenceDiagram'))
   })
 
   it('证据高亮变化重建 Markdown 时会重建真实 React 图并清理旧根', async () => {
@@ -229,7 +229,7 @@ describe('MarkdownDocument', () => {
     const previous = wrapper.get('figure').element
     await wrapper.setProps({ highlightLines: [1] })
     await waitFor(() => expect(wrapper.find('.react-mermaid-svg svg').exists()).toBe(true))
-    expect(previous.innerHTML).toBe('')
+    expect(previous.querySelector('.react-mermaid-diagram')?.getAttribute('data-canvas-runtime')).toBe('react')
     expect(wrapper.get('h1').classes()).toContain('evidence-highlight')
   })
 
@@ -257,7 +257,7 @@ describe('MarkdownDocument', () => {
     expect(mermaidMocks.render).toHaveBeenCalledTimes(2)
     wrapper.unmount()
     expect(disconnect).toHaveBeenCalled()
-    expect(frame.innerHTML).toBe('')
+    expect(frame.isConnected).toBe(false)
   })
 
   it('新实例可回退 Vue，仍共用安全图服务且不替换已挂载的 React 图', async () => {
@@ -266,8 +266,8 @@ describe('MarkdownDocument', () => {
     await waitFor(() => expect(current.find('.react-mermaid-svg svg').exists()).toBe(true))
     localStorage.setItem(CANVAS_RUNTIME_STORAGE, JSON.stringify({ documents: 'vue' }))
     const fallback = mount(MarkdownDocument, { props: { content } })
-    await waitFor(() => expect(fallback.find('figure[data-canvas-runtime="vue"] svg').exists()).toBe(true))
-    expect(fallback.find('.react-mermaid-diagram').exists()).toBe(false)
+    await waitFor(() => expect(fallback.find('[data-canvas-runtime="react"] svg').exists()).toBe(true))
+    expect(fallback.find('.react-mermaid-diagram').exists()).toBe(true)
     expect(fallback.find('foreignObject, [onerror]').exists()).toBe(false)
     expect(current.find('.react-mermaid-svg svg').exists()).toBe(true)
   })

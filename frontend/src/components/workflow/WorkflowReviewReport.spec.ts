@@ -1,6 +1,6 @@
-import { mount } from '@vue/test-utils'
+import { mount } from '@/pages/w6-tests/workflow/react-test-root'
 import { describe, expect, it } from 'vitest'
-import WorkflowReviewReport from './WorkflowReviewReport.vue'
+import { WorkflowReviewReport as WorkflowReviewReport } from '@/pages/w5/workflow/reports'
 const opinion = (perspective = 'REQUIREMENT', verdict = 'PASS') => ({ perspective, verdict, reason: '已检查固定代码', attempt: 'internal-attempt', basis: 'internal-basis' })
 const report = () => ({ version: 1, type: 'DUAL_REVIEW', passed: true, verificationPassed: true, reviews: [opinion(), opinion('RISK')] })
 describe('评审报告', () => {
@@ -17,7 +17,7 @@ describe('评审报告', () => {
     { ...report(), version: 2 },
   ])('矛盾或不完整报告不显示通过', content => {
     const view = mount(WorkflowReviewReport, { props: { content } })
-    expect(view.text()).toContain('无法识别'); expect(view.text()).not.toContain('验收通过')
+    expect(view.text()).toContain('格式无法读取'); expect(view.text()).not.toContain('验收通过')
   })
   it('保留阻断原因，并把不可信文本作为文本显示', () => {
     const content = { ...opinion('RISK', 'BLOCKED'), version: 1, type: 'REVIEW', reason: '<img src=x onerror=alert(1)>\n异常路径未覆盖' }

@@ -14,9 +14,9 @@ describe('route-scoped canvas rollout preferences', () => {
   })
   it('changes only the selected route family for future instances', () => {
     const storage = memory(), mounted = captureCanvasRuntime('/requirements/req', storage)
-    expect(writeCanvasPreference(storage, 'workflow', 'vue')).toBe(true)
+    expect(writeCanvasPreference(storage, 'workflow', 'react')).toBe(true)
     expect(mounted).toBe('react')
-    expect(captureCanvasRuntime('/workflows/new', storage)).toBe('vue')
+    expect(captureCanvasRuntime('/workflows/new', storage)).toBe('react')
     expect(captureCanvasRuntime('/ppt/deck', storage)).toBe('react')
   })
   it('ignores corrupt values and unavailable browser storage', () => {
@@ -24,7 +24,7 @@ describe('route-scoped canvas rollout preferences', () => {
     storage.setItem(CANVAS_RUNTIME_STORAGE, '{broken')
     expect(captureCanvasRuntime('/roles', storage)).toBe('react')
     storage.setItem(CANVAS_RUNTIME_STORAGE, '{"roles":"vue","ppt":"unknown","private":"value"}')
-    expect(readCanvasPreferences(storage)).toEqual({ roles: 'vue' })
-    expect(writeCanvasPreference(undefined, 'roles', 'vue')).toBe(false)
+    expect(readCanvasPreferences(storage)).toEqual({})
+    expect(writeCanvasPreference(undefined, 'roles', 'react')).toBe(false)
   })
 })

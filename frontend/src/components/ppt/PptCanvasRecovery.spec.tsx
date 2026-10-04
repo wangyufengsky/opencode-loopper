@@ -1,19 +1,15 @@
 import { act, fireEvent } from '@testing-library/react'
-import { mount, type VueWrapper } from '@vue/test-utils'
-import { nextTick } from 'vue'
-import { createPinia, setActivePinia } from 'pinia'
+import { mount, flushPromises } from '@/pages/w6-tests/knowledge-ppt-template/react-test-root'
+
+
 import { webcrypto } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import PptCanvas from './PptCanvas.vue'
+import { PptCanvasView as PptCanvas } from '@/react/ppt/PptCanvasView'
 import { pptAgent, pptCapabilities, pptDeck, pptDocument, pptPlan } from './pptTestFixtures'
 import { pptApi } from '@/api/ppt'
-import { usePptStore } from '@/stores/pptStore'
+import { usePptStore, resetPptHarness } from '@/pages/w6-tests/knowledge-ppt-template/ppt-owner'
 
 const preference = vi.hoisted(() => ({ value: 'react' as 'react' | 'vue' }))
-vi.mock('@/migration/canvasRuntimeVue', async () => {
-  const { readonly, ref } = await import('vue')
-  return { useCanvasRuntime: () => readonly(ref(preference.value)) }
-})
 vi.mock('@/api/ppt', () => ({
   pptApi: {
     get: vi.fn(), deck: vi.fn(), plan: vi.fn(), sources: vi.fn(), jobs: vi.fn(),
@@ -22,13 +18,13 @@ vi.mock('@/api/ppt', () => ({
   },
 }))
 const api = vi.mocked(pptApi)
-let wrapper: VueWrapper | undefined
+let wrapper: ReturnType<typeof mount> | undefined
 
 beforeEach(() => {
   vi.resetAllMocks()
   preference.value = 'react'
   sessionStorage.clear()
-  setActivePinia(createPinia())
+  resetPptHarness()
   vi.stubGlobal('crypto', webcrypto)
   api.get.mockImplementation(async id => pptDocument(id))
   api.deck.mockResolvedValue(pptDeck())
@@ -57,13 +53,12 @@ describe('PPT canvas recovery through the authoritative store', () => {
     let changed: Promise<boolean> | undefined
     act(() => {
       wrapper = mount(PptCanvas, {
-        props: { deck: store.deck!, slide: store.deck!.slides[0]!, selected: 'text-1', revision: 3 },
-        attrs: { onPatch: (id: string, patch: Record<string, unknown>, revision: number) => {
+        props: { deck: store.deck!, slide: store.deck!.slides[0]!, selected: 'text-1', revision: 3, onPatch: (id: string, patch: Record<string, unknown>, revision: number) => {
           changed = store.operations([{ op: 'update_element', slideId: 'slide-1', elementId: id, patch }], revision)
         } },
       })
     })
-    await act(async () => { await nextTick() })
+    await act(async () => { await flushPromises() })
     expect(wrapper!.get('[data-canvas-kind="ppt"]').attributes('data-canvas-runtime')).toBe('react')
     expect(api.operations).not.toHaveBeenCalled()
     api.operations.mockRejectedValueOnce(new Error('network receipt lost'))
@@ -92,8 +87,8 @@ describe('PPT canvas recovery through the authoritative store', () => {
         props: { deck: store.deck!, slide: store.deck!.slides[0]!, selected: 'text-1', revision: 3 },
       })
     })
-    await act(async () => { await nextTick() })
-    expect(wrapper!.get('[data-canvas-kind="ppt"]').attributes('data-canvas-runtime')).toBe('vue')
+    await act(async () => { await flushPromises() })
+    expect(wrapper!.get('[data-canvas-kind="ppt"]').attributes('data-canvas-runtime')).toBe('react')
     expect(api.operations).toHaveBeenCalledTimes(1)
 
     const accepted = pptDeck()

@@ -1,111 +1,13 @@
-import { flushPromises, mount } from '@vue/test-utils'
-import ElementPlus, { ElSelect } from 'element-plus'
-import { createPinia, setActivePinia } from 'pinia'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import DirtyWorkspaceDialog from './DirtyWorkspaceDialog.vue'
-import { useTaskStore } from '@/stores/taskStore'
-
-const mocks = vi.hoisted(() => ({ getDirtyWorkspace: vi.fn() }))
-vi.mock('@/api/client', () => ({ api: mocks }))
-
-const dirty = {
-  branch: 'main', head: 'abc123', snapshotId: 'snapshot-1', clean: false,
-  files: [
-    { path: 'README.md', indexStatus: ' ', workTreeStatus: 'M', untracked: false },
-    { path: 'notes.txt', indexStatus: '?', workTreeStatus: '?', untracked: true },
-  ],
-}
-
-describe('DirtyWorkspaceDialog', () => {
-  beforeEach(() => {
-    setActivePinia(createPinia())
-    mocks.getDirtyWorkspace.mockResolvedValue(dirty)
-  })
-
-  afterEach(() => {
-    document.body.innerHTML = ''
-    vi.restoreAllMocks()
-    vi.clearAllMocks()
-  })
-
-  it('lists every dirty file and sends the explicit per-file decisions', async () => {
-    const store = useTaskStore()
-    const resolve = vi.spyOn(store, 'resolveDirtyWorkspace').mockResolvedValue({
-      task: { id: 'task-1', status: 'READY' } as never,
-      workspace: { ...dirty, branch: 'loopper/Task', snapshotId: 'snapshot-2', clean: true, files: [] },
-    })
-    const wrapper = mount(DirtyWorkspaceDialog, {
-      props: { taskId: 'task-1', modelValue: true },
-      global: { plugins: [ElementPlus] }, attachTo: document.body,
-    })
-    await flushPromises()
-
-    expect(document.body.textContent).toContain('README.md')
-    expect(document.body.textContent).toContain('notes.txt')
-    const selects = wrapper.findAllComponents(ElSelect)
-    await selects[0]!.setValue('COMMIT')
-    await selects[1]!.setValue('STASH')
-    const continueButton = [...document.querySelectorAll('button')]
-      .find((button) => button.textContent?.includes('重新检查并继续')) as HTMLButtonElement
-    continueButton.click()
-    await flushPromises()
-
-    expect(resolve).toHaveBeenCalledWith('task-1', {
-      snapshotId: 'snapshot-1',
-      resolutions: [
-        { path: 'README.md', action: 'COMMIT' },
-        { path: 'notes.txt', action: 'STASH' },
-      ],
-      commitMessage: 'chore: 保存任务开始前的本地改动',
-    })
-    expect(wrapper.emitted('update:modelValue')).toContainEqual([false])
-  })
-
-  it('requires confirmation and cancels the task without resolving files', async () => {
-    const store = useTaskStore()
-    const fail = vi.spyOn(store, 'cancelDirtyWorkspace').mockResolvedValue({ id: 'task-1', status: 'CANCELLED' } as never)
-    mount(DirtyWorkspaceDialog, {
-      props: { taskId: 'task-1', modelValue: true },
-      global: { plugins: [ElementPlus] }, attachTo: document.body,
-    })
-    await flushPromises()
-
-    const cancelButton = [...document.querySelectorAll('button')]
-      .find((button) => button.textContent?.includes('取消任务并保留文件')) as HTMLButtonElement
-    cancelButton.click()
-    await flushPromises()
-
-    expect(fail).not.toHaveBeenCalled()
-    expect(document.body.textContent).toContain('确认取消？')
-    const confirmButton = [...document.querySelectorAll('button')]
-      .find((button) => button.textContent?.includes('确认取消任务')) as HTMLButtonElement
-    confirmButton.click()
-    await flushPromises()
-
-    expect(fail).toHaveBeenCalledWith('task-1')
-  })
-
-  it('keeps cancellation available when the dirty file list cannot be loaded', async () => {
-    mocks.getDirtyWorkspace.mockRejectedValueOnce(new Error('unavailable'))
-    const store = useTaskStore()
-    const cancel = vi.spyOn(store, 'cancelDirtyWorkspace')
-      .mockResolvedValue({ id: 'task-1', status: 'CANCELLED' } as never)
-    mount(DirtyWorkspaceDialog, {
-      props: { taskId: 'task-1', modelValue: true },
-      global: { plugins: [ElementPlus] }, attachTo: document.body,
-    })
-    await flushPromises()
-
-    const cancelButton = [...document.querySelectorAll('button')]
-      .find((button) => button.textContent?.includes('取消任务并保留文件')) as HTMLButtonElement
-    expect(cancelButton.disabled).toBe(false)
-    cancelButton.click()
-    await flushPromises()
-    const confirmButton = [...document.querySelectorAll('button')]
-      .find((button) => button.textContent?.includes('确认取消任务')) as HTMLButtonElement
-    confirmButton.click()
-    await flushPromises()
-
-    expect(cancel).toHaveBeenCalledWith('task-1')
-  })
+import {beforeEach,describe,expect,it,vi} from 'vitest'
+import {api} from '@/api/client'
+import {DirtyWorkspaceDialog} from '@/pages/w4/actions/dirty'
+import {mountPanel,taskFixture} from '@/pages/w6-tests/ordinary/task'
+import {action,confirm,change,body,flushPromises} from '@/pages/w6-tests/ordinary/actions'
+const dirty={branch:'main',head:'abc123',snapshotId:'snapshot-1',clean:false,files:[{path:'README.md',indexStatus:' ',workTreeStatus:'M',untracked:false},{path:'notes.txt',indexStatus:'?',workTreeStatus:'?',untracked:true}]}
+const waiting=()=>taskFixture('task-1',{status:'WAITING_INPUT',waitingReasonCode:'SOURCE_BRANCH_WORKSPACE_DIRTY',branch:'',worktreePath:''})
+beforeEach(()=>{vi.spyOn(api,'getDirtyWorkspace').mockResolvedValue(dirty);vi.spyOn(api,'getTask').mockResolvedValue(taskFixture('task-1',{status:'READY'}))})
+describe('DirtyWorkspaceDialog',()=>{
+ it('lists every dirty file and sends the explicit per-file decisions',async()=>{const resolve=vi.spyOn(api,'resolveDirtyWorkspace').mockResolvedValue({task:taskFixture('task-1',{status:'READY'}),workspace:{...dirty,branch:'loopper/Task',snapshotId:'snapshot-2',clean:true,files:[]}});const p=mountPanel(DirtyWorkspaceDialog,waiting(),{});await flushPromises();expect(body().text()).toContain('README.md');expect(body().text()).toContain('notes.txt');await change('处理方式 README.md','COMMIT');await change('处理方式 notes.txt','STASH');await confirm('workspace.resolve','发现未提交文件');expect(resolve).toHaveBeenCalledWith('task-1',{snapshotId:'snapshot-1',resolutions:[{path:'README.md',action:'COMMIT'},{path:'notes.txt',action:'STASH'}],commitMessage:'chore: 保存任务开始前的本地改动'});expect(p.parent.refresh).toHaveBeenCalledOnce();expect(document.querySelector('[role=dialog][aria-label="发现未提交文件"]')).toBeNull()})
+ it('requires confirmation and cancels the task without resolving files',async()=>{const cancel=vi.spyOn(api,'cancelDirtyWorkspace').mockResolvedValue(taskFixture('task-1',{status:'CANCELLED'})),resolve=vi.spyOn(api,'resolveDirtyWorkspace');vi.mocked(api.getTask).mockResolvedValue(taskFixture('task-1',{status:'CANCELLED'}));mountPanel(DirtyWorkspaceDialog,waiting(),{});await flushPromises();await action('task.cancel');expect(cancel).not.toHaveBeenCalled();expect(body().text()).toContain('确认取消任务？');await confirm('task.cancel','确认取消任务？');expect(cancel).toHaveBeenCalledWith('task-1');expect(resolve).not.toHaveBeenCalled()})
+ it('keeps cancellation available when the dirty file list cannot be loaded',async()=>{vi.mocked(api.getDirtyWorkspace).mockRejectedValue(new Error('unavailable'));const cancel=vi.spyOn(api,'cancelDirtyWorkspace').mockResolvedValue(taskFixture('task-1',{status:'CANCELLED'}));vi.mocked(api.getTask).mockResolvedValue(taskFixture('task-1',{status:'CANCELLED'}));mountPanel(DirtyWorkspaceDialog,waiting(),{});await flushPromises();expect(document.querySelector<HTMLButtonElement>('[data-semantic="task.cancel"]')?.disabled).toBe(false);await action('task.cancel');await confirm('task.cancel','确认取消任务？');expect(cancel).toHaveBeenCalledWith('task-1')})
 })

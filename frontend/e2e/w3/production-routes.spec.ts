@@ -61,7 +61,7 @@ for (const skin of ['spdb', 'tech-blue', 'github-white']) {
       await heavyContent(page, entry.kind)
       if (!cycle && ['knowledge-existing', 'document', 'source'].includes(entry.kind)) await stableShot(page, `${skin}-${entry.kind}-selected.png`)
       await page.evaluate(() => window.__w2Resources.begin())
-      const before = await page.evaluate(() => window.__w2Resources.snapshot()); expect(before.rootConnected).toBe(true); expect(before.listeners.some(row => row.type === 'beforeunload')).toBe(true); expect(before.listeners.some(row => row.type === 'change' && row.targetKind === 'MediaQueryList')).toBe(true); expect(before.sentinel.active).toBe(true)
+      const before = await page.evaluate(() => window.__w2Resources.snapshot()); expect(before.rootConnected).toBe(true); expect(before.listeners.some(row => row.type === 'beforeunload')).toBe(true); expect(before.applicationMediaListeners.some(row => row.type === 'change')).toBe(true); expect(before.sentinel.active).toBe(true)
       const streamsBefore = await page.evaluate(() => (window as unknown as { __w2Streams: { opened: string[]; closed: string[] } }).__w2Streams)
       const immediate = await immediateW3Exit(page), streamsAfter = await page.evaluate(() => (window as unknown as { __w2Streams: { opened: string[]; closed: string[] } }).__w2Streams)
       rounds.push({ cycle, before, immediate, streamsBefore, streamsAfter }); await record(`${skin}-${entry.kind}-threecycles.json`, rounds); assertW2Disposed(before, immediate)

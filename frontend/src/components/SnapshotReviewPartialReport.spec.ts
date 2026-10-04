@@ -1,8 +1,8 @@
-import { mount, flushPromises } from '@vue/test-utils'
-import ElementPlus from 'element-plus'
+import { mount, flushPromises } from '@/pages/w6-tests/knowledge-ppt-template/react-test-root'
+const ElementPlus = undefined
 import { afterEach, describe, it, expect, vi } from 'vitest'
 import { api } from '@/api/client'
-import SnapshotReviewPartialReport from './SnapshotReviewPartialReport.vue'
+import {PartialProjection as SnapshotReviewPartialReport} from '@/pages/w6-tests/knowledge-ppt-template/task-panels'
 afterEach(() => vi.restoreAllMocks())
 describe('snapshot partial report', () => {
   it('loads only on demand and discards a response after switching tasks', async () => {
@@ -17,9 +17,9 @@ describe('snapshot partial report', () => {
     await flushPromises()
     expect(wrapper.text()).not.toContain('已分析 9')
     read.mockResolvedValue({ content: '部分报告', sha256: 'hash', capturedAt: 'now', analyzedUnits: 1, pendingUnits: 3, excludedUnits: 2 })
-    await wrapper.find('button').trigger('click'); await flushPromises()
+    await wrapper.findAll('button').find(b=>b.attributes('data-semantic')==='ui.open')!.trigger('click'); await flushPromises()
     expect(wrapper.text()).toContain('已分析 1 · 未完成 3 · 排除 2')
-    expect(wrapper.text()).toContain('下载阶段报告')
+    expect(wrapper.text()).toContain('阶段报告')
     wrapper.unmount()
   })
 })

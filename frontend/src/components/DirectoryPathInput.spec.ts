@@ -1,58 +1,17 @@
-import { flushPromises, mount } from '@vue/test-utils'
-import ElementPlus from 'element-plus'
+import { act, fireEvent, render, screen } from '@testing-library/react'
+import { createElement, useSyncExternalStore } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/api/client'
-import DirectoryPathInput from './DirectoryPathInput.vue'
-
-afterEach(() => vi.restoreAllMocks())
-function setup() {
-  return mount(DirectoryPathInput, { props: { modelValue: 'reports', label: '文档生成路径', scopeKey: 'p1' },
-    global: { plugins: [ElementPlus], stubs: { Icon: true } } })
-}
-describe('Directory path input', () => {
-  it('fills a chosen absolute path and reports pending state', async () => {
-    vi.spyOn(api, 'pickProjectDirectory').mockResolvedValue({ selected: true, path: '/tmp/报告 目录' })
-    const wrapper = setup()
-    await wrapper.get('button').trigger('click')
-    await flushPromises()
-    expect(wrapper.emitted('update:modelValue')).toEqual([['/tmp/报告 目录']])
-    expect(wrapper.emitted('update:picking')).toEqual([[true], [false]])
-    wrapper.unmount()
-  })
-  it('keeps the entered path after cancellation or failure and allows manual input', async () => {
-    vi.spyOn(api, 'pickProjectDirectory').mockResolvedValueOnce({ selected: false }).mockRejectedValueOnce(new Error('无法打开系统选择器'))
-    const wrapper = setup()
-    await wrapper.get('button').trigger('click'); await flushPromises()
-    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
-    await wrapper.get('button').trigger('click'); await flushPromises()
-    expect(wrapper.text()).toContain('无法打开系统选择器')
-    expect(wrapper.get('input').element.value).toBe('reports')
-    await wrapper.get('input').setValue('manual/reports')
-    expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual(['manual/reports'])
-    wrapper.unmount()
-  })
-  it('ignores selection after the project changes or the component closes', async () => {
-    let finish!: (value: { selected: boolean; path: string }) => void
-    vi.spyOn(api, 'pickProjectDirectory').mockImplementation(() => new Promise(resolve => { finish = resolve }))
-    const wrapper = setup()
-    await wrapper.get('button').trigger('click')
-    expect(wrapper.get('input').attributes('disabled')).toBeDefined()
-    await wrapper.setProps({ scopeKey: 'p2', modelValue: 'new-project/reports' })
-    finish({ selected: true, path: '/old-project' }); await flushPromises()
-    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
-    await wrapper.get('button').trigger('click')
-    wrapper.unmount()
-    finish({ selected: true, path: '/closed-form' }); await flushPromises()
-    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
-  })
-  it('ignores a late selection after the path is replaced externally', async () => {
-    let finish!: (value: { selected: boolean; path: string }) => void
-    vi.spyOn(api, 'pickProjectDirectory').mockImplementation(() => new Promise(resolve => { finish = resolve }))
-    const wrapper = setup()
-    await wrapper.get('button').trigger('click')
-    await wrapper.setProps({ modelValue: 'updated/reports' })
-    finish({ selected: true, path: '/stale' }); await flushPromises()
-    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
-    wrapper.unmount()
-  })
+import { DirectoryField } from '@/pages/w2/core/CoreUi'
+import { createProjectsController } from '@/pages/w2/core/projectsController'
+import { coreFixture, coreFrame, deferred, projectFixture } from '@/pages/w2/core/coreTestHelpers'
+import { flushPromises } from '@/pages/w6-tests/ordinary/render'
+const owners:ReturnType<typeof createProjectsController>[]=[]
+afterEach(()=>{owners.splice(0).forEach(owner=>owner.retire(true));vi.restoreAllMocks()})
+function setup(){const f=coreFixture(),owner=createProjectsController(f.port);owners.push(owner);owner.open('document',{...projectFixture,documentPath:'reports'});const picking:boolean[]=[],paths:string[]=[];let old=owner.getSnapshot();owner.subscribe(()=>{const next=owner.getSnapshot();if(old.picking!==next.picking)picking.push(next.picking);if(old.documentPath!==next.documentPath)paths.push(next.documentPath);old=next});function Field(){const s=useSyncExternalStore(owner.subscribe,owner.getSnapshot);return createElement(DirectoryField,{value:s.documentPath,label:'文档生成路径',picking:s.picking,disabled:owner.locked(),demo:false,change:owner.changeDocument,pick:()=>void owner.pick('documentPath')})}const view=render(coreFrame(createElement(Field)));return {owner,view,picking,paths}}
+describe('Directory path input',()=>{
+ it('fills a chosen absolute path and reports pending state',async()=>{vi.spyOn(api,'pickProjectDirectory').mockResolvedValue({selected:true,path:'/tmp/报告 目录'});const f=setup();fireEvent.click(screen.getByRole('button'));await flushPromises();expect(f.paths).toEqual(['/tmp/报告 目录']);expect(f.picking).toEqual([true,false])})
+ it('keeps the entered path after cancellation or failure and allows manual input',async()=>{vi.spyOn(api,'pickProjectDirectory').mockResolvedValueOnce({selected:false}).mockRejectedValueOnce(new Error('无法打开系统选择器'));const f=setup();fireEvent.click(screen.getByRole('button'));await flushPromises();expect(f.paths).toEqual([]);fireEvent.click(screen.getByRole('button'));await flushPromises();expect(f.owner.getSnapshot().error).toContain('无法打开系统选择器');expect(screen.getByRole('textbox')).toHaveProperty('value','reports');fireEvent.change(screen.getByRole('textbox'),{target:{value:'manual/reports'}});expect(f.paths.at(-1)).toBe('manual/reports')})
+ it('ignores selection after the project changes or the component closes',async()=>{let wait=deferred<{selected:boolean;path:string}>();vi.spyOn(api,'pickProjectDirectory').mockImplementation(()=>wait.promise);const f=setup();fireEvent.click(screen.getByRole('button'));expect(screen.getByRole('textbox')).toHaveProperty('disabled',true);act(()=>f.owner.retire(true));wait.resolve({selected:true,path:'/old-project'});await flushPromises();expect(f.paths).toEqual([]);f.view.unmount();wait=deferred();const next=setup();fireEvent.click(screen.getByRole('button'));act(()=>next.owner.retire(true));next.view.unmount();wait.resolve({selected:true,path:'/closed-form'});await flushPromises();expect(next.paths).toEqual([])})
+ it('ignores a late selection after the path is replaced externally',async()=>{const wait=deferred<{selected:boolean;path:string}>();vi.spyOn(api,'pickProjectDirectory').mockReturnValue(wait.promise);const f=setup();fireEvent.click(screen.getByRole('button'));act(()=>f.owner.changeDocument('updated/reports'));wait.resolve({selected:true,path:'/stale'});await flushPromises();expect(f.paths).toEqual(['updated/reports']);expect(f.owner.getSnapshot().documentPath).toBe('updated/reports')})
 })

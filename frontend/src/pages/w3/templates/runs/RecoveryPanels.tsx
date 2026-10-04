@@ -10,14 +10,16 @@ import { pendingCommand } from './core'
 import type { RunController } from './runController'
 import { CommandNotice, ReadNotice, selectionTrigger, useRunOwner } from './parts'
 
-export function TemplateBatchRecoveryPanel({ kind, id, props, parent, controller, revision, active = false }: { kind: 'document' | 'task'; id: string; props: W2PageProps; parent?: RunController; revision?: string; active?: boolean; controller?: ReturnType<typeof createBatchRecoveryOwner> }) {
+export function TemplateBatchRecoveryPanel({ kind, id, props, parent, controller, revision, taskStatus, active = false }: { kind: 'document' | 'task'; id: string; props: W2PageProps; parent?: RunController; revision?: string; taskStatus?: string; active?: boolean; controller?: ReturnType<typeof createBatchRecoveryOwner> }) {
   const owner = useMemo(() => controller ?? createBatchRecoveryOwner(kind, id), [controller, kind, id]), s = useRunOwner(props, owner, parent)
   const previous = useRef(revision)
   useLayoutEffect(() => { owner.setActive(active) }, [owner, active])
   useLayoutEffect(() => { if (previous.current !== revision) { previous.current = revision; if (owner.viewCount()) void owner.load() } }, [owner, revision])
   const locked = pendingCommand(s.command)
+  if (!s.loading && !s.error && !s.rows.length && !locked) return null
+  const paused = taskStatus === 'WAITING_INPUT' || s.resumeAvailable || s.blockingBatches > 0
   return <section className="w3-card" aria-label="批次恢复"><header><h2>批次恢复</h2><UiActionButton actionKey="ui.refresh" target="批次" busy={s.loading} onAction={() => { void owner.load() }} /></header><CommandNotice command={s.command} recover={() => { void owner.recover() }} /><ReadNotice error={s.error} loading={s.loading} retry={() => { void owner.load() }} />
-    {s.environmentBlocked ? <p>运行环境暂不可用，已暂停派发，保留原会话等待核对。</p> : !s.ready && s.rows.length ? <p>失败批次已记录，停止与本轮完成核对前不能重新触发。{s.blockingBatches > 0 && `还有 ${s.blockingBatches} 个批次未确认结束。`}</p> : s.rows.length > 0 && <p>请选择失败批次，已完成结果保留。每次最多选择 100 个批次。</p>}
+    {s.environmentBlocked ? <p>运行环境暂不可用，已暂停派发，保留原会话等待核对。</p> : !s.ready && s.rows.length ? <p>{kind === 'task' ? paused ? '任务已暂停，失败批次已记录，停止与本轮完成核对前不能重新触发。' : '失败批次已记录，后续批次继续执行，停止与本轮完成核对前不能重新触发。' : '失败批次已记录，停止与本轮完成核对前不能重新触发。'}{s.blockingBatches > 0 && `还有 ${s.blockingBatches} 个批次未确认结束。`}</p> : s.rows.length > 0 && <p>请选择失败批次，已完成结果保留。每次最多选择 100 个批次。</p>}
     {s.resumeAvailable && <UiActionButton actionKey="ui.retry" target="重新检查并恢复原批次" availability={locked ? { kind: 'disabled', reason: '原操作尚未确认。' } : { kind: 'enabled' }} onAction={() => { void owner.recheck() }} />}
     {s.ready && <label><input type="checkbox" checked={!!s.rows.length && s.selected.length === s.rows.length} disabled={locked || s.loading} onChange={() => owner.selectAll()} />选择已加载批次</label>}
     <ul>{s.rows.map(row => <li key={row.id}><label>{s.ready && <input type="checkbox" checked={s.selected.includes(row.id)} disabled={locked || s.loading} onChange={event => owner.select(row.id, event.target.checked)} />}<strong>{templateBatchPurpose(row.purpose)} · 第 {row.ordinal + 1} 批</strong></label><p>{row.errorMessage || '该批次已停止，尚未完成分析。'}</p></li>)}</ul>
@@ -34,7 +36,7 @@ export function TemplateSessionDiagnosticsPanel({ taskId, active, props, parent,
     {!s.loading && !s.error && !s.items.length && <p>当前筛选没有批次。可切换“未完成”查看仍在执行的批次。</p>}
     {s.items.map(row => <article key={row.batchId}><header><strong>阶段 {row.stageOrdinal} · {templateBatchPurpose(row.purpose)} · 第 {row.ordinal} 批</strong><span>{templateDiagnosticPhaseLabel(row.phase)}</span></header><p>{row.reason}</p>
       {!!row.retryLimit && <p>本轮自动重试已用 {row.automaticRetries ?? 0}/{row.retryLimit} 次{row.nextRetryAt && `；下次重新分析：${formatDateTime(row.nextRetryAt)}`}</p>}{!!row.transportFailures && <p>连续 {row.transportFailures} 次未能完成检查；查询重试不计入自动重新分析次数。</p>}
-      <dl><dt>最后检查 · {row.connected ? '连接正常' : '未确认连接'}</dt><dd>{row.observedAt ? formatDateTime(row.observedAt) : '暂无记录'}</dd><dt>最后活动</dt><dd>{row.lastActivityAt ? formatDateTime(row.lastActivityAt) : '暂无记录'}</dd><dt>最后有效进展</dt><dd>{row.lastProgressAt ? formatDateTime(row.lastProgressAt) : '暂无记录'}</dd>{row.acceptedAt && <><dt>结果接受时间</dt><dd>{formatDateTime(row.acceptedAt)}</dd></>}{row.stopConfirmedAt && <><dt>停止确认时间</dt><dd>{formatDateTime(row.stopConfirmedAt)}</dd></>}</dl>
+      <dl><dt>最后检查 · {row.connected ? '连接正常' : '未确认连接'}</dt><dd>{row.observedAt ? formatDateTime(row.observedAt) : '暂无记录'}</dd><dt>最后活动</dt><dd>{row.lastActivityAt ? formatDateTime(row.lastActivityAt) : '暂无记录'}{activityIdle(row.lastActivityAt, row.observedAt) && <span> · 截至最后检查，{activityIdle(row.lastActivityAt, row.observedAt)}无新活动</span>}</dd><dt>最后有效进展</dt><dd>{row.lastProgressAt ? formatDateTime(row.lastProgressAt) : '暂无记录'}</dd>{row.acceptedAt && <><dt>结果接受时间</dt><dd>{formatDateTime(row.acceptedAt)}</dd></>}{row.stopConfirmedAt && <><dt>停止确认时间</dt><dd>{formatDateTime(row.stopConfirmedAt)}</dd></>}</dl>
       <div className="w3-actions">{row.sessionKey && onSelect && <UiActionButton actionKey="ui.open" target="对应会话" onAction={() => onSelect(row.sessionKey!)} />}
         <button type="button" data-semantic="selection.select" aria-label={semanticName('selection.select', `第 ${row.ordinal} 批诊断`)} aria-expanded={s.selected === row.batchId} onClick={() => { selectionTrigger(trigger); if (s.selected === row.batchId) owner.close(); else void owner.details(row.batchId) }}><SemanticIcon semanticKey="object.batch" />查看诊断详情</button>
         {row.canCheck && <UiActionButton actionKey="template.checkSession" availability={!owner.canAct(row, 'CHECK') ? { kind: 'disabled', reason: '请先恢复原操作。' } : { kind: 'enabled' }} onAction={() => owner.request(row, 'CHECK')} />}
@@ -47,3 +49,5 @@ export function TemplateSessionDiagnosticsPanel({ taskId, active, props, parent,
     <UiConfirmDialog open={!!s.confirming} title="停止此批次" confirmActionKey="template.stopBatch" onConfirm={owner.confirm} onCancel={owner.cancelConfirmation}><p>只停止当前批次的会话。停止确认后可能需要单独重试，已完成批次保持不变。</p></UiConfirmDialog>
   </section>
 }
+
+function activityIdle(last: string | null | undefined, observed: string | null | undefined) { if (!last || !observed) return ''; const seconds = Math.floor((Date.parse(observed) - Date.parse(last)) / 1000); if (!Number.isFinite(seconds) || seconds < 1) return ''; return seconds < 60 ? `${seconds} 秒` : seconds < 3600 ? `${Math.floor(seconds / 60)} 分钟` : `${Math.floor(seconds / 3600)} 小时 ${Math.floor(seconds % 3600 / 60)} 分钟` }

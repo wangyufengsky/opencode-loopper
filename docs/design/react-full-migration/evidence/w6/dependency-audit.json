@@ -1,0 +1,164 @@
+{
+  "baseline": "2186deafdfc6d8bfbd6047ea2b3b8853a5296683",
+  "removedDirect": {
+    "@iconify/vue": "^5.0.0",
+    "@vueuse/core": "^13.0.0",
+    "element-plus": "^2.9.6",
+    "pinia": "^3.0.1",
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "@vue/test-utils": "^2.4.6",
+    "@vue/tsconfig": "^0.7.0",
+    "vue-tsc": "^2.2.0"
+  },
+  "oldLockedVueFamily": [
+    {
+      "path": "node_modules/@iconify/vue",
+      "version": "5.0.1"
+    },
+    {
+      "path": "node_modules/@vitejs/plugin-vue",
+      "version": "5.2.4"
+    },
+    {
+      "path": "node_modules/@vue/compiler-core",
+      "version": "3.5.40"
+    },
+    {
+      "path": "node_modules/@vue/compiler-dom",
+      "version": "3.5.40"
+    },
+    {
+      "path": "node_modules/@vue/compiler-sfc",
+      "version": "3.5.40"
+    },
+    {
+      "path": "node_modules/@vue/compiler-ssr",
+      "version": "3.5.40"
+    },
+    {
+      "path": "node_modules/@vue/compiler-vue2",
+      "version": "2.7.16"
+    },
+    {
+      "path": "node_modules/@vue/devtools-api",
+      "version": "7.7.10"
+    },
+    {
+      "path": "node_modules/@vue/devtools-kit",
+      "version": "7.7.10"
+    },
+    {
+      "path": "node_modules/@vue/devtools-shared",
+      "version": "7.7.10"
+    },
+    {
+      "path": "node_modules/@vue/language-core",
+      "version": "2.2.12"
+    },
+    {
+      "path": "node_modules/@vue/reactivity",
+      "version": "3.5.40"
+    },
+    {
+      "path": "node_modules/@vue/runtime-core",
+      "version": "3.5.40"
+    },
+    {
+      "path": "node_modules/@vue/runtime-dom",
+      "version": "3.5.40"
+    },
+    {
+      "path": "node_modules/@vue/server-renderer",
+      "version": "3.5.40"
+    },
+    {
+      "path": "node_modules/@vue/shared",
+      "version": "3.5.40"
+    },
+    {
+      "path": "node_modules/@vue/test-utils",
+      "version": "2.4.11"
+    },
+    {
+      "path": "node_modules/@vue/tsconfig",
+      "version": "0.7.0"
+    },
+    {
+      "path": "node_modules/@vueuse/core",
+      "version": "13.9.0"
+    },
+    {
+      "path": "node_modules/@vueuse/metadata",
+      "version": "13.9.0"
+    },
+    {
+      "path": "node_modules/@vueuse/shared",
+      "version": "13.9.0"
+    },
+    {
+      "path": "node_modules/element-plus",
+      "version": "2.14.3"
+    },
+    {
+      "path": "node_modules/element-plus/node_modules/@vueuse/core",
+      "version": "14.3.0"
+    },
+    {
+      "path": "node_modules/element-plus/node_modules/@vueuse/metadata",
+      "version": "14.3.0"
+    },
+    {
+      "path": "node_modules/element-plus/node_modules/@vueuse/shared",
+      "version": "14.3.0"
+    },
+    {
+      "path": "node_modules/pinia",
+      "version": "3.0.4"
+    },
+    {
+      "path": "node_modules/vue",
+      "version": "3.5.40"
+    },
+    {
+      "path": "node_modules/vue-component-type-helpers",
+      "version": "3.3.9"
+    },
+    {
+      "path": "node_modules/vue-router",
+      "version": "4.6.4"
+    },
+    {
+      "path": "node_modules/vue-router/node_modules/@vue/devtools-api",
+      "version": "6.6.4"
+    },
+    {
+      "path": "node_modules/vue-tsc",
+      "version": "2.2.12"
+    }
+  ],
+  "newLockedVueFamily": [],
+  "newRouter": {
+    "version": "7.18.4",
+    "resolved": "https://registry.npmjs.org/react-router/-/react-router-7.18.4.tgz",
+    "integrity": "sha512-PUPQcMhMGRAslLcvtlPz/kmzBEWPhLdgLFrL7pLNepBL6dX0lWj4WD2cUYVgYCuT3jxvghYFg81cDTj44DhetQ==",
+    "license": "MIT",
+    "engines": {
+      "node": ">=20.0.0"
+    }
+  },
+  "patchManifestFiles": [
+    "scripts/patches/xyflow-react-12.12.0-resize-cleanup.json",
+    "scripts/patches/xyflow-system-0.0.83-resize-cleanup.json"
+  ],
+  "audit": {
+    "ok": true,
+    "sourceFiles": 769,
+    "sourceModuleReferences": 3924,
+    "scriptFiles": 32,
+    "dependencyPackages": 426,
+    "buildModules": 3940,
+    "errors": []
+  }
+}

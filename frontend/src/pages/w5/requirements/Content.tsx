@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import type { WorkflowInputs } from '@/types/domain'
 import type { W2PageProps } from '@/pages/w2/shared'
 import { RichDocument } from '@/pages/w3/shared/RichDocument'
@@ -45,12 +45,16 @@ export function AttemptFiles({ page, scope, archive, changes }: { page: W2PagePr
 }
 export function AttemptKnowledge({ page, scope }: { page: W2PageProps; scope: AttemptContentScope }) {
   const { owner, state: s } = useContent(page, scope)
-  useEffect(() => { void owner.evidence() }, [owner])
+  // Retry the user's original read, including its page cursor or selected evidence identity.
+  const retry = useRef<() => Promise<void>>(() => owner.evidence())
+  const readList = (more = false) => { retry.current = () => owner.evidence(more); void retry.current() }
+  const readBody = (id: string) => { retry.current = () => owner.evidenceBody(id); void retry.current() }
+  useEffect(() => { retry.current = () => owner.evidence(); void retry.current() }, [owner])
   return <section aria-label="本次检索证据"><h3>本次检索证据</h3><p>这里保存本次执行实际读取的资料。采集之后的文件变化不会改写这些记录。</p>
-    <Action action="ui.refresh" target="检索证据" busy={s.loading} onClick={() => { void owner.evidence() }} /><ReadNotice error={s.error} retry={() => { void owner.evidence() }} />
+    <Action action="ui.refresh" target="检索证据" busy={s.loading} onClick={() => readList()} /><ReadNotice error={s.error} retry={() => { void retry.current() }} />
     {s.evidenceLoaded && !s.evidence.length && <p>本次执行尚无保存的检索证据。</p>}
-    <ul>{s.evidence.map(entry => <li key={entry.id}><strong>{knowledgeToolLabel(entry.toolName)}</strong><time>{new Date(entry.createdAt).toLocaleString('zh-CN')}</time><Action action="selection.select" target={knowledgeToolLabel(entry.toolName)} onClick={() => { void owner.evidenceBody(entry.id) }} /></li>)}</ul>
-    {s.evidenceCursor && <Action action="ui.loadMore" target="检索证据" busy={s.loading} onClick={() => { void owner.evidence(true) }} />}
+    <ul>{s.evidence.map(entry => <li key={entry.id}><strong>{knowledgeToolLabel(entry.toolName)}</strong><time>{new Date(entry.createdAt).toLocaleString('zh-CN')}</time><Action action="selection.select" target={knowledgeToolLabel(entry.toolName)} onClick={() => readBody(entry.id)} /></li>)}</ul>
+    {s.evidenceCursor && <Action action="ui.loadMore" target="检索证据" busy={s.loading} onClick={() => readList(true)} />}
     {s.evidenceBody && <KnowledgeEvidence body={knowledgeBody(s.evidenceBody.content, knowledgeToolLabel(s.evidenceBody.toolName))} skin={page.skin} />}
   </section>
 }

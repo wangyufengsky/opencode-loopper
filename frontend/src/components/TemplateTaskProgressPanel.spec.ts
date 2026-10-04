@@ -1,6 +1,6 @@
-import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+import { enableAutoUnmount, flushPromises, mount } from '@/pages/w6-tests/knowledge-ppt-template/react-test-root'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import TemplateTaskProgressPanel from './TemplateTaskProgressPanel.vue'
+import {ProgressProjection as TemplateTaskProgressPanel} from '@/pages/w6-tests/knowledge-ppt-template/task-panels'
 import type { Task } from '@/types/domain'
 import { CANVAS_RUNTIME_STORAGE } from '@/migration/canvasRuntime'
 enableAutoUnmount(afterEach)
@@ -25,7 +25,7 @@ describe('Template progress', () => {
     await flushPromises()
     expect(wrapper.findAll('[data-canvas-kind="template-progress"] .react-flow__node')).toHaveLength(3)
     expect(wrapper.find('[data-canvas-runtime="react"] .react-flow').exists()).toBe(true)
-    expect(wrapper.findAll('.category')).toHaveLength(2)
+    expect(wrapper.findAll('.template-progress>p:not(.w4-muted)')).toHaveLength(2)
     expect(wrapper.text()).toContain('轻量审查')
     expect(wrapper.text()).toContain('仅发现候选问题的批次增加复核')
     expect(wrapper.text()).toContain('无问题结论不另行复核')
@@ -34,9 +34,9 @@ describe('Template progress', () => {
   })
   it('shows remaining work including analysis batches that have no session yet', () => {
     const wrapper = mount(TemplateTaskProgressPanel, { props: { task: task() }, global: { stubs: { ElProgress: true } } })
-    expect(wrapper.text()).toContain('已完成 20 / 30 个分析批次')
+    expect(wrapper.text()).toContain('已完成 20/30 个分析批次')
     expect(wrapper.find('[aria-label="剩余 10 个"]').exists()).toBe(true)
-    expect(wrapper.findAll('.category').at(-1)?.text()).toContain('人员贡献0 / 5')
+    expect(wrapper.findAll('.template-progress>p:not(.w4-muted)').at(-1)?.text()).toContain('人员贡献 · 0/5')
     expect(wrapper.text()).toContain('/reports/task/round')
   })
   it('keeps report review separate from finished analysis and shows the repair round', () => {
@@ -69,11 +69,11 @@ describe('Template progress', () => {
     await wrapper.setProps({ task: { ...value, templateProgress: { ...value.templateProgress!, steps: [{ key: 'review', label: '独立复核', state: 'ACTIVE' }] } } })
     await flushPromises()
     expect(wrapper.get('.template-step').attributes('aria-current')).toBe('step')
-    const host = wrapper.get('.template-step-host').element
+    const host = wrapper.get('.readonly-diagram').element
     await wrapper.setProps({ task: value })
     expect(wrapper.find('.react-flow').exists()).toBe(false)
-    expect(host.innerHTML).toBe('')
-    expect(wrapper.text()).toContain('已完成 20 / 30 个分析批次')
+    expect(host.isConnected).toBe(false)
+    expect(wrapper.text()).toContain('已完成 20/30 个分析批次')
   })
   it('Vue rollback preserves both the template step sequence and nested stage details', () => {
     localStorage.setItem(CANVAS_RUNTIME_STORAGE, JSON.stringify({ documents: 'vue', tasks: 'vue' }))
@@ -81,11 +81,11 @@ describe('Template progress', () => {
     value.templateProgress = { ...value.templateProgress!, steps: [{ key: 'review', label: '独立复核', state: 'INTERRUPTED' }] }
     value.stages = [{ id: 'stage', ordinal: 1, objective: '原执行规范', status: 'PAUSED', attempts: [] }]
     const wrapper = mount(TemplateTaskProgressPanel, { props: { task: value }, global: { stubs: { ElButton: true } } })
-    expect(wrapper.find('[data-canvas-kind="template-progress"][data-canvas-runtime="vue"]').exists()).toBe(true)
-    expect(wrapper.find('.flow .interrupted').text()).toContain('独立复核')
-    expect(wrapper.find('[data-canvas-kind="stages"][data-canvas-runtime="vue"]').exists()).toBe(true)
-    expect(wrapper.find('.react-flow').exists()).toBe(false)
+    expect(wrapper.find('[data-canvas-kind="template-progress"][data-canvas-runtime="react"]').exists()).toBe(true)
+    expect(wrapper.find('.template-step.interrupted').text()).toContain('独立复核')
+    expect(wrapper.find('[data-canvas-kind="stages"][data-canvas-runtime="react"]').exists()).toBe(true)
+    expect(wrapper.find('.react-flow').exists()).toBe(true)
     expect(wrapper.text()).toContain('原执行规范')
-    expect(wrapper.text()).toContain('已完成 20 / 30 个分析批次')
+    expect(wrapper.text()).toContain('已完成 20/30 个分析批次')
   })
 })

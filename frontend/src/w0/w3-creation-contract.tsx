@@ -1,11 +1,9 @@
-/** Frozen W0 assertions now exercise the real production React page and sole Vue history. */
+import { mountApplicationHarness } from '@/test/applicationHarness'
+import { navigationHarness } from '@/test/navigationHarness'
+import { flushPromises } from '@/test/async'
+/** Frozen W0 assertions now exercise the real production React page and sole React history. */
 import { act, fireEvent } from '@testing-library/react'
-import { mount, flushPromises } from '@vue/test-utils'
-import { createPinia } from 'pinia'
-import { defineComponent, h } from 'vue'
-import { createMemoryHistory, createRouter, RouterView } from 'vue-router'
 import { expect, vi, type Mock } from 'vitest'
-import W2RouteBridge from '@/migration/W2RouteBridge.vue'
 import { api } from '@/api/client'
 import { foundationDOM } from '@/pages/w2/workflow/page.test-support'
 import type { TemplateTaskCatalog } from '@/types/domain'
@@ -35,10 +33,8 @@ export async function creationUiW0Contract(kind: Kind, mode: Mode, options: {
   }
   mock('templateCatalog').mockResolvedValue(options.catalog(kind))
   if (kind === 'source') mock('sourcePreview').mockResolvedValue({ sourcePath: 'src/main', manifestSha256: 'sha', targetCount: 1, excludedCount: 0, moduleCount: 1, truncated: false, files: [], testProfile: { manifestSha256: 'sha', modules: [] }, configurationProblem: null })
-  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/template-tasks', component: W2RouteBridge }, { path: '/exit', component: { template: '<p>安全离开目标</p>' } }, { path: '/tasks/:id', component: { template: '<p>原任务检视</p>' } }] })
-  await router.push('/template-tasks?projectId=p'); await router.isReady()
-  let root!: ReturnType<typeof mount>
-  await act(async () => { root = mount(defineComponent({ setup: () => () => h(RouterView) }), { attachTo: document.body, global: { plugins: [createPinia(), router] } }); await flushPromises() })
+  const root = await mountApplicationHarness({ initialEntries: ['/template-tasks?projectId=p'], routes: [{ path: '/template-tasks' }, { path: '/exit', element: <p>安全离开目标</p> }, { path: '/tasks/:id', element: <p>原任务检视</p> }] })
+  const router = navigationHarness(root)
   try {
     await settle(); const host = root.element as HTMLElement
     expect(host.querySelectorAll('[data-react-page]')).toHaveLength(1)

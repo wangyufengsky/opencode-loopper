@@ -14,6 +14,7 @@ export function createPublicationController(requirement: string, initialRevision
     writeback: null as WorkflowWritebackView | null, writebackLoaded: false, writebackOpen: false,
   })
   const requests = new Set<() => void>()
+  let cancelPreview: (() => void) | undefined
   function abortable(channel: string) { const abort = new AbortController(), dispose = owner.own(() => abort.abort()), ticket = owner.ticket(channel); const release = () => { requests.delete(release); dispose() }; requests.add(release); return { abort, release, ticket } }
   function closeReads() { cancelPoll(); for (const release of [...requests]) release(); for (const channel of ['sources', 'preview', 'writeback-preview', 'push-preview', 'remotes', 'status-commit', 'status-push', 'status-writeback']) owner.ticket(channel) }
   function schedule() {
@@ -40,12 +41,14 @@ export function createPublicationController(requirement: string, initialRevision
   }
   async function choose(source: WorkflowPublicationSource, discard = false) {
     if (!owner.active() || owner.locked() || !discard && owner.canLeave().kind !== 'ALLOW') return
-    const request = abortable('preview'), originalRevision = revision; owner.patch({ selected: source, preview: null, checked: null, loading: true, commitOpen: false, writebackOpen: false, message: '', dirty: false })
+    // A newer selected source replaces only this instance's preview read.
+    cancelPreview?.()
+    const request = abortable('preview'), originalRevision = revision; cancelPreview = request.release; owner.patch({ selected: source, preview: null, checked: null, loading: true, commitOpen: false, writebackOpen: false, message: '', dirty: false })
     try { const preview = await workflowPublication.preview(requirement, originalRevision, source, request.abort.signal); if (!request.ticket.current() || revision !== originalRevision) return
       requireIdentity(preview.requirementId, requirement, '成果预览'); if (preview.planRevision !== originalRevision || preview.source.nodeKey !== source.nodeKey || preview.source.attemptId !== source.attemptId || preview.source.outputName !== source.outputName) throw new Error('成果版本已变化，请刷新后重新选择。')
       owner.patch({ preview, error: '' })
     } catch (cause) { if (request.ticket.current()) owner.fail(cause, '所选成果暂时无法预览，请重试。') }
-    finally { request.release(); if (request.ticket.current()) owner.patch({ loading: false }) }
+    finally { request.release(); if (cancelPreview === request.release) cancelPreview = undefined; if (request.ticket.current()) owner.patch({ loading: false }) }
   }
   async function checkWriteback() {
     const source = owner.getSnapshot().preview; if (!owner.active() || !source || source.workspaceKind !== 'DIRECT' || owner.locked()) return

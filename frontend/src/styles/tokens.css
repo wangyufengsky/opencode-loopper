@@ -7,25 +7,6 @@
   --space-6: 24px;
   --space-8: 32px;
 
-  --el-color-primary: var(--color-action-primary);
-  --el-color-success: var(--color-success);
-  --el-color-warning: var(--color-session-warning);
-  --el-color-danger: var(--color-task-danger);
-  --el-color-info: var(--color-text-secondary);
-  --el-bg-color: var(--color-bg-surface);
-  --el-bg-color-page: var(--color-bg-canvas);
-  --el-bg-color-overlay: var(--color-bg-elevated);
-  --el-fill-color-blank: var(--color-bg-surface);
-  --el-fill-color-light: var(--shade-fill-light);
-  --el-fill-color-lighter: var(--shade-fill-lighter);
-  --el-fill-color-dark: var(--shade-fill-dark);
-  --el-text-color-primary: var(--color-text-primary);
-  --el-text-color-regular: var(--color-text-secondary);
-  --el-text-color-secondary: var(--color-text-muted);
-  --el-border-color: var(--color-border-default);
-  --el-border-color-light: var(--color-border-muted);
-  --el-border-radius-base: var(--radius-control);
-  --el-box-shadow-light: var(--shadow-card);
   font-family: var(--font-ui);
   color: var(--color-text-primary);
   background: var(--color-bg-canvas);

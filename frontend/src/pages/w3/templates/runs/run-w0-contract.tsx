@@ -1,11 +1,9 @@
-/** W0 run contracts use the actual production Vue history bridge and React route module. */
+import { mountApplicationHarness } from '@/test/applicationHarness'
+import { navigationHarness } from '@/test/navigationHarness'
+import { flushPromises } from '@/test/async'
+/** W0 run contracts use the actual production React history and React route module. */
 import { act } from '@testing-library/react'
-import { createPinia } from 'pinia'
-import { defineComponent, h } from 'vue'
-import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
-import { createMemoryHistory, createRouter, RouterView } from 'vue-router'
 import { expect, vi } from 'vitest'
-import W2RouteBridge from '@/migration/W2RouteBridge.vue'
 import { api } from '@/api/client'
 import { semanticName } from '@/foundation/semanticRegistry'
 import type { DocumentTemplateOverview, SourceTemplateOverview } from '@/types/domain'
@@ -28,10 +26,8 @@ export async function mountRunRoute(kind: RunKind, id = 'A') {
   if (!vi.isMockFunction(api.sourceArtifacts)) vi.spyOn(api, 'sourceArtifacts').mockResolvedValue({ items: [], facets: {} })
   if (!vi.isMockFunction(api.sourceBatches)) vi.spyOn(api, 'sourceBatches').mockResolvedValue({ items: [], facets: {} })
   const path = `/template-tasks/${kind}-runs/${id}`
-  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: `/template-tasks/${kind}-runs/:id`, component: W2RouteBridge }, { path: '/exit', component: { template: '<p>其他页面</p>' } }, { path: '/tasks', component: { template: '<p>模板历史</p>' } }] })
-  await router.push(path); await router.isReady()
-  let root!: VueWrapper
-  await act(async () => { root = mount(defineComponent({ setup: () => () => h(RouterView) }), { attachTo: document.body, global: { plugins: [createPinia(), router] } }); await flushPromises() })
+  const root = await mountApplicationHarness({ initialEntries: [path], routes: [{ path: `/template-tasks/${kind}-runs/:id` }, { path: '/exit', element: <p>其他页面</p> }, { path: '/tasks', element: <p>模板历史</p> }] })
+  const router = navigationHarness(root)
   await settleRunBridge()
   const host = root.element as HTMLElement
   if (!host.querySelector('[data-react-page="object.templateRun"]')) throw new Error(`生产模板桥未挂载真实 React 页：${host.textContent}`)

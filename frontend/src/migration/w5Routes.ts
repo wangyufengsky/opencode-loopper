@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react'
 import type { W2PageProps } from '@/pages/w2/shared/types'
 
-/** The remaining existing creative routes; Vue Router still owns history and designerEntry. */
+/** Production React pages. The W6 application router is the only history owner. */
 export const w5RouteRecords = [
   { pattern: '/requirements/new', matches: (path: string) => path === '/requirements/new', load: () => import('@/pages/w5/requirements').then(module => module.NewRequirementPage) },
   { pattern: '/requirements/:id', matches: (path: string) => path !== '/requirements/new' && /^\/requirements\/[^/]+$/.test(path), load: () => import('@/pages/w5/requirements').then(module => module.RequirementPage) },

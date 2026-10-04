@@ -11,7 +11,7 @@ import { createUploadController, type UploadController } from './uploadControlle
 import type { RequirementController } from './controller'
 import { Action, CommandNotice, Labeled, ReadNotice, useRequirementOwner } from './parts'
 
-function BranchInput({ page, project, title, value, disabled, onChange }: { page: W2PageProps; project: string; title: string; value: string; disabled: boolean; onChange: (value: string) => void }) {
+export function BranchInput({ page, project, title, value, disabled, onChange }: { page: W2PageProps; project: string; title: string; value: string; disabled: boolean; onChange: (value: string) => void }) {
   const owner = useMemo(() => {
     const scope = createRequirementScope('requirement-branch', project, { ...ownedState(), rows: [] as TemplateBranchChoice[], query: '', cursor: null as string | null, opened: false, loaded: false, problems: [] as string[] })
     async function search(more = false) { if (!project) return; const ticket = scope.ticket('branches'), s = scope.getSnapshot(); scope.patch({ loading: true, opened: true }); try { const reply = await api.templateBranches(project, s.query.trim(), more ? s.cursor ?? undefined : undefined); if (ticket.current()) scope.patch({ rows: more ? [...s.rows, ...reply.page.items] : reply.page.items, cursor: reply.page.nextCursor ?? null, problems: reply.remoteProblems ?? [], loaded: true, error: '' }) } catch (cause) { if (ticket.current()) scope.fail(cause, '分支无法读取，请检查项目仓库和连接后重试。') } finally { if (ticket.current()) scope.patch({ loading: false }) } }

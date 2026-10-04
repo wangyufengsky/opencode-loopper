@@ -14,7 +14,7 @@ import { CommandNotice, focusSelection, ReadNotice, usePageOwner } from '../work
 import { createRoleManagementController, type RoleTab } from './roleManagementController'
 import { availableRoleSlots, diagnostic, formatValue, importChanges, permissionMode, roleTools } from './rolePresentation'
 
-function PromptDocument({ revision }: { revision: RoleRevision }) {
+export function PromptDocument({ revision }: { revision: RoleRevision }) {
   const prompt = rolePrompt(revision)
   return <section aria-label="Prompt 全文">
     {typeof revision.manifest.workInstructions === 'string' && revision.manifest.workInstructions && <><h3>工作节点专业说明</h3><pre aria-label="工作节点专业说明">{revision.manifest.workInstructions}</pre></>}

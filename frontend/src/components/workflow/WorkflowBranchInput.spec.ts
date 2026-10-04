@@ -1,8 +1,8 @@
-import { flushPromises, mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@/pages/w6-tests/workflow/react-test-root'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/api/client'
 import type { TemplateBranchChoice, TemplateBranchPage } from '@/types/domain'
-import WorkflowBranchInput from './WorkflowBranchInput.vue'
+import { WorkflowBranchInput } from '@/pages/w6-tests/workflow/read-panels'
 vi.mock('@/api/client', () => ({ ApiError: class extends Error {}, api: { templateBranches: vi.fn() } }))
 const main = { id: 'local:refs/heads/main', label: 'main', ref: 'refs/heads/main', remote: null }
 const other = { id: 'remote:origin:refs/heads/review', label: 'review', ref: 'refs/heads/review', remote: 'origin' }
@@ -14,7 +14,7 @@ describe('固定代码分支选择', () => {
     const view = mount(WorkflowBranchInput, { props: { project: 'p', title: '代码分支', value: '' } })
     expect(api.templateBranches).not.toHaveBeenCalled()
     await view.get('button').trigger('click'); await flushPromises(); expect(view.emitted('change')).toBeUndefined()
-    await view.findAll('button').find(b => b.text() === '更多分支')!.trigger('click'); await flushPromises()
+    await view.findAll('button').find(b => b.attributes('data-semantic') === 'ui.loadMore')!.trigger('click'); await flushPromises()
     expect(api.templateBranches).toHaveBeenLastCalledWith('p', '', 'next')
     await view.get('select').setValue(other.id); expect(view.emitted('change')![0]).toEqual([other.id]); await view.setProps({ value: other.id })
     await view.get('input').setValue('missing'); await view.get('input').trigger('keydown.enter'); await flushPromises()

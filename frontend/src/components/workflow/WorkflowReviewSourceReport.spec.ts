@@ -1,6 +1,6 @@
-import { mount } from '@vue/test-utils'
+import { mount } from '@/pages/w6-tests/workflow/react-test-root'
 import { describe, expect, it } from 'vitest'
-import WorkflowReviewSourceReport from './WorkflowReviewSourceReport.vue'
+import { WorkflowReviewSourceReport as WorkflowReviewSourceReport } from '@/pages/w5/workflow/reports'
 const report = { version: 1, type: 'REVIEW_SOURCE', complete: true, branchId: 'local:refs/heads/main', mode: 'DATE_INCREMENTAL',
   startDate: '2026-09-11', endDate: '2026-09-12', timezone: 'Asia/Shanghai', sourceSha: 'a'.repeat(40), baselineSha: 'b'.repeat(40), targetSha: 'c'.repeat(40),
   projectPrefix: 'server/', capturedAt: '2026-09-29T00:00:00Z', noChanges: false, nonMonotonic: false, unitCount: 8, excludedCount: 1 }

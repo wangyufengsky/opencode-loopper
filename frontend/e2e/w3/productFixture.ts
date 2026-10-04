@@ -24,8 +24,8 @@ export const latestExport = ' { "contractVersion": 1, "title": "原始冻结合�
 export const workspaceExport = '{"formatVersion":1,"templates":[],"rules":[]}\n'
 
 /** Transport-only mocks at the actual production API, with all unexpected requests rejected. */
-export async function w3ProductFixture(page: Page, withPpt = false) {
-  const ppt = withPpt ? await pptProductFixture(page) : undefined, base = ppt?.base ?? await productFixture(page)
+export async function w3ProductFixture(page: Page, withPpt = false, sharedBase?: Awaited<ReturnType<typeof productFixture>>) {
+  const ppt = withPpt ? await pptProductFixture(page,{base:sharedBase}) : undefined, base = sharedBase ?? ppt?.base ?? await productFixture(page)
   const requests: { method: string; path: string; query: string; body: string | null }[] = [], unexpected: string[] = []
   const pageOf = (items: unknown[]) => ({ items, facets: {}, nextCursor: null })
   await page.route('**/api/**', async route => {

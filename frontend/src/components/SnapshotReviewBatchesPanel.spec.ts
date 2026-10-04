@@ -1,8 +1,8 @@
-import { flushPromises, mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@/pages/w6-tests/knowledge-ppt-template/react-test-root'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { api } from '@/api/client'
 import type { Task } from '@/types/domain'
-import SnapshotReviewBatchesPanel from './SnapshotReviewBatchesPanel.vue'
+import {BatchesProjection as SnapshotReviewBatchesPanel} from '@/pages/w6-tests/knowledge-ppt-template/task-panels'
 vi.mock('@/api/client', () => ({ api: { snapshotReviewBatches: vi.fn() } }))
 beforeEach(() => { vi.clearAllMocks() })
 const task = (id: string) => ({ id, status: 'RUNNING', templateProgress: { activeBatches: 1 } }) as Task

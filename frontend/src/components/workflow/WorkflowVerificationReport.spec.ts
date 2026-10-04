@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { mount } from '@vue/test-utils'
-import WorkflowVerificationReport from './WorkflowVerificationReport.vue'
+import { mount } from '@/pages/w6-tests/workflow/react-test-root'
+import { WorkflowVerificationReport as WorkflowVerificationReport } from '@/pages/w5/workflow/reports'
 
 describe('fixed delivery check report', () => {
   it('shows each actual result and never converts an unknown result into a pass', () => {

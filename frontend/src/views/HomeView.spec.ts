@@ -1,48 +1,13 @@
-import { flushPromises, mount } from '@vue/test-utils'
-import { createPinia } from 'pinia'
-import { createMemoryHistory, createRouter } from 'vue-router'
-import { describe, expect, it } from 'vitest'
-import { router as appRouter } from '@/router'
-import AppSidebar from '@/components/AppSidebar.vue'
-import HomeView from './HomeView.vue'
-import W2RouteBridge from '@/migration/W2RouteBridge.vue'
-import { w2PageLoaders } from '@/migration/w2Routes'
-import { HomePage } from '@/pages/w2/secondary/HomePage'
-
-describe('主页导航', () => {
-  it('所有工作区与系统入口使用真实路由，点击后可通过品牌返回主页', async () => {
-    const destinations = ['/projects', '/requirements', '/requirements/new', '/workflows', '/tasks', '/inbox', '/designs', '/insights', '/template-tasks', '/runtime', '/tools', '/settings']
-    const router = createRouter({ history: createMemoryHistory(), routes: [
-      { path: '/', component: HomeView },
-      ...destinations.map(path => ({ path, component: { template: '<main>目标页面</main>' } })),
-    ] })
-    await router.push('/')
-    const wrapper = mount({ components: { AppSidebar }, template: '<AppSidebar /><RouterView />' }, {
-      global: { plugins: [createPinia(), router], stubs: { Icon: true } },
-    })
-    for (const path of destinations) {
-      expect(appRouter.resolve(path).matched[0]?.path).toBe(path)
-      await wrapper.get(`main a[href="${path}"]`).trigger('click')
-      await flushPromises()
-      expect(router.currentRoute.value.path).toBe(path)
-      expect(wrapper.get('a.nav-item[href="/"]').classes()).not.toContain('router-link-active')
-      await wrapper.get('a.brand').trigger('click')
-      await flushPromises()
-      expect(router.currentRoute.value.path).toBe('/')
-      expect(wrapper.get('a.nav-item[href="/"]').attributes('aria-current')).toBe('page')
-    }
-    wrapper.unmount()
-  })
-
-  it('根路径与未知地址进入主页，同时保留任务深层链接', async () => {
-    const router = createRouter({ history: createMemoryHistory(), routes: appRouter.options.routes })
-    await router.push('/')
-    expect(router.currentRoute.value.path).toBe('/')
-    expect(router.currentRoute.value.matched[0]?.components?.default).toBe(W2RouteBridge)
-    expect(await w2PageLoaders['/']!()).toBe(HomePage)
-    await router.push('/unknown/deep/path')
-    expect(router.currentRoute.value.path).toBe('/')
-    expect(router.resolve('/tasks/example/recovery').matched[0]?.path).toBe('/tasks/:id/recovery')
-    expect(router.resolve('/tasks/example/design').matched[0]?.path).toBe('/tasks/:id/design')
-  })
+import {createElement} from 'react'
+import {describe,expect,it,vi} from 'vitest'
+import {fireEvent,act} from '@testing-library/react'
+import {application,flushPromises} from '@/pages/w6-tests/ordinary/application'
+import {applicationRoutes} from '@/router'
+import {HomePage} from '@/pages/w2/secondary/HomePage'
+import {api} from '@/api/client'
+import {knowledgeApi} from '@/api/knowledge'
+const reads=()=>{vi.spyOn(api,'getProjects').mockResolvedValue([]);vi.spyOn(knowledgeApi,'history').mockResolvedValue({items:[],nextCursor:undefined,facets:{}})}
+describe('主页导航',()=>{
+ it('所有工作区与系统入口使用真实路由，点击后可通过品牌返回主页',async()=>{reads();const destinations=['/projects','/requirements','/requirements/new','/workflows','/tasks','/inbox','/designs','/insights','/template-tasks','/runtime','/tools','/settings'];const p=await application({shell:true,routes:[{path:'/',Component:HomePage},...destinations.map(path=>({path,element:createElement('main',null,'目标页面')}))]});for(const path of destinations){expect(applicationRoutes).toContain(path);const target=path==='/requirements/new'?p.element.querySelector('[data-semantic="workflow.newRequirement"]'):p.element.querySelector(`main a[href="${path}"]`);expect(target).not.toBeNull();await act(async()=>fireEvent.click(target!));await flushPromises();expect(p.router.state.location.pathname).toBe(path);expect(p.element.querySelector('a.nav-item[href="/"]')?.classList.contains('router-link-active')).toBe(false);await act(async()=>fireEvent.click(p.element.querySelector('a.brand')!));await flushPromises();expect(p.router.state.location.pathname).toBe('/');expect(p.element.querySelector('a.nav-item[href="/"]')?.classList.contains('router-link-active')).toBe(true)}})
+ it('根路径与未知地址进入主页，同时保留任务深层链接',async()=>{reads();const p=await application({routes:[{path:'/',Component:HomePage},{path:'*'},{path:'/tasks/:id/recovery',element:createElement('main')},{path:'/tasks/:id/design',element:createElement('main')}]});expect(p.router.state.location.pathname).toBe('/');expect(p.element.querySelector('h1')?.textContent).toBe('主页');await p.navigate('/unknown/deep/path');expect(p.router.state.location.pathname).toBe('/');await p.navigate('/tasks/example/recovery');expect(p.router.state.matches.at(-1)?.route.path).toBe('/tasks/:id/recovery');await p.navigate('/tasks/example/design');expect(p.router.state.matches.at(-1)?.route.path).toBe('/tasks/:id/design')})
 })

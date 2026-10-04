@@ -1,37 +1,11 @@
-import { flushPromises, mount } from '@vue/test-utils'
-import ElementPlus from 'element-plus'
-import { afterEach, expect, it, vi } from 'vitest'
-import { api } from '@/api/client'
-import type { Project, ProjectAssistConfig } from '@/types/domain'
-import ProjectAssistDialog from './ProjectAssistDialog.vue'
-afterEach(() => vi.restoreAllMocks())
-const project: Project = { id: 'p', name: '项目', rootPath: '/project', status: 'READY', updatedAt: '', taskCount: 0, openDesignerSessionCount: 0 }
-const saved: ProjectAssistConfig = { version: 3, credentialConfigured: false, config: { repository: 'group/repo', sources: [{ kind: 'LOG', root: '/service/logs', pattern: '*.log' }] } }
-it('saves the version and explicit external log scope without accepting a token', async () => {
-  vi.spyOn(api, 'projectAssistConfig').mockResolvedValue(saved)
-  const save = vi.spyOn(api, 'saveProjectAssistConfig').mockResolvedValue({ ...saved, version: 4 })
-  const wrapper = mount(ProjectAssistDialog, { props: { project }, global: { plugins: [ElementPlus], stubs: { teleport: true, GitCredentialForm: true, RouterLink: true } } })
-  await flushPromises()
-  await wrapper.get('#tab-gitlab').trigger('click'); await flushPromises()
-  expect(wrapper.text()).toContain('未配置，请设置环境变量')
-  await wrapper.findAll('button').find(b => b.text() === '保存配置')!.trigger('click'); await flushPromises()
-  expect(save).toHaveBeenCalledWith('p', 3, 'group/repo', saved.config.sources)
-  wrapper.unmount()
-})
-it('ignores a late configuration response after switching projects', async () => {
-  let resolve!: (value: ProjectAssistConfig) => void
-  vi.spyOn(api, 'projectAssistConfig').mockImplementation(id => id === 'p' ? new Promise(done => { resolve = done }) : Promise.resolve({ ...saved, config: { repository: 'new/project', sources: [] } }))
-  const wrapper = mount(ProjectAssistDialog, { props: { project }, global: { plugins: [ElementPlus], stubs: { teleport: true, GitCredentialForm: true, RouterLink: true } } })
-  await wrapper.setProps({ project: { ...project, id: 'other' } }); await flushPromises()
-  resolve(saved); await flushPromises()
-  expect(wrapper.find('input').element.value).toBe('new/project')
-  wrapper.unmount()
-})
-it('preserves edits and displays a version conflict', async () => {
-  vi.spyOn(api, 'projectAssistConfig').mockResolvedValue(saved)
-  vi.spyOn(api, 'saveProjectAssistConfig').mockRejectedValue(new Error('配置已变化，请刷新后重试'))
-  const wrapper = mount(ProjectAssistDialog, { props: { project }, global: { plugins: [ElementPlus], stubs: { teleport: true, GitCredentialForm: true, RouterLink: true } } })
-  await flushPromises(); await wrapper.get('#tab-gitlab').trigger('click'); await flushPromises(); await wrapper.findAll('button').find(b => b.text() === '保存配置')!.trigger('click'); await flushPromises()
-  expect(wrapper.text()).toContain('配置已变化'); expect(wrapper.emitted('close')).toBeUndefined()
-  wrapper.unmount()
-})
+import {expect,it,vi} from 'vitest'
+import {api} from '@/api/client'
+import type {ProjectAssistConfig} from '@/types/domain'
+import {projectPage} from '@/pages/w6-tests/ordinary/projects'
+import {action,change,flushPromises} from '@/pages/w6-tests/ordinary/actions'
+import {projectFixture} from '@/pages/w2/core/coreTestHelpers'
+const saved:ProjectAssistConfig={version:3,credentialConfigured:false,config:{repository:'group/repo',sources:[{kind:'LOG',root:'/service/logs',pattern:'*.log'}]}}
+async function open(p:ReturnType<typeof projectPage>,index=0){await p.select(index);await action('project.configureAssist');await p.view.get('[aria-controls="project-gitlab"]').trigger('click')}
+it('saves the version and explicit external log scope without accepting a token',async()=>{vi.spyOn(api,'projectAssistConfig').mockResolvedValue(saved);const save=vi.spyOn(api,'saveProjectAssistConfig').mockResolvedValue({...saved,version:4}),p=projectPage([{...projectFixture,id:'p'}]);await open(p);expect(p.view.text()).toContain('未配置，请设置环境变量');await action('ui.save',p.view.get('#project-gitlab').element!);expect(save).toHaveBeenCalledWith('p',3,'group/repo',saved.config.sources)})
+it('ignores a late configuration response after switching projects',async()=>{let resolve!:(v:ProjectAssistConfig)=>void;vi.spyOn(api,'projectAssistConfig').mockImplementation(id=>id==='p'?new Promise(done=>{resolve=done}):Promise.resolve({...saved,config:{repository:'new/project',sources:[]}}));const p=projectPage([{...projectFixture,id:'p'},{...projectFixture,id:'other'}]);await open(p);p.view.unmount();p.dispose();const next=projectPage([{...projectFixture,id:'other'}]);await open(next);resolve(saved);await flushPromises();expect((next.view.get('input[aria-label="GitLab 仓库"]').element as HTMLInputElement).value).toBe('new/project')})
+it('preserves edits and displays a version conflict',async()=>{vi.spyOn(api,'projectAssistConfig').mockResolvedValue(saved);vi.spyOn(api,'saveProjectAssistConfig').mockRejectedValue(new Error('配置已变化，请刷新后重试'));const p=projectPage([{...projectFixture,id:'p'}]);await open(p);await change('GitLab 仓库','edited/repo');await action('ui.save',p.view.get('#project-gitlab').element!);expect(p.view.text()).toContain('配置已变化');expect(p.view.get('.ui-context-panel').isVisible()).toBe(true);expect((p.view.get('[aria-label="GitLab 仓库"]').element as HTMLInputElement).value).toBe('edited/repo')})

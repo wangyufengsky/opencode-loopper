@@ -1,82 +1,11 @@
-import { flushPromises, mount } from '@vue/test-utils'
-import ElementPlus from 'element-plus'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import GitDiffScopeApprovalDialog from './GitDiffScopeApprovalDialog.vue'
-
-const mocks = vi.hoisted(() => ({
-  getGitDiffScopeApproval: vi.fn(),
-  getGitDiffScopeApprovalPreview: vi.fn(),
-  resolveGitDiffScopeApproval: vi.fn(),
-}))
-vi.mock('@/api/client', () => ({ api: mocks }))
-
-const approval = {
-  requestId: 'approval-1', taskId: 'task-1', stageId: 'stage-1', attemptId: 'attempt-1', taskVersion: 7,
-  files: [{ path: 'src/Main.java', changeType: 'MODIFIED', patchSha256: 'patch-sha' }],
-}
-
-describe('GitDiffScopeApprovalDialog', () => {
-  beforeEach(() => {
-    mocks.getGitDiffScopeApproval.mockResolvedValue(approval)
-    mocks.getGitDiffScopeApprovalPreview.mockResolvedValue({
-      path: 'src/Main.java', changeType: 'MODIFIED', truncated: false,
-      patch: 'diff --git a/src/Main.java b/src/Main.java\n--- a/src/Main.java\n+++ b/src/Main.java\n@@ -10,2 +10,2 @@\n-old value\n+new value\n context',
-    })
-    mocks.resolveGitDiffScopeApproval.mockResolvedValue({ id: 'task-1', status: 'JUDGING' })
-  })
-
-  afterEach(() => {
-    document.body.innerHTML = ''
-    vi.clearAllMocks()
-  })
-
-  it('opens automatically and shows exact old/new lines before submitting the content-bound decision', async () => {
-    mocks.getGitDiffScopeApproval.mockResolvedValueOnce(approval).mockResolvedValueOnce(undefined)
-    const wrapper = mount(GitDiffScopeApprovalDialog, {
-      props: { taskId: 'task-1', active: true },
-      global: { plugins: [ElementPlus] },
-      attachTo: document.body,
-    })
-    await flushPromises()
-
-    expect(document.body.textContent).toContain('审阅范围外修改')
-    expect(document.body.textContent).toContain('已接受 0 · 已拒绝 0 · 待决定 1')
-    expect(document.body.textContent).toContain('src/Main.java')
-    expect(document.querySelector('.diff-line.removed')?.textContent).toContain('10-old value')
-    expect(document.querySelector('.diff-line.added')?.textContent).toContain('10+new value')
-    expect(document.querySelector('.diff-line.hunk')?.textContent).toContain('@@ -10,2 +10,2 @@')
-
-    const submit = [...document.querySelectorAll('button')]
-      .find((button) => button.textContent?.includes('确认决定并继续验证')) as HTMLButtonElement
-    expect(submit.disabled).toBe(true)
-    ;(document.querySelector('[data-decision="ALLOW"]') as HTMLButtonElement).click()
-    await flushPromises()
-    expect(document.body.textContent).toContain('已接受 1 · 已拒绝 0 · 待决定 0')
-    expect(submit.disabled).toBe(false)
-    submit.click()
-    await flushPromises()
-
-    expect(mocks.resolveGitDiffScopeApproval).toHaveBeenCalledWith('task-1', 'approval-1', {
-      expectedTaskVersion: 7,
-      decisions: [{ path: 'src/Main.java', action: 'ALLOW', patchSha256: 'patch-sha' }],
-    })
-    expect(wrapper.emitted('resolved')).toHaveLength(1)
-  })
-
-  it('keeps a persistent card after the user closes the popup', async () => {
-    const wrapper = mount(GitDiffScopeApprovalDialog, {
-      props: { taskId: 'task-1', active: true },
-      global: { plugins: [ElementPlus] },
-      attachTo: document.body,
-    })
-    await flushPromises()
-
-    const later = [...document.querySelectorAll('button')]
-      .find((button) => button.textContent?.includes('稍后处理')) as HTMLButtonElement
-    later.click()
-    await flushPromises()
-
-    expect(wrapper.text()).toContain('任务没有失败')
-    expect(wrapper.text()).toContain('审阅文件')
-  })
+import {beforeEach,describe,expect,it,vi} from 'vitest'
+import {api} from '@/api/client'
+import {GitDiffScopeApprovalDialog} from '@/pages/w4/actions/scope'
+import {mountPanel,taskFixture} from '@/pages/w6-tests/ordinary/task'
+import {action,body,flushPromises} from '@/pages/w6-tests/ordinary/actions'
+const approval={requestId:'approval-1',taskId:'task-1',stageId:'stage-1',attemptId:'attempt-1',taskVersion:7,files:[{path:'src/Main.java',changeType:'MODIFIED' as const,patchSha256:'patch-sha'}]}
+beforeEach(()=>{vi.spyOn(api,'getGitDiffScopeApproval').mockResolvedValue(approval);vi.spyOn(api,'getGitDiffScopeApprovalPreview').mockResolvedValue({path:'src/Main.java',changeType:'MODIFIED',truncated:false,patch:'diff --git a/src/Main.java b/src/Main.java\n--- a/src/Main.java\n+++ b/src/Main.java\n@@ -10,2 +10,2 @@\n-old value\n+new value\n context'})})
+describe('GitDiffScopeApprovalDialog',()=>{
+ it('opens automatically and shows exact old/new lines before submitting the content-bound decision',async()=>{const resolve=vi.spyOn(api,'resolveGitDiffScopeApproval').mockResolvedValue(taskFixture('task-1',{status:'JUDGING'}));const p=mountPanel(GitDiffScopeApprovalDialog,taskFixture('task-1',{status:'WAITING_INPUT',version:7}),{});await flushPromises();expect(body().text()).toContain('审阅范围外修改');expect(body().text()).toContain('已接受 0 · 已拒绝 0 · 待决定 1');expect(body().text()).toContain('src/Main.java');expect(body().get('.diff-line.removed span').text()).toBe('10');expect(body().get('.diff-line.removed code').text()).toBe('-old value');expect(body().findAll('.diff-line.added span')[1]!.text()).toBe('10');expect(body().get('.diff-line.added code').text()).toBe('+new value');expect(body().get('.diff-line.hunk').text()).toContain('@@ -10,2 +10,2 @@');const submit=document.querySelector<HTMLButtonElement>('[data-semantic="scope.submit"]')!;expect(submit.disabled).toBe(true);await action('scope.allow');expect(body().text()).toContain('已接受 1 · 已拒绝 0 · 待决定 0');expect(submit.disabled).toBe(false);vi.mocked(api.getGitDiffScopeApproval).mockResolvedValue(undefined);await action('scope.submit');expect(resolve).toHaveBeenCalledWith('task-1','approval-1',{expectedTaskVersion:7,decisions:[{path:'src/Main.java',action:'ALLOW',patchSha256:'patch-sha'}]});expect(p.parent.refresh).toHaveBeenCalledOnce()})
+ it('keeps a persistent card after the user closes the popup',async()=>{const p=mountPanel(GitDiffScopeApprovalDialog,taskFixture('task-1',{status:'WAITING_INPUT'}),{});await flushPromises();await action('ui.close',body().get('.ui-context-panel').element!);expect(p.view.text()).toContain('任务没有失败');expect(p.view.get('[data-semantic="scope.review"]').exists()).toBe(true);expect(p.view.find('.ui-context-panel').isVisible()).toBe(false)})
 })

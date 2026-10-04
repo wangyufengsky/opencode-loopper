@@ -1,7 +1,7 @@
-import { mount } from '@vue/test-utils'
+import { mount } from '@/pages/w6-tests/workflow/react-test-root'
 import { describe, expect, it } from 'vitest'
-import WorkflowTestSummaryReport from './WorkflowTestSummaryReport.vue'
-import WorkflowNodeEditor from './WorkflowNodeEditor.vue'
+import { WorkflowTestSummaryReport as WorkflowTestSummaryReport } from '@/pages/w5/workflow/reports'
+import { WorkflowNodeEditor as WorkflowNodeEditor } from '@/pages/w5/workflow/WorkflowNodeEditor'
 import { readFileSync } from 'node:fs'
 import type { WorkflowNode } from '@/types/domain'
 const report = {
@@ -42,6 +42,6 @@ describe('单测汇总', () => {
     await view.get('select[aria-label="单测独立复核策略"]').setValue('NONE')
     const changed = view.emitted('change')![0]![0] as WorkflowNode
     expect(changed.parameters).toEqual({ ...node.parameters, reviewPolicy: 'NONE' }); expect(changed.completion).toEqual(node.completion)
-    expect(view.text()).toContain('全部模块测试须绑定同一份最终代码')
+    expect(view.text()).toContain('全部模块测试绑定同一份最终代码')
   })
 })

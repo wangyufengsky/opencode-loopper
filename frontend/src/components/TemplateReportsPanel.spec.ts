@@ -1,9 +1,9 @@
-import { mount, flushPromises } from '@vue/test-utils'
-import ElementPlus from 'element-plus'
+import { mount, flushPromises } from '@/pages/w6-tests/knowledge-ppt-template/react-test-root'
+const ElementPlus = undefined
 import { afterEach, describe, it, expect, vi } from 'vitest'
 import { api } from '@/api/client'
 import type { Artifact } from '@/types/domain'
-import TemplateReportsPanel from './TemplateReportsPanel.vue'
+import {ReportsProjection as TemplateReportsPanel} from '@/pages/w6-tests/knowledge-ppt-template/task-panels'
 
 const reports: Artifact[] = [0, 1].map(round => ({ id: `report-${round}`, taskId: 'task', kind: 'REPORT', title: 'code-review.md', createdAt: 'now', content: '', metadata: { displayName: '代码审查', repairRound: round } }))
 afterEach(async () => {
@@ -18,7 +18,7 @@ describe('template report evidence', () => {
     const wrapper = mount(TemplateReportsPanel, { props: { taskId: 'task', artifacts: reports, accepted: false, dualReviewRequired: false }, global: { plugins: [ElementPlus] } })
     expect(wrapper.text()).toContain('已生成，待验收')
     expect(wrapper.text()).not.toContain('待生成')
-    wrapper.findComponent({ name: 'ElSelect' }).vm.$emit('change', 'report-1')
+    await wrapper.get('select[aria-label="选择报告"]').setValue('report-1')
     await flushPromises()
     await wrapper.setProps({ accepted: true })
     expect(wrapper.text()).toContain('已校验并保存')
@@ -28,11 +28,11 @@ describe('template report evidence', () => {
 
   it('distinguishes metadata loading and failure from a report that has not been generated', async () => {
     const wrapper = mount(TemplateReportsPanel, { props: { taskId: 'task', artifacts: [], accepted: false, loadingMetadata: true }, global: { plugins: [ElementPlus] } })
-    expect(wrapper.text()).toContain('正在加载报告列表')
+    expect(wrapper.text()).toContain('正在读取…')
     expect(wrapper.text()).not.toContain('待生成')
     await wrapper.setProps({ loadingMetadata: false, metadataError: '报告列表读取失败' })
     expect(wrapper.text()).not.toContain('待生成')
-    await wrapper.findAll('button').find(button => button.text() === '重新加载报告')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.attributes('data-semantic') === 'ui.retry')!.trigger('click')
     expect(wrapper.emitted('reload')).toHaveLength(1)
     wrapper.unmount()
   })
@@ -41,14 +41,14 @@ describe('template report evidence', () => {
     const read = vi.spyOn(api, 'getArtifactContent').mockResolvedValue({ id: 'report', kind: 'TEMPLATE_REPORT', content: '# 报告\n具体证据', metadata: {} })
     const wrapper = mount(TemplateReportsPanel, { props: { taskId: 'task', artifacts: reports, accepted: true }, global: { plugins: [ElementPlus] } })
     expect(read).not.toHaveBeenCalled()
-    wrapper.findComponent({ name: 'ElSelect' }).vm.$emit('change', 'report-0')
+    await wrapper.get('select[aria-label="选择报告"]').setValue('report-0')
     await flushPromises()
     expect(read).toHaveBeenCalledWith('task', 'report-0')
     expect(wrapper.text()).not.toContain('已通过评审')
-    wrapper.findComponent({ name: 'ElSelect' }).vm.$emit('change', 'report-1')
+    await wrapper.get('select[aria-label="选择报告"]').setValue('report-1')
     await flushPromises()
     expect(wrapper.text()).toContain('已通过评审')
-    wrapper.findComponent({ name: 'ElSelect' }).vm.$emit('change', 'report-0')
+    await wrapper.get('select[aria-label="选择报告"]').setValue('report-0')
     await flushPromises()
     expect(read).toHaveBeenCalledTimes(2)
     await wrapper.setProps({ taskId: 'another', artifacts: [] })
@@ -59,7 +59,7 @@ describe('template report evidence', () => {
     const artifacts: Artifact[] = [...reports, { ...reports[1]!, id: 'person', title: 'contributors/alice.md' }]
     const read = vi.spyOn(api, 'getArtifactContent').mockImplementation(async (_task, id) => ({ id, kind: 'TEMPLATE_REPORT', content: id === 'person' ? '# Alice 周报' : '[Alice](contributors/alice.md)', metadata: {} }))
     const wrapper = mount(TemplateReportsPanel, { props: { taskId: 'task', artifacts, accepted: true }, global: { plugins: [ElementPlus] } })
-    wrapper.findComponent({ name: 'ElSelect' }).vm.$emit('change', 'report-1')
+    await wrapper.get('select[aria-label="选择报告"]').setValue('report-1')
     await flushPromises()
     await wrapper.get('a').trigger('click')
     await flushPromises()
@@ -80,7 +80,7 @@ describe('template report evidence', () => {
       ? `# 总结\n[详细报告](${detail.split('/').map(encodeURIComponent).join('/')})`
       : `# 明细\n[返回总结](../${encodeURIComponent(main)})`, metadata: {} }))
     const wrapper = mount(TemplateReportsPanel, { props: { taskId: 'task', artifacts, accepted: true }, global: { plugins: [ElementPlus] } })
-    await wrapper.findAll('button').find(button => button.text() === '查看最新总结')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.attributes('data-semantic') === 'ui.open' && !!button.attributes('aria-label')?.includes('最新总结'))!.trigger('click')
     await flushPromises()
     expect(read).toHaveBeenLastCalledWith('task', 'main')
     await wrapper.get('a').trigger('click'); await flushPromises()
@@ -104,8 +104,8 @@ describe('template report evidence', () => {
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) { savedName = this.download })
     const wrapper = mount(TemplateReportsPanel, { props: { taskId: 'task', artifacts: [artifact], accepted: true }, global: { plugins: [ElementPlus] } })
     expect(zip).not.toHaveBeenCalled()
-    wrapper.findComponent({ name: 'ElSelect' }).vm.$emit('change', artifact.id); await flushPromises()
-    await wrapper.findAll('button').find(button => button.text() === '下载整套报告')!.trigger('click'); await flushPromises()
+    await wrapper.get('select[aria-label="选择报告"]').setValue(artifact.id); await flushPromises()
+    await wrapper.findAll('button').find(button => button.attributes('data-semantic') === 'ui.download' && !!button.attributes('aria-label')?.includes('整套报告'))!.trigger('click'); await flushPromises()
     expect(zip).toHaveBeenCalledWith('task', artifact.id)
     expect(savedName).toBe(`${filename}.zip`)
     await vi.advanceTimersByTimeAsync(0)
@@ -116,10 +116,9 @@ describe('template report evidence', () => {
   it('does not navigate outside the bundle for unresolved or escaping local links', async () => {
     vi.spyOn(api, 'getArtifactContent').mockResolvedValue({ id: 'report', kind: 'TEMPLATE_REPORT', content: '[missing](../../another.md)', metadata: {} })
     const wrapper = mount(TemplateReportsPanel, { props: { taskId: 'task', artifacts: reports, accepted: true }, global: { plugins: [ElementPlus] } })
-    wrapper.findComponent({ name: 'ElSelect' }).vm.$emit('change', 'report-0'); await flushPromises()
-    const event = new MouseEvent('click', { bubbles: true, cancelable: true })
-    wrapper.get('a').element.dispatchEvent(event)
-    expect(event.defaultPrevented).toBe(true)
+    await wrapper.get('select[aria-label="选择报告"]').setValue('report-0'); await flushPromises()
+    expect(wrapper.text()).toContain('missing')
+    expect(wrapper.find('a[href]').exists()).toBe(false)
     wrapper.unmount()
   })
 

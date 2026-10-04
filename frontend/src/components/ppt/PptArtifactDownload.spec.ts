@@ -1,6 +1,6 @@
-import { flushPromises, mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@/pages/w6-tests/knowledge-ppt-template/react-test-root'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import PptArtifactDownload from './PptArtifactDownload.vue'
+import { ArtifactDownload as PptArtifactDownload } from '@/pages/w3/ppt/Download'
 describe('PPT artifact download', () => {
   afterEach(() => {
     vi.restoreAllMocks()

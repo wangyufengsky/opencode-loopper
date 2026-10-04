@@ -1,20 +1,14 @@
-import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
-import { createPinia } from 'pinia'
-import { createMemoryHistory, createRouter } from 'vue-router'
+import { mountApplicationHarness } from '@/test/applicationHarness'
+import { navigationHarness } from '@/test/navigationHarness'
+import { flushPromises } from '@/test/async'
+import { ReactDOMQuery } from '@/pages/w6-tests/workflow/react-test-root'
+import { applicationRoutes } from '@/router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import AppSidebar from './AppSidebar.vue'
-
-let wrapper: VueWrapper | undefined
+let wrapper: (ReactDOMQuery & {unmount():void}) | undefined
 async function render(path = '/tasks') {
-  const router = createRouter({ history: createMemoryHistory(), routes: [
-    { path: '/knowledge/history', component: { template: '<div />' } },
-    { path: '/knowledge/:conversationId?', component: { template: '<div />' } },
-    { path: '/:pathMatch(.*)*', component: { template: '<div />' } },
-  ] })
-  await router.push(path)
-  wrapper = mount(AppSidebar, { global: { plugins: [createPinia(), router], stubs: { Icon: true } } })
-  await flushPromises()
-  return router
+  const page = await mountApplicationHarness({initialEntries:[path],shell:true,routes:applicationRoutes.map(path=>({path,Component:()=>null}))})
+  wrapper=Object.assign(new ReactDOMQuery(page.element),{unmount:page.unmount})
+  await flushPromises();return navigationHarness(page)
 }
 const knowledgeLink = () => wrapper!.findAll('a').find(link => link.text() === '知识库')!
 describe('侧栏知识库返回位置', () => {
@@ -40,7 +34,7 @@ describe('侧栏知识库返回位置', () => {
     await router.push('/knowledge/second?from=history#answer'); await router.push('/tasks'); await flushPromises()
     await knowledgeLink().trigger('click'); await flushPromises()
     expect(router.currentRoute.value.fullPath).toBe('/knowledge/second?from=history#answer')
-    expect(knowledgeLink().classes()).toContain('router-link-active')
+    expect([...knowledgeLink().element.classList]).toContain('router-link-active')
   })
 
   it('remembers history filters and respects explicitly opening a new conversation', async () => {

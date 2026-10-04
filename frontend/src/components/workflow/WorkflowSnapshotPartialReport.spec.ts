@@ -1,19 +1,19 @@
-import { mount, flushPromises } from '@vue/test-utils'
+import { mount, flushPromises } from '@/pages/w6-tests/workflow/react-test-root'
 import { afterEach, describe, it, expect, vi } from 'vitest'
 import { workflowRuns } from '@/api/workflowRuns'
 import type { WorkflowSnapshotPartialReport as Report } from '@/types/domain'
-import WorkflowSnapshotPartialReport from './WorkflowSnapshotPartialReport.vue'
-const value: Report = { content: '# 部分报告', sha256: 'hash', capturedAt: '2026-09-29T01:00:00Z', planRevision: 4, analyzedUnits: 1, pendingUnits: 3, excludedUnits: 2 }
+import { WorkflowSnapshotPartialReport } from '@/pages/w6-tests/workflow/read-panels'
+const value: Report = { content: '# 部分报告\n![不允许图片](https://example.invalid/private.png)', sha256: 'hash', capturedAt: '2026-09-29T01:00:00Z', planRevision: 4, analyzedUnits: 1, pendingUnits: 3, excludedUnits: 2 }
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals() })
-const render = () => mount(WorkflowSnapshotPartialReport, { props: { requirement: 'req', node: 'source', attempt: 'run' }, global: { stubs: { MarkdownDocument: true } } })
+const render = () => mount(WorkflowSnapshotPartialReport, { props: { requirement: 'req', node: 'source', attempt: 'run' } })
 describe('workflow snapshot partial report', () => {
   it('reads only on demand and retains the explicit observation during a failed refresh', async () => {
     const read = vi.spyOn(workflowRuns, 'snapshotPartialReport').mockResolvedValue(value)
     const wrapper = render(); expect(read).not.toHaveBeenCalled()
     await wrapper.get('button').trigger('click'); await flushPromises()
     expect(read).toHaveBeenCalledWith('req', 'source', 'run', expect.any(AbortSignal))
-    expect(wrapper.text()).toContain('已分析 1 · 未完成 3 · 排除 2'); expect(wrapper.text()).toContain('计划版本 4')
-    expect(wrapper.getComponent({ name: 'MarkdownDocument' }).props('allowImages')).toBe(false)
+    expect(wrapper.text()).toContain('已分析 1 个片段 · 待分析 3 个 · 排除 2 个'); expect(wrapper.text()).toContain('计划版本 4')
+    expect(wrapper.find('img').exists()).toBe(false); expect(wrapper.get('.markdown-document').text()).toContain('部分报告')
     read.mockRejectedValue(new Error('offline')); await wrapper.findAll('button')[0]!.trigger('click'); await flushPromises()
     expect(wrapper.get('[role="alert"]').text()).toContain('阶段报告读取失败'); expect(wrapper.text()).toContain('已分析 1'); wrapper.unmount()
   })
@@ -23,7 +23,7 @@ describe('workflow snapshot partial report', () => {
     const wrapper = render(); await wrapper.get('button').trigger('click'); const signal = read.mock.calls[0]![3]!
     await wrapper.setProps({ [field]: 'changed' }); expect(signal.aborted).toBe(true)
     resolve({ ...value, content: '旧任务正文', analyzedUnits: 9 }); await flushPromises()
-    expect(wrapper.text()).not.toContain('已分析 9'); expect(wrapper.find('markdown-document-stub').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('已分析 9'); expect(wrapper.find('.markdown-document').exists()).toBe(false)
     await wrapper.get('button').trigger('click'); await flushPromises(); expect(wrapper.text()).toContain('已分析 1'); wrapper.unmount()
   })
   it('downloads exactly the displayed observation and aborts a request when unmounted', async () => {

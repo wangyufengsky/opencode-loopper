@@ -1,16 +1,6 @@
-import { mount } from '@vue/test-utils'
-import { expect, it } from 'vitest'
-import AutomationHealth from './AutomationHealth.vue'
-
-it('distinguishes never checked, failure and recovered detection from rule enablement', async () => {
-  const wrapper = mount(AutomationHealth, { props: { enabled: true, scheduled: true } })
-  expect(wrapper.text()).toBe('等待首次检测')
-  await wrapper.setProps({ health: { status: 'FAILED', lastCheckedAt: '2026-09-08T00:00:00Z', lastSuccessAt: '2026-09-07T00:00:00Z', consecutiveFailures: 3, errorMessage: 'Git 检查超时，请检查项目目录后刷新。' } })
-  expect(wrapper.text()).toContain('检测失败 · 连续 3 次')
-  expect(wrapper.text()).toContain('最近成功')
-  expect(wrapper.text()).toContain('请检查项目目录')
-  await wrapper.setProps({ health: { status: 'CHECKED', lastCheckedAt: '2026-09-08T01:00:00Z', consecutiveFailures: 0 } })
-  expect(wrapper.text()).toContain('检测正常')
-  expect(wrapper.text()).not.toContain('检查超时')
-  wrapper.unmount()
-})
+import {expect,it} from 'vitest'
+import {archiveFixture} from '@/pages/w6-tests/ordinary/archive'
+import {historicalRule} from '@/pages/w3/templates/catalog/fixtures'
+import {decodeHistoricalRule} from '@/pages/w3/templates/catalog/history'
+import {flushPromises} from '@/pages/w6-tests/ordinary/render'
+it('distinguishes never checked, failure and recovered detection from rule enablement',async()=>{const f=archiveFixture();f.current.workspace={...f.current.workspace,rules:[decodeHistoricalRule({...historicalRule,health:undefined})]};await f.open();expect(f.view.get('[aria-label="自动化检测状态"]').text()).toBe('未检查');f.current.workspace={...f.current.workspace,rules:[decodeHistoricalRule({...historicalRule,health:{status:'FAILED',lastCheckedAt:'2026-09-08T00:00:00Z',lastSuccessAt:'2026-09-07T00:00:00Z',consecutiveFailures:3,errorMessage:'Git 检查超时，请检查项目目录后刷新。'}})]};await f.owner.refresh();await flushPromises();expect(f.view.text()).toContain('检测失败 · 连续 3 次');expect(f.view.text()).toContain('最近成功');expect(f.view.text()).toContain('请检查项目目录');f.current.workspace={...f.current.workspace,rules:[decodeHistoricalRule({...historicalRule,health:{status:'CHECKED',lastCheckedAt:'2026-09-08T01:00:00Z',consecutiveFailures:0}})]};await f.owner.refresh();await flushPromises();expect(f.view.text()).toContain('检测正常');expect(f.view.text()).not.toContain('检查超时')})

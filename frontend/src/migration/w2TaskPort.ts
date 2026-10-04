@@ -1,13 +1,13 @@
-import type { useTaskStore } from '@/stores/taskStore'
+import type { TaskApplicationOwner } from '@/stores/taskStore'
 import { api } from '@/api/client'
 import { demoProjects, demoRuntime } from '@/mock/demoData'
 import type { TaskPort, TaskPortSnapshot } from '@/pages/w2/shared/types'
 import { captureDto } from '@/foundation/contracts/immutable'
 
-type Store = ReturnType<typeof useTaskStore>
+type Store = TaskApplicationOwner
 const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
 
-/** Vue is confined to this boundary. A page observes the existing owner, never adds task streams. */
+/** A scoped projection of the single pure TypeScript application owner; no additional task stream. */
 export function createW2TaskPort(store: Store): { port: TaskPort; dispose(): void } {
   let active = true, projectEpoch = 0, runtimeEpoch = 0, ownsSummaries = false
   const listeners = new Set<() => void>()
@@ -16,11 +16,11 @@ export function createW2TaskPort(store: Store): { port: TaskPort; dispose(): voi
       taskFacets: store.taskFacets, taskNextCursor: store.taskNextCursor, runtime: store.runtime, error: store.error, loading: store.loading }))
   }
   let snapshot = capture()
-  const stop = store.$subscribe(() => {
+  const stop = store.subscribe(() => {
     if (!active) return
     snapshot = capture()
     for (const listener of listeners) listener()
-  }, { detached: true, flush: 'sync' })
+  })
   async function runtime(action: 'read' | 'start' | 'restart') {
     if (!active) throw new Error('页面已离开，不能启动新操作')
     const ticket = ++runtimeEpoch, demo = store.usingDemo

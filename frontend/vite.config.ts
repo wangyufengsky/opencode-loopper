@@ -1,11 +1,17 @@
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vitest/config'
-import vue from '@vitejs/plugin-vue'
 import react from '@vitejs/plugin-react'
 import { skinBootstrap, skinStyles } from './src/themes/compile'
 
 export default defineConfig({
-  plugins: [vue(), react(), {
+  plugins: [react(), {
+    name: 'react-executable-inventory',
+    generateBundle() {
+      const root = fileURLToPath(new URL('.', import.meta.url)).replaceAll('\\', '/')
+      const modules = [...this.getModuleIds()].map(id => id.replaceAll('\\', '/').replaceAll(root, '').replaceAll('\0', 'virtual:')).sort()
+      this.emitFile({ type: 'asset', fileName: 'react-module-inventory.json', source: JSON.stringify({ modules }, null, 2) })
+    },
+  }, {
     name: 'loopper-skins',
     transformIndexHtml() {
       return [
@@ -27,7 +33,7 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
-    setupFiles: ['./src/test/reactFlowEnvironment.ts'],
+    setupFiles: ['./src/test/browserFetchEnvironment.ts', './src/test/reactFlowEnvironment.ts'],
     globals: true,
     // Bound concurrent jsdom instances so full verification does not exhaust the host.
     maxWorkers: 4,

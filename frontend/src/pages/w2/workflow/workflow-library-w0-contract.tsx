@@ -1,40 +1,34 @@
-/** W0 retarget helper: real Vue history/guard + production bridge + real React library. */
+import { mountApplicationHarness } from '@/test/applicationHarness'
+import { navigationHarness } from '@/test/navigationHarness'
+import { flushPromises } from '@/test/async'
+type ReactHost = { element: HTMLElement; unmount(): void }
+/** W0 retarget helper: real React history/guard + production route + real React library. */
 import { act } from '@testing-library/react'
-import { createPinia } from 'pinia'
-import { defineComponent, h } from 'vue'
-import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
-import { createMemoryHistory, createRouter, RouterView } from 'vue-router'
 import { expect, vi } from 'vitest'
-import W2RouteBridge from '@/migration/W2RouteBridge.vue'
 import { workflowApi } from '@/api/workflow'
 import type { WorkflowReceipt } from '@/types/domain'
 import { semanticName } from '@/foundation/semanticRegistry'
 import { deferred, foundationDOM } from './page.test-support'
 
 async function settle() { await act(async () => { for (let i = 0; i < 5; i++) await flushPromises() }) }
-function button(root: VueWrapper, name: string): HTMLButtonElement {
+function button(root: ReactHost, name: string): HTMLButtonElement {
   const host = root.element as HTMLElement
   const found = [...host.querySelectorAll<HTMLButtonElement>('button')].find(element => element.getAttribute('aria-label') === name)
   if (!found) throw new Error(`W0 React fixture: missing action ${name}`)
   return found
 }
-async function click(root: VueWrapper, name: string) { await act(async () => { button(root, name).click(); await flushPromises() }); await settle() }
+async function click(root: ReactHost, name: string) { await act(async () => { button(root, name).click(); await flushPromises() }); await settle() }
 export async function workflowLibraryW0Contract(mode: { action: 'copy' | 'archive'; phase: 'sending' | 'unknown' } | { filters: true }, options: {
   receipt: WorkflowReceipt
   proof?: (name: string, evidence: unknown) => void
 }) {
   foundationDOM()
-  const router = createRouter({ history: createMemoryHistory(), routes: [
-    { path: '/previous', component: { template: '<p>原入口</p>' } }, { path: '/away', component: { template: '<p>其他页面</p>' } },
-    { path: '/workflows', component: W2RouteBridge }, { path: '/workflows/:id', component: { template: '<p>已创建的原副本</p>' } },
-  ] })
-  await router.push('/previous'); await router.push('/workflows'); await router.isReady()
   const copy = vi.mocked(workflowApi.copy), archive = vi.mocked(workflowApi.archive), list = vi.mocked(workflowApi.list)
   const pending = deferred<WorkflowReceipt>()
   if ('filters' in mode) copy.mockRejectedValueOnce(new Error('lost')).mockResolvedValue(options.receipt)
   else vi.mocked(workflowApi[mode.action]).mockReturnValue(pending.promise)
-  let root!: VueWrapper
-  await act(async () => { root = mount(defineComponent({ setup: () => () => h(RouterView) }), { attachTo: document.body, global: { plugins: [createPinia(), router] } }); await flushPromises() })
+  const root = await mountApplicationHarness({ initialEntries: ['/previous', '/workflows'], routes: [{ path: '/previous', element: <p>原入口</p> }, { path: '/away', element: <p>其他页面</p> }, { path: '/workflows' }, { path: '/workflows/:id', element: <p>已创建的原副本</p> }] })
+  const router = navigationHarness(root)
   const host = root.element as HTMLElement
   try {
     // The production bridge imports its actual route module asynchronously. Resolve

@@ -1,11 +1,9 @@
-/** Frozen W0 predicates, exercised through actual React pages/panels and sole Vue history. */
+import { mountApplicationHarness } from '@/test/applicationHarness'
+import { navigationHarness } from '@/test/navigationHarness'
+import { flushPromises } from '@/test/async'
+/** Frozen W0 predicates, exercised through actual React pages/panels and sole React history. */
 import { act, fireEvent, render } from '@testing-library/react'
-import { createPinia } from 'pinia'
-import { defineComponent, h } from 'vue'
-import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
-import { createMemoryHistory, createRouter, RouterView } from 'vue-router'
 import { expect, vi } from 'vitest'
-import W2RouteBridge from '@/migration/W2RouteBridge.vue'
 import { semanticName } from '@/foundation/semanticRegistry'
 import { workflowRuns } from '@/api/workflowRuns'
 import { workflowPublication } from '@/api/workflowPublication'
@@ -32,10 +30,8 @@ async function fill(root: HTMLElement, id: string, value: string) { const input 
 async function routePage(path: string) {
   foundationDOM()
   vi.mocked(workflowRuns.project).mockResolvedValue({ id: 'project', name: '测试项目', createdAt: '' })
-  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/previous', component: defineComponent(() => () => h('p', '原入口')) }, { path: '/away', component: defineComponent(() => () => h('p', '其他页面')) }, { path: '/requirements/new', component: W2RouteBridge }, { path: '/requirements/:id', component: W2RouteBridge }, { path: '/created-view', component: defineComponent(() => () => h('p', '已创建需求')) }] })
-  await router.push('/previous'); await router.push(path); await router.isReady()
-  let root!: VueWrapper
-  await act(async () => { root = mount(defineComponent({ setup: () => () => h(RouterView) }), { attachTo: document.body, global: { plugins: [createPinia(), router] } }); await flushPromises() })
+  const root = await mountApplicationHarness({ initialEntries: ['/previous', path], routes: [{ path: '/previous', element: <p>原入口</p> }, { path: '/away', element: <p>其他页面</p> }, { path: '/requirements/new' }, { path: '/requirements/:id' }, { path: '/created-view', element: <p>已创建需求</p> }] })
+  const router = navigationHarness(root)
   await act(async () => { await vi.dynamicImportSettled(); await flushPromises() }); await settle()
   return { root, router, host: root.element as HTMLElement, close: async () => { await act(async () => { root.unmount(); await flushPromises() }) } }
 }

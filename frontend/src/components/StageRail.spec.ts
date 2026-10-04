@@ -1,7 +1,7 @@
-import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+import { enableAutoUnmount, flushPromises, mount } from '@/pages/w6-tests/ordinary/render'
 import { waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import StageRail from '@/components/StageRail.vue'
+import { StageDiagram as StageRail } from '@/react/diagrams/StageDiagram'
 import type { Stage } from '@/types/domain'
 import { CANVAS_RUNTIME_STORAGE } from '@/migration/canvasRuntime'
 enableAutoUnmount(afterEach)
@@ -48,8 +48,8 @@ describe('StageRail', () => {
     localStorage.setItem(CANVAS_RUNTIME_STORAGE, JSON.stringify({ documents: 'vue', tasks: 'vue' }))
     expect(current.find('.react-flow').exists()).toBe(true)
     const next = mount(StageRail, { props: { stages } })
-    expect(next.find('[data-canvas-runtime="vue"][data-canvas-kind="stages"]').exists()).toBe(true)
-    expect(next.find('.react-flow').exists()).toBe(false)
+    expect(next.find('[data-canvas-runtime="react"][data-canvas-kind="stages"]').exists()).toBe(true)
+    expect(next.find('.react-flow').exists()).toBe(true)
     expect(next.text()).toContain('冻结阶段目标')
     expect(next.text()).toContain('2 次尝试')
   })

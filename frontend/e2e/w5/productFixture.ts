@@ -11,9 +11,9 @@ export const plan = requirement({ id: 'w5-req', projectId: project.id, title: '�
 export const spec = { schemaVersion: 'v2', projectId: project.id, goal: '设计报表交付 · 模拟', context: '仅模拟数据，无真实模型调用', stages: [{ objective: '核对交付依据', implementationKind: 'NON_JAVA', allowedPaths: [], forbiddenPaths: [], deliverables: ['证据报告'], acceptanceCriteria: [], verifiers: [] }], limits: { maxStageAttempts: 3, maxTaskAttempts: 7, maxDuration: 'PT2H', attemptTimeout: 'PT30M' } }
 export const draft = { id: 'w5-draft', version: 4, status: 'DRAFT_READY', updatedAt: '2026-10-03', spec }
 export const session = { id: 'w5-session', projectId: project.id, projectName: project.name, state: 'REVIEWING', workflowPhase: 'DISCUSSING_REQUIREMENT', activeActor: 'SYSTEM', accessMode: 'READ_ONLY', readOnly: true, discussionScope: 'REQUIREMENT', discussionRevision: 1, finalConfirmationEligible: false, autoMode: { enabled: false, state: 'DISABLED', version: 0 }, questionInteraction: { mode: 'NONE', awaitingAnswer: false }, taskProfile: { id: 'w5-profile', state: 'PROVISIONAL', decisionState: 'CONFIRMED', confirmationReady: true, intent: 'SOFTWARE_CHANGE', workflowTemplate: 'FULL_PACKAGE_DESIGN', mutationMode: 'WRITE_CODE', artifactKinds: ['SOURCE_CODE'], technologies: [], testPolicy: 'REQUIRED', executionStrategy: 'OPEN_CODE_IMPLEMENTATION', rolePackId: 'fixture', rolePackVersion: 'fixture', confidence: 100, evidence: [], resolutionSource: 'USER_CONFIRMED', decisionRequired: false, largeTaskMode: false, version: 7 }, availableProfileOverrides: ['SOFTWARE_CHANGE', 'DOCUMENT_AUTHORING'], availableArtifactOverrides: ['SOURCE_CODE', 'MARKDOWN'], reports: [], messages: [{ id: 'message-original', role: 'ASSISTANT', actor: 'REQUIREMENT_ASSISTANT', scopeKey: 'REQUIREMENT', content: '请先确认报表范围，再进入设计。\n\n这是模拟会话，未连接真实模型。', createdAt: '2026-10-03T00:00:00Z' }], draft }
-export async function w5ProductFixture(page: Page, options: { write?: (route: Route) => Promise<void>; native?: boolean; sessionId?: string } = {}) {
+export async function w5ProductFixture(page: Page, options: { write?: (route: Route) => Promise<void>; native?: boolean; sessionId?: string; base?: Awaited<ReturnType<typeof productFixture>> } = {}) {
   if (options.native) await page.addInitScript(() => { (window as any).__w5NativeStream = window.EventSource })
-  const base = await productFixture(page)
+  const base = options.base ?? await productFixture(page)
   if (options.native) await page.addInitScript(() => {
     const Native = (window as any).__w5NativeStream as typeof EventSource, Fallback = window.EventSource
     class Recorded extends Native {
@@ -24,6 +24,8 @@ export async function w5ProductFixture(page: Page, options: { write?: (route: Ro
   })
   const requests: { method: string; path: string; body: string | null }[] = [], unexpected: string[] = []
   const payloads: Record<string, unknown> = {
+    '/api/workflows/templates': {items:[flow],facets:{},nextCursor:null},
+    '/api/workflows/requirements': {items:[plan],facets:{},nextCursor:null},
     [`/api/projects/${project.id}`]: project,
     [`/api/template-tasks/projects/${project.id}`]: project,
     '/api/workflows/templates/builtin.workflow.development': flow,

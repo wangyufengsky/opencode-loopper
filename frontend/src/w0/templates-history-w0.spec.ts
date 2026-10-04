@@ -1,51 +1,37 @@
+import { flushPromises } from '@/test/async'
+import { ReactDOMQuery } from '@/pages/w6-tests/workflow/react-test-root'
+import { mountRunRoute, runClick, settleRunBridge } from '@/pages/w3/templates/runs/run-w0-contract'
+import * as runControllers from '@/pages/w3/templates/runs/runController'
+import { semanticName } from '@/foundation/semanticRegistry'
+import { templateClarificationPropScopeW0Contract } from '@/pages/w3/templates/runs/run-child-w0-contract'
 /** W0 titles/contracts frozen; W2–W4 approved scopes now exercise production React; W5 remains red. */
 import { createHash, webcrypto } from 'node:crypto'
-import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
-import { defineComponent, h, type Component } from 'vue'
-import { createMemoryHistory, createRouter, RouterView } from 'vue-router'
-import { createPinia, setActivePinia } from 'pinia'
-import ElementPlus, { ElMessageBox } from 'element-plus'
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { api, ApiError } from '@/api/client'
-import { useTaskStore } from '@/stores/taskStore'
 import { createDocumentCreationController } from '@/pages/w3/templates/catalog/creation'
 import { creationUiW0Contract } from './w3-creation-contract'
 import { templateRunNavigationW0Contract, templateRunIdentityW0Contract, templateCancelScopeW0Contract, templateRunReadonlyLeaveW0Contract } from '@/pages/w3/templates/runs/run-w0-contract'
 import { templateSourcesRetirementW0Contract, templateClarificationRetirementW0Contract, templateSupplementRetirementW0Contract } from '@/pages/w3/templates/runs/run-child-w0-contract'
-import TemplateTasksView from '@/views/TemplateTasksView.vue'
-import SourceTemplateView from '@/views/SourceTemplateView.vue'
-import DocumentTemplateView from '@/views/DocumentTemplateView.vue'
-import DesignerHistoryView from '@/views/DesignerHistoryView.vue'
 import { foundationDOM } from '@/pages/w2/workflow/page.test-support'
 import { designerHistoryW0Contract } from '@/pages/w2/workflow/designer-history-w0-contract'
-import TaskDesignHistoryView from '@/views/TaskDesignHistoryView.vue'
 import { historyScopeW0Contract } from '@/pages/w4/history/w0-contract'
-import DocumentClarificationForm from '@/components/DocumentClarificationForm.vue'
 import type { DocumentTemplateOverview, SourceTemplateOverview, TaskDesignHistory, TemplateTaskCatalog } from '@/types/domain'
 
 function clone<T>(value: T): T { return JSON.parse(JSON.stringify(value)) }
 function deferred<T>() { let resolve!: (value: T) => void, reject!: (error: unknown) => void; const promise = new Promise<T>((a, b) => { resolve = a; reject = b }); return { promise, resolve, reject } }
 function mock(name: keyof typeof api) { return vi.spyOn(api, name) as Mock }
 function proof(subcase: string, evidence: unknown) { console.info('W0_IDENTITY', JSON.stringify({ subcase, evidence })) }
-const roots: VueWrapper[] = []
+const roots: Array<{unmount():void}> = []
 const streams: { close: ReturnType<typeof vi.fn> }[] = []
 function stream() { const value = { close: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), onopen: null, onerror: null }; streams.push(value); return value }
-const header = { template: '<header><slot name="actions" /></header>' }
-const stubs = { Icon: true, PageHeader: header, MarkdownDocument: { props: ['content'], template: '<pre>{{ content }}</pre>' }, SourceCoveragePanel: true, SourceArtifactsPanel: true, DocumentRequirementsPanel: true, DocumentReportsPanel: true, TemplateBatchRecoveryPanel: true, DesignerDiscussionHistory: true, TemplateTaskProgressPanel: true }
-function state(wrapper: VueWrapper) { return (wrapper.vm.$ as unknown as { setupState: Record<string, any> }).setupState }
-async function button(wrapper: VueWrapper, label: string) { const node = wrapper.findAll('button').find(b => b.text() === label); expect(node, `reachable button ${label}`).toBeDefined(); await node!.trigger('click'); await flushPromises() }
-async function routeRoot(component: Component, path: string, extraStubs = {}) {
-  const router = createRouter({ history: createMemoryHistory(), routes: [
-    { path: '/template-tasks', component: TemplateTasksView }, { path: '/template-tasks/source-runs/:id', component: SourceTemplateView },
-    { path: '/template-tasks/document-runs/:id', component: DocumentTemplateView }, { path: '/designs', component: DesignerHistoryView },
-    { path: '/tasks/:id/design', component: TaskDesignHistoryView }, { path: '/exit', component: { template: '<p>安全离开目标</p>' } },
-    { path: '/tasks/:id', component: { template: '<p>任务检视</p>' } }, { path: '/tasks', component: { template: '<p>任务列表</p>' } },
-  ] })
-  await router.push(path); await router.isReady()
-  const root = mount(defineComponent({ setup: () => () => h(RouterView) }), { global: { plugins: [ElementPlus, router], stubs: { ...stubs, DocumentSourcesPanel: true, DocumentSupplementForm: true, ...extraStubs } } })
-  roots.push(root); await flushPromises(); return { root, router, view: root.findComponent(component) }
+function state(view: ReturnType<typeof routeRoot> extends Promise<infer T> ? T extends {view: infer V} ? V : never : never) { const snapshot=view.owner().getSnapshot();return {...snapshot,run:snapshot.run!,acting:snapshot.command.busy} }
+async function button(view: ReactDOMQuery, label: string) { await runClick(view.element as HTMLElement, label==='取消任务'?semanticName('template.cancel'):label) }
+async function routeRoot(path: string) {
+ const factory=vi.spyOn(runControllers,'createRunController'),page=await mountRunRoute('document',path.split('/').at(-1));roots.push(page.root)
+ const view=Object.assign(new ReactDOMQuery(page.host),{owner:()=>factory.mock.results.filter(row=>row.type==='return'&&row.value.viewCount()>0).at(-1)!.value as ReturnType<typeof runControllers.createRunController>})
+ return {...page,view}
 }
-function direct(component: Component, props: Record<string, unknown>) { const wrapper = mount(component, { props, global: { plugins: [ElementPlus], stubs } }); roots.push(wrapper); return wrapper }
+async function modal(view: ReactDOMQuery, accept: boolean) { const dialog=view.get('[role=dialog]');await runClick(dialog.element as HTMLElement,semanticName(accept?'template.cancel':'ui.stay'));await settleRunBridge() }
 const branch = { id: 'local:main', label: 'main', ref: 'refs/heads/main', remote: null }
 const sourceRun = (id = 'A', version = 3): SourceTemplateOverview => ({ id, projectId: 'p', templateId: 'UNIT_TEST_DEVELOPMENT', templateVersion: '1', title: `源码${id}`, state: 'PENDING_START', version, createdAt: 'now', updatedAt: 'now', archived: false, sourcePath: 'src/main', testOutputPath: null, documentPath: null, requirements: '', snapshot: null, designerId: null, taskId: null, taskState: null, waitingReasonCode: null, waitingMessage: null, coverage: [], progress: [], canResume: false, canArchive: false, testProfile: null })
 const documentRun = (id = 'A', version = 3): DocumentTemplateOverview => ({ id, projectId: 'p', templateId: 'REQUIREMENT_CODE_REVIEW', templateVersion: '1', title: `文档${id}`, state: 'ASSESSING', waitingReasonCode: null, waitingMessage: null, designerId: null, taskId: null, requirementRevision: 1, version, createdAt: 'created', updatedAt: 'updated', canCancel: true, canResume: true, archived: false, uploadReady: true, snapshotSha: 'frozen-sha', files: [], progress: { attempts: 2, validated: 1, active: 1, stopped: 0, requirements: 1, reports: 0, revision: 3 } })
@@ -61,16 +47,15 @@ function catalog(kind: 'report' | 'source' | 'document') {
   return { templates, dimensions: [], defaultStartDate: '2026-09-01', defaultEndDate: '2026-09-14' } as unknown as TemplateTaskCatalog
 }
 beforeEach(() => {
-  vi.useFakeTimers(); sessionStorage.clear(); setActivePinia(createPinia()); streams.length = 0
+  vi.useFakeTimers(); sessionStorage.clear(); streams.length = 0
   vi.stubGlobal('crypto', webcrypto); vi.stubGlobal('EventSource', class {})
   mock('templateProjects').mockResolvedValue({ items: [], facets: {} }); mock('templateProject').mockResolvedValue({ id: 'p', name: '项目', createdAt: 'now', documentPath: null })
   mock('templateBranches').mockResolvedValue({ page: { items: [branch], facets: {}, nextCursor: null }, defaultBranch: branch, defaultBranchId: branch.id, remoteAvailable: true })
   mock('sourceTemplate').mockImplementation(async (id: string) => sourceRun(id)); mock('documentTemplate').mockImplementation(async (id: string) => documentRun(id))
   mock('sourceEvents').mockImplementation(stream); mock('documentEvents').mockImplementation(stream)
   for (const name of ['documentSections', 'documentSection', 'answerDocumentRequirements', 'documentSupplementOptions', 'uploadDocumentSupplement'] as const) mock(name)
-  useTaskStore().projects = [{ id: 'p', name: '项目', createdAt: 'now' }] as any
 })
-afterEach(() => { roots.splice(0).forEach(root => { if (root.exists()) root.unmount() }); vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers(); sessionStorage.clear() })
+afterEach(() => { roots.splice(0).forEach(root => { root.unmount() }); vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers(); sessionStorage.clear() })
 
 describe('W0 B3 creation/run identity and navigation', () => {
   for (const kind of ['report', 'source', 'document'] as const) it(`B3.1 ${kind}: real create in flight must block route leave; disabled inputs cannot be mutated`, async () => {
@@ -107,7 +92,7 @@ describe('W0 B3 creation/run identity and navigation', () => {
     const files = [file('字节一', 'one.md'), file('字节二', 'two.md')]; let store = createDocumentCreationController()
     const first = store.start(documentInput, files).catch(() => undefined); await settleHash(() => write.mock.calls.length === 1); await first
     const original = clone(write.mock.calls[0]?.[0]); const metadata = sessionStorage.getItem('loopper.document-template-upload.v1')!
-    expect(metadata).not.toContain('字节一'); setActivePinia(createPinia()); store = createDocumentCreationController(); await store.restore(); expect(read).toHaveBeenCalledWith(original.requestKey); expect(write).toHaveBeenCalledTimes(1)
+    expect(metadata).not.toContain('字节一'); store = createDocumentCreationController(); await store.restore(); expect(read).toHaveBeenCalledWith(original.requestKey); expect(write).toHaveBeenCalledTimes(1)
     for (const selected of [[file('字节一', 'one.md'), file('字节二', 'two.md')], [file('不同字节', 'one.md'), file('字节二', 'two.md')], [files[1]!, files[0]!]]) { const next = store.start(documentInput, selected).catch(() => undefined); await settleHash(() => !store.getSnapshot().busy); await next }
     const uploads = await Promise.all(write.mock.calls.map(async call => Promise.all((call[1] as File[]).map(async selected => ({ name: selected.name, sha256: createHash('sha256').update(new Uint8Array(await selected.arrayBuffer())).digest('hex'), sameOriginalInstance: files.includes(selected) })))))
     proof('B3.4/document/bytes-order', { requests: write.mock.calls.map(c => c[0]), uploads, metadataOnly: JSON.parse(metadata), scope: 'external store negative control; UI edit path covered B3.1', byRequestStatus: 404, knownAccepted: false, allowedAlternative: 'reject changed input without POST OR resume frozen original bytes/order' })
@@ -123,7 +108,7 @@ describe('W0 B3 creation/run identity and navigation', () => {
     const write = mock('createDocumentTemplate').mockRejectedValue(new Error('未知原创建回执')); const store = createDocumentCreationController()
     const pending = store.start(documentInput, [file('原字节')]).catch(() => undefined); await settleHash(() => !store.getSnapshot().busy); await pending
     const original = clone(write.mock.calls[0]?.[0]); const read = mock('documentTemplateRequest').mockResolvedValue(documentRun('accepted-original'))
-    setActivePinia(createPinia()); const restored = createDocumentCreationController(); await restored.restore()
+    const restored = createDocumentCreationController(); await restored.restore()
     proof('B3.4/document/accepted-read', { requestKey: original.requestKey, lookup: read.mock.calls, restoredId: restored.getSnapshot().knownId, writes: write.mock.calls.length, knownAccepted: true, filesPersisted: false })
     expect(read).toHaveBeenCalledWith(original.requestKey); expect(restored.getSnapshot().knownId).toBe('accepted-original'); expect(write).toHaveBeenCalledTimes(1)
     // Accepted GET closes the UNKNOWN branch: no changed-draft retry is forced here.
@@ -136,19 +121,19 @@ describe('W0 B4 document cancellation scope', () => {
     await templateCancelScopeW0Contract({ proof })
   })
   it('B4.1 reject real modal leaves original A and issues zero writes', async () => {
-    vi.spyOn(ElMessageBox, 'confirm').mockRejectedValue('cancel'); const write = mock('documentTemplateCommand')
-    const page = await routeRoot(DocumentTemplateView, '/template-tasks/document-runs/A'); await button(page.view, '取消任务')
+    const write = mock('documentTemplateCommand')
+    const page = await routeRoot('/template-tasks/document-runs/A'); await button(page.view, '取消任务'); await modal(page.view,false)
     expect(write).not.toHaveBeenCalled(); expect(page.router.currentRoute.value.path).toBe('/template-tasks/document-runs/A'); expect(state(page.view).run.id).toBe('A')
   })
   it('B4.1 current modal confirm submits exactly once with original A CAS', async () => {
-    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never); const write = mock('documentTemplateCommand').mockResolvedValue(documentRun('A', 4))
-    const page = await routeRoot(DocumentTemplateView, '/template-tasks/document-runs/A'); await button(page.view, '取消任务')
+    const write = mock('documentTemplateCommand').mockResolvedValue(documentRun('A', 4))
+    const page = await routeRoot('/template-tasks/document-runs/A'); await button(page.view, '取消任务'); await modal(page.view,true)
     expect(write).toHaveBeenCalledTimes(1); expect(write.mock.calls[0]).toEqual(['A', 'cancel', expect.objectContaining({ expectedVersion: 3, requestKey: expect.any(String) })]); proof('B4.1/current-modal', write.mock.calls)
   })
   for (const outcome of ['success', 'error'] as const) it(`B4.2 ${outcome}: already-sent A POST after forced retirement cannot pollute new B owner`, async () => {
-    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never); const pending = deferred<any>(); const write = mock('documentTemplateCommand').mockReturnValue(pending.promise)
-    const a = await routeRoot(DocumentTemplateView, '/template-tasks/document-runs/A'); await button(a.view, '取消任务'); expect(write).toHaveBeenCalledTimes(1)
-    a.root.unmount(); const b = await routeRoot(DocumentTemplateView, '/template-tasks/document-runs/B'); const before = { run: clone(state(b.view).run), error: state(b.view).error, acting: state(b.view).acting }
+    const pending = deferred<any>(); const write = mock('documentTemplateCommand').mockReturnValue(pending.promise)
+    const a = await routeRoot('/template-tasks/document-runs/A'); await button(a.view, '取消任务'); await modal(a.view,true); expect(write).toHaveBeenCalledTimes(1)
+    a.root.unmount(); const b = await routeRoot('/template-tasks/document-runs/B'); const before = { run: clone(state(b.view).run), error: state(b.view).error, acting: state(b.view).acting }
     if (outcome === 'success') pending.resolve(documentRun('A', 4)); else pending.reject(new Error('A late error')); await flushPromises()
     proof(`B4.2/${outcome}`, { forcedRetirement: true, original: write.mock.calls[0], route: b.router.currentRoute.value.path, current: state(b.view).run.id })
     expect(state(b.view).run).toEqual(before.run); expect(state(b.view).error).toBe(before.error); expect(state(b.view).acting).toBe(before.acting); expect(write).toHaveBeenCalledTimes(1)
@@ -203,6 +188,6 @@ describe('W0 B8 history and child retirement', () => {
     await templateSupplementRetirementW0Contract('upload', { run: documentRun(), file: file(), proof })
   })
   it('B8.3 existing prop scope guards reject old child callbacks without unmount', async () => {
-    const a = deferred<any>(); mock('answerDocumentRequirements').mockReturnValue(a.promise); const wrapper = direct(DocumentClarificationForm, { run: documentRun(), requirementKey: 'REQ-1' }); await wrapper.get('textarea').setValue('A回答'); await wrapper.get('form').trigger('submit'); await flushPromises(); await wrapper.setProps({ run: documentRun('B') }); await wrapper.get('textarea').setValue('B回答'); a.resolve(documentRun('A', 4)); await flushPromises(); expect(wrapper.emitted('updated')).toBeUndefined(); expect(state(wrapper).answer).toBe('B回答')
+    await templateClarificationPropScopeW0Contract({run:documentRun(),proof})
   })
 })

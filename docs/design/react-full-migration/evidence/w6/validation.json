@@ -1,0 +1,178 @@
+{
+  "scope": "W6 local integration gate; not W7 full-site gate",
+  "baseline": "2186deafdfc6d8bfbd6047ea2b3b8853a5296683",
+  "unit": {
+    "passed": 2363,
+    "failed": 0,
+    "pending": 0,
+    "files": 273,
+    "rawFile": "unit-final-v2.json",
+    "rawSHA256": "cf2da940edf4f917f499fe83ea2157a6502e26e67702524b9cf360d93f789fd0",
+    "original": 2332,
+    "new": 31,
+    "missing": 0,
+    "w0Passed": 111
+  },
+  "browser": {
+    "w2": {
+      "rawFile": "w2-browser-final-v3.json",
+      "rawSHA256": "a71e26ebde26f7ba107a86a40d54efccff1f1e2cd3e0ad7da6aafbf8fb1acd08",
+      "passed": 49,
+      "failed": 0,
+      "skipped": 0,
+      "flaky": 0
+    },
+    "w3": {
+      "rawFile": "w3-browser-final-v3.json",
+      "rawSHA256": "d992a6fa5eca026b4d97a1f820da43b4cbc36023b9218db0acd86d0ee0562384",
+      "passed": 31,
+      "failed": 0,
+      "skipped": 0,
+      "flaky": 0
+    },
+    "w4": {
+      "rawFile": "w4-browser-final-v3.json",
+      "rawSHA256": "a1f49499862d2d4bb223e2b1676d829c633d4bf1f45af3fe49f1689926e5b16f",
+      "passed": 29,
+      "failed": 0,
+      "skipped": 0,
+      "flaky": 0
+    },
+    "w5": {
+      "rawFile": "w5-browser-final-v3.json",
+      "rawSHA256": "831a2142066215d4d269cfd993d9feff91624f4b26e3084d392d3ad67c4d5b78",
+      "passed": 49,
+      "failed": 0,
+      "skipped": 0,
+      "flaky": 0
+    },
+    "w6routes": {
+      "rawFile": "w6-browser-final-v3.json",
+      "rawSHA256": "a39c1d502d98a6c530d28ea8b0394df0619c203dd988d6fe16ca57958db4b20f",
+      "passed": 97,
+      "failed": 0,
+      "skipped": 0,
+      "flaky": 0
+    },
+    "w6root": {
+      "rawFile": "root-browser-final-v3.json",
+      "rawSHA256": "c879ce2c2d752e1b7cc2f56349f55147ece06918630c777a0fbe9b3e3c058da4",
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "flaky": 0
+    },
+    "w3historicalRepeated": {
+      "rawFile": "w3-historical-final.json",
+      "rawSHA256": "b48ef679fc741d4f74272b805de5d4b68dddb2b3c08c8339c9c731de806a0b16",
+      "passed": 3,
+      "failed": 0,
+      "skipped": 0,
+      "flaky": 0
+    }
+  },
+  "productionBrowserCases": 261,
+  "rootImmediateCycles": 18,
+  "w1": {
+    "fixtureCasesPassed": 41,
+    "strictImmediateResourceChecks": 18,
+    "errors": 0,
+    "rawSHA256": "1e05d387878d259b6ee1787ab67265466aec58d6d2b33dceb8422b4bb80a9ebb"
+  },
+  "tooling": {
+    "passed": 39,
+    "failed": 0,
+    "rawSHA256": "d0cbe6f5db64753226c7da96e9aa27b7cab0aafc297a7856f627dbde19d2f10f"
+  },
+  "accounting": {
+    "passed": 13,
+    "failed": 0,
+    "rawSHA256": "7a0ec276fa5d85a19143d76a9dee9d93144721522048fa0649183eb3449b9042"
+  },
+  "commands": {
+    "cleanNpmCi": {
+      "exit": 0,
+      "rawSHA256": "f9a487d2e4b7c2c33ec4c9ce53b9a029a7e7db9895a1599633bd4d4d3a4311ee"
+    },
+    "typecheck": {
+      "exit": 0,
+      "rawSHA256": "6cab69157918d43c531ef3420368573816bcfda39284937b5100914d4e147318"
+    },
+    "build": {
+      "exit": 0,
+      "rawSHA256": "eb38b9cfe4324f18941187238ba0104bea84bac8f6051f6d0489f81f6b5f86e0",
+      "largeChunkWarningRetained": true
+    },
+    "browserTypecheck": {
+      "exit": 0,
+      "rawSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "reactOnlyAudit": {
+      "ok": true,
+      "sourceFiles": 769,
+      "sourceModuleReferences": 3924,
+      "scriptFiles": 32,
+      "dependencyPackages": 426,
+      "buildModules": 3940,
+      "errors": []
+    }
+  },
+  "discovery": {
+    "tests": 566,
+    "files": 77,
+    "executed": 0,
+    "exit": 0,
+    "rawSHA256": "73bd5f0298f401640188a7e161a6da4e0f3ea9e822304449535546688034454a"
+  },
+  "preliminaryFailures": {
+    "fullUnit": {
+      "passed": 2361,
+      "failed": 2,
+      "replacedBy": "unit-final-v2.json"
+    },
+    "w2Browser": {
+      "passed": 25,
+      "failed": 24
+    },
+    "w3Browser": {
+      "passed": 16,
+      "failed": 15
+    },
+    "allSiteDiscovery": {
+      "exit": 1,
+      "cause": "spec importing another spec; exact original contracts moved into explicit registration function"
+    }
+  },
+  "unverified": [
+    "W7 complete all-site E2E run",
+    "real backend/model/file parsing",
+    "full cross-refresh persistence where API/storage lacks support",
+    "all GC objects/heap retaining paths",
+    "actual HMR transition",
+    "real touch devices",
+    "narrow screen (cancelled scope)"
+  ],
+  "screenshots": {
+    "actualProductionPNG": 56,
+    "mockData": true,
+    "desktopOnly": true,
+    "techBlueRoleSelectedPNG": false
+  },
+  "publication": {
+    "push": false,
+    "pr": false,
+    "merge": false,
+    "deployment": false
+  },
+  "finalWhitespaceOnlyCorrections": {
+    "files": [
+      "frontend/src/app/storyAccounting.ts",
+      "frontend/src/pages/w6-tests/knowledge-ppt-template/designer-fixtures.ts",
+      "docs/design/react-full-migration/evidence/w6/knowledge-ppt-template.md"
+    ],
+    "storyTypeScriptEmittedJavaScriptUnchanged": true,
+    "assertionsChanged": false,
+    "productionArtifactFiles": 127,
+    "productionArtifactsByteIdenticalToTestedBuild": true
+  }
+}

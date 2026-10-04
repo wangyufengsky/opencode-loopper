@@ -1,7 +1,6 @@
-import type { RouteLocationNormalized } from 'vue-router'
 
 /** Keep explicit historical sessions reachable while sending new work to the requirement canvas. */
-export function designerEntry(to: RouteLocationNormalized) {
+export function designerEntry(to: { query: Record<string, string | string[] | null | undefined> }) {
   if (typeof to.query.sessionId === 'string' && to.query.sessionId.trim()) return true
   const projectId = typeof to.query.projectId === 'string' ? to.query.projectId : ''
   try {

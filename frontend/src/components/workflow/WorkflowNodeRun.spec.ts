@@ -1,25 +1,25 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
+import { flushPromises, mount, resolveDialog, type ReactTestRoot } from '@/pages/w6-tests/workflow/react-test-root'
 import { workflowRuns } from '@/api/workflowRuns'
 import type { WorkflowCommandEvidence, WorkflowNode, WorkflowNodeSummary } from '@/types/domain'
-import WorkflowNodeRun from './WorkflowNodeRun.vue'
+import { WorkflowNodeRun } from '@/pages/w6-tests/workflow/command-panels'
 import { attempt, requirement } from './workflowRunTestFixtures'
 import { commandPreset, verificationPreset } from './workflowTestFixtures'
 vi.mock('@/api/workflowRuns', () => ({ workflowRuns: { attempts: vi.fn(), attempt: vi.fn(), definition: vi.fn(), inputs: vi.fn(), inputContent: vi.fn(), result: vi.fn(), activity: vi.fn(), complete: vi.fn(), modelAction: vi.fn(), commandAction: vi.fn(), commandEvidence: vi.fn() } }))
-const api = vi.mocked(workflowRuns); let wrapper: VueWrapper | undefined
+const api = vi.mocked(workflowRuns); let wrapper: ReactTestRoot | undefined
 const summary = (latestAttemptId = 'run'): WorkflowNodeSummary => ({ id: 'node', nodeKey: 'review', state: 'WAITING_INPUT', attemptCount: 1, latestAttemptId, version: 1, outcome: null })
-beforeEach(() => { vi.resetAllMocks(); vi.spyOn(window, 'confirm').mockReturnValue(true); api.attempts.mockResolvedValue({ items: [attempt()] }); api.attempt.mockResolvedValue(attempt()); api.definition.mockResolvedValue(requirement().graph.nodes[0]!) })
+beforeEach(() => { vi.resetAllMocks();  api.attempts.mockResolvedValue({ items: [attempt()] }); api.attempt.mockResolvedValue(attempt()); api.definition.mockResolvedValue(requirement().graph.nodes[0]!) })
 afterEach(() => { wrapper?.unmount(); wrapper = undefined; vi.restoreAllMocks() })
-async function render() { wrapper = mount(WorkflowNodeRun, { props: { requirement: 'req', version: 7, node: requirement().graph.nodes[0]!, summary: summary() }, global: { stubs: { CodeMergeEditor: true, MarkdownDocument: true, WorkflowSnapshotPartialReport: true } } }); await flushPromises() }
-const button = (name: string) => wrapper!.findAll('button').find(item => item.text() === name)!
+async function render() { wrapper = mount(WorkflowNodeRun, { props: { requirement: 'req', version: 7, node: requirement().graph.nodes[0]!, summary: summary() } }); await flushPromises() }
+const keys: Record<string,string> = { '阶段报告':'workflow.partialReport', '固定输入':'workflow.fixedInput', '查看固定版本正文':'workflow.inputContent', '重新检查停止':'workflow.nodeStopCheck', '恢复原尝试':'workflow.nodeResume', '停止节点':'workflow.nodeStop', '模型日志':'workflow.modelActivity', '重试原操作':'receipt.retryOriginal', '刷新操作结果':'receipt.readOriginal', '执行记录':'workflow.commandEvidence', '刷新执行记录':'ui.refresh', '交付物':'workflow.deliverables' }; const button = (name:string) => wrapper!.findAll('button').find(item => item.attributes('data-semantic')===keys[name])!
 function evidence(output = '保存的检查输出'): WorkflowCommandEvidence { return { attemptId: 'run', registration: { requestSha256: 'request-hash', worker: { pid: 123, startedAt: 'time' } }, requestSha256: 'request-hash', resultSha256: 'result-hash', request: { id: 'run', directory: '/private/inspection', argv: ['mvn', 'test'], timeoutSeconds: 300 }, result: { requestSha256: 'request-hash', worker: { pid: 123, startedAt: 'time' }, exitCode: 0, launched: true, timedOut: false, cancelled: false, outputTruncated: false, stopConfirmed: true, output, error: '', children: [] } } }
 describe('node execution inspector', () => {
   it('exposes partial reports only from an accepted, stopped source and binds its selected attempt', async () => {
     api.definition.mockResolvedValue({ ...requirement().graph.nodes[0]!, kind: 'SYSTEM', moduleId: 'system.review.snapshot' })
     api.attempt.mockResolvedValue(attempt({ state: 'SUCCEEDED', deliveryAccepted: true, stopConfirmed: true }))
-    await render(); expect(wrapper!.find('workflow-snapshot-partial-report-stub').exists()).toBe(false)
+    await render(); expect(wrapper!.find('[aria-label="阶段审查报告"]').exists()).toBe(false)
     await button('阶段报告').trigger('click'); await flushPromises()
-    expect(wrapper!.get('workflow-snapshot-partial-report-stub').attributes()).toMatchObject({ requirement: 'req', node: 'review', attempt: 'run' })
+    expect(wrapper!.get('[aria-label="阶段审查报告"]').text()).toContain('已完成批次报告'); expect(wrapper!.owners<{nodeId?:string;getSnapshot():{selected?:string}}>().find(owner=>owner.nodeId==='review')!.getSnapshot().selected).toBe('run')
     expect(api.result).not.toHaveBeenCalled(); expect(api.activity).not.toHaveBeenCalled()
   })
   it('expands fixed input metadata before requesting an individual reference body', async () => {
@@ -28,7 +28,7 @@ describe('node execution inspector', () => {
     await render(); expect(api.inputs).not.toHaveBeenCalled(); await button('固定输入').trigger('click'); await flushPromises()
     expect(api.inputContent).not.toHaveBeenCalled(); expect(button('查看固定版本正文')).toBeDefined()
     await button('查看固定版本正文').trigger('click'); await flushPromises(); expect(api.inputContent.mock.calls[0]!.slice(0, 5)).toEqual(['req', 'review', 'run', 'draft', 0])
-    expect(wrapper!.get('markdown-document-stub').attributes('content')).toBe('固定设计')
+    expect(wrapper!.get('.markdown-document').text()).toBe('固定设计')
   })
   it('rechecks an uncertain stop on the original command without offering a fresh start', async () => {
     api.attempt.mockResolvedValue(attempt({ state: 'STOPPING', commandState: 'STOPPING', commandVersion: 21, suspended: true, errorCode: 'WORKFLOW_COMMAND_STOP_UNCONFIRMED' }))
@@ -47,8 +47,8 @@ describe('node execution inspector', () => {
   })
   it('confirms native stop, keeps an accepted acknowledgement and only rereads after refresh failure', async () => {
     api.attempt.mockResolvedValue(attempt({ state: 'RUNNING', commandState: 'RUNNING', commandVersion: 19 })); api.definition.mockResolvedValue({ ...commandPreset().node, id: 'review' }); api.commandAction.mockResolvedValue({})
-    await render(); vi.mocked(window.confirm).mockReturnValue(false); await button('停止节点').trigger('click'); expect(api.commandAction).not.toHaveBeenCalled()
-    vi.mocked(window.confirm).mockReturnValue(true); api.attempt.mockRejectedValueOnce(new Error('offline')); await button('停止节点').trigger('click'); await flushPromises()
+    await render(); await button('停止节点').trigger('click'); await resolveDialog(wrapper!, false); expect(api.commandAction).not.toHaveBeenCalled()
+    api.attempt.mockRejectedValueOnce(new Error('offline')); await button('停止节点').trigger('click'); await resolveDialog(wrapper!, true); await flushPromises()
     await button('刷新操作结果').trigger('click'); await flushPromises(); expect(api.commandAction).toHaveBeenCalledTimes(1); expect(api.commandAction.mock.calls[0]![3]).toBe('stop')
   })
   it('reads command evidence only on expansion and discards an older response after a newer refresh', async () => {
@@ -88,8 +88,8 @@ describe('node execution inspector', () => {
     await wrapper!.get('select').setValue('old'); await flushPromises(); const count = api.attempt.mock.calls.length; await wrapper!.setProps({ summary: summary('new') }); await flushPromises(); expect(api.attempt).toHaveBeenCalledTimes(count); expect(wrapper!.find('form').exists()).toBe(false)
   })
   it('asks before abandoning unsubmitted human results and warns on browser unload', async () => {
-    await render(); await wrapper!.get('textarea').setValue('未提交说明'); vi.mocked(window.confirm).mockReturnValue(false)
-    expect((wrapper!.vm as unknown as { canLeave: () => boolean }).canLeave()).toBe(false)
+    await render(); await wrapper!.get('textarea').setValue('未提交说明');
+    expect((wrapper!.owners<{ canLeave(): {kind:string} }>()[0]!).canLeave().kind).not.toBe('ALLOW')
     const event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event); expect(event.defaultPrevented).toBe(true)
   })
   it('keeps a failed program report readable without pretending the completed attempt is still settling', async () => {

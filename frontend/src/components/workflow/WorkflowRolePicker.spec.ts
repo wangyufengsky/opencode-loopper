@@ -1,14 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
+import { flushPromises, mount, type ReactTestRoot } from '@/pages/w6-tests/workflow/react-test-root'
 import { api } from '@/api/client'
 import type { RoleDetail, RoleRevision } from '@/types/domain'
-import WorkflowRolePicker from './WorkflowRolePicker.vue'
+import { WorkflowRolePicker as WorkflowRolePicker } from '@/pages/w5/workflow/WorkflowRolePicker'
 import { newNode } from './graph'
 vi.mock('@/api/client', () => ({ api: { getRoles: vi.fn(), getRole: vi.fn(), getRoleRevision: vi.fn(), getRoleRevisions: vi.fn() } }))
 const calls = vi.mocked(api)
 const role: RoleDetail = { roleId: 'designer', displayName: '设计师', description: '', origin: 'BUILTIN', latestRevisionId: 'published', latestRevisionNumber: 2, activeSlots: [] }
 const revision = (id = 'published', number = 2): RoleRevision => ({ roleId: role.roleId, revisionId: id, revisionNumber: number, contentSha256: 'hash', promptFragments: {}, manifest: { allowedSlots: ['WORKFLOW_READ_ONLY'], workInstructions: '分析授权资料' } })
-let wrapper: VueWrapper | undefined
+let wrapper: ReactTestRoot | undefined
 beforeEach(() => { vi.resetAllMocks(); calls.getRoles.mockResolvedValue({ items: [role] }); calls.getRole.mockResolvedValue(role); calls.getRoleRevision.mockResolvedValue(revision()) })
 afterEach(() => { wrapper?.unmount(); wrapper = undefined })
 describe('frozen workflow role selection', () => {

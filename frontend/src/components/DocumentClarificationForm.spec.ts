@@ -1,35 +1,10 @@
-import { flushPromises, mount } from '@vue/test-utils'
-import ElementPlus from 'element-plus'
-import { beforeEach, expect, it, vi } from 'vitest'
+import { beforeEach,expect,it,vi } from 'vitest'
 import { api } from '@/api/client'
-import type { DocumentTemplateOverview } from '@/types/domain'
-import DocumentClarificationForm from './DocumentClarificationForm.vue'
-vi.mock('@/api/client', () => ({ api: { answerDocumentRequirements: vi.fn() } }))
-const run = { id: 'run', requirementRevision: 1, version: 3 } as DocumentTemplateOverview
-beforeEach(() => vi.clearAllMocks())
-it('keeps the same identity for an unknown reply and prevents duplicate submission', async () => {
-  vi.mocked(api.answerDocumentRequirements).mockRejectedValueOnce(new Error('响应丢失'))
-  const wrapper = mount(DocumentClarificationForm, { props: { run, requirementKey: 'RQ-1' }, global: { plugins: [ElementPlus] } })
-  await wrapper.get('textarea').setValue('超过 1000 元审批')
-  await wrapper.get('form').trigger('submit'); await flushPromises()
-  const first = vi.mocked(api.answerDocumentRequirements).mock.calls[0]![1]
-  expect(first).toMatchObject({ expectedVersion: 3, requirementRevision: 1, answers: [{ requirementKey: 'RQ-1', answer: '超过 1000 元审批' }] })
-  let done!: (value: DocumentTemplateOverview) => void
-  vi.mocked(api.answerDocumentRequirements).mockReturnValueOnce(new Promise(resolve => { done = resolve }))
-  await wrapper.get('form').trigger('submit'); await wrapper.get('form').trigger('submit')
-  expect(api.answerDocumentRequirements).toHaveBeenCalledTimes(2)
-  expect(vi.mocked(api.answerDocumentRequirements).mock.calls[1]![1].requestKey).toBe(first.requestKey)
-  const updated = { ...run, state: 'ANALYZING' } as DocumentTemplateOverview
-  done(updated); await flushPromises(); expect(wrapper.emitted('updated')).toEqual([[updated]])
-  wrapper.unmount()
-})
-it('does not apply a late response to a different requirement', async () => {
-  let done!: (value: DocumentTemplateOverview) => void
-  vi.mocked(api.answerDocumentRequirements).mockReturnValue(new Promise(resolve => { done = resolve }))
-  const wrapper = mount(DocumentClarificationForm, { props: { run, requirementKey: 'RQ-1' }, global: { plugins: [ElementPlus] } })
-  await wrapper.get('textarea').setValue('金额采用人民币')
-  await wrapper.get('form').trigger('submit'); await wrapper.setProps({ requirementKey: 'RQ-2' })
-  done({ ...run, version: 4 }); await flushPromises()
-  expect(wrapper.emitted('updated')).toBeUndefined(); expect(wrapper.get('textarea').element.value).toBe('')
-  wrapper.unmount()
-})
+import { DocumentClarificationForm } from '@/pages/w6-tests/knowledge-ppt-template/template-react'
+import { flushPromises,mount } from '@/pages/w6-tests/knowledge-ppt-template/react-test-root'
+import { documentRun } from '@/pages/w3/templates/runs/test-support'
+vi.mock('@/api/client',async original=>{const actual=await original<typeof import('@/api/client')>();return {...actual,api:{...actual.api,answerDocumentRequirements:vi.fn()}}})
+const run=documentRun('run',3)
+beforeEach(()=>vi.clearAllMocks())
+it('keeps the same identity for an unknown reply and prevents duplicate submission',async()=>{vi.mocked(api.answerDocumentRequirements).mockRejectedValueOnce(new Error('响应丢失'));const w=mount(DocumentClarificationForm,{props:{run,requirementKey:'RQ-1'}});await w.get('textarea').setValue('超过 1000 元审批');await w.get('form').trigger('submit');const first=vi.mocked(api.answerDocumentRequirements).mock.calls[0]![1];expect(first).toMatchObject({expectedVersion:3,requirementRevision:1,answers:[{requirementKey:'RQ-1',answer:'超过 1000 元审批'}]});let done!:(value:typeof run)=>void;vi.mocked(api.answerDocumentRequirements).mockReturnValueOnce(new Promise(resolve=>{done=resolve}));await w.get('[data-semantic="receipt.retryOriginal"]').trigger('click');await w.get('form').trigger('submit');expect(api.answerDocumentRequirements).toHaveBeenCalledTimes(2);expect(vi.mocked(api.answerDocumentRequirements).mock.calls[1]![1].requestKey).toBe(first.requestKey);const updated={...run,state:'ANALYZING' as const};done(updated);await flushPromises();expect(w.emitted('updated')).toEqual([[updated]])})
+it('does not apply a late response to a different requirement',async()=>{let done!:(value:typeof run)=>void;vi.mocked(api.answerDocumentRequirements).mockReturnValue(new Promise(resolve=>{done=resolve}));const old=mount(DocumentClarificationForm,{props:{run,requirementKey:'RQ-1'}});await old.get('textarea').setValue('金额采用人民币');await old.get('form').trigger('submit');old.unmount();const current=mount(DocumentClarificationForm,{props:{run,requirementKey:'RQ-2'}});done({...run,version:4});await flushPromises();expect(old.emitted('updated')).toBeUndefined();expect(current.emitted('updated')).toBeUndefined();expect(current.get<HTMLTextAreaElement>('textarea').element.value).toBe('')})

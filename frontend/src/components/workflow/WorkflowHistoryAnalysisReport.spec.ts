@@ -1,6 +1,6 @@
-import { mount } from '@vue/test-utils'
+import { mount } from '@/pages/w6-tests/workflow/react-test-root'
 import { describe, expect, it } from 'vitest'
-import WorkflowHistoryAnalysisReport from './WorkflowHistoryAnalysisReport.vue'
+import { WorkflowHistoryAnalysisReport as WorkflowHistoryAnalysisReport } from '@/pages/w5/workflow/reports'
 const source = { version: 1, type: 'GIT_HISTORY', snapshotId: 'internal-snapshot', sha256: 'a'.repeat(64) }
 const review = { version: 1, type: 'HISTORY_REVIEW', source, batchOrdinal: 0, batchCount: 2,
   locations: [{ unitId: 'internal-unit', commitSha: 'b'.repeat(40), path: 'src/Example.java' }],

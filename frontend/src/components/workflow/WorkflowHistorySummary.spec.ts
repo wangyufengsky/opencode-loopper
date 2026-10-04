@@ -1,6 +1,6 @@
-import { mount } from '@vue/test-utils'
+import { mount } from '@/pages/w6-tests/workflow/react-test-root'
 import { describe, expect, it } from 'vitest'
-import WorkflowHistorySummary from './WorkflowHistorySummary.vue'
+import { WorkflowHistorySummary as WorkflowHistorySummary } from '@/pages/w5/workflow/reports'
 const planned = { version: 1, type: 'HISTORY_PLAN', complete: true, commitCount: 2, unitCount: 20, batchCount: 2, contributorCount: 1 }
 const reported = { version: 1, type: 'HISTORY_DOCUMENT', complete: true, sourceCount: 2, unitCount: 20, batchCount: 2, contributorCount: 1, fileCount: 4, assessedContributorCount: 1, reportKind: 'CONTRIBUTION_REPORT' }
 describe('历史流程汇总', () => {

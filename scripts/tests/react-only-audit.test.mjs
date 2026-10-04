@@ -1,0 +1,9 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { mkdtempSync,writeFileSync,rmSync } from 'node:fs'
+import {tmpdir} from 'node:os'
+import {join} from 'node:path'
+import { auditSources,auditDependencyTree,auditBuild,moduleReferences } from '../audit-react-only.mjs'
+test('executable imports/exports/require/import types and SFC cannot be hidden by comments or old docs',t=>{const root=mkdtempSync(join(tmpdir(),'react-only-audit-'));t.after(()=>rmSync(root,{recursive:true,force:true}));writeFileSync(join(root,'bad.ts'),`// history: Vue\nimport x from 'vue';export * from 'pinia';const y=import('vue-router');const z=require('@vue/compiler-sfc');type T=import('@iconify/vue').Icon;`);writeFileSync(join(root,'old.vue'),'');const result=auditSources(root);assert.equal(result.errors.length,6);assert.equal(moduleReferences(`const note='vue'; // import x from 'vue'`).length,0)})
+test('direct, transitive and locked framework packages fail closed',t=>{const root=mkdtempSync(join(tmpdir(),'react-only-lock-'));t.after(()=>rmSync(root,{recursive:true,force:true}));writeFileSync(join(root,'package-lock.json'),JSON.stringify({packages:{'node_modules/third/node_modules/vue':{version:'3'},'node_modules/@vue/runtime-core':{}}}));assert.equal(auditSources(root).errors.length,2);assert.deepEqual(auditDependencyTree({dependencies:{third:{dependencies:{vue:{version:'3'}}}}}).errors,['vue@3'])})
+test('production inventory is required and checks all build modules, including nested dependencies',()=>{assert.equal(auditBuild({}).errors.length,1);assert.equal(auditBuild({modules:['node_modules/react/index.js','node_modules/third/node_modules/vue/dist/vue.js']}).errors.length,1);assert.equal(auditBuild({modules:['src/main.tsx','node_modules/react/index.js']}).errors.length,0)})

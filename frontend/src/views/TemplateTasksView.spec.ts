@@ -1,106 +1,28 @@
-import { flushPromises, mount } from '@vue/test-utils'
-import { createPinia, setActivePinia } from 'pinia'
-import { createMemoryHistory, createRouter } from 'vue-router'
-import ElementPlus from 'element-plus'
-import { beforeEach, expect, it, vi } from 'vitest'
-import { api } from '@/api/client'
-import { useDocumentTemplateStore } from '@/stores/documentTemplateStore'
-import { useSourceTemplateStore } from '@/stores/sourceTemplateStore'
-import type { TemplateTaskDefinition, TemplateTaskCatalog } from '@/types/domain'
-import TemplateTasksView from './TemplateTasksView.vue'
-vi.mock('@/api/client', () => ({ ApiError: class extends Error {}, api: { createTemplateTask: vi.fn(), startTemplateTask: vi.fn(), templateProjects: vi.fn(), templateProject: vi.fn(), templateCatalog: vi.fn(), templateBranches: vi.fn(), documentTemplateRequest: vi.fn(), sourcePreview: vi.fn() } }))
+import { flushPromises } from '@/pages/w6-tests/knowledge-ppt-template/react-test-root'
+import {catalogueTransport,cataloguePage} from '@/pages/w6-tests/knowledge-ppt-template/catalog-test'
+import {beforeEach,expect,it,vi} from 'vitest'
+import {api} from '@/api/client'
+import {catalogFixture,sourceRun,task} from '@/pages/w3/templates/catalog/fixtures'
+import type {TemplateTaskDefinition} from '@/types/domain'
 const definitions: TemplateTaskDefinition[] = [
-  { id: 'SNAPSHOT_CODE_REVIEW', version: '1', title: '代码审查', workflow: 'SNAPSHOT_CODE_REVIEW', description: '冻结版本审查', category: '审查', inputs: { documents: false, branch: true, dates: true, extensions: [], maxFiles: 0, maxFileMiB: 0, maxTotalMiB: 0 } },
-  { id: 'REQUIREMENT_DEVELOPMENT', version: '1', title: '需求开发', description: '从文档开发', category: '需求', inputs: { documents: true, branch: false, dates: false, extensions: ['md', 'docx', 'pdf'], maxFiles: 10, maxFileMiB: 20, maxTotalMiB: 50 } },
-  { id: 'REQUIREMENT_CODE_REVIEW', version: '1', title: '需求代码评审', description: '静态需求评审', category: '需求', inputs: { documents: true, branch: true, dates: false, extensions: ['md', 'docx', 'pdf'], maxFiles: 10, maxFileMiB: 20, maxTotalMiB: 50 } },
-] as TemplateTaskDefinition[]
-beforeEach(() => {
-  vi.clearAllMocks(); sessionStorage.clear(); setActivePinia(createPinia())
-  vi.mocked(api.templateProjects).mockResolvedValue({ items: [], facets: {} })
-  vi.mocked(api.templateProject).mockResolvedValue({ id: 'inherited', name: '入口项目', createdAt: 'now', documentPath: null })
-  vi.mocked(api.templateCatalog).mockResolvedValue({ templates: definitions.slice(1), dimensions: [], defaultStartDate: '2026-09-01', defaultEndDate: '2026-09-14' } as unknown as TemplateTaskCatalog)
-  const branch = { id: 'local:main', label: 'main', ref: 'refs/heads/main', remote: null }
-  vi.mocked(api.templateBranches).mockResolvedValue({ page: { items: [branch], facets: {}, nextCursor: null }, defaultBranch: branch, defaultBranchId: branch.id, remoteAvailable: true } as Awaited<ReturnType<typeof api.templateBranches>>)
+  { contentRepairLimit:2,stages:[],scoringVersion:null,id: 'SNAPSHOT_CODE_REVIEW', version: '1', title: '代码审查', workflow: 'SNAPSHOT_CODE_REVIEW', description: '冻结版本审查', category: '审查', inputs: { documents: false, branch: true, dates: true, extensions: [], maxFiles: 0, maxFileMiB: 0, maxTotalMiB: 0 } },
+  { contentRepairLimit:2,stages:[],scoringVersion:null,id: 'REQUIREMENT_DEVELOPMENT', version: '1', title: '需求开发', description: '从文档开发', category: '需求', inputs: { documents: true, branch: false, dates: false, extensions: ['md', 'docx', 'pdf'], maxFiles: 10, maxFileMiB: 20, maxTotalMiB: 50 } },
+  { contentRepairLimit:2,stages:[],scoringVersion:null,id: 'REQUIREMENT_CODE_REVIEW', version: '1', title: '需求代码评审', description: '静态需求评审', category: '需求', inputs: { documents: true, branch: true, dates: false, extensions: ['md', 'docx', 'pdf'], maxFiles: 10, maxFileMiB: 20, maxTotalMiB: 50 } },
+]
+beforeEach(()=>{vi.restoreAllMocks();sessionStorage.clear();catalogueTransport();vi.mocked(api.templateProject).mockResolvedValue({id:'p1',name:'入口项目',createdAt:'now',documentPath:null});vi.mocked(api.templateCatalog).mockResolvedValue({...catalogFixture,templates:definitions.slice(1)})})
+it('需求开发转入默认流程，保持入口项目且不调用旧创建协议',async()=>{
+ const create=vi.spyOn(api,'createTemplateTask'),document=vi.spyOn(api,'documentTemplateRequest');const {view,p}=await cataloguePage('REQUIREMENT_CODE_REVIEW');
+ expect(view.findAll('.catalog-choice').some(item=>item.text().includes('从文档开发'))).toBe(false);await view.get('a[href*="/requirements/new"]').trigger('click');await flushPromises();expect(p.props.navigation.go).toHaveBeenCalledWith({path:'/requirements/new',query:{template:'builtin.workflow.development',projectId:'p1'}});expect(create).not.toHaveBeenCalled();expect(document).not.toHaveBeenCalled()
 })
-async function render() {
-  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/template-tasks', component: TemplateTasksView }, { path: '/requirements/new', component: { template: '<div />' } }, { path: '/template-tasks/document-runs/:id', component: { template: '<div />' } }, { path: '/template-tasks/source-runs/:id', component: { template: '<div />' } }] })
-  await router.push('/template-tasks?projectId=inherited'); await router.isReady()
-  const wrapper = mount(TemplateTasksView, { global: { plugins: [ElementPlus, router], stubs: { Icon: true, PageHeader: true, DirectoryPathInput: true } } })
-  await flushPromises(); return { wrapper, router }
-}
-it('需求开发转入默认流程，保持入口项目且不调用旧创建协议', async () => {
-  const start = vi.spyOn(useDocumentTemplateStore(), 'start').mockResolvedValue('created')
-  const { wrapper, router } = await render()
-  expect(wrapper.findAll('.template-choice').some(item => item.text().includes('从文档开发'))).toBe(false)
-  await wrapper.get('a[href*="/requirements/new"]').trigger('click'); await flushPromises()
-  expect(router.currentRoute.value.path).toBe('/requirements/new')
-  expect(router.currentRoute.value.query).toEqual({ template: 'builtin.workflow.development', projectId: 'inherited' })
-  expect(start).not.toHaveBeenCalled(); expect(api.createTemplateTask).not.toHaveBeenCalled()
-  wrapper.unmount()
+it('shows branch selection without dates for review and rejects an unsupported file',async()=>{
+ const create=vi.spyOn(api,'documentTemplateRequest');const {view}=await cataloguePage('REQUIREMENT_CODE_REVIEW');expect(api.templateBranches).toHaveBeenCalledWith('p1','',undefined);expect(view.find('[aria-label="分支"]').exists()).toBe(true);expect(view.find('[aria-label="开始日期"]').exists()).toBe(false);await view.get('input[type="file"]').trigger('change',{target:{files:[new File(['old'],'旧需求.doc')]}});await view.get('form').trigger('submit');expect(view.text()).toContain('请转换旧 DOC');expect(create).not.toHaveBeenCalled()
 })
-it('shows branch selection without dates for review and rejects an unsupported file', async () => {
-  const start = vi.spyOn(useDocumentTemplateStore(), 'start').mockResolvedValue('created')
-  const { wrapper } = await render()
-  await wrapper.findAll('.template-choice').find(item => item.text().includes('需求代码评审'))!.trigger('click'); await flushPromises()
-  expect(api.templateBranches).toHaveBeenCalledWith('inherited', '', undefined)
-  expect(wrapper.find('[aria-label="分支"]').exists()).toBe(true); expect(wrapper.find('[aria-label="开始日期"]').exists()).toBe(false)
-  Object.defineProperty(wrapper.get('#requirement-files').element, 'files', { configurable: true, value: [new File(['old'], '旧需求.doc')] })
-  await wrapper.get('#requirement-files').trigger('change'); await wrapper.get('form').trigger('submit'); await flushPromises()
-  expect(wrapper.text()).toContain('请转换旧 DOC'); expect(start).not.toHaveBeenCalled()
-  wrapper.unmount()
+it('defaults to date increment and sends no dates in full review',async()=>{
+ vi.mocked(api.templateCatalog).mockResolvedValue({...catalogFixture,templates:definitions});vi.spyOn(api,'createTemplateTask').mockResolvedValue({id:'created',state:'PENDING_START'});vi.spyOn(api,'getTask').mockResolvedValue(task('created'));const {view}=await cataloguePage('SNAPSHOT_CODE_REVIEW');expect(view.find('[aria-label="开始日期"]').exists()).toBe(true);expect(view.text()).toContain('24:00');await view.get('select[aria-label="评审模式"]').setValue('FULL');expect(view.find('[aria-label="开始日期"]').exists()).toBe(false);await view.get('form').trigger('submit');await flushPromises();expect(api.createTemplateTask).toHaveBeenCalledWith(expect.objectContaining({templateId:'SNAPSHOT_CODE_REVIEW',reviewMode:'FULL'}));const request=vi.mocked(api.createTemplateTask).mock.calls[0]![0];expect(request).not.toHaveProperty('startDate');expect(request).not.toHaveProperty('endDate')
 })
-
-it('defaults to date increment and sends no dates in full review', async () => {
-  vi.mocked(api.templateCatalog).mockResolvedValue({ templates: definitions, dimensions: [], defaultStartDate: '2026-09-01', defaultEndDate: '2026-09-14' } as unknown as TemplateTaskCatalog)
-  vi.mocked(api.createTemplateTask).mockResolvedValue({ id: 'created' } as Awaited<ReturnType<typeof api.createTemplateTask>>)
-  const { wrapper } = await render()
-  expect(wrapper.find('[aria-label="开始日期"]').exists()).toBe(true)
-  expect(wrapper.text()).toContain('24:00')
-  const selects = wrapper.findAllComponents({ name: 'ElSelect' })
-  const mode = selects.find(s => s.props('modelValue') === 'DATE_INCREMENTAL')!
-  mode.vm.$emit('update:modelValue', 'FULL'); await flushPromises()
-  expect(wrapper.find('[aria-label="开始日期"]').exists()).toBe(false)
-  await wrapper.get('form').trigger('submit'); await flushPromises()
-  expect(api.createTemplateTask).toHaveBeenCalledWith(expect.objectContaining({ templateId: 'SNAPSHOT_CODE_REVIEW', reviewMode: 'FULL' }))
-  const request = vi.mocked(api.createTemplateTask).mock.calls[0]![0]
-  expect(request).not.toHaveProperty('startDate'); expect(request).not.toHaveProperty('endDate')
-  wrapper.unmount()
+it('shows the authentication cause and lets an explicit local branch start review',async()=>{
+ vi.mocked(api.templateCatalog).mockResolvedValue({...catalogFixture,templates:definitions});const branch={id:'local:refs/heads/main',label:'main（本地）',ref:'refs/heads/main',remote:null};vi.mocked(api.templateBranches).mockResolvedValue({page:{items:[branch],facets:{},nextCursor:null},defaultBranch:null,defaultBranchId:null,remoteAvailable:false,remoteProblems:['Git 身份认证失败，请检查启动程序所用账号的凭据或 SSH 配置']});vi.spyOn(api,'createTemplateTask').mockResolvedValue({id:'created',state:'PENDING_START'});vi.spyOn(api,'getTask').mockResolvedValue(task('created'));const {view}=await cataloguePage('SNAPSHOT_CODE_REVIEW');expect(view.text()).toContain('Git 身份认证失败');await view.get('select[aria-label="分支"]').setValue(branch.id);await view.get('form').trigger('submit');await flushPromises();expect(api.createTemplateTask).toHaveBeenCalledWith(expect.objectContaining({projectId:'p1',branchId:branch.id}))
 })
-
-it('shows the authentication cause and lets an explicit local branch start review', async () => {
-  vi.mocked(api.templateCatalog).mockResolvedValue({ templates: definitions, dimensions: [], defaultStartDate: '2026-09-01', defaultEndDate: '2026-09-14' } as unknown as TemplateTaskCatalog)
-  const branch = { id: 'local:refs/heads/main', label: 'main（本地）', ref: 'refs/heads/main', remote: null }
-  vi.mocked(api.templateBranches).mockResolvedValue({ page: { items: [branch], facets: {}, nextCursor: null }, defaultBranch: null, defaultBranchId: null, remoteAvailable: false, remoteProblems: ['Git 身份认证失败，请检查启动程序所用账号的凭据或 SSH 配置'] })
-  vi.mocked(api.createTemplateTask).mockResolvedValue({ id: 'created' } as Awaited<ReturnType<typeof api.createTemplateTask>>)
-  const { wrapper } = await render()
-  expect(wrapper.text()).toContain('Git 身份认证失败')
-  const select = wrapper.findAllComponents({ name: 'ElSelect' }).find(s => s.props('ariaLabel') === '分支')!
-  select.vm.$emit('update:modelValue', branch.id); await flushPromises()
-  await wrapper.get('form').trigger('submit'); await flushPromises()
-  expect(api.createTemplateTask).toHaveBeenCalledWith(expect.objectContaining({ projectId: 'inherited', branchId: branch.id }))
-  wrapper.unmount()
-})
-
-it('uses server source capabilities and creates a pending source run after preview', async () => {
-  const definition: TemplateTaskDefinition = { ...definitions[1]!, id: 'UNIT_TEST_DEVELOPMENT', title: '单元测试开发',
-    inputs: { ...definitions[1]!.inputs!, documents: false, sourcePath: true, testOutputPath: true, documentOutputPath: false } }
-  vi.mocked(api.templateCatalog).mockResolvedValue({ templates: [definition], dimensions: [] } as unknown as TemplateTaskCatalog)
-  vi.mocked(api.sourcePreview).mockResolvedValue({ sourcePath: 'src/main/java', testOutputPath: null, documentPath: null,
-    manifestSha256: 'sha', targetCount: 1, excludedCount: 0, moduleCount: 1, truncated: false, files: [],
-    testProfile: { manifestSha256: 'sha', modules: [] }, configurationProblem: null })
-  const create = vi.spyOn(useSourceTemplateStore(), 'create').mockResolvedValue('source-created')
-  const { wrapper, router } = await render()
-  expect(wrapper.find('#requirement-files').exists()).toBe(false)
-  expect(wrapper.find('[aria-label="分支"]').exists()).toBe(false)
-  expect(api.templateBranches).not.toHaveBeenCalled()
-  wrapper.findAllComponents({ name: 'DirectoryPathInput' }).find(c => c.props('label') === '源码路径')!.vm.$emit('update:modelValue', 'src/main/java')
-  await flushPromises(); await wrapper.get('form').trigger('submit'); await flushPromises()
-  expect(create).not.toHaveBeenCalled()
-  await wrapper.findAll('button').find(b => b.text() === '检查处理范围')!.trigger('click'); await flushPromises()
-  await wrapper.get('form').trigger('submit'); await flushPromises()
-  expect(create).toHaveBeenCalledWith({ templateId: 'UNIT_TEST_DEVELOPMENT', templateVersion: '1', projectId: 'inherited',
-    sourcePath: 'src/main/java', requirements: '', testOutputPath: undefined })
-  expect(router.currentRoute.value.path).toBe('/template-tasks/source-runs/source-created')
-  expect(api.startTemplateTask).not.toHaveBeenCalled()
-  wrapper.unmount()
+it('uses server source capabilities and creates a pending source run after preview',async()=>{
+ const definition:TemplateTaskDefinition={...catalogFixture.templates[1]!,inputs:{...catalogFixture.templates[1]!.inputs!,documents:false,sourcePath:true,testOutputPath:true,documentOutputPath:false}};vi.mocked(api.templateCatalog).mockResolvedValue({...catalogFixture,templates:[definition]});vi.spyOn(api,'sourcePreview').mockResolvedValue({sourcePath:'src/main/java',testOutputPath:null,documentPath:null,manifestSha256:'sha',targetCount:1,excludedCount:0,moduleCount:1,truncated:false,files:[],testProfile:{manifestSha256:'sha',modules:[]},configurationProblem:null});const create=vi.spyOn(api,'createSourceTemplate').mockResolvedValue(sourceRun('source-created'));vi.spyOn(api,'sourceTemplate').mockResolvedValue(sourceRun('source-created'));const start=vi.spyOn(api,'startTemplateTask');const {view,p}=await cataloguePage(definition.id);expect(view.find('input[type="file"]').exists()).toBe(false);expect(view.find('[aria-label="分支"]').exists()).toBe(false);expect(api.templateBranches).not.toHaveBeenCalled();await view.get('input[aria-label="源码路径"]').setValue('src/main/java');await view.get('form').trigger('submit');expect(create).not.toHaveBeenCalled();await view.get('button[data-semantic="template.checkScope"]').trigger('click');await view.get('form').trigger('submit');await flushPromises();expect(create).toHaveBeenCalledWith(expect.objectContaining({templateId:'UNIT_TEST_DEVELOPMENT',templateVersion:'1',projectId:'p1',sourcePath:'src/main/java',requirements:'',testOutputPath:undefined}));expect(p.props.navigation.go).toHaveBeenCalledWith('/template-tasks/source-runs/source-created',false,expect.any(Object));expect(start).not.toHaveBeenCalled()
 })

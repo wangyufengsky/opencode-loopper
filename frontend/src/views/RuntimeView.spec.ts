@@ -1,39 +1,31 @@
-import { flushPromises, mount } from '@vue/test-utils'
-import ElementPlus, { ElMessage } from 'element-plus'
-import { createPinia, setActivePinia } from 'pinia'
+import { flushPromises, mount } from '@/pages/w6-tests/ordinary/render'
 import { describe, expect, it, vi } from 'vitest'
-import RuntimeView from '@/views/RuntimeView.vue'
-import { useTaskStore } from '@/stores/taskStore'
+import { RuntimePage as RuntimeView } from '@/pages/w2/secondary/RuntimePage'
+import { createTaskApplicationOwner } from '@/stores/taskStore'
+import { createW2TaskPort } from '@/migration/w2TaskPort'
+import { coreFixture } from '@/pages/w2/core/coreTestHelpers'
+import { api } from '@/api/client'
+import { afterEach } from 'vitest'
+const dispose: (()=>void)[]=[]
+afterEach(()=>{dispose.splice(0).forEach(fn=>fn());vi.restoreAllMocks()})
+function mountRuntime(store:ReturnType<typeof createTaskApplicationOwner>){vi.spyOn(api,'getRuntime').mockImplementation(async()=>store.runtime!);const adapter=createW2TaskPort(store),f=coreFixture();f.props.legacy.task=adapter.port;dispose.push(()=>{f.dispose();adapter.dispose();store.dispose()});return mount(RuntimeView,{props:f.props})}
 
 describe('RuntimeView managed startup diagnostics', () => {
   it('shows how to recover when the OpenCode executable cannot be found', () => {
-    const pinia = createPinia()
-    setActivePinia(pinia)
-    const store = useTaskStore()
+    const store = createTaskApplicationOwner()
     store.runtime = {
       loopperVersion: '0.4.58', status: 'OFFLINE', managed: false, model: '', checkedAt: '2026-09-18T08:00:00Z',
       startupFailure: 'OpenCode executable was not found in OPENCODE_EXECUTABLE or PATH',
     }
-    const wrapper = mount(RuntimeView, {
-      global: {
-        plugins: [pinia, ElementPlus],
-        stubs: {
-          PageHeader: { template: '<header><slot name="actions" /></header>' },
-          Icon: true,
-          StatusBadge: { props: ['status'], template: '<span>{{ status }}</span>' },
-        },
-      },
-    })
+    const wrapper = mountRuntime(store)
     const error = wrapper.get('.runtime-startup-error').text()
     expect(error).toContain('未找到 OpenCode 启动文件')
     expect(error).toContain('命令行路径')
     expect(error).not.toMatch(/未知|OPENCODE_EXECUTABLE/)
-    expect(wrapper.get('.start-runtime-button').text()).toContain('启动并检查连接')
+    expect(wrapper.get('button[data-semantic="runtime.start"]').text()).toContain('启动并检查连接')
   })
   it('keeps capability and authorization details out of the compact runtime overview', () => {
-    const pinia = createPinia()
-    setActivePinia(pinia)
-    const store = useTaskStore()
+    const store = createTaskApplicationOwner()
     store.runtime = {
       loopperVersion: '0.1.75', status: 'ONLINE', version: '1.18.18', managed: true, pid: 71386,
       endpoint: 'http://127.0.0.1:55389', model: 'opencode-go/deepseek-v4-flash', checkedAt: '2026-08-18T04:03:00Z',
@@ -48,16 +40,7 @@ describe('RuntimeView managed startup diagnostics', () => {
       },
     }
 
-    const wrapper = mount(RuntimeView, {
-      global: {
-        plugins: [pinia, ElementPlus],
-        stubs: {
-          PageHeader: { template: '<header><slot name="actions" /></header>' },
-          Icon: true,
-          StatusBadge: { props: ['status'], template: '<span>{{ status }}</span>' },
-        },
-      },
-    })
+    const wrapper = mountRuntime(store)
 
     expect(wrapper.text()).toContain('受管进程')
     expect(wrapper.text()).not.toContain('OpenCode 可复用能力')
@@ -75,24 +58,13 @@ describe('RuntimeView managed startup diagnostics', () => {
   })
 
   it('shows the launch failure and labels the random port as an attempted address', () => {
-    const pinia = createPinia()
-    setActivePinia(pinia)
-    const store = useTaskStore()
+    const store = createTaskApplicationOwner()
     store.runtime = {
       loopperVersion: '0.1.53', status: 'OFFLINE', managed: false, endpoint: 'http://127.0.0.1:51234', model: '', checkedAt: '2026-08-12T06:00:00Z',
       startupFailure: 'Managed OpenCode exited with code 1 before it became healthy',
     }
 
-    const wrapper = mount(RuntimeView, {
-      global: {
-        plugins: [pinia, ElementPlus],
-        stubs: {
-          PageHeader: { template: '<header><slot name="actions" /></header>' },
-          Icon: true,
-          StatusBadge: { props: ['status'], template: '<span>{{ status }}</span>' },
-        },
-      },
-    })
+    const wrapper = mountRuntime(store)
 
     expect(wrapper.get('.runtime-startup-error').text()).toContain('OpenCode 启动失败')
     expect(wrapper.get('.runtime-startup-error').text()).toContain('请检查配置后重试')
@@ -103,13 +75,11 @@ describe('RuntimeView managed startup diagnostics', () => {
     expect(wrapper.get('.loopper-version').text()).toContain('Loopper 版本')
     expect(wrapper.get('.loopper-version').text()).toContain('0.1.53')
     expect(wrapper.text()).not.toContain('外部复用服务')
-    expect(wrapper.get('.start-runtime-button').text()).toContain('启动并检查连接')
+    expect(wrapper.get('button[data-semantic="runtime.start"]').text()).toContain('启动并检查连接')
   })
 
   it('starts OpenCode explicitly and reports success only after the checked snapshot is online', async () => {
-    const pinia = createPinia()
-    setActivePinia(pinia)
-    const store = useTaskStore()
+    const store = createTaskApplicationOwner()
     store.runtime = {
       loopperVersion: '0.1.53', status: 'OFFLINE', managed: false, endpoint: 'http://127.0.0.1:51234', model: '', checkedAt: '2026-08-12T06:00:00Z',
       startupFailure: 'Managed OpenCode did not become healthy before startup-timeout',
@@ -118,31 +88,17 @@ describe('RuntimeView managed startup diagnostics', () => {
       loopperVersion: '0.1.53', status: 'ONLINE' as const, managed: true, pid: 6400, endpoint: 'http://127.0.0.1:34020',
       version: '1.18.16', model: '', checkedAt: '2026-08-12T06:30:00Z',
     }
-    const start = vi.spyOn(store, 'startRuntime').mockImplementation(async () => {
-      store.runtime = started
-      return started
-    })
-    const success = vi.spyOn(ElMessage, 'success').mockImplementation(() => ({ close: vi.fn() }) as never)
+    const start = vi.spyOn(api, 'startRuntime').mockResolvedValue(started)
 
-    const wrapper = mount(RuntimeView, {
-      global: {
-        plugins: [pinia, ElementPlus],
-        stubs: {
-          PageHeader: { template: '<header><slot name="actions" /></header>' },
-          Icon: true,
-          StatusBadge: { props: ['status'], template: '<span>{{ status }}</span>' },
-        },
-      },
-    })
+    const wrapper = mountRuntime(store)
 
-    await wrapper.get('.start-runtime-button').trigger('click')
+    await wrapper.get('button[data-semantic="runtime.start"]').trigger('click')
     await flushPromises()
 
     expect(start).toHaveBeenCalledOnce()
-    expect(success).toHaveBeenCalledWith('OpenCode 已启动并通过连接检查')
+    expect(wrapper.text()).toContain('OpenCode 已启动并通过连接检查')
     expect(wrapper.text()).toContain('OpenCode 1.18.16')
     expect(wrapper.text()).toContain('http://127.0.0.1:34020')
     expect(wrapper.text()).not.toContain('OpenCode 自动启动失败')
-    success.mockRestore()
   })
 })

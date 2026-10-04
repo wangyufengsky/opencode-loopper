@@ -1,16 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createPinia, setActivePinia } from 'pinia'
-import { useTaskStore } from '@/stores/taskStore'
+import { createTaskApplicationOwner } from '@/stores/taskStore'
 import { api } from '@/api/client'
 import type { Project, RuntimeInfo } from '@/types/domain'
 import { createW2TaskPort } from './w2TaskPort'
 const deferred = <T>() => { let resolve!: (value: T) => void; const promise = new Promise<T>(r => { resolve = r }); return { promise, resolve } }
 const project = (id: string) => ({ id, name: id, rootPath: `/workspace/${id}`, status: 'READY', createdAt: '2026-10-03', updatedAt: '2026-10-03', taskCount: 0, openDesignerSessionCount: 0 }) as Project
-beforeEach(() => { setActivePinia(createPinia()); vi.restoreAllMocks() })
+beforeEach(() => { vi.restoreAllMocks() })
 
 describe('W2 single legacy owner boundary', () => {
   it('supplies stable immutable snapshots and precisely stops its subscription', () => {
-    const store = useTaskStore(), boundary = createW2TaskPort(store), listener = vi.fn()
+    const store = createTaskApplicationOwner(), boundary = createW2TaskPort(store), listener = vi.fn()
     const stop = boundary.port.subscribe(listener), first = boundary.port.getSnapshot()
     expect(boundary.port.getSnapshot()).toBe(first); expect(Object.isFrozen(first.projects)).toBe(true)
     store.projects = [project('A')]; expect(listener).toHaveBeenCalled(); expect(boundary.port.getSnapshot().projects[0]?.id).toBe('A')
@@ -18,7 +17,7 @@ describe('W2 single legacy owner boundary', () => {
     expect(listener).not.toHaveBeenCalled(); expect(boundary.port.getSnapshot().projects[0]?.id).toBe('A'); stop(); boundary.dispose()
   })
   it('an older project response cannot replace a newer query or another route instance', async () => {
-    const old = deferred<Project[]>(), store = useTaskStore(), first = createW2TaskPort(store)
+    const old = deferred<Project[]>(), store = createTaskApplicationOwner(), first = createW2TaskPort(store)
     vi.spyOn(api, 'getProjects').mockReturnValueOnce(old.promise).mockResolvedValue([project('B')])
     const request = first.port.loadProjects(); await first.port.loadProjects(true)
     old.resolve([project('A')]); await request; expect(store.projects[0]?.id).toBe('B')
@@ -28,7 +27,7 @@ describe('W2 single legacy owner boundary', () => {
     expect(next.port.getSnapshot().projects[0]?.id).toBe('C'); next.dispose()
   })
   it('runtime readback is scoped and original API write failure propagates to receipt ownership', async () => {
-    const late = deferred<RuntimeInfo>(), store = useTaskStore(), boundary = createW2TaskPort(store)
+    const late = deferred<RuntimeInfo>(), store = createTaskApplicationOwner(), boundary = createW2TaskPort(store)
     const value = { status: 'ONLINE', loopperVersion: 'service-version' } as RuntimeInfo
     vi.spyOn(api, 'getRuntime').mockReturnValue(late.promise)
     const pending = boundary.port.refreshRuntime(); boundary.dispose(); store.runtime = value; late.resolve({ ...value, loopperVersion: 'old' }); await pending
@@ -37,14 +36,14 @@ describe('W2 single legacy owner boundary', () => {
     await expect(live.port.startRuntime()).rejects.toThrow('回执未知'); live.dispose()
   })
   it('disposes only task summary reads actually acquired by this boundary', async () => {
-    const store = useTaskStore(), invalidate = vi.spyOn(store, 'invalidateTaskSummaries')
+    const store = createTaskApplicationOwner(), invalidate = vi.spyOn(store, 'invalidateTaskSummaries')
     const unrelated = createW2TaskPort(store); unrelated.dispose(); expect(invalidate).not.toHaveBeenCalled()
     vi.spyOn(store, 'loadTaskSummaries').mockResolvedValue()
     const summary = createW2TaskPort(store); await summary.port.loadTaskSummaries(); summary.dispose(); summary.dispose()
     expect(invalidate).toHaveBeenCalledTimes(1)
   })
   it('keeps cached project rows and displays current read errors, while retired errors cannot pollute the next page', async () => {
-    const store = useTaskStore(); store.projects = [project('cached')]
+    const store = createTaskApplicationOwner(); store.projects = [project('cached')]
     const boundary = createW2TaskPort(store), read = vi.spyOn(api, 'getProjects').mockRejectedValueOnce(new Error('项目暂时不可读'))
     expect(await boundary.port.loadProjects()).toEqual([project('cached')]); expect(store.error).toBe('项目暂时不可读')
     read.mockResolvedValueOnce([project('latest')]); await boundary.port.loadProjects(); expect(store.error).toBeUndefined()

@@ -1,6 +1,6 @@
-import { mount } from '@vue/test-utils'
+import { mount } from '@/pages/w6-tests/workflow/react-test-root'
 import { describe, expect, it } from 'vitest'
-import WorkflowSourceReport from './WorkflowSourceReport.vue'
+import { WorkflowSourceReport as WorkflowSourceReport } from '@/pages/w5/workflow/reports'
 const report = { version: 1, type: 'SOURCE_SNAPSHOT', complete: true, sourcePath: 'src', targetCount: 2, fileCount: 5, incompleteCount: 0, excludedCount: 1, exclusions: [{ path: '.env', reason: '受保护文件不提供读取' }] }
 describe('冻结源码报告', () => {
   it('展示固定资料统计和排除原因', () => {

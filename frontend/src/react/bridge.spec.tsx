@@ -1,7 +1,7 @@
 import { StrictMode, useEffect } from 'react'
 import { act, fireEvent } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { mountReactView } from './bridge'
+import { mountReactView } from '@/test/reactViewHarness'
 
 const disposers: Array<() => void> = []
 afterEach(() => { disposers.splice(0).forEach(dispose => dispose()); document.body.replaceChildren() })

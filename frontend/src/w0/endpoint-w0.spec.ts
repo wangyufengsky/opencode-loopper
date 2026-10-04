@@ -1,28 +1,28 @@
 /** W0 endpoint-specific identity; transport mocks do not prove Java validation. */
 import { createHash, webcrypto } from 'node:crypto'
-import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
-import ElementPlus from 'element-plus'
-import { createPinia, setActivePinia } from 'pinia'
+import { flushPromises } from '@/test/async'
+import { mountPanel, taskFixture } from '@/pages/w6-tests/ordinary/task'
 import { beforeEach, afterEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { api } from '@/api/client'
-import { applySkin, skinId } from '@/themes/state'
+import { applySkin, getSkinSnapshot } from '@/themes/state'
+import { semanticName } from '@/foundation/semanticRegistry'
 import { skins } from '@/themes/registry'
 import { createReportCreationController, createDocumentCreationController } from '@/pages/w3/templates/catalog/creation'
 import { templateBatchW0Contract, templateDiagnosticW0Contract } from '@/pages/w3/templates/runs/run-child-w0-contract'
-import SessionMonitorPanel from '@/components/SessionMonitorPanel.vue'
+import { SessionMonitorPanel } from '@/pages/w4/task/SessionMonitorPanel'
 import type { TemplateFailedBatch, TaskSessionSummary, TaskSessionActivity } from '@/types/domain'
 function mock(name: keyof typeof api) { return vi.spyOn(api, name) as Mock }
 function proof(subcase: string, evidence: unknown) { console.info('W0_IDENTITY', JSON.stringify({ subcase, evidence })) }
-const roots: VueWrapper[] = []
+const roots: ReturnType<typeof mountPanel>['view'][] = []
 let originalSkin: string
 async function exerciseSkins() { for (const skin of skins) { applySkin(skin.id, false); await flushPromises(); expect(document.documentElement.dataset.skin).toBe(skin.id) } }
 const input = { templateId: 'SNAPSHOT_CODE_REVIEW', templateVersion: '1', projectId: 'p', branchId: 'local:main', reviewMode: 'FULL' as const, documentPath: '/report' }
 const batch = (version = 3): TemplateFailedBatch => ({ id: 'batch-1', version, purpose: 'REVIEW', ordinal: 0, generation: 1, createdAt: '2026-09-01T00:00:00Z', state: 'FAILED', errorMessage: '原会话已停止' })
-async function button(wrapper: VueWrapper, text: string) { const found = wrapper.findAll('button').find(b => b.text() === text); expect(found, `reachable ${text}`).toBeDefined(); await found!.trigger('click'); await flushPromises() }
+async function button(wrapper: ReturnType<typeof mountPanel>['view'], text: string) { const found = wrapper.findAll('button').find(b => b.text() === text); expect(found, `reachable ${text}`).toBeDefined(); await found!.trigger('click'); await flushPromises() }
 function readBlob(blob: Blob, mode: 'text' | 'bytes' = 'text') { return new Promise<string | ArrayBuffer>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result as string | ArrayBuffer); reader.onerror = reject; if (mode === 'bytes') reader.readAsArrayBuffer(blob); else reader.readAsText(blob) }) }
 function file(text: string) { const value = new File([text], '需求.md'); Object.defineProperty(value, 'arrayBuffer', { value: () => readBlob(value, 'bytes') }); return value }
 async function ready(predicate: () => unknown) { await vi.waitFor(() => expect(predicate()).toBeTruthy(), { timeout: 1500, interval: 20 }); await flushPromises() }
-beforeEach(() => { originalSkin = skinId.value; vi.useFakeTimers(); sessionStorage.clear(); setActivePinia(createPinia()); vi.stubGlobal('crypto', webcrypto); for (const name of ['templateFailedBatches', 'retrySelectedTemplateBatches', 'getTemplateSessionDiagnostics', 'recoverTemplateSession'] as const) mock(name) })
+beforeEach(() => { originalSkin = getSkinSnapshot().id; vi.useFakeTimers(); sessionStorage.clear(); vi.stubGlobal('crypto', webcrypto); for (const name of ['templateFailedBatches', 'retrySelectedTemplateBatches', 'getTemplateSessionDiagnostics', 'recoverTemplateSession'] as const) mock(name) })
 afterEach(() => { roots.splice(0).forEach(w => { if (w.exists()) w.unmount() }); vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers(); sessionStorage.clear(); applySkin(originalSkin, false) })
 
 describe('W0 B9 endpoint contracts', () => {
@@ -42,8 +42,8 @@ describe('W0 B9 endpoint contracts', () => {
     const session: TaskSessionSummary = { key: 'execution:local-1', kind: 'IMPLEMENTATION', label: '会话', localSessionId: 'local-1', externalSessionId: 'remote-1', state: 'RUNNING', stageId: 'stage-1', stageOrdinal: 1, stageObjective: '实现', attemptId: 'attempt-1', createdAt: 'now' }
     const activity: TaskSessionActivity = { session, remoteState: 'busy', live: true, observedAt: '2026-09-01', parts: [], pendingQuestions: [{ id: 'question-1', questions: [{ question: '如何收尾？', header: '收尾', multiple: false, custom: true, options: [{ label: '按原范围', description: '保持边界' }] }] }], todoCapability: 'AVAILABLE', todos: [], todoTruncated: false, usage: { totalTokens: 10, unknownUsageCount: 0, observedAt: '2026-09-01' } }
     mock('getTaskSessions').mockResolvedValue([session]); const read = mock('getTaskSessionActivity').mockResolvedValue(activity); const write = mock('replyTaskSessionQuestion').mockRejectedValue(new Error('未知回答回执'))
-    const wrapper = mount(SessionMonitorPanel, { props: { taskId: 'task-A' }, global: { plugins: [ElementPlus], stubs: { Icon: true, MarkdownDocument: true, TemplateSessionDiagnosticsPanel: true } } }); roots.push(wrapper); await flushPromises(); await wrapper.get('input[type=radio]').setValue(true); await button(wrapper, '提交回答并继续')
-    await wrapper.setProps({ taskId: 'task-A' }); await exerciseSkins(); await vi.advanceTimersByTimeAsync(1200); await flushPromises(); expect(read.mock.calls.length).toBeGreaterThanOrEqual(2)
+    mock('getTaskSessionTodos').mockResolvedValue([]);mock('getTaskSessionCheckpoints').mockResolvedValue([]);const {view:wrapper}=mountPanel(SessionMonitorPanel,taskFixture('task-A'),{}); roots.push(wrapper); await flushPromises(); await wrapper.get('input[type=radio]').setValue(true); await button(wrapper, semanticName('inbox.answer'))
+    await wrapper.setProps({ task: taskFixture('task-A') }); await exerciseSkins(); await vi.advanceTimersByTimeAsync(1200); await flushPromises(); expect(read.mock.calls.length).toBeGreaterThanOrEqual(2)
     proof('B9.1/question-owner', { writes: write.mock.calls, reads: read.mock.calls.length, manualRefresh: 'no button in current panel', realPollIntervalMs: 1200, skins: skins.map(skin => skin.id) }); expect(write).toHaveBeenCalledTimes(1); expect(write).toHaveBeenCalledWith('task-A', 'execution:local-1', 'question-1', [['按原范围']])
   })
   it('B9.2 report external-owner negative control: changing then restoring unknown draft cannot replace original key', async () => {

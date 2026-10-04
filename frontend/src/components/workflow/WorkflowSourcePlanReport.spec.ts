@@ -1,6 +1,6 @@
-import { mount } from '@vue/test-utils'
+import { mount } from '@/pages/w6-tests/workflow/react-test-root'
 import { describe, expect, it } from 'vitest'
-import WorkflowSourcePlanReport from './WorkflowSourcePlanReport.vue'
+import { WorkflowSourcePlanReport as WorkflowSourcePlanReport } from '@/pages/w5/workflow/reports'
 const report = { version: 1, type: 'SOURCE_DESIGN_PLAN', complete: true, sourceCount: 2, batchCount: 2, batches: [{ ordinal: 0, title: 'src', paths: ['src/Main.java'] }, { ordinal: 1, title: 'src/other', paths: ['src/other/Part.java'] }] }
 describe('源码分批报告', () => {
   it.each(['SOURCE_DESIGN_PLAN', 'SOURCE_TEST_PLAN'])('显示完整范围且不把候选生成当作应用或执行成功 %s', type => {

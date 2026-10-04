@@ -1,12 +1,10 @@
+import { mountApplicationHarness } from '@/test/applicationHarness'
+import { navigationHarness } from '@/test/navigationHarness'
+import { flushPromises } from '@/test/async'
 /** Existing W0 contracts enter the real history route/React page, not a replacement fake view. */
 import { act } from '@testing-library/react'
-import { defineComponent,h } from 'vue'
-import { createPinia } from 'pinia'
-import { flushPromises,mount } from '@vue/test-utils'
-import { createMemoryHistory,createRouter,RouterView } from 'vue-router'
 import { expect,vi } from 'vitest'
 import { api } from '@/api/client'
-import W2RouteBridge from '@/migration/W2RouteBridge.vue'
 import type { TaskDesignHistory } from '@/types/domain'
 import { foundationDOM } from '@/pages/w2/workflow/page.test-support'
 import { semanticName } from '@/foundation/semanticRegistry'
@@ -24,9 +22,7 @@ export async function historyScopeW0Contract(kind:Kind,options:{record:(id:strin
   if(kind==='attachment-late')previewRead.mockReturnValue(attachment.promise)
   if(kind==='attachment-cache')previewRead.mockImplementation(async id=>({filename:'contract.md',previewKind:'TEXT',mediaType:'text/markdown',inlineContentAvailable:false,text:`${id}冻结正文`}))
   const factory=vi.spyOn(controllers,'createHistoryController')
-  const router=createRouter({history:createMemoryHistory(),routes:[{path:'/tasks/:id/design',component:W2RouteBridge}]})
-  await router.push('/tasks/A/design');await router.isReady()
-  let root!:ReturnType<typeof mount>;await act(async()=>{root=mount(defineComponent({setup:()=>()=>h(RouterView)}),{attachTo:document.body,global:{plugins:[router,createPinia()]}});await flushPromises()});await settle()
+  const root=await mountApplicationHarness({initialEntries:['/tasks/A/design'],routes:[{path:'/tasks/:id/design'}]});const router=navigationHarness(root);await settle()
   const host=root.element as HTMLElement
   const current=()=>{const values=factory.mock.results.filter(result=>result.type==='return'&&result.value.viewCount()>0);return values[values.length-1]?.value as ReturnType<typeof controllers.createHistoryController>|undefined}
   const click=async()=>{const select=[...host.querySelectorAll<HTMLButtonElement>('button')].find(button=>button.getAttribute('aria-label')===semanticName('selection.select','冻结附件清单'));expect(select).toBeTruthy();await act(async()=>{select!.click();await flushPromises()});await settle();const button=[...host.querySelectorAll<HTMLButtonElement>('button')].find(button=>button.getAttribute('aria-label')===semanticName('history.previewAttachment','contract.md'));expect(button).toBeTruthy();await act(async()=>{button!.click();await flushPromises()});await settle()}

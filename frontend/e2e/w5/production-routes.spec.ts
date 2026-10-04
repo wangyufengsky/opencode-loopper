@@ -45,7 +45,7 @@ async function selected(page: Page, entry: typeof entries[number]) {
 }
 async function disposeActualReactRoot(page: Page) {
   return page.evaluate(() => {
-    const host = document.querySelector('[data-w2-route-bridge]') as import('../../src/migration/reactViewLifecycle').ReactViewHost
+    const host = document.querySelector('[data-app-route-owner]') as import('../../src/migration/reactViewLifecycle').ReactViewHost
     if (!host?.reactViewLifecycle) throw new Error('实际生产 root 的公开生命周期接口缺失')
     const disposed = host.reactViewLifecycle.disposeIfSafe()
     return { disposed, immediate: window.__w2Resources.snapshot() }
@@ -207,7 +207,7 @@ test('actual workflow graph accepted/layout unknown/final GET failure each retai
   await page.route('**/api/workflows/templates/w5-flow', async route => { if (route.request().method() === 'GET' && accepted && !finalReadFailed) { finalReadFailed = true; return route.fulfill({ status: 503, json: { message: '已接受写入后的模拟读取断开' } }) } return route.fallback() })
   await prepared(page); await startWithRunnerReady(page, entries[1].path); await loaded(page, entries[1]); await page.locator('[data-semantic="workflow.settings"]').click(); await page.getByLabel('流程名称', { exact: true }).fill(saved.title); await page.locator('[data-semantic="workflow.save"]').click()
   await expect(page.locator('[data-operation-phase="UNKNOWN"]')).toBeVisible(); expect(graphs).toBe(1); expect(layouts).toBe(1); await expect(page.getByLabel('流程名称', { exact: true })).toBeDisabled()
-  await page.getByRole('button', { name: '展开导航', exact: true }).click(); await page.locator('.app-sidebar a[href="/template-tasks"]').click(); await expect(page).toHaveURL(entries[1].path); await page.getByRole('button', { name: '收起导航', exact: true }).click(); expect((await disposeActualReactRoot(page)).disposed).toBe(false)
+  await page.getByRole('button', { name: semanticName('ui.expand', semanticName('app.navigation')), exact: true }).click(); await page.locator('.app-sidebar a[href="/template-tasks"]').click(); await expect(page).toHaveURL(entries[1].path); await page.getByRole('button', { name: semanticName('ui.collapse', semanticName('app.navigation')), exact: true }).click(); expect((await disposeActualReactRoot(page)).disposed).toBe(false)
   await page.locator('[data-operation-phase="UNKNOWN"] [data-semantic="receipt.retryOriginal"]').click()
   await expect(page.locator('[data-operation-phase="ACCEPTED_READBACK"]')).toBeVisible(); expect(graphs).toBe(1); expect(layouts).toBe(2); expect(finalReadFailed).toBe(true)
   await stableShot(page, 'spdb-workflow-partial-accepted.png')
@@ -230,7 +230,7 @@ test('actual workflow accepted graph plus definitive layout rejection retains pa
   await page.getByLabel('流程名称', { exact: true }).fill(saved.title); await page.locator('[data-semantic="workflow.save"]').click()
   await expect(page.locator('[data-operation-phase="PARTIAL_REJECTION"]')).toBeVisible(); await expect(page.locator('[data-operation-phase="UNKNOWN"]')).toHaveCount(0); await expect(page.getByText('图定义已接受。', { exact: false })).toBeVisible(); expect(graphs).toBe(1); expect(layouts).toBe(1)
   await expect(page.getByLabel('流程名称', { exact: true })).toBeDisabled(); expect((await disposeActualReactRoot(page)).disposed).toBe(false)
-  await page.getByRole('button', { name: '展开导航', exact: true }).click(); await page.locator('.app-sidebar a[href="/template-tasks"]').click(); await expect(page).toHaveURL(entries[1].path); await page.getByRole('button', { name: '收起导航', exact: true }).click()
+  await page.getByRole('button', { name: semanticName('ui.expand', semanticName('app.navigation')), exact: true }).click(); await page.locator('.app-sidebar a[href="/template-tasks"]').click(); await expect(page).toHaveURL(entries[1].path); await page.getByRole('button', { name: semanticName('ui.collapse', semanticName('app.navigation')), exact: true }).click()
   await page.getByRole('combobox', { name: semanticName('settings.changeSkin') }).selectOption('tech-blue'); expect(graphs).toBe(1); expect(layouts).toBe(1)
   await page.locator('[data-semantic="receipt.retryOriginal"]').first().click(); await expect(page.getByText('图定义已接受。', { exact: false })).toBeVisible(); expect(graphs).toBe(1); expect(layouts).toBe(2)
   expect((await disposeActualReactRoot(page)).disposed).toBe(false); await stableShot(page, 'tech-blue-workflow-partial-rejected.png')

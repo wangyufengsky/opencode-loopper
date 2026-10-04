@@ -1,6 +1,6 @@
-import { flushPromises, mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@/pages/w6-tests/workflow/react-test-root'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import WorkflowCodeChanges from './WorkflowCodeChanges.vue'
+import { WorkflowCodeChanges } from '@/pages/w6-tests/workflow/read-panels'
 import { workflowRuns } from '@/api/workflowRuns'
 import type { WorkflowCodeChange, WorkflowPage } from '@/types/domain'
 vi.mock('@/api/workflowRuns', () => ({ workflowRuns: { changes: vi.fn(), fileUrl: vi.fn(() => '/fixed-file') } }))
@@ -14,12 +14,12 @@ describe('代码交付累计改动', () => {
     const view = mount(WorkflowCodeChanges, { props })
     expect(workflowRuns.changes).not.toHaveBeenCalled(); await view.get('button').trigger('click'); await flushPromises()
     expect(view.text()).toContain('相对原始基线的累计改动'); expect(view.text()).toContain('继承的上游代码')
-    expect(view.findAll('li').map(row => row.text())).toEqual(['新增新增文件.txt', '删除deleted.txt'])
+    expect(view.findAll('li').map(row => row.text().replace(/\s/g, ''))).toEqual(['新增新增文件.txt', '删除deleted.txt'])
     expect(view.findAll('a')).toHaveLength(1); expect(view.text()).not.toContain('private-')
-    await view.get('button').trigger('click'); await flushPromises(); expect(view.get('[role="alert"]').text()).toContain('重试读取改动')
+    await view.get('button').trigger('click'); await flushPromises(); expect(view.get('[role="alert"]').text()).toContain('重试')
     expect(view.findAll('li')).toHaveLength(2); await view.get('button').trigger('click'); await flushPromises()
     expect(workflowRuns.changes).toHaveBeenLastCalledWith('req', 'node', 'attempt', 'outputs', 'chosen-code', 'next')
-    expect(view.findAll('li')).toHaveLength(3); expect(view.text()).toContain('修改mode.sh'); expect(view.findAll('a')).toHaveLength(2)
+    expect(view.findAll('li')).toHaveLength(3); expect(view.text()).toContain('修改 mode.sh'); expect(view.findAll('a')).toHaveLength(2)
     expect(view.findAll('button')).toHaveLength(0); view.unmount()
   })
   it('清单为空明确显示没有文件改动', async () => {

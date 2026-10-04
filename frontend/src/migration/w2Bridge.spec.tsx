@@ -1,11 +1,9 @@
+import { mountApplicationHarness } from '@/test/applicationHarness'
+import { navigationHarness } from '@/test/navigationHarness'
+import { flushPromises } from '@/test/async'
 import { createElement, useLayoutEffect, useState } from 'react'
 import { act, fireEvent } from '@testing-library/react'
-import { createPinia } from 'pinia'
-import { defineComponent, h } from 'vue'
-import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
-import { createMemoryHistory, createRouter, RouterView, type Router } from 'vue-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import W2RouteBridge from './W2RouteBridge.vue'
 import type { ReactViewHost } from './reactViewLifecycle'
 import { useLeaveGuard, useRetainedOwner } from '@/pages/w2/shared'
 import type { W2LeaveGuard, W2PageProps } from '@/pages/w2/shared/types'
@@ -23,7 +21,9 @@ vi.mock('./w5Routes', () => ({ w5PageLoader: (path: string) =>
   path === '/designer' || /^\/(requirements|workflows)\/[^/]+$/.test(path) ? () => harness.load!() : undefined }))
 let props: W2PageProps, risk: W2LeaveGuard
 let attached = 0, setups = 0, detached = 0, retired = 0, written = 0, cleanupThrows = false
-const roots: VueWrapper[] = []
+type Root = Awaited<ReturnType<typeof mountApplicationHarness>>
+type Router = ReturnType<typeof navigationHarness>
+const roots: Root[] = []
 function Probe(pageProps: W2PageProps) {
   props = pageProps
   const [owner] = useState(() => ({})), [draft, setDraft] = useState('original')
@@ -37,23 +37,8 @@ function Probe(pageProps: W2PageProps) {
 }
 async function settle() { await act(async () => { await flushPromises(); await flushPromises() }) }
 async function setup(path = '/projects') {
-  const router = createRouter({ history: createMemoryHistory(), routes: [
-    { path: '/projects', component: W2RouteBridge }, { path: '/tasks', component: W2RouteBridge },
-    { path: '/template-tasks', component: W2RouteBridge },
-    { path: '/template-tasks/document-runs/:id', component: W2RouteBridge },
-    { path: '/template-tasks/source-runs/:id', component: W2RouteBridge },
-    { path: '/knowledge/:conversationId?', component: W2RouteBridge },
-    { path: '/ppt/:id', component: W2RouteBridge },
-    { path: '/requirements/new', component: W2RouteBridge },
-    { path: '/requirements/:id', component: W2RouteBridge },
-    { path: '/workflows/new', component: W2RouteBridge },
-    { path: '/workflows/:id', component: W2RouteBridge },
-    { path: '/designer', component: W2RouteBridge },
-    { path: '/exit', component: { template: '<p>原 Vue 路由仍可用</p>' } },
-  ] })
-  await router.push(path); await router.isReady()
-  let root!: VueWrapper
-  await act(async () => { root = mount(defineComponent({ setup: () => () => h(RouterView) }), { attachTo: document.body, global: { plugins: [createPinia(), router] } }); await flushPromises() })
+  const root = await mountApplicationHarness({ initialEntries: [path], routes: ['/projects','/tasks','/template-tasks','/template-tasks/document-runs/:id','/template-tasks/source-runs/:id','/knowledge/:conversationId?','/ppt/:id','/requirements/new','/requirements/:id','/workflows/new','/workflows/:id','/designer'].map(path => ({path} as import('@/router').ApplicationRouteOverride)).concat([{path:'/exit',element:createElement('p',{},'React 路由仍可用')}]) })
+  const router = navigationHarness(root)
   roots.push(root); await settle(); return { root, router }
 }
 async function move(router: Router, to: string) { let result: unknown; await act(async () => { result = await router.push(to); await flushPromises() }); return result }
@@ -72,8 +57,8 @@ describe('W2 actual Vue history / React lifetime boundary', () => {
   it.each(['pending', 'unknown', 'dirty'])('public instance disposal refuses %s without releasing original owners or writes', async kind => {
     const { root } = await setup()
     risk = () => kind === 'dirty' ? { kind: 'CONFIRM_DISCARD', description: '保留原草稿', draftRevision: 1 } : { kind: 'BLOCK', reason: '保留原操作', recoveryAction: '恢复原操作' }
-    const instance = root.findComponent(W2RouteBridge).vm as unknown as { disposeIfSafe(): boolean }
-    const host = root.find('[data-w2-route-bridge]').element as ReactViewHost
+    const instance = (root.element.querySelector('[data-app-route-owner]') as ReactViewHost).reactViewLifecycle!
+    const host = root.element.querySelector('[data-app-route-owner]') as ReactViewHost
     expect(host.reactViewLifecycle?.disposeIfSafe).toBe(instance.disposeIfSafe)
     expect(host.reactViewLifecycle!.disposeIfSafe()).toBe(false)
     expect(attached).toBe(1); expect(retired).toBe(0); expect(written).toBe(0)
@@ -81,8 +66,8 @@ describe('W2 actual Vue history / React lifetime boundary', () => {
   })
   it('public safe disposal immediately unmounts only its React root and cannot remount or write on theme changes', async () => {
     const { root, router } = await setup()
-    const instance = root.findComponent(W2RouteBridge).vm as unknown as { disposeIfSafe(): boolean }
-    const host = root.find('[data-w2-route-bridge]').element as ReactViewHost
+    const instance = (root.element.querySelector('[data-app-route-owner]') as ReactViewHost).reactViewLifecycle!
+    const host = root.element.querySelector('[data-app-route-owner]') as ReactViewHost
     expect(Object.isFrozen(host.reactViewLifecycle)).toBe(true)
     expect(Object.getOwnPropertyDescriptor(host, 'reactViewLifecycle')).toEqual({ value: host.reactViewLifecycle, writable: false, enumerable: false, configurable: true })
     expect(host.reactViewLifecycle?.disposeIfSafe).toBe(instance.disposeIfSafe)
@@ -95,7 +80,7 @@ describe('W2 actual Vue history / React lifetime boundary', () => {
   })
   it('public disposal reports a failing owner while still releasing this React root and all remaining owners', async () => {
     const { root } = await setup(); cleanupThrows = true
-    const instance = root.findComponent(W2RouteBridge).vm as unknown as { disposeIfSafe(): boolean }
+    const instance = (root.element.querySelector('[data-app-route-owner]') as ReactViewHost).reactViewLifecycle!
     await act(async () => { expect(instance.disposeIfSafe()).toBe(false); await flushPromises() })
     expect(attached).toBe(0); expect(retired).toBe(1); expect(written).toBe(0)
     expect(document.body.textContent).toContain('页面资源未完全释放')
@@ -120,7 +105,7 @@ describe('W2 actual Vue history / React lifetime boundary', () => {
     await act(async () => { props.setSkin('tech-blue'); await flushPromises() })
     expect(retired).toBe(0); expect(attached).toBe(1); expect(written).toBe(0)
     await move(router, '/exit')
-    expect(attached).toBe(0); expect(retired).toBe(1); expect(document.body.textContent).toContain('原 Vue 路由仍可用')
+    expect(attached).toBe(0); expect(retired).toBe(1); expect(document.body.textContent).toContain('React 路由仍可用')
   })
   it.each(['/requirements/new', '/requirements/req-original', '/workflows/new', '/workflows/workflow-original', '/designer?sessionId=session-original'])('W5 history %s retains exactly its React owner and an inert legacy task port', async path => {
     const { router } = await setup(path)
@@ -196,13 +181,13 @@ describe('W2 actual Vue history / React lifetime boundary', () => {
     const registrations = () => add.mock.calls.filter(([type]) => type === 'beforeunload')
     const releases = () => remove.mock.calls.filter(([type]) => type === 'beforeunload')
     const { router } = await setup()
-    expect(registrations()).toHaveLength(1); expect(releases()).toHaveLength(1)
+    expect(registrations()).toHaveLength(2); expect(releases()).toHaveLength(1)
     risk = () => ({ kind: 'BLOCK', reason: '保留原身份', recoveryAction: '恢复原操作' })
     const blocked = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(blocked); expect(blocked.defaultPrevented).toBe(true)
-    await move(router, '/tasks'); expect(registrations()).toHaveLength(1); expect(releases()).toHaveLength(1); expect(retired).toBe(0)
+    await move(router, '/tasks'); expect(registrations()).toHaveLength(2); expect(releases()).toHaveLength(1); expect(retired).toBe(0)
     risk = () => ({ kind: 'ALLOW' }); await move(router, '/tasks')
-    expect(registrations()).toHaveLength(2); expect(releases()).toHaveLength(2); expect(retired).toBe(1)
-    expect(releases()[1]![1]).toBe(registrations()[0]![1])
+    expect(registrations()).toHaveLength(3); expect(releases()).toHaveLength(2); expect(retired).toBe(1)
+    expect(releases()[1]![1]).toBe(registrations()[1]![1])
     await move(router, '/exit'); expect(releases()).toHaveLength(3); expect(attached).toBe(0)
     const left = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(left); expect(left.defaultPrevented).toBe(false)
     expect(written).toBe(0)

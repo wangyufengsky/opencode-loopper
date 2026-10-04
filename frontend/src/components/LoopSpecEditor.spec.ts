@@ -1,7 +1,9 @@
-import { flushPromises, mount } from '@vue/test-utils'
-import ElementPlus, { ElInput, ElInputNumber, ElOption, ElSelect } from 'element-plus'
+import { flushPromises, mount } from '@/pages/w6-tests/knowledge-ppt-template/react-test-root'
+import { createElement } from 'react'
+import { ExecutionAcceptancePanel } from '@/pages/w4/task/ExecutionAcceptancePanel'
+
 import { describe, expect, it } from 'vitest'
-import LoopSpecEditor from '@/components/LoopSpecEditor.vue'
+import { StructuredSpec as LoopSpecEditor } from '@/pages/w6-tests/knowledge-ppt-template/designer-react'
 
 const source = JSON.stringify({
   schemaVersion: 'v1', projectId: 'project-1', goal: '实现任务控制台', context: '只允许修改 src/**',
@@ -14,18 +16,18 @@ const source = JSON.stringify({
 
 describe('LoopSpecEditor', () => {
   it('shows JSON as Chinese structured fields with adaptive textareas', async () => {
-    const wrapper = mount(LoopSpecEditor, { props: { modelValue: source, ariaLabel: 'LoopSpec 表单' }, global: { plugins: [ElementPlus], stubs: { Icon: true } } })
+    const wrapper = mount(LoopSpecEditor, { props: { modelValue: source }, global: undefined })
 
-    expect(wrapper.attributes('aria-label')).toBe('LoopSpec 表单')
-    expect(wrapper.text()).toContain('任务目标与执行上下文')
+    expect(wrapper.get('fieldset').attributes('aria-label')).toBe('LoopSpec 中文结构化编辑器')
+    expect(wrapper.find('textarea[aria-label="任务目标"]').exists()).toBe(true); expect(wrapper.find('textarea[aria-label="执行上下文"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('建议修改路径')
     expect(wrapper.text()).toContain('验收器')
     expect(wrapper.find('.cm-editor').exists()).toBe(false)
-    expect(wrapper.findAllComponents(ElInput).some((input) => Boolean(input.props('autosize')))).toBe(true)
+    expect(wrapper.findAll('textarea').some(input=>Number(input.attributes('rows'))>=3)).toBe(true)
 
     await wrapper.get('textarea[aria-label="任务目标"]').setValue('更新后的目标')
     await flushPromises()
-    const emitted = wrapper.emitted('update:modelValue')?.at(-1)?.[0] as string
+    const emitted = wrapper.emitted('change')?.at(-1)?.[0] as string
     expect(JSON.parse(emitted)).toMatchObject({
       goal: '更新后的目标',
       limits: { sessionErrorLimit: 4, stagnationLimit: 5, verifierTimeout: 'PT7M' },
@@ -37,22 +39,17 @@ describe('LoopSpecEditor', () => {
 
   it('orders the review cards by the user workflow', () => {
     const wrapper = mount(LoopSpecEditor, {
-      props: { modelValue: source },
-      slots: { 'after-stages': '<section class="acceptance-marker">实际执行验收</section>' },
-      global: { plugins: [ElementPlus], stubs: { Icon: true } },
+      props: { modelValue: source, afterStages: createElement(ExecutionAcceptancePanel,{source}) },
+      global: undefined,
     })
-    const cards = wrapper.find('.loop-spec-form').element.children
-
-    expect(Array.from(cards).map((card) => card.className)).toEqual([
-      'form-section overview-section',
-      'stages-section',
-      'acceptance-marker',
-      'form-section limits-section',
-    ])
+    const root=wrapper.get('fieldset').element
+    const children=Array.from(root.children)
+    const stage=wrapper.get('article[aria-label="阶段 1"]').element,acceptance=wrapper.get('[aria-label="验收计划"]').element,limits=wrapper.get('input[aria-label="每阶段最大尝试次数"]').element.closest('section')!
+    expect(children.indexOf(stage)).toBeLessThan(children.indexOf(acceptance));expect(children.indexOf(acceptance)).toBeLessThan(children.indexOf(limits));expect(wrapper.get('textarea[aria-label="任务目标"]').element.compareDocumentPosition(stage)&Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('edits the fresh-session policy and next-attempt template without losing the threshold', async () => {
-    const wrapper = mount(LoopSpecEditor, { props: { modelValue: source }, global: { plugins: [ElementPlus], stubs: { Icon: true } } })
+    const wrapper = mount(LoopSpecEditor, { props: { modelValue: source }, global: undefined })
 
     await wrapper.get('textarea[aria-label="下一轮提示模板"]').setValue('下一轮先复核 ${changedPaths}')
     const freshSessionSwitch = wrapper.find('[aria-label="验证失败后自动新建会话"]')
@@ -60,7 +57,7 @@ describe('LoopSpecEditor', () => {
     await freshSessionSwitch.trigger('click')
     await flushPromises()
 
-    const emitted = wrapper.emitted('update:modelValue')?.at(-1)?.[0] as string
+    const emitted = wrapper.emitted('change')?.at(-1)?.[0] as string
     expect(JSON.parse(emitted)).toMatchObject({
       limits: { stagnationLimit: 5 },
       sessionPolicy: { reuseHealthySession: false, createFreshOnVerifierFailure: true },
@@ -69,19 +66,19 @@ describe('LoopSpecEditor', () => {
   })
 
   it('does not add path rules or a Git diff verifier to a new stage by default', async () => {
-    const wrapper = mount(LoopSpecEditor, { props: { modelValue: source }, global: { plugins: [ElementPlus], stubs: { Icon: true } } })
-    const addStage = wrapper.findAll('button').find((button) => button.text().includes('添加阶段'))
+    const wrapper = mount(LoopSpecEditor, { props: { modelValue: source }, global: undefined })
+    const addStage = wrapper.findAll('button').find((button) => button.attributes('data-semantic')==='designer.addStage')
 
     await addStage!.trigger('click')
     await flushPromises()
 
-    const emitted = wrapper.emitted('update:modelValue')?.at(-1)?.[0] as string
+    const emitted = wrapper.emitted('change')?.at(-1)?.[0] as string
     expect(JSON.parse(emitted).stages[1]).toMatchObject({ allowedPaths: [], forbiddenPaths: [], verifiers: [] })
   })
 
   it('offers every native verifier type without accepting unknown free text', () => {
-    const wrapper = mount(LoopSpecEditor, { props: { modelValue: source }, global: { plugins: [ElementPlus], stubs: { Icon: true } } })
-    const verifierOptions = wrapper.findAllComponents(ElOption).map((option) => option.props('value'))
+    const wrapper = mount(LoopSpecEditor, { props: { modelValue: source }, global: undefined })
+    const verifierOptions = wrapper.findAll('select[aria-label="阶段 1 验收器 1 类型"] option').map(option=>option.attributes('value'))
 
     expect(verifierOptions).toEqual(expect.arrayContaining([
       'PROCESS', 'HTTP_STATUS', 'JSON_PATH', 'BROWSER', 'DATABASE_QUERY', 'FILE_CONTENT', 'FILE_HASH',
@@ -103,19 +100,18 @@ describe('LoopSpecEditor', () => {
         verifiers: [{ type: 'JSON_PATH', url: 'http://127.0.0.1:{{LOOPPER_PORT}}/health', httpMethod: 'GET', jsonPath: '$.status', expectedValue: 'UP', matchMode: 'EXACT', criterionIds: ['AC-1'] }],
       }],
     }, null, 2)
-    const wrapper = mount(LoopSpecEditor, { props: { modelValue: v2 }, global: { plugins: [ElementPlus], stubs: { Icon: true } } })
+    const wrapper = mount(LoopSpecEditor, { props: { modelValue: v2 }, global: undefined })
 
     expect(wrapper.text()).toContain('行为验收条件')
-    expect(wrapper.text()).toContain('分别规划机器验证、AI Judge 评审')
+    expect(wrapper.get('select[aria-label="阶段 1 验收方式 1"]').text()).toContain('机器 + AI')
     expect(wrapper.text()).toContain('AI 评审准则')
     expect(wrapper.text()).toContain('托管临时运行时')
     expect(wrapper.text()).toContain('覆盖的验收条件')
-    expect(wrapper.text()).toContain('JSON 匹配方式')
-    expect(wrapper.text()).toContain('启动超时（秒）')
-    const numberInputs = wrapper.findAllComponents(ElInputNumber)
-    expect(numberInputs.find((input) => input.attributes('data-testid') === 'runtime-startup-timeout')?.props('max')).toBe(300)
-    expect(numberInputs.find((input) => input.attributes('data-testid') === 'runtime-shutdown-timeout')?.props('max')).toBe(60)
-    expect(numberInputs.find((input) => input.attributes('data-testid') === 'max-stage-attempts')?.props('max')).toBe(20)
+    expect(wrapper.get('select[aria-label="阶段 1 验收器 1 匹配方式"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('启动超时秒数')
+    expect(wrapper.get('input[aria-label="阶段 1 启动超时秒数"]').attributes('max')).toBe('300')
+    expect(wrapper.get('input[aria-label="阶段 1 停止超时秒数"]').attributes('max')).toBe('60')
+    expect(wrapper.get('input[aria-label="每阶段最大尝试次数"]').attributes('max')).toBe('20')
   })
 
   it('shows and edits artifact assertions while retaining the frozen execution identity', async () => {
@@ -126,36 +122,34 @@ describe('LoopSpecEditor', () => {
         { type: 'TABULAR_DATA', path: 'output/table.md', tabularAssertions: [{ type: 'EQUIVALENT_TO', sourcePath: 'input.csv' }] },
       ],
     })
-    const wrapper = mount(LoopSpecEditor, { props: { modelValue: JSON.stringify(parsed) }, global: { plugins: [ElementPlus], stubs: { Icon: true } } })
-    await wrapper.get('input[aria-label="文档断言 1 期望文本"]').setValue('新标题')
-    await wrapper.get('input[aria-label="表格断言 1 源文件路径"]').setValue('source.xlsx')
+    const wrapper = mount(LoopSpecEditor, { props: { modelValue: JSON.stringify(parsed) }, global: undefined })
+    await wrapper.get('input[aria-label="阶段 1 验收器 1 断言 1 期望文本"]').setValue('新标题')
+    await wrapper.get('input[aria-label="阶段 1 验收器 2 断言 1 源文件路径"]').setValue('source.xlsx')
     await flushPromises()
-    const edited = JSON.parse(wrapper.emitted('update:modelValue')!.at(-1)![0] as string)
+    const edited = JSON.parse(wrapper.emitted('change')!.at(-1)![0] as string)
     expect(edited.stages[0]).toMatchObject({ stageKind: 'DOCUMENT_MATERIALIZATION', executionStrategy: 'SERVER_DOCUMENT_MATERIALIZATION', artifactPlanId: 'frozen-plan',
       verifiers: [{ documentAssertions: [{ type: 'TEXT_EXISTS', value: '新标题' }] }, { tabularAssertions: [{ type: 'EQUIVALENT_TO', sourcePath: 'source.xlsx' }] }],
     })
-    await wrapper.get('button[aria-label="删除文档断言 1"]').trigger('click')
+    await wrapper.get('button[data-semantic="ui.delete"][aria-label="删除：断言 1"]').trigger('click')
     await flushPromises()
-    expect(wrapper.find('input[aria-label="文档断言 1 期望文本"]').exists()).toBe(false)
-    await wrapper.findAll('button').find(button => button.text() === '添加文档断言')!.trigger('click')
-    expect(wrapper.find('input[aria-label="文档断言 1 期望文本"]').exists()).toBe(true)
+    expect(wrapper.find('input[aria-label="阶段 1 验收器 1 断言 1 期望文本"]').exists()).toBe(false)
+    await wrapper.get('[aria-label="阶段 1 验收器 1 类型"]').element.closest('section')!.querySelector<HTMLButtonElement>('[data-semantic="designer.addAssertion"]')!.click();await flushPromises()
+    expect(wrapper.find('input[aria-label="阶段 1 验收器 1 断言 1 期望文本"]').exists()).toBe(true)
   })
 
   it('clears incompatible command fields when explicitly changing to a document verifier', async () => {
     const parsed = JSON.parse(source)
     parsed.stages[0].verifiers = [{ type: 'PROCESS', command: ['node', 'check.js'], outputContains: 'ok', processPurpose: 'SELF_CHECK', criterionIds: ['AC-1'] }]
-    const wrapper = mount(LoopSpecEditor, { props: { modelValue: JSON.stringify(parsed) }, global: { plugins: [ElementPlus], stubs: { Icon: true } } })
-    const select = wrapper.findAllComponents(ElSelect).find(component => component.props('ariaLabel') === '阶段 1 验收器 1 类型')!
-    select.vm.$emit('update:modelValue', 'DOCUMENT_STRUCTURE')
-    select.vm.$emit('change', 'DOCUMENT_STRUCTURE')
+    const wrapper = mount(LoopSpecEditor, { props: { modelValue: JSON.stringify(parsed) }, global: undefined })
+    await wrapper.get('select[aria-label="阶段 1 验收器 1 类型"]').setValue('DOCUMENT_STRUCTURE')
     await flushPromises()
-    const changed = JSON.parse(wrapper.emitted('update:modelValue')!.at(-1)![0] as string).stages[0].verifiers[0]
+    const changed = JSON.parse(wrapper.emitted('change')!.at(-1)![0] as string).stages[0].verifiers[0]
     expect(changed).toEqual({ type: 'DOCUMENT_STRUCTURE', path: '', documentAssertions: [{ type: 'TEXT_EXISTS', value: '' }], criterionIds: ['AC-1'] })
-    expect(wrapper.find('input[aria-label="文档断言 1 期望文本"]').exists()).toBe(true)
+    expect(wrapper.find('input[aria-label="阶段 1 验收器 1 断言 1 期望文本"]').exists()).toBe(true)
   })
 
   it('follows external JSON updates without losing the structured view', async () => {
-    const wrapper = mount(LoopSpecEditor, { props: { modelValue: source }, global: { plugins: [ElementPlus], stubs: { Icon: true } } })
+    const wrapper = mount(LoopSpecEditor, { props: { modelValue: source }, global: undefined })
     const changed = JSON.stringify({ ...JSON.parse(source), goal: '第二个目标' }, null, 2)
 
     await wrapper.setProps({ modelValue: changed })

@@ -1,14 +1,12 @@
 import { beforeEach, afterEach, expect, it, vi } from 'vitest'
-import { createMemoryHistory, createRouter } from 'vue-router'
-import { designerEntry } from './designerEntry'
+import { ApplicationOwnership, routeFromLocation } from '@/app/ownership'
+import { createApplicationRouter } from '@/router'
 beforeEach(() => sessionStorage.clear())
 afterEach(() => vi.restoreAllMocks())
 async function navigate(path: string) {
-  const router = createRouter({ history: createMemoryHistory(), routes: [
-    { path: '/designer', beforeEnter: designerEntry, component: { template: '<div>历史设计</div>' } },
-    { path: '/requirements/new', component: { template: '<div>新需求</div>' } },
-  ] })
-  await router.push(path); await router.isReady(); return router.currentRoute.value
+  const application = new ApplicationOwnership(), router = createApplicationRouter(application, { initialEntries:[path], shell:false })
+  await new Promise<void>(resolve => { if (router.state.initialized) resolve(); else { const stop=router.subscribe(state=>{ if(state.initialized){stop();resolve()} }) } })
+  const route=routeFromLocation(router.state.location); application.dispose(true); return route
 }
 it('旧新建地址进入需求画布入口，保留未发送文字供表单读取', async () => {
   sessionStorage.setItem('opencode-loopper.designer-draft-prompt', '未发送目标')

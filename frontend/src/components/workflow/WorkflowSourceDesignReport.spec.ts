@@ -1,6 +1,6 @@
-import { mount } from '@vue/test-utils'
+import { mount } from '@/pages/w6-tests/workflow/react-test-root'
 import { describe, expect, it } from 'vitest'
-import WorkflowSourceDesignReport from './WorkflowSourceDesignReport.vue'
+import { WorkflowSourceDesignReport as WorkflowSourceDesignReport } from '@/pages/w5/workflow/reports'
 
 const references = [{ path: 'src/Main.java', sha256: 'private-hash', startLine: 1, endLine: 2, quote: '<img src=x onerror=alert(1)>' }]
 const design = { title: '订单模块设计', summary: '基于冻结源码说明职责', sections: [{ key: 'main', title: '核心流程', markdown: '**事务边界**\n\n<img src=x>\n\n![外部图片](https://invalid.example/image)', paths: ['src/Main.java'], references }], limitations: ['外部依赖行为待确认'] }
@@ -10,7 +10,7 @@ describe('专业源码交付展示', () => {
     const view = mount(WorkflowSourceDesignReport, { props: { content: design } })
     expect(view.get('h3').text()).toBe('订单模块设计'); expect(view.text()).toContain('外部依赖行为待确认')
     expect(view.find('img').exists()).toBe(false); expect(view.find('[onerror]').exists()).toBe(false)
-    expect(view.get('pre').text()).toBe(references[0]!.quote)
+    expect(view.get('.w3-code-text').text()).toBe(references[0]!.quote)
     expect(view.findAll('details').every(item => item.attributes('open') === undefined)).toBe(true)
     expect(view.text()).not.toContain('private-hash')
   })

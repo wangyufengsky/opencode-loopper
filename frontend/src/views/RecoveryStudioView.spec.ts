@@ -1,8 +1,7 @@
-import { flushPromises, mount } from '@vue/test-utils'
-import ElementPlus from 'element-plus'
-import { createMemoryHistory, createRouter } from 'vue-router'
+import { flushPromises, mount } from '@/pages/w6-tests/ordinary/render'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import RecoveryStudioView from '@/views/RecoveryStudioView.vue'
+import {RecoveryStudioPage as RecoveryStudioView} from '@/pages/w4/recovery/RecoveryStudioPage'
+import {coreFixture} from '@/pages/w2/core/coreTestHelpers'
 
 const parent = {
   id: 'parent-1', title: '失败的导入任务', status: 'FAILED', projectName: '演示项目', goal: '导入并验证数据',
@@ -17,13 +16,7 @@ function response(body: unknown, status = 200) {
 
 async function mountView(fetchMock: ReturnType<typeof vi.fn>) {
   vi.stubGlobal('fetch', fetchMock)
-  const router = createRouter({ history: createMemoryHistory(), routes: [
-    { path: '/tasks/:id/recovery', component: RecoveryStudioView },
-    { path: '/tasks/:id', component: { template: '<div />' } },
-  ] })
-  await router.push('/tasks/parent-1/recovery')
-  await router.isReady()
-  const wrapper = mount(RecoveryStudioView, { global: { plugins: [router, ElementPlus], stubs: { Icon: true, PageHeader: { template: '<header><slot name="actions" /></header>' } } } })
+  const f=coreFixture(); const wrapper=mount(RecoveryStudioView,{props:{...f.props,taskId:'parent-1'}})
   await flushPromises()
   return wrapper
 }

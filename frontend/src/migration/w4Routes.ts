@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react'
 import type { W2PageProps } from '@/pages/w2/shared/types'
 
-/** Only existing W4 page routes. Vue Router still owns history and guards. */
+/** Production React pages. The W6 application router is the only history owner. */
 export const w4RouteRecords = [
   { pattern: '/inbox', matches: (path: string) => path === '/inbox', load: () => import('@/pages/w4/inbox').then(module => module.InboxPage) },
   { pattern: '/tasks/:id/design', matches: (path: string) => /^\/tasks\/[^/]+\/design$/.test(path), load: () => import('@/pages/w4/history').then(module => module.TaskDesignHistoryPage) },

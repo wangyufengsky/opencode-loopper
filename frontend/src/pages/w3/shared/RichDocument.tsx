@@ -2,6 +2,7 @@ import { createElement, useEffect, useMemo, useRef, useState, type MouseEvent, t
 import MarkdownIt from 'markdown-it'
 import DOMPurify from 'dompurify'
 import { UiActionButton } from '@/foundation/components'
+import { SemanticIcon } from '@/foundation/semanticRegistry'
 import { MermaidDiagram } from '@/react/diagrams/MermaidDiagram'
 import { splitThinkingContent } from '@/utils/thinkingContent'
 import type { SkinDefinition } from '@/themes/types'
@@ -11,6 +12,8 @@ export interface RichDocumentProps {
   content: string; skin: SkinDefinition; allowImages?: boolean; highlightLines?: number[]
   resolveLink?: (href: string) => string | null; collapsible?: boolean; collapsedLines?: number
   onLink?: (href: string, event: MouseEvent<HTMLDivElement>) => void
+  /** Reports fold reasoning; live Designer Markdown preserves its original expanded presentation. */
+  thinkingPresentation?: 'folded' | 'expanded'
 }
 /** This figure is a direct child of the existing React root, never a portal root. */
 function LazyFigure({ source, skin, marker }: { source: string; skin: SkinDefinition; marker: string }) {
@@ -27,6 +30,18 @@ function LazyFigure({ source, skin, marker }: { source: string; skin: SkinDefini
     return () => { active = false; observer.disconnect() }
   }, [source])
   return <figure ref={host} data-w3-mermaid={marker} aria-label="Mermaid 图示">{ready ? <MermaidDiagram source={source} skin={skin} /> : '图示将在滚动到此处时加载…'}</figure>
+}
+function ThinkingCard({ complete, children, presentation }: { complete: boolean; children: ReactNode; presentation: 'folded' | 'expanded' }) {
+  const [expanded, setExpanded] = useState(presentation === 'expanded')
+  if (presentation === 'folded') return <details className={`markdown-thinking-card${complete ? '' : ' is-active'}`} aria-label="思考过程" aria-busy={!complete} open={expanded} onToggle={event => setExpanded(event.currentTarget.open)}>
+    <summary><SemanticIcon semanticKey={expanded ? 'ui.collapse' : 'ui.expand'} /><strong>思考过程</strong><span>{complete ? '已完成' : '思考中'}</span></summary>
+    <div className="markdown-thinking-content">{children}</div>
+  </details>
+  return <section className={`markdown-thinking-card${complete ? '' : ' is-active'}`} aria-label="思考过程" aria-busy={!complete}>
+    <header className="markdown-thinking-header"><strong>思考过程</strong><span>{complete ? '已完成' : '思考中'}</span>
+      <UiActionButton className="markdown-thinking-toggle" actionKey={expanded ? 'ui.collapse' : 'ui.expand'} target="思考过程" expanded={expanded} onAction={() => setExpanded(value => !value)} />
+    </header><div className="markdown-thinking-content" hidden={!expanded}>{children}</div>
+  </section>
 }
 /** Convert only the already-sanitized Markdown DOM, preserving nested lists and table structure. */
 function reactDocument(html: string, sources: string[], skin: SkinDefinition): ReactNode[] {
@@ -48,7 +63,7 @@ function reactDocument(html: string, sources: string[], skin: SkinDefinition): R
   return [...template.content.childNodes].map((node, index) => convert(node, String(index)))
 }
 /** One sanitized React renderer for reports and evidence, with independently owned figures. */
-export function RichDocument({ content, skin, allowImages = true, highlightLines, resolveLink, collapsible = false, collapsedLines = 3, onLink }: RichDocumentProps) {
+export function RichDocument({ content, skin, allowImages = true, highlightLines, resolveLink, collapsible = false, collapsedLines = 3, onLink, thinkingPresentation = 'folded' }: RichDocumentProps) {
   const [host, setHost] = useState<HTMLDivElement | null>(null)
   const [expanded, setExpanded] = useState(false)
   const [overflow, setOverflow] = useState(false)
@@ -93,9 +108,9 @@ export function RichDocument({ content, skin, allowImages = true, highlightLines
   return <div className="w3-rich-document">
     <div ref={setHost} className="w3-document-body markdown-document" style={collapsible && !expanded ? { maxHeight: collapsedLines * 24, overflow: 'hidden' } : undefined}
       onClick={event => { const target = event.target instanceof Element ? event.target.closest('a[href]') : null; if (target) onLink?.(target.getAttribute('href')!, event) }}>
-      {segments.map((segment, i) => segment.type === 'thinking' ? <details key={i}><summary>思考过程</summary><div>{reactDocument(html[i]!, sources, skin)}</div></details>
-        : <div key={i}>{reactDocument(html[i]!, sources, skin)}</div>)}
+      {segments.map((segment, i) => segment.type === 'thinking' ? <ThinkingCard key={i} complete={segment.complete} presentation={thinkingPresentation}>{reactDocument(html[i]!, sources, skin)}</ThinkingCard>
+        : <div key={i} className="markdown-body-segment">{reactDocument(html[i]!, sources, skin)}</div>)}
     </div>
-    {collapsible && (overflow || expanded) && <UiActionButton actionKey={expanded ? 'ui.collapse' : 'ui.expand'} target="完整输出" onAction={() => setExpanded(value => !value)} />}
+    {collapsible && (overflow || expanded) && <UiActionButton actionKey={expanded ? 'ui.collapse' : 'ui.expand'} target="完整输出" expanded={expanded} onAction={() => setExpanded(value => !value)} />}
   </div>
 }

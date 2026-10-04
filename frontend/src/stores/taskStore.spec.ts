@@ -1,7 +1,6 @@
-import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { demoProjects, demoRuntime, demoTasks } from '@/mock/demoData'
-import { aiOutputNotice, reduceTaskEvent, requiresTaskSnapshot, useTaskStore } from '@/stores/taskStore'
+import { aiOutputNotice, reduceTaskEvent, requiresTaskSnapshot, createTaskApplicationOwner } from '@/stores/taskStore'
 import type { Task, TaskEvent } from '@/types/domain'
 import { subscribeTaskEvents } from '@/api/client'
 
@@ -31,11 +30,12 @@ function deferred<T>() {
   const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no })
   return { promise, resolve, reject }
 }
-afterEach(() => vi.useRealTimers())
+const owners: Array<ReturnType<typeof createTaskApplicationOwner>> = []
+function newOwner() { const owner = createTaskApplicationOwner(); owners.push(owner); return owner }
+afterEach(() => { for (const owner of owners.splice(0)) owner.dispose(); vi.useRealTimers() })
 
 describe('task SSE reducer', () => {
   beforeEach(() => {
-    setActivePinia(createPinia())
     vi.resetAllMocks()
   })
 
@@ -46,7 +46,7 @@ describe('task SSE reducer', () => {
     const overview = { ...original, attempts: [], stages: [{ ...stage, attempts: [] }] }
     apiMocks.getTaskOverview.mockResolvedValue(overview)
     apiMocks.getTaskAudit.mockResolvedValue({ attempts: [attempt], errors: [], judges: [], artifacts: [] })
-    const store = useTaskStore()
+    const store = newOwner()
     store.usingDemo = false
     store.tasks = []
     await store.loadTaskOverview(original.id)
@@ -59,7 +59,7 @@ describe('task SSE reducer', () => {
     const task = { ...structuredClone(demoTasks[0]!), templateProgress: { reviewBatches: 1, contributorBatches: 0,
       completedReviews: 1, completedContributors: 0, activeBatches: 0, failedBatches: 0, repairRound: 0,
       documentPath: '/reports', dualReviewRequired: false, reportCount: 0 } }
-    const store = useTaskStore()
+    const store = newOwner()
     store.usingDemo = false
     store.tasks = [task]
     apiMocks.getTaskOverview.mockResolvedValue({ ...task, templateProgress: { ...task.templateProgress, reportCount: 29 } })
@@ -131,7 +131,7 @@ describe('task SSE reducer', () => {
       taskId: child.id, parentTaskId: parent.id, mode: 'REWORK_ALL_STAGES', workspaceFingerprint: 'baseline', writableSession: true,
     })
     apiMocks.startTask.mockResolvedValue(child)
-    const store = useTaskStore()
+    const store = newOwner()
     store.usingDemo = false
     store.tasks = [parent]
 
@@ -143,7 +143,7 @@ describe('task SSE reducer', () => {
   })
 
   it('deduplicates normalization notices across reopen and SSE replay, independently per task', () => {
-    const store = useTaskStore()
+    const store = newOwner()
     store.usingDemo = false
     vi.mocked(subscribeTaskEvents).mockImplementation((_id, receive) => {
       receive({ id: 'same-event', type: 'AI_OUTPUT_NORMALIZED', at: 'now', data: { role: 'REQUIREMENT', corrections: ['WRAPPER_TOLERATED'] } })
@@ -158,7 +158,7 @@ describe('task SSE reducer', () => {
 
   it('removes an archived task and its loaded artifacts after backend deletion', async () => {
     const archived = { ...demoTasks[0]!, id: 'archived-task', status: 'CANCELLED' as const, archived: true }
-    const store = useTaskStore()
+    const store = newOwner()
     store.usingDemo = false
     store.tasks = [archived]
     store.artifacts = [{ id: 'artifact-1', taskId: archived.id, kind: 'LOG', title: 'log', createdAt: 'now', content: 'evidence' }]
@@ -173,7 +173,7 @@ describe('task SSE reducer', () => {
 
   it('keeps an active lease holder visible when the backend rejects archive', async () => {
     const holder = { ...demoTasks[0]!, id: 'active-holder', status: 'CANCELLED' as const, archived: false }
-    const store = useTaskStore()
+    const store = newOwner()
     store.usingDemo = false
     store.tasks = [holder]
     apiMocks.archiveTask.mockRejectedValue(new Error('工作区有未提交文件，释放完成前不能归档'))
@@ -188,7 +188,7 @@ describe('task SSE reducer', () => {
     const queued = { ...demoTasks[0]!, id: 'queued-task', status: 'QUEUED' as const, cancellationAvailable: true }
     apiMocks.getTaskOverview.mockRejectedValue(new TypeError('TaskOverview.cancellationAvailable must be boolean'))
     apiMocks.getTask.mockResolvedValue(queued)
-    const store = useTaskStore()
+    const store = newOwner()
     store.usingDemo = false
 
     await expect(store.loadTask(queued.id)).resolves.toEqual(queued)
@@ -205,7 +205,7 @@ describe('task SSE reducer', () => {
     apiMocks.getProjects.mockResolvedValue([realProject])
     apiMocks.getTasks.mockResolvedValue([realTask])
     apiMocks.getRuntime.mockResolvedValue(realRuntime)
-    const store = useTaskStore()
+    const store = newOwner()
     store.error = '旧错误'
 
     store.activateDemo()
@@ -224,7 +224,7 @@ describe('task SSE reducer', () => {
     expect(apiMocks.getRuntime).toHaveBeenCalledOnce()
   })
   it('keeps the newest query, facets and cursor when responses arrive out of order', async () => {
-    const store = useTaskStore()
+    const store = newOwner()
     const old = deferred<{ items: Task[]; nextCursor: string; facets: Record<string, number> }>()
     const fresh = deferred<{ items: Task[]; nextCursor: string; facets: Record<string, number> }>()
     apiMocks.getTaskSummaries.mockReturnValueOnce(old.promise).mockReturnValueOnce(fresh.promise)
@@ -240,7 +240,7 @@ describe('task SSE reducer', () => {
   })
 
   it('invalidates an old page before the debounced replacement is issued', async () => {
-    const store = useTaskStore()
+    const store = newOwner()
     apiMocks.getTaskSummaries.mockResolvedValueOnce({ items: [], nextCursor: 'old-page', facets: {} })
     await store.loadTaskSummaries({ q: 'old' })
     const pending = deferred<{ items: Task[]; facets: Record<string, number> }>()
@@ -256,7 +256,7 @@ describe('task SSE reducer', () => {
   })
 
   it('rejects older overview requests and lower server versions and clears authoritative empty history', async () => {
-    const store = useTaskStore()
+    const store = newOwner()
     const old = deferred<Task>(), fresh = deferred<Task>()
     apiMocks.getTaskOverview.mockReturnValueOnce(old.promise).mockReturnValueOnce(fresh.promise)
     const first = store.loadTaskOverview('same'), second = store.loadTaskOverview('same')
@@ -270,7 +270,7 @@ describe('task SSE reducer', () => {
   })
 
   it('keeps overview errors and judges authoritative when an older audit arrives last', async () => {
-    const store = useTaskStore()
+    const store = newOwner()
     store.tasks = [{ ...demoTasks[0]!, id: 'same', version: 1, errors: [], judges: [] }]
     const old = deferred<unknown>()
     apiMocks.getTaskAudit.mockReturnValueOnce(old.promise)
@@ -294,7 +294,7 @@ describe('task SSE reducer', () => {
     })
     apiMocks.getTaskOverview.mockResolvedValue({ ...demoTasks[0]!, id: 'same', errors: [], judges: [] })
     apiMocks.getTaskAudit.mockResolvedValue({ attempts: [], errors: [], judges: [], artifacts: [] })
-    const store = useTaskStore()
+    const store = newOwner()
     store.watchTask('same')
     receive({ id: 'event', type, at: 'now', data: {} })
     await vi.advanceTimersByTimeAsync(180)
@@ -304,7 +304,7 @@ describe('task SSE reducer', () => {
   })
 
   it('keeps audit from the latest request and ignores late errors', async () => {
-    const store = useTaskStore()
+    const store = newOwner()
     store.tasks = [{ ...demoTasks[0]!, id: 'same' }]
     const old = deferred<unknown>()
     apiMocks.getTaskAudit.mockReturnValueOnce(old.promise).mockResolvedValueOnce({ artifacts: [], attempts: [], errors: [], judges: [] })
@@ -326,7 +326,7 @@ describe('task SSE reducer', () => {
     })
     apiMocks.getTaskOverview.mockResolvedValue({ ...demoTasks[0]!, id: 'two' })
     apiMocks.getTaskAudit.mockResolvedValue({ artifacts: [] })
-    const store = useTaskStore()
+    const store = newOwner()
     store.watchTask('one')
     const event = { id: 'evt', type: 'session.failed', at: 'now', data: {} }
     receivers[0]!(event)
@@ -347,7 +347,7 @@ describe('task SSE reducer', () => {
     let receive!: (event: TaskEvent) => void
     vi.mocked(subscribeTaskEvents).mockImplementation((_id, callback) => { receive = callback; return { close: vi.fn() } })
     apiMocks.getTaskOverview.mockRejectedValueOnce(new Error('读取失败')).mockResolvedValueOnce({ ...demoTasks[0]!, id: 'same' })
-    const store = useTaskStore()
+    const store = newOwner()
     store.watchTask('same')
     const event = { id: 'evt', type: 'task.status', at: 'now', data: {} }
     receive(event)

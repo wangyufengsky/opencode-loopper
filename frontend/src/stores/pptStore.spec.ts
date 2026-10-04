@@ -1,10 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises } from '@vue/test-utils'
-import { createPinia, setActivePinia } from 'pinia'
+import { flushPromises } from '@/pages/w6-tests/knowledge-ppt-template/react-test-root'
 import { webcrypto } from 'node:crypto'
 import { ApiError } from '@/api/client'
 import { pptApi } from '@/api/ppt'
-import { usePptStore } from './pptStore'
+import { usePptStore, resetPptHarness } from '@/pages/w6-tests/knowledge-ppt-template/ppt-owner'
 import {
   pptGeneration,
   pptAgent,
@@ -42,7 +41,7 @@ vi.mock('@/api/ppt', () => ({
 const api = vi.mocked(pptApi)
 beforeEach(() => {
   vi.clearAllMocks()
-  setActivePinia(createPinia())
+  resetPptHarness()
   sessionStorage.clear()
   vi.stubGlobal('crypto', webcrypto)
   api.generation.mockResolvedValue(null)
@@ -279,7 +278,7 @@ describe('PPT authoritative workspace', () => {
     api.resume.mockResolvedValue(pptGeneration('PRODUCING'))
     api.generation.mockResolvedValue(pptGeneration('PRODUCING'))
     await store.resume()
-    expect(api.resume).toHaveBeenCalledWith('doc', 3, expect.any(String))
+    expect(api.resume).toHaveBeenCalledWith('doc', 3, expect.any(String), undefined)
     expect(api.generate).not.toHaveBeenCalled()
     expect(store.active).toBe(true)
   })
@@ -323,14 +322,16 @@ describe('PPT authoritative workspace', () => {
     await first.operations([{ op: 'update_element', slideId: 'slide-1', elementId: 'text-1', patch: { x: 81 } }], 3)
     const original = api.operations.mock.calls[0]!
     first.close()
-    setActivePinia(createPinia())
+    resetPptHarness()
     const restored = usePptStore()
     await restored.load('first')
     expect(restored.pending).toMatchObject({ key: original[3], revision: 3 })
-    expect(restored.error).toContain('请重试原操作')
+    expect(restored.error).toContain('恢复原操作')
     expect(restored.editable).toBe(false)
     expect(api.operations).toHaveBeenCalledTimes(1)
-    api.operations.mockResolvedValueOnce({ revision: 3, deck: pptDeck(), createdIds: {} })
+    api.operations.mockResolvedValueOnce({ revision: 4, deck: pptDeck(), createdIds: {} })
+    api.get.mockResolvedValue({ ...pptDocument('first'), revision: 4 })
+    api.plan.mockResolvedValue({ plan: pptPlan(), revision: 4 })
     expect(await restored.retryPending()).toBe(true)
     expect(api.operations.mock.calls[1]).toEqual(original)
     expect(restored.editable).toBe(true)
@@ -355,7 +356,7 @@ describe('PPT authoritative workspace', () => {
     expect(store.document?.revision).toBe(4)
     expect(store.deck!.slides[0]!.elements[0]!.x).toBe(81)
     expect(store.pending).toMatchObject({ key: original[3], revision: 3 })
-    expect(store.error).toContain('请重试原操作')
+    expect(store.error).toContain('恢复原操作')
     expect(store.editable).toBe(false)
     expect(api.operations).toHaveBeenCalledTimes(1)
     api.operations.mockResolvedValueOnce({ revision: 4, deck: accepted, createdIds: {} })
@@ -378,7 +379,7 @@ describe('PPT authoritative workspace', () => {
       text: original.text, answer: '已修改', state: 'COMPLETED', detail: '',
       scope: original.scope, expectedRevision: 3, version: 0, createdAt: '', updatedAt: '', questions: [],
     }], facets: {} })
-    setActivePinia(createPinia())
+    resetPptHarness()
     const restored = usePptStore()
     await restored.load('doc')
     expect(restored.pending).toBeNull()
@@ -387,5 +388,14 @@ describe('PPT authoritative workspace', () => {
     expect(api.send).toHaveBeenCalledTimes(1)
     expect(sessionStorage.getItem('loopper.ppt.pending.doc')).toBeNull()
     restored.close()
+  })
+})
+
+// Negative controls for the restored original-message GET proof. No unmatched row permits a write or clears the identity.
+describe('PPT restored original message read proof', () => {
+  it.each(['key', 'text', 'revision', 'scope'] as const)('keeps UNKNOWN when the authoritative row has a different %s', async field => {
+    const first = usePptStore(); await first.load('doc'); api.send.mockRejectedValueOnce(new Error('lost')); await first.send('原正文', { kind: 'SLIDE', slideId: 'slide-1' }); const original = api.send.mock.calls[0]![1]; first.close(); resetPptHarness()
+    api.messages.mockResolvedValue({ items: [{ id: 'accepted', documentId: 'doc', idempotencyKey: field === 'key' ? 'wrong' : original.idempotencyKey, text: field === 'text' ? 'wrong' : original.text, expectedRevision: field === 'revision' ? 4 : original.expectedRevision, scope: field === 'scope' ? { kind: 'DOCUMENT' } : original.scope, answer: '', state: 'COMPLETED', detail: '', version: 1, createdAt: '', updatedAt: '', questions: [] }], facets: {} })
+    const restored = usePptStore(); await restored.load('doc'); expect(restored.pending).toMatchObject({ key: original.idempotencyKey, revision: 3 }); expect(restored.editable).toBe(false); expect(api.send).toHaveBeenCalledTimes(1)
   })
 })

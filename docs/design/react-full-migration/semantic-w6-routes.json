@@ -1,0 +1,251 @@
+{
+  "/": {
+    "view": "HomePage",
+    "routerLine": 9,
+    "evidence": [
+      "frontend/src/router/index.tsx:9",
+      "frontend/src/pages/w2/secondary/HomePage.tsx"
+    ]
+  },
+  "/projects": {
+    "view": "ProjectsPage",
+    "routerLine": 9,
+    "evidence": [
+      "frontend/src/router/index.tsx:9",
+      "frontend/src/pages/w2/core/ProjectsPage.tsx"
+    ]
+  },
+  "/ppt": {
+    "view": "PptListPage",
+    "routerLine": 9,
+    "evidence": [
+      "frontend/src/router/index.tsx:9",
+      "frontend/src/pages/w2/secondary/PptListPage.tsx"
+    ]
+  },
+  "/ppt/:id": {
+    "view": "PptStudioPage",
+    "routerLine": 9,
+    "evidence": [
+      "frontend/src/router/index.tsx:9",
+      "frontend/src/pages/w3/ppt/PptStudioPage.tsx"
+    ]
+  },
+  "/knowledge/history": {
+    "view": "KnowledgeHistoryPage",
+    "routerLine": 9,
+    "evidence": [
+      "frontend/src/router/index.tsx:9",
+      "frontend/src/pages/w2/secondary/KnowledgeHistoryPage.tsx"
+    ]
+  },
+  "/knowledge/:conversationId?": {
+    "view": "KnowledgePage",
+    "routerLine": 9,
+    "evidence": [
+      "frontend/src/router/index.tsx:9",
+      "frontend/src/pages/w3/knowledge/KnowledgePage.tsx"
+    ]
+  },
+  "/designer": {
+    "view": "DesignerPage",
+    "routerLine": 9,
+    "evidence": [
+      "frontend/src/router/index.tsx:9",
+      "frontend/src/pages/w5/designer/DesignerPage.tsx"
+    ]
+  },
+  "/requirements": {
+    "view": "RequirementListPage",
+    "routerLine": 9,
+    "evidence": [
+      "frontend/src/router/index.tsx:9",
+      "frontend/src/pages/w2/workflow/RequirementListPage.tsx"
+    ]
+  },
+  "/requirements/new": {
+    "view": "NewRequirementPage",
+    "routerLine": 9,
+    "evidence": [
+      "frontend/src/router/index.tsx:9",
+      "frontend/src/pages/w5/requirements/NewRequirementPage.tsx"
+    ]
+  },
+  "/requirements/:id": {
+    "view": "RequirementPage",
+    "routerLine": 9,
+    "evidence": [
+      "frontend/src/router/index.tsx:9",
+      "frontend/src/pages/w5/requirements/RequirementPage.tsx"
+    ]
+  },
+  "/workflows": {
+    "view": "WorkflowLibraryPage",
+    "routerLine": 9,
+    "evidence": [
+      "frontend/src/router/index.tsx:9",
+      "frontend/src/pages/w2/workflow/WorkflowLibraryPage.tsx"
+    ]
+  },
+  "/workflows/new": {
+    "view": "WorkflowEditorPage",
+    "routerLine": 9,
+    "evidence": [
+      "frontend/src/router/index.tsx:9",
+      "frontend/src/pages/w5/workflow/WorkflowEditorPage.tsx"
+    ]
+  },
+  "/workflows/:id": {
+    "view": "WorkflowEditorPage",
+    "routerLine": 9,
+    "evidence": [
+      "frontend/src/router/index.tsx:9",
+      "frontend/src/pages/w5/workflow/WorkflowEditorPage.tsx"
+    ]
+  },
+  "/designs": {
+    "view": "DesignerHistoryPage",
+    "routerLine": 9,
+    "evidence": [
+      "frontend/src/router/index.tsx:9",
+      "frontend/src/pages/w2/workflow/DesignerHistoryPage.tsx"
+    ]
+  },
+  "/tasks": {
+    "view": "TasksPage",
+    "routerLine": 9,
+    "evidence": [
+      "frontend/src/router/index.tsx:9",
+      "frontend/src/pages/w2/core/TasksPage.tsx"
+    ]
+  },
+  "/inbox": {
+    "view": "InboxPage",
+    "routerLine": 9,
+    "evidence": [
+      "frontend/src/router/index.tsx:9",
+      "frontend/src/pages/w4/inbox/index.tsx"
+    ]
+  },
+  "/insights": {
+    "view": "InsightsPage",
+    "routerLine": 9,
+    "evidence": [
+      "frontend/src/router/index.tsx:9",
+      "frontend/src/pages/w2/secondary/InsightsPage.tsx"
+    ]
+  },
+  "/template-tasks": {
+    "view": "TemplateTasksPage",
+    "routerLine": 9,
+    "evidence": [
+      "frontend/src/router/index.tsx:9",
+      "frontend/src/pages/w3/templates/catalog/TemplateTasksPage.tsx"
+    ],
+    "behavior": "现行通用/Source/Document 三家族均由独立纯 TS owner 持有；W3 历史 Automations 合法读取/导出可达；写命令按原 identity/receipt 保护"
+  },
+  "/template-tasks/document-runs/:id": {
+    "view": "RunPages",
+    "routerLine": 9,
+    "evidence": [
+      "frontend/src/router/index.tsx:9",
+      "frontend/src/pages/w3/templates/runs/RunPages.tsx"
+    ]
+  },
+  "/template-tasks/source-runs/:id": {
+    "view": "RunPages",
+    "routerLine": 9,
+    "evidence": [
+      "frontend/src/router/index.tsx:9",
+      "frontend/src/pages/w3/templates/runs/RunPages.tsx"
+    ]
+  },
+  "/tasks/:id": {
+    "view": "TaskDetailPage",
+    "routerLine": 9,
+    "evidence": [
+      "frontend/src/router/index.tsx:9",
+      "frontend/src/pages/w4/task/TaskDetailPage.tsx"
+    ]
+  },
+  "/tasks/:id/recovery": {
+    "view": "RecoveryStudioPage",
+    "routerLine": 9,
+    "evidence": [
+      "frontend/src/router/index.tsx:9",
+      "frontend/src/pages/w4/recovery/RecoveryStudioPage.tsx"
+    ]
+  },
+  "/tasks/:id/design": {
+    "view": "TaskDesignHistoryPage",
+    "routerLine": 9,
+    "evidence": [
+      "frontend/src/router/index.tsx:9",
+      "frontend/src/pages/w4/history/index.tsx"
+    ]
+  },
+  "/runtime": {
+    "view": "RuntimePage",
+    "routerLine": 9,
+    "evidence": [
+      "frontend/src/router/index.tsx:9",
+      "frontend/src/pages/w2/secondary/RuntimePage.tsx"
+    ]
+  },
+  "/tools": {
+    "view": "ToolsPage",
+    "routerLine": 9,
+    "evidence": [
+      "frontend/src/router/index.tsx:9",
+      "frontend/src/pages/w2/secondary/ToolsPage.tsx"
+    ]
+  },
+  "/databases": {
+    "view": "DatabasePage",
+    "routerLine": 9,
+    "evidence": [
+      "frontend/src/router/index.tsx:9",
+      "frontend/src/pages/w2/secondary/DatabasePage.tsx"
+    ]
+  },
+  "/settings": {
+    "view": "SettingsPage",
+    "routerLine": 9,
+    "evidence": [
+      "frontend/src/router/index.tsx:9",
+      "frontend/src/pages/w2/core/SettingsPage.tsx"
+    ],
+    "behavior": "无 CAS 的原 PUT 保留原 body/unknown；跨 section 草稿与显示状态受单 owner 保护；全站固定 React，旧 runtime Vue 偏好不会复活已删除的运行时"
+  },
+  "/roles": {
+    "view": "RoleManagementPage",
+    "routerLine": 9,
+    "evidence": [
+      "frontend/src/router/index.tsx:9",
+      "frontend/src/pages/w2/roles/RoleManagementPage.tsx"
+    ]
+  },
+  "/automations": {
+    "view": "ReactRedirect",
+    "routerLine": 13,
+    "evidence": [
+      "frontend/src/router/index.tsx:13"
+    ],
+    "behavior": "唯一 React Router redirect /template-tasks；现行历史 GET/导出由 W3 HistoricalConsumers 可达；已退役的 create/start/rule/import 等写入口保持退役"
+  },
+  "/settings/roles": {
+    "view": "ReactRedirect",
+    "routerLine": 13,
+    "evidence": [
+      "frontend/src/router/index.tsx:13"
+    ]
+  },
+  "/:pathMatch(.*)*": {
+    "view": "ReactRedirect",
+    "routerLine": 13,
+    "evidence": [
+      "frontend/src/router/index.tsx:13"
+    ],
+    "path": "*"
+  }
+}

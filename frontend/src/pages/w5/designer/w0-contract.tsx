@@ -1,40 +1,33 @@
 /** Transport-only contracts. Historical entries render the production React page;
  * initial cases explicitly exercise the retained owner/UI capability, never a new production route. */
-import { useState } from 'react'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { createMemoryHistory, createRouter } from 'vue-router'
-import { defineComponent } from 'vue'
+import { mountApplicationHarness } from '@/test/applicationHarness'
+import { navigationHarness } from '@/test/navigationHarness'
+import type { W2PageProps } from '@/pages/w2/shared/types'
 import { expect, vi } from 'vitest'
 import { api } from '@/api/client'
-import { UiConfirmDialog } from '@/foundation/components'
 import { foundationDOM } from '@/pages/w2/workflow/page.test-support'
-import type { AcceptedHandoff } from '@/foundation/contracts/receipt'
-import { navigateAcceptedHandoff } from '@/foundation/contracts/receipt'
 import type { DesignerStreamEvent } from '@/types/domain'
 import { taskFixture } from '@/pages/w4/task/test-support'
 import { DesignerPage } from './DesignerPage'
 import { createDesignerController } from './controller'
-import { deferred, draft, flush, frame, mockDesigner, pageProps, session } from './test-support'
+import { deferred, draft, flush, frame, mockDesigner, session } from './test-support'
 type Context = { proof?: (caseId: string, evidence: unknown) => void }
 export async function designerW0Contract(group: string, variant: string, context: Context = {}) {
   foundationDOM(); sessionStorage.clear()
   const initial = variant.startsWith('initial') || group === 'B7.3' && variant === 'accepted-file-storage'
   const pendingQuestion = { id: 'question-A', questions: [{ question: '选择实现范围', header: '范围', multiple: false, custom: false, options: [{ label: '原答案', description: '原选择' }] }] }
   const value = session('A', group === 'B5.3' ? { state: 'COMPLETED', workflowPhase: 'COMPLETED', discussionScope: 'FINAL', finalConfirmationEligible: true } : group === 'B6.1' ? { pendingQuestions: [pendingQuestion] } : {})
-  const mocks = mockDesigner(value), harness = pageProps(), router = createRouter({ history: createMemoryHistory(), routes: ['/designer', '/away', '/tasks/:id'].map(path => ({ path, component: defineComponent({ render: () => null }) })) })
-  await router.push(initial ? '/designer' : '/designer?sessionId=A'); await router.isReady()
-  let handoff: AcceptedHandoff | undefined, confirmLeave: ((value: boolean) => void) | undefined, setConfirm: (value: boolean) => void = () => {}, mounted = true
-  const props = { ...harness.props, route: { path: '/designer', fullPath: router.currentRoute.value.fullPath, query: initial ? {} : { sessionId: 'A' }, params: {} } }
-  props.navigation.go = async to => { const failure = await router.push(to); return !failure }
-  props.navigation.goAccepted = async (to, permit) => { const destination = typeof to === 'string' ? to : to.path; handoff = permit; try { return await navigateAcceptedHandoff(permit, destination, () => props.navigation.go(to)) } finally { handoff = undefined } }
-  let owner!: ReturnType<typeof createDesignerController>
+  const mocks = mockDesigner(value)
+  let props!: W2PageProps, owner!: ReturnType<typeof createDesignerController>, mounted = true
   const focus = group === 'B7.2' ? () => document.querySelector<HTMLTextAreaElement>('#designer-message')?.focus() : undefined
-  owner = createDesignerController({ navigation: props.navigation, sessionId: initial ? undefined : 'A', historyOnly: !initial, focusComposer: focus })
-  const leave = vi.fn()
-  router.beforeEach(to => { const decision = owner.canLeave({ destination: to.fullPath, handoff }); if (decision.kind === 'BLOCK') return false; if (decision.kind === 'CONFIRM_DISCARD') { leave(); setConfirm(true); return new Promise<boolean>(resolve => { confirmLeave = resolve }) } return true })
-  function Fixture() { const [open, update] = useState(false); setConfirm = update; return <><DesignerPage {...props} historyOnly={!initial} controller={owner} /><UiConfirmDialog open={open} title="离开设计草稿？" confirmActionKey="ui.discardChanges" onCancel={() => { update(false); confirmLeave?.(false) }} onConfirm={() => { update(false); confirmLeave?.(true) }}><p>离开将丢失当前内存草稿和附件。</p></UiConfirmDialog></> }
-  let root = render(frame(<Fixture />))
-  router.afterEach((to, _from, failure) => { if (!failure && to.path === '/away' && mounted) { mounted = false; root.unmount(); owner.retire(true); const replacement = document.createElement('textarea'); replacement.id = 'designer-message'; replacement.setAttribute('aria-label', '其它页面输入'); document.body.append(replacement) } })
+  function Fixture(page:W2PageProps) { props=page; if(!owner)owner=createDesignerController({navigation:page.navigation,sessionId:initial?undefined:'A',historyOnly:!initial,focusComposer:focus});return <DesignerPage {...page} historyOnly={!initial} controller={owner}/> }
+  async function mountFixture(path:string) {return mountApplicationHarness({initialEntries:[path],routes:[{path:'/designer',Component:Fixture},{path:'/away',Component:()=> <textarea id="designer-message" aria-label="其它页面输入"/>},{path:'/tasks/:id',element:<p>已接受任务</p>}]})}
+  let root:{unmount():void}=await mountFixture(initial?'/designer':'/designer?sessionId=A')
+  let appRoot=root as Awaited<ReturnType<typeof mountApplicationHarness>>,router=navigationHarness(appRoot)
+  const leave=vi.fn();let wasOpen=false
+  const stopDialog=appRoot.application.current!.dialog.subscribe(()=>{const open=appRoot.application.current?.dialog.getSnapshot().open??false;if(open&&!wasOpen)leave();wasOpen=open})
+  appRoot.application.cleanup.add(stopDialog)
   const report = (evidence: unknown) => context.proof?.(`${group}/${variant}`, { actualReact: true, historyOnly: !initial, initialProductionReachable: false, ...evidence as object })
   const click = async (label: string) => { fireEvent.click(screen.getByRole('button', { name: label })); await flush() }
   const setMessage = (value: string) => fireEvent.change(screen.getByLabelText(initial ? '草案设计目标' : '设计消息'), { target: { value } })
@@ -84,7 +77,7 @@ export async function designerW0Contract(group: string, variant: string, context
       root.unmount(); owner.retire(true); mounted = false
       let next = 0; const pending = new Map<number, FrameRequestCallback>(), focusFrames = new Set<number>()
       vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => { const id = ++next; pending.set(id, callback); if (String(callback).includes('focusComposer')) focusFrames.add(id); return id })); vi.stubGlobal('cancelAnimationFrame', vi.fn(id => { pending.delete(id); focusFrames.delete(id) }))
-      owner = createDesignerController({ navigation: props.navigation, sessionId: 'A', historyOnly: true, focusComposer: focus }); mounted = true; root = render(frame(<DesignerPage {...props} route={{ ...props.route, query: { sessionId: 'A', mode: 'edit' } }} controller={owner} />)); await flush()
+      owner = undefined as unknown as ReturnType<typeof createDesignerController>; mounted = true; appRoot = await mountFixture('/designer?sessionId=A&mode=edit'); root=appRoot;router=navigationHarness(appRoot);await flush()
       expect(focusFrames.size).toBe(1); const frameId = [...focusFrames][0]!, late = pending.get(frameId)!; expect(String(late)).toContain('focusComposer')
       await act(async () => { await router.push('/away') }); await flush(); expect(router.currentRoute.value.path).toBe('/away'); expect(focusFrames.size).toBe(0)
       const replacement = screen.getByLabelText('其它页面输入'); expect(document.activeElement).not.toBe(replacement); late(0); expect(document.activeElement).not.toBe(replacement); report({ before: 1, firstAfter: focusFrames.size, route: router.currentRoute.value.path, actualReactRouteExit: true, lateFocusedNewPage: false })

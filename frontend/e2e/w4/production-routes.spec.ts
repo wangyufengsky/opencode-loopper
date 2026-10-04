@@ -42,7 +42,7 @@ async function startWithRunnerReady(page: Page, path: string) {
 /** Invoke the actual bridge's declared public host API, without library introspection. */
 async function disposeActualReactRoot(page: Page) {
   return page.evaluate(() => {
-    const host = document.querySelector('[data-w2-route-bridge]') as import('../../src/migration/reactViewLifecycle').ReactViewHost
+    const host = document.querySelector('[data-app-route-owner]') as import('../../src/migration/reactViewLifecycle').ReactViewHost
     const lifecycle = host?.reactViewLifecycle
     if (!lifecycle || typeof lifecycle.disposeIfSafe !== 'function') throw new Error('Public bridge lifecycle is unavailable')
     const disposed = lifecycle.disposeIfSafe()

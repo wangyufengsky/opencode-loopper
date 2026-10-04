@@ -1,6 +1,6 @@
-import { mount } from '@vue/test-utils'
+import { mount } from '@/pages/w6-tests/ordinary/render'
 import { describe, expect, it } from 'vitest'
-import MarkdownDocument from '@/components/MarkdownDocument.vue'
+import { RichDocument as MarkdownDocument } from '@/pages/w3/shared/RichDocument'
 import { knowledgeFileTarget, knowledgeLink } from './knowledgeLinks'
 
 describe('knowledge file links', () => {

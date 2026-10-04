@@ -1,18 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
+import { flushPromises, mount, type ReactTestRoot } from '@/pages/w6-tests/workflow/react-test-root'
 import { workflowRuns } from '@/api/workflowRuns'
 import { ApiError } from '@/api/client'
-import WorkflowFinish from './WorkflowFinish.vue'
+import { WorkflowFinish } from '@/pages/w6-tests/workflow/command-panels'
 import type { WorkflowFinish as Finish, WorkflowRequirementState } from '@/types/domain'
 vi.mock('@/api/workflowRuns', () => ({ workflowRuns: { finishStatus: vi.fn(), finish: vi.fn() } }))
-const api = vi.mocked(workflowRuns); let wrapper: VueWrapper | undefined
+const api = vi.mocked(workflowRuns); let wrapper: ReactTestRoot | undefined
 const status = (state: WorkflowRequirementState = 'RUNNING', decided = false): Finish => ({
   requirementId: 'req', state, version: 7, pending: { attempts: state === 'STOPPING' ? 1 : 0, resources: state === 'STOPPING' ? 2 : 0 },
   intent: decided ? { requirementId: 'req', targetState: 'COMPLETED', reason: '保留现有成果', planRevision: 2, requestedVersion: 6, requestedAt: 'now', finalizedAt: state === 'STOPPING' ? null : 'later' } : null,
 })
 beforeEach(() => { vi.resetAllMocks(); api.finishStatus.mockResolvedValue(status()); api.finish.mockResolvedValue({ id: 'req', revision: 2, version: 8, state: 'STOPPING', layoutVersion: 0 }) })
 afterEach(() => { wrapper?.unmount(); wrapper = undefined; vi.restoreAllMocks() })
-const button = (text: string) => wrapper!.findAll('button').find(node => node.text() === text)!
+const keys:Record<string,string>={'提前结束需求':'workflow.finish','确认结束需求':'workflow.confirmFinish','返回画布':'nav.back','重试原结束操作':'receipt.retryOriginal','刷新操作结果':'receipt.readOriginal'}; const button = (text:string) => wrapper!.findAll('button').find(node=>node.attributes('data-semantic')===keys[text])!
 async function render() { wrapper = mount(WorkflowFinish, { props: { requirement: 'req', version: 7, state: 'RUNNING', disabled: false } }); await flushPromises() }
 async function fill() { await button('提前结束需求').trigger('click'); await wrapper!.get('select').setValue('COMPLETED'); await wrapper!.get('textarea').setValue('用户决定保留成果') }
 describe('human requirement finish', () => {
@@ -40,7 +40,7 @@ describe('human requirement finish', () => {
   it('keeps the reason editable after a version conflict and allows explicit retry with the new observed version', async () => {
     await render(); await fill(); api.finish.mockRejectedValueOnce(new ApiError('已变化', 409, { code: 'WORKFLOW_VERSION_CONFLICT' }))
     await wrapper!.get('form').trigger('submit'); await flushPromises()
-    expect(wrapper!.get('textarea').element.value).toBe('用户决定保留成果'); expect(wrapper!.get('fieldset').attributes('disabled')).toBeUndefined()
+    expect(wrapper!.get<HTMLTextAreaElement>('textarea').element.value).toBe('用户决定保留成果'); expect(wrapper!.get('fieldset').attributes('disabled')).toBeUndefined()
     await wrapper!.setProps({ version: 9 }); await flushPromises(); api.finishStatus.mockResolvedValue(status('STOPPING', true))
     await wrapper!.get('form').trigger('submit'); await flushPromises(); expect(api.finish.mock.calls[1]![1].expectedVersion).toBe(9)
     expect(api.finish.mock.calls[1]![1].requestKey).not.toBe(api.finish.mock.calls[0]![1].requestKey)
@@ -57,7 +57,7 @@ describe('human requirement finish', () => {
   it('honors unsaved node input before opening and protects a nonempty reason on navigation', async () => {
     await render(); const guard = vi.fn().mockReturnValue(false); await wrapper!.setProps({ beforeOpen: guard })
     await button('提前结束需求').trigger('click'); expect(wrapper!.find('form').exists()).toBe(false)
-    guard.mockReturnValue(true); await fill(); vi.spyOn(window, 'confirm').mockReturnValue(false)
-    expect((wrapper!.vm as unknown as { canLeave(): boolean }).canLeave()).toBe(false)
+    guard.mockReturnValue(true); await wrapper!.setProps({ beforeOpen: guard }); await fill(); vi.spyOn(window, 'confirm').mockReturnValue(false)
+    expect((wrapper!.owners<{canLeave():{kind:string}}>()[0]!).canLeave().kind).toBe('CONFIRM_DISCARD')
   })
 })

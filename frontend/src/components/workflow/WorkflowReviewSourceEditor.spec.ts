@@ -1,7 +1,7 @@
-import { mount } from '@vue/test-utils'
+import { mount } from '@/pages/w6-tests/workflow/react-test-root'
 import { describe, expect, it } from 'vitest'
 import type { WorkflowNode } from '@/types/domain'
-import WorkflowReviewSourceEditor from './WorkflowReviewSourceEditor.vue'
+import { WorkflowReviewSourceEditor as WorkflowReviewSourceEditor } from '@/pages/w5/workflow/NodeSpecialists'
 const node = (): WorkflowNode => ({ id: 'source', title: '版本资料', kind: 'SYSTEM', moduleId: 'system.review.snapshot', moduleVersion: 1, roleId: null,
   task: '固定代码', inputs: ['branch', 'startDate', 'endDate'].map(name => ({ name, kind: 'TEXT', source: 'REQUIREMENT', sourceId: `custom_${name}`, output: null, required: true })),
   outputs: [], outcomes: [], completion: { kind: 'VERIFIED', criterion: '完整保存', expectedOutcome: null }, maxRetries: 2, pauseAfter: true, parameters: { reviewMode: 'DATE_INCREMENTAL', reviewTimeoutSeconds: '600', retained: 'keep' } })

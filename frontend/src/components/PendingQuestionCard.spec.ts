@@ -1,7 +1,6 @@
-import { flushPromises, mount } from '@vue/test-utils'
-import ElementPlus from 'element-plus'
-import { describe, expect, it } from 'vitest'
-import PendingQuestionCard from '@/components/PendingQuestionCard.vue'
+import { flushPromises, mount } from '@/pages/w6-tests/ordinary/render'
+import { describe, expect, it, vi } from 'vitest'
+import { PendingQuestion as PendingQuestionCard } from '@/pages/w5/designer/Discussion'
 import type { TaskSessionPendingQuestion } from '@/types/domain'
 
 const pending: TaskSessionPendingQuestion = {
@@ -20,14 +19,14 @@ const pending: TaskSessionPendingQuestion = {
 
 describe('PendingQuestionCard', () => {
   it('collects every answer and emits the OpenCode answer matrix', async () => {
-    const wrapper = mount(PendingQuestionCard, { props: { pending }, global: { plugins: [ElementPlus], stubs: { Icon: true } } })
+    const submit=vi.fn(); const wrapper = mount(PendingQuestionCard, {props:{pending,busy:false,submit}})
 
     await wrapper.findAll('input[type="radio"]')[0]!.setValue(true)
-    await wrapper.get('.designer-custom-answer textarea').setValue('由 Designer 决定')
+    await wrapper.get('textarea').setValue('由 Designer 决定')
     await flushPromises()
-    await wrapper.findAll('button').find((button) => button.text().includes('提交回答并继续'))!.trigger('click')
+    await wrapper.findAll('button').find((button) => button.attributes('data-semantic')==='designer.replyQuestion')!.trigger('click')
 
-    expect(wrapper.emitted('submit')).toEqual([[[['新增链路'], ['由 Designer 决定']]]])
+    expect(submit.mock.calls).toEqual([[[['新增链路'], ['由 Designer 决定']]]])
   })
 
   it('submits every recommended answer with one click and hides reject for mandatory design questions', async () => {
@@ -40,14 +39,11 @@ describe('PendingQuestionCard', () => {
           options: [{ label: '聚焦测试 (Recommended)', description: '验证当前业务行为' }, { label: '只做构建', description: '不覆盖行为' }] },
       ],
     }
-    const wrapper = mount(PendingQuestionCard, {
-      props: { pending: recommended, mandatory: true },
-      global: { plugins: [ElementPlus], stubs: { Icon: true } },
-    })
+    const submit=vi.fn(); const wrapper=mount(PendingQuestionCard,{props:{pending:recommended,busy:false,submit}})
 
     expect(wrapper.findAll('button').some((button) => button.text() === '拒绝')).toBe(false)
     await wrapper.findAll('button').find((button) => button.text().includes('采用全部推荐项'))!.trigger('click')
 
-    expect(wrapper.emitted('submit')).toEqual([[[['保持兼容（推荐）'], ['聚焦测试 (Recommended)']]]])
+    expect(submit.mock.calls).toEqual([[[['保持兼容（推荐）'], ['聚焦测试 (Recommended)']]]])
   })
 })

@@ -1,6 +1,7 @@
-import { mount } from '@vue/test-utils'
+import { mount } from '@/pages/w6-tests/ordinary/render'
 import { describe, expect, it } from 'vitest'
-import LayeredErrorPanel from '@/components/LayeredErrorPanel.vue'
+import {LayeredTaskError as LayeredErrorPanel} from '@/pages/w4/task/TaskEvidencePanels'
+import {createTaskEvidenceController} from '@/pages/w4/task/evidenceController'
 import type { ErrorEvent, JudgeRun } from '@/types/domain'
 
 const error: ErrorEvent = {
@@ -36,7 +37,7 @@ const judges: JudgeRun[] = [
 describe('LayeredErrorPanel', () => {
   it('shows a blocked Git collection as waiting instead of a terminated task', async () => {
     const wrapper = mount(LayeredErrorPanel, {
-      props: { error: { ...error, layer: 'TASK', code: 'TEMPLATE_GIT_VERSION_UNSUPPORTED', message: '模板任务需要 Git 2.30.2 或更高版本' }, taskState: 'WAITING_INPUT' },
+      props: { owner:createTaskEvidenceController('task-1'),error: { ...error, layer: 'TASK', code: 'TEMPLATE_GIT_VERSION_UNSUPPORTED', message: '模板任务需要 Git 2.30.2 或更高版本' }, taskState: 'WAITING_INPUT' },
       global: { stubs: { Icon: true } },
     })
     expect(wrapper.text()).toContain('任务等待处理')
@@ -48,7 +49,7 @@ describe('LayeredErrorPanel', () => {
 
   it('renders judge conflicts as a compact structured review summary', () => {
     const wrapper = mount(LayeredErrorPanel, {
-      props: { error, judges },
+      props: { owner:createTaskEvidenceController('task-1'),taskState:'WAITING_INPUT',error, judges },
       global: { stubs: { Icon: true } },
     })
 
@@ -64,12 +65,12 @@ describe('LayeredErrorPanel', () => {
 
   it('keeps the existing layered presentation for non-judge verification errors', () => {
     const wrapper = mount(LayeredErrorPanel, {
-      props: { error: { ...error, code: 'PROCESS_FAILED', message: '命令退出码为 1' } },
+      props: { owner:createTaskEvidenceController('task-1'),taskState:'WAITING_INPUT',error: { ...error, code: 'PROCESS_FAILED', message: '命令退出码为 1' } },
       global: { stubs: { Icon: true } },
     })
 
     expect(wrapper.find('.judge-attention-panel').exists()).toBe(false)
-    expect(wrapper.get('.error-panel-verification').text()).toContain('验证未通过')
+    expect(wrapper.get('.layer-verification').text()).toContain('验证未通过')
     expect(wrapper.text()).toContain('命令退出码为 1')
   })
 })

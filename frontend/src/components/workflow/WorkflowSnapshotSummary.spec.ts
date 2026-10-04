@@ -1,6 +1,6 @@
-import { mount } from '@vue/test-utils'
+import { mount } from '@/pages/w6-tests/workflow/react-test-root'
 import { describe, expect, it } from 'vitest'
-import WorkflowSnapshotSummary from './WorkflowSnapshotSummary.vue'
+import { WorkflowSnapshotSummary as WorkflowSnapshotSummary } from '@/pages/w5/workflow/reports'
 const planned = { version: 1, type: 'SNAPSHOT_PLAN', complete: true, unitCount: 72, excludedCount: 1, batchCount: 2, conditionalReviews: true }
 const reported = { version: 1, type: 'SNAPSHOT_DOCUMENT', complete: true, sourceCount: 72, excludedCount: 1, batchCount: 2, draftCount: 2, reviewedCount: 1, candidateCount: 1, supportedCount: 1, fileCount: 6, reviewPolicy: 'REQUIRED', targetSha: 'a'.repeat(40) }
 describe('版本审查流程汇总', () => {

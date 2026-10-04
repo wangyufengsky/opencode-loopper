@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "baseline": "2186deafdfc6d8bfbd6047ea2b3b8853a5296683",
+  "scope": "W6 retained application actions",
+  "objects": {},
+  "actions": {
+    "accounting.cancel": {
+      "label": "取消本次统计，继续任务",
+      "name": "取消本次故事点统计并继续任务",
+      "icon": "circle-x",
+      "intent": "accounting.cancel",
+      "scope": "command",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "仅用户显式触发原故事点统计API，关闭不等于取消"
+    },
+    "accounting.retry": {
+      "label": "重新发起",
+      "name": "重新发起故事点统计",
+      "icon": "rotate-ccw",
+      "intent": "accounting.retry",
+      "scope": "command",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "仅用户显式触发原故事点统计API，关闭不等于取消"
+    },
+    "session.refreshSnapshot": {
+      "label": "刷新快照",
+      "name": "刷新快照",
+      "icon": "refresh-cw",
+      "intent": "session.refreshSnapshot",
+      "scope": "read",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原SessionLifecycle合法API，用户显式操作；unknown保留原身份，仅合法GET核对，不自动重复write"
+    },
+    "session.syncTodos": {
+      "label": "同步真实 todo",
+      "name": "同步真实 todo",
+      "icon": "list-checks",
+      "intent": "session.syncTodos",
+      "scope": "command",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原SessionLifecycle合法API，用户显式操作；unknown保留原身份，仅合法GET核对，不自动重复write"
+    },
+    "session.createCheckpoint": {
+      "label": "创建 checkpoint",
+      "name": "创建 checkpoint",
+      "icon": "bookmark-plus",
+      "intent": "session.createCheckpoint",
+      "scope": "command",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原SessionLifecycle合法API，用户显式操作；unknown保留原身份，仅合法GET核对，不自动重复write"
+    },
+    "session.forkTranscript": {
+      "label": "分叉会话记录",
+      "name": "分叉会话记录",
+      "icon": "git-fork",
+      "intent": "session.forkTranscript",
+      "scope": "command",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原SessionLifecycle合法API，用户显式操作；unknown保留原身份，仅合法GET核对，不自动重复write"
+    },
+    "session.revertWorktree": {
+      "label": "回退 worktree",
+      "name": "回退 worktree",
+      "icon": "undo-2",
+      "intent": "session.revertWorktree",
+      "scope": "command",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原SessionLifecycle合法API，用户显式操作；unknown保留原身份，仅合法GET核对，不自动重复write"
+    },
+    "session.requestSummary": {
+      "label": "请求总结",
+      "name": "请求总结",
+      "icon": "file-text",
+      "intent": "session.requestSummary",
+      "scope": "command",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "原SessionLifecycle合法API，用户显式操作；unknown保留原身份，仅合法GET核对，不自动重复write"
+    },
+    "accounting.dismiss": {
+      "label": "关闭统计结果",
+      "name": "关闭统计结果",
+      "icon": "x",
+      "intent": "accounting.dismiss",
+      "scope": "command",
+      "guard": [
+        "PRESERVE_OWNER"
+      ],
+      "behavior": "仅显式关闭已结束统计的合法dismiss；不关闭或停止活动统计"
+    }
+  }
+}

@@ -1,11 +1,11 @@
-import { mount } from '@vue/test-utils'
+import { mount } from '@/pages/w6-tests/workflow/react-test-root'
 import { describe, expect, it } from 'vitest'
 import type { WorkflowNode } from '@/types/domain'
 import { newNode } from './graph'
-import WorkflowNodeEditor from './WorkflowNodeEditor.vue'
+import { WorkflowNodeEditor as WorkflowNodeEditor } from '@/pages/w5/workflow/WorkflowNodeEditor'
 function render(moduleId: string, disabled = false) {
   const node = { ...newNode('free.readonly'), moduleId, parameters: { retained: 'keep' }, outputs: [{ name: 'analysis', title: '历史分析', kind: 'JSON' as const, required: true }] }
-  return mount(WorkflowNodeEditor, { props: { node, disabled, graph: { schemaVersion: 1, nodes: [node], edges: [], inputs: [] } }, global: { stubs: { WorkflowRolePicker: true } } })
+  return mount(WorkflowNodeEditor, { props: { node, disabled, graph: { schemaVersion: 1, nodes: [node], edges: [], inputs: [] } } })
 }
 describe('历史专业节点配置', () => {
   it('使用可读批次序号并保留其他参数，交付物与完成语义保持专业合同', async () => {

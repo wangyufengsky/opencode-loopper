@@ -1,13 +1,15 @@
-import { flushPromises, mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@/pages/w6-tests/ordinary/render'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/api/client'
-import GitCredentialForm from './GitCredentialForm.vue'
+import { CredentialsForm } from '@/pages/w2/core/CredentialsForm'
+import { createCredentialsController } from '@/pages/w2/core/credentialsController'
 import type { GitCredentialView } from '@/types/domain'
 
 const global: GitCredentialView = { mode: 'CUSTOM', serverUrl: 'https://gitlab.example', username: 'shared', kind: 'TOKEN', configured: true, source: 'GLOBAL', version: 2, updatedAt: null }
-const render = (projectId?: string) => mount(GitCredentialForm, { props: { projectId } })
+const owners: ReturnType<typeof createCredentialsController>[]=[]
+const render = (projectId?: string) => { const owner=createCredentialsController(projectId,false);owners.push(owner);return mount(CredentialsForm,{props:{owner}}) }
 const button = (wrapper: ReturnType<typeof render>, label: string) => wrapper.findAll('button').find(b => b.text() === label)!
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {owners.splice(0).forEach(owner=>owner.retire(true));vi.restoreAllMocks()})
 describe('Git credentials', () => {
   it('loads the global account without a password and preserves it when left empty', async () => {
     vi.spyOn(api, 'gitCredentials').mockResolvedValue(global)
@@ -25,7 +27,7 @@ describe('Git credentials', () => {
     const wrapper = render('project-1'); await flushPromises()
     expect(wrapper.text()).toContain('全局账号：shared')
     expect(wrapper.find('input[aria-label="Git 密码或令牌"]').exists()).toBe(false)
-    await wrapper.get('input[value="CUSTOM"]').setValue(true)
+    await wrapper.get('select[aria-label="Git 账号来源"]').setValue('CUSTOM')
     await wrapper.get('input[aria-label="Git 用户名"]').setValue('own')
     await wrapper.get('input[aria-label="Git 密码或令牌"]').setValue('synthetic-test-token')
     await button(wrapper, '保存 Git 账号').trigger('click'); await flushPromises()
@@ -53,7 +55,7 @@ describe('Git credentials', () => {
     const wrapper = render(); await flushPromises()
     await button(wrapper, '验证连接').trigger('click'); await flushPromises()
     expect(wrapper.find('el-alert').exists()).toBe(false)
-    expect(wrapper.get('.el-alert__title').text()).toContain('Git 认证失败'); expect(wrapper.text()).not.toContain('Git 账号已保存')
+    expect(wrapper.get('.ant-alert-title').text()).toContain('Git 认证失败'); expect(wrapper.text()).not.toContain('Git 账号已保存')
     wrapper.unmount()
   })
 })

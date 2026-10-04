@@ -26,8 +26,8 @@ async function mockPreviews(page: Page, deck: PptDeck) {
   }, deck)
   return new Map(images.map(image => [image.id, Buffer.from(image.base64, 'base64')]))
 }
-export async function pptProductFixture(page: Page, options: { phase?: PptDocument['phase']; write?: (route: Route, state: { document: PptDocument; deck: PptDeck; messages: PptMessage[] }) => Promise<void> } = {}) {
-  const base = await productFixture(page), requests: { method: string; path: string; body: string | null }[] = [], unexpected: string[] = []
+export async function pptProductFixture(page: Page, options: { phase?: PptDocument['phase']; base?: Awaited<ReturnType<typeof productFixture>>; write?: (route: Route, state: { document: PptDocument; deck: PptDeck; messages: PptMessage[] }) => Promise<void> } = {}) {
+  const base = options.base ?? await productFixture(page), requests: { method: string; path: string; body: string | null }[] = [], unexpected: string[] = []
   const state = { document: { ...pptDocument, ...(options.phase ? { phase: options.phase } : {}) }, deck: pptDeck(), messages: [] as PptMessage[] }
   const previews = await mockPreviews(page, state.deck)
   const jobs: PptJob[] = [{ id: 'preview-3', documentId: pptDocument.id, kind: 'PREVIEW', revision: 3, slideId: null, state: 'COMPLETED', completed: 2, total: 2, detail: '', artifacts: state.deck.slides.map(slide => ({ id: `png-${slide.id}`, slideId: slide.id, name: `${slide.title}.png`, mediaType: 'image/png', url: 'https://invalid.external/ignored' })), createdAt: '2026-10-03T00:00:00Z' }]

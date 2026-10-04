@@ -1,45 +1,34 @@
-import { flushPromises, mount } from '@vue/test-utils'
-import ElementPlus from 'element-plus'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/api/client'
 import type { Project } from '@/types/domain'
-import ProjectDocumentPathDialog from './ProjectDocumentPathDialog.vue'
+import { createProjectsController } from '@/pages/w2/core/projectsController'
+import { coreFixture } from '@/pages/w2/core/coreTestHelpers'
 
 afterEach(() => vi.restoreAllMocks())
-const project: Project = { id: 'p', name: '项目', rootPath: '/project', status: 'READY', documentPath: '/project/docs',
-  updatedAt: '', version: 4, taskCount: 0, openDesignerSessionCount: 0 }
+const project: Project = { id: 'p', name: '项目', rootPath: '/project', status: 'READY', documentPath: '/project/docs', updatedAt: '', version: 4, taskCount: 0, openDesignerSessionCount: 0 }
+function setup(){const f=coreFixture({projects:[project]}),owner=createProjectsController(f.port);owner.open('document',project);return {owner,port:f.port}}
 describe('Project document path', () => {
   it('saves the directory selected through the system picker', async () => {
     vi.spyOn(api, 'pickProjectDirectory').mockResolvedValue({ selected: true, path: '/tmp/selected reports' })
     const save = vi.spyOn(api, 'updateProjectDocumentPath').mockResolvedValue({ ...project, documentPath: '/tmp/selected reports', version: 5 })
-    const wrapper = mount(ProjectDocumentPathDialog, { props: { project }, global: { plugins: [ElementPlus], stubs: { teleport: true } } })
-    await flushPromises()
-    await wrapper.get('button[aria-label="选择项目文档路径文件夹"]').trigger('click'); await flushPromises()
-    await wrapper.findAll('button').find(item => item.text() === '保存')!.trigger('click'); await flushPromises()
+    const {owner}=setup();await owner.pick('documentPath');await owner.saveDocument()
     expect(save).toHaveBeenCalledWith('p', '/tmp/selected reports', 4)
-    wrapper.unmount()
+    owner.retire(true)
   })
   it('saves a changed default with its loaded version and updates the project card', async () => {
     const save = vi.spyOn(api, 'updateProjectDocumentPath').mockResolvedValue({ ...project, documentPath: '/project/reports', version: 5 })
-    const wrapper = mount(ProjectDocumentPathDialog, { props: { project }, global: { plugins: [ElementPlus], stubs: { teleport: true } } })
-    await flushPromises()
-    await wrapper.get('input[aria-label="项目文档路径"]').setValue('reports')
-    await flushPromises()
-    await wrapper.findAll('button').find(item => item.text() === '保存')!.trigger('click')
-    await flushPromises()
+    const {owner,port}=setup();owner.changeDocument('reports');await owner.saveDocument()
     expect(save).toHaveBeenCalledWith('p', 'reports', 4)
-    expect(wrapper.emitted('saved')?.[0]?.[0]).toMatchObject({ documentPath: '/project/reports', version: 5 })
-    expect(wrapper.emitted('close')).toHaveLength(1)
-    wrapper.unmount()
+    expect(port.replaceProject).toHaveBeenCalledWith(expect.objectContaining({documentPath:'/project/reports',version:5}))
+    expect(owner.getSnapshot().context).toBeUndefined()
+    owner.retire(true)
   })
   it('keeps the form open after a version conflict', async () => {
     vi.spyOn(api, 'updateProjectDocumentPath').mockRejectedValue(new Error('项目设置已更新，请刷新后重试'))
-    const wrapper = mount(ProjectDocumentPathDialog, { props: { project }, global: { plugins: [ElementPlus], stubs: { teleport: true } } })
-    await flushPromises()
-    await wrapper.findAll('button').find(item => item.text() === '保存')!.trigger('click')
-    await flushPromises()
-    expect(wrapper.text()).toContain('项目设置已更新，请刷新后重试')
-    expect(wrapper.emitted('close')).toBeUndefined()
-    wrapper.unmount()
+    const {owner}=setup();await owner.saveDocument()
+    expect(owner.getSnapshot().error).toContain('项目设置已更新，请刷新后重试')
+    expect(owner.getSnapshot().context).toBe('document')
+    expect(owner.canLeave().kind).toBe('BLOCK')
+    owner.retire(true)
   })
 })

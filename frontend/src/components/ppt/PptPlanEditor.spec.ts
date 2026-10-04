@@ -1,111 +1,16 @@
-import { mount } from '@vue/test-utils'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import PptPlanEditor from './PptPlanEditor.vue'
-import { pptCapabilities, pptPlan } from './pptTestFixtures'
-describe('PPT plan editing', () => {
-  beforeEach(() => {
-    sessionStorage.clear()
-  })
-  afterEach(() => {
-    vi.useRealTimers()
-  })
-  it('loads confirmed requirements and preserves unsaved input across a conflicting revision', async () => {
-    const wrapper = mount(PptPlanEditor, {
-      props: {
-        plan: pptPlan(),
-        revision: 3,
-        capabilities: pptCapabilities(),
-      },
-    })
-    const audience = wrapper.findAll('input')[0]!
-    expect((audience.element as HTMLInputElement).value).toBe('管理层')
-    await audience.setValue('产品团队')
-    await wrapper.setProps({
-      revision: 4,
-      plan: {
-        ...pptPlan(),
-        brief: {
-          ...pptPlan().brief,
-          audience: '最新受众',
-        },
-      },
-    })
-    expect((audience.element as HTMLInputElement).value).toBe('产品团队')
-    expect(wrapper.text()).toContain('当前输入已保留')
-    expect(wrapper.get('button.ppt-primary').attributes('disabled')).toBeDefined()
-    await wrapper.get('.ppt-notice button').trigger('click')
-    expect((audience.element as HTMLInputElement).value).toBe('最新受众')
-    wrapper.unmount()
-  })
-  it('autosaves after editing pauses, preserves unknown fields, and never confirms a phase', async () => {
-    vi.useFakeTimers()
-    const plan = {
-      ...pptPlan(),
-      customPolicy: {
-        retained: true,
-      },
-      delivery: {
-        fileName: '汇报.pptx',
-        targetSoftware: 'WPS',
-        includeNotes: false,
-        customHint: '保留',
-      },
-    }
-    const wrapper = mount(PptPlanEditor, {
-      props: {
-        plan,
-        documentId: 'autosave',
-        revision: 3,
-        capabilities: pptCapabilities(),
-      },
-    })
-    await wrapper.findAll('input')[0]!.setValue('业务部门')
-    await vi.advanceTimersByTimeAsync(899)
-    expect(wrapper.emitted('save')).toBeUndefined()
-    await vi.advanceTimersByTimeAsync(1)
-    const [saved, revision] = wrapper.emitted('save')![0]!
-    expect(saved).toMatchObject({
-      customPolicy: {
-        retained: true,
-      },
-      delivery: {
-        includeNotes: false,
-        customHint: '保留',
-      },
-      brief: {
-        audience: '业务部门',
-      },
-    })
-    expect(revision).toBe(3)
-    await vi.advanceTimersByTimeAsync(5000)
-    expect(wrapper.emitted('save')).toHaveLength(1)
-    expect(Object.keys(wrapper.emitted()).filter((name) => name.includes('confirm'))).toEqual([])
-    wrapper.unmount()
-  })
-  it('restores an unsaved edit after remount without overwriting a newer server plan', async () => {
-    vi.useFakeTimers()
-    const wrapper = mount(PptPlanEditor, {
-      props: {
-        plan: pptPlan(),
-        documentId: 'restore',
-        revision: 3,
-        capabilities: pptCapabilities(),
-      },
-    })
-    await wrapper.findAll('input')[0]!.setValue('本地草稿')
-    wrapper.unmount()
-    const restored = mount(PptPlanEditor, {
-      props: {
-        plan: pptPlan(),
-        documentId: 'restore',
-        revision: 4,
-        capabilities: pptCapabilities(),
-      },
-    })
-    expect((restored.findAll('input')[0]!.element as HTMLInputElement).value).toBe('本地草稿')
-    await vi.advanceTimersByTimeAsync(2000)
-    expect(restored.emitted('save')).toBeUndefined()
-    expect(restored.text()).toContain('自动保存已暂停')
-    restored.unmount()
-  })
+import { afterEach,beforeEach,describe,expect,it,vi } from 'vitest'
+import { pptApi } from '@/api/ppt'
+import { createPptStudioController } from '@/pages/w3/ppt/controller'
+import { studioFixture } from '@/pages/w3/ppt/testFixture'
+import { PlanProjection } from '@/pages/w6-tests/knowledge-ppt-template/ppt-react'
+import { flushPromises,mount } from '@/pages/w6-tests/knowledge-ppt-template/react-test-root'
+import { pptPlan } from './pptTestFixtures'
+const owners:ReturnType<typeof createPptStudioController>[]=[]
+async function create(id='doc'){const f=studioFixture(id);f.setDocument({phase:'DIRECTION'});const owner=createPptStudioController(id);owners.push(owner);await owner.start();return {owner,f}}
+beforeEach(()=>sessionStorage.clear())
+afterEach(()=>{owners.splice(0).forEach(owner=>owner.retire(true));vi.useRealTimers();vi.restoreAllMocks()})
+describe('PPT plan editing',()=>{
+ it('loads confirmed requirements and preserves unsaved input across a conflicting revision',async()=>{const {owner,f}=await create();const w=mount(PlanProjection,{props:{owner}}),audience=w.findAll('input')[0]!;expect((audience.element as HTMLInputElement).value).toBe('管理层');await audience.setValue('产品团队');f.setDocument({revision:4});f.getPlan.mockResolvedValue({revision:4,plan:{...pptPlan(),brief:{...pptPlan().brief,audience:'最新受众'}}});await owner.refresh();await flushPromises();expect((audience.element as HTMLInputElement).value).toBe('产品团队');expect(w.text()).toContain('当前输入已保留');expect(w.get('[data-semantic="ppt.savePlan"]').attributes('disabled')).toBeDefined();await w.get('[data-semantic="ui.refresh"]').trigger('click');expect((audience.element as HTMLInputElement).value).toBe('最新受众')})
+ it('autosaves after editing pauses, preserves unknown fields, and never confirms a phase',async()=>{vi.useFakeTimers();const {owner,f}=await create('autosave');const plan={...pptPlan(),customPolicy:{retained:true},delivery:{fileName:'汇报.pptx',targetSoftware:'WPS',includeNotes:false,customHint:'保留'}};f.getPlan.mockResolvedValue({revision:3,plan});await owner.refresh();const confirm=vi.spyOn(pptApi,'confirmGeneration');const w=mount(PlanProjection,{props:{owner}});await w.findAll('input')[0]!.setValue('业务部门');await vi.advanceTimersByTimeAsync(899);expect(pptApi.savePlan).not.toHaveBeenCalled();await vi.advanceTimersByTimeAsync(1);await flushPromises();const [id,revision,saved]=vi.mocked(pptApi.savePlan).mock.calls[0]!;expect(id).toBe('autosave');expect(saved).toMatchObject({customPolicy:{retained:true},delivery:{includeNotes:false,customHint:'保留'},brief:{audience:'业务部门'}});expect(revision).toBe(3);await vi.advanceTimersByTimeAsync(5000);expect(pptApi.savePlan).toHaveBeenCalledTimes(1);expect(confirm).not.toHaveBeenCalled()})
+ it('restores an unsaved edit after remount without overwriting a newer server plan',async()=>{vi.useFakeTimers();const first=await create('restore'),w=mount(PlanProjection,{props:{owner:first.owner}});await w.findAll('input')[0]!.setValue('本地草稿');w.unmount();first.owner.retire(true);const {owner,f}=await create('restore');f.setDocument({revision:4});await owner.refresh();const restored=mount(PlanProjection,{props:{owner}});expect((restored.findAll('input')[0]!.element as HTMLInputElement).value).toBe('本地草稿');await vi.advanceTimersByTimeAsync(2000);expect(pptApi.savePlan).not.toHaveBeenCalled();expect(restored.text()).toContain('自动保存已暂停')})
 })

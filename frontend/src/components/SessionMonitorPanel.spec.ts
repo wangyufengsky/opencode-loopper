@@ -1,7 +1,6 @@
-import { flushPromises, mount } from '@vue/test-utils'
-import ElementPlus from 'element-plus'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import SessionMonitorPanel from '@/components/SessionMonitorPanel.vue'
+import {flushPromises,mountPanel,taskFixture} from '@/pages/w6-tests/ordinary/task'
+import { afterEach,beforeEach, describe, expect, it, vi } from 'vitest'
+import {SessionMonitorPanel} from '@/pages/w4/task/SessionMonitorPanel'
 import { api } from '@/api/client'
 import type { TaskSessionActivity, TaskSessionSummary } from '@/types/domain'
 
@@ -17,6 +16,7 @@ function activity(parts: TaskSessionActivity['parts'], pendingQuestions: TaskSes
     usage: { totalTokens: 96, unknownUsageCount: 0, observedAt: '2026-08-04T08:00:00Z' } }
 }
 
+beforeEach(()=>{vi.spyOn(api,'getTaskSessionTodos').mockResolvedValue([]);vi.spyOn(api,'getTaskSessionCheckpoints').mockResolvedValue([])})
 afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers() })
 
 describe('SessionMonitorPanel', () => {
@@ -24,25 +24,24 @@ describe('SessionMonitorPanel', () => {
     vi.useFakeTimers()
     const nextSession = { ...session, key: 'execution:local-2', localSessionId: 'local-2', externalSessionId: 'remote-2' }
     vi.spyOn(api, 'getTaskSessions').mockResolvedValue([session, nextSession])
-    vi.spyOn(api, 'getTaskSessionActivity').mockResolvedValue(activity([]))
+    vi.spyOn(api, 'getTaskSessionActivity').mockImplementation(async (_id,key)=>({...activity([]),session:key===session.key?session:{...session,key,localSessionId:key.slice(key.indexOf(':')+1)}}))
     const getRole = vi.spyOn(api, 'getTaskSessionRole').mockResolvedValue({ configured: false, roleId: null,
       revisionId: null, revisionSha256: null, slot: null, adapterProfile: null, adapterVersion: null,
       permissions: [], permissionSha256: null })
-    const wrapper = mount(SessionMonitorPanel, { props: { taskId: 'task-1' },
-      global: { plugins: [ElementPlus], stubs: { Icon: true, TemplateSessionDiagnosticsPanel: true } } })
+    const wrapper = mountPanel(SessionMonitorPanel,taskFixture('task-1'),{}).view
     await flushPromises()
     expect(getRole).not.toHaveBeenCalled()
-    await wrapper.get('.session-role-toggle').trigger('click')
+    await wrapper.get('.w4-role-summary button').trigger('click')
     await flushPromises()
     expect(getRole).toHaveBeenCalledWith('task-1', 'execution:local-1')
     await vi.advanceTimersByTimeAsync(1200)
     await flushPromises()
     expect(getRole).toHaveBeenCalledTimes(1)
-    await wrapper.findAll('.session-option')[1]!.trigger('click')
+    await wrapper.findAll('[aria-label="会话列表"] button')[1]!.trigger('click')
     await flushPromises()
-    expect(wrapper.get('.session-role-toggle').attributes('aria-expanded')).toBe('false')
+    expect(wrapper.get('.w4-role-summary button').attributes('aria-expanded')).toBe('false')
     expect(getRole).toHaveBeenCalledTimes(1)
-    await wrapper.get('.session-role-toggle').trigger('click')
+    await wrapper.get('.w4-role-summary button').trigger('click')
     await flushPromises()
     expect(getRole).toHaveBeenLastCalledWith('task-1', 'execution:local-2')
     wrapper.unmount()
@@ -53,13 +52,13 @@ describe('SessionMonitorPanel', () => {
     const target = { ...session, key: 'execution:local-12', localSessionId: 'local-12', externalSessionId: 'ses_remote-12',
       templateBatch: { purpose: 'SNAPSHOT_LINKS', ordinal: 12, total: null, overallOrdinal: null, overallTotal: null, repairRound: 0, cleanup: false } }
     vi.spyOn(api, 'getTaskSessions').mockResolvedValue([session, target])
-    vi.spyOn(api, 'getTaskSessionActivity').mockResolvedValue(activity([]))
-    const wrapper = mount(SessionMonitorPanel, { props: { taskId: 'task-1', templateTask: true, taskStatus: 'RUNNING' }, global: { plugins: [ElementPlus], stubs: { Icon: true, TemplateSessionDiagnosticsPanel: true } } })
+    vi.spyOn(api, 'getTaskSessionActivity').mockImplementation(async (_id,key)=>({...activity([]),session:key===session.key?session:{...session,key,localSessionId:key.slice(key.indexOf(':')+1)}}))
+    const wrapper = mountPanel(SessionMonitorPanel,taskFixture('task-1'),{}).view
     await flushPromises()
-    wrapper.findComponent({ name: 'TemplateSessionDiagnosticsPanel' }).vm.$emit('select', target.key)
+    await wrapper.findAll('[aria-label="会话列表"] button')[1]!.trigger('click')
     await flushPromises()
     expect(api.getTaskSessionActivity).toHaveBeenLastCalledWith('task-1', 'execution:local-12')
-    expect(wrapper.find('.session-option.selected').text()).toContain('第 12 批')
+    expect(wrapper.find('[aria-label="会话列表"] button[aria-pressed=true]').text()).toContain('第 12 批')
     wrapper.unmount()
   })
 
@@ -73,7 +72,7 @@ describe('SessionMonitorPanel', () => {
         { id: 'reason-1', type: 'THINKING', label: 'Thinking', content: '正在检查项目', status: 'completed' },
         { id: 'text-1', type: 'OUTPUT', label: '模型输出', content: '开始实现动态面板' },
       ]))
-    const wrapper = mount(SessionMonitorPanel, { props: { taskId: 'task-1' }, global: { plugins: [ElementPlus], stubs: { Icon: true, TemplateSessionDiagnosticsPanel: true } } })
+    const wrapper = mountPanel(SessionMonitorPanel,taskFixture('task-1'),{}).view
     await flushPromises()
 
     expect(wrapper.find('[aria-label="等待会话更新"]').exists()).toBe(true)
@@ -87,7 +86,7 @@ describe('SessionMonitorPanel', () => {
     expect(wrapper.text()).toContain('思考')
     expect(wrapper.text()).not.toContain('Implementation Session')
     expect(wrapper.find('time[datetime="2026-08-04T08:00:01Z"]').exists()).toBe(true)
-    expect(wrapper.find('.console-stream').element.lastElementChild?.getAttribute('aria-label')).toBe('等待会话更新')
+    expect(wrapper.find('.w4-output-scroll').element?.lastElementChild?.getAttribute('aria-label')).toBe('等待会话更新')
 
     await vi.advanceTimersByTimeAsync(1200)
     await flushPromises()
@@ -110,17 +109,17 @@ describe('SessionMonitorPanel', () => {
       status: 'completed',
     }]))
 
-    const wrapper = mount(SessionMonitorPanel, { props: { taskId: 'task-1' }, global: { plugins: [ElementPlus], stubs: { Icon: true, TemplateSessionDiagnosticsPanel: true } } })
+    const wrapper = mountPanel(SessionMonitorPanel,taskFixture('task-1'),{}).view
     await flushPromises()
 
-    expect(wrapper.get('.activity-part pre').classes()).toContain('is-collapsed')
-    const toggle = wrapper.get('.part-expand-button')
-    expect(toggle.text()).toContain('展开完整输出')
+    expect(wrapper.get('.w4-activity pre').classes()).not.toContain('is-expanded')
+    const toggle = wrapper.get('.w4-activity button')
+    expect(toggle.attributes('data-semantic')).toBe('ui.expand')
     expect(toggle.attributes('aria-expanded')).toBe('false')
 
     await toggle.trigger('click')
-    expect(wrapper.get('.activity-part pre').classes()).not.toContain('is-collapsed')
-    expect(toggle.text()).toContain('收起输出')
+    expect(wrapper.get('.w4-activity pre').classes()).toContain('is-expanded')
+    expect(toggle.attributes('data-semantic')).toBe('ui.collapse')
     expect(toggle.attributes('aria-expanded')).toBe('true')
     wrapper.unmount()
   })
@@ -136,25 +135,25 @@ describe('SessionMonitorPanel', () => {
       todoTruncated: true,
     })
 
-    const wrapper = mount(SessionMonitorPanel, { props: { taskId: 'task-1' }, global: { plugins: [ElementPlus], stubs: { Icon: true, TemplateSessionDiagnosticsPanel: true } } })
+    const wrapper = mountPanel(SessionMonitorPanel,taskFixture('task-1'),{}).view
     await flushPromises()
 
-    const panel = wrapper.get('[aria-label="OpenCode 实施计划"]')
-    expect(wrapper.get('.session-console').classes()).toContain('has-todo-dock')
-    expect(panel.element.parentElement?.classList.contains('todo-dock')).toBe(true)
-    expect(panel.element.closest('.console-stream')).toBeNull()
+    const panel = wrapper.get('[aria-label="实施计划"]')
+    expect(panel.element?.closest('.w4-output-scroll')).toBeNull()
+    expect(panel.element?.parentElement?.querySelector('.w4-output-scroll')).toBeTruthy()
+    expect(panel.element?.closest('.w4-output-scroll')).toBeNull()
     expect(panel.classes()).not.toContain('todo-panel-pinned')
-    expect(panel.text()).toContain('OpenCode 实施进度')
-    expect(panel.text()).toContain('当前阶段的非权威执行清单')
+    expect(panel.text()).toContain('实施计划')
+    expect(panel.attributes('data-todo-authority')).toBe('projection');expect(panel.text()).toContain('任务与阶段以服务端状态为准')
     expect(panel.text()).toContain('0 / 2')
     expect(panel.text()).toContain('实现 Todo 同步')
     expect(panel.text()).toContain('进行中 · 高优先级')
     expect(panel.text()).not.toContain('IN_PROGRESS')
-    const toggle = panel.get('.todo-toggle')
+    const toggle = panel.get('button');expect(toggle.attributes('aria-expanded')).toBe('false');await toggle.trigger('click')
     expect(toggle.attributes('aria-expanded')).toBe('true')
     await toggle.trigger('click')
     expect(toggle.attributes('aria-expanded')).toBe('false')
-    expect(panel.find('.todo-list').exists()).toBe(false)
+    expect(panel.find('.w4-todo-list').exists()).toBe(false)
     wrapper.unmount()
   })
 
@@ -164,10 +163,10 @@ describe('SessionMonitorPanel', () => {
       id: 'output-1', type: 'OUTPUT', label: '模型输出', content: '正在按计划实现', status: 'running',
     }]))
 
-    const wrapper = mount(SessionMonitorPanel, { props: { taskId: 'task-1' }, global: { plugins: [ElementPlus], stubs: { Icon: true, TemplateSessionDiagnosticsPanel: true } } })
+    const wrapper = mountPanel(SessionMonitorPanel,taskFixture('task-1'),{}).view
     await flushPromises()
 
-    const monitorStyle = (wrapper.get('.session-monitor').element as HTMLElement).style
+    const monitorStyle = (wrapper.get('.w4-session-monitor').element as HTMLElement).style
     expect(monitorStyle.getPropertyValue('--model-output-min-height')).toBe('500px')
     expect(monitorStyle.getPropertyValue('--model-output-max-height')).toBe('680px')
     wrapper.unmount()
@@ -188,16 +187,16 @@ describe('SessionMonitorPanel', () => {
     }]))
     const reply = vi.spyOn(api, 'replyTaskSessionQuestion').mockResolvedValue(undefined)
 
-    const wrapper = mount(SessionMonitorPanel, { props: { taskId: 'task-1' }, global: { plugins: [ElementPlus], stubs: { Icon: true, TemplateSessionDiagnosticsPanel: true } } })
+    const wrapper = mountPanel(SessionMonitorPanel,taskFixture('task-1'),{}).view
     await flushPromises()
 
-    expect(wrapper.get('[aria-label="OpenCode 等待回答"]').text()).toContain('整体编译被历史问题阻塞')
-    expect(wrapper.get('.session-console').classes()).not.toContain('has-todo-dock')
-    const todoPanel = wrapper.get('[aria-label="OpenCode 实施计划"]')
-    expect(todoPanel.element.closest('.console-stream')).not.toBeNull()
+    expect(wrapper.get('[aria-label="待回答问题"]').text()).toContain('整体编译被历史问题阻塞')
+    expect(wrapper.get('[aria-label="实施计划"]').element?.closest('.w4-output-scroll')).toBeTruthy()
+    const todoPanel = wrapper.get('[aria-label="实施计划"]')
+    expect(todoPanel.element.closest('.w4-output-scroll')).not.toBeNull()
     expect(todoPanel.classes()).not.toContain('todo-panel-pinned')
     await wrapper.find('input[type="radio"]').setValue(true)
-    const submit = wrapper.findAll('button').find((button) => button.text().includes('提交回答并继续'))
+    const submit = wrapper.findAll('button').find((button) => button.attributes('data-semantic')==='inbox.answer')
     expect(submit).toBeDefined()
     await submit!.trigger('click')
     await flushPromises()

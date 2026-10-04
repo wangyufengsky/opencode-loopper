@@ -1,0 +1,3050 @@
+{
+  "baseline": "2186deafdfc6d8bfbd6047ea2b3b8853a5296683",
+  "removedFiles": 211,
+  "removedSFC": 189,
+  "files": [
+    {
+      "removed": "frontend/e2e/fixtures/SkinsPreview.vue",
+      "baselineSHA256": "7fccc659adc300c8cbd525f6bef275b605a85f37907b1c72a467d787006728a5",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/e2e/fixtures/skins.ts",
+      "baselineSHA256": "528554477ecd563e266e94514f1f835cd2fef64462528948b9832c663cefe058",
+      "retainedTests": [
+        "frontend/src/themes/skins.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/App.vue",
+      "baselineSHA256": "a7fa2977b6a94c0684602f677ec877bd964931a3cb3e9a565d7f526ace6167c2",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/AiActivityPanel.vue",
+      "baselineSHA256": "1f4b40618ef99d1d908e4aff160f6e6ef0fa9576127bfba49ead3bbf3e46a230",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/AppSidebar.vue",
+      "baselineSHA256": "33f9c121b36e617275e50b87f96e48bf1c11b5ca5ae9860c5a172d2562428cd0",
+      "retainedTests": [
+        "frontend/src/components/AppSidebar.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/ArtifactAssertionEditor.vue",
+      "baselineSHA256": "4d737c6d446e789bb0e33eb9a7ac781350e1e06f66d812fc710381529fb06521",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/AssistantActivity.vue",
+      "baselineSHA256": "a9ed2022b28ed7c70a490e91423f7039fd5f3d1116a911dd00e99c871c9c7a4d",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/AttemptTimeline.vue",
+      "baselineSHA256": "c492a1d3a3ba89266623d29be5c230d451537ff50173fe688f0fa5d19979176d",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/AutomationHealth.vue",
+      "baselineSHA256": "2a0e04a4a6a45107d746c70cc5e8c10b261d889d19c823352334916441711fea",
+      "retainedTests": [
+        "frontend/src/components/AutomationHealth.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/CodeMergeEditor.vue",
+      "baselineSHA256": "6614411e68423ca4e81b2d5f667e5ef013f14c44122c41a29b03c5819196ea32",
+      "retainedTests": [
+        "frontend/src/components/CodeMergeEditor.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/DatabaseConnectionDrawer.vue",
+      "baselineSHA256": "984180ce41b98816ce4caf39116df9ce0e6d4d67b69adcb06943be60c190c85d",
+      "retainedTests": [
+        "frontend/src/components/DatabaseConnectionDrawer.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/DesignerCurrentActivity.vue",
+      "baselineSHA256": "f01dd89dbb3e205b86208efe26a7141d0e50c3d07ace0940a3a83bf4c961132c",
+      "retainedTests": [
+        "frontend/src/components/DesignerCurrentActivity.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/DesignerDiscussionHistory.vue",
+      "baselineSHA256": "455113a4a5a933a163157a04b3db22ce6bb710462ebe55805807557bb663cd0c",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/DesignerSystemMessageHistory.vue",
+      "baselineSHA256": "7482988ce0e4939db7f2b6d11b4ae6f7250ed6bf41e35a0d3ab2865813c09f04",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/DesignerValidatorHistory.vue",
+      "baselineSHA256": "ff361e23863fb8cff7cf3c846709c140b360c81f358dc06e8b2471a6d8c97f90",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/DirectoryPathInput.vue",
+      "baselineSHA256": "f673fe74c772c2673bab91f16139c00158a70e180027fb2af9eaafcca3071ed8",
+      "retainedTests": [
+        "frontend/src/components/DirectoryPathInput.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/DirtyWorkspaceDialog.vue",
+      "baselineSHA256": "8cee705312d89afe662d795e8f5569dbefc8a451147212e2d2e9f716c8df7bdb",
+      "retainedTests": [
+        "frontend/src/components/DirtyWorkspaceDialog.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/DocumentClarificationForm.vue",
+      "baselineSHA256": "fe7e6cb5cede83462328bd92395606ecf64b0c49db36fb3d19af948893a47e0d",
+      "retainedTests": [
+        "frontend/src/components/DocumentClarificationForm.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/DocumentFilePicker.vue",
+      "baselineSHA256": "11d5cba2127b03be85b97c7a509e07f884ab9418b2d73aad646d252d168817bd",
+      "retainedTests": [
+        "frontend/src/components/DocumentFilePicker.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/DocumentFileSummary.vue",
+      "baselineSHA256": "b8edd8b59ac4371c5c1573dd0e8f4e8ed0d91cc3d9b2ad5acfc6b497b5f205d2",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/DocumentReportsPanel.vue",
+      "baselineSHA256": "2ccd28bba71a3e2468cebd341d9cf4445b512c7318a623f1d25b6ee48da8e8d1",
+      "retainedTests": [
+        "frontend/src/components/DocumentReportsPanel.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/DocumentRequirementsPanel.vue",
+      "baselineSHA256": "7c2de36c2d166a0abf1df58f4a7704e69f83f0de49462f028be83a704bbbf15e",
+      "retainedTests": [
+        "frontend/src/components/DocumentRequirementsPanel.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/DocumentSourcesPanel.vue",
+      "baselineSHA256": "f4708ecbcb3bcaabd7cbb77ea5073d0bdb2f7cf47bf637306f2207da460573c9",
+      "retainedTests": [
+        "frontend/src/components/DocumentSourcesPanel.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/DocumentSupplementForm.vue",
+      "baselineSHA256": "ea929c0dcf8574e9fa9309d456c17c684426d011a627c57d439c07d7cfe0237c",
+      "retainedTests": [
+        "frontend/src/components/DocumentSupplementForm.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/ExecutionAcceptancePanel.vue",
+      "baselineSHA256": "c81501967fdea49e3bc5c350b1051751107fbddb93b3fa54e93eb8abc505079e",
+      "retainedTests": [
+        "frontend/src/components/ExecutionAcceptancePanel.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/ExecutionEvidencePanel.vue",
+      "baselineSHA256": "7b8a792eff2ebab0a9b0efe5616a46c31fa1360c344f685aedc493c9e6df8bf1",
+      "retainedTests": [
+        "frontend/src/components/ExecutionEvidencePanel.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/GitCredentialForm.vue",
+      "baselineSHA256": "b0a6a7952c247a700c002bcbef3f54786a65f4d2b70859a85f67e539c023903b",
+      "retainedTests": [
+        "frontend/src/components/GitCredentialForm.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/GitDiffScopeApprovalDialog.vue",
+      "baselineSHA256": "28e2f69ee00e117a127c2e08ae2dcd9dd4f536d3d04fd8935e9316b464aa6353",
+      "retainedTests": [
+        "frontend/src/components/GitDiffScopeApprovalDialog.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/JudgeReviewCard.vue",
+      "baselineSHA256": "385063c57667ce422f74012caeb912f51b4ffb8da1587a7aa3c7ac13acb8ff21",
+      "retainedTests": [
+        "frontend/src/components/JudgeReviewCard.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/LayeredErrorPanel.vue",
+      "baselineSHA256": "fd3171654d71542afc2f7e4578fc74bac53a8c1a92180213ea68c438453f5cd9",
+      "retainedTests": [
+        "frontend/src/components/LayeredErrorPanel.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/LoopSpecEditor.vue",
+      "baselineSHA256": "2347fb63dbe456820780523774ec6e92c204e1ccf9bdd85b4b5128d26278b3df",
+      "retainedTests": [
+        "frontend/src/components/LoopSpecEditor.spec.ts",
+        "frontend/src/pages/w5/designer/LoopSpecEditor.spec.tsx"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/MarkdownDocument.vue",
+      "baselineSHA256": "290e7b2b7cdcea2f52d5f8653433af0027f7444a2913f040eeae0fcf15b7c68d",
+      "retainedTests": [
+        "frontend/src/components/MarkdownDocument.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/MarkdownDocumentLegacy.vue",
+      "baselineSHA256": "836bf8483fa2e9259a0e7e48dba5efc3780d8aa9319b03f1702cba84dcc72ff8",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/McpToolPolicyPanel.vue",
+      "baselineSHA256": "bc00a4870aff911e4a1afd53a9bdee007d943fdbb247f7325a305abfb53d76c9",
+      "retainedTests": [
+        "frontend/src/components/McpToolPolicyPanel.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/MetricCard.vue",
+      "baselineSHA256": "eaa168fe62bd368a8d94d274d39398a8bc528a4a9fbd42fb6470a530aa34212a",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/OpenCodeTodoProgress.vue",
+      "baselineSHA256": "dff91eca589970e792c56eaccb7b12290df7da8d8c31849f8044b69d0543d444",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/PackageGapNotice.vue",
+      "baselineSHA256": "6844dac201624a8097c0f28e77294032f6d2c2da55fa822f19b0c11e5ee4da64",
+      "retainedTests": [
+        "frontend/src/components/PackageGapNotice.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/PageHeader.vue",
+      "baselineSHA256": "e11033bcbf78289d68be315c9dcb63096a5b9db1a4cab14bc91b4aa61b300082",
+      "retainedTests": [
+        "frontend/src/components/PageHeader.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/PendingQuestionCard.vue",
+      "baselineSHA256": "1f065e49befd14d529dde8b9d2cf0564e1e88fcc4d787672914a21b77bb633f4",
+      "retainedTests": [
+        "frontend/src/components/PendingQuestionCard.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/ProjectAssistDialog.vue",
+      "baselineSHA256": "2e6b48b3c6e901ff03ae3741cfda1f2b6fcb5df30c1a1b024324954d491539d3",
+      "retainedTests": [
+        "frontend/src/components/ProjectAssistDialog.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/ProjectConventionActivityPanel.vue",
+      "baselineSHA256": "3327feaef03ddf246194d6a6035b0ab19ca110410e667bddaf1ffdb950b6fa08",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/ProjectDocumentPathDialog.vue",
+      "baselineSHA256": "d9f971596c203b5d4178ad177722a62ec6d007f79ea30064317333a7e2d1befa",
+      "retainedTests": [
+        "frontend/src/components/ProjectDocumentPathDialog.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/RollingPackageWorkbench.vue",
+      "baselineSHA256": "c2fc2678f64ee0d13c9d43d7bac47e889271017c634c8c2e3d1ec193580c1196",
+      "retainedTests": [
+        "frontend/src/components/RollingPackageWorkbench.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/SessionLifecyclePanel.vue",
+      "baselineSHA256": "e3af977f1b37d7c4a4d032267d8ed2e580faa0eb38fa28a57b9b52db8bb7d221",
+      "retainedTests": [
+        "frontend/src/components/SessionLifecyclePanel.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/SessionMonitorPanel.vue",
+      "baselineSHA256": "f0d83769ccde9ca89faefe97336b9bcbd0cd10d94b0493a4d3ffb47fe039fb9e",
+      "retainedTests": [
+        "frontend/src/components/SessionMonitorPanel.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/SessionRoleSummary.vue",
+      "baselineSHA256": "6000b349cde92b20a9c748e5c5cc63d1be164b1c352bb788a43d31ec95113368",
+      "retainedTests": [
+        "frontend/src/components/SessionRoleSummary.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/SkillBrowser.vue",
+      "baselineSHA256": "7a2e5fc7c5555ff59b460ef58d239f958494ac18786c392d005c12df22b92c65",
+      "retainedTests": [
+        "frontend/src/components/SkillBrowser.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/SkinSelector.vue",
+      "baselineSHA256": "f9cf9c0f1eabb1f9e90a6ca4a849f890b9e2f4ae544a2c35f5030d4df8432296",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/SnapshotReviewBatchesPanel.vue",
+      "baselineSHA256": "2f14fbdb1ccacd9d9a37fb5443a1891be6e8f71b413543fed09694abd2680cff",
+      "retainedTests": [
+        "frontend/src/components/SnapshotReviewBatchesPanel.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/SnapshotReviewPartialReport.vue",
+      "baselineSHA256": "06579dcada706d02725f6639598fdb5de78ca72cbc223ddb2d849525060c97ad",
+      "retainedTests": [
+        "frontend/src/components/SnapshotReviewPartialReport.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/SourceArtifactsPanel.vue",
+      "baselineSHA256": "5ce36a62fa0f954d8ca7709308cf52f21558d00556b66c50441676d752f41b9b",
+      "retainedTests": [
+        "frontend/src/components/SourceArtifactsPanel.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/SourceCoveragePanel.vue",
+      "baselineSHA256": "d33b30808e68510b27b443d68652c37ea902e6926f3a5a9505b1991c30fb7bb6",
+      "retainedTests": [
+        "frontend/src/components/SourceCoveragePanel.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/SourceTemplateFields.vue",
+      "baselineSHA256": "430f9e725e84fa0c899b745b7cc23f8a14a35eba43d54360fbfc952d401347e5",
+      "retainedTests": [
+        "frontend/src/components/SourceTemplateFields.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/StageRail.vue",
+      "baselineSHA256": "c111608a5fca9e5025a3566106cec998c56fa9db509b1117cfed27e06697bf45",
+      "retainedTests": [
+        "frontend/src/components/StageRail.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/StageRailLegacy.vue",
+      "baselineSHA256": "652637e93a2c332137dcf2c3014dac61ef5a6f709148651ded969dbae78e2aab",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/StagedFileContextCard.vue",
+      "baselineSHA256": "8f845bd42f695023cc22b7a52e8613c0c8df998f21e192e765bbc0153e96f0d1",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/StatusBadge.vue",
+      "baselineSHA256": "2b14c4ff3ecd9b0f892a4254a82e5a7a1c64000e6113fbb736fd7ed570b78d4b",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/StoryAccountingDialog.vue",
+      "baselineSHA256": "17dfc2033f2e43b93991974178f49b6d72644461085fbba9a8381656be07ea8d",
+      "retainedTests": [
+        "frontend/src/components/StoryAccountingDialog.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/StoryBindingSetup.vue",
+      "baselineSHA256": "13ff61c92b4f3a9dd89534f277859f1bc463f26a5b2f613c8de902741420dd06",
+      "retainedTests": [
+        "frontend/src/components/StoryBindingSetup.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/TaskAuditEvidencePanel.vue",
+      "baselineSHA256": "f12d59ce91ce915693c5ed73b6fb8966be955ba8b4dc0f65a6e7192bc1e6a0d0",
+      "retainedTests": [
+        "frontend/src/components/TaskAuditEvidencePanel.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/TaskDecisionPanel.vue",
+      "baselineSHA256": "2d3dc26c1f0e34486b6bd63844482b6dfcc15f5e790e5a13f28e96fd0c8d1552",
+      "retainedTests": [
+        "frontend/src/components/TaskDecisionPanel.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/TaskJudgeApprovalPanel.vue",
+      "baselineSHA256": "677ca492fe08e25ad2ce2671b4701c8dd31a074c3bfa67f3d1ca28b4afaa7988",
+      "retainedTests": [
+        "frontend/src/components/TaskJudgeApprovalPanel.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/TaskProfileRouterDialog.vue",
+      "baselineSHA256": "e0d589b7786e73b9d02effe816a2c260461e79ebad81d163b0325d6e51bd83f2",
+      "retainedTests": [
+        "frontend/src/components/TaskProfileRouterDialog.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/TaskPublicationActions.vue",
+      "baselineSHA256": "abea0f0596407923b3b2d9b8baee8fb5054ace99ced930871ce30ee0b935d680",
+      "retainedTests": [
+        "frontend/src/components/TaskPublicationActions.spec.ts",
+        "frontend/src/pages/w4/publication/TaskPublicationActions.spec.tsx"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/TemplateBatchRecoveryPanel.vue",
+      "baselineSHA256": "0e363dcc69717bc218e6fceb159e01e8d4c858a042626d4868dd02c1f9831d49",
+      "retainedTests": [
+        "frontend/src/components/TemplateBatchRecoveryPanel.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/TemplateReportsPanel.vue",
+      "baselineSHA256": "7ee9e838b4349bcd93e3422da9e7d663cf0ee6a3b7e7e9dd6898998221569315",
+      "retainedTests": [
+        "frontend/src/components/TemplateReportsPanel.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/TemplateSessionDiagnosticsPanel.vue",
+      "baselineSHA256": "334c6802a8e6032f17240e56978459a496b05078462c52fffd92c5ca63d965d6",
+      "retainedTests": [
+        "frontend/src/components/TemplateSessionDiagnosticsPanel.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/TemplateTaskProgressPanel.vue",
+      "baselineSHA256": "c4b0b46108ac59c4fccde9f1598bfe0aabe7dff031a57fe66c09f8af5707a115",
+      "retainedTests": [
+        "frontend/src/components/TemplateTaskProgressPanel.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/TemplateTaskProgressPanelLegacy.vue",
+      "baselineSHA256": "6ede3c4a250b893895bd01f4a46f76c2f8687a9628d761cab8abff17261f6da0",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/TokenUsageWindow.vue",
+      "baselineSHA256": "dfce7f2db262cb2d8f31ed4c8a9b01f50935224ebc7ec7927428bad0ed0cc2c9",
+      "retainedTests": [
+        "frontend/src/components/TokenUsageWindow.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/knowledge/KnowledgeEvidence.vue",
+      "baselineSHA256": "c30425bd98bc51506ab1bc0f9d0567cf169240546a01a4631ca86439660b034a",
+      "retainedTests": [
+        "frontend/src/components/knowledge/KnowledgeEvidence.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/knowledge/KnowledgeGitBrowser.vue",
+      "baselineSHA256": "de94d417984af79f9760d01150c58975379f0d0c1e469dc9ffe33df93eee97d0",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/knowledge/KnowledgeModelPicker.vue",
+      "baselineSHA256": "ee3dd4453ba0e9665fc53e0a75197c304551268558acadaef6a7774486422f6b",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/knowledge/KnowledgeQuestion.vue",
+      "baselineSHA256": "9b1c8707a5cc1d4d951ab4a417edd6414a66e446ae92a7a0f1d39c103b57dc8e",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/knowledge/KnowledgeSourcesPanel.vue",
+      "baselineSHA256": "53329462b48b786e985d881fef29f25b8468905374890a9b497adbf6d232d612",
+      "retainedTests": [
+        "frontend/src/components/knowledge/KnowledgeSourcesPanel.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/knowledge/KnowledgeThinking.vue",
+      "baselineSHA256": "5169662c64f323087bc49c87432482c22d36d33a3cee2f4450bd136921cb715b",
+      "retainedTests": [
+        "frontend/src/components/knowledge/KnowledgeThinking.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/knowledge/KnowledgeUsage.vue",
+      "baselineSHA256": "632723c166e05cf3f65018b462f0480803887b91563b6d0264e9d41a5ac71611",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/ppt/PptArtifactDownload.vue",
+      "baselineSHA256": "e23a5195ba079da75e301c68d7ec3c04b3af45f83348a3eec067e64d4548b07c",
+      "retainedTests": [
+        "frontend/src/components/ppt/PptArtifactDownload.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/ppt/PptCanvas.vue",
+      "baselineSHA256": "af707df8d9513146b3d695288b4c946fd4fdfc2d5ee67989c31e13f9f86fff65",
+      "retainedTests": [
+        "frontend/src/components/ppt/PptCanvas.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/ppt/PptCanvasLegacy.vue",
+      "baselineSHA256": "25334d4484aa6127533c0719dc87b0d52d9c6cb7fe0e23376ba527d1589f0d04",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/ppt/PptChat.vue",
+      "baselineSHA256": "e16245270d11ba890dbd521b76b160def48b46a8c4927f74cc2a702b7e14581a",
+      "retainedTests": [
+        "frontend/src/components/ppt/PptChat.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/ppt/PptDetailsDialog.vue",
+      "baselineSHA256": "e452ab6e659afa7264793c8d81e78d22c38ac9a135d0617764818bab74348f5c",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/ppt/PptDownloadControl.vue",
+      "baselineSHA256": "060a3db06284ad48fe0b74e3e35a91b7f17a3cbd79e2e5bfcc9f5eb9d58cee91",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/ppt/PptEditorToolbar.vue",
+      "baselineSHA256": "ab40f04869d3391c08b581dc731f6d2347b6cac17cf6d4b8fbebd007fbe651eb",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/ppt/PptGenerationStatus.vue",
+      "baselineSHA256": "3229ad30c96389ce7f8b4dcfb786a89453f3817193813714c6e855526aeb807e",
+      "retainedTests": [
+        "frontend/src/components/ppt/PptGenerationStatus.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/ppt/PptHistory.vue",
+      "baselineSHA256": "2cd06e30801006cf96a13f9110902036c38ba27aa8a8a82a95017abefa3cce2a",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/ppt/PptPlanEditor.vue",
+      "baselineSHA256": "a73eaeb76213f10d3d78dc28c764a6e279052450dbcb2cb9cbf2be0cfdc3083e",
+      "retainedTests": [
+        "frontend/src/components/ppt/PptPlanEditor.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/ppt/PptPlanNarrative.vue",
+      "baselineSHA256": "657a2950e2ac2682e82c9e3450f3339d8c94ff6405a6df40b5b6718f9c45025a",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/ppt/PptPlanPresentation.vue",
+      "baselineSHA256": "df1fee6d328f3606dfe3c012d31035c72008c285f905d02ec11bc9d5262ee72c",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/ppt/PptProgress.vue",
+      "baselineSHA256": "de37649d4e93826f9ea33b8b28d264d3a48ed089a3e6752027f376676442d915",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/ppt/PptProjectPicker.vue",
+      "baselineSHA256": "b152c0881f1befd80c0da9f964a0cf83292e6be53cbf3a5df2fcd4afd2bff5b1",
+      "retainedTests": [
+        "frontend/src/components/ppt/PptProjectPicker.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/ppt/PptProjectSources.vue",
+      "baselineSHA256": "b68fb66afc6757c4a641097cd95079f6017ea4aa986ce766c50678baaa68bf9f",
+      "retainedTests": [
+        "frontend/src/components/ppt/PptProjectSources.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/ppt/PptPromptInput.vue",
+      "baselineSHA256": "7d299ae5fa79d334f2e70d9ebff8e5b79f9fbb08067d172adffaece0eaf585e8",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/ppt/PptProperties.vue",
+      "baselineSHA256": "aff10d54e9bdfe82def7115102a9f04e44963c405da4cae5aacced8d7b1b7eb3",
+      "retainedTests": [
+        "frontend/src/components/ppt/PptProperties.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/ppt/PptSlideNavigator.vue",
+      "baselineSHA256": "91d08a420838418844b9605ffd8be03c6e97bb3aed4cfa4fa845cef1f7987c92",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/ppt/PptSlideNavigatorLegacy.vue",
+      "baselineSHA256": "4204418d663abfba3832b2ddeb5f9f2326632edc318db64aa830f5c967eaac3d",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/ppt/PptSlideProperties.vue",
+      "baselineSHA256": "d2421a9ee19a7cefad74afb8e90016e3601bb252f01abd1dfd5b54a869a4a16e",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/ppt/PptSources.vue",
+      "baselineSHA256": "3def8083888bd3edf9ef24e718b1f5cfc3fb092d5e9bdd11eadc138f71e5c4fd",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/ppt/usePptAutosave.ts",
+      "baselineSHA256": "44ad3201a5c221cabc1ec97eb96ef0c478e0fbad93377cb4f96e98be4bf4bb6f",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/ppt/usePptCreation.ts",
+      "baselineSHA256": "2f0d3924076058da9ac12d77bc670308bd94d10ddd11465cb5c1ed053a461f20",
+      "retainedTests": [
+        "frontend/src/components/ppt/usePptCreation.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/ppt/usePptPanels.ts",
+      "baselineSHA256": "9f7b92bed6299496966807d8a455b384911eeb492416f87b09a11e914e2c696a",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/roles/RolePromptView.vue",
+      "baselineSHA256": "6a536a161d2608d10e1fb4893ac45c32cdc0a9c8b05c8f2710a3ee8b4baa9b53",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/roles/RoleWorkflowDiagram.vue",
+      "baselineSHA256": "e89a6861a6b94eee9e808ebab18220aa0697548f240f1b445b24fdd2afc77445",
+      "retainedTests": [
+        "frontend/src/components/roles/RoleWorkflowDiagram.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/roles/RoleWorkflowDiagramLegacy.vue",
+      "baselineSHA256": "b4fb0d589f3dc46dec84c820e003c835570bbefb290e41692a89771dfbec3d71",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowAddMenu.vue",
+      "baselineSHA256": "0d9867e7f2142f4bd445c950dfb46621d61d2f4c6470e045214123225770afc8",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowBranchInput.vue",
+      "baselineSHA256": "66b5449e72a3ef907430126eee093d672c7451aead64361de9d747c4cbf3d6af",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowBranchInput.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowCandidates.vue",
+      "baselineSHA256": "0151735ff27c8c678a1726cec252fab8a4d9bd9db85a04821b5527335b2eb696",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowCandidates.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowCanvas.vue",
+      "baselineSHA256": "fe2f2241a4524b9a16cd6477d491d257ede3ad124f58fe11bf9889149320cbd9",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowCanvas.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowCanvasLegacy.vue",
+      "baselineSHA256": "ffb88222e6f1a6be0eb45d1debb60f009ce17abca17240b1f5d0c00acc464950",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowChoice.vue",
+      "baselineSHA256": "96208685be8393750d9272aa5c7163b4cc0efe105b1de4db7f4573bcc9829def",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowCodeChanges.vue",
+      "baselineSHA256": "92c9c09d86e831f2add5b2f31cbdf574fa996402dad146b29bb0562dcefcc14f",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowCodeChanges.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowCommandEditor.vue",
+      "baselineSHA256": "6eef7a7df6fc48b4e016241f3c562ffb11a5abd628e3a3c5fdc944a8ef61b1d4",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowCommandEditor.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowCommandEvidence.vue",
+      "baselineSHA256": "ce3db5da57f6f3c3e4372705d2324233a8698971e59c212e9a53738b9a71579f",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowCommandEvidence.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowCommandReport.vue",
+      "baselineSHA256": "88383a46bed6e58469b2ec7e5e25e9c2455a461b37c1edc4a705f24e1ecd0477",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowCommandReport.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowContextPanel.vue",
+      "baselineSHA256": "6b1816c32c0596252497b635c9e709ef68e835d9eee5cf24dc62feb501aef47b",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowDocumentInput.vue",
+      "baselineSHA256": "7237112303871087a7b24854077cccd9761ff625e0f40cfc7a56ddae5cceffc8",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowDocumentInput.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowDocumentPlanReport.vue",
+      "baselineSHA256": "17c943c4ea21192c04d7af1b917939c64e37b847fbdaee812056718e4e8e7318",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowDocumentPlanReport.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowDocumentPreview.vue",
+      "baselineSHA256": "02e9c85b2b68fd16de7d0220165d9f4c6064d5223efa6a0a90292988324575c9",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowDocumentPreview.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowDocumentReport.vue",
+      "baselineSHA256": "505a5e5a21b4c3c3895bf17fe4ab9733f9f0ac7de5dd4ac18dc4ad5a8e0ab7d2",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowDocumentReport.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowDocumentReviewEditor.vue",
+      "baselineSHA256": "b45b5f1c8c372460dc85ac094df5060054d2ce3d9b8c1709bb9f7c30573c51a0",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowDocumentReviewEditor.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowDocumentReviewReport.vue",
+      "baselineSHA256": "d86da3530bd658686c95169f0a9f2177e5a36720750d32a7b544df1506ffc65a",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowDocumentReviewReport.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowFiles.vue",
+      "baselineSHA256": "18f17204e760a95aa0b1c9042ed57320ae17840f9fed9f89e1f3b3b10281489b",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowFiles.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowFinish.vue",
+      "baselineSHA256": "3d542db6cbd7faf007d93b6a85be4291cba42eebc74ddf69730e1213872eb898",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowFinish.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowHistoryAnalysisReport.vue",
+      "baselineSHA256": "07f1173082eb8bc40e2ec81527630965afcdbf4ac0e7fc17a9c60c07f835be25",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowHistoryAnalysisReport.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowHistoryReport.vue",
+      "baselineSHA256": "72c519323d0e7e39f5184819bace4b59fb2798bfcaee2d93913f74637fe5e65e",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowHistoryReport.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowHistorySummary.vue",
+      "baselineSHA256": "aaf56138be6328954b8aab36bb5dd9fd3abbbd217b369c5eb4296e648ffeb077",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowHistorySummary.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowInputContent.vue",
+      "baselineSHA256": "7293f77d82d73812fe95148a16303d11eaa9559921991d18a77d0ca96f96dc6d",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowInputContent.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowKnowledgeEvidence.vue",
+      "baselineSHA256": "1569f9631e811c8d5adfb3b7403cb202a0eaef1399e51eec2d4bb5514a396a56",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowKnowledgeEvidence.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowKnowledgeReport.vue",
+      "baselineSHA256": "d48776e14255aa9cc8f5f4cb778b611ea38a6bc3199a3cd1325de8aef62476a8",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowKnowledgeReport.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowModelChoice.vue",
+      "baselineSHA256": "bb75019abce8fa8582aee4300331e8a12a42a26534a26cd39af2a915e02b1557",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowNativeTestReport.vue",
+      "baselineSHA256": "25bcb3413affface842ad01b00ca5000872228e721f6998e52e928c69fa580de",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowNativeTestReport.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowNodeEditor.vue",
+      "baselineSHA256": "31175002c4189cdc9cf377417431277d0ef22d3ac3383bb4c69477054455a9ca",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowNodeList.vue",
+      "baselineSHA256": "35b98f69f4b214b20b7fd973ae3324439b5f86a37fc70e7c2b2e5abab04c1117",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowNodeRun.vue",
+      "baselineSHA256": "b67e4a5957176ae0e51d8f56433c16c4964324d6bb80bbce1411199b3709d811",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowNodeRun.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowPlanDiff.vue",
+      "baselineSHA256": "62cc6265ecf6380857400026dc0988167fbc646291ed5a199894bf830372f15c",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowPresetPicker.vue",
+      "baselineSHA256": "63ed7a988b441d4581c649a5993d13c365fefe8f8bcc83d4d01f05e974fc870f",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowPresetPicker.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowPublicInputs.vue",
+      "baselineSHA256": "b2fa46c3be13f993614fc2ef918911f89ac6de9356efdf4101a6ea61b3b44d77",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowPublicInputs.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowPublication.vue",
+      "baselineSHA256": "95c38a8780ed8adabbc5e649ffcc9514d2ec1f77c9e325d6d16aea4b6e73d288",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowPublication.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowPublicationCommit.vue",
+      "baselineSHA256": "54fb4f02d4ec9b90d0cc4510536fbe5f496d28cd7ac5848bb5c62d953193cb13",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowPublicationCommit.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowPush.vue",
+      "baselineSHA256": "5a0cad4bedf9fabda363a6325210d762f92e589df836022765e889ce3cb6c525",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowPush.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowRepositoryReport.vue",
+      "baselineSHA256": "b28341a389132489ac68d919d1b8f2de5be84d9ea699e6eace301d193bcc3547",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowRepositoryReport.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowReviewReport.vue",
+      "baselineSHA256": "108a7ea678ec95939d15853cad3d1b6bcc667a488ddaac0df5733320ea1a9fd4",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowReviewReport.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowReviewSourceEditor.vue",
+      "baselineSHA256": "ca5db6c36d930025ecb64d9609fe2f2bf4d7a57302a826dc696e6913cda88fd9",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowReviewSourceEditor.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowReviewSourceReport.vue",
+      "baselineSHA256": "b2e4eb587926049ddfa1b2db1632c2ef321b5f73221383cb5b72c2f4c321e016",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowReviewSourceReport.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowRolePicker.vue",
+      "baselineSHA256": "c4d996654db54bd2ba810c0b1d73ad0d10b192184d39cee62f2f786ab7984f76",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowRolePicker.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowSaveTemplate.vue",
+      "baselineSHA256": "4427023f5a3022523defe1ad42fe743856558a87ea597009c34d1e9cb1df937f",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowSaveTemplate.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowSnapshotPartialReport.vue",
+      "baselineSHA256": "ecf65abdcfc13275122ec54378cd7bff45b432095d953f612eb797322818e5a3",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowSnapshotPartialReport.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowSnapshotReport.vue",
+      "baselineSHA256": "4ca17e39e3ad3b05ad0274dfeca87d5c4fbd51eb8b750e40da7fa5b7ef175cf2",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowSnapshotReport.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowSnapshotSummary.vue",
+      "baselineSHA256": "676d8a428de88bc98e5534567418e0bb104c2f7a34c4e622981128235b5f290c",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowSnapshotSummary.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowSourceDesignEditor.vue",
+      "baselineSHA256": "92eb57d3bd04411fb6e50eeb5a7d8f5bf546f5c75f8f81085f86b0b24d37b142",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowSourceDesignEditor.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowSourceDesignReport.vue",
+      "baselineSHA256": "d2d52c1eecfd0f7f99a7889e36b52022b6918137d7785605802b01236677181d",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowSourceDesignReport.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowSourcePlanReport.vue",
+      "baselineSHA256": "ac0656a66bdd7aa56bc297284b4966098a2ba662e97f52b0c311b7d5591b11a8",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowSourcePlanReport.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowSourceReport.vue",
+      "baselineSHA256": "06a94a98324b9e5b1ebe5e93879a2ab5a73490a968796197160396028897a759",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowSourceReport.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowTestDesignReport.vue",
+      "baselineSHA256": "fc0f137387a1f83feb682c45c3693fcbc90ea78936319940ca71a5c9ff6dce1c",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowTestDesignReport.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowTestProfileReport.vue",
+      "baselineSHA256": "31e133b62220ffdd422f8843cf9bb62b927ad821a0dd997e5f09b058520b6540",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowTestProfileReport.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowTestReviewReport.vue",
+      "baselineSHA256": "a4831427d5cbce473ec7d6b81989332b54717b81c081dc74ded132ddde5d191b",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowTestReviewReport.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowTestScopeReport.vue",
+      "baselineSHA256": "aa5ce5a9a618f0404010d2d77da8298f253953a441221d2f8ef74cd54ee84a0c",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowTestScopeReport.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowTestSummaryReport.vue",
+      "baselineSHA256": "6e8bd7b8310d68dc67de04eeaea0bb359280783a50d147134f9d961a2cdb1da4",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowTestSummaryReport.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowValueFields.vue",
+      "baselineSHA256": "1b8c17a8376f34ab7d951400a0fd4b471cd0dc3e420d0b65382e4fe1f38e7c97",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowVerificationEditor.vue",
+      "baselineSHA256": "deb5fc73b0674bcbdf329fca97999e1d7b3b05889ddfc827c5000c939226570a",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowVerificationEditor.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowVerificationReport.vue",
+      "baselineSHA256": "e439fea225e4bc8e1b3eaca4eed8b39e94389b55b7f38b33b5529f0dc3dad787",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowVerificationReport.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowWriteback.vue",
+      "baselineSHA256": "a42fd28dd315a6cf65801ba82a4319c3f22286dd8981f0072dcbe14ef129a917",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowWriteback.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/WorkflowWritebackPreview.vue",
+      "baselineSHA256": "84c4d0173468ee4355fe97d2bfce7d5bb696f30ada5ba14a69ee3a83159a30d7",
+      "retainedTests": [
+        "frontend/src/components/workflow/WorkflowWritebackPreview.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/command.ts",
+      "baselineSHA256": "2aaff42a4d6219146fada4539b330f57fed5006e7f30f5dadc410b9e23a5e028",
+      "retainedTests": [
+        "frontend/src/components/workflow/command.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/components/workflow/modelChoice.ts",
+      "baselineSHA256": "6fcd5e12fac23bc07bc5b9c84020430f8c5a507429ec2058cb6b1c92b05c806a",
+      "retainedTests": [
+        "frontend/src/components/workflow/modelChoice.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/composables/useKnowledgeModels.ts",
+      "baselineSHA256": "811cc6958509b61b73f50e2014b555f3371ac0f958845c9a2e880eacbd604379",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/composables/useKnowledgeSplit.ts",
+      "baselineSHA256": "31802ad04d10bcef991ebc97b1f3f6dfab2cb5980a33a0661dfd323f5751c781",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/icons.ts",
+      "baselineSHA256": "fa4e781e4f581444b378a28fb686361ea784cc9599b97842e3cece2f7511e59e",
+      "retainedTests": [
+        "frontend/src/icons.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/main.ts",
+      "baselineSHA256": "46c1097ea930abbac584e0be3680d22af44f847601f36ab5f1b1388e4a81da94",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/migration/CanvasRuntimeSettings.vue",
+      "baselineSHA256": "40b1a953548b94f781cb9fff5d6ae1ef7415ff74553f9f859b4b2acf69b12b30",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/migration/W2RouteBridge.vue",
+      "baselineSHA256": "705c5f1db7cfb118569ccc5be6d62d9737cf9ee30d27ce964b18edb5b4489368",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/migration/canvasRuntimeVue.spec.ts",
+      "baselineSHA256": "ae2004e27ff7ffd93fb81d591aff3b2e756d61e34e895428ef0f15a8217a33d4",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/migration/canvasRuntimeVue.ts",
+      "baselineSHA256": "28437388e753c9b8a969dd7940cfb9dae0672df25a5aa84aa9e799f4658347e1",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/migration/w2BridgeView.tsx",
+      "baselineSHA256": "f87a425b2e7df034cd7d8b4561059e43e83e736ca2f65645a215a99bb7895490",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/react/bridge.ts",
+      "baselineSHA256": "82ffbe4f6f52da40dd1a5bf5910ca1b188d7e8b3d26bd4359466c35f8540eabc",
+      "retainedTests": [
+        "frontend/src/react/bridge.spec.tsx"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/router/index.ts",
+      "baselineSHA256": "fcf8da7c377db5c88ed496db1c8681505edec14e972c262abb306747025ec72e",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/stores/documentTemplateStore.ts",
+      "baselineSHA256": "593667b45925cc03e7fae199617ae5cb463729ea292da738d059262fa7e23211",
+      "retainedTests": [
+        "frontend/src/stores/documentTemplateStore.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/stores/knowledgeStore.ts",
+      "baselineSHA256": "f118f4fdc8ba955bce9dc9844a656c6baa0699c244d57fa88a6e3c172f0a09c8",
+      "retainedTests": [
+        "frontend/src/stores/knowledgeStore.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/stores/pptStore.ts",
+      "baselineSHA256": "5a70e3081e1770f8447122c2ed6b96102179b31e9a70ed3b329a0f1b80f10eac",
+      "retainedTests": [
+        "frontend/src/stores/pptStore.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/stores/sourceTemplateStore.ts",
+      "baselineSHA256": "7de8801c990a7b414763081dc256620d7813faf305c888138950064329256b1c",
+      "retainedTests": [
+        "frontend/src/stores/sourceTemplateStore.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/stores/templateTaskStore.ts",
+      "baselineSHA256": "fbd9bd42dfdde8c7189506a81c024bdc8a5a5bdc6e858097fdeceaf5093679d0",
+      "retainedTests": [
+        "frontend/src/stores/templateTaskStore.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/styles/knowledge.css",
+      "baselineSHA256": "ef6ddf1d85cd0f1a00391ea4d28d87a3f352ec6f48c8f48158ea60d62b797026",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/styles/template-task-form.css",
+      "baselineSHA256": "d5084e391df3ca420631aa4270d2fd0e2d6bdcc03ef2a71060c0e06bf93b7fed",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/views/AutomationsView.vue",
+      "baselineSHA256": "8b3fc132803cac66abf5e67a452cde54e197d12be8880fd73cc3d4d1b2b74e03",
+      "retainedTests": [
+        "frontend/src/views/AutomationsView.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/views/DatabaseView.vue",
+      "baselineSHA256": "185601647e1cfdc7e1ea30a501d775cb916df5e4d9fc643c71b6aebe0f1c2b2c",
+      "retainedTests": [
+        "frontend/src/views/DatabaseView.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/views/DesignerHistoryView.vue",
+      "baselineSHA256": "fca36d7459baccd117b19abf6bd8d6d50df380ca82faa70ffa548b19104b72d4",
+      "retainedTests": [
+        "frontend/src/views/DesignerHistoryView.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/views/DesignerView.vue",
+      "baselineSHA256": "2ccd0603a3051607262dcd982cc6ce7f5247d2e9ba256cdfde88d45695543b46",
+      "retainedTests": [
+        "frontend/src/views/DesignerView.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/views/DocumentTemplateView.vue",
+      "baselineSHA256": "6362e0f92ab20f45ce9c35d752441722c851d634a02cfa9145e12cde4f1803d4",
+      "retainedTests": [
+        "frontend/src/views/DocumentTemplateView.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/views/HomeView.vue",
+      "baselineSHA256": "648b533cf3e1152219d306d68654cdde7791db84cff0e74b158a09d593a9dc15",
+      "retainedTests": [
+        "frontend/src/views/HomeView.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/views/InboxView.vue",
+      "baselineSHA256": "c2a1cbd040e999eda11f53e0dd2a06a725d773c373d7a82cc6f36f155e0405f2",
+      "retainedTests": [
+        "frontend/src/views/InboxView.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/views/InsightsDashboardView.vue",
+      "baselineSHA256": "3341925c0b2fb021db85c40ae6f0178ccb24e6900e9cf111a87a34002fb6a3e0",
+      "retainedTests": [
+        "frontend/src/views/InsightsDashboardView.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/views/KnowledgeHistoryView.vue",
+      "baselineSHA256": "8c5ca0c4312cb7c617519a8ad276574e6a4b1e3c8db8e85517fd79a306f0e3ba",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/views/KnowledgeView.vue",
+      "baselineSHA256": "5d49594c2193baf1d1d011694c82d6cf076be03fc1f4f00b936735d867f7210b",
+      "retainedTests": [
+        "frontend/src/views/KnowledgeView.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/views/PptListView.vue",
+      "baselineSHA256": "1bb810377ef0e4381a69982fa34b96e88648d2b5fb41be214da873a1c921ba28",
+      "retainedTests": [
+        "frontend/src/views/PptListView.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/views/PptStudioView.vue",
+      "baselineSHA256": "2cd3e7161184a79d03c642bc2ecb1a0bc1c55d2bd8a09f15201c44125f42582d",
+      "retainedTests": [],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "共享展示/组合/入口由对应模块及路由级合同验收；详见替代证据。"
+    },
+    {
+      "removed": "frontend/src/views/ProjectsView.vue",
+      "baselineSHA256": "7c52d1ececa9025f4ad3c9d8c44482153f9e143040f5df8d322c70f107486bfb",
+      "retainedTests": [
+        "frontend/src/views/ProjectsView.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/views/RecoveryStudioView.vue",
+      "baselineSHA256": "307896472833d039e27cdd61358f495c84eceb3d4f83350dd5608f2cde335812",
+      "retainedTests": [
+        "frontend/src/views/RecoveryStudioView.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/views/RoleManagementView.vue",
+      "baselineSHA256": "ffbc197af70d198cc1178a661c9950331f3939db0543b54aa77516500dfb612c",
+      "retainedTests": [
+        "frontend/src/views/RoleManagementView.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/views/RuntimeView.vue",
+      "baselineSHA256": "bdd7b5b3e2c33e0389e71c0ec9819c5346c4c16bb399e7586a5a83cd07261463",
+      "retainedTests": [
+        "frontend/src/views/RuntimeView.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/views/SettingsView.vue",
+      "baselineSHA256": "52b5a5488f433ae85fe4c4e4a84597fd1bcd73678bea6d8bb307c1fde9283935",
+      "retainedTests": [
+        "frontend/src/views/SettingsView.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/views/SourceTemplateView.vue",
+      "baselineSHA256": "c89b160e383679fb8c364bb73c8d9e26ced5d4f3061dba5ece874c69ccc1b618",
+      "retainedTests": [
+        "frontend/src/views/SourceTemplateView.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/views/TaskDesignHistoryView.vue",
+      "baselineSHA256": "6406942a2d20c0abfbd0019359cd7216cd1be14e34f3e7433368c15210f7d716",
+      "retainedTests": [
+        "frontend/src/views/TaskDesignHistoryView.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/views/TaskDetailView.vue",
+      "baselineSHA256": "ccc91ddcc8e1395a6f07a7634ac6698be94176c6ac49f7dc0afe6689f766193d",
+      "retainedTests": [
+        "frontend/src/views/TaskDetailView.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/views/TasksView.vue",
+      "baselineSHA256": "9896db8cabba3739670bb918c6c2a269308abc1fc8958c696f8d4a7b3a2b0716",
+      "retainedTests": [
+        "frontend/src/views/TasksView.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/views/TemplateTasksView.vue",
+      "baselineSHA256": "005448cc3ebdba74619a250f965e1b7fc0b72bc87b4eb8ddfd12ac9f296721dc",
+      "retainedTests": [
+        "frontend/src/views/TemplateTasksView.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/views/ToolsView.vue",
+      "baselineSHA256": "811047943a7496e45c44732281b873ee5fa8a483772d8f1591ccb515ceb73097",
+      "retainedTests": [
+        "frontend/src/views/ToolsView.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/views/WorkflowEditorView.vue",
+      "baselineSHA256": "974077af590404a0c459b052658b1d02fd86fbbc2f689da91a388961e90e55fe",
+      "retainedTests": [
+        "frontend/src/views/WorkflowEditorView.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/views/WorkflowLibraryView.vue",
+      "baselineSHA256": "773da113fc5c382d497b6dc86065cfeef32d317f19f0e2c3d0da16b4cd9a61e8",
+      "retainedTests": [
+        "frontend/src/views/WorkflowLibraryView.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/views/WorkflowRequirementListView.vue",
+      "baselineSHA256": "43353452f8084b6e52416a2d386fe6115c3afd6b6d9f84e5dc388f0cbb7fb48d",
+      "retainedTests": [
+        "frontend/src/views/WorkflowRequirementListView.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/views/WorkflowRequirementNewView.vue",
+      "baselineSHA256": "e749b3b3d5c2ffc49417b843b13ef2c4bac0b0f6251c3b888f20121c953abb14",
+      "retainedTests": [
+        "frontend/src/views/WorkflowRequirementNewView.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    },
+    {
+      "removed": "frontend/src/views/WorkflowRequirementView.vue",
+      "baselineSHA256": "74bc8805811c018c9365801be246492df74e89e1d41d1dc7fcf6230dcec67887",
+      "retainedTests": [
+        "frontend/src/views/WorkflowRequirementView.spec.ts"
+      ],
+      "replacementEvidence": [
+        "workflow.md",
+        "ordinary.md",
+        "knowledge-ppt-template.md",
+        "routes.md",
+        "test-mapping.json"
+      ],
+      "note": "按对应路由/组件合同映射到实际React与纯TS owner；不是原文件名一对一机械翻译。"
+    }
+  ]
+}

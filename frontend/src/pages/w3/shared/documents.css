@@ -19,3 +19,8 @@
 .w3-code-text .tok-string,.w3-code-text .tok-number,.w3-code-text .tok-bool{color:var(--color-success)}
 .w3-code-text .tok-comment{color:var(--color-text-muted)}
 .w3-code-text .tok-propertyName,.w3-code-text .tok-function{color:var(--color-link)}
+
+.w3-document-body .markdown-thinking-card{border:1px solid var(--color-border-default);border-radius:var(--radius-control);padding:12px;margin:10px 0;color:var(--color-text-secondary)}
+.w3-document-body .markdown-thinking-header{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.w3-document-body .markdown-thinking-toggle{margin-left:auto}
+.w3-document-body .markdown-thinking-content{padding-top:10px}

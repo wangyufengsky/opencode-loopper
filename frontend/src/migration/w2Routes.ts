@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react'
 import type { W2PageProps } from '@/pages/w2/shared/types'
 
-/** Only the approved ordinary routes. Detail/creation/history ownership remains with Vue Router. */
+/** Production React pages. The W6 application router is the only history owner. */
 export const w2PageLoaders: Record<string, () => Promise<ComponentType<W2PageProps>>> = {
   '/': () => import('@/pages/w2/secondary').then(m => m.HomePage),
   '/projects': () => import('@/pages/w2/core').then(m => m.ProjectsPage),

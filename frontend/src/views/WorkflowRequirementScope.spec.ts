@@ -1,25 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
-import { defineComponent } from 'vue'
-import { createMemoryHistory, createRouter, RouterView, type Router } from 'vue-router'
+import { act } from 'react'
+import { flushPromises } from '@/pages/w6-tests/workflow/react-test-root'
+import { mountPageApplication } from '@/pages/w6-tests/workflow/application-test-root'
+import { RequirementPage } from '@/pages/w5/requirements/RequirementPage'
+import type { RequirementController } from '@/pages/w5/requirements/controller'
 import { workflowRuns } from '@/api/workflowRuns'
 import { execution, requirement } from '@/components/workflow/workflowRunTestFixtures'
-import type { WorkflowExecution, WorkflowLayout, WorkflowReceipt, WorkflowRequirement } from '@/types/domain'
-import WorkflowRequirementView from './WorkflowRequirementView.vue'
+import type { WorkflowExecution, WorkflowReceipt, WorkflowRequirement } from '@/types/domain'
 
 vi.mock('@/api/workflowRuns', () => ({ workflowRuns: {
-  get: vi.fn(), execution: vi.fn(), confirm: vi.fn(), start: vi.fn(), pause: vi.fn(), cancel: vi.fn(),
+  get: vi.fn(), execution: vi.fn(), confirm: vi.fn(), start: vi.fn(), pause: vi.fn(), cancel: vi.fn(), finishStatus: vi.fn(),
   revise: vi.fn(), applyPlan: vi.fn(), applyCandidate: vi.fn(), layout: vi.fn(),
 } }))
 
 const api = vi.mocked(workflowRuns)
-const ScopeCanvas = defineComponent({
-  name: 'ScopeCanvas', props: ['graph', 'layout', 'readonly', 'movable'], emits: ['layout'],
-  template: '<div aria-label="流程画布"><span v-for="node in graph.nodes" :key="node.id">{{ node.title }}</span></div>',
-  methods: { focus() {}, reveal() {} },
-})
-const leaveable = { template: '<div />', methods: { canLeave: () => true } }
-let wrapper: VueWrapper | undefined
+let wrapper: Awaited<ReturnType<typeof mountPageApplication>> | undefined
 let values: Record<string, WorkflowRequirement>, snapshots: Record<string, WorkflowExecution>
 
 function deferred<T>() {
@@ -44,66 +39,40 @@ function configure(id: string, state: WorkflowRequirement['state'], active = fal
 beforeEach(() => {
   vi.resetAllMocks(); values = {}; snapshots = {}
   configure('A', 'PLANNING'); configure('B', 'PLANNING')
-  vi.spyOn(window, 'confirm').mockReturnValue(true)
   api.get.mockImplementation(async id => structuredClone(values[id]!))
   api.execution.mockImplementation(async id => structuredClone(snapshots[id]!))
   api.confirm.mockImplementation(async id => receipt(id))
   api.layout.mockImplementation(async id => receipt(id))
   api.pause.mockImplementation(async id => structuredClone(snapshots[id]!.control))
+  api.finishStatus.mockImplementation(async id => ({ requirementId: id, state: values[id]!.state, version: values[id]!.version, intent: null, pending: { attempts: 0, resources: 0 } }))
 })
 afterEach(() => { wrapper?.unmount(); wrapper = undefined; vi.restoreAllMocks() })
 
-async function render() {
-  const router = createRouter({ history: createMemoryHistory(), routes: [
-    { path: '/requirements/:id', component: WorkflowRequirementView },
-    { path: '/requirements', component: { template: '<div />' } },
-  ] })
-  await router.push('/requirements/A'); await router.isReady()
-  wrapper = mount(RouterView, { global: { plugins: [router], stubs: {
-    Icon: true, WorkflowCanvas: ScopeCanvas, WorkflowFinish: leaveable, WorkflowPublication: leaveable,
-    WorkflowSaveTemplate: leaveable, WorkflowCandidates: leaveable, WorkflowNodeRun: leaveable,
-    WorkflowNodeEditor: true, WorkflowModelChoice: true, WorkflowRolePicker: true,
-  } } })
-  await flushPromises(); return router
-}
-function button(label: string) {
-  return wrapper!.findAll('button').find(node => node.text() === label || node.attributes('aria-label') === label)
-}
-async function click(label: string) {
-  if (!button(label)) await button('更多工具')!.trigger('click')
-  await button(label)!.trigger('click'); await flushPromises()
-}
-async function changeLayout(x: number) {
-  const canvas = wrapper!.getComponent(ScopeCanvas), current = canvas.props('layout') as WorkflowLayout
-  const key = canvas.props('graph').nodes[0].id as string
-  canvas.vm.$emit('layout', { ...current, positions: { ...current.positions, [key]: { x, y: 40 } } })
-  await flushPromises()
-}
-function expectB() {
-  expect(wrapper!.get('h1').text()).toBe('需求 B')
-  expect(wrapper!.get('[aria-label="流程画布"]').text()).toContain('节点 B')
-  expect(wrapper!.get('[aria-label="流程画布"]').text()).not.toContain('节点 A')
-}
-async function forceRoute(router: Router, id: string) {
-  // Deliberately bypass leave guards to exercise scope invalidation when an
-  // external host replaces a route while a transport request is still alive.
-  const resolved = router.resolve(`/requirements/${id}`)
-  router.currentRoute.value = { ...resolved, name: resolved.name ?? undefined }
-  await flushPromises()
+async function render() { wrapper=await mountPageApplication(RequirementPage,'/requirements/A',['/requirements/:id','/requirements']);return wrapper }
+const keys:Record<string,string>={'确认计划':'workflow.confirmPlan','保存计划':'workflow.savePlanning','调整后续计划':'workflow.adjustPlan','暂停后续派发':'workflow.pause','更多工具':'workflow.moreTools','添加节点':'workflow.addNode','重试原操作':'receipt.retryOriginal','刷新操作结果':'receipt.readOriginal'}
+function button(label:string) { return wrapper!.findAll('button').filter(node=>!node.element.closest('[hidden]')).find(node=>!!keys[label]&&node.attributes('data-semantic')===keys[label]||node.attributes('aria-label')===label) }
+async function click(label:string) { if(!button(label))await button('更多工具')!.trigger('click');await button(label)!.trigger('click');await flushPromises() }
+function owner():RequirementController { return [...wrapper!.application.current!.owners.keys()].find(value=>'id' in value && 'setLayout' in value) as RequirementController }
+async function changeLayout(x:number) { const value=owner(),s=value.getSnapshot(),key=s.graph.nodes[0]!.id;await act(async()=>{value.setLayout({...s.layout,positions:{...s.layout.positions,[key]:{x,y:40}}})});await flushPromises() }
+function expectB(){expect(wrapper!.get('h1').text()).toBe('需求 B');expect(wrapper!.get('[data-canvas-kind="workflow"]').text()).toContain('节点 B');expect(wrapper!.get('[data-canvas-kind="workflow"]').text()).not.toContain('节点 A')}
+async function forceRoute(router:Awaited<ReturnType<typeof render>>,id:string){
+ // Public host ownership replacement deliberately retires the old root despite its guard.
+ // Ordinary navigation below still traverses the real coordinator and React useBlocker.
+ const path=`/requirements/${id}`;await act(async()=>{router.application.commit(router.application.scope({path,fullPath:path,params:{id},query:{}}));await router.router.navigate(path)});await router.settle()
 }
 
 describe('requirement command scope across a reused route component', () => {
   it('ignores a late A write receipt and keeps the newer B command locked', async () => {
     const first = deferred<WorkflowReceipt>(), second = deferred<WorkflowReceipt>()
     api.confirm.mockImplementation(id => id === 'A' ? first.promise : second.promise)
-    const router = await render(), instance = wrapper!.getComponent(WorkflowRequirementView).vm.$.uid
+    const router = await render(), instance = wrapper!.application.current!
     await click('确认计划'); await forceRoute(router, 'B')
-    expect(wrapper!.getComponent(WorkflowRequirementView).vm.$.uid).toBe(instance); expectB()
+    expect(instance.active).toBe(false); expect(wrapper!.application.current).not.toBe(instance); expectB()
     await click('确认计划'); first.resolve(receipt('A')); await flushPromises()
     expectB(); expect(button('确认计划')!.attributes('disabled')).toBeDefined()
     expect(api.get.mock.calls.map(call => call[0])).toEqual(['A', 'B'])
     expect(api.execution.mock.calls.map(call => call[0])).toEqual(['A', 'B'])
-    expect(wrapper!.find('.workflow-notice').exists()).toBe(false)
+    expect(owner().getSnapshot().notice).toBe(''); expect(owner().getSnapshot().error).toBe('')
     second.resolve(receipt('B')); await flushPromises()
     expectB(); expect(button('确认计划')!.attributes('disabled')).toBeUndefined()
     expect(api.confirm.mock.calls.map(call => call[0])).toEqual(['A', 'B'])
@@ -117,8 +86,8 @@ describe('requirement command scope across a reused route component', () => {
     expect(api.get.mock.calls.map(call => call[0])).toEqual(['A', 'A'])
     await forceRoute(router, 'B'); await changeLayout(260)
     first.resolve(requirement({ id: 'A', title: '迟到需求 A', state: 'PENDING_START' })); await flushPromises()
-    expectB(); expect(wrapper!.getComponent(ScopeCanvas).props('layout').positions['node-B']).toEqual({ x: 260, y: 40 })
-    expect(wrapper!.find('.workflow-notice').exists()).toBe(false)
+    expectB(); expect(owner().getSnapshot().layout.positions['node-B']).toEqual({ x: 260, y: 40 })
+    expect(owner().getSnapshot().notice).toBe(''); expect(owner().getSnapshot().error).toBe('')
     expect(button('确认计划')!.attributes('disabled')).toBeUndefined()
     await click('保存计划'); expect(api.layout).toHaveBeenCalledOnce(); expect(api.layout.mock.calls[0]![0]).toBe('B')
     expect(api.confirm).toHaveBeenCalledOnce(); expect(api.execution.mock.calls.map(call => call[0])).toEqual(['A', 'B', 'B'])
@@ -130,7 +99,7 @@ describe('requirement command scope across a reused route component', () => {
     await changeLayout(90); await click('保存计划'); expect(api.layout.mock.calls[0]![0]).toBe('A')
     await forceRoute(router, 'B')
     first.resolve(requirement({ id: 'A', title: '迟到保存 A', layoutVersion: 5 })); await flushPromises()
-    expectB(); expect(wrapper!.find('.workflow-notice').exists()).toBe(false)
+    expectB(); expect(owner().getSnapshot().notice).toBe(''); expect(owner().getSnapshot().error).toBe('')
     expect(button('确认计划')!.attributes('disabled')).toBeUndefined()
     await changeLayout(280); await click('保存计划')
     expect(api.layout.mock.calls.map(call => call[0])).toEqual(['A', 'B'])
@@ -153,29 +122,29 @@ describe('requirement command scope across a reused route component', () => {
   it('blocks leaving an unknown command even when ordinary draft confirmation would allow it', async () => {
     const router = await render()
     api.confirm.mockRejectedValueOnce(new Error('unknown receipt'))
-    await click('确认计划'); vi.mocked(window.confirm).mockClear()
-    await router.push('/requirements/B'); await flushPromises()
-    expect(router.currentRoute.value.path).toBe('/requirements/A'); expect(wrapper!.get('h1').text()).toBe('需求 A')
-    expect(window.confirm).not.toHaveBeenCalled(); expect(wrapper!.text()).toContain('请重试原操作')
+    await click('确认计划')
+    await router.navigate('/requirements/B'); await flushPromises()
+    expect(router.router.state.location.pathname).toBe('/requirements/A'); expect(wrapper!.get('h1').text()).toBe('需求 A')
+    expect(wrapper!.application.current!.dialog.getSnapshot().open).toBe(false); expect(wrapper!.text()).toContain('结果尚未确认')
     expect(button('重试原操作')).toBeDefined(); expect(button('确认计划')!.attributes('disabled')).toBeDefined()
     await click('重试原操作')
     expect(api.confirm.mock.calls[1]).toEqual(api.confirm.mock.calls[0])
     expect(api.confirm.mock.calls[1]![1]).toBe(api.confirm.mock.calls[0]![1])
     expect(api.get.mock.calls.map(call => call[0])).toEqual(['A', 'A'])
     expect(button('确认计划')!.attributes('disabled')).toBeUndefined()
-    await router.push('/requirements/B'); await flushPromises(); expectB()
+    await router.navigate('/requirements/B'); await flushPromises(); expectB()
   })
 
   it('blocks leaving a running write and an accepted command whose readback failed', async () => {
     const write = deferred<WorkflowReceipt>(), router = await render()
     api.confirm.mockReturnValue(write.promise)
-    await click('确认计划'); await router.push('/requirements/B'); await flushPromises()
-    expect(router.currentRoute.value.path).toBe('/requirements/A'); expect(wrapper!.text()).toContain('请等待结果')
+    await click('确认计划'); await router.navigate('/requirements/B'); await flushPromises()
+    expect(router.router.state.location.pathname).toBe('/requirements/A'); expect(wrapper!.get('[data-operation-phase="SENDING"]').text()).toContain('正在发送')
     api.get.mockRejectedValueOnce(new Error('readback offline'))
     write.resolve(receipt('A')); await flushPromises()
-    await router.push('/requirements/B'); await flushPromises()
-    expect(router.currentRoute.value.path).toBe('/requirements/A'); expect(wrapper!.text()).toContain('请刷新操作结果')
+    await router.navigate('/requirements/B'); await flushPromises()
+    expect(router.router.state.location.pathname).toBe('/requirements/A'); expect(wrapper!.text()).toContain('写入已接受')
     await click('刷新操作结果'); expect(api.confirm).toHaveBeenCalledOnce()
-    await router.push('/requirements/B'); await flushPromises(); expectB()
+    await router.navigate('/requirements/B'); await flushPromises(); expectB()
   })
 })

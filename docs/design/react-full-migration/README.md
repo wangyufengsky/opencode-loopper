@@ -1,10 +1,10 @@
-# 全站 React 迁移：第二阶段规划与设计审查
+# 全站 React 迁移：计划、设计与分波验收
 
-**W0取证及W1有限范围已冻结；W2/W3已有限验收；项目经理批准的W4 Task、Inbox、Recovery已完成本地有限验收。W5及后续未批准。** 设计发布授权已执行完毕，没有新增push/PR/merge/deploy授权。当前可看[桌面五类页×三皮肤28图与单HTML](prototype/desktop-v2/README.md)、[W0固定证据](evidence/w0/README.md)、[W1实现与验证](evidence/w1/README.md)、[W2生产迁移与验证](evidence/w2/README.md)、[W3生产迁移与验证](evidence/w3/README.md)及[W4生产迁移、27张三皮肤图与验证](evidence/w4/README.md)。原[29图](prototype/README.md)保留历史。
+**W0取证已冻结；W1–W5有限范围已验收；项目经理批准的W6唯一React入口与Vue退场已完成本地有限验收。W7最终全站门禁尚未放行/运行。** 设计发布授权已执行完毕，没有新增push/PR/merge/deploy授权。最新看 [W6报告、31路由及零Vue/补丁证据](evidence/w6/README.md)、[56张真实生产三皮肤截图](evidence/w6/screenshots/README.md)及[W5高风险生产页面报告](evidence/w5/README.md)。之前[桌面原型](prototype/desktop-v2/README.md)、[W0](evidence/w0/README.md)、[W1](evidence/w1/README.md)、[W2](evidence/w2/README.md)、[W3](evidence/w3/README.md)、[W4](evidence/w4/README.md)与原[29图](prototype/README.md)保留。
 
 **结论：先按现代产品设计翻新壳、导航和信息层级，再按模块迁移页面与业务所有者，最后彻底移除 Vue。** 保留第一阶段已验证的 React Flow、PPT、Mermaid 画布，以及API／DTO和纯TypeScript协议；主要基础UI选择Ant Design，产品设计不会照搬库默认样式。临时路由／状态适配器只服务过渡，不作为最终交付。
 
-规划及设计已交付；项目经理实际预览五类页面与三皮肤代表状态，候选方向原则认可。本轮在设计基线 `008542f0bf02dc1c1b76f1e75429aab8452b797d` 执行 W0 取证，**W0取证冻结、W1有限基础工程通过；W3已验收、W4本地有限验收完成；W5+未批准**。第一阶段基线 `a3c692d38925206883f2b0a1255479108cfd439e`，独立分支 `feat/react-full-migration`，工作区 `/workspace/opencode-loopper-react-full`。第一阶段成果及原29图保留。W1已正式锁定Ant 6.6.5；新增隔离基础组件、纯TS owner和测试入口，没有修改既有页面、history owner、Vue/Pinia入口或已验收画布。main、网络和凭据未改。桌面原型与真实React/Ant测试入口分别验收。用户已撤回所有窄屏要求；旧窄屏方案/图/断言只保留历史，当前桌面与统一语义规范见下方新增入口。
+规划及设计已交付；项目经理实际预览五类页面与三皮肤代表状态，候选方向原则认可。本轮在设计基线 `008542f0bf02dc1c1b76f1e75429aab8452b797d` 执行 W0 取证，**W0取证冻结；W1–W5有限范围已验收；W6本地有限验收完成，W7待门禁**。第一阶段基线 `a3c692d38925206883f2b0a1255479108cfd439e`，独立分支 `feat/react-full-migration`，工作区 `/workspace/opencode-loopper-react-full`。第一阶段成果及原29图保留。W1阶段正式锁定Ant 6.6.5，当时仅新增隔离基础组件、纯TS owner和测试入口；W2–W5已迁生产页面，W6已原子切换唯一React Router/入口并移除Vue/Pinia执行源与依赖，已验收画布保留。main、网络和凭据未改。桌面原型与真实React/Ant测试入口分别验收。用户已撤回所有窄屏要求；旧窄屏方案/图/断言只保留历史，当前桌面与统一语义规范见下方新增入口。
 
 ## 1. 可审查报告入口
 
@@ -47,9 +47,9 @@
 
 ## 3. 基线规模和完整路由责任表
 
-规划/W0 静态基线实数：**31 路由记录＝28 组件挂载记录＋3 redirect；27 个独立路由 SFC；28 个物理 views 文件；frontend/src 内187个SFC／21,892行；6个Pinia store；35个Vue相关锁文件条目。** W2 新增一个过渡 SFC bridge，将 14 条普通路由的实际 component 改接真实 React 页面；旧 views 与依赖仍保留，当前变化见 [W2报告](evidence/w2/README.md)。e2e另有SkinsPreview.vue夹具，最终也必须删除。WorkflowEditor同时被new与id路由使用；另一个物理view是当前不再被路由挂载的AutomationsView。不能把28条挂载记录当28个独立页面，也不能把画布已React当全页已迁移。
+规划/W0 静态基线实数：**31 路由记录＝28 组件挂载记录＋3 redirect；27 个独立路由 SFC；28 个物理 views 文件；frontend/src 内187个SFC／21,892行；6个Pinia store；35个Vue相关锁文件条目。** W2 阶段曾新增过渡 SFC bridge，将14条普通路由接到React；W6已删除该桥、旧views、Vue依赖和SkinsPreview.vue夹具，实际依赖/模块/测试/构建零残留证据见[W6报告](evidence/w6/README.md)。这些规模是历史基线，不是当前残留。WorkflowEditor同时被new与id路由使用；另一个物理view是当前不再被路由挂载的AutomationsView。不能把28条挂载记录当28个独立页面，也不能把画布已React当全页已迁移。
 
-路由权威：[router/index.ts](../../../frontend/src/router/index.ts#L1)。每项输入／输出、状态、动作、权限、深链和测试详见核心／协议／PPT报告及静态索引。以下表是统一开发分配，所有现有路径、query 和条件重定向先保持。
+路由权威：[router/index.tsx](../../../frontend/src/router/index.tsx#L1)。每项输入／输出、状态、动作、权限、深链和测试详见核心／协议／PPT报告及静态索引。以下表是统一开发分配，所有现有路径、query 和条件重定向先保持。
 
 | 路径 | 页面／作用 | 开发归属 | 波次 |
 | --- | --- | --- | --- |

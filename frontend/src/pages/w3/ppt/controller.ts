@@ -150,7 +150,7 @@ export function createPptStudioController(id: string, options: { api?: StudioApi
   }
   async function start() {
     if (started) return started
-    started = (async () => { const token = controller.capture(); await Promise.all([refresh(), api.capabilities().then(capabilities => { if (token.isCurrent()) patch({ capabilities }) }).catch(failure => { if (token.isCurrent()) patch({ error: userFacingError(failure, '制作能力暂时无法读取，请重试。') }) })]); if (token.isCurrent()) patch({ loading: false }) })()
+    started = (async () => { const token = controller.capture(); await Promise.all([refresh(), api.capabilities().then(capabilities => { if (token.isCurrent()) patch({ capabilities }) }).catch(failure => { if (token.isCurrent()) patch({ error: userFacingError(failure, '制作能力暂时无法读取，请重试。') }) })]); if (token.isCurrent()) { const pending = snapshot().pending; if (pending?.kind === 'message' && snapshot().messages.some(message => acceptedMessage(pending, message))) { acknowledged(pending); persistPending(null); patch({ pending: null, error: '' }) }; patch({ loading: false }) } })()
     return started
   }
   function wire(request: StudioPending) {
@@ -183,10 +183,11 @@ export function createPptStudioController(id: string, options: { api?: StudioApi
     const { questionId: _question, ...fields } = p
     return { ...fields, expectedRevision: request.revision, idempotencyKey: request.key }
   }
+  function acceptedMessage(request: StudioPending, item: PptMessage) { return item.documentId === id && item.idempotencyKey === request.key && item.expectedRevision === request.revision && item.text === request.payload.text && JSON.stringify(item.scope) === JSON.stringify(request.payload.scope) }
   async function lookup(request: StudioPending): Promise<OriginalLookup<Receipt>> {
     if (request.kind === 'message') {
       const page = await api.messages(id)
-      const message = page.items.find(item => item.documentId === id && item.idempotencyKey === request.key && item.expectedRevision === request.revision && item.text === request.payload.text && JSON.stringify(item.scope) === JSON.stringify(request.payload.scope))
+      const message = page.items.find(item => acceptedMessage(request, item))
       return message ? { kind: 'ACCEPTED', receipt: message } : { kind: 'UNCONFIRMED' }
     }
     if (request.kind === 'upload' && request.file?.sha256) {

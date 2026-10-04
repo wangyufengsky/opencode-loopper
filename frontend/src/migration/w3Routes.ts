@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react'
 import type { W2PageProps } from '@/pages/w2/shared/types'
 
-/** Only approved W3 routes. Vue Router still owns history, redirects and guards. */
+/** Production React pages. The W6 application router is the only history owner. */
 export const w3RouteRecords = [
   { pattern: '/template-tasks', matches: (path: string) => path === '/template-tasks', load: () => import('@/pages/w3/templates/catalog').then(module => module.TemplateTasksPage) },
   { pattern: '/template-tasks/document-runs/:id', matches: (path: string) => /^\/template-tasks\/document-runs\/[^/]+$/.test(path), load: () => import('@/pages/w3/templates/runs').then(module => module.DocumentTemplatePage) },

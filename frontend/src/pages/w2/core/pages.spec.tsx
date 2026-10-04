@@ -215,8 +215,8 @@ describe('actual React Settings sections/defaults/independent credentials', () =
   it('preserves no-key UNKNOWN through preference/theme updates and accepted readback retries without another PUT', async () => {
     const f = await settingsRender(), write = vi.spyOn(api, 'updateSettings').mockRejectedValueOnce(new Error('设置响应丢失'))
     fireEvent.change(screen.getByLabelText('允许项目根（立即生效）'), { target: { value: '/workspace' } }); fireEvent.click(button('settings.save')); await screen.findByText(/原操作身份与输入已保留/)
-    expect([...f.guards][0]!().kind).toBe('BLOCK'); fireEvent.click(screen.getByRole('button', { name: '画布显示' })); fireEvent.change(screen.getByLabelText('流程创作与需求画布'), { target: { value: 'vue' } })
-    expect(JSON.parse(localStorage.getItem(CANVAS_RUNTIME_STORAGE)!)).toMatchObject({ workflow: 'vue' }); f.view.rerender(coreFrame(<SettingsPage {...f.props} skin={skins[1]!} />, skins[1]!)); expect([...f.guards][0]!().kind).toBe('BLOCK'); expect(write).toHaveBeenCalledTimes(1)
+    expect([...f.guards][0]!().kind).toBe('BLOCK'); fireEvent.click(screen.getByRole('button', { name: '画布显示' })); fireEvent.change(screen.getByLabelText('流程创作与需求画布'), { target: { value: 'react' } })
+    expect(JSON.parse(localStorage.getItem(CANVAS_RUNTIME_STORAGE)!)).toMatchObject({ workflow: 'react' }); f.view.rerender(coreFrame(<SettingsPage {...f.props} skin={skins[1]!} />, skins[1]!)); expect([...f.guards][0]!().kind).toBe('BLOCK'); expect(write).toHaveBeenCalledTimes(1)
     const accepted = currentSettings(); accepted.runtime.allowedRoot = '/workspace'; vi.mocked(api.getSettings).mockResolvedValue(accepted); vi.mocked(f.port.refreshRuntime).mockRejectedValueOnce(new Error('运行状态读取失败'))
     fireEvent.click(button('ui.retry')); await screen.findByText('运行状态读取失败'); expect([...f.guards][0]!().kind).toBe('BLOCK')
     fireEvent.click(button('ui.retry')); await waitFor(() => expect([...f.guards][0]!().kind).toBe('ALLOW')); expect(write).toHaveBeenCalledTimes(1)

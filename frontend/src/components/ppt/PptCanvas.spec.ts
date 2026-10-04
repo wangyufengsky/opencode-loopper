@@ -1,7 +1,9 @@
-import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
-import PptCanvas from './PptCanvasLegacy.vue'
+import { mount } from '@/pages/w6-tests/knowledge-ppt-template/react-test-root'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { PptCanvasView as PptCanvas } from '@/react/ppt/PptCanvasView'
 import { pptDeck } from './pptTestFixtures'
+beforeEach(() => vi.stubGlobal('ResizeObserver', undefined))
+afterEach(() => vi.unstubAllGlobals())
 describe('PPT legacy object manipulation', () => {
   it('translates scaled preview dragging to point geometry and retains its revision', async () => {
     const deck = pptDeck(),

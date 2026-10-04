@@ -1,9 +1,8 @@
-import { flushPromises, mount } from '@vue/test-utils'
-import ElementPlus from 'element-plus'
-import { createMemoryHistory, createRouter } from 'vue-router'
+import { flushPromises, mount } from '@/pages/w6-tests/ordinary/render'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/api/client'
-import TaskDesignHistoryView from '@/views/TaskDesignHistoryView.vue'
+import {TaskDesignHistoryPage as TaskDesignHistoryView} from '@/pages/w4/history'
+import {coreFixture} from '@/pages/w2/core/coreTestHelpers'
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -49,23 +48,11 @@ describe('TaskDesignHistoryView', () => {
         ],
       },
     })
-    const router = createRouter({ history: createMemoryHistory(), routes: [
-      { path: '/tasks/:id/design', component: TaskDesignHistoryView },
-      { path: '/tasks/:id', component: { template: '<div />' } },
-      { path: '/tasks', component: { template: '<div />' } },
-    ] })
-    await router.push('/tasks/task-1/design')
-    await router.isReady()
-
-    const wrapper = mount(TaskDesignHistoryView, {
-      global: {
-        plugins: [router, ElementPlus],
-        stubs: { teleport: true, Icon: true, MarkdownDocument: { props: ['content'], template: '<div class="markdown-stub">{{ content }}</div>' } },
-      },
-    })
+    const f=coreFixture(); const wrapper=mount(TaskDesignHistoryView,{props:{...f.props,route:{...f.props.route,params:{id:'task-1'}}}})
     await flushPromises()
 
     expect(api.getTaskDesignHistory).toHaveBeenCalledWith('task-1')
+    await wrapper.get('[data-semantic="selection.select"][aria-label*="历史设计对话"]').trigger('click')
     expect(wrapper.text()).toContain('请保留设计历史')
     expect(wrapper.text()).toContain('历史设计方案')
     expect(wrapper.text()).not.toContain('任务规划师')
@@ -78,18 +65,22 @@ describe('TaskDesignHistoryView', () => {
     expect(wrapper.text().split('需要保留哪些对话？')).toHaveLength(2)
     expect(wrapper.text()).toContain('用户最终回答')
     expect(wrapper.find('.answered-options .selected').text()).toContain('用户与设计师')
+    await wrapper.get('[data-semantic="selection.select"][aria-label*="已确认需求"]').trigger('click')
     expect(wrapper.text()).toContain('冻结后的完整需求')
     expect(wrapper.text()).toContain('模型调用 7/24')
     expect(wrapper.text()).not.toContain('WP-1')
+    await wrapper.get('[data-semantic="selection.select"][aria-label*="工作包设计历史"]').trigger('click')
     expect(wrapper.text()).toContain('已编译展示阶段')
     expect(wrapper.text()).not.toContain('Designer session created in read-only mode.')
+    await wrapper.get('[data-semantic="selection.select"][aria-label*="冻结任务设置"]').trigger('click')
     expect(wrapper.text()).toContain('保留设计历史')
     expect(wrapper.text()).toContain('实现历史入口')
     expect(wrapper.text()).toContain('npm test')
     expect(wrapper.text()).toContain('冻结附件清单')
+    await wrapper.get('[data-semantic="selection.select"][aria-label*="冻结附件清单"]').trigger('click')
     expect(wrapper.text()).toContain('contract.pdf')
     expect(wrapper.text()).toContain('abcdef012345')
     expect(wrapper.text()).not.toContain('查看完整 LoopSpec JSON')
-    expect(wrapper.find('textarea').exists()).toBe(false)
+    expect(wrapper.find('textarea').exists()).toBe(false);wrapper.unmount();f.dispose()
   })
 })

@@ -1,19 +1,15 @@
-import { flushPromises, mount } from '@vue/test-utils'
-import ElementPlus from 'element-plus'
-import { createPinia, setActivePinia } from 'pinia'
+import { flushPromises, mount } from '@/pages/w6-tests/knowledge-ppt-template/react-test-root'
+import {pageProps} from '@/pages/w3/ppt/testFixture'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import DesignerHistoryView from '@/views/DesignerHistoryView.vue'
+import {DesignerHistoryPage as DesignerHistoryView} from '@/pages/w2/workflow/DesignerHistoryPage'
 import { api } from '@/api/client'
-import { useTaskStore } from '@/stores/taskStore'
+
 import type { DesignerHistoryItem, Project } from '@/types/domain'
 
 const { routerPush, routerReplace, routeQuery } = vi.hoisted(() => ({
   routerPush: vi.fn(), routerReplace: vi.fn(), routeQuery: {} as Record<string, string>,
 }))
-vi.mock('vue-router', () => ({
-  useRoute: () => ({ query: routeQuery }),
-  useRouter: () => ({ push: routerPush, replace: routerReplace }),
-}))
+
 
 const projects: Project[] = [
   { id: 'project-1', name: 'Alpha', rootPath: '/tmp/alpha', status: 'READY', updatedAt: 'now', taskCount: 0, openDesignerSessionCount: 2 },
@@ -29,27 +25,20 @@ function design(overrides: Partial<DesignerHistoryItem>): DesignerHistoryItem {
   }
 }
 
-function mountHistory() {
-  return mount(DesignerHistoryView, {
-    global: {
-      plugins: [ElementPlus],
-      stubs: { PageHeader: { template: '<header><slot /><slot name="actions" /></header>' }, Icon: true },
-    },
-  })
-}
+let context:ReturnType<typeof pageProps>|undefined
+function mountHistory(){context=pageProps();context.props.route={path:'/designs',fullPath:'/designs',params:{},query:{...routeQuery}};context.props.navigation.go=routerPush.mockResolvedValue(true);return mount(DesignerHistoryView,{props:context.props})}
+async function select(view:ReturnType<typeof mountHistory>){await view.get('[data-foundation-component="list"] button').trigger('click');await flushPromises()}
 
 beforeEach(() => {
   routerPush.mockReset()
   routerReplace.mockReset()
   for (const key of Object.keys(routeQuery)) delete routeQuery[key]
   sessionStorage.clear()
-  setActivePinia(createPinia())
-  const store = useTaskStore()
-  store.projects = projects
-  vi.spyOn(store, 'loadOverview').mockResolvedValue()
+  vi.spyOn(api,'getProjects').mockResolvedValue(projects)
 })
 
 afterEach(() => {
+  context?.retire();context=undefined
   vi.restoreAllMocks()
   sessionStorage.clear()
 })
@@ -67,8 +56,8 @@ describe('DesignerHistoryView', () => {
     const wrapper = mountHistory()
     await flushPromises()
 
-    const cards = wrapper.findAll('.history-card:not(.skeleton-block)')
-    expect(cards.map((card) => card.find('h3').text())).toEqual(['较早的等待设计', '较新的等待设计'])
+    const cards = wrapper.findAll('[data-foundation-component="list"] button')
+    expect(cards.map((card) => card.find('strong').text())).toEqual(['较早的等待设计', '较新的等待设计'])
     expect(wrapper.find('[aria-label="按项目筛选设计"]').exists()).toBe(true)
     expect(wrapper.find('[aria-label="按状态筛选设计"]').exists()).toBe(true)
     expect(wrapper.find('[aria-label="按更新时间排序设计"]').exists()).toBe(true)
@@ -83,18 +72,20 @@ describe('DesignerHistoryView', () => {
 
     const wrapper = mountHistory()
     await flushPromises()
-    const buttons = () => wrapper.findAll('.history-actions button')
+    await select(wrapper)
+    const buttons = () => wrapper.findAll('[data-foundation-component="context"] button')
 
-    await buttons().find((button) => button.text().includes('继续'))!.trigger('click')
-    await buttons().find((button) => button.text().includes('修改'))!.trigger('click')
-    expect(routerPush).toHaveBeenNthCalledWith(1, { path: '/designer', query: { sessionId: item.id, projectId: item.projectId } })
-    expect(routerPush).toHaveBeenNthCalledWith(2, { path: '/designer', query: { sessionId: item.id, projectId: item.projectId, mode: 'edit' } })
+    await buttons().find((button) => button.attributes('data-semantic')==='designer.continue')!.trigger('click')
+    await buttons().find((button) => button.attributes('data-semantic')==='designer.editSettings')!.trigger('click')
+    expect(routerPush.mock.calls[0]![0]).toEqual({ path: '/designer', query: { sessionId: item.id, projectId: item.projectId } })
+    expect(routerPush.mock.calls[1]![0]).toEqual({ path: '/designer', query: { sessionId: item.id, projectId: item.projectId, mode: 'edit' } })
 
-    await buttons().find((button) => button.text().includes('归档'))!.trigger('click')
+    vi.mocked(api.listDesignerHistoryPage).mockResolvedValue({items:[],facets:{}})
+    await buttons().find((button) => button.attributes('data-semantic')==='designer.archive')!.trigger('click')
     await flushPromises()
     expect(archive).toHaveBeenCalledWith(item.id)
     expect(sessionStorage.getItem('opencode-loopper.designer-workspace')).toBeNull()
-    expect(wrapper.find('.history-card:not(.skeleton-block)').exists()).toBe(false)
+    expect(wrapper.find('[data-foundation-component="list"] button').exists()).toBe(false)
   })
 
   it('shows confirmed task designs as read-only history without continue, edit, or archive actions', async () => {
@@ -108,15 +99,16 @@ describe('DesignerHistoryView', () => {
     const wrapper = mountHistory()
     await flushPromises()
 
-    const card = wrapper.get('.history-card:not(.skeleton-block)')
+    await select(wrapper)
+    const card = wrapper.get('[data-foundation-component="context"]')
     expect(card.text()).toContain('已确认成任务')
     expect(card.text()).toContain('任务：已确认完成')
     expect(card.text()).not.toContain('继续')
     expect(card.text()).not.toContain('修改')
     expect(card.text()).not.toContain('归档')
 
-    await card.get('button').trigger('click')
-    expect(routerPush).toHaveBeenCalledWith('/tasks/task-completed/design')
+    await card.get('a[href="/tasks/task-completed/design"]').trigger('click')
+    expect(routerPush.mock.calls[0]![0]).toBe('/tasks/task-completed/design')
   })
 
   it('keeps a stopped and archived design as a read-only cancelled record', async () => {
@@ -127,7 +119,8 @@ describe('DesignerHistoryView', () => {
     const wrapper = mountHistory()
     await flushPromises()
 
-    const card = wrapper.get('.history-card:not(.skeleton-block)')
+    await select(wrapper)
+    const card = wrapper.get('[data-foundation-component="context"]')
     expect(card.text()).toContain('已取消')
     expect(card.text()).toContain('只读记录')
     expect(card.text()).not.toContain('继续')
@@ -145,12 +138,13 @@ describe('DesignerHistoryView', () => {
 
     const wrapper = mountHistory()
     await flushPromises()
-    const card = wrapper.get('.history-card:not(.skeleton-block)')
+    await select(wrapper)
+    const card = wrapper.get('[data-foundation-component="context"]')
     expect(card.text()).toContain('重试停止')
     expect(card.text()).not.toContain('继续')
     expect(card.text()).not.toContain('修改')
     expect(card.text()).not.toContain('归档')
-    await card.get('button').trigger('click')
+    await card.get('button[data-semantic="designer.retryStop"]').trigger('click')
     await flushPromises()
     expect(retry).toHaveBeenCalledWith('designer-stopping')
   })

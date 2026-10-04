@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { mount } from '@vue/test-utils'
-import RolePromptView from '@/components/roles/RolePromptView.vue'
+import { mount } from '@/pages/w6-tests/ordinary/render'
+import { PromptDocument as RolePromptView } from '@/pages/w2/roles/RoleManagementPage'
 import { rolePrompt } from './rolePrompt'
 import type { RoleRevision } from '@/types/domain'
 const base: RoleRevision = { roleId: 'role', revisionId: 'revision', revisionNumber: 1, contentSha256: '', manifest: {}, promptFragments: {} }

@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { mount, resolveDialog } from '@/pages/w6-tests/workflow/react-test-root'
 import type { WorkflowNode } from '@/types/domain'
 import { newNode } from './graph'
-import WorkflowDocumentReviewEditor from './WorkflowDocumentReviewEditor.vue'
-import WorkflowNodeEditor from './WorkflowNodeEditor.vue'
+import { WorkflowDocumentReviewEditor as WorkflowDocumentReviewEditor } from '@/pages/w5/workflow/NodeSpecialists'
+import { WorkflowNodeEditor as WorkflowNodeEditor } from '@/pages/w5/workflow/WorkflowNodeEditor'
 const node = (parameters: Record<string, string> = {}): WorkflowNode => ({ ...newNode('free.readonly'), moduleId: 'document.direct-review', parameters })
 afterEach(() => vi.restoreAllMocks())
 describe('原文章节和批次编辑', () => {
@@ -20,10 +20,10 @@ describe('原文章节和批次编辑', () => {
     expect(empty.parameters.documentSections).toBe('[]'); await view.setProps({ node: empty }); expect(view.get('[role=alert]').text()).toContain('至少选择')
   })
   it('无法识别的配置不隐式丢失，替换需确认', async () => {
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+
     const view = mount(WorkflowDocumentReviewEditor, { props: { node: node({ documentSections: '{broken' }) } })
-    await view.get('button').trigger('click'); expect(view.emitted('change')).toBeUndefined()
-    confirm.mockReturnValue(true); await view.get('button').trigger('click'); expect((view.emitted('change')![0]![0] as WorkflowNode).parameters.documentSections).toBe('')
+    await view.get('button').trigger('click'); await resolveDialog(view, false); expect(view.emitted('change')).toBeUndefined()
+    await view.get('button').trigger('click'); await resolveDialog(view, true); expect((view.emitted('change')![0]![0] as WorkflowNode).parameters.documentSections).toBe('')
   })
   it('锁定画布不能修改批次', async () => {
     const view = mount(WorkflowDocumentReviewEditor, { props: { node: node(), disabled: true } })
@@ -31,7 +31,7 @@ describe('原文章节和批次编辑', () => {
   })
   it.each(['document.direct-review', 'document.direct-review-check'])('专业交付固定，复核完成策略仍由用户选择 %s', moduleId => {
     const n = { ...node(), moduleId, outputs: [{ name: 'result', title: '评审结果', kind: 'JSON' as const, required: true }] }
-    const view = mount(WorkflowNodeEditor, { props: { node: n, graph: { schemaVersion: 1, nodes: [n], edges: [], inputs: [] } }, global: { stubs: { WorkflowRolePicker: true } } })
+    const view = mount(WorkflowNodeEditor, { props: { node: n, graph: { schemaVersion: 1, nodes: [n], edges: [], inputs: [] } } })
     expect(view.get('[aria-label="专业交付物"]').text()).toContain('评审结果'); expect(view.text()).not.toContain('添加交付物'); expect(view.text()).not.toContain('添加业务结果')
     expect(view.find('option[value="DELIVERABLES"]').exists()).toBe(true); expect(view.find('option[value="OUTCOME"]').exists()).toBe(moduleId.endsWith('-check'))
   })

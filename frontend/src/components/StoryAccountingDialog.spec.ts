@@ -1,7 +1,12 @@
-import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
-import ElementPlus, { ElDialog } from 'element-plus'
+import { act, render, fireEvent } from '@testing-library/react'
+import { createElement } from 'react'
+import { flushPromises as drain } from '@/test/async'
+import { FoundationProvider } from '@/foundation/provider'
+import { resolveSkin } from '@/themes/registry'
+import { createStoryAccountingOwner } from '@/app/storyAccounting'
+import { semanticName } from '@/foundation/semanticRegistry'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import StoryAccountingDialog from './StoryAccountingDialog.vue'
+import { StoryAccountingDialog } from '@/app/StoryAccountingDialog'
 import { api } from '@/api/client'
 import type { StoryAccountingCall } from '@/types/domain'
 
@@ -13,13 +18,14 @@ vi.mock('@/api/client', async importOriginal => ({
   },
 }))
 
-let wrapper: VueWrapper | undefined
+let wrapper: {unmount():void} | undefined
+async function flushPromises(){await act(async()=>{await drain()})}
 const call = (id = 'one'): StoryAccountingCall => ({ id, operation: 'start', state: 'PREPARED', systemCode: 'SYS-001', storyCode: '000123', role: 'ROUTER', startedAt: '2026-09-03T00:00:00Z', parts: [{ id: 'part-1', type: 'OUTPUT', label: '输出', content: '已收到故事编号 000123' }] })
-function open() { wrapper = mount(StoryAccountingDialog, { attachTo: document.body, global: { plugins: [ElementPlus] } }); return wrapper }
+function open() { const owner=createStoryAccountingOwner();const view=render(createElement(FoundationProvider,{skin:resolveSkin('spdb'),reducedMotion:true,children:createElement(StoryAccountingDialog,{owner})}));act(()=>owner.start());wrapper={unmount(){owner.dispose();view.unmount()}};return wrapper }
 function text() { return document.body.textContent ?? '' }
 async function click(label: string) {
-  const button = [...document.querySelectorAll('button')].find(button => button.textContent?.trim() === label)
-  expect(button).toBeDefined(); button!.click(); await flushPromises()
+  const button = [...document.querySelectorAll('button')].find(button => label.startsWith('重新发起 ') ? button.getAttribute('aria-label')===semanticName('accounting.retry',label.slice(5)) : label==='关闭' ? button.getAttribute('data-semantic')==='accounting.dismiss' : button.textContent?.trim()===label)
+  expect(button).toBeDefined(); act(()=>button!.click()); await flushPromises()
 }
 beforeEach(() => {
   vi.useFakeTimers(); vi.setSystemTime(new Date('2026-09-03T00:00:05Z'))
@@ -32,7 +38,7 @@ it('opens globally before a Designer exists, shows actual output and keeps waiti
   open(); await flushPromises()
   expect(text()).toContain('正在开启故事点统计')
   expect(text()).toContain('已收到故事编号 000123')
-  expect(wrapper!.findComponent(ElDialog).props('showClose')).toBe(false)
+  expect(document.querySelector('.ant-modal-close')).toBeNull()
   await vi.advanceTimersByTimeAsync(35_000)
   expect(text()).toContain('已用 40 秒')
   expect(text()).toContain('正在等待统计结果')
@@ -81,7 +87,7 @@ it('disables retry while the remote is still owned by business and explains why'
   vi.mocked(api.getStoryAccountingCalls).mockResolvedValue([failed])
   vi.mocked(api.getStoryAccountingCall).mockResolvedValue(failed)
   open(); await flushPromises()
-  expect([...document.querySelectorAll('button')].find(button => button.textContent?.includes('重新发起 start'))?.disabled).toBe(true)
+  expect([...document.querySelectorAll('button')].find(button => button.getAttribute('aria-label')===semanticName('accounting.retry','start'))?.disabled).toBe(true)
   expect(text()).toContain(failed.retryUnavailableReason)
 })
 it('keeps the dialog open and prevents another retry while the new call is being created', async () => {
@@ -92,8 +98,8 @@ it('keeps the dialog open and prevents another retry while the new call is being
   const retry = vi.spyOn(api, 'retryStoryAccountingCall').mockReturnValue(new Promise(resolve => { finish = resolve }))
   open(); await flushPromises()
   await click('重新发起 start')
-  expect(wrapper!.findComponent(ElDialog).props('showClose')).toBe(false)
-  expect(wrapper!.findComponent(ElDialog).props('closeOnPressEscape')).toBe(false)
+  expect(document.querySelector('.ant-modal-close')).toBeNull()
+  act(()=>fireEvent.keyDown(document.querySelector('[role=dialog]')!,{key:'Escape',code:'Escape',keyCode:27}));expect(api.dismissStoryAccountingCall).not.toHaveBeenCalled()
   await click('重新发起 start')
   expect(retry).toHaveBeenCalledTimes(1)
   finish(call('retry')); await flushPromises()

@@ -1,0 +1,2630 @@
+{
+  "ok": true,
+  "runPassed": true,
+  "suiteFailures": [],
+  "baseline": "2186deafdfc6d8bfbd6047ea2b3b8853a5296683",
+  "originalTests": 2332,
+  "originalFiles": 266,
+  "finalTests": 2363,
+  "finalFiles": 273,
+  "newTests": 31,
+  "missing": [],
+  "failed": [],
+  "added": [
+    {
+      "fullName": "W6 single application ownership preserves destination query arrays, hash and encoded original params without creating commands",
+      "count": 1,
+      "paths": [
+        "frontend/src/app/ownership.spec.ts"
+      ]
+    },
+    {
+      "fullName": "W6 single application ownership root safe disposal retains pending and all resource/command identities",
+      "count": 1,
+      "paths": [
+        "frontend/src/app/ownership.spec.ts"
+      ]
+    },
+    {
+      "fullName": "W6 single application ownership root safe disposal retains unknown and all resource/command identities",
+      "count": 1,
+      "paths": [
+        "frontend/src/app/ownership.spec.ts"
+      ]
+    },
+    {
+      "fullName": "W6 single application ownership root safe disposal retains File and all resource/command identities",
+      "count": 1,
+      "paths": [
+        "frontend/src/app/ownership.spec.ts"
+      ]
+    },
+    {
+      "fullName": "W6 single application ownership root safe disposal retains dirty and all resource/command identities",
+      "count": 1,
+      "paths": [
+        "frontend/src/app/ownership.spec.ts"
+      ]
+    },
+    {
+      "fullName": "W6 single application ownership global pending without a page also blocks root disposal; guard exceptions fail closed",
+      "count": 1,
+      "paths": [
+        "frontend/src/app/ownership.spec.ts"
+      ]
+    },
+    {
+      "fullName": "W6 single application ownership new pending while dirty confirmation is open blocks confirm, preserving the same scope",
+      "count": 1,
+      "paths": [
+        "frontend/src/app/ownership.spec.ts"
+      ]
+    },
+    {
+      "fullName": "W6 single application ownership a blocked concurrent destination invalidates an older accepted navigation before history changes",
+      "count": 1,
+      "paths": [
+        "frontend/src/app/ownership.spec.ts"
+      ]
+    },
+    {
+      "fullName": "W6 single application ownership retired scopes dispose every owner once and reject late navigation without throwing or writing",
+      "count": 1,
+      "paths": [
+        "frontend/src/app/ownership.spec.ts"
+      ]
+    },
+    {
+      "fullName": "W6 single application ownership all 31 route records exist, redirects preserve query/hash and fallback returns home",
+      "count": 1,
+      "paths": [
+        "frontend/src/app/ownership.spec.ts"
+      ]
+    },
+    {
+      "fullName": "W6 global accounting original operation protection unknown cancel retains original id, blocks navigation, reads only original authoritative proof",
+      "count": 1,
+      "paths": [
+        "frontend/src/app/ownership.spec.ts"
+      ]
+    },
+    {
+      "fullName": "W6 global accounting original operation protection wrong-id GET cannot release original unknown; disposal invalidates late completion and all timers",
+      "count": 1,
+      "paths": [
+        "frontend/src/app/ownership.spec.ts"
+      ]
+    },
+    {
+      "fullName": "W6 global accounting original operation protection unkeyed retry never silently rewrites: list read cannot prove its receipt",
+      "count": 1,
+      "paths": [
+        "frontend/src/app/ownership.spec.ts"
+      ]
+    },
+    {
+      "fullName": "W6 global accounting original operation protection partial dismiss removes accepted first receipt; second unknown never resends either write",
+      "count": 1,
+      "paths": [
+        "frontend/src/app/ownership.spec.ts"
+      ]
+    },
+    {
+      "fullName": "PPT restored original message read proof keeps UNKNOWN when the authoritative row has a different key",
+      "count": 1,
+      "paths": [
+        "frontend/src/stores/pptStore.spec.ts"
+      ]
+    },
+    {
+      "fullName": "PPT restored original message read proof keeps UNKNOWN when the authoritative row has a different text",
+      "count": 1,
+      "paths": [
+        "frontend/src/stores/pptStore.spec.ts"
+      ]
+    },
+    {
+      "fullName": "PPT restored original message read proof keeps UNKNOWN when the authoritative row has a different revision",
+      "count": 1,
+      "paths": [
+        "frontend/src/stores/pptStore.spec.ts"
+      ]
+    },
+    {
+      "fullName": "PPT restored original message read proof keeps UNKNOWN when the authoritative row has a different scope",
+      "count": 1,
+      "paths": [
+        "frontend/src/stores/pptStore.spec.ts"
+      ]
+    },
+    {
+      "fullName": "B independent initial Designer activity read shows the actual first activity failure before any activity DTO exists",
+      "count": 1,
+      "paths": [
+        "frontend/src/pages/w6-tests/ordinary/designer-activity-independent.spec.tsx"
+      ]
+    },
+    {
+      "fullName": "B independent initial attachment keeps partial-session 400 identity and only replays the explicit original request",
+      "count": 1,
+      "paths": [
+        "frontend/src/pages/w6-tests/ordinary/designer-initial-attachment-independent.spec.ts"
+      ]
+    },
+    {
+      "fullName": "one App owner constructs without reads or SSE and its last snapshot remains immutable after disposal",
+      "count": 1,
+      "paths": [
+        "frontend/src/pages/w6-tests/ordinary/ownership.spec.tsx"
+      ]
+    },
+    {
+      "fullName": "App runtime read order and demo scope prevent stale REST from replacing the current projection",
+      "count": 1,
+      "paths": [
+        "frontend/src/pages/w6-tests/ordinary/ownership.spec.tsx"
+      ]
+    },
+    {
+      "fullName": "actual root StrictMode Session leases retire every replay and ignore a detached late read without new requests",
+      "count": 1,
+      "paths": [
+        "frontend/src/pages/w6-tests/ordinary/ownership.spec.tsx"
+      ]
+    },
+    {
+      "fullName": "keyless Session unknown recovery reads the same identity and never rewrites or discards the original input",
+      "count": 1,
+      "paths": [
+        "frontend/src/pages/w6-tests/ordinary/ownership.spec.tsx"
+      ]
+    },
+    {
+      "fullName": "Session rollback confirmation rechecks actual Task version and DIRECT permission before any write",
+      "count": 1,
+      "paths": [
+        "frontend/src/pages/w6-tests/ordinary/ownership.spec.tsx"
+      ]
+    },
+    {
+      "fullName": "actual Session UI invokes explicit real sync once and closing the root does not issue stop or cancel",
+      "count": 1,
+      "paths": [
+        "frontend/src/pages/w6-tests/ordinary/ownership.spec.tsx"
+      ]
+    },
+    {
+      "fullName": "Workflow library local disclosure resources removes its exact document pointer listener synchronously on dismissal and every StrictMode root exit",
+      "count": 1,
+      "paths": [
+        "frontend/src/pages/w6-tests/workflow/library-resources.spec.tsx"
+      ]
+    },
+    {
+      "fullName": "Workflow library local disclosure resources leaves the original unknown command and its guard visible when outside dismissal only hides context",
+      "count": 1,
+      "paths": [
+        "frontend/src/pages/w6-tests/workflow/library-resources.spec.tsx"
+      ]
+    },
+    {
+      "fullName": "independent Root accounting disposal releases every owned resource even when stream close throws",
+      "count": 1,
+      "paths": [
+        "frontend/src/pages/w6-tests/workflow/root-cleanup-independent.probe.spec.tsx"
+      ]
+    },
+    {
+      "fullName": "independent Root releases its real React tree after forced disposal with an owned cleanup failure",
+      "count": 1,
+      "paths": [
+        "frontend/src/pages/w6-tests/workflow/root-cleanup-independent.probe.spec.tsx"
+      ]
+    },
+    {
+      "fullName": "independent Root rejects a retired accounting selection error without replacing the current selection or command",
+      "count": 1,
+      "paths": [
+        "frontend/src/pages/w6-tests/workflow/root-story-read-independent.probe.spec.ts"
+      ]
+    }
+  ],
+  "files": [
+    {
+      "original": "frontend/src/icons.spec.ts",
+      "count": 1,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/icons.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/api/client.spec.ts",
+      "count": 77,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/api/client.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/api/ppt.spec.ts",
+      "count": 8,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/api/ppt.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/api/roles.spec.ts",
+      "count": 4,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/api/roles.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/api/skills.spec.ts",
+      "count": 1,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/api/skills.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/api/storyAccountingEvents.spec.ts",
+      "count": 1,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/api/storyAccountingEvents.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/api/templateSessionDiagnostics.spec.ts",
+      "count": 3,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/api/templateSessionDiagnostics.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/api/workflow.spec.ts",
+      "count": 2,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/api/workflow.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/api/workflowPublication.spec.ts",
+      "count": 2,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/api/workflowPublication.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/api/workflowPush.spec.ts",
+      "count": 2,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/api/workflowPush.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/api/workflowRuns.spec.ts",
+      "count": 1,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/api/workflowRuns.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/api/workflowWriteback.spec.ts",
+      "count": 2,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/api/workflowWriteback.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/AppSidebar.spec.ts",
+      "count": 12,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/AppSidebar.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/AutomationHealth.spec.ts",
+      "count": 1,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/AutomationHealth.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/CodeMergeEditor.spec.ts",
+      "count": 1,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/CodeMergeEditor.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/DatabaseConnectionDrawer.spec.ts",
+      "count": 6,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/DatabaseConnectionDrawer.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/DesignerCurrentActivity.spec.ts",
+      "count": 2,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/DesignerCurrentActivity.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/DirectoryPathInput.spec.ts",
+      "count": 4,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/DirectoryPathInput.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/DirtyWorkspaceDialog.spec.ts",
+      "count": 3,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/DirtyWorkspaceDialog.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/DocumentClarificationForm.spec.ts",
+      "count": 2,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/DocumentClarificationForm.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/DocumentFilePicker.spec.ts",
+      "count": 3,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/DocumentFilePicker.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/DocumentReportsPanel.spec.ts",
+      "count": 2,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/DocumentReportsPanel.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/DocumentRequirementsPanel.spec.ts",
+      "count": 2,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/DocumentRequirementsPanel.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/DocumentSourcesPanel.spec.ts",
+      "count": 1,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/DocumentSourcesPanel.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/DocumentSupplementForm.spec.ts",
+      "count": 2,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/DocumentSupplementForm.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/ExecutionAcceptancePanel.spec.ts",
+      "count": 3,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/ExecutionAcceptancePanel.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/ExecutionEvidencePanel.spec.ts",
+      "count": 1,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/ExecutionEvidencePanel.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/GitCredentialForm.spec.ts",
+      "count": 4,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/GitCredentialForm.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/GitDiffScopeApprovalDialog.spec.ts",
+      "count": 2,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/GitDiffScopeApprovalDialog.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/JudgeReviewCard.spec.ts",
+      "count": 3,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/JudgeReviewCard.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/LayeredErrorPanel.spec.ts",
+      "count": 3,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/LayeredErrorPanel.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/LoopSpecEditor.spec.ts",
+      "count": 9,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/LoopSpecEditor.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/MarkdownDocument.spec.ts",
+      "count": 15,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/MarkdownDocument.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/McpToolPolicyPanel.spec.ts",
+      "count": 3,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/McpToolPolicyPanel.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/PackageGapNotice.spec.ts",
+      "count": 2,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/PackageGapNotice.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/PageHeader.spec.ts",
+      "count": 2,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/PageHeader.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/PendingQuestionCard.spec.ts",
+      "count": 2,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/PendingQuestionCard.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/ProjectAssistDialog.spec.ts",
+      "count": 3,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/ProjectAssistDialog.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/ProjectDocumentPathDialog.spec.ts",
+      "count": 3,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/ProjectDocumentPathDialog.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/RollingPackageWorkbench.spec.ts",
+      "count": 6,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/RollingPackageWorkbench.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/SessionLifecyclePanel.spec.ts",
+      "count": 1,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/SessionLifecyclePanel.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/SessionMonitorPanel.spec.ts",
+      "count": 7,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/SessionMonitorPanel.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/SessionRoleSummary.spec.ts",
+      "count": 3,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/SessionRoleSummary.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/SkillBrowser.spec.ts",
+      "count": 3,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/SkillBrowser.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/SnapshotReviewBatchesPanel.spec.ts",
+      "count": 1,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/SnapshotReviewBatchesPanel.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/SnapshotReviewPartialReport.spec.ts",
+      "count": 1,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/SnapshotReviewPartialReport.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/SourceArtifactsPanel.spec.ts",
+      "count": 1,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/SourceArtifactsPanel.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/SourceCoveragePanel.spec.ts",
+      "count": 2,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/SourceCoveragePanel.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/SourceTemplateFields.spec.ts",
+      "count": 4,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/SourceTemplateFields.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/StageRail.spec.ts",
+      "count": 4,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/StageRail.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/StoryAccountingDialog.spec.ts",
+      "count": 18,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/StoryAccountingDialog.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/StoryBindingSetup.spec.ts",
+      "count": 3,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/StoryBindingSetup.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/TaskAuditEvidencePanel.spec.ts",
+      "count": 4,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/TaskAuditEvidencePanel.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/TaskDecisionPanel.spec.ts",
+      "count": 16,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/TaskDecisionPanel.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/TaskJudgeApprovalPanel.spec.ts",
+      "count": 2,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/TaskJudgeApprovalPanel.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/TaskProfileRouterDialog.spec.ts",
+      "count": 4,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/TaskProfileRouterDialog.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/TaskPublicationActions.spec.ts",
+      "count": 15,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/TaskPublicationActions.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/TemplateBatchRecoveryPanel.spec.ts",
+      "count": 6,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/TemplateBatchRecoveryPanel.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/TemplateReportsPanel.spec.ts",
+      "count": 7,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/TemplateReportsPanel.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/TemplateSessionDiagnosticsPanel.spec.ts",
+      "count": 6,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/TemplateSessionDiagnosticsPanel.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/TemplateTaskProgressPanel.spec.ts",
+      "count": 7,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/TemplateTaskProgressPanel.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/TokenUsageWindow.spec.ts",
+      "count": 2,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/TokenUsageWindow.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/domain/acknowledgedOperation.spec.ts",
+      "count": 5,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/domain/acknowledgedOperation.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/foundation/components.spec.tsx",
+      "count": 20,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/foundation/components.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/foundation/ownership.spec.ts",
+      "count": 2,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/foundation/ownership.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/foundation/registry-theme.spec.tsx",
+      "count": 8,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/foundation/registry-theme.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/migration/canvasRuntime.spec.ts",
+      "count": 3,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/migration/canvasRuntime.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/migration/canvasRuntimeVue.spec.ts",
+      "count": 2,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/migration/canvasRuntimeIsolation.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/migration/w2Bridge.spec.tsx",
+      "count": 26,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/migration/w2Bridge.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/migration/w2TaskPort.spec.ts",
+      "count": 5,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/migration/w2TaskPort.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/migration/w3Routes.spec.ts",
+      "count": 16,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/migration/w3Routes.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/migration/w4Routes.spec.ts",
+      "count": 13,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/migration/w4Routes.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/migration/w4TaskBoundary.spec.ts",
+      "count": 2,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/migration/w4TaskBoundary.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/migration/w5Ownership.spec.ts",
+      "count": 3,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/migration/w5Ownership.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/migration/w5Routes.spec.ts",
+      "count": 17,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/migration/w5Routes.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/react/bridge.spec.tsx",
+      "count": 3,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/react/bridge.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/router/designerEntry.spec.ts",
+      "count": 5,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/router/designerEntry.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/stores/documentTemplateStore.spec.ts",
+      "count": 3,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/stores/documentTemplateStore.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/stores/knowledgeStore.spec.ts",
+      "count": 12,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/stores/knowledgeStore.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/stores/pptStore.spec.ts",
+      "count": 15,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/stores/pptStore.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/stores/sourceTemplateStore.spec.ts",
+      "count": 2,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/stores/sourceTemplateStore.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/stores/taskEventSubscriptionCleanup.spec.ts",
+      "count": 1,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/stores/taskEventSubscriptionCleanup.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/stores/taskStore.spec.ts",
+      "count": 25,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/stores/taskStore.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/stores/templateTaskStore.spec.ts",
+      "count": 2,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/stores/templateTaskStore.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/themes/skins.spec.ts",
+      "count": 7,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/themes/skins.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/types/states.spec.ts",
+      "count": 2,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/types/states.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/utils/displayLabels.spec.ts",
+      "count": 12,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/utils/displayLabels.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/utils/knowledgeLinks.spec.ts",
+      "count": 2,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/utils/knowledgeLinks.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/utils/mergeView.spec.ts",
+      "count": 3,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/utils/mergeView.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/utils/rolePrompt.spec.ts",
+      "count": 5,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/utils/rolePrompt.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/utils/templateSessionLabels.spec.ts",
+      "count": 2,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/utils/templateSessionLabels.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/w0/designer-w0.spec.ts",
+      "count": 21,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/w0/designer-w0.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/w0/endpoint-w0.spec.ts",
+      "count": 15,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/w0/endpoint-w0.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/w0/templates-history-w0.spec.ts",
+      "count": 43,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/w0/templates-history-w0.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/w0/workflow-w0.spec.ts",
+      "count": 32,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/w0/workflow-w0.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/views/AutomationsView.spec.ts",
+      "count": 4,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/views/AutomationsView.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/views/DatabaseView.spec.ts",
+      "count": 1,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/views/DatabaseView.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/views/DesignerHistoryView.spec.ts",
+      "count": 5,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/views/DesignerHistoryView.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/views/DesignerView.spec.ts",
+      "count": 56,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/views/DesignerView.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/views/DocumentTemplateView.spec.ts",
+      "count": 3,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/views/DocumentTemplateView.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/views/HomeView.spec.ts",
+      "count": 2,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/views/HomeView.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/views/InboxView.spec.ts",
+      "count": 7,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/views/InboxView.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/views/InsightsDashboardView.spec.ts",
+      "count": 3,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/views/InsightsDashboardView.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/views/KnowledgeView.spec.ts",
+      "count": 10,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/views/KnowledgeView.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/views/PptListView.spec.ts",
+      "count": 1,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/views/PptListView.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/views/PptStudioRecovery.spec.tsx",
+      "count": 3,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/views/PptStudioRecovery.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/views/ProjectsView.spec.ts",
+      "count": 9,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/views/ProjectsView.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/views/RecoveryStudioView.spec.ts",
+      "count": 2,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/views/RecoveryStudioView.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/views/RoleManagementView.spec.ts",
+      "count": 10,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/views/RoleManagementView.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/views/RuntimeView.spec.ts",
+      "count": 4,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/views/RuntimeView.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/views/SettingsView.spec.ts",
+      "count": 6,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/views/SettingsView.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/views/SourceTemplateView.spec.ts",
+      "count": 3,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/views/SourceTemplateView.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/views/TaskDesignHistoryView.spec.ts",
+      "count": 1,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/views/TaskDesignHistoryView.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/views/TaskDetailView.spec.ts",
+      "count": 25,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/views/TaskDetailView.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/views/TasksView.spec.ts",
+      "count": 8,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/views/TasksView.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/views/TemplateTasksView.spec.ts",
+      "count": 5,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/views/TemplateTasksView.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/views/ToolsView.spec.ts",
+      "count": 2,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/views/ToolsView.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/views/WorkflowEditorView.spec.ts",
+      "count": 13,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/views/WorkflowEditorView.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/views/WorkflowLibraryView.spec.ts",
+      "count": 5,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/views/WorkflowLibraryView.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/views/WorkflowRequirementListView.spec.ts",
+      "count": 2,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/views/WorkflowRequirementListView.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/views/WorkflowRequirementNewView.spec.ts",
+      "count": 8,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/views/WorkflowRequirementNewView.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/views/WorkflowRequirementScope.spec.ts",
+      "count": 7,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/views/WorkflowRequirementScope.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/views/WorkflowRequirementView.spec.ts",
+      "count": 23,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/views/WorkflowRequirementView.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/knowledge/KnowledgeEvidence.spec.ts",
+      "count": 1,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/knowledge/KnowledgeEvidence.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/knowledge/KnowledgeSourcesPanel.spec.ts",
+      "count": 5,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/knowledge/KnowledgeSourcesPanel.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/knowledge/KnowledgeThinking.spec.ts",
+      "count": 18,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/knowledge/KnowledgeThinking.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/ppt/PptArtifactDownload.spec.ts",
+      "count": 1,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/ppt/PptArtifactDownload.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/ppt/PptCanvas.spec.ts",
+      "count": 6,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/ppt/PptCanvas.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/ppt/PptCanvasBridge.spec.tsx",
+      "count": 5,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/ppt/PptCanvasBridge.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/ppt/PptCanvasRecovery.spec.tsx",
+      "count": 1,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/ppt/PptCanvasRecovery.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/ppt/PptChat.spec.ts",
+      "count": 10,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/ppt/PptChat.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/ppt/PptGenerationStatus.spec.ts",
+      "count": 3,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/ppt/PptGenerationStatus.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/ppt/PptPlanEditor.spec.ts",
+      "count": 3,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/ppt/PptPlanEditor.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/ppt/PptProjectPicker.spec.ts",
+      "count": 2,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/ppt/PptProjectPicker.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/ppt/PptProjectSources.spec.ts",
+      "count": 2,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/ppt/PptProjectSources.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/ppt/PptProperties.spec.ts",
+      "count": 1,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/ppt/PptProperties.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/ppt/usePptCreation.spec.ts",
+      "count": 5,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/ppt/usePptCreation.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/roles/RoleWorkflowDiagram.spec.ts",
+      "count": 2,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/roles/RoleWorkflowDiagram.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowBranchInput.spec.ts",
+      "count": 3,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowBranchInput.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowCandidates.spec.ts",
+      "count": 2,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowCandidates.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowCanvas.spec.ts",
+      "count": 10,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowCanvas.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowCodeChanges.spec.ts",
+      "count": 3,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowCodeChanges.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowCommandEditor.spec.ts",
+      "count": 7,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowCommandEditor.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowCommandEvidence.spec.ts",
+      "count": 7,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowCommandEvidence.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowCommandReport.spec.ts",
+      "count": 6,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowCommandReport.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowDocumentInput.spec.ts",
+      "count": 7,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowDocumentInput.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowDocumentPlanReport.spec.ts",
+      "count": 7,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowDocumentPlanReport.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowDocumentPreview.spec.ts",
+      "count": 4,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowDocumentPreview.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowDocumentReport.spec.ts",
+      "count": 12,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowDocumentReport.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowDocumentReviewEditor.spec.ts",
+      "count": 5,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowDocumentReviewEditor.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowDocumentReviewReport.spec.ts",
+      "count": 10,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowDocumentReviewReport.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowFiles.spec.ts",
+      "count": 3,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowFiles.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowFinish.spec.ts",
+      "count": 7,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowFinish.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowHistoryAnalysisEditor.spec.ts",
+      "count": 3,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowHistoryAnalysisEditor.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowHistoryAnalysisReport.spec.ts",
+      "count": 10,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowHistoryAnalysisReport.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowHistoryReport.spec.ts",
+      "count": 10,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowHistoryReport.spec.ts",
+        "frontend/src/components/workflow/WorkflowRepositoryReport.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowHistorySummary.spec.ts",
+      "count": 8,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowHistorySummary.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowInputContent.spec.ts",
+      "count": 9,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowInputContent.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowKnowledgeEvidence.spec.ts",
+      "count": 4,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowKnowledgeEvidence.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowKnowledgeReport.spec.ts",
+      "count": 3,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowKnowledgeReport.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowNativeTestReport.spec.ts",
+      "count": 18,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowNativeTestReport.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowNodeRun.spec.ts",
+      "count": 14,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowNodeRun.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowPresetPicker.spec.ts",
+      "count": 5,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowPresetPicker.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowPublicInputs.spec.ts",
+      "count": 2,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowPublicInputs.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowPublication.spec.ts",
+      "count": 7,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowPublication.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowPublicationCommit.spec.ts",
+      "count": 5,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowPublicationCommit.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowPush.spec.ts",
+      "count": 6,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowPush.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowRepositoryReport.spec.ts",
+      "count": 9,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowHistoryReport.spec.ts",
+        "frontend/src/components/workflow/WorkflowRepositoryReport.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowReviewReport.spec.ts",
+      "count": 6,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowReviewReport.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowReviewSourceEditor.spec.ts",
+      "count": 2,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowReviewSourceEditor.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowReviewSourceReport.spec.ts",
+      "count": 12,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowReviewSourceReport.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowRolePicker.spec.ts",
+      "count": 3,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowRolePicker.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowSaveTemplate.spec.ts",
+      "count": 6,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowSaveTemplate.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowSnapshotEditor.spec.ts",
+      "count": 4,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowSnapshotEditor.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowSnapshotPartialReport.spec.ts",
+      "count": 5,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowSnapshotPartialReport.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowSnapshotReport.spec.ts",
+      "count": 12,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowSnapshotReport.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowSnapshotSummary.spec.ts",
+      "count": 11,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowSnapshotSummary.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowSourceDesignEditor.spec.ts",
+      "count": 7,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowSourceDesignEditor.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowSourceDesignReport.spec.ts",
+      "count": 9,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowSourceDesignReport.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowSourcePlanReport.spec.ts",
+      "count": 9,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowSourcePlanReport.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowSourceReport.spec.ts",
+      "count": 9,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowSourceReport.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowTestDesignReport.spec.ts",
+      "count": 11,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowTestDesignReport.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowTestProfileReport.spec.ts",
+      "count": 10,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowTestProfileReport.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowTestReviewReport.spec.ts",
+      "count": 16,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowTestReviewReport.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowTestScopeReport.spec.ts",
+      "count": 9,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowTestScopeReport.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowTestSummaryReport.spec.ts",
+      "count": 12,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowTestSummaryReport.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowVerificationEditor.spec.ts",
+      "count": 6,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowVerificationEditor.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowVerificationReport.spec.ts",
+      "count": 4,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowVerificationReport.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowWriteback.spec.ts",
+      "count": 6,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowWriteback.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/WorkflowWritebackPreview.spec.ts",
+      "count": 5,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/WorkflowWritebackPreview.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/command.spec.ts",
+      "count": 7,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/command.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/graph.spec.ts",
+      "count": 4,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/components/workflow/graph.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/modelChoice.spec.ts",
+      "count": 5,
+      "vueExecutable": true,
+      "destinations": [
+        "frontend/src/components/workflow/modelChoice.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/planSave.spec.ts",
+      "count": 4,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/components/workflow/planSave.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/presets.spec.ts",
+      "count": 3,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/components/workflow/presets.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/reviewSource.spec.ts",
+      "count": 2,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/components/workflow/reviewSource.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/components/workflow/save.spec.ts",
+      "count": 5,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/components/workflow/save.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/foundation/contracts/navigation.spec.ts",
+      "count": 12,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/foundation/contracts/navigation.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/foundation/contracts/receipt.spec.ts",
+      "count": 15,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/foundation/contracts/receipt.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/foundation/contracts/resource-controller.spec.ts",
+      "count": 12,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/foundation/contracts/resource-controller.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/react/diagrams/DiagramFlows.spec.tsx",
+      "count": 5,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/react/diagrams/DiagramFlows.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/react/diagrams/MermaidDiagram.spec.tsx",
+      "count": 7,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/react/diagrams/MermaidDiagram.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/react/diagrams/ReactFlowResizeCleanup.spec.tsx",
+      "count": 18,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/react/diagrams/ReactFlowResizeCleanup.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/react/diagrams/ReadonlyDiagramFlow.spec.tsx",
+      "count": 20,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/react/diagrams/ReadonlyDiagramFlow.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/react/diagrams/ReadonlyDiagramImmediate.spec.tsx",
+      "count": 16,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/react/diagrams/ReadonlyDiagramImmediate.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/react/ppt/PptCanvasImmediate.spec.tsx",
+      "count": 4,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/react/ppt/PptCanvasImmediate.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/react/ppt/PptCanvasView.spec.tsx",
+      "count": 23,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/react/ppt/PptCanvasView.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/react/ppt/PptSlideNavigatorView.spec.tsx",
+      "count": 3,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/react/ppt/PptSlideNavigatorView.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/react/workflow/WorkflowCanvasImmediate.spec.tsx",
+      "count": 39,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/react/workflow/WorkflowCanvasImmediate.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/react/workflow/WorkflowCanvasReact.spec.tsx",
+      "count": 35,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/react/workflow/WorkflowCanvasReact.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w2/core/controllers.spec.ts",
+      "count": 35,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w2/core/controllers.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w2/core/pages.spec.tsx",
+      "count": 23,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w2/core/pages.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w2/roles/rolesPages.spec.tsx",
+      "count": 14,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w2/roles/rolesPages.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w2/secondary/databaseDraft.spec.ts",
+      "count": 4,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w2/secondary/databaseDraft.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w2/secondary/pptCreation.spec.ts",
+      "count": 11,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w2/secondary/pptCreation.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w2/secondary/secondary.spec.tsx",
+      "count": 20,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w2/secondary/secondary.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w2/secondary/state.spec.tsx",
+      "count": 7,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w2/secondary/state.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w2/shared/leave.spec.ts",
+      "count": 5,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w2/shared/leave.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w2/workflow/workflowPages.spec.tsx",
+      "count": 12,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w2/workflow/workflowPages.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w2/workflow/workflowRouteContracts.spec.tsx",
+      "count": 5,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w2/workflow/workflowRouteContracts.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w5/designer/DesignerPage.spec.tsx",
+      "count": 12,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w5/designer/DesignerPage.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w5/designer/LoopSpecEditor.spec.tsx",
+      "count": 21,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w5/designer/LoopSpecEditor.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w5/designer/capabilities.spec.ts",
+      "count": 16,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w5/designer/capabilities.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w5/designer/controller.spec.ts",
+      "count": 14,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w5/designer/controller.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w5/requirements/children.spec.ts",
+      "count": 30,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w5/requirements/children.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w5/requirements/content-pages.spec.tsx",
+      "count": 3,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w5/requirements/content-pages.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w5/requirements/controller.spec.ts",
+      "count": 21,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w5/requirements/controller.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w5/requirements/pages.spec.tsx",
+      "count": 6,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w5/requirements/pages.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w5/requirements/readers.spec.ts",
+      "count": 10,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w5/requirements/readers.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w5/workflow/editorController.spec.ts",
+      "count": 15,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w5/workflow/editorController.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w5/workflow/independent-designer-review.spec.tsx",
+      "count": 6,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w5/workflow/independent-designer-review.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w5/workflow/nodeEditors.spec.tsx",
+      "count": 31,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w5/workflow/nodeEditors.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w5/workflow/pages.spec.tsx",
+      "count": 9,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w5/workflow/pages.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w5/workflow/reports.spec.tsx",
+      "count": 54,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w5/workflow/reports.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w3/knowledge/browser.spec.ts",
+      "count": 6,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w3/knowledge/browser.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w3/knowledge/controller.spec.ts",
+      "count": 18,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w3/knowledge/controller.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w3/knowledge/pages.spec.tsx",
+      "count": 21,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w3/knowledge/pages.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx",
+      "count": 13,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w3/ppt/controller.spec.ts",
+      "count": 21,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w3/ppt/controller.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w3/ppt/editors.spec.tsx",
+      "count": 5,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w3/ppt/editors.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w3/shared/documents.spec.tsx",
+      "count": 7,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w3/shared/documents.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w4/actions/controllers.spec.ts",
+      "count": 36,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w4/actions/controllers.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w4/actions/independent-c.spec.tsx",
+      "count": 1,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w4/actions/independent-c.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w4/actions/pages.spec.tsx",
+      "count": 15,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w4/actions/pages.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w4/history/controller.spec.ts",
+      "count": 5,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w4/history/controller.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w4/history/pages.spec.tsx",
+      "count": 3,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w4/history/pages.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w4/inbox/controller.spec.ts",
+      "count": 7,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w4/inbox/controller.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w4/inbox/pages.spec.tsx",
+      "count": 7,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w4/inbox/pages.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w4/publication/TaskPublicationActions.spec.tsx",
+      "count": 12,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w4/publication/TaskPublicationActions.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w4/publication/controller.spec.ts",
+      "count": 34,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w4/publication/controller.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w4/recovery/RecoveryStudioPage.spec.tsx",
+      "count": 5,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w4/recovery/RecoveryStudioPage.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w4/recovery/controller.spec.ts",
+      "count": 11,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w4/recovery/controller.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w4/shared/core.spec.ts",
+      "count": 5,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w4/shared/core.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w4/task/evidenceController.spec.ts",
+      "count": 8,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w4/task/evidenceController.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w4/task/independent-b.spec.ts",
+      "count": 2,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w4/task/independent-b.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w4/task/pages.spec.tsx",
+      "count": 9,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w4/task/pages.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w4/task/sessionController.spec.ts",
+      "count": 8,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w4/task/sessionController.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w4/task/taskController.spec.ts",
+      "count": 16,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w4/task/taskController.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w3/templates/catalog/controller.spec.ts",
+      "count": 6,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w3/templates/catalog/controller.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w3/templates/catalog/creation.spec.ts",
+      "count": 18,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w3/templates/catalog/creation.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w3/templates/catalog/history.spec.ts",
+      "count": 18,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w3/templates/catalog/history.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w3/templates/catalog/pages.spec.tsx",
+      "count": 9,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w3/templates/catalog/pages.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w3/templates/runs/runChildren.spec.tsx",
+      "count": 10,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w3/templates/runs/runChildren.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w3/templates/runs/runOwners.spec.ts",
+      "count": 27,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w3/templates/runs/runOwners.spec.ts"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w3/templates/runs/runProjection.spec.tsx",
+      "count": 5,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w3/templates/runs/runProjection.spec.tsx"
+      ],
+      "retained": true
+    },
+    {
+      "original": "frontend/src/pages/w3/templates/runs/runRoutes.spec.tsx",
+      "count": 11,
+      "vueExecutable": false,
+      "destinations": [
+        "frontend/src/pages/w3/templates/runs/runRoutes.spec.tsx"
+      ],
+      "retained": true
+    }
+  ]
+}

@@ -27,8 +27,9 @@ export function DocumentSourcesPanel({ run, props, parent, controller }: Documen
   </section>
 }
 export function DocumentClarificationForm({ run, requirementKey, props, parent, controller, updated }: DocumentPanelProps & { requirementKey: string; controller?: ReturnType<typeof createClarificationOwner>; updated: (run: DocumentTemplateOverview) => void }) {
-  const latest = useRef(updated); latest.current = updated
-  const candidate = useMemo(() => controller ?? createClarificationOwner(run, requirementKey, value => latest.current(value)), [controller, run.id, run.requirementRevision, requirementKey]), owner = useProtectedOwner(candidate)
+  const callbackScope = `${run.id}:${run.requirementRevision}:${requirementKey}`
+  const latest = useRef({ updated, scope: callbackScope }); latest.current = { updated, scope: callbackScope }
+  const candidate = useMemo(() => controller ?? createClarificationOwner(run, requirementKey, value => { if (latest.current.scope === callbackScope) latest.current.updated(value) }), [controller, run.id, run.requirementRevision, requirementKey]), owner = useProtectedOwner(candidate)
   const s = useRunOwner(props, owner, parent)
   useLayoutEffect(() => { owner.updateRun(run) }, [owner, run])
   return <form aria-label="回答业务问题" className="w3-form" onSubmit={event => { event.preventDefault(); void owner.submit() }}>

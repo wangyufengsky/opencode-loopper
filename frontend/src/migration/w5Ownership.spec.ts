@@ -33,11 +33,10 @@ describe('W5 actual production ownership', () => {
     }
   })
   it('Designer keeps the original history-only guard and every W5 route uses the same public bridge', () => {
-    const source = readFileSync(join(root, 'router/index.ts'), 'utf8')
-    for (const path of ['/requirements/new', '/requirements/:id', '/workflows/new', '/workflows/:id', '/designer']) {
-      const row = source.split('\n').find(line => line.includes(`path: '${path}'`))!
-      expect(row, path).toContain("import('@/migration/W2RouteBridge.vue')")
-      if (path === '/designer') { expect(row).toContain('beforeEnter: designerEntry'); expect(row).toContain('historyOnly: true') }
-    }
+    const source = readFileSync(join(root, 'router/index.tsx'), 'utf8')
+    for (const path of ['/requirements/new', '/requirements/:id', '/workflows/new', '/workflows/:id', '/designer']) expect(source).toContain(`'${path}'`)
+    expect(source).toContain('designerEntry(routeFromLocation'); expect(source).toContain('<RouteScreen application={application}')
+    const designer = readFileSync(join(root,'pages/w5/designer/DesignerPage.tsx'),'utf8'); expect(designer).toContain('historyOnly')
+    expect(source).not.toContain('.vue')
   })
 })

@@ -1,6 +1,6 @@
-import { flushPromises, mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@/pages/w6-tests/workflow/react-test-root'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import WorkflowFiles from './WorkflowFiles.vue'
+import { WorkflowFiles } from '@/pages/w6-tests/workflow/read-panels'
 import { workflowRuns } from '@/api/workflowRuns'
 vi.mock('@/api/workflowRuns', () => ({ workflowRuns: { files: vi.fn(), fileUrl: vi.fn(() => '/fixed-file'), archiveUrl: vi.fn(() => '/fixed-archive') } }))
 afterEach(() => vi.clearAllMocks())

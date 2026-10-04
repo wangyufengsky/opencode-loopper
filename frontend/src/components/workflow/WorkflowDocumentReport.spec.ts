@@ -1,6 +1,6 @@
-import { mount } from '@vue/test-utils'
+import { mount } from '@/pages/w6-tests/workflow/react-test-root'
 import { describe, expect, it } from 'vitest'
-import WorkflowDocumentReport from './WorkflowDocumentReport.vue'
+import { WorkflowDocumentReport as WorkflowDocumentReport } from '@/pages/w5/workflow/reports'
 const report = { version: 1, type: 'DESIGN_DOCUMENT', complete: true, sourceCount: 2, draftCount: 2, reviewedCount: 2, reviseCount: 0, fileCount: 4, reviewPolicy: 'REQUIRED' }
 describe('文档汇总报告', () => {
   it('区分文档生成与独立复核情况', () => {
