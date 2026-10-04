@@ -192,6 +192,8 @@ try {
       const delayed = receiver.transport.filter(r => r.caseId === mode && r.delayMs)
       assert.equal(delayed.length, 1); assert.equal(delayed[0].upstreamStatus, 200)
       assert.equal(delayed[0].clientClosedBeforeReply, true)
+      assert.ok(Date.parse(delayed[0].upstreamReceivedAt) < Date.parse(result.transportFailureObservedAt),
+        'real native GET succeeded before the client deadline; only delivery was delayed')
       assert.ok(result.transportElapsedMs >= 400 && result.transportElapsedMs < 3000)
     }
     if (mode === 'cancel') {

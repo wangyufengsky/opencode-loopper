@@ -58,11 +58,13 @@ public final class NativeTransportFaultProbe {
                 HttpOpenCodeClient bounded = client(endpoint, password, Duration.ofMillis(500));
                 bounded.restoreDesignTurn(session, OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS, model, messageId);
                 long before = System.nanoTime();
+                report.put("transportReadStartedAt", java.time.Instant.now().toString());
                 try { bounded.sessionStatus(session); throw new IllegalStateException("transport timeout required"); }
                 catch (SessionFailure failure) {
                     require("OPENCODE_STATUS_FAILED".equals(failure.code()), "transport failure code");
                     report.put("transportFailureCode", failure.code());
                     report.put("transportElapsedMs", (System.nanoTime() - before) / 1_000_000);
+                    report.put("transportFailureObservedAt", java.time.Instant.now().toString());
                 }
                 phase = "accepted-read-only-recovery";
                 require(client.findPromptMessage(session, prompt, originalHash).exists(), "original accepted lookup after timeout");
