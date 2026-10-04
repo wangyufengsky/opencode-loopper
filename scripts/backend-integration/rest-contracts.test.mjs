@@ -1,17 +1,26 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, rm, symlink } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { promisify } from 'node:util';
 import {
-  CASES, EXPECTED_RUNTIME_REVISION, EnvironmentBlocked, createRestClient, createSseParser, parseArguments, prepareRequest,
-  readTaskEvents, runRestContracts, sha256, validateBaseUrl, validateDetail, validateIsolation, validateReceipt,
+  CASES, EXPECTED_RUNTIME_REVISION, EnvironmentBlocked, createRestClient, createSseParser, createSyntheticGitProject,
+  parseArguments, prepareRequest, readTaskEvents, runRestContracts, sha256, syntheticGitEnvironment,
+  validateBaseUrl, validateDetail, validateIsolation, validateReceipt,
 } from './rest-contracts.mjs';
 
 const baseUrl = 'http://127.0.0.1:41893';
 const response = (value, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json' } });
 const receipt = { id: 'owned', revision: 1, version: 0, layoutVersion: 0, state: 'ACTIVE' };
 const runtime = { version: 'fake', status: 'AVAILABLE', managed: false, pid: null, model: 'fake/model' };
+const executeFile = promisify(execFile);
+async function fixtureGit(root, ...args) {
+  const { stdout } = await executeFile('/usr/bin/git', args, { cwd: root, env: syntheticGitEnvironment(root),
+    shell: false, timeout: 10000, maxBuffer: 16384 });
+  return stdout.trim();
+}
 async function fixture(t) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'loopper-rest-unit-'));
   t.after(() => rm(root, { recursive: true, force: true }));
@@ -21,6 +30,73 @@ async function fixture(t) {
   return { baseUrl, projectParent, isolation: { baseUrl, dataDir, projectRoot, runRoot: root, ready: true, revision: EXPECTED_RUNTIME_REVISION,
     opencodeMode: 'fake', schedulingEnabled: false, startupRecoveryEnabled: false, model: 'fake/model' } };
 }
+
+test('synthetic project has its own real clean Git checkout and only the committed fixture README', async t => {
+  const options = await fixture(t);
+  const project = await createSyntheticGitProject(options.projectParent);
+  assert.equal(path.dirname(project.root), options.projectParent);
+  assert.equal(project.checkoutRoot, project.root); assert.equal(project.gitDirectory, path.join(project.root, '.git'));
+  assert.equal(await fixtureGit(project.root, 'rev-parse', '--show-toplevel'), project.root);
+  assert.equal(await fixtureGit(project.root, 'rev-parse', '--abbrev-ref', 'HEAD'), 'main');
+  assert.equal(await fixtureGit(project.root, 'show', 'HEAD:README.md'), 'fixture');
+  assert.equal(await readFile(path.join(project.root, 'README.md'), 'utf8'), 'fixture');
+  assert.equal(await fixtureGit(project.root, 'status', '--porcelain=v1'), '');
+  assert.equal(await fixtureGit(project.root, 'remote'), '');
+  assert.deepEqual(project.remotes, []); assert.match(project.commit, /^[0-9a-f]{40}$/);
+  assert.ok(project.commands.every(command => command.executable === '/usr/bin/git' && command.exitCode === 0));
+});
+
+test('a project nested inside an existing synthetic repository never stages or commits its ancestor', async t => {
+  const options = await fixture(t);
+  const ancestor = await createSyntheticGitProject(options.projectParent);
+  const child = await createSyntheticGitProject(ancestor.root);
+  assert.equal(await fixtureGit(child.root, 'rev-parse', '--show-toplevel'), child.root);
+  assert.equal(await fixtureGit(ancestor.root, 'rev-parse', 'HEAD'), ancestor.commit);
+  assert.equal(await fixtureGit(ancestor.root, 'diff', '--cached', '--name-only'), '');
+  assert.equal(await fixtureGit(ancestor.root, 'diff', 'HEAD', '--', 'README.md'), '');
+  assert.equal(await fixtureGit(ancestor.root, 'ls-files'), 'README.md');
+  assert.equal(await readFile(path.join(ancestor.root, 'README.md'), 'utf8'), 'fixture');
+  assert.equal(await fixtureGit(child.root, 'ls-files'), 'README.md');
+});
+
+test('synthetic Git ignores inherited checkout/config overrides and user identity or signing configuration', async t => {
+  const options = await fixture(t);
+  const ancestor = await createSyntheticGitProject(options.projectParent);
+  const config = path.join(options.isolation.runRoot, 'poison-user-config');
+  await writeFile(config, '[user]\n name = Unexpected User\n email = unexpected@example.invalid\n[commit]\n gpgSign = true\n', { flag: 'wx' });
+  const poison = { GIT_DIR: ancestor.gitDirectory, GIT_WORK_TREE: ancestor.root, GIT_CONFIG_GLOBAL: config,
+    GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'core.hooksPath', GIT_CONFIG_VALUE_0: '/must-not-use-hooks',
+    GIT_ALTERNATE_OBJECT_DIRECTORIES: '/must-not-use-objects' };
+  const original = Object.fromEntries(Object.keys(poison).map(name => [name, process.env[name]]));
+  for (const [name, value] of Object.entries(poison)) process.env[name] = value;
+  try {
+    const child = await createSyntheticGitProject(options.projectParent);
+    const env = syntheticGitEnvironment(child.root);
+    assert.equal(env.GIT_DIR, undefined); assert.equal(env.GIT_WORK_TREE, undefined);
+    assert.equal(env.GIT_ALTERNATE_OBJECT_DIRECTORIES, undefined);
+    assert.equal(env.GIT_CONFIG_KEY_0, undefined); assert.equal(env.GIT_CONFIG_COUNT, '0');
+    assert.equal(env.GIT_CONFIG_GLOBAL, '/dev/null'); assert.equal(env.GIT_CONFIG_NOSYSTEM, '1');
+    assert.equal(env.GIT_TERMINAL_PROMPT, '0');
+    assert.equal(await fixtureGit(child.root, 'log', '-1', '--format=%an <%ae>'), 'Loopper REST Test <loopper-rest@example.invalid>');
+    assert.equal(await fixtureGit(child.root, 'rev-parse', '--show-toplevel'), child.root);
+    assert.equal(await fixtureGit(ancestor.root, 'rev-parse', 'HEAD'), ancestor.commit);
+  } finally {
+    for (const [name, value] of Object.entries(original)) {
+      if (value === undefined) delete process.env[name]; else process.env[name] = value;
+    }
+  }
+});
+
+test('synthetic Git rejects symlinked, noncanonical or relative parents before creating any fixture', async t => {
+  const options = await fixture(t);
+  const alias = path.join(options.isolation.projectRoot, 'alias');
+  await symlink(options.projectParent, alias);
+  const before = await readdir(options.projectParent);
+  for (const parent of [alias, `${options.projectParent}/../A`, 'relative-project-parent']) {
+    await assert.rejects(createSyntheticGitProject(parent), EnvironmentBlocked);
+    assert.deepEqual(await readdir(options.projectParent), before);
+  }
+});
 
 test('only explicit loopback HTTP endpoints are allowed', () => {
   for (const value of ['http://127.0.0.1:41893', 'http://localhost:41893/', 'http://[::1]:41893']) assert.ok(validateBaseUrl(value));

@@ -5,6 +5,8 @@ import io.opencode.loopper.service.ConflictException;
 import io.opencode.loopper.service.NotFoundException;
 import io.opencode.loopper.service.ServiceUnavailableException;
 import io.opencode.loopper.lifecycle.PersistedStateInvalidException;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
@@ -15,6 +17,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 
 @RestControllerAdvice
+// Preserve the application error DTO before Boot's default ProblemDetails advice (order 0).
+@Order(Ordered.HIGHEST_PRECEDENCE)
 public class ApiExceptionHandler {
     @ExceptionHandler(io.opencode.loopper.ppt.PptFailure.class)
     ResponseEntity<ProblemDetail> ppt(io.opencode.loopper.ppt.PptFailure ex) { return problem(HttpStatus.BAD_REQUEST, ex.code(), ex.getMessage()); }

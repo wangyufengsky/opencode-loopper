@@ -72,7 +72,9 @@ def get_json(base_url, path):
 
 def runtime_hashes(classes, dependencies):
     entries = []
-    for path in sorted(classes.rglob("*")):
+    # The browser verifier sorts relative path strings, not Path components.
+    # e.g. prompt-v1/... must precede prompt/v1/... in both producers.
+    for path in sorted(classes.rglob("*"), key=lambda item: str(item.relative_to(classes))):
         if path.is_file():
             entries.append((str(path.relative_to(classes)), hashlib.sha256(path.read_bytes()).hexdigest()))
     return {

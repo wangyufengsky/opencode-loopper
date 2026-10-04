@@ -4,7 +4,11 @@
 
 ## 状态与隔离
 
-当前 **5 个浏览器用例全部 NOT_RUN；实际环境入口 ENV_BLOCKED**。组长提供的阻塞为官方 parent POM 的 Java DNS 获取失败，临时 Maven 参数/代理授权尚待处理；浏览器没有启动，Spring runtime/health 没有由 B 请求。组长持有后端编译、生产构建、端点及服务启动。最终专用 strict TypeScript 与 Playwright 收集均已实际 exit 0（5 definitions/1 spec），不能当作 Spring 或 Fake runtime 已可用、隔离 proof 门禁已执行、接口已通过。初次无 alias 的独立 tsc invocation exit 2 是检查器配置错误；专用 tsconfig 复用工程 alias 后通过，没有改生产类型或断言。
+准备批曾为 **5 个浏览器用例全部 NOT_RUN；实际环境入口 ENV_BLOCKED**：官方 parent POM 的 Java DNS 获取失败，临时 Maven 参数/代理授权待处理。该历史证据保留在 `B-readiness/`，不被后续实际运行覆盖。组长持有后端编译、生产构建、端点及服务启动。准备批专用 strict TypeScript 与 Playwright 收集均已实际 exit 0（5 definitions/1 spec），不能当作 Spring 或 Fake runtime 已可用、隔离 proof 门禁已执行、接口已通过。初次无 alias 的独立 tsc invocation exit 2 是检查器配置错误；专用 tsconfig 复用工程 alias 后通过，没有改生产类型或断言。
+
+用户批准本次 Maven 子进程沿用已有无凭据 proxy 后，组长于 `4f06621c11872c3b6ace9f0285ba9bdd669163e5` 提供 `phase1-run-2` ready proof、Spring `http://127.0.0.1:47179` 与生产 preview `http://127.0.0.1:48177`。B 首次实际 Playwright 运行 **exit 1：首项 beforeAll 失败，余四项未运行；五个业务 body 全部 NOT_RUN，B 实际 API 请求/写入均 0**。失败发生在 class tree 摘要门禁，早于 runtime/health GET 与项目 fixture mkdir。完整首错在 `/workspace/backend-integration-20261004/evidence/B-live-first/{browser.json,browser.log,results/}`。
+
+只读复算证实这是 **测试基础设施的 producer/consumer 排序协议缺陷**：3790 文件精确数量与各 jar SHA 已通过；Python `sorted(Path)` 的路径组件排序重现 proof `ed3d4331eea44a8cc6621ea800dc2747209051897ab29fbec2889d14756a133a`，consumer 整 relative string 排序重现 `760effb65ded304949aff21b5abe6964c22abf374015cd1c346033152f95ff16`。首差在 `role-prompts/prompt/v1/…` 与 `role-prompts/prompt-v1/…`，不是 class 文件字节变更。`ordering-diagnostic.json` 保存两种完整 tree 摘要与首差；未放宽摘要门槛、绕过 proof 或盲重试业务写。
 
 准备阶段只在组长明确的 `/workspace/backend-integration-20261004/run/projects/B` 建立空 B 目录及两个合成 DOCX 文件。实际服务将使用组长新建的 `/workspace/backend-integration-20261004/phase1-run-1`，正式 B 根、data 路径均以该批 isolation manifest 为准，绝不沿用旧 run 数据。浏览器不直接读取或写入服务数据目录。每个用例只在 B 子目录建立合成项目与 `docs` 目录，通过正式 API 建立数据库记录，绝不手写 SQLite。不得开始任务、发送模型消息、生成/应用 AGENTS.md、运行命令、提交/推送或触发外部集成。
 

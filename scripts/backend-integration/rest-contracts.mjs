@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, realpath, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { promisify } from 'node:util';
 
 export class EnvironmentBlocked extends Error {}
 export const EXPECTED_RUNTIME_REVISION = '11ca25a3bb764a2d80ac924350139a7087639121';
@@ -10,6 +12,55 @@ export const sha256 = value => createHash('sha256').update(value).digest('hex');
 const key = () => `rest_${randomUUID().replaceAll('-', '')}`;
 const clone = value => JSON.parse(JSON.stringify(value));
 const contained = (parent, child) => child === parent || child.startsWith(`${parent}${path.sep}`);
+const executeFile = promisify(execFile);
+
+export function syntheticGitEnvironment(root) {
+  // No inherited GIT_DIR/WORK_TREE, credential, provider, proxy or user config variables.
+  return { PATH: '/usr/bin:/bin', LANG: 'C.UTF-8', TZ: 'UTC',
+    GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_SYSTEM: '/dev/null', GIT_CONFIG_GLOBAL: '/dev/null',
+    GIT_CONFIG_COUNT: '0', GIT_TERMINAL_PROMPT: '0', GIT_ATTR_NOSYSTEM: '1',
+    GIT_CEILING_DIRECTORIES: path.dirname(root) };
+}
+
+export async function createSyntheticGitProject(projectParent) {
+  const parent = dedicatedPath(projectParent);
+  if (parent !== projectParent || await realpath(parent) !== parent) {
+    throw new EnvironmentBlocked('Synthetic Git parent must match its declared canonical directory');
+  }
+  const root = await mkdtemp(path.join(parent, 'rest-contract-'));
+  if (await realpath(root) !== root || !contained(parent, root) || root === parent) {
+    throw new EnvironmentBlocked('Synthetic Git checkout must be a fresh canonical child of the declared parent');
+  }
+  await writeFile(path.join(root, 'README.md'), 'fixture', { flag: 'wx' });
+  const commands = [];
+  async function git(...args) {
+    const argv = ['--no-pager', '-c', 'user.name=Loopper REST Test', '-c', 'user.email=loopper-rest@example.invalid',
+      '-c', 'commit.gpgSign=false', '-c', 'core.hooksPath=/dev/null', '-c', 'init.templateDir=/dev/null', ...args];
+    try {
+      const { stdout } = await executeFile('/usr/bin/git', argv, {
+        cwd: root, env: syntheticGitEnvironment(root), shell: false, timeout: 10000, maxBuffer: 16384,
+      });
+      commands.push({ executable: '/usr/bin/git', argv, stdout, exitCode: 0 });
+      return stdout.trim();
+    } catch (error) { throw new EnvironmentBlocked(`Synthetic Git fixture failed: ${args[0]}: ${error.message}`); }
+  }
+  await git('init', '--initial-branch=main');
+  const checkoutRoot = await git('rev-parse', '--show-toplevel');
+  const gitDirectory = await git('rev-parse', '--absolute-git-dir');
+  if (checkoutRoot !== root || await realpath(checkoutRoot) !== root
+      || gitDirectory !== path.join(root, '.git') || await realpath(gitDirectory) !== gitDirectory) {
+    throw new EnvironmentBlocked('Synthetic Git discovery escaped the fresh project checkout');
+  }
+  // Verify the real checkout before staging or committing even this synthetic README.
+  await git('add', '--', 'README.md');
+  await git('commit', '-m', 'isolated REST contract fixture');
+  const commit = await git('rev-parse', 'HEAD');
+  assert.match(commit, /^[0-9a-f]{40}$/);
+  assert.equal(await git('remote'), '', 'Synthetic repository has no external remote');
+  assert.equal(await git('status', '--porcelain=v1'), '', 'Synthetic initial checkout is clean');
+  assert.equal(await git('ls-files'), 'README.md', 'Only the synthetic README is tracked');
+  return { root, checkoutRoot, gitDirectory, commit, remotes: [], commands };
+}
 
 export function validateBaseUrl(value) {
   const url = new URL(value);
@@ -305,9 +356,9 @@ export async function runRestContracts(options) {
     assert.ok(problem.fields.name && problem.fields.rootPath);
   });
   await check('J1', async () => {
-    const root = await mkdtemp(path.join(report.isolation.projectParent, 'rest-contract-'));
-    assert.ok(contained(report.isolation.projectParent, await realpath(root)));
-    await writeFile(path.join(root, 'README.md'), 'fixture', { flag: 'wx' });
+    const syntheticGit = await createSyntheticGitProject(report.isolation.projectParent);
+    const root = syntheticGit.root;
+    report.artifacts.syntheticGit = syntheticGit;
     report.artifacts.projectPath = root;
     project = await send('POST', '/api/projects', { name: prefix, rootPath: root, description: 'isolated fake REST contracts' }, 201);
     assert.ok(project.id); assert.equal(project.rootPath, root);

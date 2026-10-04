@@ -7,6 +7,7 @@ import static org.mockito.Mockito.doAnswer;
 import io.opencode.loopper.LoopperApplication;
 import io.opencode.loopper.domain.LoopSpec;
 import io.opencode.loopper.domain.SessionFailure;
+import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.TaskRow;
 import io.opencode.loopper.runtime.OpenCodeClient;
 import java.nio.file.Files;
@@ -18,6 +19,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import org.flywaydb.core.Flyway;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -45,12 +48,28 @@ class TaskStopCoordinationIntegrationTest {
     @Autowired ProjectService projects;
     @Autowired LoopDraftService drafts;
     @Autowired TaskService tasks;
+    @Autowired LoopperMapper mapper;
+    @Autowired Flyway flyway;
     @MockitoSpyBean OpenCodeClient openCode;
     @TempDir Path root;
+
+    @BeforeEach void resetDatabase() {
+        // Pause retains its writer lease. Temp directories can share an enclosing Git queue root,
+        // so each independent race starts with this class's isolated DATA database freshly migrated.
+        flyway.clean();
+        flyway.migrate();
+    }
 
     @ParameterizedTest @ValueSource(booleans = {false, true})
     void userAndMonitorShareAnInFlightTaskCancellation(boolean monitor) throws Exception {
         TaskRow task = tasks.start(pendingTask().id());
+        assertThat(task.state()).as("cancellation race requires an actually running Task; errors=%s", tasks.errors(task.id()))
+                .isEqualTo("RUNNING");
+        assertThat(mapper.activeSessions(task.id())).as("cancellation race requires the original persisted writer")
+                .singleElement().satisfies(session -> {
+                    assertThat(session.state()).isEqualTo("RUNNING");
+                    assertThat(session.externalSessionId()).isNotBlank();
+                });
         var entered = new CountDownLatch(1);
         var release = new CountDownLatch(1);
         var aborts = new AtomicInteger();
@@ -61,7 +80,10 @@ class TaskStopCoordinationIntegrationTest {
         }).when(openCode).abortWithConfirmation(any());
         try (var workers = Executors.newVirtualThreadPerTaskExecutor()) {
             var first = workers.submit(() -> tasks.cancel(task.id()));
-            assertThat(entered.await(3, TimeUnit.SECONDS)).isTrue();
+            assertThat(entered.await(3, TimeUnit.SECONDS))
+                    .as("original abort must enter; task=%s, active=%s, cancellation=%s", tasks.get(task.id()).state(),
+                            mapper.activeSessions(task.id()), completedCancellation(first))
+                    .isTrue();
             var secondEntered = new CountDownLatch(1);
             var second = workers.submit(() -> {
                 secondEntered.countDown();
@@ -116,5 +138,11 @@ class TaskStopCoordinationIntegrationTest {
                         List.of(new LoopSpec.VerifierSpec("FILE_EXISTS", null, "README.md", null, null, null, null)))),
                 null, null, null, null);
         return drafts.confirm(drafts.create(spec).id(), "stop race");
+    }
+
+    private static String completedCancellation(Future<TaskRow> cancellation) {
+        if (!cancellation.isDone()) return "in-flight";
+        try { return cancellation.get(0, TimeUnit.SECONDS).state(); }
+        catch (Exception failure) { return failure.getClass().getSimpleName() + ": " + failure.getMessage(); }
     }
 }

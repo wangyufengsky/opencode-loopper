@@ -1,5 +1,7 @@
 """Safety checks for the test launcher. These do not validate Spring or models."""
 import importlib.util
+import hashlib
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -14,6 +16,25 @@ spec.loader.exec_module(server)
 
 
 class LauncherSafetyTest(unittest.TestCase):
+    def test_runtime_hash_uses_browser_relative_string_order_and_utf8(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            classes = root / "classes"
+            entries = []
+            for name in ("prompt/v1/角色.txt", "prompt-v1/角色.txt"):
+                file = classes / name
+                file.parent.mkdir(parents=True, exist_ok=True)
+                file.write_bytes(b"synthetic")
+                entries.append((name, hashlib.sha256(b"synthetic").hexdigest()))
+            jar = root / "synthetic.jar"
+            jar.write_bytes(b"jar")
+            entries.sort(key=lambda item: item[0])
+            expected = hashlib.sha256(json.dumps(entries, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
+            actual = server.runtime_hashes(classes, str(jar))
+            self.assertEqual(expected, actual["classesSha256"])
+            self.assertEqual(2, actual["classFileCount"])
+            self.assertEqual(hashlib.sha256(b"jar").hexdigest(), actual["dependencies"][0]["sha256"])
+
     def test_rejects_relative_paths(self):
         with self.assertRaises(ValueError):
             server.absolute_path("./data")

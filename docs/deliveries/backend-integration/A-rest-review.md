@@ -4,11 +4,11 @@
 
 ## 当前交付与状态
 
-- [rest-contracts.mjs](../../../scripts/backend-integration/rest-contracts.mjs)：30 个顺序公开 REST 场景，当前真实 Spring 执行状态全部 **NOT_RUN**，等待父进程启动证明、endpoint 和 GO。
-- [rest-contracts.test.mjs](../../../scripts/backend-integration/rest-contracts.test.mjs)：Node 内置测试，不开启测试 HTTP server，不依赖后端。14/14 PASS、0 FAIL/SKIP，exit 0。此前 13 项候选日志保留；14 项版本包含新增父 ready/revision 与 canonical data/projectRoot 负控。
-- 最终原始自测：[runner-unit-final-ready.tap](/workspace/backend-integration-20261004/evidence/A/runner-unit-final-ready.tap)。该自测不计为真实 Spring 的 30 项通过。
+- [rest-contracts.mjs](../../../scripts/backend-integration/rest-contracts.mjs)：30 个顺序公开 REST 场景。初轮制作时全部 NOT_RUN；续接真实首跑为 **4 PASS / 1 FAIL / 25 NOT_RUN / exit1**，详见后文，保留首错。
+- [rest-contracts.test.mjs](../../../scripts/backend-integration/rest-contracts.test.mjs)：Node 内置测试，不开启测试 HTTP server，不依赖后端。最新18/18 PASS、0 FAIL/SKIP，exit 0（原14项+4项真实合成 Git 隔离）。此前13、14项候选日志保留；14项版本包含父 ready/revision 与 canonical data/projectRoot 负控。
+- 最新原始自测：[runner-unit-synthetic-git-first.tap](/workspace/backend-integration-20261004/evidence/A/runner-unit-synthetic-git-first.tap)；原14项 [runner-unit-final-ready.tap](/workspace/backend-integration-20261004/evidence/A/runner-unit-final-ready.tap) 来源保留。自测不计为真实 Spring 的30项通过。
 
-父控制独立 SQLite、Fake 注入、端口、依赖、classpath、Spring 启停与 PID。脚本只在父提供的 `project-parent` 下用 `mkdtemp` 建立全新子项目，并 `wx` 写一份内容为 `fixture` 的 README。注册/变更的项目、流程、需求、LoopDraft、Task 都在该进程的数据范围内；不初始化、发布或修改任何外部 Git 项目，不删除执行后的业务对象/目录。
+父控制独立 SQLite、Fake 注入、端口、依赖、classpath、Spring 启停与 PID。脚本只在父提供的 `project-parent` 下用 `mkdtemp` 建立全新子项目，`wx` 写内容为 `fixture` 的 README，并按父追加授权建立该合成目录自己的本地 Git 仓库。注册/变更的项目、流程、需求、LoopDraft、Task 都在该进程的数据范围内；不发布、读取用户全局 Git 配置或修改祖先/外部 Git 仓库，不删除执行后的业务对象/目录。
 
 ## 启动输入与预检
 
@@ -55,7 +55,7 @@ P1 首 HTTP 前验证 `ready === true`、revision 精确匹配外部期望、HTT
 | V2 | 非 16–100 字符合法 key 是 400/WORKFLOW_REQUEST_KEY_INVALID | WorkflowCommands:20–24 |
 | V3 | null graph 是 400/WORKFLOW_REQUIRED | WorkflowEncoding:20–28 |
 | V4 | Project 空 name/rootPath 是 400/FIELD_VALIDATION，并保字段错误 | ProjectController:111 的 ProjectRequest；ApiExceptionHandler:44–50 |
-| J1 | 专属新目录 POST project 201，再 exact ID/rootPath GET | ProjectController:52；ProjectService.create；runner:307 |
+| J1 | 专属合成 Git 新目录，先 exact checkout root/git-dir，再 POST project 201及 exact ID/rootPath GET | ProjectController:52；ProjectService.create；runner createSyntheticGitProject/J1 |
 | T1 | HUMAN 结构化 graph 执行校验无诊断；create ACTIVE、revision1、GET 完整 DTO | WorkflowGraphValidator；WorkflowTemplates:45；WorkflowNodeExecutionIntegrationTest:224 |
 | T2 | 人为丢弃客户端可用回执后，只显式重发同 endpoint/raw body/key，receipt 完全相同 | WorkflowCommands:20–28；WorkflowPlanningIntegrationTest:98 |
 | T3 | 同 key 改 title 是 409/WORKFLOW_REQUEST_CONFLICT | WorkflowCommands:25；WorkflowPlanningIntegrationTest:98 |
@@ -122,4 +122,57 @@ node --test --test-isolation=none --test-reporter=tap scripts/backend-integratio
 
 当前父尚未提供 actual endpoint/ready proof，未发 Spring GO。父报告 Maven 构建因既有无凭据代理授权待决属于 **ENV_BLOCKED**；此代理没有自行尝试 Maven。30项 live合同全部 **NOT_RUN**，不是产品失败，不用14项自测冒充实际联调。后续独立新 runRoot 与 explicit `--expected-revision` 已有接口，重新运行必须用新报告文件保留首错。
 
-本代理只新增本文和指定两份脚本，未改任何生产 Java/前端代码、数据库、依赖或服务配置。工作树中父/B/C并行基础设施文件不属于本代理修改。父/C后续非作者审查独立记录，不以本作者单测替代。文件已交回组长集成，停止源码写入。
+本代理初轮只新增本文和指定两份脚本，未改任何生产 Java/前端代码、数据库、依赖或服务配置。工作树中父/B/C并行基础设施文件不属于本代理修改。初轮文件已交回组长集成；下节是后续明确授权后的实际执行，保留初轮 NOT_RUN/阻塞记录，不覆盖历史证据。
+
+## 续接：首次真实 Spring REST（2026-10-04）
+
+用户批准仅本次 Maven 子进程使用既有无凭据代理，父报告真实 main/testcompile 成功并统一启动既有 Fake Spring。A没有自行执行 Maven、安装或启停服务。实际基础设施 HEAD `4f06621c11872c3b6ace9f0285ba9bdd669163e5`，初轮 runner/test SHA 不变；业务源码基线与该 HEAD 区分如上。
+
+父 GO 的 endpoint 为 `http://127.0.0.1:47179`，ready proof 位于 `/workspace/backend-integration-20261004/phase1-run-2/isolation.json`，项目 parent 为该 fresh root 下 `projects/A`。命令使用显式 `--expected-revision 4f06621c11872c3b6ace9f0285ba9bdd669163e5` 和新增独占报告 `evidence/A/rest-live-first.json`，经正常 `with_additional_permissions network=true` 执行，没有改变网络策略。实际 **exit1，4 PASS / 1 REPRODUCED_FAIL / 0 ENV_BLOCKED / 25 NOT_RUN**。未自动 retry/replay，没有执行 J1 或创建业务项目。
+
+| 已实际执行 case | 结果 |
+|---|---|
+| P1 | PASS；四路径 canonical、ready/revision 校验；真实 runtime `AVAILABLE/fake/managed=false/pid=null/model=fake/model` |
+| V1 | PASS；缺本地授权 header 的真实 POST 返回 400/LOCAL_UI_HEADER_REQUIRED |
+| V2 | PASS；短 requestKey 的真实 POST 返回 400/WORKFLOW_REQUEST_KEY_INVALID |
+| V3 | PASS；null graph 的真实 POST 返回 400/WORKFLOW_REQUIRED |
+| V4 | REPRODUCED_FAIL；真实空 Project字段请求虽为400，但原 typed validation 断言不成立 |
+| J1–S1 余25项 | NOT_RUN；首错后停止，不宣称相关恢复/停止/SSE已通过 |
+
+V4原请求 `POST /api/projects`，body 精确为 `{"name":"","rootPath":""}`、SHA `78b542d5dbec0900c127dc82461f6be3d9e2290f52e0a0769cd6f9fa85a0c0aa`。HTTP400返回：
+
+```json
+{"detail":"Invalid request content.","instance":"/api/projects","status":400,"title":"Bad Request"}
+```
+
+首断言是 `ProblemDetail.errorCode`，actual `undefined`、expected `FIELD_VALIDATION`；随后 `fields.name/rootPath` 尚未到达。原断言未放宽。ApiExceptionHandler:44声明 MethodArgumentNotValid 应有 FIELD_VALIDATION、errorLayer/fields；实际 Spring MVC ProblemDetail 优先级/异常边界交父生产作者诊断。仅凭本次响应不先宣称唯一根因，A没有改生产 advice 或配置。
+
+原始证据：[rest-live-first.json](/workspace/backend-integration-20261004/evidence/A/rest-live-first.json) SHA `1eeb8831b9d9ed556bf3cdf9a760942d64d36bec287390724bfbea81a0a03996`；[rest-live-first.log](/workspace/backend-integration-20261004/evidence/A/rest-live-first.log) SHA `3ad2cf4f7664eef33b842ec45ec26dad8dddadf60455daec313996c98eff8c6c`。不覆盖初轮14自测/30 NOT_RUN manifest，不把真实5项与自测相加为通过数。
+
+## 续接：TaskStop 并发夹具调查与隔离修正
+
+父精选 Java 首批原始汇总 `java-focused-first-summary.json` 实际54项、52 PASS、2 FAIL、0 ERROR/SKIP。两红均为 TaskStopCoordinationIntegrationTest 原 `userAndMonitorShareAnInFlightTaskCancellation(boolean)` 的 false/true 变体，原line64 `entered.await(3,SECONDS)` 为false；同类 pause invalidation 正控通过。该批由父执行，A只读核实原 Surefire，不冒称作者独立跑过。
+
+原 XML/txt/源码已在任何专项覆盖前原样归档到 [task-stop-before/manifest.json](/workspace/backend-integration-20261004/evidence/A/task-stop-before/manifest.json)：原 source `fa0eb6faab88322b7671824fda29ff1f5edc83b44175ed3b522a28f88a7049b1`；XML `1e5a075af48e8e1fcfaff533519277e82b693df8f7575ad371355a5b6b74c7ad`；txt `7e93fc3584bd1e4e1ec6626126efab878d6e3121c7d027a3cff19f83dd5189b6`。
+
+静态事实：Fake submitPrompt:222–223 默认可立即 remote COMPLETED，但 TaskWriterTerminationService:67–101 对每个真实 active writer **先**调用 abortWithConfirmation；只有 abort 抛出后才检查自然终态。TaskService.startNewAttempt:1399–1424 默认 prompt 返回后不自动将本地 Session 改 COMPLETED，实际 test-classes 的 scheduling=false。因此 Fake 自然完成只是候选，不足以解释原 abort latch 未进入。不能直接加 hold 将未知路径掩盖。
+
+父本次只移交该 test 文件。A暂增加正控/失败诊断：start 返回必须 RUNNING（附真实 errors），mapper原 active Session 必须单条 RUNNING/非空 externalID；原 first entered 3秒判断加当前 Task/active rows/取消 Future 已完成结果或异常说明。原两个 boolean/fullName、3/5秒、one-abort、最终 CANCELLED 全保；没有修改 Fake hold、生产路径或超时。候选 test SHA `297e9d1eb9d76353ee6f8c7d6eeebae3cf1458b49446cc4e24776a9f959e5d68`，待父 offline 单类回归取得真实 Task/Session/future 因果后才决定最小 fixture。当前不把诊断代码称为已修复或通过。
+
+父随后实际执行该诊断候选：3 项为 **1 PASS / 2 FAIL**，两参数变体首错提前到真实 Start 正控：`state=QUEUED`、`errors=[]`，未进入原 abort 等待。该轮源码/XML/txt/log已原样另存 [task-stop-diagnostic-before-fixture/manifest.json](/workspace/backend-integration-20261004/evidence/A/task-stop-diagnostic-before-fixture/manifest.json)，不覆盖首批原断言失败证据。
+
+A对该诊断专属 SQLite 使用 `mode=ro`、只执行四条 SELECT，得到确切跨 case 原因：先执行的 pause 场景 Task 是 PAUSED，其队列为 ADMITTED，持有 HELD；两个参数场景 Task 均 QUEUED、position 2/3。三条 queue 的 `canonical_root` 都为 `/tmp`。各 Project 的临时目录不同，但当前环境 `/tmp/.git` 存在，GitProjectScope:34–39 按祖先 `.git` 确定同一 checkout root；DirectWorkspaceLeaseCoordinator:221–230 使用此 canonical root，而 acquire:338–341 对已有 HELD holder 正确排队。该观测与 Surefire 的实际执行顺序对应。因此此处为**共享测试数据库中的跨 case lease 污染**，不是未启调度、Fake 自然终态或已确认生产取消故障。
+
+最小 fixture 已冻结：本类增加 Flyway 注入及 `@BeforeEach clean/migrate`，复用 TaskServiceIntegrationTest:87–90 的既有集成隔离方式。目标仍是本类 DynamicPropertySource 的独立 DATA SQLite；不写 SQL、手改 lease、强制 admission/dispatch、初始化 Git、修改生产/Fake、改变原时限。保留真实 RUNNING/单 active writer 正控，原两 boolean/fullName、3/5秒、150ms、one-abort、并发双方最终 CANCELLED 断言全部保留。冻结 source SHA `0a3f5986bc29c890b0bc360ab71e4c28be63d1537259c74f08f421b9dc8b7b95`；[task-stop-fixture-candidate/manifest.json](/workspace/backend-integration-20261004/evidence/A/task-stop-fixture-candidate/manifest.json) 保存原/新源码及原合同 marker 逐项计数。
+
+`git diff --check` 已 exit0。父已统一 offline Maven 回归 `TaskStopCoordinationIntegrationTest,ApiProblemDetailHttpIntegrationTest`：**6/6 PASS、0 FAIL/ERROR/SKIP、exit0**，其中本类原3项全部通过（pause及false/true并发取消）。A只读核验原XML/log和source SHA，不冒称自己独立执行Maven，也不把HTTP3计为A作者合同。TaskStop XML SHA `8f17d0fd76f579cb2bd130179abb5d6a4718f063c63d6b0c23ed49d8b4067925`；[task-stop-fixture-after-review.json](/workspace/backend-integration-20261004/evidence/A/task-stop-fixture-after-review.json) 记录命令原始结果、log/XML和当前source hashes以及3个fullNames。此处两失败归为夹具隔离问题已修复，原一abort/两取消结果及新RUNNING/activeSession正控均实际到达通过。
+
+真实 REST 首跑仍4 PASS/1 FAIL/25 NOT_RUN；父HTTP聚焦绿不替代30REST重跑。等待当次新服务 ready/proof与明确GO后，才执行新的完整首轮，不把旧服务或文档修正当业务通过。
+
+## J1 合成 Git 隔离补强（基础设施自测，尚未真实 HTTP 重跑）
+
+父根据同类祖先 `.git` 风险，追加授权 REST runner 仅在自己新 `mkdtemp` 项目初始化本地合成 Git，避免后续 Task 的 canonical lease/分支/index归属祖先目录。`createSyntheticGitProject` 先验证父 canonical、创建新子目录和README，使用 Node `execFile('/usr/bin/git', argv)`，无 shell，单次10秒/16KiB上限。子进程使用固定最小环境，不继承 GIT_DIR/WORK_TREE、Git config 注入、Provider、代理或凭据；`GIT_CONFIG_NOSYSTEM=1`、`GIT_CONFIG_GLOBAL=/dev/null`、`GIT_TERMINAL_PROMPT=0`，每次 argv局部 `-c` 给合成身份并禁 signing/hooks/init templates。没有 remote、fetch、push、用户全局修改或假 `.git`。
+
+`init --initial-branch=main` 后，真实 `rev-parse --show-toplevel` 与 `--absolute-git-dir` 必须精确等于新 root/其 `.git`，且各自 `realpath` 无alias；通过后才 add/commit唯一 README。再核初始 clean、tracked仅README及remote为空，Git命令/结果和初始commit写入 J1 evidence。此改变只影响夹具，30父case标题/业务断言、V4原红、原key/body恢复合同不变。
+
+四项新增自测分别为：真实clean/branch/内容；嵌套已有合成Git时祖先HEAD/index/README仍不变；继承定位/config/用户签名配置不能重定向；symlink/noncanonical/relative parent在创建任何夹具前拒绝。最新18/18、0 FAIL/SKIP、exit0；两文件 `node --check` 和限定 `git diff --check` 均0。runner SHA `84a99dc6912c8d9efdd3b902a675a7736d562dbc6b3aa7e39b044b2b7e3bcce0`，test SHA `ec6971365bc94229ee9e511f88f4b9d4663d06ea1b5d01e9a57a64114ea7a115`；[runner-synthetic-git-freeze.json](/workspace/backend-integration-20261004/evidence/A/runner-synthetic-git-freeze.json) 保存源码与18项原TAP hashes。这是作者脚手架验证，独立评审由C核实；尚未运行新Spring J1/K1，不宣称端到端执行隔离已通过。
