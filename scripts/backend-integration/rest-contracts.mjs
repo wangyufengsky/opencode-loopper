@@ -260,8 +260,10 @@ export async function readTaskEvents(baseUrl, taskId, { lastEventId, stopType = 
     return events;
   } finally {
     clearTimeout(timeout);
-    abort.abort();
-    if (reader) { try { await reader.cancel(); } finally { reader.releaseLock(); } }
+    // Fetch abort errors its body: cancel the live reader before aborting the request.
+    try {
+      if (reader) { try { await reader.cancel(); } finally { reader.releaseLock(); } }
+    } finally { abort.abort(); }
   }
 }
 

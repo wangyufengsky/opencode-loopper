@@ -10,6 +10,22 @@
 
 只读复算证实这是 **测试基础设施的 producer/consumer 排序协议缺陷**：3790 文件精确数量与各 jar SHA 已通过；Python `sorted(Path)` 的路径组件排序重现 proof `ed3d4331eea44a8cc6621ea800dc2747209051897ab29fbec2889d14756a133a`，consumer 整 relative string 排序重现 `760effb65ded304949aff21b5abe6964c22abf374015cd1c346033152f95ff16`。首差在 `role-prompts/prompt/v1/…` 与 `role-prompts/prompt-v1/…`，不是 class 文件字节变更。`ordering-diagnostic.json` 保存两种完整 tree 摘要与首差；未放宽摘要门槛、绕过 proof 或盲重试业务写。
 
+组长随后统一 producer 为 relative-path 字符串字典序并完成新冻结 `8553221a226f0996d363ad5777b6c5fcadb6ba31`。`phase1-run-3` 的 Spring `http://127.0.0.1:57173` / production preview `http://127.0.0.1:48178` 首批 B5 在 `/workspace/backend-integration-20261004/evidence/B-live-final-first` **实际 exit 1：2 PASS / 3 FAIL / 0 skip / 0 retry / 0 runner error**。五个业务 body 均已开始，first-write isolation（完整 class/jar 摘要、真实 runtime/health GET）已通过；该批执行期间七个测试基础设施文件 SHA 全部保持不变。`first-results.json` 的 SHA 为 `8ae83fa366543f385b3f4d2ea289d3fff3d98ee74f9c67544b863884300ed988`，原始 `browser.json/browser.log/trace` 不覆盖。
+
+| `phase1-run-3` 首批用例 | 实际进度与分类 |
+|---|---|
+| 项目登记、dirty Stay、真实 document-path 409 | **PASS**，原 UI 草稿保持、权威 GET 核对，三皮肤无新增写。 |
+| 四字段创建、graph/layout 显式保存与 reload | **PASS**，原字段/requestKey、graph/layout 各一次 PUT、同需求读取，无 Start。 |
+| DOCX 解析/身份 | **测试选择器 FAIL，partial**：真实 fixture 已建立且 React 详情已挂载，但 helper 错把 H1 固定为“需求流程”；真实 H1 是权威需求标题“隔离联调需求 docx-positive”。尚未到达任何上传 POST、解析或 replay 断言。 |
+| TXT/损坏 DOCX/纠正 | **测试选择器 FAIL，partial**：相同旧通用 H1 期望错误，实际显示“隔离联调需求 parse-errors”；格式/解析/上传/纠正均 NOT_RUN。 |
+| SSE/poll 首快照 | **测试工具观测 FAIL，partial**：真实 idle 会话与目标 SSE 已打开，退出首快照原 strict `listeners=[]` 失败；8 个残留记录的同 callback 来源均为 Playwright `InjectedScript._setupHitTargetInterceptors`。不删除/过滤它们或称 strict 通过；后续 Requirement poll 断言 NOT_RUN。 |
+
+SSE 的 `knowledge-first-snapshot.json` 来自失败 trace 内原 `page.evaluate` 结果的无改动解码：目标 conversation `opened=true/closeCalls=1/readyState=2`；不同 owner 的 App story-accounting SSE 保持 OPEN；原 Knowledge root 已断开，RO/RAF/capture/timer 均 0。此部分事实不能替代完整 strict gate，亦不能证明 heap/GC。三皮肤共 **6 张真实 Spring 数据代表图**已生成并逐张目视读取（项目 CAS 错误与保存需求）；全部数据为隔离合成记录，包含 A 的隔离 REST 测试项目并不表示 B 写入 A 路径。文件/解析/error 另外 6 张计划图尚未产生。
+
+父任务已授权且 C 非作者静态复核通过的最小 helper 候选已冻结：以 fixture 已 GET 的 `requirement.title` 做更强 H1 `toHaveText`，保原节点断言。资源准备改为真实 `/knowledge/history?project=…` 只读页，通过 readonly `html.locator.evaluate` 初始化工具；该调用只读 DOM，另保留短暂测试自有旧 host 引用以核实实际身份，不写 DOM 或业务。前页断言没有 Knowledge workspace 或目标 conversation stream；按真实历史选择/打开动作 SPA 进入原 IDLE 对话，再用真实 GET 精确核 id/project/title/model/state，断言旧 host 与新 host 不同、旧 host 已 detached、documentIdentity 同一，删除测试自有 host 引用后才 `begin()`。原监听身份、全部 strict `[]`、首次 MutationObserver 快照、scope SSE close 与后续 polling 断言不变；不使用 `page.route`、API mock 或事件过滤。若 host 未分离，断言立即失败，不能把监听排除后宣称绿。
+
+候选仅实际 strict tsc / collect，均 exit 0；原五个 literal fullName 与数量对 `8553221a` 逐项完全一致，共享 `e2e/w2/resources.ts` 字节未变。证据 `/workspace/backend-integration-20261004/evidence/B-helper-v3/{typecheck.log,collect.log,source-freeze.json}`，七文件 manifest SHA `809e3a14367fb9486de4f2b94917885d6d296e5df6d7702d72715f07a1b1dffd`。**候选 browser / HTTP 仍 NOT_RUN**，等待父任务新冻结与 fresh run GO；不把旧批两个通过或部分 SSE 事实拼成最终五个通过。
+
 准备阶段只在组长明确的 `/workspace/backend-integration-20261004/run/projects/B` 建立空 B 目录及两个合成 DOCX 文件。实际服务将使用组长新建的 `/workspace/backend-integration-20261004/phase1-run-1`，正式 B 根、data 路径均以该批 isolation manifest 为准，绝不沿用旧 run 数据。浏览器不直接读取或写入服务数据目录。每个用例只在 B 子目录建立合成项目与 `docs` 目录，通过正式 API 建立数据库记录，绝不手写 SQLite。不得开始任务、发送模型消息、生成/应用 AGENTS.md、运行命令、提交/推送或触发外部集成。
 
 专用配置没有 `webServer`，不会自行启动服务；不使用 `page.route`、`route.fulfill`、API mock 或假 DTO。正式 React 页通过组长提供的本地端点访问实际 Spring API。原 W7 mock 套件与本层分开。
@@ -20,7 +36,7 @@ C 非作者静态复核发现 producer 从 `applicationClassSha256` 改为 `runt
 
 专属 `preview.config.ts` 只使用官方 `preview.proxy` 将 `/api` 和 `/actuator` 转发至显式 loopback `BACKEND_INTEGRATION_SPRING_URL`。host/port 与 Spring URL 都没有隐式默认，生产 dist 仍由组长统一构建、启动；不修改共享 Vite 配置。
 
-## 少量高价值用例
+## 少量高价值用例（准备批计划）
 
 | 用例 | 真实入口与断言 | 当前结果 |
 |---|---|---|
@@ -61,7 +77,7 @@ BACKEND_INTEGRATION_SPRING_URL=http://127.0.0.1:<lead-spring-port>
 BACKEND_INTEGRATION_ALLOWED_ROOT=/workspace/backend-integration-20261004/phase1-run-1/projects
 BACKEND_INTEGRATION_PROJECT_ROOT=/workspace/backend-integration-20261004/phase1-run-1/projects/B
 BACKEND_INTEGRATION_ISOLATION_PROOF=/workspace/backend-integration-20261004/phase1-run-1/isolation.json
-BACKEND_INTEGRATION_EXPECTED_REVISION=11ca25a3bb764a2d80ac924350139a7087639121
+BACKEND_INTEGRATION_EXPECTED_REVISION=<lead-frozen-full-40-char-revision>
 BACKEND_INTEGRATION_EVIDENCE_DIR=<lead-approved-absolute-evidence-dir>
 node node_modules/@playwright/test/cli.js test --config e2e/backend-integration/playwright.config.ts
 ```
@@ -74,4 +90,4 @@ node node_modules/@playwright/test/cli.js test --config e2e/backend-integration/
 
 ## 尚未验证
 
-真实 endpoint readiness、全部五个浏览器测试、12 张三皮肤代表图、实际 parser 输出、真实 CAS 错误与恢复、SSE/REST 首快照都尚未执行。没有后台扫描失败、跨进程恢复、磁盘写失败补传、网络结果未知、后端订阅者计数或 GC 结论。运行失败先保首轮 raw/trace/hash 并报告，生产 bug 由组长独立确认后另行授权，不在本目录擅改 UI。
+新批 endpoint/runtime/health 已由 B 实际读取，项目 CAS 与需求创建/保存两项已通过；其余三项完整业务门槛尚未通过。实际 DOCX/TXT parser、上传 replay/有序文件字节/下载哈希与损坏文档纠正、Requirement REST 首快照仍未执行；Knowledge owned SSE close 已观察但完整 strict 退出为失败。没有后台扫描失败、跨进程恢复、磁盘写失败补传、网络结果未知、后端订阅者计数或 GC 结论。运行失败先保首轮 raw/trace/hash 并报告，生产 bug 由组长独立确认后另行授权，不在本目录擅改 UI。

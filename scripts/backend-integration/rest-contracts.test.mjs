@@ -230,6 +230,48 @@ test('SSE uses explicit Last-Event-ID and cancels its reader immediately after b
   assert.equal(input.redirect, 'error'); assert.equal(cancelled, 1); assert.deepEqual(events.map(value => value.id), ['42']);
 });
 
+test('SSE signal-bound reader cleanup does not replace a successful replay with its own AbortError', async () => {
+  let cancelled = 0, input, stream;
+  const events = await readTaskEvents(baseUrl, 'owned-task', { lastEventId: '41', fetchImpl: async (_url, init) => {
+    input = init;
+    stream = new ReadableStream({ start(controller) {
+      // Native Fetch binds stream errors to the request signal; emulate that missing boundary.
+      init.signal.addEventListener('abort', () => controller.error(new DOMException('This operation was aborted', 'AbortError')), { once: true });
+      controller.enqueue(new TextEncoder().encode('id: 42\ndata: {"type":"task.cancelled","at":"now","data":{"state":"CANCELLED"}}\n\n'));
+    }, cancel() { cancelled++; } });
+    return new Response(stream, { headers: { 'Content-Type': 'text/event-stream' } });
+  } });
+  assert.deepEqual(events.map(value => value.id), ['42']);
+  assert.equal(cancelled, 1); assert.equal(stream.locked, false); assert.equal(input.signal.aborted, true);
+});
+
+test('SSE genuine transport failure remains the same error while reader and request are released', async () => {
+  const failure = new Error('original transport failure');
+  let input, stream;
+  await assert.rejects(readTaskEvents(baseUrl, 'owned-task', { fetchImpl: async (_url, init) => {
+    input = init;
+    stream = new ReadableStream({ start(controller) {
+      init.signal.addEventListener('abort', () => controller.error(new DOMException('This operation was aborted', 'AbortError')), { once: true });
+      controller.error(failure);
+    } });
+    return new Response(stream, { headers: { 'Content-Type': 'text/event-stream' } });
+  } }), error => error === failure);
+  assert.equal(stream.locked, false); assert.equal(input.signal.aborted, true);
+});
+
+test('SSE reader cancellation failure is reported and still releases its lock and aborts its request', async () => {
+  const failure = new Error('reader cancellation failure');
+  let input, stream, cancelled = 0;
+  await assert.rejects(readTaskEvents(baseUrl, 'owned-task', { fetchImpl: async (_url, init) => {
+    input = init;
+    stream = new ReadableStream({ start(controller) {
+      controller.enqueue(new TextEncoder().encode('id: 42\ndata: {"type":"task.cancelled","at":"now","data":{}}\n\n'));
+    }, cancel() { cancelled++; throw failure; } });
+    return new Response(stream, { headers: { 'Content-Type': 'text/event-stream' } });
+  } }), error => error === failure);
+  assert.equal(cancelled, 1); assert.equal(stream.locked, false); assert.equal(input.signal.aborted, true);
+});
+
 test('SSE rejects duplicate/older sequences and still releases the reader', async () => {
   let cancelled = 0;
   const stream = new ReadableStream({ start(controller) {

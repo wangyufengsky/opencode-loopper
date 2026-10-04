@@ -6,11 +6,13 @@
 
 续接入场基准已独立核对为 `4f06621c11872c3b6ace9f0285ba9bdd669163e5`，当时工作区 clean；相对原业务基线，`src/main`、`pom.xml`、`.mvn` 没有差异。用户随后明确批准 Maven 子进程临时使用既有无凭据 proxy host/port，禁止写 settings 或永久配置；若发现代理认证要求仍须停止。后续正常重试保持同代理和官方目标。此授权覆盖先前“代理配置待决”的状态，不删除此前 DNS exit1，也不等于业务已通过。实际失败后，组长授权并持有 API advice 最小修复及 `0.4.91` 版本同步；A 仅持有停止测试夹具。准备阶段与实际运行分别记账。C 不执行 Maven、服务、浏览器或模型。
 
+续接冻结候选为 `8553221a226f0996d363ad5777b6c5fcadb6ba31`；C 已核入场 clean，关键修订 SHA 与上一轮独审一致。相对 `4f06621c`，生产范围仅 `ApiExceptionHandler` 优先级及 `application.yml` / `pom.xml` 版本同步；其他 A/B 变化为隔离夹具/观测与文档。唯一串行正式构建后由组长中止，actual exit143；后续完整精选 Java 57 与真实隔离端口 REST / 浏览器首轮已完成。本文后续编辑不改变运行源码，准确分层结果见下文。
+
 ## 当前结论与门禁
 
 现有源码有足够的 fake 业务、原身份恢复、停止证明和本地 HTTP 运输测试，可作为第一层聚焦门禁。MockMvc、真实本地 HTTP、真实 Spring 随机端口必须分别记账；这些测试仍不证明真实 Provider、真实 OpenCode 二进制或前端与后端的全链路已通过。
 
-第二层暂不可直接执行 `scripts/aicoding`：草稿 CAS 请求、可访问名、managed runtime、继承环境、构建路径与进程归属门禁尚需处理。此前 Maven 联网/PKIX 首错保留；proxy-4 完成 main/test 编译与 runtime classpath，精选 Java 首批 54 为 52 PASS / 2 FAIL，Maven exit1。定位后停止夹具和 API advice 的关联修后 6/6 PASS，排序 self-test 8/8 PASS；不能拼接成首批 54 全绿。首次隔离 Spring 已启动并正常停止；REST 首批 4 PASS / 1 FAIL / 25 NOT_RUN，浏览器 5 个业务正文均 NOT_RUN。完整 0.4.91 verify 与新实例联调尚待结果，第一层未全绿。Codex 完全禁工具仍未证，模型调用为 0。
+第二层暂不可直接执行 `scripts/aicoding`：草稿 CAS 请求、可访问名、managed runtime、继承环境、构建路径与进程归属门禁尚需处理。此前 Maven 联网/PKIX 首错保留；proxy-4 完成 main/test 编译与 runtime classpath，精选 Java 首批 54 为 52 PASS / 2 FAIL，Maven exit1。定位后停止夹具和 API advice 的关联修后 6/6 PASS，排序 self-test 8/8 PASS；不能拼接成首批 54 全绿。首次隔离 Spring 已启动并正常停止；REST 首批 4 PASS / 1 FAIL / 25 NOT_RUN，浏览器 5 个业务正文均 NOT_RUN。随后冻结855候选的精选 Java 57/57、0 fail/error/skip，18个XML的 child home/tmp 均准确；真实隔离端口 REST 新完整30为29 PASS/1 FAIL，浏览器新完整5为2 PASS/3 FAIL。首轮失败和修订另列，不拼接为最终通过。完整 0.4.91 verify 被中止exit143，正式JAR门禁未通过；第一层仍未全绿。Codex 完全禁工具仍未证，模型调用为 0。
 
 | 项目 | 本轮结论 | 证据性质 |
 | --- | --- | --- |
@@ -21,6 +23,8 @@
 | matrix 统计取消按钮定位 | 旧可访问名与当前中央语义不相等 | 确定的静态呈现差异，未运行 |
 | Maven 与既有环境代理 | DNS / PKIX 首错保留；proxy-4 编译与 classpath 成功，测试导致 exit1 | 不是最终构建/JAR 门禁成功 |
 | 最小修订后的聚焦门禁 | 停止协调 3/3 + 真实 HTTP DTO/fallback 3/3 PASS；排序 safety 8/8 PASS | C 核原始 after XML/log，未代替完整 verify、REST 30 或浏览器 5 |
+| 855候选精选 Java 完整新批 | 57/57 PASS，18 suites，0 fail/error/skip，exit0 | C逐XML核实际child home/tmp；不属于完整JAR verify |
+| 855真实端口新完整 REST / browser | REST29 PASS/1 FAIL；browser2 PASS/3 FAIL，0 skip/flaky | 全部正文已进入；失败中上传后续与Requirement polling未到达，不能当对应能力已验证 |
 | Codex CLI 完全禁工具烟测 | `BLOCKED` | 部分受支持 feature 已核实，完整空工具注册表未核实 |
 
 ## 现有测试层次与保留断言
@@ -231,6 +235,48 @@ C 只读 diff 确认原 REST 30 case/title/DTO/CAS/请求计数没有改，J1 �
 
 首 full verify 的 wrapper result 为 exit130，reason 是补 child properties。但 C 实际发现 `full-verify-first.log` 在该时点之后仍继续出现 Surefire Running / Tests run；读取点 07:20:53 UTC 为 27,027,431 bytes / 219,877 行，首 Surefire 在第577行。与“Java 测试启动前已停止”的回执不符，已立即反馈组长核 owned process。C 没有自行信号或启新进程。原 runner `Popen` 没有独立 process-session 与 SIGINT/SIGTERM/finally wait 清理，因此 wrapper 130 不能证明 Maven/Surefire 已退出；此首轮不计完整门禁通过或全部产品回归，须先核各 owned descendants 和输出归属，避免并行 clean/compile 污染同一 target。首错日志/结果保留，新的完整 verify 必须有受控唯一构建与退出证明后独立记账。
 
+后续已确认旧两个 Maven 均实际自然结束 exit1；130 是外层工具中断的先期记录，不是最终 Maven exit。first log 的最终 summary 为 2928 testcase invocations / 86 failure / 2482 error / 4 skipped；归档现存 447 XML 合计 2747 / 85 / 2482 / 4，不能把混合/缺失输出称作完整可靠 suite manifest。second log 为 0 tests、VM 启动失败。两批重叠 clean/test 使它们均不能提供最终产品 verdict，[invalid-overlapping-builds.json](/workspace/backend-integration-20261004/invalid-overlapping-builds.json) 明确 `INVALID_BUILD_EVIDENCE`，SHA `5ef868fedd8af192b17e0ac1dd8b089b4d864ab9c0f3bf413168b80f99743f4d`。父任务以正常权限遍历确认旧 owned Maven/runner 已结束，没有杀无关进程；C 只读结果，不把这项 producer 声明冒称自身操作系统遍历。
+
+新的外部 runner（本轮读取 SHA `1accace30d2f1dcfc1881170d7fb97373c4cfc3660bcac57437ccac94ad7b96e`）使用 `start_new_session=True`，在执行后立即写 runnerPid/ownedMavenPid/ownedPGID/argv/start；SIGINT/SIGTERM 仅转发到本次 group，`finally` TERM 后 wait15、超时同组 KILL/wait5。未使用 killall/pkill、按端口杀进程或泛选 Java。显式 home/tmp、环境 allowlist、同临时无凭据代理与默认 trust 保持。[final owned-process.json](/workspace/backend-integration-20261004/full-verify-final-owned-process.json) 记录 runner26704 / Maven及PGID26707、新唯一 `clean verify`；C 在该检查点另核 HEAD 为候选855，JSON 没有自行声明 revision。SHA `25e01524427446ea37e8b5dbc106437727f9aa2be68aff3298bb001ab3734116`。该批实际最终 result为exit143、interrupted=true、ownedMavenExitObserved=143，不以 owned 声明当构建通过；后续精选57是独立执行，不补成完整verify。
+
+C 已反馈一个准确停止边界：信号 handler 只发送 group signal，主流程仍同步读取 stdout；若 child 忽略信号或后代持续持有 pipe，`finally` 内的 15s 清理界限要在读取结束后才生效。因此当前代码不能证明**所有中断**必在该界限内完成，`child.wait` 也只证明 Maven parent exit，不证明所有后代不存在。此限制不自动使正常不中断的最终执行无效；最终退出与唯一构建/清理必须用当次实际证据分别记账。
+
+最终串行构建的历史只读中间检查点：当时 92 个已完成 `target/surefire-reports` XML 全部实际 `user.home=<task>/build-home-2`、`java.io.tmpdir=<task>/build-tmp-2`、`java.home=/usr/lib/jvm/java-21-openjdk-amd64`，没有属性 mismatch / incomplete XML。这个 92 是隔离属性样本数，**不是通过 suite 数或最终分母**。C 仅对已声明两个 PID 读取 `pid/ppid/pgid/comm`，实际 runner26704→Java26707 / PGID26707，与启动声明一致，没有读取 cmdline/environment/凭据；不是全系统进程审计或最终退出证明。
+
+本次 `build-home-2` / `build-tmp-2` / `full-verify-final-test-data` 均独立存在、canonical、非 symlink，环境 data root 位于任务根；没有对用户数据根复用的源码证据。仍须限定：这不是所有测试文件写入的系统调用审计，数据隔离声明不能自动证明全部测试 fixture 的预期路径正确。当前 runner PATH 只有锁定 JDK bin 与 `/usr/bin:/bin`，不包含锁定 Maven bin；`LOOPPER_DATA_DIR` 明确覆盖测试配置默认 `${java.io.tmpdir}/loopper-test-data`。它们是已核的运行输入差异；LocalSyncConflict / DirectDocumentDevelopment / VerifierEngine 实际首错由 A/root 继续依原代码和 raw 分类，不先说 baseline 或产品回归，不在本批中途改输入。该批后续已中止；[full-verify-final-result.json](/workspace/backend-integration-20261004/full-verify-final-result.json) SHA `707729d51bc297f00805590aa71d39aae1109b711546d6393f4ce64625be62db` 证明exit143，正式JAR门禁仍未完成。
+
+## 855 真实端口完整首轮与测试修订独审
+
+C只读取 producer 原始输出与当前diff，没有执行 Java/Node tests、浏览器、服务或网络请求。组长执行的 [focused-final-summary.json](/workspace/backend-integration-20261004/focused-final-summary.json) 为18 suites / 57 tests / 0 failures/errors/skipped，exit0。C逐个解析 `focused-final-raw/TEST-*.xml`，实际57 testcase 与summary一致；全部18 XML的 `user.home` 为任务 `build-home-2`、`java.io.tmpdir` 为任务 `build-tmp-2`、`java.home` 为OS Java21。这修正此前after6仅功能绿、child home仍为 `/home/agent` 的隔离不足；不把57精选当完整verify或正式JAR通过。该summary SHA `707bc45dd77496f76680042184b60f3437be06c498d4708509a3cfac572992db`，result SHA `233a9b69458ab393cf683dd8ce3c6202da1021e0031b36dc9a8d7bfb4d6ff13e`。
+
+### A：S1首错在自有清理，不是10秒deadline
+
+[REST完整首轮report.json](/workspace/backend-integration-20261004/evidence/A-rest-final-first/report.json) 实际29 PASS / 1 REPRODUCED_FAIL / 0 NOT_RUN，SHA `df569edf5dbdaee62f577cb6683a19c4402585e29fe1da59c3f5a3a605df3999`。S1起止 `07:49:57.185Z`→`.202Z`，**17ms**；stack精确指向原 `readTaskEvents:263 abort.abort()`。成功读取路径的finally先abort request，真实Fetch signal使body errored，随后cancel抛AbortError覆盖返回。故首错分类为runner清理缺陷；原raw尚不能证明S1已完成cursor重连或最终权威REST断言，不从此推断服务端SSE失败。
+
+A先增加真实ReadableStream/AbortSignal绑定负控，原runner19项18 PASS/1 FAIL，before TAP SHA `974e1993b0cbcc67acd583e0151fcb89328ea664f908fe9e2f20b59c9cba1870`。当前 [readTaskEvents](../../../scripts/backend-integration/rest-contracts.mjs#L222) 最小diff仅 **cancel→releaseLock→abort**，finally清deadline不变，没有catch吞错；`releaseLock`与abort仍在finally，取消失败/传输失败继续reject。原SSE status/content-type、ID格式、1000events/2MiB上限、cursor严格递增/排除、两次回放deepEqual与最终CANCELLED GET均不变。C机器比对855源码，除这段授权finally替换完全相同；全部30个 `await check` ID/顺序一致。
+
+A修后自测原18加3为21/21、0 fail/skip，after TAP SHA `8b587eaa482d6aa31ade89a5006ba979e9d64b0c5c332f8e29cfd26c516bc511`。新增成功信号绑定、原transport error对象身份、cancel真错误仍unlock/abort三项，分别保正负控；C只读源码和TAP，不冒称独立runner。修后脚本 SHA `7cbb2a64735c8f1c7c784a2b3cb42ac63175efbf21b29e1d49600ff384fd97ea`，tests SHA `58b11ad138bd7cb7f9368b7332b7133426174a471802d4be5ccc61a3b532293b`。**21自测不补首轮S1为PASS**，新冻结revision完整REST30仍待组长复跑。
+
+### B：两个上传前标题预期与工具实例归属
+
+[浏览器完整首轮first-results.json](/workspace/backend-integration-20261004/evidence/B-live-final-first/first-results.json) 5个正文均进入，2 PASS / 3 FAIL / 0 skip/flaky，beforeAll passed、无API mocks，SHA `8ae83fa366543f385b3f4d2ea289d3fff3d98ee74f9c67544b863884300ed988`。
+
+| 原case | 首错与已到达边界 | 修订审查与尚未验证 |
+| --- | --- | --- |
+| DOCX parser / ordered bytes / identical replay / changed-body409 | 上传前H1旧expect“需求流程”，实际权威title“隔离联调需求 docx-positive”；TEST_FIXTURE_SELECTOR_FAIL | `openRequirement(id,title)` 改GET seed.title精确toHaveText，保原“人工核对文档”节点；所有上传字节/顺序/sha/重复/409断言原样，首批尚未到达 |
+| TXT / broken DOCX / explicit reselection | 同上，实际title“隔离联调需求 parse-errors”；TEST_FIXTURE_SELECTOR_FAIL | 同精确标题修订；0POST TXT拒绝、真实DOCX错误、原File显式纠正及后续断言不变，首批尚未到达 |
+| Knowledge SSE / Requirement polling immediate SPA cleanup | after严格listeners[]失败8个工具监听；TEST_TOOL_INSTRUMENTATION_FAIL | Knowledge实际close已证明，首样门槛未通过，后半Requirement polling NOT_RUN；预热代码已静态核目标实例挂载前的真实注册身份，完整5复跑仍待组长 |
+
+标题修订3调用均传同seed.requirement.title，未用宽matcher、硬编码新title、fixture替代服务端DTO或改生产。当前support SHA `265f44eb80870c02a3929106f3e6fa2ca8ca54b91839bbfb16d4691c8d429760`，包含预热的5case spec SHA `c7121bf1789cb72898a4590f2bfe781032222699458e6b8f13d3548918fe106e`。
+
+[Knowledge首次raw snapshot](/workspace/backend-integration-20261004/evidence/B-live-final-first/knowledge-first-snapshot.json) SHA `d159a1c8cdeb9e1d8f41f30bbd63cb3cd9e765140376b73fe4a1a462c3a762a7`：same document、目标root已detached，RO/RAF/capture/ownedtimer各0、无后续自然清理事件；仍有8个window/capture监听，全部同target6 / callback9，stack为锁定Playwright `_setupHitTargetInterceptors`。它们在before已注册，**不是canvas/SSE新增泄漏证据，也不能过滤后称strict通过**。目标conversation SSE精确1实例、opened=true、closeCalls=1、readyState=2；application StoryAccounting stream继续open属于外部owner，二者不混记。这不是全App或GC证明。
+
+锁定Playwright source链：`locator.js:100` evaluate→`_withElement:58` waitForSelector→`frames.js:658` adopt main context→`dom.js:110–115` ElementHandle preview→main injectedScript。目标raw与该工具监听链相符。W2账本在addEventListener时按当时 `roots()` 记录归属，独立于armed；所以 **Knowledge root已挂后仅begin前预热仍不足**。C先向组长/B反馈；现落盘代码先真实 `/knowledge/history?project=<原projectId>` 前页只读 `html.locator.evaluate` 初始化工具，再经真实选中/打开SPA进入原IDLE conversation，目标begin和首样原顺序不动。仅预热工具、不删除监听、不改技术helper、不等自然事件；须记录预热路径、当时目标实例未挂、same document及原conversation.id。[App.tsx:65](../../../frontend/src/app/App.tsx#L65) 实际route host为 `key={scope.key}`；[ownership.ts:129](../../../frontend/src/app/ownership.ts#L129) history与knowledge path不同，真实SPA会换对应host。组长已授权该方案，后续须实证 oldHost≠newHost、oldHost detached、同documentIdentity及原id；不能仅靠源码推断运行归属。C已读最终预热diff：精确assert前页无目标Knowledge workspace/SSE；真实列表选中原title、ui.open后核同GET的id/project/title/model/IDLE；强断oldHost≠newHost、oldHost detached、currentHost connected、同documentIdentity/原id，再删测量引用；UIWrites[]保无额外write。主体首样与后半poll断言不变。静态方案通过，实际新5尚未执行，不冒称修后资源通过。
+
+冻结W2 [resources.ts](../../../frontend/e2e/w2/resources.ts#L107) SHA `b2f55748d0109cee6e28002a3f135ca51ca686b80d4a21b7c692b8b52a5cd6bd`：5类资源exact[]、same document、sentinel/media正控、no-natural-cleanup input门槛原样。未知资源仍失败；本轮不改、不过滤source stack/工具callback，也不取消其他owner。
+
+run-3已由组长停止：[isolation.json](/workspace/backend-integration-20261004/phase1-run-3/isolation.json) 实际stopped=true/ready=false/Java exit=-9，SHA `3fada0e3c6a2ca1fab2c7f18e9bbcafb00ed999a776e4b9cfceab183d8be156a`；[preview.json](/workspace/backend-integration-20261004/phase1-run-3/preview.json) Node exit143，SHA `747e368a9994a4e4baeeadfed16d4363bacde11b6cb8ab4f612b9413c2bec464`。Spring shutdown超过15s后走本次owned group KILL，不能说全部正常143或优雅退出。C只读核当次4个声明owned PID48048/48061/48490/48493的 `/proc/<pid>` 均不存在；组长提供两端口拒绝回执，C未另发网络探测。另4个较早owned PID21315/22587/27364/27891仍为PPID1/Z、cmdline空的未收割zombie（组长stat回执），不杀、不动PID1；这是“无执行中的旧owned Maven/Java”与“全部后代不存在”的区别，不声称全环境进程对象清空。
+
 ## Codex `0.159.0-alpha.3`：部分开关可证，完全禁工具仍 `BLOCKED`
 
 本机实际 `/opt/codex/bin/codex --version` 为 `codex-cli 0.159.0-alpha.3`。仅执行 `--help`、`exec/features/debug/app-server --help` 与父任务额外准许的 `codex --no-daemon features list`，均 exit0；只读命令有 PATH-alias 只读文件系统告警，未创建 alias，未启动 daemon/模型。features list 输出仅 feature 名称、阶段与布尔；没有直接读取 auth/config 文件、改 feature 或复制凭据。
@@ -290,4 +336,4 @@ C 只读 diff 确认原 REST 30 case/title/DTO/CAS/请求计数没有改，J1 �
 | `frontend/e2e/backend-integration/project-requirement-upload.spec.ts` | `0fb294065885187039b06d7838f504d60086004433fa1679fd786b59ba373efc` |
 | `frontend/e2e/backend-integration/support.ts` | `19c0f52263ba6686a7dd6506eaea0ae3106232f4f48509dc18756cb3f25f0f25` |
 
-本轮源码审查及首次实际证据已分别记录；54 Java / REST / 浏览器 / 启动健康 / owned stop 的口径不能互相替代，第一层尚未全绿。后续须使用独立 fresh root、准确当次 revision/build hash，保留首错和每次运行全量结果；C 未直接打开认证文件、未更改网络、未提交或对外发送。
+本轮源码审查及首次实际证据已分别记录；历史54与新57 Java / REST / 浏览器 / 启动健康 / owned stop 的口径不能互相替代，第一层尚未全绿。后续须使用独立 fresh root、准确当次 revision/build hash，保留首错和每次运行全量结果；C 未直接打开认证文件、未更改网络、未提交或对外发送。

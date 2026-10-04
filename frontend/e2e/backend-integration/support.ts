@@ -107,9 +107,9 @@ export async function requirementFixture(request: APIRequestContext, name: strin
   expect(requirement.diagnostics).toEqual([])
   return { project, template, requirement }
 }
-export async function openRequirement(page: Page, id: string) {
+export async function openRequirement(page: Page, id: string, title: string) {
   await page.goto(`/requirements/${id}`)
-  await expect(page.locator('[data-react-page] h1')).toContainText('需求流程')
+  await expect(page.locator('[data-react-page] h1')).toHaveText(title)
   await expect(page.locator('article.workflow-node').filter({ hasText: '人工核对文档' })).toBeVisible()
 }
 export async function documentPanel(page: Page) {

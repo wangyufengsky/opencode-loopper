@@ -176,3 +176,62 @@ A对该诊断专属 SQLite 使用 `mode=ro`、只执行四条 SELECT，得到确
 `init --initial-branch=main` 后，真实 `rev-parse --show-toplevel` 与 `--absolute-git-dir` 必须精确等于新 root/其 `.git`，且各自 `realpath` 无alias；通过后才 add/commit唯一 README。再核初始 clean、tracked仅README及remote为空，Git命令/结果和初始commit写入 J1 evidence。此改变只影响夹具，30父case标题/业务断言、V4原红、原key/body恢复合同不变。
 
 四项新增自测分别为：真实clean/branch/内容；嵌套已有合成Git时祖先HEAD/index/README仍不变；继承定位/config/用户签名配置不能重定向；symlink/noncanonical/relative parent在创建任何夹具前拒绝。最新18/18、0 FAIL/SKIP、exit0；两文件 `node --check` 和限定 `git diff --check` 均0。runner SHA `84a99dc6912c8d9efdd3b902a675a7736d562dbc6b3aa7e39b044b2b7e3bcce0`，test SHA `ec6971365bc94229ee9e511f88f4b9d4663d06ea1b5d01e9a57a64114ea7a115`；[runner-synthetic-git-freeze.json](/workspace/backend-integration-20261004/evidence/A/runner-synthetic-git-freeze.json) 保存源码与18项原TAP hashes。这是作者脚手架验证，独立评审由C核实；尚未运行新Spring J1/K1，不宣称端到端执行隔离已通过。
+
+## 855 全量首错：只读分类（整体仍在执行，非最终门禁）
+
+父串行 `clean verify` 冻结 revision 为 `8553221a226f0996d363ad5777b6c5fcadb6ba31`。A只读父原log及已完成的指定3类 Surefire，并归档到 [full-verify-first-classification/manifest.json](/workspace/backend-integration-20261004/evidence/A/full-verify-first-classification/manifest.json)。该**局部快照**为 LocalSync18（16 PASS/2 FAIL）、DirectDocument3（1 PASS/2 FAIL）、Verifier35（32 PASS/2 FAIL/1 ERROR），不表示整批执行已经结束或只有这些失败；不把此前精选54/新HTTP3的绿相加充全量。
+
+三个旧test及相关 LocalSyncConflictService、VerifierEngine、GitProjectScope、test application.yml 已与4f逐字节比较，全部不变。三个test SHA依次 `b5571745b0efdf5a4ead54fa3f559c574be859a0166c8b2cb4766315a15483e6`、`fa9db4dc3f2cca40222354a3dfbe7dab3692d4002e60fc16ba8ece76e594f8c3`、`8ecaaf0b06f4c82e54c57913ff1c69e926f0a0250edf85cfa16731aade7835d7`。这证明本轮未改这些字节，**不能据此声称4f环境下已失败、或所有错误都是既有产品缺陷**。
+
+| 实际失败/fullName（类见列首） | 原首断言及只读分类 |
+|---|---|
+| LocalSync.cupXml2JavaStyleMergeKeepsBothDependenciesSyncsStateMachineAndPassesMaven | :574 expected APPLIED，actual ROLLED_BACK。:521声明原 `mvn -q test`、:579还要求真实Maven成功；生产:300–315验证失败会回滚。父声明本轮PATH未含专属Mavenbin，故属于**强环境候选**；当前XML没有具体PROCESS_START/MAVEN错误回执，未直接确认唯一根因，需父修运行环境后保原断言复验。不能放宽为接受回滚。 |
+| LocalSync.missingRecoveryBackupEndsInRollbackFailedWithManualRecoveryLocation | :402 expected ROLLBACK_FAILED，actual ROLLED_BACK。源码已证夹具:393–395写死 `${java.io.tmpdir}/loopper-test-data` 删backup；生产 LocalSyncPathPolicy:10–18从实际properties.dataDir构建路径。父声明LOOPPER_DATA_DIR显式覆盖，而XML实际tmp=build-tmp-2，测试默认值为application.yml:24；实际专属数据目录不同。这是**确定的夹具路径与本轮环境不匹配**，不先指控生产恢复吞错；旧路径下备份删除负控尚未有效证明。 |
+| DirectDocument.singlePackageRunsCurrentDirectoryTestsAndReportsWithoutAcceptingResult(boolean)[1]/[2] | 两变体:183 expected JUDGING，actual AWAITING_DECISION、附verifications=[]。fixture:231–242生成实际JUnit pom并明确 `.mvn/maven.config=-o`；SourceTestProfiles:71选原`mvn test`。缺Maven PATH为**强候选，未有原Task错误回执定因**，两变体不能仅以非Git祖先问题统归。父 `-Dmaven.repo.local` JVM参数也不会自动传给子mvn；ChildProcessEnvironment仅移除两个masterkey，未传播系统属性，修PATH后还须核显式离线cache可达。这是尚未触达的后续环境风险，不称已复现缓存失败。 |
+| Verifier.stageBaselineScopesDiffAndRequireChangesToWorkAfterThatStageStarted | :211在目标PASS断言前 ERROR，Git rev-parse128。fixture:200只有普通stage-project；生产Verifier:377先requireNoSiblingChanges，GitProjectScope:34–45按祖先`.git`触发真实repository读取。原异常栈已证**祖先边界预检先于stage diff**，本环境`.git`祖先与无自有Git fixture不匹配；未修改边界、未以fake.git或忽略128使测试绿。 |
+| Verifier.gitDiffFailsClosedForTruncatedEvidenceAndExhaustedCombinedPolicyBudget | :507–510应得到safe evidence limit，actual先Git rev-parse128。夹具只override SafeProcessRunner.run，GitProjectScope调用GitEvidenceProcess真实边界检查；无本地repo，原目标truncation/combined budget断言未到达。属于**已确认入口/fixture环境截断**；第二个budget子变体本轮未到达，不算通过或独立复现。 |
+| Verifier.outputLimitTerminatesInheritedOutputDescendants | :497 childAlive=true，原失败真实保留。:483–490已通过FAIL、outputTruncated与PID文件正控，但未记录失败时PID/proc状态。SafeProcessRunner:137–142对子孙destroyForcibly后再杀父；fixture:713–719为继承IO子Java。**资源问题尚未定因**：既不能因其他环境错称正常，也不能凭isAlive断言区分仍执行进程与未回收zombie。本轮没有PID归属/状态采样或重跑，不称确定产品回归、既有绿或超时抖动。 |
+
+XML独立核实 `java.io.tmpdir=.../build-tmp-2`、`user.home=.../build-home-2`、`maven.repo.local=/workspace/backend-integration-tools/m2`。PATH与LOOPPER_DATA_DIR仅引用父明确启动声明；A读取owned Maven `/proc/.../environ`被EACCES，没有升级权限或声称独立取得环境内容。没有改三个test/生产、提高等待时限、放宽任何断言或运行额外Maven。30REST仍等待新服务GO。整体最终分类/计数待父完成并提供最终汇总；本节只保留本轮首错与证据范围。
+
+## 855 新鲜隔离服务：30 REST 首次完整执行与 S1 脚手架修正
+
+父实际完成关联 Java 18 suites、**57/57 PASS、0 FAIL/ERROR/SKIP、exit0**，revision `8553221a226f0996d363ad5777b6c5fcadb6ba31`；A只读 `focused-final-result.json`、`focused-final-summary.json`，不是 A另行执行 Maven。这批不能替代上节完整 verify 的环境问题分类，也不能替代实际 REST。
+
+新服务为 `http://127.0.0.1:57173`；proof 为 `/workspace/backend-integration-20261004/phase1-run-3/isolation.json`，A专属项目 parent 为该 fresh root 的 `projects/A`。A经正常工具网络权限执行以下**一次**，没有第二次写入重跑：
+
+```sh
+node scripts/backend-integration/rest-contracts.mjs \
+  --base-url http://127.0.0.1:57173 \
+  --project-parent /workspace/backend-integration-20261004/phase1-run-3/projects/A \
+  --isolation /workspace/backend-integration-20261004/phase1-run-3/isolation.json \
+  --expected-revision 8553221a226f0996d363ad5777b6c5fcadb6ba31 \
+  --report /workspace/backend-integration-20261004/evidence/A-rest-final-first/report.json
+```
+
+实际 **exit1，29 PASS / 1 REPRODUCED_FAIL / 0 ENV_BLOCKED / 0 NOT_RUN**；原 report 状态不改写。普通 REST trace 共 **91条：GET45、POST28、PUT16、DELETE2**；HTTP200为71、201为2、400为7、409为11（均包含预期负控）；SSE Fetch不在该普通 trace 计数内。报告保存每条 method/route/raw body/body SHA/requestKey/响应与响应 SHA，没有凭据或真实 Provider 请求。
+
+| 父case | 实际到达的合同与结果 |
+|---|---|
+| P1、V1–V4 | 全 PASS。ready/revision/canonical/Fake 实际 runtime 读取；真实400的 LOCAL_UI_HEADER_REQUIRED、WORKFLOW_REQUEST_KEY_INVALID、WORKFLOW_REQUIRED、FIELD_VALIDATION。旧 V4 首错完整保留，本批实际通过才作为该 HTTP边界绿证据。 |
+| J1、T1–T10 | 全 PASS。新项目真实自有Git root/.git、仅README初始commit、无remote；执行验证、原body/key replay、异body冲突、graph/layout独立CAS、历史不可变、copy/list/archive合同。 |
+| R1–R7 | 全 PASS。创建恢复显式原POST/body/key；已知ID GET核原来源；plan CAS/历史、确认仅PENDING_START且无执行、独立layout、stale confirm、从未启动的取消与历史。无虚构 by-request GET。 |
+| D1–D3 | 全 PASS。公共v2合同、draft读取/更新/version409、confirm version必填/冻结与不自动Start。 |
+| K1–K3 | 全 PASS。真实RUNNING原writer与HELD正控；同原externalSessionId的activity读得remote ABORTED、本地Session ABORTED、Task CANCELLED、lease RELEASED、无新attempt；终态Start409/TASK_TERMINAL且无替代writer。仅Fake正常abort路径，不外推故障/并发停止证明。 |
+| S1 | 首错为 runner 自有 AbortError；不能据此称 SSE服务端失败或 Last-Event-ID 已通过。第二次带cursor连接及最后REST权威GET未到达。 |
+
+J1真实 checkout 为 `phase1-run-3/projects/A/rest-contract-kLf5Kv`，初始commit `e12f8b9dc2b89c40b77efc12e0a60884d7bd47b7`。K1/K2 的同一Task为 `e416b46e-7fae-48d2-ab91-9806f0ac8805`，原 local Session `b3489b4e-7b4a-4b53-b702-473cb5df6a2a`、external Session `fake-6e9ff379-2652-4dca-a6c0-fc9ddddab8e0`；原始 `stopProof` 保存前后队列、同Session和权威Task，未手改数据库。
+
+S1真实起止为 `07:49:57.185Z`→`07:49:57.202Z`，**17ms，不是10秒deadline**。A最初短回报的超时判断已明确纠正。原 `readTaskEvents` 的 finally 在成功返回前先 `abort.abort()`，Native Fetch因此使 body errored，随后 `reader.cancel()` 抛 AbortError，覆盖原返回；stack直接指向原 runner:263。原 live报告尚无已返回的 frames，故不静态补写序列/重连结果。原报告 [report.json](/workspace/backend-integration-20261004/evidence/A-rest-final-first/report.json) SHA `df569edf5dbdaee62f577cb6683a19c4402585e29fe1da59c3f5a3a605df3999`；[run.log](/workspace/backend-integration-20261004/evidence/A-rest-final-first/run.log) SHA `e17d585a4d669ea956dfb97616463c7120b843139a786406e081191daa8971e4`，均保持原样。
+
+新增自测以注入 fetch、**真实 Node ReadableStream + AbortSignal**模拟 Native Fetch信号绑定边界，不启动HTTP或增加实际API。修前19项为18 PASS/1 FAIL，信号绑定成功帧负控精确重现自有AbortError；原 runner `84a99dc…` 和当次test/TAP归档 [runner-sse-cleanup-before-source/manifest.json](/workspace/backend-integration-20261004/evidence/A-rest-final-first/runner-sse-cleanup-before-source/manifest.json)，TAP SHA `974e1993b0cbcc67acd583e0151fcb89328ea664f908fe9e2f20b59c9cba1870`。
+
+父授权仅修清理次序：先cancel reader，在finally释放lock，再外层finally abort request；deadline仍清除。**不吞取消失败或真实传输错误**，原 SSE ID格式、数量/字节上限、cursor排除/严格递增、第二次replay equality和最终REST断言均原样保留。修后实际21/21、0 FAIL/SKIP、exit0：新增成功signal绑定、同原transport error对象、cancel抛错仍unlock/abort三项；原duplicate/older序列负控继续通过。两脚本 `node --check` 与限定 `git diff --check` exit0。仅脚手架修复，没有改 API/main、Java57、服务器或业务数据。
+
+| 本次修复冻结对象 | SHA256 |
+|---|---|
+| rest-contracts.mjs | `7cbb2a64735c8f1c7c784a2b3cb42ac63175efbf21b29e1d49600ff384fd97ea` |
+| rest-contracts.test.mjs | `58b11ad138bd7cb7f9368b7332b7133426174a471802d4be5ccc61a3b532293b` |
+| runner-sse-cleanup-after.tap | `8b587eaa482d6aa31ade89a5006ba979e9d64b0c5c332f8e29cfd26c516bc511` |
+
+该21绿属于作者 runner 自测，不能提升原S1为PASS。修后完整30实际REST仍 **NOT_RUN（等待父新revision/freshDB/ready GO）**；不得在原未知身份上盲重写或覆盖29/1首错。SQLite/scheduling声明、故障Fake注入、跨刷新/真实丢包、服务器subscriber释放仍按前述能力边界，不以此清理补丁宣称额外证明。

@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import type { Project } from '../../src/types/domain'
+import type { KnowledgeConversation, Project } from '../../src/types/domain'
 import type { WorkflowReceipt, WorkflowRequirement, WorkflowUpload, WorkflowUploadRequest, WorkflowFile } from '../../src/types/workflow'
 import { action, closeSidebar, documentPanel, env, evidence, headers, json, multipart, observeWrites, openRequirement, openSidebar, post, projectFixture, requirementFixture, screenshots, verifyIsolation } from './support'
 import { brokenDocx, docxFile, sha256, txtFile } from './files'
@@ -79,7 +79,7 @@ test('real React four-field requirement create and explicit graph save persist o
 test('real DOCX parser, ordered original bytes, identical upload replay and changed-body 409', async ({ page, request }, info) => {
   const { requirement } = await requirementFixture(request, 'docx-positive'), observed = observeWrites(page)
   const files = [docxFile('合成原文标记-FIRST', '第一份合成需求.docx'), docxFile('合成原文标记-SECOND', '第二份合成需求.docx')]
-  await openRequirement(page, requirement.id); const panel = await documentPanel(page)
+  await openRequirement(page, requirement.id, requirement.title); const panel = await documentPanel(page)
   await panel.locator('input[type="file"]').setInputFiles(files)
   await expect(panel).toContainText('第一份合成需求.docx、第二份合成需求.docx')
   const upload = page.waitForResponse(response => response.url().endsWith(`/requirements/${requirement.id}/documents`) && response.request().method() === 'POST')
@@ -114,7 +114,7 @@ test('real DOCX parser, ordered original bytes, identical upload replay and chan
 
 test('TXT rejection and actual broken DOCX parser error remain visible before explicit valid reselection', async ({ page, request }, info) => {
   const { requirement } = await requirementFixture(request, 'parse-errors'), observed = observeWrites(page)
-  await openRequirement(page, requirement.id); const panel = await documentPanel(page), input = panel.locator('input[type="file"]')
+  await openRequirement(page, requirement.id, requirement.title); const panel = await documentPanel(page), input = panel.locator('input[type="file"]')
   await input.setInputFiles(txtFile('只在隔离测试中生成的文本'))
   await expect(panel.getByRole('alert')).toContainText(/DOCX|Markdown/)
   expect(observed.writes.filter(write => write.path.endsWith('/documents'))).toHaveLength(0)
@@ -142,7 +142,7 @@ test('TXT rejection and actual broken DOCX parser error remain visible before ex
 
 test('real idle Knowledge SSE and Requirement REST polling clean up at the first SPA-exit snapshot', async ({ page, request }, info) => {
   const project = await projectFixture(request, 'idle-sse'), conversationId = randomUUID()
-  const created = await post<{ id: string; state: string; model: string }>(request, '/api/knowledge/conversations', {
+  const created = await post<KnowledgeConversation>(request, '/api/knowledge/conversations', {
     id: conversationId, projectId: project.id, title: '隔离 idle SSE · 不发送消息', sourceIds: ['documents'], timezone: 'Etc/UTC',
   })
   expect(created.id).toBe(conversationId); expect(created.state).toBe('IDLE')
@@ -156,9 +156,41 @@ test('real idle Knowledge SSE and Requirement REST polling clean up at the first
     Object.defineProperty(window, '__integrationStreams', { value: () => rows.map(row => ({ url: row.url, closeCalls: row.closeCalls, opened: row.opened, readyState: row.source.readyState })) })
   })
   const observed = observeWrites(page)
-  await page.goto(`/knowledge/${conversationId}`)
+  // Initialize the runner on a real read-only predecessor, never on the measured
+  // Knowledge owner. The frozen ledger keeps its original callback identities.
+  await page.goto(`/knowledge/history?project=${project.id}`)
+  await expect(page.locator('[data-react-page] h1')).toHaveText('历史对话')
+  const historyWarm = await page.locator('html').evaluate((element, id) => {
+    const host = document.querySelector('[data-app-route-owner]')
+    if (!host) throw new Error('Real predecessor route owner is missing')
+    Object.defineProperty(window, '__integrationPreviousHost', { value: host, configurable: true })
+    const streams = (window as unknown as { __integrationStreams(): { url: string }[] }).__integrationStreams()
+    return { tagName: element.tagName, path: location.pathname, previousHostConnected: host.isConnected,
+      documentIdentity: window.__w2Resources.snapshot().documentIdentity,
+      knowledgeWorkspacePresent: !!document.querySelector('[data-w3-workspace="knowledge"]'),
+      targetStreamPresent: streams.some(row => row.url.endsWith(`/knowledge/conversations/${id}/events`)) }
+  }, conversationId)
+  expect(historyWarm).toMatchObject({ tagName: 'HTML', path: '/knowledge/history', previousHostConnected: true, knowledgeWorkspacePresent: false, targetStreamPresent: false })
+  await page.locator('.w2-secondary-select').filter({ hasText: created.title }).click()
+  const loaded = page.waitForResponse(response => new URL(response.url()).pathname === `/api/knowledge/conversations/${conversationId}` && response.request().method() === 'GET')
+  await action(page, 'ui.open').click()
+  const opened: KnowledgeConversation = await (await loaded).json()
+  expect(opened).toMatchObject({ id: conversationId, projectId: project.id, title: created.title, model: created.model, state: 'IDLE' })
+  await expect(page).toHaveURL(new RegExp(`/knowledge/${conversationId}$`))
   await expect(page.getByRole('textbox', { name: '向项目提问', exact: true })).toBeVisible()
-  await page.waitForFunction(() => (window as unknown as { __integrationStreams(): { opened: boolean }[] }).__integrationStreams().some(row => row.opened))
+  const hostTransition = await page.evaluate(() => {
+    const previous = (window as unknown as { __integrationPreviousHost?: Element }).__integrationPreviousHost
+    const current = document.querySelector('[data-app-route-owner]')
+    if (!previous || !current) throw new Error('Real predecessor / Knowledge owner identity is missing')
+    const result = { hostsDiffer: previous !== current, previousHostConnected: previous.isConnected, currentHostConnected: current.isConnected,
+      documentIdentity: window.__w2Resources.snapshot().documentIdentity, path: location.pathname }
+    delete (window as unknown as { __integrationPreviousHost?: Element }).__integrationPreviousHost
+    return result
+  })
+  expect(hostTransition).toEqual({ hostsDiffer: true, previousHostConnected: false, currentHostConnected: true, documentIdentity: historyWarm.documentIdentity, path: `/knowledge/${conversationId}` })
+  await evidence(info, 'sse-observation-preparation', { historyWarm, hostTransition, opened, UIWrites: observed.writes })
+  expect(observed.writes).toEqual([])
+  await page.waitForFunction(id => (window as unknown as { __integrationStreams(): { opened: boolean; url: string }[] }).__integrationStreams().some(row => row.opened && row.url.endsWith(`/knowledge/conversations/${id}/events`)), conversationId)
   await page.evaluate(() => window.__w2Resources.begin()); const knowledgeBefore = await page.evaluate(() => window.__w2Resources.snapshot())
   const knowledgeAfter = await page.evaluate(() => new Promise<{ resources: ReturnType<typeof window.__w2Resources.snapshot>; streams: { url: string; closeCalls: number; opened: boolean; readyState: number }[] }>(resolve => {
     const root = document.querySelector('[data-react-page]')!, observer = new MutationObserver(() => { if (!root.isConnected) { observer.disconnect(); resolve({ resources: window.__w2Resources.snapshot(), streams: (window as unknown as { __integrationStreams(): { url: string; closeCalls: number; opened: boolean; readyState: number }[] }).__integrationStreams() }) } })
@@ -168,7 +200,7 @@ test('real idle Knowledge SSE and Requirement REST polling clean up at the first
   const ownedStreams = knowledgeAfter.streams.filter(row => row.url.endsWith(`/knowledge/conversations/${conversationId}/events`))
   expect(ownedStreams).toHaveLength(1); expect(ownedStreams[0]).toMatchObject({ opened: true, closeCalls: 1, readyState: 2 })
   const { requirement } = await requirementFixture(request, 'poll-cleanup')
-  await openRequirement(page, requirement.id)
+  await openRequirement(page, requirement.id, requirement.title)
   await openSidebar(page)
   await page.evaluate(() => window.__w2Resources.begin())
   await page.waitForFunction(() => window.__w2Resources.snapshot().timers.length > 0)
@@ -177,5 +209,5 @@ test('real idle Knowledge SSE and Requirement REST polling clean up at the first
   expect(requirementBefore.timers.length).toBeGreaterThan(0)
   const requirementAfter = await immediateW2Exit(page); assertW2Disposed(requirementBefore, requirementAfter)
   expect(observed.unexpected).toEqual([]); expect(observed.errors).toEqual([])
-  await evidence(info, 'sse-poll-first-exit', { conversationId, requirementId: requirement.id, created, knowledgeBefore, knowledgeAfter, requirementBefore, requirementAfter, measurement: 'first MutationObserver snapshot after original React root detached; no natural up/move or cleanup delay', heapOrGcProven: false, ...observed })
+  await evidence(info, 'sse-poll-first-exit', { conversationId, requirementId: requirement.id, created, historyWarm, hostTransition, opened, knowledgeBefore, knowledgeAfter, requirementBefore, requirementAfter, measurement: 'first MutationObserver snapshot after original React root detached; no natural up/move or cleanup delay; runner initialized by read-only predecessor before target owner mounted', heapOrGcProven: false, ...observed })
 })
