@@ -1,6 +1,8 @@
 # 后端分层联调
 
-**当前终态：[100项失败分类、进程最小修复与模拟测试报告](2026-10-04-followup14.md)。** 最后模拟合同两批23/23＋4/4通过；候选0.4.92的正常进程树清理修复有严格通过证据，但关联35项为32 PASS/2 FAIL/1原Windows SKIP；业务57项回归为30 PASS/27环境ERROR。完整Java/JAR仍阻塞。用户已取消真实模型，累计模型调用0；没有等待Luna授权的步骤。
+**当前终态：[孤儿进程回收与本地HTTP复核](2026-10-04-followup15.md)。** 固定源码`4285d127…`，使用环境已有Tini公开接口回收本任务新孤儿，两个原失败均通过；最终相关35项为34 PASS/1原Windows SKIP，原HTTP客户端全类69 PASS（包含前轮5个socket错误）。没有改生产或原测试断言；其余22个socket相关错误未重跑，完整Java/JAR仍未通过。用户已取消真实模型，累计调用0。
+
+[前轮100项失败分类与生产进程树最小修复](2026-10-04-followup14.md)保留原首错：当时35项32 PASS/2 FAIL/1原Windows SKIP、业务57项30 PASS/27 ERROR。其默认socket EPERM没有显式申请网络权限被拒的证据；本轮经标准执行工具网络权限得到本地探针exit0和HTTP69 PASS，准确区别见新报告，不改写旧批次。
 
 [此前同源码业务结果](2026-10-04-followup.md)保留：`60759aeb…`真实Spring0.4.91的57关联Java、30 REST、5实际生产browser通过；一次真实Java→OpenCode→本地mock运输通过。前端2390 unit及type/build/tooling/accounting/零Vue结果对应旧`0f328858…`，不能冒充新候选全量通过。
 
