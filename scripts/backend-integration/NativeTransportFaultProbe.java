@@ -50,7 +50,8 @@ public final class NativeTransportFaultProbe {
             phase = "original-prompt";
             client.promptAsync(session, prompt); // One original POST. No retry/replacement on any path.
             report.put("acceptedTransport", true);
-            await(() -> client.findPromptMessage(session, prompt, originalHash).exists(), 5000);
+            awaitOriginalPromptParts(raw, session, prompt, report);
+            require(client.findPromptMessage(session, prompt, originalHash).exists(), "original accepted exact body/hash");
             if (mode.equals("transport-deadline")) {
                 phase = "arm-transport-read-deadline";
                 JsonNode armed = raw.post().uri("/probe/control").body(Map.of("action", "armReadDeadline")).retrieve().body(JsonNode.class);
@@ -140,6 +141,42 @@ public final class NativeTransportFaultProbe {
                 .defaultHeaders(h -> h.setBasicAuth("opencode", password)).build();
     }
     private static JsonNode evidence(RestClient raw) { return raw.get().uri("/probe/evidence").retrieve().body(JsonNode.class); }
+    private static void awaitOriginalPromptParts(RestClient raw, OpenCodeClient.OpenCodeSession session,
+            OpenCodeClient.PromptRequest prompt, Map<String, Object> report) throws InterruptedException {
+        // prompt_async accepts before the original user message's text part is necessarily visible.
+        // Only an exact original 200 user message with an empty parts array is eligible to wait.
+        long deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos();
+        int reads = 0, emptyParts = 0;
+        try {
+            while (System.nanoTime() < deadline) {
+                var response = raw.get().uri("/session/{session}/message/{message}?directory={directory}",
+                        session.id(), prompt.messageId(), session.worktree().toString()).retrieve().toEntity(JsonNode.class);
+                reads++;
+                require(response.getStatusCode().value() == 200, "original message response status");
+                JsonNode body = response.getBody();
+                require(body != null && body.isObject(), "original message response shape");
+                JsonNode info = body.get("info"), parts = body.get("parts");
+                require(info != null && info.isObject()
+                        && session.id().equals(info.path("sessionID").asText())
+                        && prompt.messageId().equals(info.path("id").asText())
+                        && "user".equals(info.path("role").asText()), "original message identity");
+                require(parts != null && parts.isArray(), "original message parts shape");
+                if (!parts.isEmpty()) {
+                    require(parts.size() == 1 && prompt.files().isEmpty(), "original message parts count");
+                    JsonNode part = parts.get(0);
+                    require(part.isObject() && "text".equals(part.path("type").asText())
+                            && prompt.text().equals(part.path("text").asText()), "original message text");
+                    return;
+                }
+                emptyParts++;
+                Thread.sleep(100);
+            }
+            throw new IllegalStateException("original accepted text part not visible within 5s");
+        } finally {
+            report.put("originalMessageReadiness", Map.of("reads", reads, "emptyPartsObservations", emptyParts,
+                    "maximumObservationMs", 5000, "transport", "original identity GET only"));
+        }
+    }
     private static void await(BooleanSupplier ready, long millis) throws InterruptedException {
         long deadline = System.nanoTime() + Duration.ofMillis(millis).toNanos();
         while (System.nanoTime() < deadline) { if (ready.getAsBoolean()) return; Thread.sleep(100); }
