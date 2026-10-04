@@ -10,6 +10,8 @@ if (!existsSync(chromeExecutable)) {
 
 export default defineConfig({
   testDir: './e2e',
+  // Requires a separately owned real Spring/SQLite instance; never collect it as mock E2E.
+  testIgnore: ['**/backend-integration/**'],
   timeout: 30_000,
   forbidOnly: Boolean(process.env.CI),
   fullyParallel: false,
