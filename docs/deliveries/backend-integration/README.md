@@ -1,6 +1,8 @@
 # 后端分层联调
 
-**当前终态：[同源码业务结果、首错及未满足门槛](2026-10-04-followup.md)。** `60759aeb…` 的 57 项关联 Java、原 30 REST、原 5 项真实生产浏览器已通过；`0f328858…` 仅补测试环境与运输脚手架，生产代码未变。真实 Java→OpenCode→本地 mock 的一次运输通过；套餐 Luna 仍零调用。前端 2390 项 unit、typecheck、build、39 项 tooling、13 项 accounting、零 Vue 审计通过。**完整 Java/JAR 门槛仍阻塞，不能称全站后端通过。**
+**当前续接：[100项失败分类、进程最小修复与Luna门槛](2026-10-04-followup14.md)。** 候选0.4.92的正常进程树清理修复有严格通过证据，但关联35项为32 PASS/2 FAIL/1原Windows SKIP；业务57项回归为30 PASS/27环境ERROR。完整Java/JAR仍阻塞，Luna仍零调用。
+
+[此前同源码业务结果](2026-10-04-followup.md)保留：`60759aeb…`真实Spring0.4.91的57关联Java、30 REST、5实际生产browser通过；一次真实Java→OpenCode→本地mock运输通过。前端2390 unit及type/build/tooling/accounting/零Vue结果对应旧`0f328858…`，不能冒充新候选全量通过。
 
 **[直接查看 12 张三皮肤联调截图](screenshots/README.md)**，均为真实浏览器＋真实 Spring＋合成模拟数据、确定性 fake，不是真实模型结果。未推送、发布或发送 Slack；环境日志、数据库、临时配置和认证内容不在仓库。下文是准备阶段历史快照，不代表当前测试状态。
 

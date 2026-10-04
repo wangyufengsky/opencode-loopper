@@ -9,6 +9,8 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -135,11 +137,44 @@ public class SafeProcessRunner {
     }
 
     private static void terminateTree(Process process) {
-        List<ProcessHandle> descendants = process.descendants().toList();
-        for (ProcessHandle descendant : descendants.reversed()) {
-            if (descendant.isAlive()) descendant.destroyForcibly();
+        long deadline = System.nanoTime() + Duration.ofMillis(500).toNanos();
+        synchronized (process) {
+            try {
+                List<ProcessHandle> descendants = process.descendants().toList();
+                Map<Long, Long> parents = new HashMap<>();
+                descendants.forEach(child -> child.parent().ifPresent(parent -> parents.put(child.pid(), parent.pid())));
+                List<ProcessHandle> leavesFirst = descendants.stream()
+                        .sorted(Comparator.comparingInt((ProcessHandle child) -> depth(child.pid(), parents)).reversed()).toList();
+                terminateDescendants(leavesFirst, deadline);
+            } finally {
+                if (process.isAlive()) process.destroyForcibly();
+            }
         }
-        if (process.isAlive()) process.destroyForcibly();
+    }
+
+    private static void terminateDescendants(List<ProcessHandle> descendants, long deadline) {
+        // Keep each parent alive to reap its children; one total budget, never a budget per child.
+        boolean interrupted = false;
+        try {
+            for (ProcessHandle child : descendants) {
+                if (!child.isAlive()) continue;
+                child.destroyForcibly();
+                while (child.isAlive() && !interrupted) {
+                    long remaining = deadline - System.nanoTime();
+                    if (remaining <= 0) break;
+                    try { TimeUnit.NANOSECONDS.sleep(Math.min(remaining, TimeUnit.MILLISECONDS.toNanos(10))); }
+                    catch (InterruptedException failure) { interrupted = true; }
+                }
+            }
+        } finally {
+            if (interrupted) Thread.currentThread().interrupt();
+        }
+    }
+
+    private static int depth(long pid, Map<Long, Long> parents) {
+        int depth = 0;
+        while (parents.containsKey(pid) && depth < parents.size()) { pid = parents.get(pid); depth++; }
+        return depth;
     }
 
     public static final class ManagedProcess {
