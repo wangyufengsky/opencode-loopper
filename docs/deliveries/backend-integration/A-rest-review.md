@@ -266,3 +266,26 @@ J1 checkout精确为 `/workspace/backend-integration-20261004/phase1-run-4/proje
 最终原始 [report.json](/workspace/backend-integration-20261004/evidence/A-rest-jdk-final/report.json) 为237399 bytes，SHA `3183ce09c0f35b5cb375aa721c261240594a7581a6c53714dfbc19b721f97f11`；[run.log](/workspace/backend-integration-20261004/evidence/A-rest-jdk-final/run.log) 为160 bytes，SHA `93f37e6d77efd5648fd925eda0309651ef8cf980ff0b8a87f4586b4b84c731f7`。只写此新证据目录及A最终文档，原4f的4/1/25、855的29/1、S1脚手架19红→21绿和相关Java首红/诊断仍原样保留，不拼成一个通过总数。
 
 本批只证明**现有Fake公开API**合同。故意丢客户端回执不等于真实网络丢包/跨刷新恢复；显式新SSE连接的cursor重放不等于故障网络自动重连；client reader关闭不等于服务器订阅账本0。Fake故障注入/hold/concurrent abort仍须既有Java integration，真实Provider/发布/外部后台未执行。完整门禁里的 LocalSync剩余回滚与Verifier资源/fixture首错属于独立未结事项，不以30REST或57精选绿遮盖；服务停止及全部隔离进程收尾归父统一持有。
+
+## 最终交付批次：607 revision、fresh run5（替代交付引用，不覆盖 run4）
+
+父因B测试修订/文档重新冻结 `60759aeb19dd909a0303139ca44877c920ef2950`，A脚本字节不变。对应 `focused-business-final` 由父以正确锁定JDK执行，18 XML suites实际 **57 PASS / 0 FAIL/ERROR/SKIP / exit0**；summary SHA `6bff6e386d157c48d1d7a9c1b538a4602ea958303b7c35f510234db0092b094b`，result SHA `c390ff7d7aa1eeb044b2e8f4cb0b3406981bd6adf7a9d4b54cc9a63fab0ee9fc`。A只读核实，不冒称A另跑Java或完整门禁通过。
+
+新 proof `/workspace/backend-integration-20261004/phase1-run-5/isolation.json`：revision607、ready=true、health UP、version0.4.91、Fake/model、禁scheduling/startupRecovery、独立run/data/projects roots。A仅在父GO后以正常网络工具权限执行原30项**一次**：
+
+```sh
+node scripts/backend-integration/rest-contracts.mjs \
+  --base-url http://127.0.0.1:38701 \
+  --project-parent /workspace/backend-integration-20261004/phase1-run-5/projects/A \
+  --isolation /workspace/backend-integration-20261004/phase1-run-5/isolation.json \
+  --expected-revision 60759aeb19dd909a0303139ca44877c920ef2950 \
+  --report /workspace/backend-integration-20261004/evidence/A-rest-business-final/report.json
+```
+
+真实起止 `2026-10-04T08:42:59.754Z`→`08:43:01.371Z`，**30 PASS / 0 REPRODUCED_FAIL / 0 ENV_BLOCKED / 0 NOT_RUN / exit0**。原30 case ID/title/order与冻结脚本精确一致，全部原断言实际到达；无自动未知写重试。普通REST **92条：GET46 / POST28 / PUT16 / DELETE2**，HTTP200=72、201=2、400=7、409=11（原预期负控）；另2次真实SSE连接，不并入REST trace数。
+
+原Task `32ebd438-5055-4324-9665-50bcebc1f7b3` 唯一Implementation externalSession `fake-5bf4146e-4839-4b9a-90e7-427bf1a5e064`：同local/external身份 RUNNING→ABORTED、activity remoteState=ABORTED、权威Task=CANCELLED、ADMITTED/HELD→FINISHED/RELEASED、releaseReason=TASK_CANCELLED，attemptCount不增且终态Start409无替代writer。SSE初读原ID1–7、显式Last-Event-ID=1后精确DTO重放2–7，原严格递增/排除cursor/equality、两个reader清理及最后overview=CANCELLED全部通过。新专属Git项目为 `phase1-run-5/projects/A/rest-contract-ahx6e0`，不触及祖先Git或B项目，不手改SQLite。
+
+交付只引用此新批：[report.json](/workspace/backend-integration-20261004/evidence/A-rest-business-final/report.json)，237399 bytes，SHA `684d3614783e1e42efae6217d88214589c1983aadccb22c2b9af0874361a2442`；[run.log](/workspace/backend-integration-20261004/evidence/A-rest-business-final/run.log)，165 bytes，SHA `51dadea1979fbcb553f0af1e59717579398abad98242cf27e09ced4c412f2d57`。前后HEAD607；A两脚本SHA仍为 `7cbb2a64735c8f1c7c784a2b3cb42ac63175efbf21b29e1d49600ff384fd97ea`、`58b11ad138bd7cb7f9368b7332b7133426174a471802d4be5ccc61a3b532293b`，仅最终A文档回填；B既有文档修改未覆盖。
+
+run4的30绿是另revision历史证据，原4f/855失败也继续原样保留，均不与本批相加。能力限制与上节相同：**仅Fake公开合同，客户端回执有意丢弃、显式cursor重连、client资源释放分别独立，不宣称真实丢包/跨刷新/自动网络重连/服务器subscriber0/真实模型/发布通过**。完整门禁首错及owned服务收尾仍由父单独结清。C已独立只读核验本批原report/log SHA、30/92/2、重放及停止证明，没有另跑HTTP；A源码、测试及HTTP操作停止，最终文档交还父集成。

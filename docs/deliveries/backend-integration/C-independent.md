@@ -6,13 +6,13 @@
 
 续接入场基准已独立核对为 `4f06621c11872c3b6ace9f0285ba9bdd669163e5`，当时工作区 clean；相对原业务基线，`src/main`、`pom.xml`、`.mvn` 没有差异。用户随后明确批准 Maven 子进程临时使用既有无凭据 proxy host/port，禁止写 settings 或永久配置；若发现代理认证要求仍须停止。后续正常重试保持同代理和官方目标。此授权覆盖先前“代理配置待决”的状态，不删除此前 DNS exit1，也不等于业务已通过。实际失败后，组长授权并持有 API advice 最小修复及 `0.4.91` 版本同步；A 仅持有停止测试夹具。准备阶段与实际运行分别记账。C 不执行 Maven、服务、浏览器或模型。
 
-续接冻结候选为 `8553221a226f0996d363ad5777b6c5fcadb6ba31`；C 已核入场 clean，关键修订 SHA 与上一轮独审一致。相对 `4f06621c`，生产范围仅 `ApiExceptionHandler` 优先级及 `application.yml` / `pom.xml` 版本同步；其他 A/B 变化为隔离夹具/观测与文档。唯一串行正式构建后由组长中止，actual exit143；后续完整精选 Java 57 与真实隔离端口 REST / 浏览器首轮已完成。本文后续编辑不改变运行源码，准确分层结果见下文。
+实际业务新批冻结为 `60759aeb19dd909a0303139ca44877c920ef2950`。同 revision 的完整新批精选 Java 57/57、实际 REST 30/30、浏览器 5/5 均 PASS；另一次明确授权的真实 Java→OpenCode1.18.23→本地 mock 有限运输实际 PASS。最新审查 HEAD 为 `0f32885859a5f3ca63f1c78db3bf2646b263c4a9`，相对607精确只有四个测试/运输脚手架文件变化，生产字节相同；该HEAD新的前端完整批275文件/2390测试PASS，typecheck/build/tooling39/accounting13/React-only audit均实际exit0。C核原始 XML/有限JSON、源摘要及两份严格首退出快照，没有执行这些测试。历史 `8553221a`、`33406d46` 及前端首错保留，不能拿修后的单项或异版绿拼接。相对 `4f06621c`，生产范围仍仅 `ApiExceptionHandler` 优先级及 `application.yml` / `pom.xml` 版本同步；其他 A/B 变化为隔离夹具/观测与文档。正式完整 JAR 门禁仍未通过，完整 verify 已中止exit143，部分137 XML/1075测试含16F/84E/5skip；准确层次见下文。
 
 ## 当前结论与门禁
 
-现有源码有足够的 fake 业务、原身份恢复、停止证明和本地 HTTP 运输测试，可作为第一层聚焦门禁。MockMvc、真实本地 HTTP、真实 Spring 随机端口必须分别记账；这些测试仍不证明真实 Provider、真实 OpenCode 二进制或前端与后端的全链路已通过。
+本轮有限的 fake 业务及真实前后端端口联调已在同一冻结版本通过 57/30/5 门禁，包含原身份恢复、File/409、SSE 回放、停止证明和实例资源首样。MockMvc、真实本地 HTTP 客户端、真实 Spring 随机端口与真实浏览器分别记账；它们不证明真实 Provider、真实 OpenCode 二进制、完整产品业务或正式 JAR 门禁通过。
 
-第二层暂不可直接执行 `scripts/aicoding`：草稿 CAS 请求、可访问名、managed runtime、继承环境、构建路径与进程归属门禁尚需处理。此前 Maven 联网/PKIX 首错保留；proxy-4 完成 main/test 编译与 runtime classpath，精选 Java 首批 54 为 52 PASS / 2 FAIL，Maven exit1。定位后停止夹具和 API advice 的关联修后 6/6 PASS，排序 self-test 8/8 PASS；不能拼接成首批 54 全绿。首次隔离 Spring 已启动并正常停止；REST 首批 4 PASS / 1 FAIL / 25 NOT_RUN，浏览器 5 个业务正文均 NOT_RUN。随后冻结855候选的精选 Java 57/57、0 fail/error/skip，18个XML的 child home/tmp 均准确；真实隔离端口 REST 新完整30为29 PASS/1 FAIL，浏览器新完整5为2 PASS/3 FAIL。首轮失败和修订另列，不拼接为最终通过。完整 0.4.91 verify 被中止exit143，正式JAR门禁未通过；第一层仍未全绿。Codex 完全禁工具仍未证，模型调用为 0。
+第二层暂不可直接执行旧 `scripts/aicoding` 资格套餐：草稿 CAS 请求、可访问名、managed runtime、继承环境、构建路径与进程归属门禁尚需处理。此前 DNS/PKIX、54 项 52 PASS/2 FAIL、REST 首批 4 PASS/1 FAIL/25 NOT_RUN、浏览器摘要门禁 5 NOT_RUN，以及 855 REST29/1、browser2/3 均保留为原结果；修后 6/6 与 self-test 不回填首批通过。334 的 browser2/3 是另一批观测夹具首错，607 完整新批才为 57/30/5 全绿。新的完整 verify 同样中止exit143，部分失败保留，不能称正式 JAR 通过。新增独立 native 脚手架只做一次已授权的本地 mock 运输，未执行旧认证脚本或完整资格套餐。Codex 完全禁工具仍未证，真实模型调用为 0；未进入真实 Provider/付费模型层。
 
 | 项目 | 本轮结论 | 证据性质 |
 | --- | --- | --- |
@@ -25,6 +25,10 @@
 | 最小修订后的聚焦门禁 | 停止协调 3/3 + 真实 HTTP DTO/fallback 3/3 PASS；排序 safety 8/8 PASS | C 核原始 after XML/log，未代替完整 verify、REST 30 或浏览器 5 |
 | 855候选精选 Java 完整新批 | 57/57 PASS，18 suites，0 fail/error/skip，exit0 | C逐XML核实际child home/tmp；不属于完整JAR verify |
 | 855真实端口新完整 REST / browser | REST29 PASS/1 FAIL；browser2 PASS/3 FAIL，0 skip/flaky | 全部正文已进入；失败中上传后续与Requirement polling未到达，不能当对应能力已验证 |
+| 607同版有限业务新完整批 | 精选 Java57、REST30、browser5 全部 PASS，exit0 | XML18、真实 REST92+SSE2、browser workers1/retries0；两首样严格0，不冒全产品或正式 JAR |
+| 0f前端完整新批 | 275文件/2390测试PASS；typecheck/build/React audit exit0；tooling39、accounting13全部PASS | C核最终result/log与四文件源码差异；原19首错与4timeout不删除，未增timeout；不替代完整Java/JAR |
+| 正式完整 verify | 中止exit143；137 XML/1075测试，16F/84E/5skip，非最终全套分母 | 正确 JDK/home/tmp已核；祖先Git输入冲突有实际控制证明，未证根因仍UNKNOWN，不全归工具链或历史基线 |
+| 一次真实 native / 本地 mock 运输 | PASS，Java exit0；本地模型请求1、advertised tools0、原msgID/全deny | 新隔离脚手架及实际binary，owned group成员首查空；不代替真实模型、生产Spring业务或完整资格门禁 |
 | Codex CLI 完全禁工具烟测 | `BLOCKED` | 部分受支持 feature 已核实，完整空工具注册表未核实 |
 
 ## 现有测试层次与保留断言
@@ -277,9 +281,98 @@ A修后自测原18加3为21/21、0 fail/skip，after TAP SHA `8b587eaa482d6aa31a
 
 run-3已由组长停止：[isolation.json](/workspace/backend-integration-20261004/phase1-run-3/isolation.json) 实际stopped=true/ready=false/Java exit=-9，SHA `3fada0e3c6a2ca1fab2c7f18e9bbcafb00ed999a776e4b9cfceab183d8be156a`；[preview.json](/workspace/backend-integration-20261004/phase1-run-3/preview.json) Node exit143，SHA `747e368a9994a4e4baeeadfed16d4363bacde11b6cb8ab4f612b9413c2bec464`。Spring shutdown超过15s后走本次owned group KILL，不能说全部正常143或优雅退出。C只读核当次4个声明owned PID48048/48061/48490/48493的 `/proc/<pid>` 均不存在；组长提供两端口拒绝回执，C未另发网络探测。另4个较早owned PID21315/22587/27364/27891仍为PPID1/Z、cmdline空的未收割zombie（组长stat回执），不杀、不动PID1；这是“无执行中的旧owned Maven/Java”与“全部后代不存在”的区别，不声称全环境进程对象清空。
 
+## 607 同版有限业务终态：57 / 30 / 5
+
+以下均是 `60759aeb19dd909a0303139ca44877c920ef2950` 的新完整批；不复用 334 的绿或 855 首批后单项结果。C 解析 producer 的原始证据并静态比较断言，未执行 Maven、HTTP、浏览器或服务。源码/测试字节不改。
+
+### 正确完整 JDK 与聚焦 Java
+
+OS Java21 的既有默认 trust 可正常运行 Maven，但不能据 `jdk.compiler` module 存在推断完整编译工具链。[compiler-proof/result.json](/workspace/backend-integration-20261004/compiler-proof-j9s1k9ev/result.json) 实际以正确 module main 调用 `--release17/21` 均 exit2；OS `lib/ct.sym` 不存在。较早错误 module-main 调用另保留，不把它当 compiler 根因。相同 Probe source SHA `7788afa5c600240945289a3661771d4606dad0ccabc03a757fee509c63c92856` 经锁定官方 Temurin javac 的 release17/21 实际均 exit0。父 Maven 继续使用原 OS 默认 trust、同批准临时代理；仅 compiler fork 和 Surefire JVM 选择完整官方 JDK，不设置 trustStore、导 CA、关闭 TLS 或写 settings。
+
+[focused-business-final-summary.json](/workspace/backend-integration-20261004/focused-business-final-summary.json) SHA `6bff6e386d157c48d1d7a9c1b538a4602ea958303b7c35f510234db0092b094b`；[result.json](/workspace/backend-integration-20261004/focused-business-final-result.json) SHA `c390ff7d7aa1eeb044b2e8f4cb0b3406981bd6adf7a9d4b54cc9a63fab0ee9fc`，exit0、interrupted=false、owned Maven exit0。C 实算原始18 XML 为57 testcase、0 failure/error/skipped；每个 XML 的 `user.home` / `java.io.tmpdir` 分别准确为任务 `build-home-4` / `build-tmp-4`，`java.home` 为 `/workspace/backend-integration-tools/jdk-21.0.12.1+1`。这些是精选假业务、MockMvc、实际本地 HTTP/随机 Spring 端口的混合合同证据，不是完整 verify 或正式 JAR。
+
+### A：实际端口完整 REST30
+
+[A-rest-business-final/report.json](/workspace/backend-integration-20261004/evidence/A-rest-business-final/report.json) SHA `684d3614783e1e42efae6217d88214589c1983aadccb22c2b9af0874361a2442`，30 PASS、0 FAIL/NOT_RUN；log SHA `51dadea1979fbcb553f0af1e59717579398abad98242cf27e09ced4c412f2d57`。原30 check ID/顺序保留。92 普通 REST 请求为 GET46/POST28/PUT16/DELETE2，另2个真实 native Fetch SSE 订阅，不混入92分母。原 IMPLEMENTATION local/external session 身份一致，RUNNING→ABORTED、Task→CANCELLED、Lease HELD→RELEASED；SSE 原 IDs1..7，cursor1 的重连精确回放2..7，末次权威 GET 与所有原断言均到达。
+
+run-5 health 为 UP、runtime AVAILABLE/fake/managed=false，独立 SQLite/data/projects，scheduler/startup recovery 均关闭。该 stop-proof 为 fake writer 的原业务身份与权威状态证明；不冒称真实 OpenCode OS writer 已杀、真实网络故障注入、Provider 或服务端 SSE subscriber 全局归零。S1 的 cancel→release→abort 保持原错误传播；脚本 SHA `7cbb2a64735c8f1c7c784a2b3cb42ac63175efbf21b29e1d49600ff384fd97ea`、tests SHA `58b11ad138bd7cb7f9368b7332b7133426174a471802d4be5ccc61a3b532293b` 未再变化。
+
+### B：334 首错保留，607 完整 browser5
+
+334 [B-live-jdk-final/browser.json](/workspace/backend-integration-20261004/evidence/B-live-jdk-final/browser.json) 实际2 PASS/3 FAIL。DOCX 已完成 upload200/ready、2原字节 hash/顺序、FIRST parser 与下载后，`postDataBuffer()` 为 null 导致 metadata 观测 TypeError，replay/409尚未到；损坏 DOCX 的真实400/code/detail与原File已到，但猜测“文档无法解析”的 selector 阻止显式更正；Knowledge 首样已0/SSE close1，随后 poll 的 `page.goto` 换新 document，重新引入8个 Playwright 工具监听使严格门槛失败。三例分别是 metadata 观测、错误文本定位、工具实例归属夹具问题，不能说对应业务在首批全过，也不称产品泄漏。
+
+批准的 v4 改法仅在 DOCX case 装测试 fetch wrapper：**替换函数身份**，立即原参数调用 nativeFetch 一次，原 Promise 原样返回，再被动读取该合成请求 FormData 的原 metadata Blob。无读取 headers/token/response、更改 File/请求、延迟投递或重发；观测失败进入测试 row，不吞原 I/O 错误。错误 DTO 改为真实 `DOCUMENT_READ_FAILED` / “不是有效的 Office 容器”，原可见性/原File/空uploads/显式更正200断言保留。poll 改同 prepared document 的真实列表选择/打开 SPA，核原id/GET、不同 host/旧 host detached，未改技术资源账本、过滤监听或取消他人资源。
+
+[B-live-business-final/final-results.json](/workspace/backend-integration-20261004/evidence/B-live-business-final/final-results.json) SHA `872b5d6513279c74bf8d9abb29b383fd47e576c8a7bc342a4a6931f7bb5460a4`；[browser.json](/workspace/backend-integration-20261004/evidence/B-live-business-final/browser.json) SHA `2560315c646a4f4a9368a5d75858973e69fc9ff3902188836f9e2c7d8372ead3`。实际5/5 PASS、exit0、workers1/retries0、0 skip/flaky/runner errors、无 API response mocks。7个源文件 before/after 与当前607逐SHA相同；5个 literal fullName 未删、未降断言。spec SHA `e24765a24c4f907c8cb915b07ffaf6f755051ea2a4c126bcc8fe820ebc850d25`，support SHA `4d2d95d047073903525bb60daff748ceaedc907b7d0af5244088d9859ade33a2`，shared resources 仍为 `b2f55748d0109cee6e28002a3f135ca51ca686b80d4a21b7c692b8b52a5cd6bd`。
+
+[docx-identity.json](/workspace/backend-integration-20261004/evidence/B-live-business-final/docx-identity.json) 实际捕获1份 metadata，原 requestKey/expectedVersion0/expectedRevision1；两个原 File 顺序、大小与SHA一致。后端 parser FIRST/下载字节断言均到，显式同身份 replay 返回同upload，逆序同key请求为409 `WORKFLOW_REQUEST_CONFLICT`，上传列表仍1条。原UI上传POST1与额外显式运输重入/冲突请求分开记。TXT UI0POST/API400；损坏DOCX400精确DTO/可见中文、原File/空列表保留，显式更正有效DOCX200/ready、UI POST总2。未把磁盘故障、局部上传恢复或自动重试称已验证。
+
+[sse-poll-first-exit.json](/workspace/backend-integration-20261004/evidence/B-live-business-final/sse-poll-first-exit.json) SHA `1e693c9013ea903f6b095d05fdf6127a15b7628576233f94549dfd9b24350b20`：C 读取 **knowledgeAfter.resources** 实体字段，未用顶层缺项默认为空。Knowledge before listeners2/RO1/timers2，Requirement before listeners9/RO3/timer1，均 rootConnected=true；各自首 MutationObserver 退出样本 rootConnected=false，listeners/RO/RAF/captures/ownedtimers 五数组全部严格空。同一 documentIdentity、原活跃外部 sentinel 与 application media listener 精确保留。Knowledge 事件增量空；Requirement 仅真实 element blur，没有后续 pointerup/move/cancel 或 window blur 清理。原 Knowledge EventSource 精确1实例、close1/state2，外部 StoryAccounting SSE仍 open/state1。raw allTimers 在两个首样仍分别1/2，未删除外部记录、不冒全App0/GC/heap证据。
+
+12个真实浏览器 PNG（3皮肤×4状态）的当前文件SHA/PNG自然尺寸全部与 [screenshot-manifest.json](/workspace/backend-integration-20261004/evidence/B-live-business-final/screenshot-manifest.json) 精确相同，manifest SHA `499dbb859852f57e7c421b5b92c53f7899096c3be6a341760cfd666a546664ab`。C实际查看 spdb DOCX parsed 与 tech-blue parser-error 两张代表；原文件/解析状态与真实错误恢复提示可见，FIRST完整正文由原DOM断言验证，不将截图外正文说成像素已看。其余图仅做完整性核对，B作者的12张查看不冒称C独立全图视觉审查。数据均为隔离合成、真实Spring返回，无个人数据或模型生成证明。
+
+### 停止与完整 verify 的剩余门禁
+
+[run-5/observed-stop.json](/workspace/backend-integration-20261004/phase1-run-5/observed-stop.json) SHA `338834174315fa585cf95744206e23b03a8752c95c7567a39408c89bd2c223d3`：组长记录本次4个owned PID不存在、38701/48180拒绝111，Java exit=-9、preview143。它不是全体优雅退出143；超时后owned group KILL与历史未收割zombie边界保留。C读取该结果，没有自行停止或端口探测。
+
+先前OS-JRE完整批中止exit143，93 XML/607 tests/12F/2E/1skip为部分执行；不能全部归编译器或当最终分母。当前外部 runner SHA `8533b50872c0f584a4df28526944b195d698bda84686fd1db97334a18a9c2304` 使用 private `build-home-5/tmp-5`、锁定Maven/JDK PATH、无 `LOOPPER_DATA_DIR` 覆盖、显式compiler fork/`jvm`/Surefire公开 `argLine` 启动属性，父Maven默认trust与批准临时代理不变；仍只拥有本次process group。C核当前失败XML的启动home/tmp5及Temurin21准确，不能从静态argv承诺全部文件访问/子进程隔离。
+
+完整批中止前，下列首错只作有证据的诊断，不改旧模块/断言：
+
+| 已完成XML中的原case | 事实与分类边界 |
+| --- | --- |
+| Verifier `stageBaselineScopesDiffAndRequireChangesToWorkAfterThatStageStarted` | stage-project无自身.git，环境祖先 `/workspace/.git` 实际存在；进入 `requireNoSiblingChanges→require→rev-parse128`，前置Git scope失败，目标stage diff断言未到。具体Git stderr原因未证 |
+| Verifier `gitDiffFailsClosedForTruncatedEvidenceAndExhaustedCombinedPolicyBudget` | 仅override `SafeProcessRunner.run`；scope查询由 `GitEvidenceProcess` 的实际 `runner.resolve/ProcessBuilder` 执行。实际先rev-parse128，未到safe-evidence-limit谓词。属于夹具/祖先Git前置冲突证据，不冒“旧baseline已知” |
+| Verifier `outputLimitTerminatesInheritedOutputDescendants` | 到原497 `ProcessHandle.isAlive=true`，不能从XML区别执行进程与zombie；后代kill/wait具体原因 UNKNOWN，不称compiler问题 |
+| LocalSync `cupXml2JavaStyleMergeKeepsBothDependenciesSyncsStateMachineAndPassesMaven` | 原574 APPLIED实际ROLLED_BACK；apply可因内容/外部路径/原mvn verifier异常rollback。XML未留errorMessage/verificationEvidence，具体根因 UNKNOWN |
+| DirectDocument `singlePackageRunsCurrentDirectoryTestsAndReportsWithoutAcceptingResult(boolean)[1]` | 原183 JUDGING实际AWAITING_DECISION，诊断verifications空；未到finishJudges/REPORTING。XML未给权威error/audit原因，根因 UNKNOWN，不拼后续变体绿 |
+
+这些错误均在完整官方JDK、正确home/tmp下出现，不能说JDK修复后全绿。随后实际中止及输入控制证据见下节；有限57/30/5或一次native运输通过不替代完整资格套餐、JAR或真模型门禁。
+
+## 唯一 native 运输实测与完整门禁的真实阻塞
+
+[native-transport-a529QP/report.json](/workspace/backend-integration-20261004/native-transport-a529QP/report.json) SHA `40e07e01f3e8c6e883cff840f8c69c3260cf23efbdd5c4c1cc96e62bb84ee703`：本次一次真实 Java client→真实 OpenCode1.18.23→确定性 loopback mock，实际PASS、Java exit0、interrupted=false。本地 mock 请求1、advertised tools0、accounting请求0；真实模型调用0，`productionSpringBusinessCoverage=false`。不是正式Spring业务、MCP/附件/停止故障全套餐或Luna通过。
+
+C未启动、重试运输，也未读取child原始日志或潜在凭据。只读取有限 report / Java-result / 安装JSON与脚手架源码：[安装证明](/workspace/backend-integration-20261004/opencode-install.json) 及实际binary SHA同为 `de0724a36eaf3166e7f1ff38d0f4478b95ccc47725e9597b3fe66d3d3e18baa2`；官方archive integrity由producer校验。新Node脚手架 SHA `f573ae4a03ebccb7ae4ca24665ccddcc6736394b303c94d9f38c90fd20b2cc2c`、Java probe SHA `26b00ef276336eedc2bbe73307a0a9964d7c30f2f3839c87daee3cb62922dd0f` 与report精确一致。实际运输时两文件为组长新增脚手架，不以HEAD607冒称它们当时已在该commit；当前0f已纳入这两文件，C逐SHA核与实际运输原字节相同，没有新增运输调用。C另只读实算3287编译class的紧凑manifest摘要 `a1b456b1387fae7635fc4e78f2d19d49b94381651a844eda2a874a2eb9e645d4`，及159依赖jar逐SHA，与report全相同；该class摘要不声称覆盖Spring资源或整个JAR。
+
+[java-result.json](/workspace/backend-integration-20261004/native-transport-a529QP/java-result.json) SHA `5b8f8f69f476ef672d8419ad76cae8b06f3afc5470d9a174055051736bcead95`，与report内javaResult对象完全相同。原 `msg_50df968b12144573967e805307f90e0d` 精确在user引用中，session COMPLETED/text=`BUSINESS_RESULT_OK`、transcript toolParts0；原 `ROUTER_NO_TOOLS` prompt调用只一处、没有恢复POST/重发。实际返回permission全部deny，包含`*/*/deny`及external_directory deny。对应断言不以提示词“不要工具”替代receiver工具数组与真实权限读取。
+
+独立静态审查的原三个脚手架阻断已由组长有限修订：显式SIGINT/TERM取消进入finally；cleanup等待不被abort抢断、已退出历史PID不重killgroup；双stream StringDecoder缓存对原nonce/Basic统一脱敏并保足够跨chunk尾部；binary failclosed锁SHA及运行class/jar摘要。末次另补“清理中收到signal也FAIL”，不出现interrupted=true却PASS/exit0。child使用private HOME/XDG/empty manageddir、显式允许环境与offline npm；没有展开父认证/Provider/proxy环境，nonce只入子进程内存，不入argv。源码与有限实测证明不等于全文件访问或全部外部网络的系统调用审计。
+
+本次实际cleanup数组：Java exit0、OpenCode owned child以SIGTERM退出，git/javac子进程exit0；最终 `/proc` group成员检查为空。这是该probe的owned groups证明，不抹掉此前Spring被owned KILL的-9、完整构建的143或其他旧zombie，也不称全环境进程对象归零。C仅核producer JSON，没有自行发信号。
+
+[full-git-temp-input-partial-summary.json](/workspace/backend-integration-20261004/full-git-temp-input-partial-summary.json) SHA `65a28fc4ada86eff48638b8fa4fab9ae472379882c61d3f2d4233de62f14fed9`：actual exit143、`PARTIAL_ABORTED_CONFIRMED_INPUT_ERROR`，137 XML/1075 tests/16 failures/84 errors/5 skipped。C独立解析当前137 XML属性，计数与summary一致，全部Temurin21及build-home-5/tmp-5；这不是完整suite最终分母或正式JAR通过。
+
+[git-checkout-root-control.json](/workspace/backend-integration-20261004/git-checkout-root-control.json) SHA `ec08c7022730db2fdf36f6ba9beb4784492137d4bd253272cf743a001cd7a0c3`，producer调用真实 `GitProjectScope.checkoutRoot`：workspace子路径选到 `/workspace`，tmp子路径选到 `/tmp`；两祖先均有只读无效.git metadata。C只读核源码的祖先 `.git` exists扫描条件与控制结果。[git-temp-root-control.json](/workspace/backend-integration-20261004/git-temp-root-control.json) SHA `8c3fdefd39a8b4027353e2d65dcac3d2f821db5d5d96028596569a3acb2b985f`，两个真实git读控制都exit128。这证明测试输入/祖先Git边界冲突，不能将全量100个failure/error全部归编译器或同一Git原因；未有具体权威错误证据的LocalSync/DirectDocument等仍UNKNOWN。
+
+该partial summary只记录4个owned残留PID72590/72882/73409/109325为Z：没有执行中的旧group，不等于全部后代不存在。不能杀PID1、删除祖先.git、关闭containment或调低原断言补绿。父任务随后按用户仅准许的标准权限机制，对唯一 `/var/tmp/opencode-loopper-backend-20261004-0f328858` 路径申请写入并尝试mkdir；[var-tmp-permission-request-result.json](/workspace/backend-integration-20261004/var-tmp-permission-request-result.json) SHA `759dbca30eb4148db5bcd449e85b1b1091214c59239cfd98914a0368b068dc4f` 实际exit1、`Errno30 Read-only file system`、directoryCreated=false、furtherAttempts=0、configurationChanged=false、networkPermissionChanged=false。这是指定路径实际EROFS，不称自动审批拒绝，也未扩大权限/重试；完整Java门禁仍阻塞。本次前端unit19个首错与4个timeout原结果保留；0f完整新批已实际全部通过，单列如下，不回填此前失败。
+
+## 0f最终前端完整批与测试适配边界
+
+C独立读取当前HEAD及 `git diff --name-status 60759aeb19dd909a0303139ca44877c920ef2950 HEAD`：精确四文件为 [browserFetchEnvironment.ts](../../../frontend/src/test/browserFetchEnvironment.ts)、其新增 [六项spec](../../../frontend/src/test/browserFetchEnvironment.spec.ts)、[NativeTransportProbe.java](../../../scripts/backend-integration/NativeTransportProbe.java) 和 [native-transport-probe.mjs](../../../scripts/backend-integration/native-transport-probe.mjs)。没有 `src/main`、`pom.xml`、前端生产page/owner/API/依赖/画布变化。后两文件与实际唯一native运输SHA相同；前两文件当前SHA分别为 `a3aa79597ab815f10d867bbd25cb0ca9556a21e72e56c2cd43cfbddb121ba41c` / `1794deef2685ed7101133fad6c2636ac27eabc6b49d24a7683f9a64a29252fb2`。
+
+test-only适配仅将真实但异realm的ArrayBuffer转换为共享原backing buffer的native Uint8Array，再以 `original.call(this, algorithm, data)` 调用Node真实digest。native BufferSource/typed-array offset与length、算法、receiver及错误保持；没有伪造hash、换File或吞TypeError。六个真实负/正控覆盖原FileReader字节、异realm buffer、带offset视图、伪对象/错误receiver、非法算法与重复安装。原业务assertion文件未修改；新增六项解释2384→2390，不把测试环境WebCrypto method包装称为生产crypto修改。
+
+以下为组长实际执行、C只读核result与log的独立证据，全部result revision为0f；没有C再次运行或拼接单项：
+
+| 完整新批 | 实际终态及证据 |
+| --- | --- |
+| frontend full unit | [result](/workspace/backend-integration-20261004/frontend-unit-sequential-final-result.json) SHA `20f4537f695a0d8d86e983ca587269f65e517ff95efe04fde79c4d6f526e146e`；09:31:46.910559→09:44:27.154646 UTC、exit0/interrupted=false；[log](/workspace/backend-integration-20261004/frontend-unit-sequential-final.log) SHA `c691ee6c4cdd0ce2352124804cf2cc4fbf5dbd338aa50401cfee12dd649a82e4` 明确275文件/2390测试全部PASS |
+| typecheck | [result](/workspace/backend-integration-20261004/frontend-type-final-result.json) SHA `c8c912f9a3226448d3433cba4821333f7457c60af7bfa41d2c86c3f86c9cf51d`，exit0 |
+| tooling | [正常权限result](/workspace/backend-integration-20261004/frontend-tooling-permission-final-result.json) SHA `952b25933900483fb4a3262e2898f3e66c67313b6d611ec03fcc7c4d20b0ae77`，exit0；原TAP39/39、fail0/skipped0 |
+| accounting | [result](/workspace/backend-integration-20261004/frontend-accounting-permission-final-result.json) SHA `4400b5c206768e98e11eb19d60e391f99c90b1c410be3f48c4655261c96c4422`，exit0；原TAP13/13、fail0/skipped0 |
+| React-only audit | [result](/workspace/backend-integration-20261004/frontend-audit-permission-final-result.json) SHA `e9dca1d4de42f5d9336a96ccea450e0c5ab77a846667ac6f93e9d4c1f861f6a2`，exit0；[log](/workspace/backend-integration-20261004/frontend-audit-permission-final.log) 明确ok=true、783 source/4035 sourceModuleReferences/36 script/426 dependencyPackages/3940 buildModules、errors=[] |
+| frontend production build | [result](/workspace/backend-integration-20261004/frontend-build-final-result.json) SHA `a4a30c5b9f199e242730ea188f26be08ca73943a6cdd2fe774400040704e75f3`，09:46:00.506508→09:46:42.670698 UTC、exit0/interrupted=false；[log](/workspace/backend-integration-20261004/frontend-build-final.log) SHA `be8f6c48c7c0c520e5fe6766b6a8a2d9e43e3c9d29b7216aba9fe06dbf1e9e05` 有实际产物及built in15.78s |
+
+full unit argv仅 `run test -- --maxWorkers=1`，没有增加timeout或筛选替代原整批。原19首错与四timeout留存；四timeout在该完整新批真实绿，不以候选聚焦补洞。普通受限运行的 [tooling exit1](/workspace/backend-integration-20261004/frontend-tooling-final-result.json) 与 [audit exit1](/workspace/backend-integration-20261004/frontend-react-audit-final-result.json) 也保留：tooling首次TAP6/3PASS/3FAIL只留子测试失败，不凭有限输出逐项猜根因；audit原log明确 `spawnSync npm EPERM`。正常权限重新执行同命令的当前完整39与audit exit0，没有改断言或放宽注册/计数门槛。
+
+实际build主chunk `index-CrCH361c.js` 为1630.73kB/gzip501.07kB，原日志仍有minified chunk超过500kB警告。C记录该大小与警告，不以exit0表示包体预算已消除，也不把前端静态构建通过称为正式完整Java/JAR通过。此次只读核终态没有启动服务、浏览器或Provider。
+
 ## Codex `0.159.0-alpha.3`：部分开关可证，完全禁工具仍 `BLOCKED`
 
-本机实际 `/opt/codex/bin/codex --version` 为 `codex-cli 0.159.0-alpha.3`。仅执行 `--help`、`exec/features/debug/app-server --help` 与父任务额外准许的 `codex --no-daemon features list`，均 exit0；只读命令有 PATH-alias 只读文件系统告警，未创建 alias，未启动 daemon/模型。features list 输出仅 feature 名称、阶段与布尔；没有直接读取 auth/config 文件、改 feature 或复制凭据。
+本机实际 `/opt/codex/bin/codex --version` 为 `codex-cli 0.159.0-alpha.3`。执行 `--help`、`exec/features/debug/app-server --help` 与父任务额外准许的 `codex --no-daemon features list`，均 exit0；只读命令有 PATH-alias 只读文件系统告警，未创建 alias，未启动 daemon/模型。features list 输出仅 feature 名称、阶段与布尔；没有直接读取 auth/config 文件、改 feature 或复制凭据。
+
+后续另经父任务授权执行正式 `codex --no-daemon app-server generate-json-schema --experimental --out <task>/codex-protocol-C`，exit0，只输出本地协议 metadata、不启动 app-server/模型。当前440个JSON逐相对路径及SHA的紧凑UTF-8 manifest摘要为 `160ecb6be35625584e33edc74fceae95c9cb525a52904e59f3c4bd75e34a77bd`。`ThreadStartParams.dynamicTools` 与 `selectedCapabilityRoots` 仅能约束动态/选定能力；`TurnStartParams.disabledPluginIds` 只约束插件；`ConfigToolsV2` 的 web_search 与 connector 默认开关不能证明 shell/apply_patch/code-mode/全部MCP未注册。schema还允许额外config字段，不能据其枚举猜完整关工具配置。本次没有调用 config/auth API；CLI内部文件访问未做系统调用审计。此 metadata 增量仍不足完整 no-tools 证明，`BLOCKED` / Luna0保持。
 
 | 已安装正式帮助 / metadata | 可证内容 | 不能推出的结论 |
 | --- | --- | --- |
@@ -336,4 +429,4 @@ run-3已由组长停止：[isolation.json](/workspace/backend-integration-202610
 | `frontend/e2e/backend-integration/project-requirement-upload.spec.ts` | `0fb294065885187039b06d7838f504d60086004433fa1679fd786b59ba373efc` |
 | `frontend/e2e/backend-integration/support.ts` | `19c0f52263ba6686a7dd6506eaea0ae3106232f4f48509dc18756cb3f25f0f25` |
 
-本轮源码审查及首次实际证据已分别记录；历史54与新57 Java / REST / 浏览器 / 启动健康 / owned stop 的口径不能互相替代，第一层尚未全绿。后续须使用独立 fresh root、准确当次 revision/build hash，保留首错和每次运行全量结果；C 未直接打开认证文件、未更改网络、未提交或对外发送。
+本轮源码审查、历史首错、607同版有限57/30/5、一次native/local mock运输及0f前端275文件/2390测试/type/build/tooling39/accounting13/audit终态已分别记录；Java / REST / 浏览器 / 启动健康 / owned stop / 前端build / 正式完整JAR口径不能互相替代。完整Java verify中止与未解决首错保留，指定标准 `/var/tmp` 请求实际EROFS且未创建/未重试；完整资格套餐及真实模型层未通过/未运行，模型0、Codex no-tools仍BLOCKED。保留独立数据根与原始失败/完整新批结果；C 未直接打开认证文件、未更改网络、未提交或对外发送。
