@@ -1,12 +1,16 @@
 # 后端分层联调
 
-**当前终态：[孤儿进程回收与本地HTTP复核](2026-10-04-followup15.md)。** 固定源码`4285d127…`，使用环境已有Tini公开接口回收本任务新孤儿，两个原失败均通过；最终相关35项为34 PASS/1原Windows SKIP，原HTTP客户端全类69 PASS（包含前轮5个socket错误）。没有改生产或原测试断言；其余22个socket相关错误未重跑，完整Java/JAR仍未通过。用户已取消真实模型，累计调用0。
+**当前终态：[修后候选的Spring闭环与实际OpenCode故障运输](2026-10-04-followup16.md)。** 同版`bd48f137…`：原30 REST、原5生产browser、原剩余22 Java专项和4实际OpenCode→本地确定性provider场景全部通过；完整Java/JAR仍未通过，正式0.4.92 JAR未构建/运行。真实模型已取消、累计0；没有push/发布/Slack发送。
+
+**[直接查看新的12张三皮肤0.4.92联调截图](screenshots/followup16/README.md)**：实际生产React＋真实Spring classpath＋隔离SQLite，合成模拟数据，模型fake。首次native1 FAIL/3 NOT_RUN、首browser版本守卫5 NOT_RUN及归档器错误保留，新有限通过不替代全量门槛。
+
+[前轮孤儿进程回收与本地HTTP复核](2026-10-04-followup15.md)保留`4285d127…`历史：最终相关35项34 PASS/1原Windows SKIP，原HTTP客户端全类69 PASS；当时其余22未运行，已在上述本轮按同名原断言通过。未改生产或原测试断言，旧批次不回填。
 
 [前轮100项失败分类与生产进程树最小修复](2026-10-04-followup14.md)保留原首错：当时35项32 PASS/2 FAIL/1原Windows SKIP、业务57项30 PASS/27 ERROR。其默认socket EPERM没有显式申请网络权限被拒的证据；本轮经标准执行工具网络权限得到本地探针exit0和HTTP69 PASS，准确区别见新报告，不改写旧批次。
 
 [此前同源码业务结果](2026-10-04-followup.md)保留：`60759aeb…`真实Spring0.4.91的57关联Java、30 REST、5实际生产browser通过；一次真实Java→OpenCode→本地mock运输通过。前端2390 unit及type/build/tooling/accounting/零Vue结果对应旧`0f328858…`，不能冒充新候选全量通过。
 
-**[直接查看 12 张三皮肤联调截图](screenshots/README.md)**，均为真实浏览器＋真实 Spring＋合成模拟数据、确定性 fake，不是真实模型结果。未推送、发布或发送 Slack；环境日志、数据库、临时配置和认证内容不在仓库。下文是准备阶段历史快照，不代表当前测试状态。
+**[此前0.4.91的12张历史截图](screenshots/README.md)**继续保留。环境日志、数据库、临时配置和认证内容不在仓库。下文是准备阶段历史快照，不代表当前测试状态。
 
 ## 历史准备记录（4f06621c，非当前终态）
 
