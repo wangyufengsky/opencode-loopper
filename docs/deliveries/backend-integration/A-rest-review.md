@@ -235,3 +235,34 @@ S1真实起止为 `07:49:57.185Z`→`07:49:57.202Z`，**17ms，不是10秒deadli
 | runner-sse-cleanup-after.tap | `8b587eaa482d6aa31ade89a5006ba979e9d64b0c5c332f8e29cfd26c516bc511` |
 
 该21绿属于作者 runner 自测，不能提升原S1为PASS。修后完整30实际REST仍 **NOT_RUN（等待父新revision/freshDB/ready GO）**；不得在原未知身份上盲重写或覆盖29/1首错。SQLite/scheduling声明、故障Fake注入、跨刷新/真实丢包、服务器subscriber释放仍按前述能力边界，不以此清理补丁宣称额外证明。
+
+## 最终 fresh run4：334 revision 的30 REST 全绿
+
+父重新冻结 `33406d46fc55b9e27261d30a4daaeeba1186486e`，正确JDK的关联Java实际为 **18 XML suites / 57 PASS / 0 FAIL/ERROR/SKIP / exit0**。A只读核验 `focused-jdk-final-summary.json` SHA `3c16895db45cea044fe1650fd3f240933c061644890f08f18f22f64dff75ec98` 和 `focused-jdk-final-result.json` SHA `bfb0b1038b7f22feb66dc4cc996d5b8788c54c9eada5069b8298836d1aeedc0a`；该精选门禁不是完整JAR/full verify通过声明。
+
+父统一启动全新 `phase1-run-4`，只供本次验收的 Spring `http://127.0.0.1:45685`。A在真实 ready/revision/canonical proof和 runtime GET通过后，执行原30项**一次**：
+
+```sh
+node scripts/backend-integration/rest-contracts.mjs \
+  --base-url http://127.0.0.1:45685 \
+  --project-parent /workspace/backend-integration-20261004/phase1-run-4/projects/A \
+  --isolation /workspace/backend-integration-20261004/phase1-run-4/isolation.json \
+  --expected-revision 33406d46fc55b9e27261d30a4daaeeba1186486e \
+  --report /workspace/backend-integration-20261004/evidence/A-rest-jdk-final/report.json
+```
+
+正常工具授权 `with_additional_permissions network=true`，没有自行启动/安装/Maven、访问真实模型、重发未知写入或更改服务配置。真实起止 `2026-10-04T08:20:56.323Z`→`08:20:58.144Z`，**30 PASS / 0 REPRODUCED_FAIL / 0 ENV_BLOCKED / 0 NOT_RUN / exit0**。原30 IDs/fullNames/顺序全部保留；前后HEAD均334，执行后工作树clean。runner SHA仍 `7cbb2a64735c8f1c7c784a2b3cb42ac63175efbf21b29e1d49600ff384fd97ea`，test SHA仍 `58b11ad138bd7cb7f9368b7332b7133426174a471802d4be5ccc61a3b532293b`，修后清理负控21绿与本批30实际HTTP分别计数。
+
+普通REST共 **92条：GET46 / POST28 / PUT16 / DELETE2**；HTTP200为72、201为2、400为7、409为11，400/409均是原预期负控而非失败。body/key/CAS与response/hash逐条写入原始report。另有**2条真实 SSE HTTP连接**，不算入92普通REST trace；未进行任何额外case或失败重试。
+
+| 本批到达结果 | 实际证据 |
+|---|---|
+| P1、V1–V4、J1、T1–T10、R1–R7、D1–D3 | 全PASS。上节所列DTO/typed400/409、独立graph/layout CAS、同原key/body显式恢复、已知ID读取、immutable revision、列表、copy/archive、PENDING_START、不自动执行、v2/version冻结全部实际通过。没有把mock/静态审查升级为实际结果。 |
+| K1–K3 | 全PASS。同Task `7c564339-1f84-4952-a3c0-e44835c91b8d` 的原唯一 Implementation Session externalID `fake-17a0f547-33df-437f-be4f-b4f0b7dc2cb4`，本地 RUNNING→ABORTED，原session activity的 remoteState=ABORTED；权威Task=CANCELLED，队列ADMITTED/HELD→FINISHED/RELEASED，releaseReason=TASK_CANCELLED、无新attempt或替代writer。终态Start仍409/TASK_TERMINAL。 |
+| S1 | **实际PASS**。首次真实SSE收到sequence1–7；其中1=task.pending_start、2=task.start_requested、3=task.ready、4=session.started、5=task.cancellation_requested、6=task.cancelled、7=workspace.lease_released。第二次显式 `Last-Event-ID: 1` 收到2–7，严格递增/排除cursor及与原序列filter后的完整DTO equality都通过；两个reader均cancel/release并abort退出，最后真实overview GET仍CANCELLED。 |
+
+J1 checkout精确为 `/workspace/backend-integration-20261004/phase1-run-4/projects/A/rest-contract-c4Tawt`；项目 `613ae6fb-500e-4faf-afaa-30a1fdf19b6c`、模板 `dd937feb-f3b5-4013-8f15-fb84a4fb2d82`、副本 `02ba9681-3790-4b5f-8142-77b9eae2fd2a`、需求 `d5220925-5d10-4697-852e-1d16f5778d1a`、draft `d687fce2-9b84-4c94-8737-6bc440aef0ae`。独立Git、数据目录、父/B projects分区均按冻结脚本校验；没有祖先repo index/commit写入、remote或手改SQLite。
+
+最终原始 [report.json](/workspace/backend-integration-20261004/evidence/A-rest-jdk-final/report.json) 为237399 bytes，SHA `3183ce09c0f35b5cb375aa721c261240594a7581a6c53714dfbc19b721f97f11`；[run.log](/workspace/backend-integration-20261004/evidence/A-rest-jdk-final/run.log) 为160 bytes，SHA `93f37e6d77efd5648fd925eda0309651ef8cf980ff0b8a87f4586b4b84c731f7`。只写此新证据目录及A最终文档，原4f的4/1/25、855的29/1、S1脚手架19红→21绿和相关Java首红/诊断仍原样保留，不拼成一个通过总数。
+
+本批只证明**现有Fake公开API**合同。故意丢客户端回执不等于真实网络丢包/跨刷新恢复；显式新SSE连接的cursor重放不等于故障网络自动重连；client reader关闭不等于服务器订阅账本0。Fake故障注入/hold/concurrent abort仍须既有Java integration，真实Provider/发布/外部后台未执行。完整门禁里的 LocalSync剩余回滚与Verifier资源/fixture首错属于独立未结事项，不以30REST或57精选绿遮盖；服务停止及全部隔离进程收尾归父统一持有。

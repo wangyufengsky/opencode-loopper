@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type { KnowledgeConversation, Project } from '../../src/types/domain'
 import type { WorkflowReceipt, WorkflowRequirement, WorkflowUpload, WorkflowUploadRequest, WorkflowFile } from '../../src/types/workflow'
-import { action, closeSidebar, documentPanel, env, evidence, headers, json, multipart, observeWrites, openRequirement, openSidebar, post, projectFixture, requirementFixture, screenshots, verifyIsolation } from './support'
+import { action, closeSidebar, documentPanel, env, evidence, headers, json, multipart, observeUploadMetadata, observeWrites, openRequirement, openSidebar, post, projectFixture, requirementFixture, screenshots, verifyIsolation } from './support'
 import { brokenDocx, docxFile, sha256, txtFile } from './files'
 import { observeW2Resources, immediateW2Exit, assertW2Disposed } from '../w2/resources'
 
@@ -79,6 +79,7 @@ test('real React four-field requirement create and explicit graph save persist o
 test('real DOCX parser, ordered original bytes, identical upload replay and changed-body 409', async ({ page, request }, info) => {
   const { requirement } = await requirementFixture(request, 'docx-positive'), observed = observeWrites(page)
   const files = [docxFile('合成原文标记-FIRST', '第一份合成需求.docx'), docxFile('合成原文标记-SECOND', '第二份合成需求.docx')]
+  const readOriginalMetadata = await observeUploadMetadata(page, requirement.id)
   await openRequirement(page, requirement.id, requirement.title); const panel = await documentPanel(page)
   await panel.locator('input[type="file"]').setInputFiles(files)
   await expect(panel).toContainText('第一份合成需求.docx、第二份合成需求.docx')
@@ -98,9 +99,13 @@ test('real DOCX parser, ordered original bytes, identical upload replay and chan
     const bytes = await request.get(`/api/workflows/requirements/${requirement.id}/documents/${original.id}/file?${new URLSearchParams({ path: file.path })}`)
     expect(bytes.ok()).toBe(true); expect(sha256(await bytes.body())).toBe(sha256(files[index]!.buffer))
   }
-  // Extract the actual JSON metadata part, rather than manufacturing a new request identity.
-  const body = response.request().postDataBuffer()!.toString('utf8'), metadataMatch = body.match(/\{\s*"requestKey"\s*:\s*"[^"\r\n]+"\s*,\s*"expectedVersion"\s*:\s*\d+\s*,\s*"expectedRevision"\s*:\s*\d+\s*\}/)
-  expect(metadataMatch).not.toBeNull(); const metadata: WorkflowUploadRequest = JSON.parse(metadataMatch![0])
+  // Chromium does not expose multipart files through Request.postDataBuffer().
+  // Read the observed original Blob, never invent or infer a request key.
+  await expect.poll(readOriginalMetadata).toEqual([{ path: `/api/workflows/requirements/${requirement.id}/documents`, method: 'POST', rawMetadata: expect.any(String), readFailure: null }])
+  const captured = await readOriginalMetadata(); expect(captured).toHaveLength(1)
+  const rawMetadata = captured[0]!.rawMetadata!; const metadata: WorkflowUploadRequest = JSON.parse(rawMetadata)
+  expect(metadata).toEqual({ requestKey: expect.any(String), expectedVersion: requirement.version, expectedRevision: requirement.revision })
+  expect(metadata.requestKey).not.toBe('')
   const replay = await request.post(`/api/workflows/requirements/${requirement.id}/documents`, multipart(metadata, files))
   expect(replay.ok()).toBe(true); expect(await replay.json()).toEqual(original)
   const conflict = await request.post(`/api/workflows/requirements/${requirement.id}/documents`, multipart(metadata, [files[1]!, files[0]!]))
@@ -109,7 +114,7 @@ test('real DOCX parser, ordered original bytes, identical upload replay and chan
   expect(uploads.items.map(row => row.id)).toEqual([original.id])
   const before = observed.writes.length; await screenshots(page, info, 'docx-parsed'); expect(observed.writes).toHaveLength(before)
   expect(observed.unexpected).toEqual([]); expect(observed.errors).toEqual([])
-  await evidence(info, 'docx-identity', { requirementId: requirement.id, metadata, original, files: files.map(file => ({ name: file.name, size: file.buffer.length, sha256: sha256(file.buffer) })), replayId: (await replay.json()).id, reversedOrderStatus: conflict.status(), ...observed })
+  await evidence(info, 'docx-identity', { requirementId: requirement.id, rawMetadata, captured, metadata, original, files: files.map(file => ({ name: file.name, size: file.buffer.length, sha256: sha256(file.buffer) })), replayId: (await replay.json()).id, reversedOrderStatus: conflict.status(), ...observed })
 })
 
 test('TXT rejection and actual broken DOCX parser error remain visible before explicit valid reselection', async ({ page, request }, info) => {
@@ -127,7 +132,10 @@ test('TXT rejection and actual broken DOCX parser error remain visible before ex
   const rejected = page.waitForResponse(response => response.url().endsWith(`/requirements/${requirement.id}/documents`) && response.request().method() === 'POST')
   await panel.locator('[data-semantic="workflow.uploadAndSelect"]').click()
   const failure = await rejected; expect(failure.status()).toBe(400)
-  await expect(panel.getByRole('alert').filter({ hasText: '文档无法解析' }).first()).toBeVisible()
+  const parserError: { status: number; errorCode: string; detail: string } = await failure.json()
+  expect(parserError).toMatchObject({ status: 400, errorCode: 'DOCUMENT_READ_FAILED', detail: '不是有效的 Office 容器' })
+  const visibleParserError = panel.getByRole('alert').filter({ hasText: parserError.detail }).first()
+  await expect(visibleParserError).toBeVisible(); await expect(visibleParserError).toHaveText(parserError.detail)
   await expect(panel).toContainText('损坏的合成需求.docx')
   expect((await json<{ items: WorkflowUpload[] }>(request, `/api/workflows/requirements/${requirement.id}/documents`)).items).toEqual([])
   await screenshots(page, info, 'docx-parser-error')
@@ -137,7 +145,7 @@ test('TXT rejection and actual broken DOCX parser error remain visible before ex
   const result = await corrected; expect(result.status()).toBe(200); await expect(panel).toContainText('已选 1 份文档')
   expect(observed.writes.filter(write => write.path.endsWith('/documents'))).toHaveLength(2)
   expect(observed.unexpected).toEqual([]); expect(observed.errors).toEqual([])
-  await evidence(info, 'parser-error-recovery', { requirementId: requirement.id, txtApiRejection: await txtRejected.json(), rejected: await failure.json(), corrected: await result.json(), invalidTxtUiSentNoPost: true, partialDiskRecoveryExercised: false, ...observed })
+  await evidence(info, 'parser-error-recovery', { requirementId: requirement.id, txtApiRejection: await txtRejected.json(), rejected: parserError, corrected: await result.json(), invalidTxtUiSentNoPost: true, partialDiskRecoveryExercised: false, ...observed })
 })
 
 test('real idle Knowledge SSE and Requirement REST polling clean up at the first SPA-exit snapshot', async ({ page, request }, info) => {
@@ -200,7 +208,37 @@ test('real idle Knowledge SSE and Requirement REST polling clean up at the first
   const ownedStreams = knowledgeAfter.streams.filter(row => row.url.endsWith(`/knowledge/conversations/${conversationId}/events`))
   expect(ownedStreams).toHaveLength(1); expect(ownedStreams[0]).toMatchObject({ opened: true, closeCalls: 1, readyState: 2 })
   const { requirement } = await requirementFixture(request, 'poll-cleanup')
-  await openRequirement(page, requirement.id, requirement.title)
+  // Keep the prepared document. A new page.goto would allocate a new runner
+  // InjectedScript on the measured Requirement owner instead of its predecessor.
+  await page.locator('.app-sidebar a[href="/requirements"]').click()
+  await expect(page.locator('[data-react-page] h1')).toHaveText('需求任务')
+  const pollPredecessor = await page.locator('html').evaluate(element => {
+    const host = document.querySelector('[data-app-route-owner]')
+    if (!host) throw new Error('Real Requirement-list predecessor is missing')
+    Object.defineProperty(window, '__integrationPollPreviousHost', { value: host, configurable: true })
+    return { tagName: element.tagName, path: location.pathname, previousHostConnected: host.isConnected, documentIdentity: window.__w2Resources.snapshot().documentIdentity }
+  })
+  expect(pollPredecessor).toEqual({ tagName: 'HTML', path: '/requirements', previousHostConnected: true, documentIdentity: knowledgeBefore.documentIdentity })
+  await page.getByRole('button', { name: `选择：${requirement.title}`, exact: true }).click()
+  const loadedRequirement = page.waitForResponse(response => new URL(response.url()).pathname === `/api/workflows/requirements/${requirement.id}` && response.request().method() === 'GET')
+  await page.locator(`a[href="/requirements/${requirement.id}"]`).click()
+  const openedRequirement: WorkflowRequirement = await (await loadedRequirement).json()
+  expect(openedRequirement).toMatchObject({ id: requirement.id, title: requirement.title, projectId: requirement.projectId })
+  await expect(page).toHaveURL(new RegExp(`/requirements/${requirement.id}$`))
+  await expect(page.locator('[data-react-page] h1')).toHaveText(requirement.title)
+  await expect(page.locator('article.workflow-node').filter({ hasText: '人工核对文档' })).toBeVisible()
+  const pollHostTransition = await page.evaluate(() => {
+    const previous = (window as unknown as { __integrationPollPreviousHost?: Element }).__integrationPollPreviousHost
+    const current = document.querySelector('[data-app-route-owner]')
+    if (!previous || !current) throw new Error('Real predecessor / Requirement owner identity is missing')
+    const result = { hostsDiffer: previous !== current, previousHostConnected: previous.isConnected, currentHostConnected: current.isConnected,
+      documentIdentity: window.__w2Resources.snapshot().documentIdentity, path: location.pathname }
+    delete (window as unknown as { __integrationPollPreviousHost?: Element }).__integrationPollPreviousHost
+    return result
+  })
+  expect(pollHostTransition).toEqual({ hostsDiffer: true, previousHostConnected: false, currentHostConnected: true, documentIdentity: knowledgeBefore.documentIdentity, path: `/requirements/${requirement.id}` })
+  expect(observed.writes).toEqual([])
+  await evidence(info, 'poll-observation-preparation', { pollPredecessor, pollHostTransition, openedRequirement, UIWrites: observed.writes })
   await openSidebar(page)
   await page.evaluate(() => window.__w2Resources.begin())
   await page.waitForFunction(() => window.__w2Resources.snapshot().timers.length > 0)
@@ -209,5 +247,5 @@ test('real idle Knowledge SSE and Requirement REST polling clean up at the first
   expect(requirementBefore.timers.length).toBeGreaterThan(0)
   const requirementAfter = await immediateW2Exit(page); assertW2Disposed(requirementBefore, requirementAfter)
   expect(observed.unexpected).toEqual([]); expect(observed.errors).toEqual([])
-  await evidence(info, 'sse-poll-first-exit', { conversationId, requirementId: requirement.id, created, historyWarm, hostTransition, opened, knowledgeBefore, knowledgeAfter, requirementBefore, requirementAfter, measurement: 'first MutationObserver snapshot after original React root detached; no natural up/move or cleanup delay; runner initialized by read-only predecessor before target owner mounted', heapOrGcProven: false, ...observed })
+  await evidence(info, 'sse-poll-first-exit', { conversationId, requirementId: requirement.id, created, historyWarm, hostTransition, opened, pollPredecessor, pollHostTransition, openedRequirement, knowledgeBefore, knowledgeAfter, requirementBefore, requirementAfter, measurement: 'first MutationObserver snapshot after original React root detached; no natural up/move or cleanup delay; runner initialized by read-only predecessor before target owner mounted; both measurements keep the same prepared document', heapOrGcProven: false, ...observed })
 })

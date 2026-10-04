@@ -68,6 +68,33 @@ export async function verifyIsolation(request: APIRequestContext) {
   await writeFile(join(env.evidenceDir, 'isolation-verified.json'), JSON.stringify({ proofPath, declaration, runtime, health, UIOrigin: env.baseURL, springOrigin: spring, verification: 'parent launch declaration + actual runtime/health GET; not a SQLite path API' }, null, 2) + '\n')
 }
 export const action = (page: Page, key: string) => page.locator(`[data-semantic="${key}"]`).filter({ visible: true })
+export interface ObservedUploadMetadata { path: string; method: string; rawMetadata: string | null; readFailure: string | null }
+/** Observe only this synthetic upload's original metadata; do not intercept or alter fetch. */
+export async function observeUploadMetadata(page: Page, requirementId: string) {
+  await page.addInitScript(id => {
+    const nativeFetch = window.fetch, rows: ObservedUploadMetadata[] = []
+    window.fetch = function(this: unknown, ...args: Parameters<typeof fetch>) {
+      // Forward exactly once, immediately. Passive metadata reading never delays
+      // delivery, changes arguments, consumes the response, or replaces its Promise.
+      const forwarded: ReturnType<typeof fetch> = nativeFetch.apply(this, args)
+      try {
+        const [input, options] = args
+        const path = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url, location.href).pathname
+        const method = (options?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase()
+        if (path === `/api/workflows/requirements/${id}/documents` && method === 'POST' && options?.body instanceof FormData) {
+          const row: ObservedUploadMetadata = { path, method, rawMetadata: null, readFailure: null }
+          rows.push(row)
+          const metadata = options.body.get('metadata')
+          if (metadata instanceof Blob) void metadata.text().then(text => { row.rawMetadata = text }, () => { row.readFailure = '原 metadata Blob 读取失败' })
+          else row.readFailure = '原请求缺少 metadata Blob'
+        }
+      } catch { rows.push({ path: `/api/workflows/requirements/${id}/documents`, method: 'UNKNOWN', rawMetadata: null, readFailure: '被动 metadata 观测失败' }) }
+      return forwarded
+    }
+    Object.defineProperty(window, '__integrationUploadMetadata', { value: () => rows.map(row => ({ ...row })) })
+  }, requirementId)
+  return () => page.evaluate(() => (window as unknown as { __integrationUploadMetadata(): ObservedUploadMetadata[] }).__integrationUploadMetadata())
+}
 export async function json<T>(request: APIRequestContext, path: string): Promise<T> {
   const response = await request.get(path)
   expect(response.ok(), `${path}: ${response.status()} ${await response.text()}`).toBe(true)
