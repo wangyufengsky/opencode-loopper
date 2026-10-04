@@ -1,6 +1,6 @@
 # 后端分层联调
 
-**当前续接：[100项失败分类、进程最小修复与Luna门槛](2026-10-04-followup14.md)。** 候选0.4.92的正常进程树清理修复有严格通过证据，但关联35项为32 PASS/2 FAIL/1原Windows SKIP；业务57项回归为30 PASS/27环境ERROR。完整Java/JAR仍阻塞，Luna仍零调用。
+**当前终态：[100项失败分类、进程最小修复与模拟测试报告](2026-10-04-followup14.md)。** 最后模拟合同两批23/23＋4/4通过；候选0.4.92的正常进程树清理修复有严格通过证据，但关联35项为32 PASS/2 FAIL/1原Windows SKIP；业务57项回归为30 PASS/27环境ERROR。完整Java/JAR仍阻塞。用户已取消真实模型，累计模型调用0；没有等待Luna授权的步骤。
 
 [此前同源码业务结果](2026-10-04-followup.md)保留：`60759aeb…`真实Spring0.4.91的57关联Java、30 REST、5实际生产browser通过；一次真实Java→OpenCode→本地mock运输通过。前端2390 unit及type/build/tooling/accounting/零Vue结果对应旧`0f328858…`，不能冒充新候选全量通过。
 
