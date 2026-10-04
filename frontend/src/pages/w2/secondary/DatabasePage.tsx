@@ -19,6 +19,7 @@ export function DatabasePage(props: W2PageProps) {
   const [selected, setSelected] = useState<DatabaseConnection | null>(null), [editing, setEditing] = useState(false), [archive, setArchive] = useState(false), trigger = useRef<HTMLElement | null>(null)
   const [form, setForm] = useState(() => databaseDraft(null)), [password, setPassword] = useState(''), [schemas, setSchemas] = useState(''), [dirty, setDirty] = useState(false), draftRevision = useRef(0)
   const [probe, setProbe] = useState<DatabaseProbe | null>(null), [testing, setTesting] = useState(false), [probeError, setProbeError] = useState(''), [validation, setValidation] = useState(''), [advanced, setAdvanced] = useState(false)
+  const probeResults = useRef(new Map<string, {version:number;result:DatabaseProbe|null;error:string}>())
   const probeSequence = useRef(0), mounted = useRef(true)
   const command = useMutationOwner(props)
   useLeaveGuard(props, () => { const risk = command.owner.canLeave(); return risk.kind !== 'ALLOW' ? risk : dirty ? { kind: 'CONFIRM_DISCARD', description: '数据库连接仍有未保存输入，是否放弃后离开？', draftRevision: draftRevision.current } : { kind: 'ALLOW' } })
@@ -36,11 +37,12 @@ export function DatabasePage(props: W2PageProps) {
   }
   const test = async () => {
     if (testing || command.snapshot.busy) return
+    const original = !editing && selected ? {id:selected.id,version:selected.version} : null
     const ticket = ++probeSequence.current; setTesting(true); setProbe(null); setProbeError('')
     try {
       const result = editing ? await api.testDatabaseDraft(selected?.id ?? null, databaseBody(form, password, schemas, metadata.value.types, !!selected)) : selected ? await api.testDatabaseConnection(selected.id) : null
-      if (mounted.current && ticket === probeSequence.current) setProbe(result)
-    } catch (failure) { if (mounted.current && ticket === probeSequence.current) setProbeError(userFacingError(failure, '连接检查失败，请检查只读账号、地址和网络')) }
+      if (mounted.current && ticket === probeSequence.current) { if(original)probeResults.current.set(original.id,{version:original.version,result,error:''});setProbe(result) }
+    } catch (failure) { if (mounted.current && ticket === probeSequence.current) { const error=userFacingError(failure, '连接检查失败，请检查只读账号、地址和网络');if(original)probeResults.current.set(original.id,{version:original.version,result:null,error});setProbeError(error) } }
     finally { if (mounted.current) setTesting(false) }
   }
   const lookup = async (id: string | null, body: Readonly<DatabaseConnectionInput>) => {
@@ -102,6 +104,6 @@ export function DatabasePage(props: W2PageProps) {
     </UiContextPanel><UiConfirmDialog open={archive && !!selected} title="归档连接" confirmActionKey="database.archive" policy={command.blocked ? { kind: 'block', reason: '请先核对原操作' } : { kind: 'allow' }} onCancel={() => setArchive(false)} onConfirm={() => { if (selected) update(selected, true); setArchive(false) }}>归档后新任务不能发现此连接，已冻结任务仍使用原授权。</UiConfirmDialog></>}>
     <div className="w2-secondary-grid"><p className="w2-secondary-muted">统一管理连接、项目授权与只读访问范围。</p><form className="w2-secondary-toolbar" onSubmit={event => { event.preventDefault(); applied.current = { ...filters }; void load() }}>
       <label>搜索数据库<input value={filters.query} placeholder="连接名称或主机" onChange={event => setFilters({ ...filters, query: event.target.value })} /></label><label>筛选数据库类型<select value={filters.type} onChange={event => { const next = { ...filters, type: event.target.value }; setFilters(next); applied.current = next; void load() }}><option value="">全部类型</option>{Object.entries(databaseTypeLabels).map(([type, label]) => <option key={type} value={type}>{label}</option>)}</select></label><label>筛选连接状态<select value={filters.state} onChange={event => { const next = { ...filters, state: event.target.value }; setFilters(next); applied.current = next; void load() }}>{[['AVAILABLE', '未归档'], ['ENABLED', '已启用'], ['DISABLED', '已停用'], ['ARCHIVED', '已归档'], ['ALL', '全部状态']].map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><button type="submit">搜索</button>
-    </form><ul className="w2-secondary-list" aria-label="数据库连接目录">{list.value.items.map(row => <li key={row.id}><button className="w2-secondary-select" aria-pressed={selected?.id === row.id} disabled={dirty || command.blocked} onClick={event => { trigger.current = event.currentTarget; setSelected(row); setEditing(false); setProbe(null); probeSequence.current++ }}><strong>{row.name}</strong><small>{databaseTypeLabels[row.config.type]} · {row.config.database} · {row.archived ? '已归档' : row.enabled ? '已启用' : '已停用'}</small></button></li>)}</ul>{!list.loading && !list.error && !list.value.items.length && <p className="w2-secondary-empty">{filters.query || filters.type || filters.state !== 'AVAILABLE' ? '没有匹配的连接' : '连接你的第一套数据库'}</p>}{list.value.nextCursor && <UiActionButton actionKey="ui.loadMore" busy={list.loading} onAction={() => { void load(true) }} />}</div>
+    </form><ul className="w2-secondary-list" aria-label="数据库连接目录">{list.value.items.map(row => <li key={row.id}><button className="w2-secondary-select" aria-pressed={selected?.id === row.id} disabled={dirty || command.blocked} onClick={event => { trigger.current = event.currentTarget; setSelected(row); setEditing(false); const cached=probeResults.current.get(row.id);setProbe(cached?.version===row.version?cached.result:null);setProbeError(cached?.version===row.version?cached.error:'');setValidation('');probeSequence.current++ }}><strong>{row.name}</strong><small>{databaseTypeLabels[row.config.type]} · {row.config.database} · {row.archived ? '已归档' : row.enabled ? '已启用' : '已停用'}</small></button></li>)}</ul>{!list.loading && !list.error && !list.value.items.length && <p className="w2-secondary-empty">{filters.query || filters.type || filters.state !== 'AVAILABLE' ? '没有匹配的连接' : '连接你的第一套数据库'}</p>}{list.value.nextCursor && <UiActionButton actionKey="ui.loadMore" busy={list.loading} onAction={() => { void load(true) }} />}</div>
   </PageChrome>
 }

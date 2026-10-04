@@ -109,7 +109,7 @@ for (const skin of ['spdb', 'tech-blue', 'github-white']) {
       expect(fixture.errors).toEqual([])
       await page.screenshot({ path: `${evidence}/${skin}-${kind}-long-keyboard.png`, fullPage: true })
       const oldRoot = await canvas.elementHandle()
-      await page.getByRole('button', { name: '全部任务', exact: true }).click()
+      await page.locator('.w2-heading a[href="/tasks"]').click()
       await expect(page).toHaveURL('/tasks'); await expect(page.locator('.readonly-diagram')).toHaveCount(0)
       expect(await oldRoot!.evaluate(element => element.isConnected)).toBe(false); await oldRoot!.dispose()
       const disposed = await page.evaluate(() => (window as unknown as { __diagramStreams: Streams }).__diagramStreams)

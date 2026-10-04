@@ -1,3 +1,4 @@
+import { semanticName } from './w3/semantics'
 import { selectWorkflowNode } from './fixtures/workflowNavigation'
 import { expect, test } from '@playwright/test'
 import { execution, requirement, attempt } from '../src/components/workflow/workflowRunTestFixtures'
@@ -36,22 +37,23 @@ for (const width of [1600, 390]) test(`固定代码的累计改动和删除文�
     if (path.endsWith('/outputs/code/files')) { files++; return route.fulfill({ json: { items: [{ path: 'scripts/run.sh', sizeBytes: 120, sha256: 'fixed-hash', mode: '100755' }], nextCursor: null } }) }
     if (path.endsWith('/result')) return route.fulfill({ json: { attemptId: run.id, state: run.state, sha256: 'private-delivery', delivery: { summary: '完成流程功能，代码成果已保存。', outcome: null, outputs: { code: { kind: 'CODE', content: { version: 1, snapshotId: 'private-code', sha256: 'private-hash' } } } } } })
     if (path === '/api/settings') return route.fulfill({ json: { runtime: {}, openCode: {}, limits: {}, retryWait: {}, publication: {} } })
+    if (path === '/api/roles') return route.fulfill({ json: { items: [], nextCursor: null } })
     return route.fulfill({ json: [] })
   })
   await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 }); await page.goto('/requirements/code-changes')
   await selectWorkflowNode(page, node.title)
-  await page.getByRole('button', { name: '交付物', exact: true }).click(); expect(changes).toBe(0); expect(files).toBe(0)
-  await page.getByRole('button', { name: '查看改动文件', exact: true }).click()
+  await page.getByRole('button', { name: semanticName('workflow.deliverables'), exact: true }).click(); expect(changes).toBe(0); expect(files).toBe(0)
+  await page.getByRole('button', { name: semanticName('ui.open', '代码改动文件'), exact: true }).click()
   const list = page.getByRole('region', { name: '代码改动文件' })
   await expect(list).toContainText('相对原始基线的累计改动'); await expect(list).toContainText('继承的上游代码')
   await expect(list.locator('li').filter({ hasText: 'obsolete.txt' })).toContainText('删除')
   await expect(list.locator('li').filter({ hasText: 'obsolete.txt' }).locator('a')).toHaveCount(0)
   await expect(list.getByRole('link')).toHaveAttribute('href', /outputs\/code\/file\?path=/)
-  await page.getByRole('button', { name: '更多改动文件', exact: true }).click()
-  await list.getByRole('button', { name: '重试读取改动', exact: true }).click()
+  await page.getByRole('button', { name: semanticName('ui.loadMore', '改动文件'), exact: true }).click()
+  await list.getByRole('button', { name: semanticName('ui.retry'), exact: true }).click()
   await expect(list.locator('li')).toHaveCount(3); await expect(list).toContainText('修改'); await expect(list).not.toContainText('private-')
   expect(changes).toBe(3); expect(files).toBe(0)
-  await page.getByRole('button', { name: '查看固定版本文件', exact: true }).click(); await expect(page.locator('.workflow-file-list')).toContainText('120 字节')
+  await page.getByRole('button', { name: semanticName('workflow.fixedFiles'), exact: true }).click(); await expect(page.locator('section[aria-label="固定版本文件"]')).toContainText('120 字节')
   expect(files).toBe(1); expect(await page.locator('body').evaluate(el => el.scrollWidth <= innerWidth + 1)).toBe(true)
   await page.screenshot({ path: `test-results/workflow-code-changes-${width}.png`, fullPage: true })
 })

@@ -49,7 +49,12 @@ export function AttemptKnowledge({ page, scope }: { page: W2PageProps; scope: At
   const retry = useRef<() => Promise<void>>(() => owner.evidence())
   const readList = (more = false) => { retry.current = () => owner.evidence(more); void retry.current() }
   const readBody = (id: string) => { retry.current = () => owner.evidenceBody(id); void retry.current() }
-  useEffect(() => { retry.current = () => owner.evidence(); void retry.current() }, [owner])
+  useEffect(() => {
+    let currentView = true
+    retry.current = () => owner.evidence()
+    queueMicrotask(() => { if (currentView) void retry.current() })
+    return () => { currentView = false }
+  }, [owner])
   return <section aria-label="本次检索证据"><h3>本次检索证据</h3><p>这里保存本次执行实际读取的资料。采集之后的文件变化不会改写这些记录。</p>
     <Action action="ui.refresh" target="检索证据" busy={s.loading} onClick={() => readList()} /><ReadNotice error={s.error} retry={() => { void retry.current() }} />
     {s.evidenceLoaded && !s.evidence.length && <p>本次执行尚无保存的检索证据。</p>}

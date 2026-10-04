@@ -42,6 +42,7 @@ test('默认 spdb 中文外壳可启动并在主要路由间导航', async ({ pa
 
   await page.getByRole('link', { name: '模板任务' }).click()
   await expect(page).toHaveURL(/\/template-tasks$/)
-  await expect(page.getByRole('heading', { name: '模板任务', exact: true })).toBeVisible()
-  await expect(page.getByText('没有匹配的模板', { exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '任务模板', exact: true })).toBeVisible()
+  await expect(page.getByRole('region', {name:'模板目录'}).getByRole('textbox', {name:'搜索模板'})).toBeVisible()
+  await expect(page.locator('.catalog-choice')).toHaveCount(0)
 })

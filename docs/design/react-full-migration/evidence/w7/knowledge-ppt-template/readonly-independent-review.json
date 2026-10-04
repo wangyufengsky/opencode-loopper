@@ -1,0 +1,49 @@
+{
+  "scope": "Non-author read-only W7 evidence utility and four existing handoff/snapshot desktop cases",
+  "source_changes": [],
+  "sources": [
+    {
+      "path": "scripts/w7-acceptance-evidence.mjs",
+      "sha256": "7b6e085e44056a714daf97f1bd2a3f8f8c85b845dd802d5406dba79126149bc3"
+    },
+    {
+      "path": "frontend/e2e/workflow-knowledge-handoff.spec.ts",
+      "sha256": "3c4c5c1f44d7eb3c49bf5ea58de4a465e06e33e39c0677c1f325d5d2b68b3348"
+    },
+    {
+      "path": "frontend/e2e/workflow-snapshot-analysis.spec.ts",
+      "sha256": "7527a56d5dd4ced7e0e405038b2f272e5d412883f546def01e8898e707335e60"
+    }
+  ],
+  "browser": {
+    "passed": 4,
+    "failed": 0,
+    "skipped": 0,
+    "exit": 0,
+    "json_sha256": "d07f8e1b90382737e2741cc6a6425f87ace43e8a038e0ae3758e9ac2bc3040f2",
+    "command": "W7_BROWSER_JSON=.../readonly4-independent/results.json W7_BROWSER_OUTPUT=.../readonly4-independent/browser ./node_modules/.bin/playwright test --config e2e/w7/playwright.legacy.config.ts e2e/workflow-knowledge-handoff.spec.ts e2e/workflow-snapshot-analysis.spec.ts"
+  },
+  "actual_partial_gate": {
+    "registered": 4,
+    "ok": false,
+    "missing_distinct_keys": 505,
+    "missing_registered_multiplicity": 508,
+    "missing_added_cases": 9,
+    "exit": 1,
+    "description": "Actual four green browser cases rejected as an incomplete matrix; not a new browser case."
+  },
+  "static_counts": {
+    "baseline_registered": 566,
+    "desktop_original": 512,
+    "narrow_out_of_scope": 54,
+    "declared_desktop_additions": 9,
+    "required_final_registered": 521,
+    "required_final_unique": 518,
+    "preserved_duplicate_extras": 3
+  },
+  "limitations": [
+    "Browser accounting and source verify are separate CLI modes; lead must keep freeze/verify before and after the final batch.",
+    "Four desktop candidates do not constitute the final frozen production batch.",
+    "Snapshot mixed narrow branch and standalone handoff390 remain out of scope; original source assertions retained."
+  ]
+}

@@ -3,9 +3,13 @@ import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { workflowRuns } from '@/api/workflowRuns'
 import { workflowApi } from '@/api/workflow'
-import { FixedInputContent, AttemptFiles } from './Content'
+import { FixedInputContent, AttemptFiles, AttemptKnowledge } from './Content'
 import { RequirementChoice } from './Choice'
-import { requirementFrame, requirementFixture, setupRequirementDom } from './test-support'
+import { requirementFrame, requirementFixture, setupRequirementDom, pushPreview } from './test-support'
+import { workflowPublication } from '@/api/workflowPublication'
+import { workflowPush } from '@/api/workflowPush'
+import { PublicationPanel } from './Publication'
+import { createPublicationController } from './publicationController'
 import { semanticName } from '@/foundation/semanticRegistry'
 const all: ReturnType<typeof requirementFixture>[] = []
 const fixture = () => { const value = requirementFixture(); all.push(value); return value }
@@ -32,4 +36,53 @@ describe('real on-demand React fixed content and picker', () => {
     render(requirementFrame(<AttemptFiles page={f.props} scope={scope} archive />)); expect(document.querySelector('a[download]')?.getAttribute('href')).toBe(workflowRuns.archiveUrl('req', 'node', 'attempt', 'inputs', 'value'))
     fireEvent.click(screen.getByRole('button', { name: semanticName('workflow.fixedFiles') })); await screen.findByText('original.md'); expect(screen.getByRole('link', { name: 'original.md' }).getAttribute('href')).toBe(workflowRuns.fileUrl('req', 'node', 'attempt', 'inputs', 'value', 'original.md')); expect(screen.queryByRole('link', { name: 'excluded.md' })).toBeNull(); expect(screen.queryByRole('button', { name: semanticName('workflow.previewDocument', 'excluded.md') })).toBeNull()
   })
+})
+
+it('StrictMode knowledge disclosure launches one current-view read and pagination remains exactly one explicit next read', async () => {
+  const f = fixture(), entry = { id: 'entry', toolName: 'read_knowledge_source', createdAt: '2026-09-29' }
+  const read = vi.spyOn(workflowRuns, 'knowledgeEvidence').mockResolvedValueOnce({ items: [entry], nextCursor: 'next' }).mockResolvedValue({ items: [{ ...entry, id: 'next' }], nextCursor: null })
+  const view = render(<StrictMode>{requirementFrame(<AttemptKnowledge page={f.props} scope={scope} />)}</StrictMode>)
+  await waitFor(() => expect(view.container.querySelectorAll('li')).toHaveLength(1))
+  expect(read).toHaveBeenCalledTimes(1)
+  expect(read.mock.calls[0]).toEqual(['req', 'node', 'attempt', ''])
+  fireEvent.click(screen.getByRole('button', { name: semanticName('ui.loadMore', '检索证据') }))
+  await waitFor(() => expect(view.container.querySelectorAll('li')).toHaveLength(2))
+  expect(read).toHaveBeenCalledTimes(2); expect(read.mock.calls[1]).toEqual(['req', 'node', 'attempt', 'next'])
+  view.unmount()
+  await Promise.resolve(); expect(read).toHaveBeenCalledTimes(2)
+})
+it('verified committed publication with a successful empty push read explicitly says it has not been pushed without writing', async () => {
+  const f = fixture(), owner = createPublicationController('req', 2)
+  const read = vi.spyOn(workflowPublication, 'status').mockResolvedValue({ requirementId: 'req', state: 'COMMITTED', version: 3, nodeTitle: '交付节点', outputTitle: '代码', attemptState: 'SUCCEEDED', branch: 'results', message: '明确提交', commit: 'commit', createdAt: '', reasonCode: null })
+  const push = vi.spyOn(workflowPush, 'status').mockResolvedValue(null), write = vi.spyOn(workflowPush, 'confirm')
+  render(requirementFrame(<PublicationPanel page={f.props} controller={owner} revision={2} visible onClose={() => {}} />))
+  await owner.readStatus('commit'); await owner.readStatus('push')
+  expect(await screen.findByText('尚未推送到远端')).toBeTruthy()
+  expect(read).toHaveBeenCalledWith('req', expect.any(AbortSignal)); expect(push).toHaveBeenCalledWith('req', expect.any(AbortSignal)); expect(write).not.toHaveBeenCalled()
+})
+it('an opened push draft requires explicit Stay and an UNKNOWN push cannot present the prior empty GET as not pushed', async () => {
+  const f = fixture(), owner = createPublicationController('req', 2), close = vi.fn()
+  vi.spyOn(workflowPublication, 'status').mockResolvedValue({ requirementId: 'req', state: 'COMMITTED', version: 3, nodeTitle: '交付节点', outputTitle: '代码', attemptState: 'SUCCEEDED', branch: 'results', message: '明确提交', commit: 'commit', createdAt: '', reasonCode: null })
+  vi.spyOn(workflowPush, 'status').mockResolvedValue(null)
+  vi.spyOn(workflowPush, 'remotes').mockResolvedValue(['origin'])
+  vi.spyOn(workflowPush, 'preview').mockResolvedValue(pushPreview)
+  const write = vi.spyOn(workflowPush, 'confirm').mockRejectedValue(new Error('原推送回执未知'))
+  render(requirementFrame(<PublicationPanel page={f.props} controller={owner} revision={2} visible onClose={close} />))
+  await owner.readStatus('commit'); await owner.readStatus('push')
+  expect(await screen.findByText('尚未推送到远端')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: semanticName('workflow.push') }))
+  await screen.findByRole('option', { name: 'origin' })
+  expect(owner.canLeave().kind).toBe('CONFIRM_DISCARD')
+  fireEvent.click(screen.getByRole('button', { name: semanticName('ui.close', '需求代码成果') }))
+  await screen.findByRole('dialog', { name: '放弃当前修改？' })
+  fireEvent.click(screen.getByRole('button', { name: semanticName('ui.stay') }))
+  expect(close).not.toHaveBeenCalled(); expect(owner.getSnapshot().pushOpen).toBe(true)
+  expect(write).not.toHaveBeenCalled()
+  fireEvent.change(screen.getByRole('combobox', { name: '推送远端' }), { target: { value: 'origin' } })
+  fireEvent.click(screen.getByRole('button', { name: semanticName('workflow.inspectPush') }))
+  fireEvent.click(await screen.findByRole('button', { name: semanticName('workflow.pushConfirm') }))
+  await waitFor(() => expect(owner.getSnapshot().command.phase).toBe('UNKNOWN'))
+  expect(owner.canLeave().kind).toBe('BLOCK'); expect(write).toHaveBeenCalledTimes(1)
+  expect(screen.queryByText('尚未推送到远端')).toBeNull()
+  expect(screen.getByRole('button', { name: semanticName('ui.close', '需求代码成果') }).matches(':disabled')).toBe(true)
 })

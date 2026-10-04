@@ -82,7 +82,7 @@ export function ApplicationLayout({ application, story, shell = true }: { applic
   }, [blocker, application])
   const canvas = /^\/workflows\/[^/]+\/?$/.test(location.pathname) || /^\/requirements\/(?!new\/?$)[^/]+\/?$/.test(location.pathname) || /^\/ppt\/[^/]+\/?$/.test(location.pathname)
   const [open, setOpen] = useState(false)
-  const toggle = useRef<HTMLButtonElement>(null), panel = useRef<HTMLDivElement>(null)
+  const toggle = useRef<HTMLButtonElement>(null), panel = useRef<HTMLDivElement>(null), main = useRef<HTMLDivElement>(null)
   useEffect(() => { setOpen(false); if (typeof window.scrollTo === 'function' && !navigator.userAgent.includes('jsdom')) window.scrollTo({ top: 0 }) }, [fullPath])
   useLayoutEffect(() => { if (open) panel.current?.querySelector<HTMLElement>('a,button')?.focus() }, [open])
   const close = () => { setOpen(false); toggle.current?.focus() }
@@ -94,7 +94,7 @@ export function ApplicationLayout({ application, story, shell = true }: { applic
     if (event.shiftKey && document.activeElement === items[0]) { event.preventDefault(); items.at(-1)?.focus() }
     else if (!event.shiftKey && document.activeElement === items.at(-1)) { event.preventDefault(); items[0]?.focus() }
   }
-  return <FoundationProvider skin={skin}>{shell ? <><a className="skip-link" href="#main-content">跳到主内容</a><div className={`app-shell${canvas ? ' canvas-shell' : ''}`} onKeyDownCapture={keys}>
+  return <FoundationProvider skin={skin}>{shell ? <><a className="skip-link" href="#main-content" onClick={event => { event.preventDefault(); (main.current?.querySelector<HTMLElement>('[id="main-content"]') ?? main.current)?.focus() }}>跳到主内容</a><div className={`app-shell${canvas ? ' canvas-shell' : ''}`} onKeyDownCapture={keys}>
     {canvas ? <><UiActionButton actionKey={open ? 'ui.collapse' : 'ui.expand'} target={semanticName('app.navigation')} iconOnly buttonRef={toggle} className="canvas-navigation-toggle" expanded={open} controls="canvas-navigation" onAction={() => open ? close() : setOpen(true)} />{open && <><div className="canvas-navigation-backdrop" onClick={close} /><div ref={panel} id="canvas-navigation" className="canvas-navigation" role="dialog" aria-modal="true" aria-label="应用导航"><AppSidebar application={application} /></div></>}</> : <AppSidebar application={application} />}
-    <div className="app-main" inert={canvas && open ? true : undefined}><Outlet /></div></div></> : <Outlet />}{story && <StoryAccountingDialog owner={story} />}</FoundationProvider>
+    <div ref={main} tabIndex={-1} className="app-main" inert={canvas && open ? true : undefined}><Outlet /></div></div></> : <Outlet />}{story && <StoryAccountingDialog owner={story} />}</FoundationProvider>
 }

@@ -28,7 +28,8 @@ async function setup(page: Page, zoom = 1, skin = 'spdb', width = 1600) {
   return fixture
 }
 async function enter(page: Page, fixture: Fixture) {
-  await page.getByRole('link', { name: fixture.flow.title, exact: true }).click()
+  await page.getByRole('button', { name: `选择：${fixture.flow.title}`, exact: true }).click()
+    await page.getByRole('link', { name: `查看：${fixture.flow.title}`, exact: true }).click()
   const canvas = page.locator(selector)
   await expect(canvas.locator('.react-flow__node')).toHaveCount(3)
   const node = canvas.locator('[data-node-id="scope"]')
@@ -161,7 +162,7 @@ for (const gesture of ['connection-pressed', 'connection-mouse', 'connection-tou
       const oldRoot = await canvas.elementHandle()
       // DOM activation navigates while the actual mouse/touch remains held.
       // No later move/release/cancel can repair the gate's first snapshot.
-      await page.getByRole('link', { name: '返回流程库', exact: true }).evaluate(element => (element as HTMLElement).click())
+      await page.locator('.w2-heading a[href="/workflows"]').evaluate(element => (element as HTMLElement).click())
       await expect(page).toHaveURL('/workflows'); await expect(canvas).toHaveCount(0)
       expect(await oldRoot!.evaluate(element => element.isConnected)).toBe(false)
       const immediate = await pointerSnapshot(page)
@@ -333,7 +334,7 @@ for (const skin of ['spdb', 'tech-blue', 'github-white']) {
     await page.screenshot({ path: join(evidence, `${skin}-pointer-drag-390.png`), fullPage: true })
     await expect(canvas).toHaveAttribute('data-pointer-gesture', 'drag')
     const beforeLeave = await pointerSnapshot(page); expect(beforeLeave.captures).toHaveLength(1)
-    await page.getByRole('link', { name: '返回流程库', exact: true }).evaluate(element => (element as HTMLElement).click())
+    await page.locator('.w2-heading a[href="/workflows"]').evaluate(element => (element as HTMLElement).click())
     await expect(page).toHaveURL('/workflows'); await expect(canvas).toHaveCount(0)
     const immediate = await pointerSnapshot(page); await record(info, skin, { during: active.during, beforeLeave, immediate })
     clean(immediate); noCleanupInput(beforeLeave, immediate)
@@ -346,7 +347,7 @@ for (const target of ['node', 'edge'] as const) {
     const fixture = await setup(page)
     for (let cycle = 0; cycle < 3; cycle++) {
       const { canvas } = await enter(page, fixture), active = await middle(page, canvas, target)
-      await page.getByRole('link', { name: '返回流程库', exact: true }).evaluate(element => (element as HTMLElement).click())
+      await page.locator('.w2-heading a[href="/workflows"]').evaluate(element => (element as HTMLElement).click())
       await expect(page).toHaveURL('/workflows'); await expect(canvas).toHaveCount(0)
       const immediate = await pointerSnapshot(page)
       await record(info, `${target}-middle-${cycle}`, { during: active.during, immediate })
@@ -366,6 +367,7 @@ for (const target of ['node', 'edge'] as const) {
     expect(await viewport(canvas)).toEqual(moved); expect(await position(canvas)).toEqual(active.nodeBefore)
     await page.getByRole('button', { name: '撤销修改', exact: true }).click()
     await expect.poll(() => viewport(canvas)).toEqual(active.before)
+    // The approved W5 toolbar omits undo when its count is zero; retain the exact restored layout above.
     await expect(page.getByRole('button', { name: '撤销修改', exact: true })).toBeDisabled()
     expect(fixture.errors).toEqual([]); expect(fixture.mutations).toEqual([])
   })
@@ -390,8 +392,9 @@ for (const kind of ['connect', 'drag'] as const) {
     expect(await viewport(canvas)).toEqual(zoomed); expect(await position(canvas)).toEqual(active.before)
     await page.getByRole('button', { name: '撤销修改', exact: true }).click()
     await expect.poll(() => viewport(canvas)).toEqual(active.beforeViewport)
+    // The approved W5 toolbar omits undo when its count is zero; retain the exact restored layout above.
     await expect(page.getByRole('button', { name: '撤销修改', exact: true })).toBeDisabled()
-    await page.getByRole('link', { name: '返回流程库', exact: true }).click()
+    await page.locator('.w2-heading a[href="/workflows"]').click()
     await expect(page).toHaveURL('/workflows'); await expect(canvas).toHaveCount(0)
     const immediate = await pointerSnapshot(page)
     await record(info, `${kind}-wheel-unmount`, immediate)

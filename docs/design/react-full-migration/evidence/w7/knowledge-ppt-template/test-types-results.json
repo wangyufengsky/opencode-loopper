@@ -1,0 +1,27 @@
+{
+  "unit": {
+    "total": 137,
+    "passed": 137,
+    "failed": 0,
+    "pending": 0,
+    "exit": 0,
+    "json_sha256": "b675fb157c432bfac97b9f50c98b8f62530d3f451cf0362aca284de6a89ae5a4",
+    "command": "./node_modules/.bin/vitest run src/pages/w3/knowledge src/pages/w3/ppt src/pages/w3/templates/catalog --maxWorkers=1 --reporter=json --outputFile=/workspace/react-full-w7-evidence/B/w3-B-types-final.json"
+  },
+  "typecheck": {
+    "exit": 0,
+    "command": "./node_modules/.bin/tsc -p tsconfig.app.json --incremental false --noEmit",
+    "log": "/workspace/react-full-w7-evidence/B/type-app-noemit-final.log",
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "no_shared_tsbuildinfo_write": true
+  },
+  "changed_files": [
+    "frontend/src/pages/w3/knowledge/controller.spec.ts",
+    "frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx"
+  ],
+  "runtime_e2e_changes": [],
+  "freeze_v2_sha256": "fd3c4d0a323ca9bbbd9eeb33797cdf20fe9327cc3eb7bd8de395cf5fa24c2fe3",
+  "knowledge_emitted_js_unchanged": true,
+  "ppt_matcher": "/^受众$/ exact accessible role name",
+  "browser49": "existing fixed-runtime/e2e 49/49 provenance remains unchanged; not re-executed for test-only types"
+}

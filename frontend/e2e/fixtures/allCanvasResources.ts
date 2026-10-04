@@ -5,7 +5,7 @@ import { join } from 'node:path'
 export const allCanvasEvidence = process.env.CANVAS_ALL_CLEANUP_EVIDENCE_DIR ?? 'test-results/react-all-canvas-cleanup'
 const roots = '.readonly-diagram[data-canvas-runtime="react"], .ppt-canvas-wrap[data-canvas-runtime="react"], .react-mermaid-diagram[data-canvas-runtime="react"]'
 export type CanvasFrameOwner = {
-  kind: 'destination-table'; instanceId: number; targetId: number; callbackId: number;
+  kind: 'destination-react-fixture'; instanceId: number; targetId: number; callbackId: number;
   location: string; connected: boolean; className: string; refsAgree: boolean;
   closureSource: { url: string; sha256: string }
 }
@@ -13,7 +13,7 @@ export type AllCanvasSnapshot = {
   documentIdentity: string
   location: string
   roots: { id: number; kind: string | null }[]
-  listeners: { target: string; targetId: number; type: string; capture: boolean; callbackId: number }[]
+  listeners: { target: string; targetId: number; type: string; capture: boolean; callbackId: number; allocationStack: string }[]
   instanceWheel: { targetId: number; callbackId: number; capture: boolean }[]
   pendingFrames: number[]
   pendingCanvasFrames: number[]
@@ -30,7 +30,7 @@ declare global { interface Window { __allCanvasResources: {
   isArmed(): boolean
   callbackIdentity(callback: FrameRequestCallback): number
   lastDestinationCallbackForNegativeControl(): FrameRequestCallback | undefined
-  identifyDestinationTable(callback: FrameRequestCallback, table: unknown, expectedCallbackId: number,
+  identifyDestinationInstance(callback: FrameRequestCallback, table: unknown, expectedCallbackId: number,
     closureSource: CanvasFrameOwner['closureSource']): CanvasFrameOwner | null
 } } }
 
@@ -41,7 +41,7 @@ export async function observeAllCanvasResources(page: Page) {
     const request = window.requestAnimationFrame.bind(window), cancel = window.cancelAnimationFrame.bind(window)
     const NativeObserver = window.ResizeObserver, NativeIntersection = window.IntersectionObserver
     const relevant = (target: EventTarget) => target === window || target === document
-      || target instanceof Element && (!!target.closest(rootSelector) || target.matches('figure[data-mermaid-source]'))
+      || target instanceof Element && (!!target.closest(rootSelector) || target.matches('figure[data-mermaid-source], figure[data-w3-mermaid]'))
     const label = (target: EventTarget | null) => target === window ? 'window' : target === document ? 'document'
       : target instanceof Element ? `${target.tagName.toLowerCase()}.${target.getAttribute('class') ?? ''}` : 'other'
     const ids = new WeakMap<object, number>(); let nextId = 1
@@ -50,7 +50,7 @@ export async function observeAllCanvasResources(page: Page) {
     const types = new Set(['pointermove', 'pointerup', 'pointercancel', 'lostpointercapture', 'blur',
       'mousemove', 'mouseup', 'touchmove', 'touchend', 'touchcancel', 'dragstart', 'selectstart', 'wheel'])
     const listeners: { target: EventTarget; type: string; listener: EventListenerOrEventListenerObject;
-      capture: boolean; owned: boolean; active: boolean; signal?: AbortSignal }[] = []
+      capture: boolean; owned: boolean; active: boolean; signal?: AbortSignal; allocationStack: string }[] = []
     const frames = new Map<number, boolean>()
     const frameLedger: (AllCanvasSnapshot['frameLedger'][number] & { owned: boolean })[] = []
     const callbackOwners = new WeakMap<FrameRequestCallback, CanvasFrameOwner>()
@@ -65,7 +65,7 @@ export async function observeAllCanvasResources(page: Page) {
       const result = add.call(this, type, listener, options)
       if (listener && relevant(this) && types.has(type) && !listeners.some(row => row.active && row.target === this
         && row.type === type && row.listener === listener && row.capture === captureFlag(options))) {
-        listeners.push({ target: this, type, listener, capture: captureFlag(options), owned: armed, active: true,
+        listeners.push({ target: this, type, listener, capture: captureFlag(options), owned: armed, active: true, allocationStack: new Error('Observed listener registration').stack ?? '',
           signal: typeof options === 'object' ? options.signal : undefined })
       }
       return result
@@ -77,14 +77,14 @@ export async function observeAllCanvasResources(page: Page) {
       return result
     }
     window.requestAnimationFrame = callback => {
-      // Provenance is per registration: a retired Table callback cannot reuse an old positive tag.
+      // Provenance is per registration: a retired instance callback cannot reuse an old positive tag.
       callbackOwners.delete(callback)
       const id = request(time => {
         frames.delete(id); const row = frameLedger.find(frame => frame.id === id); if (row) row.active = false
         callback(time)
       })
       frames.set(id, armed)
-      frameLedger.push({ id, owned: armed, active: true, callback: callback.name, stack: new Error('Observed RAF registration').stack ?? '',
+      frameLedger.push({ id, owned: armed, active: true, allocationStack: new Error('Observed listener registration').stack ?? '', callback: callback.name, stack: new Error('Observed RAF registration').stack ?? '',
         observerId: currentObserver ? identity(currentObserver) : undefined, rootIds: [...document.querySelectorAll(rootSelector)].map(identity),
         owner: callbackOwners.get(callback) })
       return id
@@ -141,18 +141,18 @@ export async function observeAllCanvasResources(page: Page) {
     window.__allCanvasResources = {
       callbackIdentity: callback => identity(callback),
       lastDestinationCallbackForNegativeControl: () => lastDestinationCallback?.deref(),
-      identifyDestinationTable: (callback, value, expectedCallbackId, closureSource) => {
+      identifyDestinationInstance: (callback, value, expectedCallbackId, closureSource) => {
         callbackOwners.delete(callback)
-        // CDP supplies the actual lexical Table instance and the same callback identity.
+        // CDP supplies the actual lexical React fixture instance and the same callback identity.
         // No callback name, allocation stack or absence of canvas roots grants ownership.
         if (!value || typeof value !== 'object' || identity(callback) !== expectedCallbackId) return null
-        const table = value as { vnode?: { el?: unknown }; refs?: { tableWrapper?: unknown } }
-        const target = table.vnode?.el, wrapper = table.refs?.tableWrapper
-        if (!(target instanceof Element) || target !== wrapper || !target.matches('.el-table') || !target.isConnected
+        const instance = value as { element?: unknown; active?: boolean }
+        const target = instance.element, wrapper = instance.element
+        if (!(target instanceof Element) || target !== wrapper || !target.matches('[data-raf-owner-fixture="true"]') || instance.active !== true || !target.isConnected
           || target.closest(rootSelector) || location.pathname !== '/tasks'
-          || !/^https?:\/\/[^/]+\/node_modules\/\.vite\/deps\/element-plus\.js(?:\?|$)/.test(closureSource.url)
+          || !/^https?:\/\/[^/]+\/e2e\/fixtures\/rafOwner\.tsx(?:\?|$)/.test(closureSource.url)
           || !/^[a-f0-9]{64}$/.test(closureSource.sha256)) return null
-        const owner: CanvasFrameOwner = { kind: 'destination-table', instanceId: identity(table), targetId: identity(target),
+        const owner: CanvasFrameOwner = { kind: 'destination-react-fixture', instanceId: identity(instance), targetId: identity(target),
           callbackId: expectedCallbackId, location: location.pathname, connected: target.isConnected,
           className: target.getAttribute('class') ?? '', refsAgree: target === wrapper, closureSource }
         callbackOwners.set(callback, owner)
@@ -165,7 +165,7 @@ export async function observeAllCanvasResources(page: Page) {
       snapshot: () => ({ documentIdentity, location: location.pathname,
         roots: [...document.querySelectorAll(rootSelector)].map(element => ({ id: identity(element), kind: element.getAttribute('data-canvas-kind') })),
         listeners: listeners.filter(row => row.active && row.owned && !row.signal?.aborted).map(row => ({
-          target: label(row.target), targetId: identity(row.target), type: row.type, capture: row.capture, callbackId: identity(row.listener),
+          target: label(row.target), targetId: identity(row.target), type: row.type, capture: row.capture, callbackId: identity(row.listener), allocationStack: row.allocationStack,
         })),
         instanceWheel: listeners.filter(row => row.active && row.type === 'wheel' && !row.signal?.aborted
           && row.target instanceof Element && row.target.matches(rootSelector)).map(row => ({ targetId: identity(row.target), callbackId: identity(row.listener), capture: row.capture })),

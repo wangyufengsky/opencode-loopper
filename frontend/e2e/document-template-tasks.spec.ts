@@ -23,7 +23,11 @@ for (const width of [1440, 390]) {
         expect(data).toContain('"branchId":"local:refs/heads/main"'); expect(data).not.toContain('startDate')
         if (posts.length === 1) return route.abort('connectionfailed')
         body = overview
-      } else if (path.endsWith('/document') || path.includes('/by-request/')) body = overview
+      } else if (path.includes('/by-request/')) {
+        // Before the explicit identical retry succeeds, the original request is not confirmed.
+        if (posts.length < 2) return route.fulfill({ status: 404, json: { error: '原请求尚未确认' } })
+        body = overview
+      } else if (path.endsWith('/document')) body = overview
       else if (path.endsWith('/documents/file/sections')) body = { items: [{ ordinal: 0, title: '3.1 付款权限', characters: 13, sha256: 'section-sha' }], nextOffset: null }
       else if (path.endsWith('/documents/file/sections/0')) { sectionBodies++; body = { ordinal: 0, title: '3.1 付款权限', content: '付款入口必须检查权限，拒绝未授权请求', sha256: 'section-sha' } }
       else if (path.endsWith('/requirements')) body = { items: [{ requirementKey: 'RQ-1', title: '付款权限', ordinal: 0, groupName: '付款', kind: 'PERMISSION', issueCount: 0, conclusion: 'INCORRECT' }], nextOffset: null, revision: 1 }
@@ -37,11 +41,11 @@ for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 1000 })
     await page.goto('/template-tasks?projectId=p')
     await expect(page.getByRole('combobox', { name: '分支', exact: true })).toBeVisible()
-    await expect(page.locator('.el-date-editor')).toHaveCount(0)
-    await page.locator('#requirement-files').setInputFiles({ name: '付款需求.md', mimeType: 'text/markdown', buffer: Buffer.from('付款入口必须检查权限') })
-    await page.getByRole('button', { name: '开始评审', exact: true }).click()
+    await expect(page.locator('input[type="date"]')).toHaveCount(0)
+    await page.getByLabel('需求文档', { exact: true }).setInputFiles({ name: '付款需求.md', mimeType: 'text/markdown', buffer: Buffer.from('付款入口必须检查权限') })
+    await page.locator('[data-semantic="template.create"]').click()
     await expect(page.getByRole('alert').filter({ hasText: /失败|未确认|重试|异常/ })).toBeVisible()
-    await page.getByRole('button', { name: '开始评审', exact: true }).click()
+    await page.locator('[data-semantic="receipt.retryOriginal"]').click()
     await expect(page).toHaveURL(/\/document-runs\/document$/)
     expect(posts).toHaveLength(2); expect(posts[0]).toBe(posts[1])
     await expect(page.getByText('本次未执行构建或测试。', { exact: false })).toBeVisible()
@@ -53,9 +57,9 @@ for (const width of [1440, 390]) {
     await expect(page.getByText('付款入口必须检查权限，拒绝未授权请求', { exact: true })).toBeVisible()
     expect(sectionBodies).toBe(1)
     expect(bodies).toBe(0)
-    await page.getByRole('button', { name: '总体报告', exact: true }).click()
+    await page.locator('button[data-semantic="selection.select"]').filter({ hasText: '总体报告' }).click()
     await expect(page.getByRole('heading', { name: '静态评审报告', exact: true })).toBeVisible(); expect(bodies).toBe(1)
-    const download = page.waitForEvent('download'); await page.getByRole('button', { name: '下载整包', exact: true }).click()
+    const download = page.waitForEvent('download'); await page.getByRole('button', { name: '下载：整包', exact: true }).click()
     expect((await download).suggestedFilename()).toBe('需求报告.zip')
     await page.reload(); await expect(page.getByRole('heading', { name: /需求代码评审 · 示例项目/ })).toBeVisible()
     expect(posts).toHaveLength(2); expect(bodies).toBe(1)

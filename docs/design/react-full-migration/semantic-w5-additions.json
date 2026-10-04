@@ -1044,6 +1044,19 @@
         "SERVER_AUTHORITY"
       ],
       "behavior": "用户显式恢复原创建key/body；accepted只完成原交接，不重复创建"
+    },
+    "workflow.saveLayout": {
+      "label": "保存布局",
+      "name": "保存布局",
+      "icon": "save",
+      "intent": "workflow.saveLayout",
+      "scope": "server",
+      "guard": [
+        "BLOCK_PENDING",
+        "BLOCK_UNHANDED_ACCEPTED",
+        "SERVER_AUTHORITY"
+      ],
+      "behavior": "仅用户显式保存执行画布布局；保持原requestKey、expectedRevision和expectedLayoutVersion，不写计划结构；unknown保原身份，accepted仅合法读取原需求核对。"
     }
   }
 }

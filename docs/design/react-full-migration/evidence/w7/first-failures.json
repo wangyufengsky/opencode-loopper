@@ -1,0 +1,617 @@
+{
+  "finalSourceSha256": "d1a38dd1471e5c5d0d23aeafa845c7494d3bc30e2d5875dd37c24e9faded596d",
+  "firstFreezeSourceSha256": "a8821a377da1577b8b3a94de2c1f1f17e056cb66c4a1f91509c96b27c7efd8b8",
+  "firstUnit": {
+    "total": 2383,
+    "passed": 2373,
+    "failed": 10,
+    "failures": [
+      {
+        "file": "src/migration/w5Routes.spec.ts",
+        "fullName": "W5 existing production route partition loads the actual React production component at /requirements/new",
+        "firstStatus": "failed",
+        "classification": "ENVIRONMENT_LOAD_TIMEOUT",
+        "finalStatus": "passed"
+      },
+      {
+        "file": "src/views/PptStudioRecovery.spec.tsx",
+        "fullName": "PPT workspace recovery guards with the actual React canvas exposes a restored pending retry immediately and pauses restored property autosave",
+        "firstStatus": "failed",
+        "classification": "PRODUCT_READONLY_ENTRY_REGRESSION",
+        "finalStatus": "passed"
+      },
+      {
+        "file": "src/views/RoleManagementView.spec.ts",
+        "fullName": "RoleManagementView combines inherited, native and declared tools with Chinese descriptions and preserves blockers",
+        "firstStatus": "failed",
+        "classification": "TEST_LOCATOR_AMBIGUITY",
+        "finalStatus": "passed"
+      },
+      {
+        "file": "src/views/WorkflowRequirementView.spec.ts",
+        "fullName": "requirement canvas keeps an unsent node form when context changes are rejected and does not prompt on repeated selection",
+        "firstStatus": "failed",
+        "classification": "TEST_READY_ACT_FIXTURE",
+        "finalStatus": "passed"
+      },
+      {
+        "file": "src/views/WorkflowRequirementView.spec.ts",
+        "fullName": "requirement canvas does not dismiss a node with an unknown operation receipt, even when Escape or blank canvas is used",
+        "firstStatus": "failed",
+        "classification": "TEST_READY_ACT_FIXTURE",
+        "finalStatus": "passed"
+      },
+      {
+        "file": "src/pages/w2/core/pages.spec.tsx",
+        "fullName": "actual React Settings sections/defaults/independent credentials retains section edits, reveals validation blockers and keeps roles outside the save form",
+        "firstStatus": "failed",
+        "classification": "PRODUCT_READONLY_ENTRY_REGRESSION",
+        "finalStatus": "passed"
+      },
+      {
+        "file": "src/pages/w2/core/pages.spec.tsx",
+        "fullName": "actual React Settings sections/defaults/independent credentials preserves all limit controls with conditional duration policy and explicit catalog-qualified model saving",
+        "firstStatus": "failed",
+        "classification": "PRODUCT_READONLY_ENTRY_REGRESSION",
+        "finalStatus": "passed"
+      },
+      {
+        "file": "src/pages/w2/core/pages.spec.tsx",
+        "fullName": "actual React Settings sections/defaults/independent credentials makes every advanced runtime/model/retry/publication field reachable without automatic save",
+        "firstStatus": "failed",
+        "classification": "PRODUCT_READONLY_ENTRY_REGRESSION",
+        "finalStatus": "passed"
+      },
+      {
+        "file": "src/pages/w2/core/pages.spec.tsx",
+        "fullName": "actual React Settings sections/defaults/independent credentials independently saves/tests Git accounts without settings PUT or leaking stored secrets",
+        "firstStatus": "failed",
+        "classification": "PRODUCT_READONLY_ENTRY_REGRESSION",
+        "finalStatus": "passed"
+      },
+      {
+        "file": "src/pages/w2/core/pages.spec.tsx",
+        "fullName": "actual React Settings sections/defaults/independent credentials toggles demo via the same owner and reports definitive save failure while retaining editable draft",
+        "firstStatus": "failed",
+        "classification": "PRODUCT_READONLY_ENTRY_REGRESSION",
+        "finalStatus": "passed"
+      }
+    ],
+    "rawJsonSha256": "5cf3bf3108050e13f4dbf5a6504e5cefa6c2fc0227e0ea1fb53e01cbcbcd6338"
+  },
+  "firstBrowserExceptions": [
+    {
+      "file": "home.spec.ts",
+      "title": "默认主页、需求与流程入口、品牌返回、后退与刷新",
+      "firstStatuses": [
+        "timedOut"
+      ],
+      "executed": true,
+      "classification": "DIAGNOSTIC_LOAD_TIMEOUT",
+      "finalResult": {
+        "status": "expected",
+        "attemptStatuses": [
+          "passed"
+        ],
+        "retryNumbers": [
+          0
+        ]
+      }
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "spdb readonly stages 1440px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "firstStatuses": [
+        "timedOut"
+      ],
+      "executed": true,
+      "classification": "DIAGNOSTIC_LOAD_TIMEOUT",
+      "finalResult": {
+        "status": "expected",
+        "attemptStatuses": [
+          "passed"
+        ],
+        "retryNumbers": [
+          0
+        ]
+      }
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "spdb readonly template-progress 1440px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "firstStatuses": [
+        "timedOut"
+      ],
+      "executed": true,
+      "classification": "DIAGNOSTIC_LOAD_TIMEOUT",
+      "finalResult": {
+        "status": "expected",
+        "attemptStatuses": [
+          "passed"
+        ],
+        "retryNumbers": [
+          0
+        ]
+      }
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "tech-blue readonly stages 1440px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "firstStatuses": [
+        "timedOut"
+      ],
+      "executed": true,
+      "classification": "DIAGNOSTIC_LOAD_TIMEOUT",
+      "finalResult": {
+        "status": "expected",
+        "attemptStatuses": [
+          "passed"
+        ],
+        "retryNumbers": [
+          0
+        ]
+      }
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "tech-blue readonly template-progress 1440px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "firstStatuses": [
+        "timedOut"
+      ],
+      "executed": true,
+      "classification": "DIAGNOSTIC_LOAD_TIMEOUT",
+      "finalResult": {
+        "status": "expected",
+        "attemptStatuses": [
+          "passed"
+        ],
+        "retryNumbers": [
+          0
+        ]
+      }
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "github-white readonly stages 1440px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "firstStatuses": [
+        "timedOut"
+      ],
+      "executed": true,
+      "classification": "DIAGNOSTIC_LOAD_TIMEOUT",
+      "finalResult": {
+        "status": "expected",
+        "attemptStatuses": [
+          "passed"
+        ],
+        "retryNumbers": [
+          0
+        ]
+      }
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "github-white readonly template-progress 1440px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "firstStatuses": [
+        "timedOut"
+      ],
+      "executed": true,
+      "classification": "DIAGNOSTIC_LOAD_TIMEOUT",
+      "finalResult": {
+        "status": "expected",
+        "attemptStatuses": [
+          "passed"
+        ],
+        "retryNumbers": [
+          0
+        ]
+      }
+    },
+    {
+      "file": "react-workflow-review.spec.ts",
+      "title": "Requirement 未知确认回执保留原请求，改画布偏好后恢复再安全进入兼容画布（模拟数据）",
+      "firstStatuses": [
+        "interrupted"
+      ],
+      "executed": true,
+      "classification": "INTERRUPTED",
+      "finalResult": {
+        "status": "expected",
+        "attemptStatuses": [
+          "passed"
+        ],
+        "retryNumbers": [
+          0
+        ]
+      }
+    },
+    {
+      "file": "roles.spec.ts",
+      "title": "深层路由、静态模板、历史版本与差异在重载后可重新查看",
+      "firstStatuses": [],
+      "executed": false,
+      "classification": "NOT_RUN",
+      "finalResult": {
+        "status": "expected",
+        "attemptStatuses": [
+          "passed"
+        ],
+        "retryNumbers": [
+          0
+        ]
+      }
+    },
+    {
+      "file": "roles.spec.ts",
+      "title": "导入失败保留 ZIP，绑定冲突后重新校验并使用新的预期版本发布",
+      "firstStatuses": [],
+      "executed": false,
+      "classification": "NOT_RUN",
+      "finalResult": {
+        "status": "expected",
+        "attemptStatuses": [
+          "passed"
+        ],
+        "retryNumbers": [
+          0
+        ]
+      }
+    },
+    {
+      "file": "roles.spec.ts",
+      "title": "角色列表无网络时可重试，空结果与未选角色有明确状态",
+      "firstStatuses": [],
+      "executed": false,
+      "classification": "NOT_RUN",
+      "finalResult": {
+        "status": "expected",
+        "attemptStatuses": [
+          "passed"
+        ],
+        "retryNumbers": [
+          0
+        ]
+      }
+    },
+    {
+      "file": "roles.spec.ts",
+      "title": "spdb 1440px 角色权限预估可读且布局不重叠",
+      "firstStatuses": [],
+      "executed": false,
+      "classification": "NOT_RUN",
+      "finalResult": {
+        "status": "expected",
+        "attemptStatuses": [
+          "passed"
+        ],
+        "retryNumbers": [
+          0
+        ]
+      }
+    },
+    {
+      "file": "roles.spec.ts",
+      "title": "tech-blue 1440px 角色权限预估可读且布局不重叠",
+      "firstStatuses": [],
+      "executed": false,
+      "classification": "NOT_RUN",
+      "finalResult": {
+        "status": "expected",
+        "attemptStatuses": [
+          "passed"
+        ],
+        "retryNumbers": [
+          0
+        ]
+      }
+    },
+    {
+      "file": "roles.spec.ts",
+      "title": "github-white 1440px 角色权限预估可读且布局不重叠",
+      "firstStatuses": [],
+      "executed": false,
+      "classification": "NOT_RUN",
+      "finalResult": {
+        "status": "expected",
+        "attemptStatuses": [
+          "passed"
+        ],
+        "retryNumbers": [
+          0
+        ]
+      }
+    },
+    {
+      "file": "roles.spec.ts",
+      "title": "桌面双栏独立滚动且分页常驻，工具权限可各自折叠",
+      "firstStatuses": [],
+      "executed": false,
+      "classification": "NOT_RUN",
+      "finalResult": {
+        "status": "expected",
+        "attemptStatuses": [
+          "passed"
+        ],
+        "retryNumbers": [
+          0
+        ]
+      }
+    },
+    {
+      "file": "roles.spec.ts",
+      "title": "spdb 角色流程采用真实ReactFlow且版本入口可达（模拟数据）",
+      "firstStatuses": [],
+      "executed": false,
+      "classification": "NOT_RUN",
+      "finalResult": {
+        "status": "expected",
+        "attemptStatuses": [
+          "passed"
+        ],
+        "retryNumbers": [
+          0
+        ]
+      }
+    },
+    {
+      "file": "roles.spec.ts",
+      "title": "tech-blue 角色流程采用真实ReactFlow且版本入口可达（模拟数据）",
+      "firstStatuses": [],
+      "executed": false,
+      "classification": "NOT_RUN",
+      "finalResult": {
+        "status": "expected",
+        "attemptStatuses": [
+          "passed"
+        ],
+        "retryNumbers": [
+          0
+        ]
+      }
+    },
+    {
+      "file": "roles.spec.ts",
+      "title": "github-white 角色流程采用真实ReactFlow且版本入口可达（模拟数据）",
+      "firstStatuses": [],
+      "executed": false,
+      "classification": "NOT_RUN",
+      "finalResult": {
+        "status": "expected",
+        "attemptStatuses": [
+          "passed"
+        ],
+        "retryNumbers": [
+          0
+        ]
+      }
+    },
+    {
+      "file": "skills.spec.ts",
+      "title": "工具与 Skill 分页、按需阅读、安全预览和项目切换",
+      "firstStatuses": [],
+      "executed": false,
+      "classification": "NOT_RUN",
+      "finalResult": {
+        "status": "expected",
+        "attemptStatuses": [
+          "passed"
+        ],
+        "retryNumbers": [
+          0
+        ]
+      }
+    },
+    {
+      "file": "skins.spec.ts",
+      "title": "主页选择、刷新、深层页面与同源标签同步，非法保存值安全恢复",
+      "firstStatuses": [],
+      "executed": false,
+      "classification": "NOT_RUN",
+      "finalResult": {
+        "status": "expected",
+        "attemptStatuses": [
+          "passed"
+        ],
+        "retryNumbers": [
+          0
+        ]
+      }
+    },
+    {
+      "file": "skins.spec.ts",
+      "title": "spdb 选择在刷新与同源标签恢复，清空保存值回到新默认",
+      "firstStatuses": [],
+      "executed": false,
+      "classification": "NOT_RUN",
+      "finalResult": {
+        "status": "expected",
+        "attemptStatuses": [
+          "passed"
+        ],
+        "retryNumbers": [
+          0
+        ]
+      }
+    },
+    {
+      "file": "skins.spec.ts",
+      "title": "spdb 主页 1440px 皮肤与离线布局",
+      "firstStatuses": [],
+      "executed": false,
+      "classification": "NOT_RUN",
+      "finalResult": {
+        "status": "expected",
+        "attemptStatuses": [
+          "passed"
+        ],
+        "retryNumbers": [
+          0
+        ]
+      }
+    },
+    {
+      "file": "skins.spec.ts",
+      "title": "spdb 主页 1280px 皮肤与离线布局",
+      "firstStatuses": [],
+      "executed": false,
+      "classification": "NOT_RUN",
+      "finalResult": {
+        "status": "expected",
+        "attemptStatuses": [
+          "passed"
+        ],
+        "retryNumbers": [
+          0
+        ]
+      }
+    },
+    {
+      "file": "skins.spec.ts",
+      "title": "spdb 控件、弹层、代码与流程图一致并保持输入",
+      "firstStatuses": [],
+      "executed": false,
+      "classification": "NOT_RUN",
+      "finalResult": {
+        "status": "expected",
+        "attemptStatuses": [
+          "passed"
+        ],
+        "retryNumbers": [
+          0
+        ]
+      }
+    },
+    {
+      "file": "skins.spec.ts",
+      "title": "tech-blue 主页 1440px 皮肤与离线布局",
+      "firstStatuses": [],
+      "executed": false,
+      "classification": "NOT_RUN",
+      "finalResult": {
+        "status": "expected",
+        "attemptStatuses": [
+          "passed"
+        ],
+        "retryNumbers": [
+          0
+        ]
+      }
+    },
+    {
+      "file": "skins.spec.ts",
+      "title": "tech-blue 主页 1280px 皮肤与离线布局",
+      "firstStatuses": [],
+      "executed": false,
+      "classification": "NOT_RUN",
+      "finalResult": {
+        "status": "expected",
+        "attemptStatuses": [
+          "passed"
+        ],
+        "retryNumbers": [
+          0
+        ]
+      }
+    },
+    {
+      "file": "skins.spec.ts",
+      "title": "tech-blue 控件、弹层、代码与流程图一致并保持输入",
+      "firstStatuses": [],
+      "executed": false,
+      "classification": "NOT_RUN",
+      "finalResult": {
+        "status": "expected",
+        "attemptStatuses": [
+          "passed"
+        ],
+        "retryNumbers": [
+          0
+        ]
+      }
+    },
+    {
+      "file": "skins.spec.ts",
+      "title": "github-white 主页 1440px 皮肤与离线布局",
+      "firstStatuses": [],
+      "executed": false,
+      "classification": "NOT_RUN",
+      "finalResult": {
+        "status": "expected",
+        "attemptStatuses": [
+          "passed"
+        ],
+        "retryNumbers": [
+          0
+        ]
+      }
+    },
+    {
+      "file": "skins.spec.ts",
+      "title": "github-white 主页 1280px 皮肤与离线布局",
+      "firstStatuses": [],
+      "executed": false,
+      "classification": "NOT_RUN",
+      "finalResult": {
+        "status": "expected",
+        "attemptStatuses": [
+          "passed"
+        ],
+        "retryNumbers": [
+          0
+        ]
+      }
+    },
+    {
+      "file": "skins.spec.ts",
+      "title": "github-white 控件、弹层、代码与流程图一致并保持输入",
+      "firstStatuses": [],
+      "executed": false,
+      "classification": "NOT_RUN",
+      "finalResult": {
+        "status": "expected",
+        "attemptStatuses": [
+          "passed"
+        ],
+        "retryNumbers": [
+          0
+        ]
+      }
+    },
+    {
+      "file": "story-accounting.spec.ts",
+      "title": "统计事件打开弹窗，空闲和结束后不轮询，重连恢复未关闭结果",
+      "firstStatuses": [],
+      "executed": false,
+      "classification": "NOT_RUN",
+      "finalResult": {
+        "status": "expected",
+        "attemptStatuses": [
+          "passed"
+        ],
+        "retryNumbers": [
+          0
+        ]
+      }
+    },
+    {
+      "file": "workflow-authoring.spec.ts",
+      "title": "专业编写、复核和文档汇总绑定同版源码，自定义规则保存重开",
+      "firstStatuses": [
+        "timedOut"
+      ],
+      "executed": true,
+      "classification": "DIAGNOSTIC_LOAD_TIMEOUT",
+      "finalResult": {
+        "status": "expected",
+        "attemptStatuses": [
+          "passed"
+        ],
+        "retryNumbers": [
+          0
+        ]
+      }
+    }
+  ],
+  "diagnosticBrowserTimeoutCases": 8,
+  "finalPlaywrightRetries": 0,
+  "explanation": "首批有4个并发Chrome和并发unit/build，环境仅4CPU。8个浏览器原30s超时的相关E2E源码未因超时修改；最终最多2Chrome、unit/build先完成，原完整测试一次通过。保留首错，按诊断负载波动记录，不宣称绝不再波动。原始trace/log保持仓库外；中断1/未跑23不是测试skip。"
+}

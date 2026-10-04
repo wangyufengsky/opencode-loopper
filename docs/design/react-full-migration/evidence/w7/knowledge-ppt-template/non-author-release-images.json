@@ -1,0 +1,1455 @@
+{
+  "stage": "Final release non-author pixels/actions review; source d1a38dd, no implementation edits",
+  "sourceSha256": "d1a38dd1471e5c5d0d23aeafa845c7494d3bc30e2d5875dd37c24e9faded596d",
+  "reviewer": "B independently reviewed Workflow A / Designer C / Roles root pixels and action evidence; B-authored Requirements images explicitly marked self-source inspection",
+  "producerRaw": "/workspace/react-full-w7-evidence/release/legacy/lead.json",
+  "producerRawSha256": "716203b2fd2a10278d7237f12d244c3445e4ad42f82d6cd190dbffcd2003dc31",
+  "producerResult": {
+    "startTime": "2026-10-04T03:28:01.324Z",
+    "duration": 355391.79,
+    "expected": 88,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "images": [
+    {
+      "title": "spdb 1440px 角色权限预估可读且布局不重叠",
+      "testStatus": "expected",
+      "attempts": 1,
+      "retry": 0,
+      "attachment": "/workspace/react-full-w7-evidence/release/legacy/lead-results/roles-spdb-1440px-角色权限预估可读且布局不重叠-w7-legacy-desktop-chromium/attachments/角色页视觉证据-e2038fe594684cf348e04c64d793bab83d988fb1.png",
+      "viewedImage": "/workspace/react-full-w7-evidence/release/legacy/lead-results/roles-spdb-1440px-角色权限预估可读且布局不重叠-w7-legacy-desktop-chromium/roles-spdb-1440.png",
+      "sha256": "6715a80870617929e009b4e4c7ee1bf5544f314d816a91cc23470558143a20d8",
+      "width": 1440,
+      "height": 925,
+      "pixelReview": "Selected role title, latest version2, actual permissions/MCP tools with two configured and two runtime-pending items, visible catalogue search/pagination and separate right context. Three skin contrast readable; no text/button overlap in shown pixels. Actual tool identifier appears only in explicitly disclosed MCP detail."
+    },
+    {
+      "title": "tech-blue 1440px 角色权限预估可读且布局不重叠",
+      "testStatus": "expected",
+      "attempts": 1,
+      "retry": 0,
+      "attachment": "/workspace/react-full-w7-evidence/release/legacy/lead-results/roles-tech-blue-1440px-角色权限预估可读且布局不重叠-w7-legacy-desktop-chromium/attachments/角色页视觉证据-4fbb9bf0b9b2c012c4a0c01117a38e7f0403950e.png",
+      "viewedImage": "/workspace/react-full-w7-evidence/release/legacy/lead-results/roles-tech-blue-1440px-角色权限预估可读且布局不重叠-w7-legacy-desktop-chromium/roles-tech-blue-1440.png",
+      "sha256": "9de76ca2d490e005ac504866b39ac89c02fffa273472fad9dc1c894aae7f83ae",
+      "width": 1440,
+      "height": 925,
+      "pixelReview": "Selected role title, latest version2, actual permissions/MCP tools with two configured and two runtime-pending items, visible catalogue search/pagination and separate right context. Three skin contrast readable; no text/button overlap in shown pixels. Actual tool identifier appears only in explicitly disclosed MCP detail."
+    },
+    {
+      "title": "github-white 1440px 角色权限预估可读且布局不重叠",
+      "testStatus": "expected",
+      "attempts": 1,
+      "retry": 0,
+      "attachment": "/workspace/react-full-w7-evidence/release/legacy/lead-results/roles-github-white-1440px-角色权限预估可读且布局不重叠-w7-legacy-desktop-chromium/attachments/角色页视觉证据-c746108ea13d17b556f638908dfd39b7216f6f96.png",
+      "viewedImage": "/workspace/react-full-w7-evidence/release/legacy/lead-results/roles-github-white-1440px-角色权限预估可读且布局不重叠-w7-legacy-desktop-chromium/roles-github-white-1440.png",
+      "sha256": "5b7bf38400ebb97a343e21fe11fb13f5cd6a81d056e58aaa388f433088246886",
+      "width": 1440,
+      "height": 925,
+      "pixelReview": "Selected role title, latest version2, actual permissions/MCP tools with two configured and two runtime-pending items, visible catalogue search/pagination and separate right context. Three skin contrast readable; no text/button overlap in shown pixels. Actual tool identifier appears only in explicitly disclosed MCP detail."
+    }
+  ],
+  "limitations": [
+    "Actually viewed three Role, nine W6 default, and all30 W5 images. W5 includes12 B-authored Requirement images that are not non-author source review; no all31-route/every-state screenshot claim.",
+    "B did not rerun the parent88 browser cases. Their PASS and retry0 are read from actual parent JSON.",
+    "Visual reading does not establish scrolling interaction, command/File/identity, unseen content or strict resource cleanup; those require separate actual behavior/raw.",
+    "Ledger target identity accounting is not heap/GC evidence.",
+    "A-results database image files without current matching JSON attachment provenance were not promoted as release images."
+  ],
+  "finalW6RouteImages": {
+    "raw": "/workspace/react-full-w7-evidence/release/w6/browser.json",
+    "rawSha256": "5fe3ce05970dc583aaa176efeba40001697ed5f4ed9311f56566e6662c89a33b",
+    "producerResult": {
+      "startTime": "2026-10-04T03:38:32.212Z",
+      "duration": 191320.572,
+      "expected": 97,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "errors": [],
+    "bundleBeforeAfterEqual": true,
+    "bundleFiles": 127,
+    "currentBundleMismatches": [],
+    "bundleBeforeSha256": "1d6ba19446ab3f99147430fbef5c20f33b9dbc69d47548dfcf52206c608a3d72",
+    "bundleAfterSha256": "1d6ba19446ab3f99147430fbef5c20f33b9dbc69d47548dfcf52206c608a3d72",
+    "images": [
+      {
+        "skin": "spdb",
+        "kind": "workflow",
+        "image": "/workspace/react-full-w7-evidence/release/w6/evidence/spdb-workflow.png",
+        "sha256": "5e65934c5330c140ef516ee075cca7018cfe55cefd20bcb78ac335f0b0dea9fa",
+        "width": 1440,
+        "height": 1000,
+        "readOnlyRouteRecord": "/workspace/react-full-w7-evidence/release/w6/evidence/spdb-workflow.json",
+        "routeRecordSha256": "219bfa6844c800e05493cc7418d4bedf5595860426b00e4361cc5fe6df6748a5",
+        "routeRecord": {
+          "path": "/workflows/w5-flow",
+          "expected": "/workflows/w5-flow",
+          "desktop": {
+            "width": 1440,
+            "height": 1000
+          },
+          "actualRuntime": "react",
+          "readOnlyTransport": true,
+          "errors": []
+        },
+        "pixelReview": "Default actual WorkflowCanvas: two styled human nodes and one unfilled curved edge, control zoom100%, copyright, graph2/layout4 labels, own full-screen workflow toolbar. No selected context in this image. Shown labels/buttons remain readable and non-overlapping in this skin."
+      },
+      {
+        "skin": "spdb",
+        "kind": "designer",
+        "image": "/workspace/react-full-w7-evidence/release/w6/evidence/spdb-designer.png",
+        "sha256": "a01fe0f79d3efa78200b3ff3fccf20312a7971b6ec9ab0b3e318a927f04fcc02",
+        "width": 1440,
+        "height": 1000,
+        "readOnlyRouteRecord": "/workspace/react-full-w7-evidence/release/w6/evidence/spdb-designer.json",
+        "routeRecordSha256": "64c0ca7d0ae994b0ba0b8e8f723b06207b1bec61ad84f92899be3c05efaa8d4f",
+        "routeRecord": {
+          "path": "/designer?sessionId=w5-session",
+          "expected": "/designer?sessionId=w5-session",
+          "desktop": {
+            "width": 1440,
+            "height": 1000
+          },
+          "actualRuntime": "react",
+          "readOnlyTransport": true,
+          "errors": []
+        },
+        "pixelReview": "Default actual Designer discussion: latest discussion/status, Chinese task settings and automatic-mode entries, safe draft textarea, original local File picker and disabled empty-send. Native Chromium File picker English is platform UI. No selection or pending operation in this image. Shown labels/buttons remain readable and non-overlapping in this skin."
+      },
+      {
+        "skin": "spdb",
+        "kind": "task",
+        "image": "/workspace/react-full-w7-evidence/release/w6/evidence/spdb-task.png",
+        "sha256": "067d455a1eb06b07b835589c994876b03404b53c091daef53f8644d2e725a7f5",
+        "width": 1440,
+        "height": 1000,
+        "readOnlyRouteRecord": "/workspace/react-full-w7-evidence/release/w6/evidence/spdb-task.json",
+        "routeRecordSha256": "ffa7147b80331fe8c86ea4f5e72234be5e21aa09226b64670e17eac80606e380",
+        "routeRecord": {
+          "path": "/tasks/w4-task",
+          "expected": "/tasks/w4-task",
+          "desktop": {
+            "width": 1440,
+            "height": 1000
+          },
+          "actualRuntime": "react",
+          "readOnlyTransport": true,
+          "errors": []
+        },
+        "pixelReview": "Default actual RUNNING Task summary: pause/cancel and design-history entries, explicit six detail selectors, sidebar and skin switch. This RUNNING sample does not prove FAILED projection or modal overlays. Shown labels/buttons remain readable and non-overlapping in this skin."
+      },
+      {
+        "skin": "tech-blue",
+        "kind": "workflow",
+        "image": "/workspace/react-full-w7-evidence/release/w6/evidence/tech-blue-workflow.png",
+        "sha256": "61917c9a57c14c3399046d2a47950e76e1b2d8ff38556c5758466a9626e4dc35",
+        "width": 1440,
+        "height": 1000,
+        "readOnlyRouteRecord": "/workspace/react-full-w7-evidence/release/w6/evidence/tech-blue-workflow.json",
+        "routeRecordSha256": "219bfa6844c800e05493cc7418d4bedf5595860426b00e4361cc5fe6df6748a5",
+        "routeRecord": {
+          "path": "/workflows/w5-flow",
+          "expected": "/workflows/w5-flow",
+          "desktop": {
+            "width": 1440,
+            "height": 1000
+          },
+          "actualRuntime": "react",
+          "readOnlyTransport": true,
+          "errors": []
+        },
+        "pixelReview": "Default actual WorkflowCanvas: two styled human nodes and one unfilled curved edge, control zoom100%, copyright, graph2/layout4 labels, own full-screen workflow toolbar. No selected context in this image. Shown labels/buttons remain readable and non-overlapping in this skin."
+      },
+      {
+        "skin": "tech-blue",
+        "kind": "designer",
+        "image": "/workspace/react-full-w7-evidence/release/w6/evidence/tech-blue-designer.png",
+        "sha256": "6dcabf717a6fb1769a31f2e3d73e3568dbe0625effe9f5ccd819aee93d23102d",
+        "width": 1440,
+        "height": 1000,
+        "readOnlyRouteRecord": "/workspace/react-full-w7-evidence/release/w6/evidence/tech-blue-designer.json",
+        "routeRecordSha256": "64c0ca7d0ae994b0ba0b8e8f723b06207b1bec61ad84f92899be3c05efaa8d4f",
+        "routeRecord": {
+          "path": "/designer?sessionId=w5-session",
+          "expected": "/designer?sessionId=w5-session",
+          "desktop": {
+            "width": 1440,
+            "height": 1000
+          },
+          "actualRuntime": "react",
+          "readOnlyTransport": true,
+          "errors": []
+        },
+        "pixelReview": "Default actual Designer discussion: latest discussion/status, Chinese task settings and automatic-mode entries, safe draft textarea, original local File picker and disabled empty-send. Native Chromium File picker English is platform UI. No selection or pending operation in this image. Shown labels/buttons remain readable and non-overlapping in this skin."
+      },
+      {
+        "skin": "tech-blue",
+        "kind": "task",
+        "image": "/workspace/react-full-w7-evidence/release/w6/evidence/tech-blue-task.png",
+        "sha256": "bf5d72519e3682b65da4809843c6a65e6e871920c28427efa13fad1bc6ee37ae",
+        "width": 1440,
+        "height": 1000,
+        "readOnlyRouteRecord": "/workspace/react-full-w7-evidence/release/w6/evidence/tech-blue-task.json",
+        "routeRecordSha256": "ffa7147b80331fe8c86ea4f5e72234be5e21aa09226b64670e17eac80606e380",
+        "routeRecord": {
+          "path": "/tasks/w4-task",
+          "expected": "/tasks/w4-task",
+          "desktop": {
+            "width": 1440,
+            "height": 1000
+          },
+          "actualRuntime": "react",
+          "readOnlyTransport": true,
+          "errors": []
+        },
+        "pixelReview": "Default actual RUNNING Task summary: pause/cancel and design-history entries, explicit six detail selectors, sidebar and skin switch. This RUNNING sample does not prove FAILED projection or modal overlays. Shown labels/buttons remain readable and non-overlapping in this skin."
+      },
+      {
+        "skin": "github-white",
+        "kind": "workflow",
+        "image": "/workspace/react-full-w7-evidence/release/w6/evidence/github-white-workflow.png",
+        "sha256": "c88efb572ddf37bf4f95440fe29d5ca96f3c42af033f70220e9c51faa4da59c0",
+        "width": 1440,
+        "height": 1000,
+        "readOnlyRouteRecord": "/workspace/react-full-w7-evidence/release/w6/evidence/github-white-workflow.json",
+        "routeRecordSha256": "219bfa6844c800e05493cc7418d4bedf5595860426b00e4361cc5fe6df6748a5",
+        "routeRecord": {
+          "path": "/workflows/w5-flow",
+          "expected": "/workflows/w5-flow",
+          "desktop": {
+            "width": 1440,
+            "height": 1000
+          },
+          "actualRuntime": "react",
+          "readOnlyTransport": true,
+          "errors": []
+        },
+        "pixelReview": "Default actual WorkflowCanvas: two styled human nodes and one unfilled curved edge, control zoom100%, copyright, graph2/layout4 labels, own full-screen workflow toolbar. No selected context in this image. Shown labels/buttons remain readable and non-overlapping in this skin."
+      },
+      {
+        "skin": "github-white",
+        "kind": "designer",
+        "image": "/workspace/react-full-w7-evidence/release/w6/evidence/github-white-designer.png",
+        "sha256": "07f3356f48cee1d387476a40ac4cd92f9ba0b6eaed274bcf20395b98c8bb84ba",
+        "width": 1440,
+        "height": 1000,
+        "readOnlyRouteRecord": "/workspace/react-full-w7-evidence/release/w6/evidence/github-white-designer.json",
+        "routeRecordSha256": "64c0ca7d0ae994b0ba0b8e8f723b06207b1bec61ad84f92899be3c05efaa8d4f",
+        "routeRecord": {
+          "path": "/designer?sessionId=w5-session",
+          "expected": "/designer?sessionId=w5-session",
+          "desktop": {
+            "width": 1440,
+            "height": 1000
+          },
+          "actualRuntime": "react",
+          "readOnlyTransport": true,
+          "errors": []
+        },
+        "pixelReview": "Default actual Designer discussion: latest discussion/status, Chinese task settings and automatic-mode entries, safe draft textarea, original local File picker and disabled empty-send. Native Chromium File picker English is platform UI. No selection or pending operation in this image. Shown labels/buttons remain readable and non-overlapping in this skin."
+      },
+      {
+        "skin": "github-white",
+        "kind": "task",
+        "image": "/workspace/react-full-w7-evidence/release/w6/evidence/github-white-task.png",
+        "sha256": "c2ed791c3117ccd1c7ebd67b17d6a29b8e4b732f4a665519acbf8e2db6f06909",
+        "width": 1440,
+        "height": 1000,
+        "readOnlyRouteRecord": "/workspace/react-full-w7-evidence/release/w6/evidence/github-white-task.json",
+        "routeRecordSha256": "ffa7147b80331fe8c86ea4f5e72234be5e21aa09226b64670e17eac80606e380",
+        "routeRecord": {
+          "path": "/tasks/w4-task",
+          "expected": "/tasks/w4-task",
+          "desktop": {
+            "width": 1440,
+            "height": 1000
+          },
+          "actualRuntime": "react",
+          "readOnlyTransport": true,
+          "errors": []
+        },
+        "pixelReview": "Default actual RUNNING Task summary: pause/cancel and design-history entries, explicit six detail selectors, sidebar and skin switch. This RUNNING sample does not prove FAILED projection or modal overlays. Shown labels/buttons remain readable and non-overlapping in this skin."
+      }
+    ],
+    "reviewedCount": 9,
+    "method": "B independently viewed these nine existing producer PNGs and read current actual route metadata/bundle/raw. B did not execute A97. Source freeze remains release d1a38dd."
+  },
+  "finalW5Review": {
+    "sourceSha256": "d1a38dd1471e5c5d0d23aeafa845c7494d3bc30e2d5875dd37c24e9faded596d",
+    "producer": "C executed W5 final49; B read actual result and viewed30 images, did not rerun49",
+    "raw": "/workspace/react-full-w7-evidence/release/w5/browser.json",
+    "rawSha256": "aafd0d1dc3a19edd65024d1f45170bbdf0d4b81e926d538c9f271dbcc0e29427",
+    "stats": {
+      "startTime": "2026-10-04T03:41:48.840Z",
+      "duration": 117224.34599999999,
+      "expected": 49,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "errors": [],
+    "images": [
+      {
+        "skin": "github-white",
+        "kind": "designer-default",
+        "route": "/designer?sessionId=w5-session",
+        "image": "/workspace/react-full-w7-evidence/release/w5/evidence/github-white-designer-default.png",
+        "sha256": "87e336b8b66f5056999028de28b191236e356283257cb095c968ffac9341a158",
+        "width": 1440,
+        "height": 1000,
+        "stability": "/workspace/react-full-w7-evidence/release/w5/evidence/github-white-designer-default.stability.json",
+        "stabilitySha256": "ed115ecd93d7c91775e8817ab0f9c4f74754640bd02a77f66f3b1a11a4545b5e",
+        "exactConsecutiveBuffers": true,
+        "actualViewImage": true,
+        "sourceReviewRelation": "Non-author Workflow A / Designer C source review",
+        "pixelReview": "Explicit existing mock discussion with task settings/view/auto-mode entries and empty message+native local File picker; empty send disabled. Native Chromium File picker English is platform UI. Mock status is not an execution-success proof."
+      },
+      {
+        "skin": "github-white",
+        "kind": "requirement-new-default",
+        "route": "/requirements/new",
+        "image": "/workspace/react-full-w7-evidence/release/w5/evidence/github-white-requirement-new-default.png",
+        "sha256": "f864e17f6d1f8cf50386a97c48024c6faaffcbcc4eaa75e5fba9e2ba3dbd131b",
+        "width": 1440,
+        "height": 1000,
+        "stability": "/workspace/react-full-w7-evidence/release/w5/evidence/github-white-requirement-new-default.stability.json",
+        "stabilitySha256": "50113f9f003091652a9f8e7c430cacd5aff32a27655f9850b1025ca6756972a1",
+        "exactConsecutiveBuffers": true,
+        "actualViewImage": true,
+        "sourceReviewRelation": "B-authored Requirements; self-source pixel check only",
+        "pixelReview": "Exactly four ordinary business fields (project, workflow, title, objective), no upload; initially missing project/title keeps create disabled. Chinese names and selected nav readable in all three skins."
+      },
+      {
+        "skin": "github-white",
+        "kind": "requirement-new-unknown",
+        "route": "/requirements/new",
+        "image": "/workspace/react-full-w7-evidence/release/w5/evidence/github-white-requirement-new-unknown.png",
+        "sha256": "a7ca0a831af5e34c3d6579e53102442684f8c4e1af5b4ee1ae30bf7af2908a32",
+        "width": 1440,
+        "height": 1000,
+        "stability": "/workspace/react-full-w7-evidence/release/w5/evidence/github-white-requirement-new-unknown.stability.json",
+        "stabilitySha256": "6e639e48e3637e51669f0c8a120fa3a323bf30ab813150551f4825a1c16083c5",
+        "exactConsecutiveBuffers": true,
+        "actualViewImage": true,
+        "sourceReviewRelation": "B-authored Requirements; self-source pixel check only",
+        "pixelReview": "Unknown creation reason and explicit original-retry remain visible; original four fields retained and ordinary creation/selection disabled. Skin selector remains accessible. No bytes/key equality follows from this still; actual transport raw is separate."
+      },
+      {
+        "skin": "github-white",
+        "kind": "requirement-plan-default",
+        "route": "/requirements/w5-req",
+        "image": "/workspace/react-full-w7-evidence/release/w5/evidence/github-white-requirement-plan-default.png",
+        "sha256": "af8b93c4100c3ee023744658d123140e90e0f37d8254e1f18033d8481a08748f",
+        "width": 1440,
+        "height": 1000,
+        "stability": "/workspace/react-full-w7-evidence/release/w5/evidence/github-white-requirement-plan-default.stability.json",
+        "stabilitySha256": "5190fac1e4c9d8af8a780aee3c9d89a27139d7657f7033057b36826d47ae07dd",
+        "exactConsecutiveBuffers": true,
+        "actualViewImage": true,
+        "sourceReviewRelation": "B-authored Requirements; self-source pixel check only",
+        "pixelReview": "Plan revision2 and two not-started human nodes; add/find/resources/save/confirm actions visible, unfilled edges and view controls inside desktop canvas. Two visible Refresh labels are not inferred to be different command permissions."
+      },
+      {
+        "skin": "github-white",
+        "kind": "requirement-plan-selected",
+        "route": "/requirements/w5-req",
+        "image": "/workspace/react-full-w7-evidence/release/w5/evidence/github-white-requirement-plan-selected.png",
+        "sha256": "acb74574bc70cf36e74d659ab8888d0fe14cea0049ff32e34bd8f4b0f957b92d",
+        "width": 1440,
+        "height": 1000,
+        "stability": "/workspace/react-full-w7-evidence/release/w5/evidence/github-white-requirement-plan-selected.stability.json",
+        "stabilitySha256": "ff32194cd6888779a0840c7cd1a4aad042ab3da5706aeeeea34d2a6d2f2cb630",
+        "exactConsecutiveBuffers": true,
+        "actualViewImage": true,
+        "sourceReviewRelation": "B-authored Requirements; self-source pixel check only",
+        "pixelReview": "Selected node right context is beside canvas and inside1440x1000 desktop; name/description/delete/advanced entry readable. This B-authored source is explicitly self-source pixel inspection, not independent implementation review."
+      },
+      {
+        "skin": "github-white",
+        "kind": "workflow-edit-default",
+        "route": "/workflows/w5-flow",
+        "image": "/workspace/react-full-w7-evidence/release/w5/evidence/github-white-workflow-edit-default.png",
+        "sha256": "1b91bdd820482a0fb859be4e50823ea39e6cf1ac712b65a849056cb1b406c95e",
+        "width": 1440,
+        "height": 1000,
+        "stability": "/workspace/react-full-w7-evidence/release/w5/evidence/github-white-workflow-edit-default.stability.json",
+        "stabilitySha256": "83519897d815788382b5647d0e31a89146f9da09d593abd5e1159b38c37dc051",
+        "exactConsecutiveBuffers": true,
+        "actualViewImage": true,
+        "sourceReviewRelation": "Non-author Workflow A / Designer C source review",
+        "pixelReview": "Existing Workflow shows two styled human nodes, one unfilled edge, graph2/layout4, ordinary editing/view controls and visible attribution; no selected advanced panel in this still."
+      },
+      {
+        "skin": "github-white",
+        "kind": "workflow-edit-selected",
+        "route": "/workflows/w5-flow",
+        "image": "/workspace/react-full-w7-evidence/release/w5/evidence/github-white-workflow-edit-selected.png",
+        "sha256": "741632bddffd9221484a75dab48e266d51c8d968098bb41ab93dfec2a651589f",
+        "width": 1440,
+        "height": 1000,
+        "stability": "/workspace/react-full-w7-evidence/release/w5/evidence/github-white-workflow-edit-selected.stability.json",
+        "stabilitySha256": "a36e10eeaac781697a7c619a49691be77e0d7b30a189317ab91379e6d22408d5",
+        "exactConsecutiveBuffers": true,
+        "actualViewImage": true,
+        "sourceReviewRelation": "Non-author Workflow A / Designer C source review",
+        "pixelReview": "Selected human node has visible ports and colored selection border; node name/description/delete and collapsed advanced settings appear in right context within desktop viewport, without hiding canvas. Advanced hidden values are not tested by pixels."
+      },
+      {
+        "skin": "github-white",
+        "kind": "workflow-new-default",
+        "route": "/workflows/new",
+        "image": "/workspace/react-full-w7-evidence/release/w5/evidence/github-white-workflow-new-default.png",
+        "sha256": "cdc38ab54bb7caac0759d63c659ed6d64ea2c3b185dfda890721fdc1eaf8598b",
+        "width": 1440,
+        "height": 1000,
+        "stability": "/workspace/react-full-w7-evidence/release/w5/evidence/github-white-workflow-new-default.stability.json",
+        "stabilitySha256": "9d8f4289662fdc90cd4422f160e92c19d977bc2f09052250e72fb6c85619e84e",
+        "exactConsecutiveBuffers": true,
+        "actualViewImage": true,
+        "sourceReviewRelation": "Non-author Workflow A / Designer C source review",
+        "pixelReview": "New Workflow empty actual ReactFlow canvas shows 0 nodes/0 edges, original add/settings/more/save and view controls; no editing/command receipt can be inferred from an empty default still."
+      },
+      {
+        "skin": "github-white",
+        "kind": "workflow-normal-connected",
+        "route": "/workflows/w5-flow",
+        "image": "/workspace/react-full-w7-evidence/release/w5/evidence/github-white-workflow-normal-connected.png",
+        "sha256": "dc38da141352eda8bbbe927216a3e7e224a2669ea95c5fa5494f35799be63229",
+        "width": 1440,
+        "height": 1000,
+        "stability": "/workspace/react-full-w7-evidence/release/w5/evidence/github-white-workflow-normal-connected.stability.json",
+        "stabilitySha256": "8122bc396461acb620069be121f63da963de9a180ac4aa71ea8bf496ef29be79",
+        "exactConsecutiveBuffers": true,
+        "actualViewImage": true,
+        "sourceReviewRelation": "Non-author Workflow A / Designer C source review",
+        "pixelReview": "Two nodes and one final connected edge, unsaved indicator and undo enabled, same visual semantics across skins. Still cannot prove trusted handle gesture, theme preservation or undo/redo; producer case explicitly asserts those."
+      },
+      {
+        "skin": "spdb",
+        "kind": "designer-default",
+        "route": "/designer?sessionId=w5-session",
+        "image": "/workspace/react-full-w7-evidence/release/w5/evidence/spdb-designer-default.png",
+        "sha256": "21ba62bdecfd3aeb95102798dadfb2fa03460e1d1c8b3cac548ee02b9b25ca30",
+        "width": 1440,
+        "height": 1000,
+        "stability": "/workspace/react-full-w7-evidence/release/w5/evidence/spdb-designer-default.stability.json",
+        "stabilitySha256": "b5871e440276aee37de8d34a2969bf492a7b8aa58283d479c2eac925e0bd2343",
+        "exactConsecutiveBuffers": true,
+        "actualViewImage": true,
+        "sourceReviewRelation": "Non-author Workflow A / Designer C source review",
+        "pixelReview": "Explicit existing mock discussion with task settings/view/auto-mode entries and empty message+native local File picker; empty send disabled. Native Chromium File picker English is platform UI. Mock status is not an execution-success proof."
+      },
+      {
+        "skin": "spdb",
+        "kind": "requirement-new-default",
+        "route": "/requirements/new",
+        "image": "/workspace/react-full-w7-evidence/release/w5/evidence/spdb-requirement-new-default.png",
+        "sha256": "3f1fed9f4a4c5e4032ff00f555e93626e14f48537692d62d2a5dd6f52ba12ae2",
+        "width": 1440,
+        "height": 1000,
+        "stability": "/workspace/react-full-w7-evidence/release/w5/evidence/spdb-requirement-new-default.stability.json",
+        "stabilitySha256": "14b2efbbdbc81c5e4326f70bc7b5ce8cc6d897d510e69b943d4f699e3f194cf8",
+        "exactConsecutiveBuffers": true,
+        "actualViewImage": true,
+        "sourceReviewRelation": "B-authored Requirements; self-source pixel check only",
+        "pixelReview": "Exactly four ordinary business fields (project, workflow, title, objective), no upload; initially missing project/title keeps create disabled. Chinese names and selected nav readable in all three skins."
+      },
+      {
+        "skin": "spdb",
+        "kind": "requirement-new-unknown",
+        "route": "/requirements/new",
+        "image": "/workspace/react-full-w7-evidence/release/w5/evidence/spdb-requirement-new-unknown.png",
+        "sha256": "976022ac580d8aa8ab2ea98383b2b251daf00bc41786aa2d40435348ae1b6e08",
+        "width": 1440,
+        "height": 1000,
+        "stability": "/workspace/react-full-w7-evidence/release/w5/evidence/spdb-requirement-new-unknown.stability.json",
+        "stabilitySha256": "f09d8d7253b889d713dcaa74a7282feaea3b959868435f11b2a23cdda2cb3398",
+        "exactConsecutiveBuffers": true,
+        "actualViewImage": true,
+        "sourceReviewRelation": "B-authored Requirements; self-source pixel check only",
+        "pixelReview": "Unknown creation reason and explicit original-retry remain visible; original four fields retained and ordinary creation/selection disabled. Skin selector remains accessible. No bytes/key equality follows from this still; actual transport raw is separate."
+      },
+      {
+        "skin": "spdb",
+        "kind": "requirement-plan-default",
+        "route": "/requirements/w5-req",
+        "image": "/workspace/react-full-w7-evidence/release/w5/evidence/spdb-requirement-plan-default.png",
+        "sha256": "cc5e1bac812798934c3b14af45505c0234693312ff30a553bb0839e93c45c913",
+        "width": 1440,
+        "height": 1000,
+        "stability": "/workspace/react-full-w7-evidence/release/w5/evidence/spdb-requirement-plan-default.stability.json",
+        "stabilitySha256": "86de1884789e16d225662e56be2e5a1ef73066ce9f69bc909d9013889538769b",
+        "exactConsecutiveBuffers": true,
+        "actualViewImage": true,
+        "sourceReviewRelation": "B-authored Requirements; self-source pixel check only",
+        "pixelReview": "Plan revision2 and two not-started human nodes; add/find/resources/save/confirm actions visible, unfilled edges and view controls inside desktop canvas. Two visible Refresh labels are not inferred to be different command permissions."
+      },
+      {
+        "skin": "spdb",
+        "kind": "requirement-plan-selected",
+        "route": "/requirements/w5-req",
+        "image": "/workspace/react-full-w7-evidence/release/w5/evidence/spdb-requirement-plan-selected.png",
+        "sha256": "0677352c1f3c0fb897a9492b077698512b51d26e73d62c19a6b10e29b8d4510a",
+        "width": 1440,
+        "height": 1000,
+        "stability": "/workspace/react-full-w7-evidence/release/w5/evidence/spdb-requirement-plan-selected.stability.json",
+        "stabilitySha256": "59a2f658013361263453bbe6788f608bcea9b7e5318a429ac0754c970ecdf131",
+        "exactConsecutiveBuffers": true,
+        "actualViewImage": true,
+        "sourceReviewRelation": "B-authored Requirements; self-source pixel check only",
+        "pixelReview": "Selected node right context is beside canvas and inside1440x1000 desktop; name/description/delete/advanced entry readable. This B-authored source is explicitly self-source pixel inspection, not independent implementation review."
+      },
+      {
+        "skin": "spdb",
+        "kind": "workflow-edit-default",
+        "route": "/workflows/w5-flow",
+        "image": "/workspace/react-full-w7-evidence/release/w5/evidence/spdb-workflow-edit-default.png",
+        "sha256": "125a716ae571a5a3d607904d3c4a833b78387bf0b04cf4547bdbe62010f15e9f",
+        "width": 1440,
+        "height": 1000,
+        "stability": "/workspace/react-full-w7-evidence/release/w5/evidence/spdb-workflow-edit-default.stability.json",
+        "stabilitySha256": "04b2888881bc2906642fce5b4aa93f703fe366ff718a5932688cc04d448b0c2a",
+        "exactConsecutiveBuffers": true,
+        "actualViewImage": true,
+        "sourceReviewRelation": "Non-author Workflow A / Designer C source review",
+        "pixelReview": "Existing Workflow shows two styled human nodes, one unfilled edge, graph2/layout4, ordinary editing/view controls and visible attribution; no selected advanced panel in this still."
+      },
+      {
+        "skin": "spdb",
+        "kind": "workflow-edit-selected",
+        "route": "/workflows/w5-flow",
+        "image": "/workspace/react-full-w7-evidence/release/w5/evidence/spdb-workflow-edit-selected.png",
+        "sha256": "a6ebbc72bfc4a5f005e28394c4e04b89623ff82dc5697c94a6b9b3f9c95d14ef",
+        "width": 1440,
+        "height": 1000,
+        "stability": "/workspace/react-full-w7-evidence/release/w5/evidence/spdb-workflow-edit-selected.stability.json",
+        "stabilitySha256": "b01965209c65bb1f57515606e6ac648c94f5d5a0ac7213db7ad51832a97274b4",
+        "exactConsecutiveBuffers": true,
+        "actualViewImage": true,
+        "sourceReviewRelation": "Non-author Workflow A / Designer C source review",
+        "pixelReview": "Selected human node has visible ports and colored selection border; node name/description/delete and collapsed advanced settings appear in right context within desktop viewport, without hiding canvas. Advanced hidden values are not tested by pixels."
+      },
+      {
+        "skin": "spdb",
+        "kind": "workflow-new-default",
+        "route": "/workflows/new",
+        "image": "/workspace/react-full-w7-evidence/release/w5/evidence/spdb-workflow-new-default.png",
+        "sha256": "e6be45ece78139003ad78d6e65c3de20ff5d879a1748f8adcabb184b1e12e017",
+        "width": 1440,
+        "height": 1000,
+        "stability": "/workspace/react-full-w7-evidence/release/w5/evidence/spdb-workflow-new-default.stability.json",
+        "stabilitySha256": "8871fe4e2dac006dcdbd74c358d4c3cb46892ba04a3848dc1acfcacead1763c0",
+        "exactConsecutiveBuffers": true,
+        "actualViewImage": true,
+        "sourceReviewRelation": "Non-author Workflow A / Designer C source review",
+        "pixelReview": "New Workflow empty actual ReactFlow canvas shows 0 nodes/0 edges, original add/settings/more/save and view controls; no editing/command receipt can be inferred from an empty default still."
+      },
+      {
+        "skin": "spdb",
+        "kind": "workflow-normal-connected",
+        "route": "/workflows/w5-flow",
+        "image": "/workspace/react-full-w7-evidence/release/w5/evidence/spdb-workflow-normal-connected.png",
+        "sha256": "d21319cc3b5c6bbbd96d11e7e991d83e8a4823331cddae9da21622a653051a25",
+        "width": 1440,
+        "height": 1000,
+        "stability": "/workspace/react-full-w7-evidence/release/w5/evidence/spdb-workflow-normal-connected.stability.json",
+        "stabilitySha256": "61ba853e88525e356c8caa858a3489f31fdb08627d05b6a82752b1489dcfb817",
+        "exactConsecutiveBuffers": true,
+        "actualViewImage": true,
+        "sourceReviewRelation": "Non-author Workflow A / Designer C source review",
+        "pixelReview": "Two nodes and one final connected edge, unsaved indicator and undo enabled, same visual semantics across skins. Still cannot prove trusted handle gesture, theme preservation or undo/redo; producer case explicitly asserts those."
+      },
+      {
+        "skin": "spdb",
+        "kind": "workflow-partial-accepted",
+        "route": "/workflows/w5-flow",
+        "image": "/workspace/react-full-w7-evidence/release/w5/evidence/spdb-workflow-partial-accepted.png",
+        "sha256": "e6875688eef844c793876ae183942bb390b402126201642200d79601f631a334",
+        "width": 1440,
+        "height": 1000,
+        "stability": "/workspace/react-full-w7-evidence/release/w5/evidence/spdb-workflow-partial-accepted.stability.json",
+        "stabilitySha256": "007bd13c93c119312fae740e30f3815577560a5af57673e95377b52510684379",
+        "exactConsecutiveBuffers": true,
+        "actualViewImage": true,
+        "sourceReviewRelation": "Non-author Workflow A / Designer C source review",
+        "pixelReview": "Graph and layout both accepted, final GET503 not finished: full accepted/read-only recovery reason and read-original action visible with fields protected. Upper-left collapsed-shell toggle partially overlaps first top notification characters; repeated full recovery body remains readable. Declared non-blocking pixel exception."
+      },
+      {
+        "skin": "tech-blue",
+        "kind": "designer-default",
+        "route": "/designer?sessionId=w5-session",
+        "image": "/workspace/react-full-w7-evidence/release/w5/evidence/tech-blue-designer-default.png",
+        "sha256": "d2a8203a9615a36ed8110cfc7408313180ab949784f9bee2e305a66c3150710a",
+        "width": 1440,
+        "height": 1000,
+        "stability": "/workspace/react-full-w7-evidence/release/w5/evidence/tech-blue-designer-default.stability.json",
+        "stabilitySha256": "38b27d3bda6458e50ce28078b5dcc33956678ce0f2f912986d74ab7a63cce33b",
+        "exactConsecutiveBuffers": true,
+        "actualViewImage": true,
+        "sourceReviewRelation": "Non-author Workflow A / Designer C source review",
+        "pixelReview": "Explicit existing mock discussion with task settings/view/auto-mode entries and empty message+native local File picker; empty send disabled. Native Chromium File picker English is platform UI. Mock status is not an execution-success proof."
+      },
+      {
+        "skin": "tech-blue",
+        "kind": "designer-unknown-file",
+        "route": "/designer?sessionId=w5-session",
+        "image": "/workspace/react-full-w7-evidence/release/w5/evidence/tech-blue-designer-unknown-file.png",
+        "sha256": "7a4ec3f17ca4679fb2107c4dfba50b093eea3b5fd41a8936023482946f6d89b1",
+        "width": 1440,
+        "height": 1000,
+        "stability": "/workspace/react-full-w7-evidence/release/w5/evidence/tech-blue-designer-unknown-file.stability.json",
+        "stabilitySha256": "f9df628acd84878b649b914beedb93615e31812b87d3961fa24668fb23235aaf",
+        "exactConsecutiveBuffers": true,
+        "actualViewImage": true,
+        "sourceReviewRelation": "Non-author Workflow A / Designer C source review",
+        "pixelReview": "Original operation unresolved, retry/read-original reasons and later unsent message visible; restart/auto-mode writes disabled and skin accessible. Later attachment row is below the captured viewport, so this still does not visually prove File preservation; multipart raw and exact post-recovery assertion do."
+      },
+      {
+        "skin": "tech-blue",
+        "kind": "requirement-new-default",
+        "route": "/requirements/new",
+        "image": "/workspace/react-full-w7-evidence/release/w5/evidence/tech-blue-requirement-new-default.png",
+        "sha256": "99c839d315550544461dda516b88b5d11bc32179eb3c0a043dc924afc105a1bf",
+        "width": 1440,
+        "height": 1000,
+        "stability": "/workspace/react-full-w7-evidence/release/w5/evidence/tech-blue-requirement-new-default.stability.json",
+        "stabilitySha256": "0806765646a3bfaafc74ab49e93c0901651ba4abe3fb5fa9590854d18a60d3b8",
+        "exactConsecutiveBuffers": true,
+        "actualViewImage": true,
+        "sourceReviewRelation": "B-authored Requirements; self-source pixel check only",
+        "pixelReview": "Exactly four ordinary business fields (project, workflow, title, objective), no upload; initially missing project/title keeps create disabled. Chinese names and selected nav readable in all three skins."
+      },
+      {
+        "skin": "tech-blue",
+        "kind": "requirement-new-unknown",
+        "route": "/requirements/new",
+        "image": "/workspace/react-full-w7-evidence/release/w5/evidence/tech-blue-requirement-new-unknown.png",
+        "sha256": "ff25286874fcc991e46e68c065d941f0643d2e02d69de6055f681753e0890b73",
+        "width": 1440,
+        "height": 1000,
+        "stability": "/workspace/react-full-w7-evidence/release/w5/evidence/tech-blue-requirement-new-unknown.stability.json",
+        "stabilitySha256": "153d536bbe9158dc6920979e57db5b9c4dd8cda068d062f3e9eb0f3ee85c60a4",
+        "exactConsecutiveBuffers": true,
+        "actualViewImage": true,
+        "sourceReviewRelation": "B-authored Requirements; self-source pixel check only",
+        "pixelReview": "Unknown creation reason and explicit original-retry remain visible; original four fields retained and ordinary creation/selection disabled. Skin selector remains accessible. No bytes/key equality follows from this still; actual transport raw is separate."
+      },
+      {
+        "skin": "tech-blue",
+        "kind": "requirement-plan-default",
+        "route": "/requirements/w5-req",
+        "image": "/workspace/react-full-w7-evidence/release/w5/evidence/tech-blue-requirement-plan-default.png",
+        "sha256": "74127e9239e40c383a6bcbe7d0f98d08d1f3cc5dc1ee366df652a0faea902927",
+        "width": 1440,
+        "height": 1000,
+        "stability": "/workspace/react-full-w7-evidence/release/w5/evidence/tech-blue-requirement-plan-default.stability.json",
+        "stabilitySha256": "317d5ed724d5958b98307468d2bb5593b42bd403c4bb1c1e648c44a68a660377",
+        "exactConsecutiveBuffers": true,
+        "actualViewImage": true,
+        "sourceReviewRelation": "B-authored Requirements; self-source pixel check only",
+        "pixelReview": "Plan revision2 and two not-started human nodes; add/find/resources/save/confirm actions visible, unfilled edges and view controls inside desktop canvas. Two visible Refresh labels are not inferred to be different command permissions."
+      },
+      {
+        "skin": "tech-blue",
+        "kind": "requirement-plan-selected",
+        "route": "/requirements/w5-req",
+        "image": "/workspace/react-full-w7-evidence/release/w5/evidence/tech-blue-requirement-plan-selected.png",
+        "sha256": "885bf95f3d7646518c71e2662901850c93e7c00852baf92c0cb8ade0bd587353",
+        "width": 1440,
+        "height": 1000,
+        "stability": "/workspace/react-full-w7-evidence/release/w5/evidence/tech-blue-requirement-plan-selected.stability.json",
+        "stabilitySha256": "c2cf8fd09f89a05a5d1a62b0122a857bbfe0a6ac919d69df6fd2b85a2a0184ec",
+        "exactConsecutiveBuffers": true,
+        "actualViewImage": true,
+        "sourceReviewRelation": "B-authored Requirements; self-source pixel check only",
+        "pixelReview": "Selected node right context is beside canvas and inside1440x1000 desktop; name/description/delete/advanced entry readable. This B-authored source is explicitly self-source pixel inspection, not independent implementation review."
+      },
+      {
+        "skin": "tech-blue",
+        "kind": "workflow-edit-default",
+        "route": "/workflows/w5-flow",
+        "image": "/workspace/react-full-w7-evidence/release/w5/evidence/tech-blue-workflow-edit-default.png",
+        "sha256": "6bb508beb3117c01a4b16a2ef850637dd76cf0b3b6215034d5977bd700fa9557",
+        "width": 1440,
+        "height": 1000,
+        "stability": "/workspace/react-full-w7-evidence/release/w5/evidence/tech-blue-workflow-edit-default.stability.json",
+        "stabilitySha256": "c7a27428e0177c9c879217e274f3cc95b37846860903a3da842e677617da64e9",
+        "exactConsecutiveBuffers": true,
+        "actualViewImage": true,
+        "sourceReviewRelation": "Non-author Workflow A / Designer C source review",
+        "pixelReview": "Existing Workflow shows two styled human nodes, one unfilled edge, graph2/layout4, ordinary editing/view controls and visible attribution; no selected advanced panel in this still."
+      },
+      {
+        "skin": "tech-blue",
+        "kind": "workflow-edit-selected",
+        "route": "/workflows/w5-flow",
+        "image": "/workspace/react-full-w7-evidence/release/w5/evidence/tech-blue-workflow-edit-selected.png",
+        "sha256": "b37848b9fe7ace27b03d1c75c60282522b49e759fbe55eb909846651f8fdd1b5",
+        "width": 1440,
+        "height": 1000,
+        "stability": "/workspace/react-full-w7-evidence/release/w5/evidence/tech-blue-workflow-edit-selected.stability.json",
+        "stabilitySha256": "afb50c84cdc7fc7c9bc77b6024dd44dc026061cbb6f14aa343b895e721afa01c",
+        "exactConsecutiveBuffers": true,
+        "actualViewImage": true,
+        "sourceReviewRelation": "Non-author Workflow A / Designer C source review",
+        "pixelReview": "Selected human node has visible ports and colored selection border; node name/description/delete and collapsed advanced settings appear in right context within desktop viewport, without hiding canvas. Advanced hidden values are not tested by pixels."
+      },
+      {
+        "skin": "tech-blue",
+        "kind": "workflow-new-default",
+        "route": "/workflows/new",
+        "image": "/workspace/react-full-w7-evidence/release/w5/evidence/tech-blue-workflow-new-default.png",
+        "sha256": "ff443a103cf4b4fcf5c3420a98aec9469ad8228ee707ff8da04d83175188cc37",
+        "width": 1440,
+        "height": 1000,
+        "stability": "/workspace/react-full-w7-evidence/release/w5/evidence/tech-blue-workflow-new-default.stability.json",
+        "stabilitySha256": "1a3b1b3d81160dec6046d9a64837cf6e41550da7f32bcc161f95253bdfb6f112",
+        "exactConsecutiveBuffers": true,
+        "actualViewImage": true,
+        "sourceReviewRelation": "Non-author Workflow A / Designer C source review",
+        "pixelReview": "New Workflow empty actual ReactFlow canvas shows 0 nodes/0 edges, original add/settings/more/save and view controls; no editing/command receipt can be inferred from an empty default still."
+      },
+      {
+        "skin": "tech-blue",
+        "kind": "workflow-normal-connected",
+        "route": "/workflows/w5-flow",
+        "image": "/workspace/react-full-w7-evidence/release/w5/evidence/tech-blue-workflow-normal-connected.png",
+        "sha256": "5bf55c7933e1bab4e578f0f426af7f94a24ea2c259e7e11762660730a6f4d56c",
+        "width": 1440,
+        "height": 1000,
+        "stability": "/workspace/react-full-w7-evidence/release/w5/evidence/tech-blue-workflow-normal-connected.stability.json",
+        "stabilitySha256": "e41c29f5e8ef65257151fc9d27b13b3ed021071d490ae073496a48df062ac346",
+        "exactConsecutiveBuffers": true,
+        "actualViewImage": true,
+        "sourceReviewRelation": "Non-author Workflow A / Designer C source review",
+        "pixelReview": "Two nodes and one final connected edge, unsaved indicator and undo enabled, same visual semantics across skins. Still cannot prove trusted handle gesture, theme preservation or undo/redo; producer case explicitly asserts those."
+      },
+      {
+        "skin": "tech-blue",
+        "kind": "workflow-partial-rejected",
+        "route": "/workflows/w5-flow",
+        "image": "/workspace/react-full-w7-evidence/release/w5/evidence/tech-blue-workflow-partial-rejected.png",
+        "sha256": "b60afca54c19d06b32a759054f5a754fd93b9d9b9c07c85b8565f2896855605c",
+        "width": 1440,
+        "height": 1000,
+        "stability": "/workspace/react-full-w7-evidence/release/w5/evidence/tech-blue-workflow-partial-rejected.stability.json",
+        "stabilitySha256": "03bf0e93331089ba4f5defca5f6af1f54da5920c2b4ef4003fc4559fbbca7abd",
+        "exactConsecutiveBuffers": true,
+        "actualViewImage": true,
+        "sourceReviewRelation": "Non-author Workflow A / Designer C source review",
+        "pixelReview": "Graph accepted/layout definitively409 rejected, original-layout retry and protected fields visible; reason correctly distinguishes rejection from UNKNOWN. Upper-left shell toggle partially overlaps first notification characters; full repeated reason/buttons remain readable. Declared non-blocking pixel exception."
+      }
+    ],
+    "imagesActuallyViewed": 30,
+    "nonAuthorSourceImages": 18,
+    "selfSourceRequirementsImages": 12,
+    "bundleBeforeAfterEqual": true,
+    "bundleFiles": 127,
+    "bundleBeforeSha256": "257ca7fa4b9f307ccc2e138e04de33ba93c9fe68a9d31ea4da745ca935873acd",
+    "bundleAfterSha256": "257ca7fa4b9f307ccc2e138e04de33ba93c9fe68a9d31ea4da745ca935873acd",
+    "currentBundleMismatches": [],
+    "routeMapping": {
+      "designInventory": "docs/design/react-full-migration/core-ui-inventory.md:19",
+      "scope": "Five W5 entries of the original31 records; not all31 page states",
+      "entries": [
+        "/workflows/new",
+        "/workflows/:id",
+        "/requirements/new",
+        "/requirements/:id",
+        "/designer?sessionId=..."
+      ]
+    },
+    "actions": [
+      {
+        "contract": "Trusted handle connect/theme keeps graph/undo-redo/no implicit write",
+        "actualSource": "frontend/e2e/w5/production-routes.spec.ts:188",
+        "matchedPassedCases": [
+          {
+            "file": "production-routes.spec.ts",
+            "producerReportedLine": 480,
+            "title": "spdb actual workflow connects through React Flow handles, retains state on theme, then undo/redo without implicit write",
+            "status": "expected",
+            "attempts": [
+              {
+                "status": "passed",
+                "retry": 0
+              }
+            ]
+          },
+          {
+            "file": "production-routes.spec.ts",
+            "producerReportedLine": 480,
+            "title": "tech-blue actual workflow connects through React Flow handles, retains state on theme, then undo/redo without implicit write",
+            "status": "expected",
+            "attempts": [
+              {
+                "status": "passed",
+                "retry": 0
+              }
+            ]
+          },
+          {
+            "file": "production-routes.spec.ts",
+            "producerReportedLine": 480,
+            "title": "github-white actual workflow connects through React Flow handles, retains state on theme, then undo/redo without implicit write",
+            "status": "expected",
+            "attempts": [
+              {
+                "status": "passed",
+                "retry": 0
+              }
+            ]
+          }
+        ],
+        "pixelLimit": "Final one edge only; actual gesture/undo/no-write require producer assertions"
+      },
+      {
+        "contract": "Accepted graph; layout UNKNOWN retried original; accepted final read failure recovered only GET",
+        "actualSource": "frontend/e2e/w5/production-routes.spec.ts:198",
+        "raw": "/workspace/react-full-w7-evidence/release/w5/evidence/workflow-two-stage-original-identity.json",
+        "rawSha256": "2c0e6853ffd80317039ca94596b06456281ac62cca98903ed3670573f33d2314",
+        "actual": {
+          "graphs": 1,
+          "layouts": 2,
+          "finalReadFailed": true,
+          "layoutWrites": [
+            {
+              "path": "/api/workflows/templates/w5-flow/layout",
+              "method": "PUT",
+              "body": "{\"requestKey\":\"52b601fa-1b5f-4171-9a4e-8ed8489e1f75\",\"expectedRevision\":3,\"expectedLayoutVersion\":4,\"layout\":{\"positions\":{\"review\":{\"x\":0,\"y\":0},\"delivery\":{\"x\":360,\"y\":0}},\"x\":32,\"y\":36,\"zoom\":1}}"
+            },
+            {
+              "path": "/api/workflows/templates/w5-flow/layout",
+              "method": "PUT",
+              "body": "{\"requestKey\":\"52b601fa-1b5f-4171-9a4e-8ed8489e1f75\",\"expectedRevision\":3,\"expectedLayoutVersion\":4,\"layout\":{\"positions\":{\"review\":{\"x\":0,\"y\":0},\"delivery\":{\"x\":360,\"y\":0}},\"x\":32,\"y\":36,\"zoom\":1}}"
+            }
+          ]
+        },
+        "matchedPassedCases": [
+          {
+            "file": "production-routes.spec.ts",
+            "producerReportedLine": 531,
+            "title": "actual workflow graph accepted/layout unknown/final GET failure each retains its own original receipt without rewriting accepted stages",
+            "status": "expected",
+            "attempts": [
+              {
+                "status": "passed",
+                "retry": 0
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "contract": "Accepted graph retained across definitive layout rejection and two explicit same-body/key/CAS retries",
+        "actualSource": "frontend/e2e/w5/production-routes.spec.ts:218",
+        "raw": "/workspace/react-full-w7-evidence/release/w5/evidence/workflow-definite-partial-identity.json",
+        "rawSha256": "75f4135bfdca89e55a53e19c49c8f184610648dad451f9240a6ad5713550b089",
+        "actual": {
+          "graphs": 1,
+          "layouts": 3,
+          "originals": [
+            "{\"requestKey\":\"9b2ea7ed-c5b5-4593-ab1d-540e3ed3c55e\",\"expectedRevision\":3,\"expectedLayoutVersion\":4,\"layout\":{\"positions\":{\"review\":{\"x\":0,\"y\":0},\"delivery\":{\"x\":360,\"y\":0}},\"x\":32,\"y\":36,\"zoom\":1}}",
+            "{\"requestKey\":\"9b2ea7ed-c5b5-4593-ab1d-540e3ed3c55e\",\"expectedRevision\":3,\"expectedLayoutVersion\":4,\"layout\":{\"positions\":{\"review\":{\"x\":0,\"y\":0},\"delivery\":{\"x\":360,\"y\":0}},\"x\":32,\"y\":36,\"zoom\":1}}",
+            "{\"requestKey\":\"9b2ea7ed-c5b5-4593-ab1d-540e3ed3c55e\",\"expectedRevision\":3,\"expectedLayoutVersion\":4,\"layout\":{\"positions\":{\"review\":{\"x\":0,\"y\":0},\"delivery\":{\"x\":360,\"y\":0}},\"x\":32,\"y\":36,\"zoom\":1}}"
+          ],
+          "noImplicitRetry": true
+        },
+        "matchedPassedCases": [
+          {
+            "file": "production-routes.spec.ts",
+            "producerReportedLine": 635,
+            "title": "actual workflow accepted graph plus definitive layout rejection retains partial identity and only explicitly retries that same layout",
+            "status": "expected",
+            "attempts": [
+              {
+                "status": "passed",
+                "retry": 0
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "contract": "Designer UNKNOWN retains original multipart submissionId/content/version/File bytes; later draft and extra attachment preserved",
+        "actualSource": "frontend/e2e/w5/production-routes.spec.ts:243",
+        "raw": "/workspace/react-full-w7-evidence/release/w5/evidence/designer-original-file-recovery.json",
+        "rawSha256": "1cd670a7cd8616fc80aa077974ddb1af496b1eefe40f7f5181edc083a137dd16",
+        "actual": {
+          "multipart": [
+            {
+              "metadata": "{\"submissionId\":\"0a5bd898-515a-4873-a63e-5f23454fc33a\",\"content\":\"原始附件消息\",\"scopeKey\":\"REQUIREMENT\",\"expectedDiscussionRevision\":1,\"expectedDesignRevision\":0}",
+              "files": [
+                {
+                  "name": "original.txt",
+                  "bytes": "6f726967696e616c0062797465730ae4b8ade69687"
+                }
+              ]
+            },
+            {
+              "metadata": "{\"submissionId\":\"0a5bd898-515a-4873-a63e-5f23454fc33a\",\"content\":\"原始附件消息\",\"scopeKey\":\"REQUIREMENT\",\"expectedDiscussionRevision\":1,\"expectedDesignRevision\":0}",
+              "files": [
+                {
+                  "name": "original.txt",
+                  "bytes": "6f726967696e616c0062797465730ae4b8ade69687"
+                }
+              ]
+            }
+          ],
+          "originalEqual": true
+        },
+        "lateDraftAssertions": "production-routes.spec.ts:258-262; later text still original and later.txt11bytes after original retry",
+        "matchedPassedCases": [
+          {
+            "file": "production-routes.spec.ts",
+            "producerReportedLine": 743,
+            "title": "actual Designer UNKNOWN multipart Send retries original metadata/File bytes while retaining later message and extra attachment",
+            "status": "expected",
+            "attempts": [
+              {
+                "status": "passed",
+                "retry": 0
+              }
+            ]
+          }
+        ],
+        "pixelLimit": "Attachment is outside still viewport; exact bytes proven by raw multipart comparison, not pixels"
+      }
+    ],
+    "strictResourceReadonlyAudit": {
+      "snapshotCount": 64,
+      "source": "frontend/e2e/w5/evidence.ts:9 + frontend/e2e/w2/resources.ts:127",
+      "rows": [
+        {
+          "file": "designer-root-shutdown.json",
+          "cycle": null,
+          "rawSha256": "35d9b2c3fe36210a499aaf7829a953325ccd5dec712bf597156da2937d98c366",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "github-white-designer-threecycles.json",
+          "cycle": 0,
+          "rawSha256": "fc8a717b59f3f1d3110fe6eff31f613965b043fb4ae58e5e849a63aab9bd87ce",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "github-white-designer-threecycles.json",
+          "cycle": 1,
+          "rawSha256": "fc8a717b59f3f1d3110fe6eff31f613965b043fb4ae58e5e849a63aab9bd87ce",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "github-white-designer-threecycles.json",
+          "cycle": 2,
+          "rawSha256": "fc8a717b59f3f1d3110fe6eff31f613965b043fb4ae58e5e849a63aab9bd87ce",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "github-white-requirement-new-threecycles.json",
+          "cycle": 0,
+          "rawSha256": "ec0916fac3a28573252e10fd2b4255642dbe3f0d9235ab9f18b8d90509598ed8",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "github-white-requirement-new-threecycles.json",
+          "cycle": 1,
+          "rawSha256": "ec0916fac3a28573252e10fd2b4255642dbe3f0d9235ab9f18b8d90509598ed8",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "github-white-requirement-new-threecycles.json",
+          "cycle": 2,
+          "rawSha256": "ec0916fac3a28573252e10fd2b4255642dbe3f0d9235ab9f18b8d90509598ed8",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "github-white-requirement-plan-threecycles.json",
+          "cycle": 0,
+          "rawSha256": "74be4005f52c2047a1962768eb5149fed3c2df75bf679d9745a027921a848ac7",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "github-white-requirement-plan-threecycles.json",
+          "cycle": 1,
+          "rawSha256": "74be4005f52c2047a1962768eb5149fed3c2df75bf679d9745a027921a848ac7",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "github-white-requirement-plan-threecycles.json",
+          "cycle": 2,
+          "rawSha256": "74be4005f52c2047a1962768eb5149fed3c2df75bf679d9745a027921a848ac7",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "github-white-workflow-edit-threecycles.json",
+          "cycle": 0,
+          "rawSha256": "3741f72b27aee54b023614070abfab26a13a5f3f0ac948e8c557337dce8daffc",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "github-white-workflow-edit-threecycles.json",
+          "cycle": 1,
+          "rawSha256": "3741f72b27aee54b023614070abfab26a13a5f3f0ac948e8c557337dce8daffc",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "github-white-workflow-edit-threecycles.json",
+          "cycle": 2,
+          "rawSha256": "3741f72b27aee54b023614070abfab26a13a5f3f0ac948e8c557337dce8daffc",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "github-white-workflow-new-threecycles.json",
+          "cycle": 0,
+          "rawSha256": "5a614e1bd91ab80d65e825e4dad4563602832d09e2dafaf32e0c1b1ab3f7560b",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "github-white-workflow-new-threecycles.json",
+          "cycle": 1,
+          "rawSha256": "5a614e1bd91ab80d65e825e4dad4563602832d09e2dafaf32e0c1b1ab3f7560b",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "github-white-workflow-new-threecycles.json",
+          "cycle": 2,
+          "rawSha256": "5a614e1bd91ab80d65e825e4dad4563602832d09e2dafaf32e0c1b1ab3f7560b",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "native-designer-root.json",
+          "cycle": null,
+          "rawSha256": "a018ac07fb3104891089b82a9a99b124842dc51935142cddbebc5d955f8a134e",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "native-designer-route.json",
+          "cycle": null,
+          "rawSha256": "2989b090106255f912a4e9f377477afaa5d66c1c072e408943e79d7b4e9664ae",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "requirement-new-root-shutdown.json",
+          "cycle": null,
+          "rawSha256": "cdb9be80e3cc87151d0a5e5be8daebc49c40ab32bf7494dc2e639f74b120c7b0",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "requirement-plan-active-connect-root.json",
+          "cycle": null,
+          "rawSha256": "4eedd7844112779591347e6a77819c7d26e4fdba1928a428cb793ff86d58e1f7",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "requirement-plan-active-connect-route.json",
+          "cycle": null,
+          "rawSha256": "d2163afd79432fd6a5448313a8c709b0da8001bab8fc21adc8f48cb66499fcf0",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "requirement-plan-active-drag-root.json",
+          "cycle": null,
+          "rawSha256": "2d0b83e6439271b4717f8c5b3ccb35daaea8a286646ff2575c888b1b94dc3e2b",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "requirement-plan-active-drag-route.json",
+          "cycle": null,
+          "rawSha256": "d769c9a24e1a42e00983450bf1f02df9c37bee130798b1fce7154b8a7e0fc657",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "requirement-plan-active-pan-root.json",
+          "cycle": null,
+          "rawSha256": "241c35f6d68c7130e4372b12ed7dac2a9dc3e8e721ce3a11eecce3a1af221d93",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "requirement-plan-active-pan-route.json",
+          "cycle": null,
+          "rawSha256": "29765cb634644931f722a9965d7ec16e667d089a32974df35a0079c2f2b37601",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "requirement-plan-root-shutdown.json",
+          "cycle": null,
+          "rawSha256": "6feeda1c6da6266c7b013beee6c77ee82df6e2920207b28f4836392476082c4f",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "spdb-designer-threecycles.json",
+          "cycle": 0,
+          "rawSha256": "058402ec70c9901bbb16cfe5444932e8807fededadeb35d2de1c936f96d8933a",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "spdb-designer-threecycles.json",
+          "cycle": 1,
+          "rawSha256": "058402ec70c9901bbb16cfe5444932e8807fededadeb35d2de1c936f96d8933a",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "spdb-designer-threecycles.json",
+          "cycle": 2,
+          "rawSha256": "058402ec70c9901bbb16cfe5444932e8807fededadeb35d2de1c936f96d8933a",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "spdb-requirement-new-threecycles.json",
+          "cycle": 0,
+          "rawSha256": "8e76eed08d3cccd16e292af27ded9d1c0aa4c2746e64d65d3e1e5f6f73c9d380",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "spdb-requirement-new-threecycles.json",
+          "cycle": 1,
+          "rawSha256": "8e76eed08d3cccd16e292af27ded9d1c0aa4c2746e64d65d3e1e5f6f73c9d380",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "spdb-requirement-new-threecycles.json",
+          "cycle": 2,
+          "rawSha256": "8e76eed08d3cccd16e292af27ded9d1c0aa4c2746e64d65d3e1e5f6f73c9d380",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "spdb-requirement-plan-threecycles.json",
+          "cycle": 0,
+          "rawSha256": "312b40e7363a1a543c4c8ff39005d358b5380bad313f63e3356cb7a04a480b1c",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "spdb-requirement-plan-threecycles.json",
+          "cycle": 1,
+          "rawSha256": "312b40e7363a1a543c4c8ff39005d358b5380bad313f63e3356cb7a04a480b1c",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "spdb-requirement-plan-threecycles.json",
+          "cycle": 2,
+          "rawSha256": "312b40e7363a1a543c4c8ff39005d358b5380bad313f63e3356cb7a04a480b1c",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "spdb-workflow-edit-threecycles.json",
+          "cycle": 0,
+          "rawSha256": "364f466862413ac1020a157e50290ceed42f296a96bc961ceeceb8b0c29a9b5a",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "spdb-workflow-edit-threecycles.json",
+          "cycle": 1,
+          "rawSha256": "364f466862413ac1020a157e50290ceed42f296a96bc961ceeceb8b0c29a9b5a",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "spdb-workflow-edit-threecycles.json",
+          "cycle": 2,
+          "rawSha256": "364f466862413ac1020a157e50290ceed42f296a96bc961ceeceb8b0c29a9b5a",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "spdb-workflow-new-threecycles.json",
+          "cycle": 0,
+          "rawSha256": "6cdc9faa2ac33b3008a875507a0191015b5b30abd4eaf21ba7a0d13cdf130ed9",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "spdb-workflow-new-threecycles.json",
+          "cycle": 1,
+          "rawSha256": "6cdc9faa2ac33b3008a875507a0191015b5b30abd4eaf21ba7a0d13cdf130ed9",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "spdb-workflow-new-threecycles.json",
+          "cycle": 2,
+          "rawSha256": "6cdc9faa2ac33b3008a875507a0191015b5b30abd4eaf21ba7a0d13cdf130ed9",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "tech-blue-designer-threecycles.json",
+          "cycle": 0,
+          "rawSha256": "359c6696a0074f8b604e799deb00e9d984b30704139d700d3c7c59fb165a53d0",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "tech-blue-designer-threecycles.json",
+          "cycle": 1,
+          "rawSha256": "359c6696a0074f8b604e799deb00e9d984b30704139d700d3c7c59fb165a53d0",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "tech-blue-designer-threecycles.json",
+          "cycle": 2,
+          "rawSha256": "359c6696a0074f8b604e799deb00e9d984b30704139d700d3c7c59fb165a53d0",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "tech-blue-requirement-new-threecycles.json",
+          "cycle": 0,
+          "rawSha256": "d034efe54ff9b3a511a099bfb18e8d1d92ef5d7f3f69630669970514621b82ec",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "tech-blue-requirement-new-threecycles.json",
+          "cycle": 1,
+          "rawSha256": "d034efe54ff9b3a511a099bfb18e8d1d92ef5d7f3f69630669970514621b82ec",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "tech-blue-requirement-new-threecycles.json",
+          "cycle": 2,
+          "rawSha256": "d034efe54ff9b3a511a099bfb18e8d1d92ef5d7f3f69630669970514621b82ec",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "tech-blue-requirement-plan-threecycles.json",
+          "cycle": 0,
+          "rawSha256": "88c62820850ce3d7b35c1c2fcf71bb229517bfa541db683996fae6306b200cf3",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "tech-blue-requirement-plan-threecycles.json",
+          "cycle": 1,
+          "rawSha256": "88c62820850ce3d7b35c1c2fcf71bb229517bfa541db683996fae6306b200cf3",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "tech-blue-requirement-plan-threecycles.json",
+          "cycle": 2,
+          "rawSha256": "88c62820850ce3d7b35c1c2fcf71bb229517bfa541db683996fae6306b200cf3",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "tech-blue-workflow-edit-threecycles.json",
+          "cycle": 0,
+          "rawSha256": "2dd53c5e4c913e419d924e3e00885c9281ed49c47c299309b2c6549e8ed4a4f6",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "tech-blue-workflow-edit-threecycles.json",
+          "cycle": 1,
+          "rawSha256": "2dd53c5e4c913e419d924e3e00885c9281ed49c47c299309b2c6549e8ed4a4f6",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "tech-blue-workflow-edit-threecycles.json",
+          "cycle": 2,
+          "rawSha256": "2dd53c5e4c913e419d924e3e00885c9281ed49c47c299309b2c6549e8ed4a4f6",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "tech-blue-workflow-new-threecycles.json",
+          "cycle": 0,
+          "rawSha256": "20e2357599205a08fc44185954216dfc5131c28fdc91400f6ddaff6597d5dba9",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "tech-blue-workflow-new-threecycles.json",
+          "cycle": 1,
+          "rawSha256": "20e2357599205a08fc44185954216dfc5131c28fdc91400f6ddaff6597d5dba9",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "tech-blue-workflow-new-threecycles.json",
+          "cycle": 2,
+          "rawSha256": "20e2357599205a08fc44185954216dfc5131c28fdc91400f6ddaff6597d5dba9",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "workflow-edit-active-connect-root.json",
+          "cycle": null,
+          "rawSha256": "7f9eb3654914ee8731e44a2b3f99c6ee7982e653a3f77beb5355ff13350b64e7",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "workflow-edit-active-connect-route.json",
+          "cycle": null,
+          "rawSha256": "48034bae473e6a50a3049c068cd0dc4d59c80d5fe556ef5627bdc24d71af4150",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "workflow-edit-active-drag-root.json",
+          "cycle": null,
+          "rawSha256": "3ff9b606ad4a10cfbfb5dab5d562692a76aec5d85cb0f8c2efa39b88a6b56a2c",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "workflow-edit-active-drag-route.json",
+          "cycle": null,
+          "rawSha256": "e78528636ab0e11bcfa86d5ff1f64c118a2291d082567eaec0de1e9ba397067b",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "workflow-edit-active-pan-root.json",
+          "cycle": null,
+          "rawSha256": "a86bb1658fff84758dc6b7c0b3a954223b3b9626e85682d918213068d516ccee",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "workflow-edit-active-pan-route.json",
+          "cycle": null,
+          "rawSha256": "7567c1c50e93df562fd76f18bd2ba8bc7bfdc4dc4a8f27d7c4dce0c624dae9f4",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "workflow-edit-root-shutdown.json",
+          "cycle": null,
+          "rawSha256": "90163ec29cd2fb61d6b4b33be13eaf8e9209bc9e52c5b763ddff4cbc2c49792e",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        },
+        {
+          "file": "workflow-new-root-shutdown.json",
+          "cycle": null,
+          "rawSha256": "c36e52a260a458a872a8755abcf6597a72d0c9bf6748248fde6de33561c4c257",
+          "rootConnected": false,
+          "pageOwnedAllArraysEmpty": true,
+          "cleanupInputCount": 0
+        }
+      ],
+      "methodBoundary": "First root-removal snapshot, before natural pointerup or cleanup moves; observer accounting is not heap/GC proof"
+    },
+    "privacy": "All shown contents match deterministic mock fixtures and explicitly state simulated data/session. No credential, secret, private chat or live model data observed; this is a fixture-specific pixel check, not a claim about arbitrary real conversations.",
+    "nonBlockingPixelExceptions": [
+      {
+        "kind": "partial-header-overlay",
+        "images": [
+          "spdb-workflow-partial-accepted.png",
+          "tech-blue-workflow-partial-rejected.png"
+        ],
+        "finding": "Upper-left collapsed-shell toggle covers the first two notification characters. Complete repeated critical status and original-recovery controls below remain readable/usable.",
+        "rootDecision": "Root also viewed and confirmed; explicitly disclosed non-blocking cosmetic exception, no source unfreeze/new case."
+      }
+    ],
+    "remainingBlockingFindings": []
+  }
+}

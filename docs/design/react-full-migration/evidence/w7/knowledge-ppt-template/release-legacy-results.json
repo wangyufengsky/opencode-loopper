@@ -1,0 +1,798 @@
+{
+  "stage": "Final W7 release B legacy49",
+  "sourceManifest": "/workspace/react-full-w7-evidence/release/source-freeze.json",
+  "sourceManifestSha256": "b20e36a9b2bb42938b90bd4270b64d656cafa809d2e4cd55a2467434f75cdb38",
+  "sourceSha256": "d1a38dd1471e5c5d0d23aeafa845c7494d3bc30e2d5875dd37c24e9faded596d",
+  "files": 817,
+  "command": "W7_BROWSER_JSON=/workspace/react-full-w7-evidence/release/legacy/B.json W7_BROWSER_OUTPUT=/workspace/react-full-w7-evidence/release/legacy/B-results CANVAS_EVIDENCE_DIR=/workspace/react-full-w7-evidence/release/legacy/B-ppt ./node_modules/.bin/playwright test --config e2e/w7/playwright.legacy.config.ts e2e/knowledge.spec.ts e2e/ppt.spec.ts e2e/document-template-tasks.spec.ts e2e/source-template-form.spec.ts e2e/template-tasks.spec.ts e2e/template-batch-recovery.spec.ts e2e/template-batch-resilience.spec.ts e2e/template-reports.spec.ts e2e/template-session-diagnostics.spec.ts e2e/read-consistency.spec.ts",
+  "cwd": "/workspace/opencode-loopper-react-full/frontend",
+  "raw": "/workspace/react-full-w7-evidence/release/legacy/B.json",
+  "rawSha256": "8d743369edb045b9c4e63a63bcb06acbb9c938e9cf77d1403159d78715670d2f",
+  "log": "/workspace/react-full-w7-evidence/release/legacy/B.log",
+  "logSha256": "5c89a214eee52256ca9d2160be38c6ad2dd59103f9f12dfe87e258d827d2e05e",
+  "exit": 0,
+  "stats": {
+    "startTime": "2026-10-04T03:36:34.626Z",
+    "duration": 192557.69700000001,
+    "expected": 49,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "errors": [],
+  "caseCount": 49,
+  "expectedMultiplicity": 49,
+  "missing": [],
+  "extra": [],
+  "failedOrRetried": [],
+  "narrowNotRun": 14,
+  "beforeVerify": {
+    "exit": 0,
+    "sha256": "bf9d451f0cb95f6ebc1218af8e6e7fcc8aa1ad826fdaf906e92d9dbdd48d8fd0",
+    "result": {
+      "ok": true,
+      "sourceSha256": "d1a38dd1471e5c5d0d23aeafa845c7494d3bc30e2d5875dd37c24e9faded596d",
+      "files": 817
+    }
+  },
+  "afterVerify": {
+    "exit": 0,
+    "sha256": "bf9d451f0cb95f6ebc1218af8e6e7fcc8aa1ad826fdaf906e92d9dbdd48d8fd0",
+    "result": {
+      "ok": true,
+      "sourceSha256": "d1a38dd1471e5c5d0d23aeafa845c7494d3bc30e2d5875dd37c24e9faded596d",
+      "files": 817
+    }
+  },
+  "environmentOnlyAttempt": {
+    "path": "/workspace/react-full-w7-evidence/release/legacy/B-verify-before-sandbox-env-blocked.log",
+    "exit": 1,
+    "classification": "ENV_BLOCKED",
+    "cause": "Read-only verifier git spawnSync EPERM inside sandbox; no Chromium test launched. Normal authorized require_escalated verifier passed.",
+    "notProductFailure": true
+  },
+  "cases": [
+    {
+      "registrationFile": "document-template-tasks.spec.ts",
+      "sourceFile": "document-template-tasks.spec.ts",
+      "sourceLine": 3,
+      "title": "文档评审上传重试、刷新与按需报告 1440px",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 3685
+        }
+      ]
+    },
+    {
+      "registrationFile": "knowledge.spec.ts",
+      "sourceFile": "knowledge.spec.ts",
+      "sourceLine": 38,
+      "title": "文件链接在当前页预览并保留气泡头像，失败不跳到 404",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2288
+        }
+      ]
+    },
+    {
+      "registrationFile": "knowledge.spec.ts",
+      "sourceFile": "knowledge.spec.ts",
+      "sourceLine": 129,
+      "title": "统一检索分页、来源覆盖与数据库原文 1440px",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2321
+        }
+      ]
+    },
+    {
+      "registrationFile": "knowledge.spec.ts",
+      "sourceFile": "knowledge.spec.ts",
+      "sourceLine": 450,
+      "title": "无思考内容时的动态等待与回复切换 1440px",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 5964
+        }
+      ]
+    },
+    {
+      "registrationFile": "knowledge.spec.ts",
+      "sourceFile": "knowledge.spec.ts",
+      "sourceLine": 535,
+      "title": "知识问答来源与引用面板 1920px",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 3669
+        }
+      ]
+    },
+    {
+      "registrationFile": "knowledge.spec.ts",
+      "sourceFile": "knowledge.spec.ts",
+      "sourceLine": 535,
+      "title": "知识问答来源与引用面板 1440px",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 3759
+        }
+      ]
+    },
+    {
+      "registrationFile": "knowledge.spec.ts",
+      "sourceFile": "knowledge.spec.ts",
+      "sourceLine": 535,
+      "title": "知识问答来源与引用面板 1280px",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 3626
+        }
+      ]
+    },
+    {
+      "registrationFile": "knowledge.spec.ts",
+      "sourceFile": "knowledge.spec.ts",
+      "sourceLine": 664,
+      "title": "新对话默认模型、来源与深层历史路由",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 3324
+        }
+      ]
+    },
+    {
+      "registrationFile": "knowledge.spec.ts",
+      "sourceFile": "knowledge.spec.ts",
+      "sourceLine": 703,
+      "title": "继承提供方与模型名并发送完整模型标识",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2300
+        }
+      ]
+    },
+    {
+      "registrationFile": "knowledge.spec.ts",
+      "sourceFile": "knowledge.spec.ts",
+      "sourceLine": 731,
+      "title": "模型目录挂起不影响进入、输入或默认发送；选择器独立显示等待",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2389
+        }
+      ]
+    },
+    {
+      "registrationFile": "knowledge.spec.ts",
+      "sourceFile": "knowledge.spec.ts",
+      "sourceLine": 783,
+      "title": "引用栏拖动宽度在重新打开和刷新后保持",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 3144
+        }
+      ]
+    },
+    {
+      "registrationFile": "knowledge.spec.ts",
+      "sourceFile": "knowledge.spec.ts",
+      "sourceLine": 819,
+      "title": "侧栏返回正在回答的知识对话、恢复草稿并读取离开期间的结果",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2270
+        }
+      ]
+    },
+    {
+      "registrationFile": "knowledge.spec.ts",
+      "sourceFile": "knowledge.spec.ts",
+      "sourceLine": 902,
+      "title": "侧栏记住新创建的对话，其他页面刷新后仍可返回，主动新建回到首页",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 3940
+        }
+      ]
+    },
+    {
+      "registrationFile": "knowledge.spec.ts",
+      "sourceFile": "knowledge.spec.ts",
+      "sourceLine": 959,
+      "title": "侧栏返回历史对话页并保留筛选，浏览器后退仍进入原对话",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2900
+        }
+      ]
+    },
+    {
+      "registrationFile": "knowledge.spec.ts",
+      "sourceFile": "knowledge.spec.ts",
+      "sourceLine": 1007,
+      "title": "历史独立筛选、归档、恢复和返回草稿",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 3188
+        }
+      ]
+    },
+    {
+      "registrationFile": "knowledge.spec.ts",
+      "sourceFile": "knowledge.spec.ts",
+      "sourceLine": 1066,
+      "title": "文档阅读视图和数据库结果的引用范围高亮",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1997
+        }
+      ]
+    },
+    {
+      "registrationFile": "knowledge.spec.ts",
+      "sourceFile": "knowledge.spec.ts",
+      "sourceLine": 1116,
+      "title": "助手澄清问题的草稿可刷新恢复且只提交一次",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 4077
+        }
+      ]
+    },
+    {
+      "registrationFile": "knowledge.spec.ts",
+      "sourceFile": "knowledge.spec.ts",
+      "sourceLine": 1202,
+      "title": "从正文底部打开引用保留非零滚动位置，关闭后继续阅读",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1921
+        }
+      ]
+    },
+    {
+      "registrationFile": "knowledge.spec.ts",
+      "sourceFile": "knowledge.spec.ts",
+      "sourceLine": 1234,
+      "title": "空回答失败可以恢复原问题且不会自动重发",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 1762
+        }
+      ]
+    },
+    {
+      "registrationFile": "ppt.spec.ts",
+      "sourceFile": "ppt.spec.ts",
+      "sourceLine": 485,
+      "title": "PPT 助手显示真实思考和调用，展开状态随更新保留",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 5230
+        }
+      ]
+    },
+    {
+      "registrationFile": "ppt.spec.ts",
+      "sourceFile": "ppt.spec.ts",
+      "sourceLine": 535,
+      "title": "选择项目后自由讨论并保留草稿，明确确认后才开始设计",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 6309
+        }
+      ]
+    },
+    {
+      "registrationFile": "ppt.spec.ts",
+      "sourceFile": "ppt.spec.ts",
+      "sourceLine": 627,
+      "title": "历史生成授权继续兼容提问与需求确认，补充意见不冒充确认",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 3137
+        }
+      ]
+    },
+    {
+      "registrationFile": "ppt.spec.ts",
+      "sourceFile": "ppt.spec.ts",
+      "sourceLine": 678,
+      "title": "完成后默认预览与修改意见，选择对象限定修改，自动更新文件",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 4662
+        }
+      ]
+    },
+    {
+      "registrationFile": "ppt.spec.ts",
+      "sourceFile": "ppt.spec.ts",
+      "sourceLine": 753,
+      "title": "手动编辑可选开启，对象键盘移动保存真实坐标与版本",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 3762
+        }
+      ]
+    },
+    {
+      "registrationFile": "ppt.spec.ts",
+      "sourceFile": "ppt.spec.ts",
+      "sourceLine": 814,
+      "title": "安全暂停保持阻断，证明停止后显示继续制作且沿原工作流恢复",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 4822
+        }
+      ]
+    },
+    {
+      "registrationFile": "ppt.spec.ts",
+      "sourceFile": "ppt.spec.ts",
+      "sourceLine": 861,
+      "title": "详细方案移入更多入口，七模块修改自动保存且不偷偷开始制作",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 5961
+        }
+      ]
+    },
+    {
+      "registrationFile": "ppt.spec.ts",
+      "sourceFile": "ppt.spec.ts",
+      "sourceLine": 949,
+      "title": "spdb 画布按需展开、键盘缩放和取消选择（模拟数据）",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 4825
+        }
+      ]
+    },
+    {
+      "registrationFile": "ppt.spec.ts",
+      "sourceFile": "ppt.spec.ts",
+      "sourceLine": 949,
+      "title": "tech-blue 画布按需展开、键盘缩放和取消选择（模拟数据）",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 5074
+        }
+      ]
+    },
+    {
+      "registrationFile": "ppt.spec.ts",
+      "sourceFile": "ppt.spec.ts",
+      "sourceLine": 949,
+      "title": "github-white 画布按需展开、键盘缩放和取消选择（模拟数据）",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 4968
+        }
+      ]
+    },
+    {
+      "registrationFile": "ppt.spec.ts",
+      "sourceFile": "ppt.spec.ts",
+      "sourceLine": 1107,
+      "title": "手动拖拽和缩放使用稳定画布坐标，取消拖动不提交",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2477
+        }
+      ]
+    },
+    {
+      "registrationFile": "ppt.spec.ts",
+      "sourceFile": "ppt.spec.ts",
+      "sourceLine": 1161,
+      "title": "未知保存回执阻止离开，原身份恢复后安全回退（模拟数据）",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 5411
+        }
+      ]
+    },
+    {
+      "registrationFile": "ppt.spec.ts",
+      "sourceFile": "ppt.spec.ts",
+      "sourceLine": 1275,
+      "title": "React 属性自动保存遇到409保留输入和基线，禁止旧修订继续写入（模拟数据）",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 4394
+        }
+      ]
+    },
+    {
+      "registrationFile": "ppt.spec.ts",
+      "sourceFile": "ppt.spec.ts",
+      "sourceLine": 1344,
+      "title": "存储不可写且无属性草稿时，未知键盘操作阻止回退直到原操作恢复（模拟数据）",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 4706
+        }
+      ]
+    },
+    {
+      "registrationFile": "ppt.spec.ts",
+      "sourceFile": "ppt.spec.ts",
+      "sourceLine": 1412,
+      "title": "PPT drag 活动中三次SPA退出首采样零监听RAF捕获RO且无迟到保存（模拟数据）",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 5358
+        }
+      ]
+    },
+    {
+      "registrationFile": "ppt.spec.ts",
+      "sourceFile": "ppt.spec.ts",
+      "sourceLine": 1412,
+      "title": "PPT resize 活动中三次SPA退出首采样零监听RAF捕获RO且无迟到保存（模拟数据）",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 5836
+        }
+      ]
+    },
+    {
+      "registrationFile": "read-consistency.spec.ts",
+      "sourceFile": "read-consistency-contracts.ts",
+      "sourceLine": 24,
+      "title": "较晚返回的旧筛选响应不能替换当前列表",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2942
+        }
+      ]
+    },
+    {
+      "registrationFile": "read-consistency.spec.ts",
+      "sourceFile": "read-consistency-contracts.ts",
+      "sourceLine": 90,
+      "title": "自动化页面显示检测失败并在服务端恢复后清除旧告警",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 3492
+        }
+      ]
+    },
+    {
+      "registrationFile": "read-consistency.spec.ts",
+      "sourceFile": "read-consistency-contracts.ts",
+      "sourceLine": 148,
+      "title": "退役自动化深链和刷新进入模板任务，不读取或重开历史自动化写入口",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2949
+        }
+      ]
+    },
+    {
+      "registrationFile": "source-template-form.spec.ts",
+      "sourceFile": "source-template-form.spec.ts",
+      "sourceLine": 56,
+      "title": "spdb 源码表单 1440px 紧凑布局、预检和模板切换",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 4976
+        }
+      ]
+    },
+    {
+      "registrationFile": "source-template-form.spec.ts",
+      "sourceFile": "source-template-form.spec.ts",
+      "sourceLine": 56,
+      "title": "github-white 源码表单 1440px 紧凑布局、预检和模板切换",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 4929
+        }
+      ]
+    },
+    {
+      "registrationFile": "source-template-form.spec.ts",
+      "sourceFile": "source-template-form.spec.ts",
+      "sourceLine": 56,
+      "title": "tech-blue 源码表单 1440px 紧凑布局、预检和模板切换",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 5204
+        }
+      ]
+    },
+    {
+      "registrationFile": "template-batch-recovery.spec.ts",
+      "sourceFile": "template-batch-recovery.spec.ts",
+      "sourceLine": 3,
+      "title": "第39批失败后继续后续批次，结束后统一选择重新触发 1440px",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 5113
+        }
+      ]
+    },
+    {
+      "registrationFile": "template-batch-resilience.spec.ts",
+      "sourceFile": "template-batch-resilience.spec.ts",
+      "sourceLine": 3,
+      "title": "等待任务显示失败清单、原批次恢复与独立重查 1440px",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 3648
+        }
+      ]
+    },
+    {
+      "registrationFile": "template-reports.spec.ts",
+      "sourceFile": "template-reports.spec.ts",
+      "sourceLine": 6,
+      "title": "代码审查主子报告跳转、命名下载与1440px布局",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 3902
+        }
+      ]
+    },
+    {
+      "registrationFile": "template-reports.spec.ts",
+      "sourceFile": "template-reports.spec.ts",
+      "sourceLine": 6,
+      "title": "项目贡献周报主子报告跳转、命名下载与1440px布局",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 3732
+        }
+      ]
+    },
+    {
+      "registrationFile": "template-session-diagnostics.spec.ts",
+      "sourceFile": "template-session-diagnostics.spec.ts",
+      "sourceLine": 3,
+      "title": "已接受但忙碌的批次可独立收尾，未知请求复用命令标识 1440px",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 5611
+        }
+      ]
+    },
+    {
+      "registrationFile": "template-tasks.spec.ts",
+      "sourceFile": "template-tasks.spec.ts",
+      "sourceLine": 120,
+      "title": "模板参数继承项目路径、可选择分支，结束日期校验阻止错误提交",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 3628
+        }
+      ]
+    },
+    {
+      "registrationFile": "template-tasks.spec.ts",
+      "sourceFile": "template-tasks.spec.ts",
+      "sourceLine": 224,
+      "title": "模板任务 1440px 布局与评分说明",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2554
+        }
+      ]
+    },
+    {
+      "registrationFile": "template-tasks.spec.ts",
+      "sourceFile": "template-tasks.spec.ts",
+      "sourceLine": 244,
+      "title": "目录可容纳后续模板，搜索后能选择，执行记录只从历史任务入口查看",
+      "status": "expected",
+      "project": "w7-legacy-desktop-chromium",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 2622
+        }
+      ]
+    }
+  ],
+  "limits": [
+    "This complete 49 batch belongs only to release d1a38dd, no pre-fix49 combination.",
+    "Case keys use registered spec and literal title. Shared read-consistency source locations are recorded separately; global matrix uses shared physical keys at multiplicity2 across legacy and W3.",
+    "14 pure narrow definitions remain OUT_OF_SCOPE; old source assertions retained. Four mixed desktop cases retain all desktop behavior and omit only narrow layout tails.",
+    "W3 production31 not executed here and awaits separate parent GO.",
+    "Deterministic mocked API/SSE, actual Chromium/DOM/geometry/resources; no real backend/model/Java durable parse or heap-GC proof."
+  ]
+}

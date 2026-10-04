@@ -17,10 +17,12 @@ test('启动基线失败显示可执行原因且不伪造执行会话', async ({
     const path = new URL(route.request().url()).pathname
     if (path.endsWith('/overview')) return route.fulfill({ json: task })
     if (path.endsWith('/events')) return route.fulfill({ contentType: 'text/event-stream', body: '' })
+    if(path.endsWith('/sessions'))return route.fulfill({json:[]})
+    if(path.endsWith('/decision'))return route.fulfill({json:{taskId:task.id,taskState:task.status,stages:[],availableActions:[]}})
     return route.fulfill({ json: { attempts: [], errors: [error], judges: [], artifacts: [], items: [] } })
   })
   await page.goto('/tasks/baseline-fixture')
-  await expect(page.getByText('任务已终止，不会再创建新会话', { exact: true })).toBeVisible()
+  await expect(page.locator('.w2-status')).toContainText('任务已终止，不会再创建新会话')
   await expect(page.getByText('阶段开始前的文件基线创建失败，尚未创建执行会话。请检查项目文件读取权限、数据目录写入权限及 Git 状态后重做。', { exact: true }).first()).toBeVisible()
   await expect(page.getByText('项目目录失败，请按页面提示处理后重试', { exact: true })).toHaveCount(0)
 })

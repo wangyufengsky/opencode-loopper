@@ -1,0 +1,10 @@
+{
+  "ok": true,
+  "sourceFiles": 775,
+  "sourceModuleReferences": 3998,
+  "scriptFiles": 33,
+  "dependencyPackages": 426,
+  "buildModules": 3940,
+  "errors": [],
+  "sourceSha256": "d1a38dd1471e5c5d0d23aeafa845c7494d3bc30e2d5875dd37c24e9faded596d"
+}

@@ -1,0 +1,186 @@
+{
+  "sourceSha256": "d1a38dd1471e5c5d0d23aeafa845c7494d3bc30e2d5875dd37c24e9faded596d",
+  "note": "all Chromium; labels are wave/config isolation, not extra browser variants; final registrations521 and unique518",
+  "runs": [
+    {
+      "relativeEvidencePath": "legacy/A.json",
+      "stats": {
+        "startTime": "2026-10-04T03:35:14.580Z",
+        "duration": 32734.728000000003,
+        "expected": 12,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "errorCount": 0,
+      "jsonSha256": "5c9dca96f631e354bd2a36f810d981e51b866c3b801576e8c1fc3ee49d99351c",
+      "projectLabels": [
+        "w7-legacy-desktop-chromium"
+      ],
+      "workers": 1,
+      "retries": 0
+    },
+    {
+      "relativeEvidencePath": "legacy/B.json",
+      "stats": {
+        "startTime": "2026-10-04T03:36:34.626Z",
+        "duration": 192557.69700000001,
+        "expected": 49,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "errorCount": 0,
+      "jsonSha256": "8d743369edb045b9c4e63a63bcb06acbb9c938e9cf77d1403159d78715670d2f",
+      "projectLabels": [
+        "w7-legacy-desktop-chromium"
+      ],
+      "workers": 1,
+      "retries": 0
+    },
+    {
+      "relativeEvidencePath": "legacy/C.json",
+      "stats": {
+        "startTime": "2026-10-04T03:28:33.177Z",
+        "duration": 398828.57,
+        "expected": 111,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "errorCount": 0,
+      "jsonSha256": "6ea6a0a0a529feccf04ec3d6971d0b85ce312ac1a290833cf1d49c36518cacd2",
+      "projectLabels": [
+        "w7-legacy-desktop-chromium"
+      ],
+      "workers": 1,
+      "retries": 0
+    },
+    {
+      "relativeEvidencePath": "legacy/lead.json",
+      "stats": {
+        "startTime": "2026-10-04T03:28:01.324Z",
+        "duration": 355391.79,
+        "expected": 88,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "errorCount": 0,
+      "jsonSha256": "716203b2fd2a10278d7237f12d244c3445e4ad42f82d6cd190dbffcd2003dc31",
+      "projectLabels": [
+        "w7-legacy-desktop-chromium"
+      ],
+      "workers": 1,
+      "retries": 0
+    },
+    {
+      "relativeEvidencePath": "w2/browser.json",
+      "stats": {
+        "startTime": "2026-10-04T03:42:29.472Z",
+        "duration": 131570.863,
+        "expected": 49,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "errorCount": 0,
+      "jsonSha256": "1a8fd875aad63619a0bed83664e1cf25b39a63ce00c1d13eee1ce263b0211264",
+      "projectLabels": [
+        "production-chromium"
+      ],
+      "workers": 1,
+      "retries": 0
+    },
+    {
+      "relativeEvidencePath": "w3/browser.json",
+      "stats": {
+        "startTime": "2026-10-04T03:50:09.425Z",
+        "duration": 76176.45899999999,
+        "expected": 31,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "errorCount": 0,
+      "jsonSha256": "c6a94f1c199141da8db6c2ebaa1f916f20c27874d41d3afb1e4250a6b8ae02dc",
+      "projectLabels": [
+        "w3-production-chromium"
+      ],
+      "workers": 1,
+      "retries": 0
+    },
+    {
+      "relativeEvidencePath": "w4/browser.json",
+      "stats": {
+        "startTime": "2026-10-04T03:54:03.707Z",
+        "duration": 55921.985,
+        "expected": 29,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "errorCount": 0,
+      "jsonSha256": "f79791238a7cdbbbb57dda495a3bd84a0cc0ff6de9677d9b28f62dc516510fd9",
+      "projectLabels": [
+        "w4-production-chromium"
+      ],
+      "workers": 1,
+      "retries": 0
+    },
+    {
+      "relativeEvidencePath": "w5/browser.json",
+      "stats": {
+        "startTime": "2026-10-04T03:41:48.840Z",
+        "duration": 117224.34599999999,
+        "expected": 49,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "errorCount": 0,
+      "jsonSha256": "aafd0d1dc3a19edd65024d1f45170bbdf0d4b81e926d538c9f271dbcc0e29427",
+      "projectLabels": [
+        "w5-production-chromium"
+      ],
+      "workers": 1,
+      "retries": 0
+    },
+    {
+      "relativeEvidencePath": "w6/browser.json",
+      "stats": {
+        "startTime": "2026-10-04T03:38:32.212Z",
+        "duration": 191320.572,
+        "expected": 97,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "errorCount": 0,
+      "jsonSha256": "5fe3ce05970dc583aaa176efeba40001697ed5f4ed9311f56566e6662c89a33b",
+      "projectLabels": [
+        "w6-production-chromium"
+      ],
+      "workers": 1,
+      "retries": 0
+    },
+    {
+      "relativeEvidencePath": "root/browser.json",
+      "stats": {
+        "startTime": "2026-10-04T03:49:24.927Z",
+        "duration": 11178.818000000001,
+        "expected": 6,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "errorCount": 0,
+      "jsonSha256": "a8a0ebb551cd63e374881ac9b0e8a8a7041ae0f12d9e143a5dffd951c38ecfa4",
+      "projectLabels": [
+        ""
+      ],
+      "workers": 1,
+      "retries": 0
+    }
+  ]
+}

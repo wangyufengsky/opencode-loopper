@@ -17,3 +17,7 @@
 .designer-card button { margin:4px; }
 
 .designer-activity-content { max-height:260px; overflow:auto; }
+
+.matrix-criterion-row { min-width:0; }
+.matrix-criterion-row .matrix-criterion-description { font-size:.8rem; line-height:1.45; }
+.matrix-criterion-statuses { color:var(--color-text-secondary); }

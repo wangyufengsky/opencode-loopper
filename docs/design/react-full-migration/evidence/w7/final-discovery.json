@@ -1,0 +1,2888 @@
+{
+  "sourceSha256": "d1a38dd1471e5c5d0d23aeafa845c7494d3bc30e2d5875dd37c24e9faded596d",
+  "collectionOnly": true,
+  "registered": 575,
+  "unique": 572,
+  "projects": [
+    "local-chrome"
+  ],
+  "errors": 0,
+  "jsonSha256": "a93eafb269175b730305797e31093ac7bc8078ce35a3d6300ee40afdb8bc2bed",
+  "cases": [
+    {
+      "file": "app-shell.spec.ts",
+      "title": "默认 spdb 中文外壳可启动并在主要路由间导航",
+      "project": "local-chrome"
+    },
+    {
+      "file": "connection-management.spec.ts",
+      "title": "连接管理工作区与统一 Git 入口 1440px",
+      "project": "local-chrome"
+    },
+    {
+      "file": "connection-management.spec.ts",
+      "title": "连接管理工作区与统一 Git 入口 1024px",
+      "project": "local-chrome"
+    },
+    {
+      "file": "connection-management.spec.ts",
+      "title": "连接管理工作区与统一 Git 入口 768px",
+      "project": "local-chrome"
+    },
+    {
+      "file": "connection-management.spec.ts",
+      "title": "连接管理工作区与统一 Git 入口 390px",
+      "project": "local-chrome"
+    },
+    {
+      "file": "database-driver-upgrade.spec.ts",
+      "title": "openGauss 驱动升级与认证反馈 1440px",
+      "project": "local-chrome"
+    },
+    {
+      "file": "database-driver-upgrade.spec.ts",
+      "title": "openGauss 驱动升级与认证反馈 390px",
+      "project": "local-chrome"
+    },
+    {
+      "file": "database-driver-upgrade.spec.ts",
+      "title": "新增 GaussDB 并独立传递密码 1440px",
+      "project": "local-chrome"
+    },
+    {
+      "file": "database-driver-upgrade.spec.ts",
+      "title": "新增 Oracle 并独立传递密码 1440px",
+      "project": "local-chrome"
+    },
+    {
+      "file": "database-driver-upgrade.spec.ts",
+      "title": "新增 SQL Server 并独立传递密码 1440px",
+      "project": "local-chrome"
+    },
+    {
+      "file": "database-driver-upgrade.spec.ts",
+      "title": "新增 DB2 并独立传递密码 1440px",
+      "project": "local-chrome"
+    },
+    {
+      "file": "database-driver-upgrade.spec.ts",
+      "title": "新增 GaussDB 并独立传递密码 390px",
+      "project": "local-chrome"
+    },
+    {
+      "file": "database-driver-upgrade.spec.ts",
+      "title": "新增 Oracle 并独立传递密码 390px",
+      "project": "local-chrome"
+    },
+    {
+      "file": "database-driver-upgrade.spec.ts",
+      "title": "新增 SQL Server 并独立传递密码 390px",
+      "project": "local-chrome"
+    },
+    {
+      "file": "database-driver-upgrade.spec.ts",
+      "title": "新增 DB2 并独立传递密码 390px",
+      "project": "local-chrome"
+    },
+    {
+      "file": "database-progress.spec.ts",
+      "title": "数据库分区配置与真实步骤投影 1440px",
+      "project": "local-chrome"
+    },
+    {
+      "file": "database-progress.spec.ts",
+      "title": "数据库分区配置与真实步骤投影 390px",
+      "project": "local-chrome"
+    },
+    {
+      "file": "designer-discussion.spec.ts",
+      "title": "历史设计继续需求提问与逐包讨论，再确认为 PENDING_START 任务",
+      "project": "local-chrome"
+    },
+    {
+      "file": "designer-discussion.spec.ts",
+      "title": "附件设计投递失败时展示具体原因并在刷新后保留附件历史",
+      "project": "local-chrome"
+    },
+    {
+      "file": "designer-discussion.spec.ts",
+      "title": "已开启全自动的历史设计继续原冻结流程进入已启动任务",
+      "project": "local-chrome"
+    },
+    {
+      "file": "designer-discussion.spec.ts",
+      "title": "document 制品确认保留断言与冻结执行身份",
+      "project": "local-chrome"
+    },
+    {
+      "file": "designer-discussion.spec.ts",
+      "title": "table 制品确认保留断言与冻结执行身份",
+      "project": "local-chrome"
+    },
+    {
+      "file": "designer-discussion.spec.ts",
+      "title": "spdb 历史Designer中的Mermaid由React渲染并保持主题与窄屏（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "designer-discussion.spec.ts",
+      "title": "tech-blue 历史Designer中的Mermaid由React渲染并保持主题与窄屏（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "designer-discussion.spec.ts",
+      "title": "github-white 历史Designer中的Mermaid由React渲染并保持主题与窄屏（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "designer-discussion.spec.ts",
+      "title": "历史Designer静态Mermaid三次真实SPA退出清理SVG渲染残留与观察器（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "document-template-tasks.spec.ts",
+      "title": "文档评审上传重试、刷新与按需报告 1440px",
+      "project": "local-chrome"
+    },
+    {
+      "file": "document-template-tasks.spec.ts",
+      "title": "文档评审上传重试、刷新与按需报告 390px",
+      "project": "local-chrome"
+    },
+    {
+      "file": "home.spec.ts",
+      "title": "默认主页、需求与流程入口、品牌返回、后退与刷新",
+      "project": "local-chrome"
+    },
+    {
+      "file": "home.spec.ts",
+      "title": "键盘可跳过导航并进入需求任务",
+      "project": "local-chrome"
+    },
+    {
+      "file": "home.spec.ts",
+      "title": "主页在 1440px 下无水平溢出且图片离线可用",
+      "project": "local-chrome"
+    },
+    {
+      "file": "home.spec.ts",
+      "title": "主页在 1280px 下无水平溢出且图片离线可用",
+      "project": "local-chrome"
+    },
+    {
+      "file": "home.spec.ts",
+      "title": "主页在 390px 下无水平溢出且图片离线可用",
+      "project": "local-chrome"
+    },
+    {
+      "file": "knowledge.spec.ts",
+      "title": "文件链接在当前页预览并保留气泡头像，失败不跳到 404",
+      "project": "local-chrome"
+    },
+    {
+      "file": "knowledge.spec.ts",
+      "title": "统一检索分页、来源覆盖与数据库原文 1440px",
+      "project": "local-chrome"
+    },
+    {
+      "file": "knowledge.spec.ts",
+      "title": "统一检索分页、来源覆盖与数据库原文 768px",
+      "project": "local-chrome"
+    },
+    {
+      "file": "knowledge.spec.ts",
+      "title": "无思考内容时的动态等待与回复切换 1440px",
+      "project": "local-chrome"
+    },
+    {
+      "file": "knowledge.spec.ts",
+      "title": "无思考内容时的动态等待与回复切换 768px",
+      "project": "local-chrome"
+    },
+    {
+      "file": "knowledge.spec.ts",
+      "title": "知识问答来源与引用面板 1920px",
+      "project": "local-chrome"
+    },
+    {
+      "file": "knowledge.spec.ts",
+      "title": "知识问答来源与引用面板 1440px",
+      "project": "local-chrome"
+    },
+    {
+      "file": "knowledge.spec.ts",
+      "title": "知识问答来源与引用面板 1280px",
+      "project": "local-chrome"
+    },
+    {
+      "file": "knowledge.spec.ts",
+      "title": "知识问答来源与引用面板 768px",
+      "project": "local-chrome"
+    },
+    {
+      "file": "knowledge.spec.ts",
+      "title": "新对话默认模型、来源与深层历史路由",
+      "project": "local-chrome"
+    },
+    {
+      "file": "knowledge.spec.ts",
+      "title": "继承提供方与模型名并发送完整模型标识",
+      "project": "local-chrome"
+    },
+    {
+      "file": "knowledge.spec.ts",
+      "title": "模型目录挂起不影响进入、输入或默认发送；选择器独立显示等待",
+      "project": "local-chrome"
+    },
+    {
+      "file": "knowledge.spec.ts",
+      "title": "引用栏拖动宽度在重新打开和刷新后保持",
+      "project": "local-chrome"
+    },
+    {
+      "file": "knowledge.spec.ts",
+      "title": "侧栏返回正在回答的知识对话、恢复草稿并读取离开期间的结果",
+      "project": "local-chrome"
+    },
+    {
+      "file": "knowledge.spec.ts",
+      "title": "侧栏记住新创建的对话，其他页面刷新后仍可返回，主动新建回到首页",
+      "project": "local-chrome"
+    },
+    {
+      "file": "knowledge.spec.ts",
+      "title": "侧栏返回历史对话页并保留筛选，浏览器后退仍进入原对话",
+      "project": "local-chrome"
+    },
+    {
+      "file": "knowledge.spec.ts",
+      "title": "历史独立筛选、归档、恢复和返回草稿",
+      "project": "local-chrome"
+    },
+    {
+      "file": "knowledge.spec.ts",
+      "title": "文档阅读视图和数据库结果的引用范围高亮",
+      "project": "local-chrome"
+    },
+    {
+      "file": "knowledge.spec.ts",
+      "title": "助手澄清问题的草稿可刷新恢复且只提交一次",
+      "project": "local-chrome"
+    },
+    {
+      "file": "knowledge.spec.ts",
+      "title": "从正文底部打开引用保留非零滚动位置，关闭后继续阅读",
+      "project": "local-chrome"
+    },
+    {
+      "file": "knowledge.spec.ts",
+      "title": "空回答失败可以恢复原问题且不会自动重发",
+      "project": "local-chrome"
+    },
+    {
+      "file": "linkage-regressions.spec.ts",
+      "title": "任务 A 的取消确认在浏览器后退到任务 B 后失效",
+      "project": "local-chrome"
+    },
+    {
+      "file": "linkage-regressions.spec.ts",
+      "title": "待处理中心的提交失败在重新核验和自动刷新成功后仍可见",
+      "project": "local-chrome"
+    },
+    {
+      "file": "ppt.spec.ts",
+      "title": "PPT 助手显示真实思考和调用，展开状态随更新保留",
+      "project": "local-chrome"
+    },
+    {
+      "file": "ppt.spec.ts",
+      "title": "选择项目后自由讨论并保留草稿，明确确认后才开始设计",
+      "project": "local-chrome"
+    },
+    {
+      "file": "ppt.spec.ts",
+      "title": "历史生成授权继续兼容提问与需求确认，补充意见不冒充确认",
+      "project": "local-chrome"
+    },
+    {
+      "file": "ppt.spec.ts",
+      "title": "完成后默认预览与修改意见，选择对象限定修改，自动更新文件",
+      "project": "local-chrome"
+    },
+    {
+      "file": "ppt.spec.ts",
+      "title": "手动编辑可选开启，对象键盘移动保存真实坐标与版本",
+      "project": "local-chrome"
+    },
+    {
+      "file": "ppt.spec.ts",
+      "title": "安全暂停保持阻断，证明停止后显示继续制作且沿原工作流恢复",
+      "project": "local-chrome"
+    },
+    {
+      "file": "ppt.spec.ts",
+      "title": "详细方案移入更多入口，七模块修改自动保存且不偷偷开始制作",
+      "project": "local-chrome"
+    },
+    {
+      "file": "ppt.spec.ts",
+      "title": "窄屏预览和助手分层呈现，无横向溢出，深链刷新保留作品",
+      "project": "local-chrome"
+    },
+    {
+      "file": "ppt.spec.ts",
+      "title": "spdb 画布按需展开、键盘缩放和取消选择（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "ppt.spec.ts",
+      "title": "tech-blue 画布按需展开、键盘缩放和取消选择（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "ppt.spec.ts",
+      "title": "github-white 画布按需展开、键盘缩放和取消选择（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "ppt.spec.ts",
+      "title": "手动拖拽和缩放使用稳定画布坐标，取消拖动不提交",
+      "project": "local-chrome"
+    },
+    {
+      "file": "ppt.spec.ts",
+      "title": "未知保存回执阻止离开，原身份恢复后安全回退（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "ppt.spec.ts",
+      "title": "React 属性自动保存遇到409保留输入和基线，禁止旧修订继续写入（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "ppt.spec.ts",
+      "title": "存储不可写且无属性草稿时，未知键盘操作阻止回退直到原操作恢复（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "ppt.spec.ts",
+      "title": "PPT drag 活动中三次SPA退出首采样零监听RAF捕获RO且无迟到保存（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "ppt.spec.ts",
+      "title": "PPT resize 活动中三次SPA退出首采样零监听RAF捕获RO且无迟到保存（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "publication-validation.spec.ts",
+      "title": "多行提交说明的预览与实际提交一致",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "spdb readonly stages 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "spdb readonly stages 1440px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "spdb readonly template-progress 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "spdb readonly template-progress 1440px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "spdb readonly roles 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "spdb readonly roles 1440px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "tech-blue readonly stages 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "tech-blue readonly stages 1440px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "tech-blue readonly template-progress 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "tech-blue readonly template-progress 1440px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "tech-blue readonly roles 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "tech-blue readonly roles 1440px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "github-white readonly stages 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "github-white readonly stages 1440px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "github-white readonly template-progress 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "github-white readonly template-progress 1440px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "github-white readonly roles 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "github-white readonly roles 1440px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "readonly stages background-pan 三次SPA退出首采样零监听RAF捕获RO（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "readonly template-progress background-pan 三次SPA退出首采样零监听RAF捕获RO（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "readonly roles background-pan 三次SPA退出首采样零监听RAF捕获RO（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "readonly stages Chromium双指缩放后单指续pan活动SPA退出立即清理（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "readonly stages Chromium touchCancel回滚pan并移除活动资源（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-lifecycle.spec.ts",
+      "title": "同一页面反复进入与离开 React 画布，选择和取消不叠加副作用（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-lifecycle.spec.ts",
+      "title": "内置模板真实 React Flow 只读预览不修改业务图（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-migration.spec.ts",
+      "title": "React Flow 真实拖动与连线保持业务图结构，撤销不会提交（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-migration.spec.ts",
+      "title": "回退偏好不替换活动画布或绕过草稿守卫，安全离开后才启用兼容画布（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-migration.spec.ts",
+      "title": "本地画布偏好入口只更新下一次页面实例，不写服务端设置（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-migration.spec.ts",
+      "title": "spdb 任务阶段真实ReactFlow投影与窄屏（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-migration.spec.ts",
+      "title": "spdb 模板步骤及阶段详情真实ReactFlow投影与窄屏（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-migration.spec.ts",
+      "title": "tech-blue 任务阶段真实ReactFlow投影与窄屏（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-migration.spec.ts",
+      "title": "tech-blue 模板步骤及阶段详情真实ReactFlow投影与窄屏（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-migration.spec.ts",
+      "title": "github-white 任务阶段真实ReactFlow投影与窄屏（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-migration.spec.ts",
+      "title": "github-white 模板步骤及阶段详情真实ReactFlow投影与窄屏（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-narrow.spec.ts",
+      "title": "spdb React流程画布窄屏选择、键盘取消和上下文关闭（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-narrow.spec.ts",
+      "title": "tech-blue React流程画布窄屏选择、键盘取消和上下文关闭（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-narrow.spec.ts",
+      "title": "github-white React流程画布窄屏选择、键盘取消和上下文关闭（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-pointer-lifecycle.spec.ts",
+      "title": "Pointer Events connection-pressed 三次SPA退出立即清零监听、RAF和捕获（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-pointer-lifecycle.spec.ts",
+      "title": "Pointer Events connection-mouse 三次SPA退出立即清零监听、RAF和捕获（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-pointer-lifecycle.spec.ts",
+      "title": "Pointer Events connection-touch 三次SPA退出立即清零监听、RAF和捕获（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-pointer-lifecycle.spec.ts",
+      "title": "Pointer Events node-mouse 三次SPA退出立即清零监听、RAF和捕获（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-pointer-lifecycle.spec.ts",
+      "title": "Pointer Events pane-mouse 三次SPA退出立即清零监听、RAF和捕获（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-pointer-lifecycle.spec.ts",
+      "title": "connect pointercancel 取消真实指针手势且立即清理（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-pointer-lifecycle.spec.ts",
+      "title": "connect lostcapture 取消真实指针手势且立即清理（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-pointer-lifecycle.spec.ts",
+      "title": "connect blur 取消真实指针手势且立即清理（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-pointer-lifecycle.spec.ts",
+      "title": "drag pointercancel 取消真实指针手势且立即清理（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-pointer-lifecycle.spec.ts",
+      "title": "drag lostcapture 取消真实指针手势且立即清理（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-pointer-lifecycle.spec.ts",
+      "title": "drag blur 取消真实指针手势且立即清理（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-pointer-lifecycle.spec.ts",
+      "title": "节点首帧105px/20px在缩放0.5完整换算并提交（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-pointer-lifecycle.spec.ts",
+      "title": "节点首帧105px/20px在缩放1完整换算并提交（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-pointer-lifecycle.spec.ts",
+      "title": "节点首帧105px/20px在缩放2完整换算并提交（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-pointer-lifecycle.spec.ts",
+      "title": "spdb mouse 正常Pointer连接保留真实ReactFlow边并释放资源（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-pointer-lifecycle.spec.ts",
+      "title": "tech-blue mouse 正常Pointer连接保留真实ReactFlow边并释放资源（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-pointer-lifecycle.spec.ts",
+      "title": "github-white mouse 正常Pointer连接保留真实ReactFlow边并释放资源（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-pointer-lifecycle.spec.ts",
+      "title": "spdb touch 正常Pointer连接保留真实ReactFlow边并释放资源（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-pointer-lifecycle.spec.ts",
+      "title": "真实CDP触摸节点首帧105px/20px完整提交并清理（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-pointer-lifecycle.spec.ts",
+      "title": "真实CDP双指缩放释放一指后继续单指平移，最终清零（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-pointer-lifecycle.spec.ts",
+      "title": "spdb 390px活动指针拖动与退出清理（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-pointer-lifecycle.spec.ts",
+      "title": "tech-blue 390px活动指针拖动与退出清理（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-pointer-lifecycle.spec.ts",
+      "title": "github-white 390px活动指针拖动与退出清理（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-pointer-lifecycle.spec.ts",
+      "title": "中键从node平移三次SPA退出立即清零并移除实例轮缩监听（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-pointer-lifecycle.spec.ts",
+      "title": "中键从node首帧105px/20px平移只提交一次布局和撤销记录（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-pointer-lifecycle.spec.ts",
+      "title": "中键从edge平移三次SPA退出立即清零并移除实例轮缩监听（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-pointer-lifecycle.spec.ts",
+      "title": "中键从edge首帧105px/20px平移只提交一次布局和撤销记录（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-pointer-lifecycle.spec.ts",
+      "title": "真实Ctrl滚轮缩放终止旧connect，迟到释放不写回且轮缩监听卸载（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-canvas-pointer-lifecycle.spec.ts",
+      "title": "真实Ctrl滚轮缩放终止旧drag，迟到释放不写回且轮缩监听卸载（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-diagram-accessibility.spec.ts",
+      "title": "spdb 320px 任务阶段长序列Tab定位与原生文字选择不重建订阅（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-diagram-accessibility.spec.ts",
+      "title": "spdb 320px 模板步骤长序列Tab定位与原生文字选择不重建订阅（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-diagram-accessibility.spec.ts",
+      "title": "tech-blue 320px 任务阶段长序列Tab定位与原生文字选择不重建订阅（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-diagram-accessibility.spec.ts",
+      "title": "tech-blue 320px 模板步骤长序列Tab定位与原生文字选择不重建订阅（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-diagram-accessibility.spec.ts",
+      "title": "github-white 320px 任务阶段长序列Tab定位与原生文字选择不重建订阅（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-diagram-accessibility.spec.ts",
+      "title": "github-white 320px 模板步骤长序列Tab定位与原生文字选择不重建订阅（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-renderer-ro-diagnostic.spec.ts",
+      "title": "renderer RO CDP cleanup-ref, extent-owner and WeakRef diagnostic（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-renderer-ro-diagnostic.spec.ts",
+      "title": "strict cleanup negative control: unknown RAF and misleading callback name remain blocking",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-renderer-ro-diagnostic.spec.ts",
+      "title": "strict cleanup negative control: detached renderer observer is never filtered",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-renderer-ro-diagnostic.spec.ts",
+      "title": "strict cleanup negative control: reused retired Table callback needs fresh positive ownership",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-workflow-cleanup-entries.spec.ts",
+      "title": "需求规划画布活动平移三次路由退出直接清理（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-workflow-cleanup-entries.spec.ts",
+      "title": "需求执行画布活动平移三次路由退出直接清理（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-workflow-cleanup-entries.spec.ts",
+      "title": "另存模板预览活动平移三次关闭立即清理，父画布保持原实例（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-workflow-review.spec.ts",
+      "title": "Editor 未知保存回执保留原请求，改画布偏好后恢复再安全进入兼容画布（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "react-workflow-review.spec.ts",
+      "title": "Requirement 未知确认回执保留原请求，改画布偏好后恢复再安全进入兼容画布（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "read-consistency-contracts.ts",
+      "title": "较晚返回的旧筛选响应不能替换当前列表",
+      "project": "local-chrome"
+    },
+    {
+      "file": "read-consistency-contracts.ts",
+      "title": "自动化页面显示检测失败并在服务端恢复后清除旧告警",
+      "project": "local-chrome"
+    },
+    {
+      "file": "read-consistency-contracts.ts",
+      "title": "退役自动化深链和刷新进入模板任务，不读取或重开历史自动化写入口",
+      "project": "local-chrome"
+    },
+    {
+      "file": "roles.spec.ts",
+      "title": "深层路由、静态模板、历史版本与差异在重载后可重新查看",
+      "project": "local-chrome"
+    },
+    {
+      "file": "roles.spec.ts",
+      "title": "导入失败保留 ZIP，绑定冲突后重新校验并使用新的预期版本发布",
+      "project": "local-chrome"
+    },
+    {
+      "file": "roles.spec.ts",
+      "title": "角色列表无网络时可重试，空结果与未选角色有明确状态",
+      "project": "local-chrome"
+    },
+    {
+      "file": "roles.spec.ts",
+      "title": "spdb 1440px 角色权限预估可读且布局不重叠",
+      "project": "local-chrome"
+    },
+    {
+      "file": "roles.spec.ts",
+      "title": "spdb 390px 角色权限预估可读且布局不重叠",
+      "project": "local-chrome"
+    },
+    {
+      "file": "roles.spec.ts",
+      "title": "tech-blue 1440px 角色权限预估可读且布局不重叠",
+      "project": "local-chrome"
+    },
+    {
+      "file": "roles.spec.ts",
+      "title": "tech-blue 390px 角色权限预估可读且布局不重叠",
+      "project": "local-chrome"
+    },
+    {
+      "file": "roles.spec.ts",
+      "title": "github-white 1440px 角色权限预估可读且布局不重叠",
+      "project": "local-chrome"
+    },
+    {
+      "file": "roles.spec.ts",
+      "title": "github-white 390px 角色权限预估可读且布局不重叠",
+      "project": "local-chrome"
+    },
+    {
+      "file": "roles.spec.ts",
+      "title": "桌面双栏独立滚动且分页常驻，工具权限可各自折叠",
+      "project": "local-chrome"
+    },
+    {
+      "file": "roles.spec.ts",
+      "title": "spdb 角色流程采用真实ReactFlow且版本入口可达（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "roles.spec.ts",
+      "title": "tech-blue 角色流程采用真实ReactFlow且版本入口可达（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "roles.spec.ts",
+      "title": "github-white 角色流程采用真实ReactFlow且版本入口可达（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "skills.spec.ts",
+      "title": "工具与 Skill 分页、按需阅读、安全预览和项目切换",
+      "project": "local-chrome"
+    },
+    {
+      "file": "skins.spec.ts",
+      "title": "主页选择、刷新、深层页面与同源标签同步，非法保存值安全恢复",
+      "project": "local-chrome"
+    },
+    {
+      "file": "skins.spec.ts",
+      "title": "spdb 选择在刷新与同源标签恢复，清空保存值回到新默认",
+      "project": "local-chrome"
+    },
+    {
+      "file": "skins.spec.ts",
+      "title": "spdb 主页 1440px 皮肤与离线布局",
+      "project": "local-chrome"
+    },
+    {
+      "file": "skins.spec.ts",
+      "title": "spdb 主页 1280px 皮肤与离线布局",
+      "project": "local-chrome"
+    },
+    {
+      "file": "skins.spec.ts",
+      "title": "spdb 主页 390px 皮肤与离线布局",
+      "project": "local-chrome"
+    },
+    {
+      "file": "skins.spec.ts",
+      "title": "spdb 控件、弹层、代码与流程图一致并保持输入",
+      "project": "local-chrome"
+    },
+    {
+      "file": "skins.spec.ts",
+      "title": "tech-blue 主页 1440px 皮肤与离线布局",
+      "project": "local-chrome"
+    },
+    {
+      "file": "skins.spec.ts",
+      "title": "tech-blue 主页 1280px 皮肤与离线布局",
+      "project": "local-chrome"
+    },
+    {
+      "file": "skins.spec.ts",
+      "title": "tech-blue 主页 390px 皮肤与离线布局",
+      "project": "local-chrome"
+    },
+    {
+      "file": "skins.spec.ts",
+      "title": "tech-blue 控件、弹层、代码与流程图一致并保持输入",
+      "project": "local-chrome"
+    },
+    {
+      "file": "skins.spec.ts",
+      "title": "github-white 主页 1440px 皮肤与离线布局",
+      "project": "local-chrome"
+    },
+    {
+      "file": "skins.spec.ts",
+      "title": "github-white 主页 1280px 皮肤与离线布局",
+      "project": "local-chrome"
+    },
+    {
+      "file": "skins.spec.ts",
+      "title": "github-white 主页 390px 皮肤与离线布局",
+      "project": "local-chrome"
+    },
+    {
+      "file": "skins.spec.ts",
+      "title": "github-white 控件、弹层、代码与流程图一致并保持输入",
+      "project": "local-chrome"
+    },
+    {
+      "file": "source-template-form.spec.ts",
+      "title": "spdb 源码表单 1440px 紧凑布局、预检和模板切换",
+      "project": "local-chrome"
+    },
+    {
+      "file": "source-template-form.spec.ts",
+      "title": "spdb 源码表单 390px 紧凑布局、预检和模板切换",
+      "project": "local-chrome"
+    },
+    {
+      "file": "source-template-form.spec.ts",
+      "title": "github-white 源码表单 1440px 紧凑布局、预检和模板切换",
+      "project": "local-chrome"
+    },
+    {
+      "file": "source-template-form.spec.ts",
+      "title": "github-white 源码表单 390px 紧凑布局、预检和模板切换",
+      "project": "local-chrome"
+    },
+    {
+      "file": "source-template-form.spec.ts",
+      "title": "tech-blue 源码表单 1440px 紧凑布局、预检和模板切换",
+      "project": "local-chrome"
+    },
+    {
+      "file": "source-template-form.spec.ts",
+      "title": "tech-blue 源码表单 390px 紧凑布局、预检和模板切换",
+      "project": "local-chrome"
+    },
+    {
+      "file": "story-accounting.spec.ts",
+      "title": "统计事件打开弹窗，空闲和结束后不轮询，重连恢复未关闭结果",
+      "project": "local-chrome"
+    },
+    {
+      "file": "task-baseline-error.spec.ts",
+      "title": "启动基线失败显示可执行原因且不伪造执行会话",
+      "project": "local-chrome"
+    },
+    {
+      "file": "template-batch-recovery.spec.ts",
+      "title": "第39批失败后继续后续批次，结束后统一选择重新触发 1440px",
+      "project": "local-chrome"
+    },
+    {
+      "file": "template-batch-recovery.spec.ts",
+      "title": "第39批失败后继续后续批次，结束后统一选择重新触发 390px",
+      "project": "local-chrome"
+    },
+    {
+      "file": "template-batch-resilience.spec.ts",
+      "title": "等待任务显示失败清单、原批次恢复与独立重查 1440px",
+      "project": "local-chrome"
+    },
+    {
+      "file": "template-batch-resilience.spec.ts",
+      "title": "等待任务显示失败清单、原批次恢复与独立重查 390px",
+      "project": "local-chrome"
+    },
+    {
+      "file": "template-reports.spec.ts",
+      "title": "代码审查主子报告跳转、命名下载与1440px布局",
+      "project": "local-chrome"
+    },
+    {
+      "file": "template-reports.spec.ts",
+      "title": "代码审查主子报告跳转、命名下载与390px布局",
+      "project": "local-chrome"
+    },
+    {
+      "file": "template-reports.spec.ts",
+      "title": "项目贡献周报主子报告跳转、命名下载与1440px布局",
+      "project": "local-chrome"
+    },
+    {
+      "file": "template-reports.spec.ts",
+      "title": "项目贡献周报主子报告跳转、命名下载与390px布局",
+      "project": "local-chrome"
+    },
+    {
+      "file": "template-session-diagnostics.spec.ts",
+      "title": "已接受但忙碌的批次可独立收尾，未知请求复用命令标识 1440px",
+      "project": "local-chrome"
+    },
+    {
+      "file": "template-session-diagnostics.spec.ts",
+      "title": "已接受但忙碌的批次可独立收尾，未知请求复用命令标识 390px",
+      "project": "local-chrome"
+    },
+    {
+      "file": "template-tasks.spec.ts",
+      "title": "模板参数继承项目路径、可选择分支，结束日期校验阻止错误提交",
+      "project": "local-chrome"
+    },
+    {
+      "file": "template-tasks.spec.ts",
+      "title": "模板任务 1440px 布局与评分说明",
+      "project": "local-chrome"
+    },
+    {
+      "file": "template-tasks.spec.ts",
+      "title": "模板任务 390px 布局与评分说明",
+      "project": "local-chrome"
+    },
+    {
+      "file": "template-tasks.spec.ts",
+      "title": "目录可容纳后续模板，搜索后能选择，执行记录只从历史任务入口查看",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "spdb real W2 home desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "spdb real W2 projects desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "spdb real W2 ppt desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "spdb real W2 knowledge-history desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "spdb real W2 requirements desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "spdb real W2 workflows desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "spdb real W2 designs desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "spdb real W2 tasks desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "spdb real W2 insights desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "spdb real W2 runtime desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "spdb real W2 tools desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "spdb real W2 databases desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "spdb real W2 settings desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "spdb real W2 roles desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "tech-blue real W2 home desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "tech-blue real W2 projects desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "tech-blue real W2 ppt desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "tech-blue real W2 knowledge-history desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "tech-blue real W2 requirements desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "tech-blue real W2 workflows desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "tech-blue real W2 designs desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "tech-blue real W2 tasks desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "tech-blue real W2 insights desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "tech-blue real W2 runtime desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "tech-blue real W2 tools desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "tech-blue real W2 databases desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "tech-blue real W2 settings desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "tech-blue real W2 roles desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "github-white real W2 home desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "github-white real W2 projects desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "github-white real W2 ppt desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "github-white real W2 knowledge-history desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "github-white real W2 requirements desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "github-white real W2 workflows desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "github-white real W2 designs desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "github-white real W2 tasks desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "github-white real W2 insights desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "github-white real W2 runtime desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "github-white real W2 tools desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "github-white real W2 databases desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "github-white real W2 settings desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "github-white real W2 roles desktop 1440/1280 selection and strict SPA exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "PPT real creation UNKNOWN blocks SPA exit and retains body; dirty leave defaults Stay",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "Knowledge real same-instance query/back synchronization",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "spdb real Roles active readonly pan exits immediately for three cycles",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "tech-blue real Roles active readonly pan exits immediately for three cycles",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "github-white real Roles active readonly pan exits immediately for three cycles",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "Database real accepted save/read failure preserves secret draft and only re-reads",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w2/product-routes.spec.ts",
+      "title": "Settings real dirty route confirmation stays then explicitly discards without PUT",
+      "project": "local-chrome"
+    },
+    {
+      "file": "read-consistency-contracts.ts",
+      "title": "较晚返回的旧筛选响应不能替换当前列表",
+      "project": "local-chrome"
+    },
+    {
+      "file": "read-consistency-contracts.ts",
+      "title": "自动化页面显示检测失败并在服务端恢复后清除旧告警",
+      "project": "local-chrome"
+    },
+    {
+      "file": "read-consistency-contracts.ts",
+      "title": "退役自动化深链和刷新进入模板任务，不读取或重开历史自动化写入口",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w3/ppt-studio.spec.ts",
+      "title": "spdb actual PPT studio direct/reload/back three-dimensional page and strict exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w3/ppt-studio.spec.ts",
+      "title": "spdb PPT actual drag capture immediately clears on SPA exit for three cycles",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w3/ppt-studio.spec.ts",
+      "title": "spdb PPT actual resize capture immediately clears on SPA exit for three cycles",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w3/ppt-studio.spec.ts",
+      "title": "tech-blue actual PPT studio direct/reload/back three-dimensional page and strict exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w3/ppt-studio.spec.ts",
+      "title": "tech-blue PPT actual drag capture immediately clears on SPA exit for three cycles",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w3/ppt-studio.spec.ts",
+      "title": "tech-blue PPT actual resize capture immediately clears on SPA exit for three cycles",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w3/ppt-studio.spec.ts",
+      "title": "github-white actual PPT studio direct/reload/back three-dimensional page and strict exit",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w3/ppt-studio.spec.ts",
+      "title": "github-white PPT actual drag capture immediately clears on SPA exit for three cycles",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w3/ppt-studio.spec.ts",
+      "title": "github-white PPT actual resize capture immediately clears on SPA exit for three cycles",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w3/ppt-studio.spec.ts",
+      "title": "PPT real unknown discussion/body/theme/leave and identical explicit retry",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w3/production-routes.spec.ts",
+      "title": "spdb production catalog direct/reload/back and three strict SPA exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w3/production-routes.spec.ts",
+      "title": "spdb production document direct/reload/back and three strict SPA exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w3/production-routes.spec.ts",
+      "title": "spdb production source direct/reload/back and three strict SPA exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w3/production-routes.spec.ts",
+      "title": "spdb production knowledge-new direct/reload/back and three strict SPA exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w3/production-routes.spec.ts",
+      "title": "spdb production knowledge-existing direct/reload/back and three strict SPA exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w3/production-routes.spec.ts",
+      "title": "spdb explicit historical consumer reads all nine GETs and preserves both original export bytes",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w3/production-routes.spec.ts",
+      "title": "tech-blue production catalog direct/reload/back and three strict SPA exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w3/production-routes.spec.ts",
+      "title": "tech-blue production document direct/reload/back and three strict SPA exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w3/production-routes.spec.ts",
+      "title": "tech-blue production source direct/reload/back and three strict SPA exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w3/production-routes.spec.ts",
+      "title": "tech-blue production knowledge-new direct/reload/back and three strict SPA exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w3/production-routes.spec.ts",
+      "title": "tech-blue production knowledge-existing direct/reload/back and three strict SPA exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w3/production-routes.spec.ts",
+      "title": "tech-blue explicit historical consumer reads all nine GETs and preserves both original export bytes",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w3/production-routes.spec.ts",
+      "title": "github-white production catalog direct/reload/back and three strict SPA exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w3/production-routes.spec.ts",
+      "title": "github-white production document direct/reload/back and three strict SPA exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w3/production-routes.spec.ts",
+      "title": "github-white production source direct/reload/back and three strict SPA exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w3/production-routes.spec.ts",
+      "title": "github-white production knowledge-new direct/reload/back and three strict SPA exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w3/production-routes.spec.ts",
+      "title": "github-white production knowledge-existing direct/reload/back and three strict SPA exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w3/production-routes.spec.ts",
+      "title": "github-white explicit historical consumer reads all nine GETs and preserves both original export bytes",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w4/production-routes.spec.ts",
+      "title": "spdb actual task direct/refresh/back/forward and 3 immediate exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w4/production-routes.spec.ts",
+      "title": "spdb actual history direct/refresh/back/forward and 3 immediate exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w4/production-routes.spec.ts",
+      "title": "spdb actual recovery direct/refresh/back/forward and 3 immediate exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w4/production-routes.spec.ts",
+      "title": "spdb actual inbox direct/refresh/back/forward and 3 immediate exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w4/production-routes.spec.ts",
+      "title": "tech-blue actual task direct/refresh/back/forward and 3 immediate exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w4/production-routes.spec.ts",
+      "title": "tech-blue actual history direct/refresh/back/forward and 3 immediate exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w4/production-routes.spec.ts",
+      "title": "tech-blue actual recovery direct/refresh/back/forward and 3 immediate exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w4/production-routes.spec.ts",
+      "title": "tech-blue actual inbox direct/refresh/back/forward and 3 immediate exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w4/production-routes.spec.ts",
+      "title": "github-white actual task direct/refresh/back/forward and 3 immediate exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w4/production-routes.spec.ts",
+      "title": "github-white actual history direct/refresh/back/forward and 3 immediate exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w4/production-routes.spec.ts",
+      "title": "github-white actual recovery direct/refresh/back/forward and 3 immediate exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w4/production-routes.spec.ts",
+      "title": "github-white actual inbox direct/refresh/back/forward and 3 immediate exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w4/production-routes.spec.ts",
+      "title": "actual task root shutdown immediately releases its reads/listeners/observers",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w4/production-routes.spec.ts",
+      "title": "actual history root shutdown immediately releases its reads/listeners/observers",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w4/production-routes.spec.ts",
+      "title": "actual recovery root shutdown immediately releases its reads/listeners/observers",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w4/production-routes.spec.ts",
+      "title": "actual inbox root shutdown immediately releases its reads/listeners/observers",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w4/production-routes.spec.ts",
+      "title": "native Task SSE reconnect sends exact Last-Event-ID while REST stays authoritative; route closes only Task stream",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w4/production-routes.spec.ts",
+      "title": "native Task SSE reconnect sends exact Last-Event-ID while REST stays authoritative; root closes only Task stream",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w4/production-routes.spec.ts",
+      "title": "Task pending/unknown original command blocks route navigation and legal GET recovery never repeats stop",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w4/production-routes.spec.ts",
+      "title": "Inbox exact version answer and permission behavior remain explicit; unknown cannot be dismissed",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w4/production-routes.spec.ts",
+      "title": "PENDING_START only explicit start writes; READY never exposes another start or retries on mount",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w4/production-routes.spec.ts",
+      "title": "Recovery explicit mode preserves accepted child and uses only legal GET after readback failure",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w4/production-routes.spec.ts",
+      "title": "Recovery unknown keyless create retains original mode; a similar lineage row never proves acceptance",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w4/production-routes.spec.ts",
+      "title": "Task session answer draft/theme/native blocked refresh/back preserves original input and unknown answer does not replay",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w4/production-routes.spec.ts",
+      "title": "Task readonly stage background active pan route immediately releases capture/listeners/RAF without mouseup",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w4/production-routes.spec.ts",
+      "title": "Task readonly stage background active pan root immediately releases capture/listeners/RAF without mouseup",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w4/production-routes.spec.ts",
+      "title": "spdb real publication context dirty close/reduced motion/focus and theme preserve state",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w4/production-routes.spec.ts",
+      "title": "tech-blue real publication context dirty close/reduced motion/focus and theme preserve state",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w4/production-routes.spec.ts",
+      "title": "github-white real publication context dirty close/reduced motion/focus and theme preserve state",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "spdb production workflow-new direct/reload/back/forward and 3 strict immediate route exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "spdb production workflow-edit direct/reload/back/forward and 3 strict immediate route exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "spdb production requirement-new direct/reload/back/forward and 3 strict immediate route exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "spdb production requirement-plan direct/reload/back/forward and 3 strict immediate route exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "spdb production designer direct/reload/back/forward and 3 strict immediate route exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "tech-blue production workflow-new direct/reload/back/forward and 3 strict immediate route exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "tech-blue production workflow-edit direct/reload/back/forward and 3 strict immediate route exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "tech-blue production requirement-new direct/reload/back/forward and 3 strict immediate route exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "tech-blue production requirement-plan direct/reload/back/forward and 3 strict immediate route exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "tech-blue production designer direct/reload/back/forward and 3 strict immediate route exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "github-white production workflow-new direct/reload/back/forward and 3 strict immediate route exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "github-white production workflow-edit direct/reload/back/forward and 3 strict immediate route exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "github-white production requirement-new direct/reload/back/forward and 3 strict immediate route exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "github-white production requirement-plan direct/reload/back/forward and 3 strict immediate route exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "github-white production designer direct/reload/back/forward and 3 strict immediate route exits",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "actual workflow-new root shutdown immediately releases every owned resource",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "actual workflow-edit root shutdown immediately releases every owned resource",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "actual requirement-new root shutdown immediately releases every owned resource",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "actual requirement-plan root shutdown immediately releases every owned resource",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "actual designer root shutdown immediately releases every owned resource",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "native Designer SSE exact reconnect cursor + REST authority + route strict cleanup",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "native Designer SSE exact reconnect cursor + REST authority + root strict cleanup",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "workflow-edit actual active pan route releases resources before any subsequent input",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "workflow-edit actual active pan root releases resources before any subsequent input",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "workflow-edit actual active drag route releases resources before any subsequent input",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "workflow-edit actual active drag root releases resources before any subsequent input",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "workflow-edit actual active connect route releases resources before any subsequent input",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "workflow-edit actual active connect root releases resources before any subsequent input",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "requirement-plan actual active pan route releases resources before any subsequent input",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "requirement-plan actual active pan root releases resources before any subsequent input",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "requirement-plan actual active drag route releases resources before any subsequent input",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "requirement-plan actual active drag root releases resources before any subsequent input",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "requirement-plan actual active connect route releases resources before any subsequent input",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "requirement-plan actual active connect root releases resources before any subsequent input",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "spdb actual new requirement UNKNOWN blocks departure, keeps four fields and explicitly retries identical POST",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "tech-blue actual new requirement UNKNOWN blocks departure, keeps four fields and explicitly retries identical POST",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "github-white actual new requirement UNKNOWN blocks departure, keeps four fields and explicitly retries identical POST",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "workflow-edit actual owner preserves first-frame 105px/20px at zoom 0.5, undo/redo and keyboard cancellation",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "workflow-edit actual owner preserves first-frame 105px/20px at zoom 1, undo/redo and keyboard cancellation",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "workflow-edit actual owner preserves first-frame 105px/20px at zoom 2, undo/redo and keyboard cancellation",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "requirement-plan actual owner preserves first-frame 105px/20px at zoom 0.5, undo/redo and keyboard cancellation",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "requirement-plan actual owner preserves first-frame 105px/20px at zoom 1, undo/redo and keyboard cancellation",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "requirement-plan actual owner preserves first-frame 105px/20px at zoom 2, undo/redo and keyboard cancellation",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "spdb actual workflow connects through React Flow handles, retains state on theme, then undo/redo without implicit write",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "tech-blue actual workflow connects through React Flow handles, retains state on theme, then undo/redo without implicit write",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "github-white actual workflow connects through React Flow handles, retains state on theme, then undo/redo without implicit write",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "actual workflow graph accepted/layout unknown/final GET failure each retains its own original receipt without rewriting accepted stages",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "actual workflow accepted graph plus definitive layout rejection retains partial identity and only explicitly retries that same layout",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w5/production-routes.spec.ts",
+      "title": "actual Designer UNKNOWN multipart Send retries original metadata/File bytes while retaining later message and extra attachment",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "spdb W6 home: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "spdb W6 projects: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "spdb W6 ppt-list: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "spdb W6 ppt: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "spdb W6 knowledge-history: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "spdb W6 knowledge: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "spdb W6 designer: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "spdb W6 requirements: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "spdb W6 new-requirement: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "spdb W6 requirement: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "spdb W6 workflows: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "spdb W6 new-workflow: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "spdb W6 workflow: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "spdb W6 designs: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "spdb W6 tasks: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "spdb W6 inbox: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "spdb W6 insights: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "spdb W6 automations: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "spdb W6 templates: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "spdb W6 document-run: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "spdb W6 source-run: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "spdb W6 task: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "spdb W6 recovery: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "spdb W6 task-design: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "spdb W6 runtime: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "spdb W6 tools: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "spdb W6 databases: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "spdb W6 settings: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "spdb W6 settings-roles: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "spdb W6 roles: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "spdb W6 fallback: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "tech-blue W6 home: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "tech-blue W6 projects: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "tech-blue W6 ppt-list: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "tech-blue W6 ppt: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "tech-blue W6 knowledge-history: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "tech-blue W6 knowledge: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "tech-blue W6 designer: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "tech-blue W6 requirements: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "tech-blue W6 new-requirement: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "tech-blue W6 requirement: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "tech-blue W6 workflows: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "tech-blue W6 new-workflow: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "tech-blue W6 workflow: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "tech-blue W6 designs: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "tech-blue W6 tasks: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "tech-blue W6 inbox: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "tech-blue W6 insights: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "tech-blue W6 automations: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "tech-blue W6 templates: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "tech-blue W6 document-run: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "tech-blue W6 source-run: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "tech-blue W6 task: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "tech-blue W6 recovery: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "tech-blue W6 task-design: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "tech-blue W6 runtime: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "tech-blue W6 tools: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "tech-blue W6 databases: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "tech-blue W6 settings: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "tech-blue W6 settings-roles: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "tech-blue W6 roles: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "tech-blue W6 fallback: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "github-white W6 home: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "github-white W6 projects: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "github-white W6 ppt-list: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "github-white W6 ppt: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "github-white W6 knowledge-history: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "github-white W6 knowledge: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "github-white W6 designer: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "github-white W6 requirements: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "github-white W6 new-requirement: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "github-white W6 requirement: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "github-white W6 workflows: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "github-white W6 new-workflow: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "github-white W6 workflow: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "github-white W6 designs: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "github-white W6 tasks: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "github-white W6 inbox: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "github-white W6 insights: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "github-white W6 automations: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "github-white W6 templates: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "github-white W6 document-run: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "github-white W6 source-run: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "github-white W6 task: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "github-white W6 recovery: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "github-white W6 task-design: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "github-white W6 runtime: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "github-white W6 tools: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "github-white W6 databases: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "github-white W6 settings: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "github-white W6 settings-roles: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "github-white W6 roles: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "github-white W6 fallback: real direct, refresh, back, forward and exact scope disposal",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "Designer missing session redirects to actual four-field requirement creation without POST",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "same-document native POP keeps dirty owner until explicit Stay or Discard, with no write",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "same-document native POP blocks UNKNOWN creation, retains original owner/key/body and only explicit original POST recovers",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/production-routes.spec.ts",
+      "title": "unknown MQL registered before lazy page is not exempted as the App provider",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/root-cleanup.spec.ts",
+      "title": "actual React bootstrap /projects: StrictMode/repeated root exit clears application and view resources immediately",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/root-cleanup.spec.ts",
+      "title": "actual React bootstrap /tasks/w4-task: StrictMode/repeated root exit clears application and view resources immediately",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/root-cleanup.spec.ts",
+      "title": "actual React bootstrap /knowledge/w3-knowledge: StrictMode/repeated root exit clears application and view resources immediately",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/root-cleanup.spec.ts",
+      "title": "actual React bootstrap /ppt/w3-ppt: StrictMode/repeated root exit clears application and view resources immediately",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/root-cleanup.spec.ts",
+      "title": "actual React bootstrap /workflows/w5-flow: StrictMode/repeated root exit clears application and view resources immediately",
+      "project": "local-chrome"
+    },
+    {
+      "file": "w6/root-cleanup.spec.ts",
+      "title": "actual React bootstrap /designer?sessionId=w5-session: StrictMode/repeated root exit clears application and view resources immediately",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-authoring.spec.ts",
+      "title": "创建、连接、拖动、保存并重新打开流程；三种皮肤和窄屏可用",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-authoring.spec.ts",
+      "title": "在画布上拒绝循环连接，并保留已有节点和连接",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-authoring.spec.ts",
+      "title": "内置流程允许点击查看节点，但不能拖动修改",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-authoring.spec.ts",
+      "title": "预设选择固定角色版本，绑定上游后添加节点并保存为可编辑流程",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-authoring.spec.ts",
+      "title": "程序检查绑定固定代码，保存检查内容并重开，支持窄屏配置",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-authoring.spec.ts",
+      "title": "命令预设支持独立参数、固定代码输入、保存重开及窄屏配置",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-authoring.spec.ts",
+      "title": "冻结源码预设绑定路径，保存采集用途并保留完整采集规则",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-authoring.spec.ts",
+      "title": "专业编写、复核和文档汇总绑定同版源码，自定义规则保存重开",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-canvas-focus.spec.ts",
+      "title": "spdb 流程画布默认留白，选择、切换、连线和取消形成完整循环",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-canvas-focus.spec.ts",
+      "title": "spdb 需求规划与执行均按选择展示详情，资料与辅助操作仍可达",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-canvas-focus.spec.ts",
+      "title": "tech-blue 流程画布默认留白，选择、切换、连线和取消形成完整循环",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-canvas-focus.spec.ts",
+      "title": "tech-blue 需求规划与执行均按选择展示详情，资料与辅助操作仍可达",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-canvas-focus.spec.ts",
+      "title": "github-white 流程画布默认留白，选择、切换、连线和取消形成完整循环",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-canvas-focus.spec.ts",
+      "title": "github-white 需求规划与执行均按选择展示详情，资料与辅助操作仍可达",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-canvas-focus.spec.ts",
+      "title": "spdb 流程库、需求列表和新建需求的入口与视觉一致",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-canvas-focus.spec.ts",
+      "title": "tech-blue 流程库、需求列表和新建需求的入口与视觉一致",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-canvas-focus.spec.ts",
+      "title": "github-white 流程库、需求列表和新建需求的入口与视觉一致",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-canvas-focus.spec.ts",
+      "title": "跨标签换肤不丢失选中草稿，刷新恢复皮肤，窄屏面板可以关闭",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-canvas-focus.spec.ts",
+      "title": "导航键盘闭环、搜索画布外节点与高级设置保持可达且不造成布局修改",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-canvas-focus.spec.ts",
+      "title": "不展开需求与资料也会使用配置的默认模型，且不预读模型目录",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-code-changes.spec.ts",
+      "title": "固定代码的累计改动和删除文件 1600",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-code-changes.spec.ts",
+      "title": "固定代码的累计改动和删除文件 390",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-command.spec.ts",
+      "title": "原命令恢复后可查看失败报告和执行记录，按需读取且不显示模型操作",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-command.spec.ts",
+      "title": "命令停止回执未知时重放原操作，收到回执后保持等待停止确认",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-command.spec.ts",
+      "title": "依赖准备失败单独显示，检查命令未启动且输出可展开",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-default.spec.ts",
+      "title": "内置默认流程显示八个模块，新需求读取默认流程版本",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-default.spec.ts",
+      "title": "验收报告显示同批通过且窄屏可读",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-default.spec.ts",
+      "title": "验收报告保留阻断意见且窄屏可读",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-document-combination.spec.ts",
+      "title": "完整原文流程 plan 结果可读且不虚构执行事实",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-document-combination.spec.ts",
+      "title": "完整原文流程 reviewed 结果可读且不虚构执行事实",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-document-combination.spec.ts",
+      "title": "完整原文流程 unreviewed 结果可读且不虚构执行事实",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-document-combination.spec.ts",
+      "title": "完整原文流程 local-review 结果可读且不虚构执行事实",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-document-review.spec.ts",
+      "title": "需求代码评审 assessment 在画布按需读取，保留真实意见",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-document-review.spec.ts",
+      "title": "需求代码评审 pass 在画布按需读取，保留真实意见",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-document-review.spec.ts",
+      "title": "需求代码评审 revise 在画布按需读取，保留真实意见",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-document.spec.ts",
+      "title": "文档汇总 reviewed 展示真实状态与固定下载",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-document.spec.ts",
+      "title": "文档汇总 unreviewed 展示真实状态与固定下载",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-document.spec.ts",
+      "title": "文档汇总 incomplete 展示真实状态与固定下载",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-finish.spec.ts",
+      "title": "画布明确确认人工成功，停止未知时仍可查看原节点并在重开后恢复结束记录",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-finish.spec.ts",
+      "title": "结束回执丢失后重试同一操作，用户决定不会重复应用",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-history-analysis.spec.ts",
+      "title": "历史代码审查交付按需展开且窄屏可读",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-history-analysis.spec.ts",
+      "title": "历史贡献评价交付按需展开且窄屏可读",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-history-report.spec.ts",
+      "title": "完整历史报告按需预览、明细跳转、返回缓存及桌面窄屏显示",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-history.spec.ts",
+      "title": "开始前显式选择分支，启动请求保持完整来源身份",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-history.spec.ts",
+      "title": "分支采集固定文件可读取且窄屏可读",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-history.spec.ts",
+      "title": "分支采集未完成可恢复且窄屏可读",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-input-reference.spec.ts",
+      "title": "固定正文按需分页、断线重读、历史内联输入与窄屏显示",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-knowledge-evidence.spec.ts",
+      "title": "节点知识原文按需查看与恢复 1600",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-knowledge-evidence.spec.ts",
+      "title": "节点知识原文按需查看与恢复 390",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-knowledge-handoff.spec.ts",
+      "title": "固定知识交付及后继输入 1600",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-knowledge-handoff.spec.ts",
+      "title": "固定知识交付及后继输入 390",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-native-test.spec.ts",
+      "title": "原生单测 passed",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-native-test.spec.ts",
+      "title": "原生单测 failed",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-native-test.spec.ts",
+      "title": "原生单测 input-changed",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-native-test.spec.ts",
+      "title": "原生单测 final-passed",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-native-test.spec.ts",
+      "title": "原生单测 final-failed",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-plan-review.spec.ts",
+      "title": "候选先查看、编辑后确认、历史预览和手动后续调整",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-pointer-contract.spec.ts",
+      "title": "应用指针连线继续由原业务所有者拒绝重复、循环与自身连接（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-pointer-contract.spec.ts",
+      "title": "反向端口指针连接只生成一次原方向意图与撤销记录，键盘连接继续可达（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-pointer-contract.spec.ts",
+      "title": "执行需求允许显示位置拖动但不能通过端口或键盘编辑业务图（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-pointer-contract.spec.ts",
+      "title": "正向端口两次真实点按保持原方向且只提交一次意图（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-pointer-contract.spec.ts",
+      "title": "反向端口两次真实点按保持原方向且只提交一次意图（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-pointer-contract.spec.ts",
+      "title": "端口点按与原加号连接模式互斥，不保留第二个连接意图（模拟数据）",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-publication-commit.spec.ts",
+      "title": "确认固定成果后恢复同一本地提交，并在重新打开画布后保留记录",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-publication-preview.spec.ts",
+      "title": "从需求画布选择固定代码成果、查看真实失败状态和累计改动",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-publication-push.spec.ts",
+      "title": "用户核对远端后明确推送，未知回执重试原请求并在刷新后恢复记录",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-repository.spec.ts",
+      "title": "开始前显式选择分支，启动请求保持完整来源身份",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-repository.spec.ts",
+      "title": "分支采集固定文件可读取且窄屏可读",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-repository.spec.ts",
+      "title": "分支采集未完成可恢复且窄屏可读",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-requirement.spec.ts",
+      "title": "创建需求、确认计划、单步人工执行、读取交付物与保存布局",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-requirement.spec.ts",
+      "title": "重新打开检查点仍需明确确认交付物后才可继续",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-requirement.spec.ts",
+      "title": "需求规划从预设添加任务、保存并重开，不自动确认或执行",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-requirement.spec.ts",
+      "title": "失败的程序检查保留报告和重试入口，不显示仍在收尾或模型操作",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-review-source.spec.ts",
+      "title": "开始前显式选择分支，启动请求保持完整来源身份",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-review-source.spec.ts",
+      "title": "分支采集固定文件可读取且窄屏可读",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-review-source.spec.ts",
+      "title": "分支采集未完成可恢复且窄屏可读",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-review-source.spec.ts",
+      "title": "切换版本审查范围同步公共日期并保存配置",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-save-template.spec.ts",
+      "title": "另存流程先预览、保留当前步骤及未知回执 1600",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-save-template.spec.ts",
+      "title": "另存流程先预览、保留当前步骤及未知回执 390",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-snapshot-analysis.spec.ts",
+      "title": "版本代码分析交付按需展开且窄屏可读",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-snapshot-analysis.spec.ts",
+      "title": "版本问题复核交付按需展开且窄屏可读",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-snapshot-analysis.spec.ts",
+      "title": "版本复用来源交付按需展开且窄屏可读",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-snapshot-flow-report.spec.ts",
+      "title": "完整版本报告按需预览、明细跳转、返回缓存及桌面窄屏显示",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-snapshot-partial-report.spec.ts",
+      "title": "取消后按需读取阶段报告、刷新下载及桌面窄屏",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-source-design.spec.ts",
+      "title": "专业设计 design 按需读取交付和依据，窄屏可读",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-source-design.spec.ts",
+      "title": "专业设计 pass 按需读取交付和依据，窄屏可读",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-source-design.spec.ts",
+      "title": "专业设计 revise 按需读取交付和依据，窄屏可读",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-source-plan.spec.ts",
+      "title": "源码分批先查看批次再确认且不自动启动",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-source-plan.spec.ts",
+      "title": "源码分批超限保留原计划",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-source.spec.ts",
+      "title": "源码采集固定文件可读取且窄屏可读",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-source.spec.ts",
+      "title": "源码采集未完成可恢复且窄屏可读",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-test-design.spec.ts",
+      "title": "单测场景步骤期望和源码依据可查看",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-test-design.spec.ts",
+      "title": "单测场景损坏格式明确提示",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-test-profile.spec.ts",
+      "title": "测试配置固定范围和命令按需查看且不冒充测试通过",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-test-profile.spec.ts",
+      "title": "测试配置缺失原因按需查看且不冒充测试通过",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-test-review.spec.ts",
+      "title": "场景复核展示独立意见和固定断言",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-test-review.spec.ts",
+      "title": "场景复核保留未执行及缺失",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-test-summary.spec.ts",
+      "title": "完整单测汇总 passed",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-test-summary.spec.ts",
+      "title": "完整单测汇总 none",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-test-summary.spec.ts",
+      "title": "完整单测汇总 failed",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-test-write.spec.ts",
+      "title": "单测编写范围通过与测试结果分开",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-test-write.spec.ts",
+      "title": "单测编写失败原因和固定成果仍可查看",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-upload.spec.ts",
+      "title": "上传固定原文、预览并将其绑定到执行请求",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-upload.spec.ts",
+      "title": "上传失败后刷新页面，选择原记录补传并保留幂等身份",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-upload.spec.ts",
+      "title": "上传回执未知时拒绝关闭、Escape与离页，并按原身份重试",
+      "project": "local-chrome"
+    },
+    {
+      "file": "workflow-writeback-preview.spec.ts",
+      "title": "普通目录成果先检查冲突，明确确认后支持未知回执、阻断恢复和刷新完成",
+      "project": "local-chrome"
+    }
+  ]
+}

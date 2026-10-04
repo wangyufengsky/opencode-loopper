@@ -1,0 +1,15 @@
+{
+  "sourceSha256": "d1a38dd1471e5c5d0d23aeafa845c7494d3bc30e2d5875dd37c24e9faded596d",
+  "exitCode": 0,
+  "fileCount": 274,
+  "total": 2384,
+  "passed": 2384,
+  "failed": 0,
+  "pending": 0,
+  "w0": {
+    "total": 111,
+    "passed": 111
+  },
+  "jsonSha256": "9ecfc0c57621900d8c10c188871cf1754165d0bce7b4d1f6abd147b308309d5c",
+  "logSha256": "14b54bf5cab56e571d1fc87ad200e195d07fad2a85dd84d892a16bf3a7b4867f"
+}

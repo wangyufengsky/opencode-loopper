@@ -1,0 +1,49 @@
+{
+  "cases": [
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "spdb readonly stages 1440px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "reason": "原只读长流程390px混合行为的1440px桌面等价合同；原窄屏定义保留范围外。"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "spdb readonly template-progress 1440px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "reason": "原只读长流程390px混合行为的1440px桌面等价合同；原窄屏定义保留范围外。"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "spdb readonly roles 1440px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "reason": "原只读长流程390px混合行为的1440px桌面等价合同；原窄屏定义保留范围外。"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "tech-blue readonly stages 1440px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "reason": "原只读长流程390px混合行为的1440px桌面等价合同；原窄屏定义保留范围外。"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "tech-blue readonly template-progress 1440px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "reason": "原只读长流程390px混合行为的1440px桌面等价合同；原窄屏定义保留范围外。"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "tech-blue readonly roles 1440px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "reason": "原只读长流程390px混合行为的1440px桌面等价合同；原窄屏定义保留范围外。"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "github-white readonly stages 1440px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "reason": "原只读长流程390px混合行为的1440px桌面等价合同；原窄屏定义保留范围外。"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "github-white readonly template-progress 1440px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "reason": "原只读长流程390px混合行为的1440px桌面等价合同；原窄屏定义保留范围外。"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "github-white readonly roles 1440px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "reason": "原只读长流程390px混合行为的1440px桌面等价合同；原窄屏定义保留范围外。"
+    }
+  ]
+}

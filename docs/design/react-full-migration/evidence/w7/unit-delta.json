@@ -1,0 +1,115 @@
+{
+  "fromAcceptedW6Tests": 2363,
+  "toW7Tests": 2384,
+  "addedTests": 21,
+  "missing": {},
+  "added": [
+    {
+      "path": "src/components/AppSidebar.spec.ts",
+      "fullName": "侧栏知识库返回位置 skip link focuses the mounted content without changing URL, scope or a pending owner",
+      "status": "passed"
+    },
+    {
+      "path": "src/pages/w2/secondary/secondary.spec.tsx",
+      "fullName": "W2 secondary pages render their real React paths Database restores each versioned connection probe and keeps another connection error scoped",
+      "status": "passed"
+    },
+    {
+      "path": "src/pages/w3/knowledge/controller.spec.ts",
+      "fullName": "single knowledge command/read owner accepted PREPARED question reply reads the original question until delivery, never POSTs it again",
+      "status": "passed"
+    },
+    {
+      "path": "src/pages/w4/task/taskController.spec.ts",
+      "fullName": "Task authoritative read and command owner failed awaiting decision never claims that execution or new sessions will continue",
+      "status": "passed"
+    },
+    {
+      "path": "src/pages/w3/ppt/PptStudioPage.spec.tsx",
+      "fullName": "PPT Studio full production React page reopens a readonly plan and autosaves the next explicit audience edit",
+      "status": "passed"
+    },
+    {
+      "path": "src/pages/w3/ppt/PptStudioPage.spec.tsx",
+      "fullName": "PPT Studio full production React page allows restored unknown property drafts to be viewed while preserving write, finish and leave guards",
+      "status": "passed"
+    },
+    {
+      "path": "src/pages/w5/designer/DesignerPage.spec.tsx",
+      "fullName": "Designer real React historical production page keeps the authoritative terminal delivery failure visible before opening history and removes its current banner after recovery",
+      "status": "passed"
+    },
+    {
+      "path": "src/pages/w5/designer/controller.spec.ts",
+      "fullName": "Designer pure single owner completed historical auto receipt opens the exact started task through GET only",
+      "status": "passed"
+    },
+    {
+      "path": "src/pages/w5/designer/controller.spec.ts",
+      "fullName": "Designer pure single owner completed historical auto receipt retains dirty composer and never hands off that protected owner",
+      "status": "passed"
+    },
+    {
+      "path": "src/pages/w5/designer/controller.spec.ts",
+      "fullName": "Designer pure single owner completed historical auto receipt retains unknown composer and never hands off that protected owner",
+      "status": "passed"
+    },
+    {
+      "path": "src/pages/w5/workflow/pages.spec.tsx",
+      "fullName": "undo and redo remain real disabled actions before any edit and return to disabled after the sole undo without writing",
+      "status": "passed"
+    },
+    {
+      "path": "src/pages/w5/requirements/content-pages.spec.tsx",
+      "fullName": "StrictMode knowledge disclosure launches one current-view read and pagination remains exactly one explicit next read",
+      "status": "passed"
+    },
+    {
+      "path": "src/pages/w5/requirements/content-pages.spec.tsx",
+      "fullName": "verified committed publication with a successful empty push read explicitly says it has not been pushed without writing",
+      "status": "passed"
+    },
+    {
+      "path": "src/pages/w5/requirements/content-pages.spec.tsx",
+      "fullName": "an opened push draft requires explicit Stay and an UNKNOWN push cannot present the prior empty GET as not pushed",
+      "status": "passed"
+    },
+    {
+      "path": "src/pages/w5/requirements/controller.spec.ts",
+      "fullName": "requirement graph/layout/REST/model/control contracts execution layout UNKNOWN retains exact CAS/key/body and accepted recovery reads only without rewriting the graph",
+      "status": "passed"
+    },
+    {
+      "path": "src/pages/w5/requirements/node-lifecycle.spec.tsx",
+      "fullName": "actual StrictMode pending attempt read is replaced by the new view lease and the late retired read cannot leave loading or overwrite metadata",
+      "status": "passed"
+    },
+    {
+      "path": "src/pages/w5/requirements/pages.spec.tsx",
+      "fullName": "actual requirement page entry and context ownership header keeps the native guarded requirements return link without consuming modified clicks or writing",
+      "status": "passed"
+    },
+    {
+      "path": "src/pages/w5/requirements/pages.spec.tsx",
+      "fullName": "actual requirement page entry and context ownership execution layout changes retain a dirty draft and explicitly save only the original layout CAS without rewriting the graph",
+      "status": "passed"
+    },
+    {
+      "path": "src/pages/w5/requirements/pages.spec.tsx",
+      "fullName": "actual requirement page entry and context ownership candidate review exposes pending status and historical readonly preview closes by restoring the original base without writes",
+      "status": "passed"
+    },
+    {
+      "path": "src/pages/w5/requirements/pages.spec.tsx",
+      "fullName": "actual requirement page entry and context ownership saving a template preserves the same hidden locked parent canvas and its draft, returning unlocks that same instance",
+      "status": "passed"
+    },
+    {
+      "path": "src/pages/w5/requirements/pages.spec.tsx",
+      "fullName": "actual requirement page entry and context ownership unknown template save keeps its exact body and connected parent instance while closing stays blocked",
+      "status": "passed"
+    }
+  ],
+  "original2332Mapping": "test-mapping.json",
+  "sourceSha256": "d1a38dd1471e5c5d0d23aeafa845c7494d3bc30e2d5875dd37c24e9faded596d"
+}

@@ -24,6 +24,7 @@ test('统计事件打开弹窗，空闲和结束后不轮询，重连恢复未�
     if (path === '/api/story-accounting') { listReads++; return route.fulfill({ json: exists ? [call()] : [] }) }
     if (path === '/api/story-accounting/accounting-one') { detailReads++; return route.fulfill({ json: call() }) }
     if (path.endsWith('/dismiss')) { exists = false; return route.fulfill({ status: 204 }) }
+    if(path==='/api/knowledge/conversations')return route.fulfill({json:{items:[],nextCursor:null}})
     return route.fulfill({ json: [] })
   })
   try {
@@ -53,7 +54,7 @@ test('统计事件打开弹窗，空闲和结束后不轮询，重连恢复未�
     for (const response of streams) response.end()
     await expect.poll(() => listReads, { timeout: 10_000 }).toBe(4)
     await expect(page.getByRole('dialog')).toBeVisible()
-    await page.getByRole('button', { name: '关闭', exact: true }).click()
+    await page.locator('[data-semantic="accounting.dismiss"]').click()
     await expect(page.getByRole('dialog')).toBeHidden()
     await page.clock.runFor(60_000)
     expect(listReads).toBe(4)

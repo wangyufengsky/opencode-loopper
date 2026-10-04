@@ -8,7 +8,7 @@ type ProtocolAudit = { sequence: number; event: string; token?: number; reason?:
 const probes = new WeakMap<Page, { session: CDPSession; stop(): Promise<void>; errors: string[];
   classifications: { callbackId: number; owner: CanvasFrameOwner | null }[]; protocol: ProtocolAudit[] }>()
 
-/** The only paused registrations are candidate Table frames; identity is checked from actual closures. */
+/** The only paused registrations are candidate fixture frames; identity is checked from actual closures. */
 export async function observeCanvasRAFProvenance(page: Page) {
   if (probes.has(page)) return
   const session = await page.context().newCDPSession(page)
@@ -55,25 +55,25 @@ export async function observeCanvasRAFProvenance(page: Page) {
         let owner: CanvasFrameOwner | null = null
         for (const frame of event.callFrames.slice(1)) {
           const url = scripts.get(frame.location.scriptId) ?? ''
-          if (!/\/node_modules\/\.vite\/deps\/element-plus\.js(?:\?|$)/.test(url)) continue
+          if (!/\/e2e\/fixtures\/rafOwner\.tsx(?:\?|$)/.test(url)) continue
           let source = sources.get(frame.location.scriptId)
           if (!source) {
             const { scriptSource } = await session.send('Debugger.getScriptSource', { scriptId: frame.location.scriptId })
             source = { url, sha256: createHash('sha256').update(scriptSource).digest('hex'),
-              recognized: scriptSource.includes('table/style-helper.mjs') && scriptSource.includes('requestAnimationFrame(syncPosition)')
-                && scriptSource.includes('table.refs.scrollBarRef') }
+              recognized: scriptSource.includes('W7_OTHER_INSTANCE_RAF') && scriptSource.includes('requestAnimationFrame(syncPosition)')
+                && scriptSource.includes('function startOwnerFrame(owner)') }
             sources.set(frame.location.scriptId, source)
           }
           if (!source.recognized) continue
           const observed = await session.send('Debugger.evaluateOnCallFrame', { callFrameId: frame.callFrameId, returnByValue: true,
-            objectGroup: 'canvas-raf-provenance', expression: `(typeof table === 'object' && typeof syncPosition === 'function')
-              ? window.__allCanvasResources.identifyDestinationTable(syncPosition, table, ${callbackId}, ${JSON.stringify({ url: source.url, sha256: source.sha256 })}) : null` })
+            objectGroup: 'canvas-raf-provenance', expression: `(typeof owner === 'object' && typeof syncPosition === 'function')
+              ? window.__allCanvasResources.identifyDestinationInstance(syncPosition, owner, ${callbackId}, ${JSON.stringify({ url: source.url, sha256: source.sha256 })}) : null` })
           if (observed.exceptionDetails) throw new Error(observed.exceptionDetails.text)
           owner = observed.result.value as CanvasFrameOwner | null
           if (owner) break
         }
         classifications.push({ callbackId, owner })
-        audit({ event: owner ? 'table-instance-confirmed' : 'unclassified', token, callbackId })
+        audit({ event: owner ? 'fixture-instance-confirmed' : 'unclassified', token, callbackId })
       } catch (error) { errors.push(String(error)) }
       finally {
         if (activePause === token) {

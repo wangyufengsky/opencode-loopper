@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import type { DatabaseConnectionInput } from '../src/types/domain'
 for (const width of [1440, 390]) {
-  test(`openGauss 驱动升级与认证反馈 ${width}px`, async ({ page }) => {
+  test(`openGauss 驱动升级与认证反馈 ${width}px`, async ({ page },testInfo) => {
     const row = { id:'fixture', name:'旧业务库', config:{type:'OPENGAUSS',host:'db1',port:8000,database:'app',username:'reader',driverProfile:'opengauss-6.0.3',driverFile:'opengauss-jdbc-6.0.3.jar',driverClass:'org.postgresql.Driver',jdbcUrl:'jdbc:opengauss://db1:8000,db2:8000/app?targetServerType=master',schemas:['public'],parameters:{targetServerType:'master'},timeoutSeconds:10,maxRows:200},passwordConfigured:true,enabled:true,archived:false,projectIds:[],version:2,createdAt:'' }
     const drafts: DatabaseConnectionInput[] = [], saves: DatabaseConnectionInput[] = [], errors: string[] = []
     page.on('pageerror', e => errors.push(e.message))
@@ -14,15 +14,16 @@ for (const width of [1440, 390]) {
       return route.fulfill({json:[]})
     })
     await page.setViewportSize({width,height:1000}); await page.goto('/databases')
+    await page.getByRole('button',{name:/旧业务库/}).click()
     await page.getByRole('button',{name:'编辑连接',exact:true}).click()
-    const drawer = page.getByRole('dialog')
+    const drawer = page.getByRole('complementary',{name:'编辑数据库连接',exact:true})
     await expect(drawer.getByText(/opengauss-jdbc-7.0.0-RC3-og.jar/)).toBeVisible()
     await expect(drawer.getByText(/历史任务保留原驱动/)).toBeVisible()
     await drawer.getByRole('button',{name:'测试连接',exact:true}).click()
-    await expect(drawer.getByRole('alert')).toContainText('数据库拒绝登录')
+    await expect(page.getByRole('alert')).toContainText('数据库拒绝登录')
     expect(saves).toHaveLength(0)
-    await page.screenshot({path:`test-results/gauss-upgrade-${width}.png`})
-    await drawer.getByRole('button',{name:'保存连接',exact:true}).click()
+    await page.screenshot({path:testInfo.outputPath(`gauss-upgrade-${width}.png`)})
+    await drawer.locator('[data-semantic="ui.save"]').click()
     await expect(drawer).not.toBeVisible()
     expect(saves).toHaveLength(1); expect(saves[0]).toEqual(drafts[0])
     expect(saves[0]).toMatchObject({password:null,version:2,config:{driverProfile:null,driverClass:'',driverFile:'',jdbcUrl:row.config.jdbcUrl}})
@@ -37,7 +38,7 @@ for (const width of [1440, 390]) {
     ['SQLSERVER','SQL Server','jdbc:sqlserver://db:1433;databaseName=app','com.microsoft.sqlserver.jdbc.SQLServerDriver','mssql-jdbc-13.4.0.jre11.jar',1433],
     ['DB2','DB2','jdbc:db2://db:50000/app','com.ibm.db2.jcc.DB2Driver','jcc-12.1.0.0.jar',50000],
   ] as const) {
-    test(`新增 ${label} 并独立传递密码 ${width}px`,async({page})=>{
+    test(`新增 ${label} 并独立传递密码 ${width}px`,async({page},testInfo)=>{
       const drafts: DatabaseConnectionInput[] = [], saves: DatabaseConnectionInput[] = []
       await page.route('http://127.0.0.1:41773/api/**',async route=>{
         const path=new URL(route.request().url()).pathname
@@ -48,19 +49,18 @@ for (const width of [1440, 390]) {
       })
       await page.setViewportSize({width,height:1000});await page.goto('/databases')
       await page.getByRole('button',{name:'新增连接',exact:true}).click()
-      const drawer=page.getByRole('dialog')
-      await drawer.getByPlaceholder('例如：业务只读库').fill('验收连接')
-      await drawer.locator('.el-select').first().click()
-      await page.getByRole('option',{name:label,exact:true}).click()
+      const drawer=page.getByRole('complementary',{name:'新增数据库连接',exact:true})
+      await drawer.getByRole('textbox',{name:'连接名称',exact:true}).fill('验收连接')
+      await drawer.getByRole('combobox',{name:'数据库类型',exact:true}).selectOption(type)
       await expect(drawer.getByText(new RegExp(filename.replaceAll('.','\\.')))).toBeVisible()
       await drawer.getByRole('textbox',{name:'JDBC URL'}).fill(url)
       await drawer.getByRole('textbox',{name:'用户名',exact:true}).fill('reader')
       await drawer.locator('input[type="password"]').fill(' p@ss+&=%密 ')
-      await drawer.getByPlaceholder('多个名称用逗号分隔').fill('APP')
+      await drawer.getByRole('textbox',{name:'允许访问的 schema',exact:true}).fill('APP')
       await drawer.getByRole('button',{name:'测试连接',exact:true}).click()
       await expect(drawer.getByRole('status')).toContainText('模拟连接反馈')
-      await page.screenshot({path:`test-results/database-${type}-${width}.png`})
-      await drawer.getByRole('button',{name:'保存连接',exact:true}).click()
+      await page.screenshot({path:testInfo.outputPath(`database-${type}-${width}.png`)})
+      await drawer.locator('[data-semantic="ui.save"]').click()
       await expect(drawer).not.toBeVisible()
       expect(saves).toHaveLength(1);expect(saves[0]).toEqual(drafts[0])
       expect(saves[0]).toMatchObject({password:' p@ss+&=%密 ',config:{type,jdbcUrl:url,username:'reader'}})

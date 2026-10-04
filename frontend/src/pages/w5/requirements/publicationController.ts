@@ -70,7 +70,7 @@ export function createPublicationController(requirement: string, initialRevision
   }
   async function showPush() {
     if (!owner.active() || owner.locked() || owner.getSnapshot().push) return
-    owner.patch({ pushOpen: true }); const request = abortable('remotes'); owner.patch({ loading: true })
+    if (!owner.edit({ pushOpen: true })) return; const request = abortable('remotes'); owner.patch({ loading: true })
     try { const remotes = await workflowPush.remotes(requirement, request.abort.signal); if (request.ticket.current()) owner.patch({ remotes, error: '' }) }
     catch (cause) { if (request.ticket.current()) owner.fail(cause, '远端配置无法读取，请重试。') }
     finally { request.release(); if (request.ticket.current()) owner.patch({ loading: false }) }
@@ -99,7 +99,7 @@ export function createPublicationController(requirement: string, initialRevision
       const original = s.commit, body = { expectedVersion: original.version }
       await owner.mutate<typeof body, WorkflowPublicationCommit>({ label: '恢复原提交', input: { endpoint: `/workflows/requirements/${encodeURIComponent(requirement)}/publication/retry`, method: 'POST', body, versions: { publicationVersion: body.expectedVersion } }, write: value => workflowPublication.retry(requirement, value.expectedVersion),
         lookup: async () => { const value = await workflowPublication.status(requirement); if (value) requireIdentity(value.requirementId, requirement); return value && value.version > original.version && value.state !== 'BLOCKED' && value.branch === original.branch && value.message === original.message ? { kind: 'ACCEPTED', receipt: value } : { kind: 'UNCONFIRMED' } },
-        read: async (receipt, context) => { requireIdentity(receipt.requirementId, requirement); await readStatus('commit', true, context.apply) },
+        read: async (receipt, context) => { requireIdentity(receipt.requirementId, requirement); await readStatus('commit', true, context.apply); if (owner.getSnapshot().commit?.state === 'COMMITTED' && context.isCurrent()) await readStatus('push') },
       })
     }
     if (kind === 'push' && s.push?.state === 'BLOCKED') {

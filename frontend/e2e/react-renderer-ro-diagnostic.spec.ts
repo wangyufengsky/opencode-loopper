@@ -18,11 +18,12 @@ test('renderer RO CDP cleanup-ref, extent-owner and WeakRef diagnostic（模拟�
   try {
     await page.goto('/tasks')
     await page.getByRole('link', { name: fixture.task.title, exact: true }).click()
+    await page.getByRole('button',{name:'选择：执行进度',exact:true}).click()
     await expect(page.locator('.readonly-diagram .react-flow__node')).toHaveCount(20)
     const mounted = await page.evaluate(() => window.__rendererROWeakDiagnostic.snapshot())
     expect(mounted.observers.length).toBeGreaterThan(0)
     // Real SPA owner unmount; no saved ElementHandle or console object can retain the renderer.
-    await page.getByRole('button', { name: '全部任务', exact: true }).evaluate(element => (element as HTMLElement).click())
+    await page.locator('.w2-heading a[href="/tasks"]').evaluate(element => (element as HTMLElement).click())
     await expect(page).toHaveURL('/tasks')
     await expect(page.locator('.readonly-diagram')).toHaveCount(0)
     const immediate = await page.evaluate(() => window.__rendererROWeakDiagnostic.snapshot())
@@ -135,22 +136,27 @@ test('strict cleanup negative control: detached renderer observer is never filte
 test('strict cleanup negative control: reused retired Table callback needs fresh positive ownership', async ({ page }, info) => {
   await allCanvasReviewFixture(page, 'stages')
   await observeAllCanvasResources(page)
-  await page.goto('/tasks'); await observeCanvasRAFProvenance(page)
+  await page.goto('/e2e/fixtures/rafOwner.html'); await observeCanvasRAFProvenance(page)
   try {
-    // Resize the real mounted Table to obtain an actual closure-proven classification.
+    // Initialize Playwright's own locator interceptor before the instance observation window.
+    // Its actual allocation stack is recorded; no listener is filtered or removed.
+    await expect(page.getByRole('button', { name: '请求本实例帧', exact: true })).toBeVisible()
+    expect(await page.getByRole('button', { name: '请求本实例帧', exact: true }).evaluate(element => element.isConnected)).toBe(true)
+    // Activate a real mounted React fixture instance to obtain actual closure-proven ownership.
+    // The retired third-party Table is replaced; the positive/unknown/stale-owner predicates remain strict.
     await page.evaluate(() => window.__allCanvasResources.arm())
-    await page.setViewportSize({ width: 1400, height: 900 })
+    await page.getByRole('button', { name: '请求本实例帧', exact: true }).evaluate(element => (element as HTMLElement).click())
     await expect.poll(() => page.evaluate(() => !!window.__allCanvasResources.lastDestinationCallbackForNegativeControl())).toBe(true)
     const callbackId = await page.evaluate(() => {
       const holder = window as Window & { __negativeRecordedRAF?: FrameRequestCallback }
       holder.__negativeRecordedRAF = window.__allCanvasResources.lastDestinationCallbackForNegativeControl()!
       return window.__allCanvasResources.callbackIdentity(holder.__negativeRecordedRAF)
     })
-    // Retire the real Table through its actual route owner; do not remove product DOM manually.
+    // Retire through the actual React route owner; do not remove product DOM manually.
     await page.evaluate(() => window.__allCanvasResources.disarm())
     await page.locator('a[href="/roles"]').first().evaluate(element => (element as HTMLElement).click())
-    await expect(page).toHaveURL('/roles'); await expect(page.locator('.el-table')).toHaveCount(0)
-    await expect(page.locator('.role-item').first()).toBeVisible()
+    await expect(page).toHaveURL('/roles'); await expect(page.locator('[data-raf-owner-fixture]')).toHaveCount(0)
+    await expect(page.getByRole('list',{name:'角色',exact:true}).getByRole('button').first()).toBeVisible()
     const result = await page.evaluate(() => {
       const holder = window as Window & { __negativeRecordedRAF?: FrameRequestCallback }
       window.__allCanvasResources.arm()
@@ -159,7 +165,7 @@ test('strict cleanup negative control: reused retired Table callback needs fresh
         return { id, snapshot: window.__allCanvasResources.snapshot() }
       } finally { delete holder.__negativeRecordedRAF }
     })
-    await recordAllCanvas(info, 'retired-table-callback-negative-control', { callbackId, ...result })
+    await recordAllCanvas(info, 'retired-react-instance-callback-negative-control', { callbackId, ...result })
     expect(result.snapshot.pendingFrames).toContain(result.id); expect(result.snapshot.pendingCanvasFrames).toContain(result.id)
     expect(result.snapshot.externalPendingFrames).not.toContain(result.id)
     expect(result.snapshot.frameLedger.find(row => row.id === result.id)?.owner).toBeUndefined()

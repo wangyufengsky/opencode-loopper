@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
-import { PageChrome, SkinControl, type W2PageProps } from '@/pages/w2/shared'
+import { PageChrome, PageLink, SkinControl, type W2PageProps } from '@/pages/w2/shared'
 import { UiConfirmDialog, UiContextPanel } from '@/foundation/components'
+import { SemanticIcon, semanticName } from '@/foundation/semanticRegistry'
 import { WorkflowCanvasView as ReactWorkflowCanvasView } from '@/react/workflow/WorkflowCanvasReact'
 import type { WorkflowCanvasHandle } from '@/react/workflow/types'
 import { WorkflowNodeEditor, WorkflowPresetPicker, WorkflowPublicInputs } from '@/pages/w5/workflow'
@@ -45,19 +46,21 @@ export function RequirementPage(props: W2PageProps) {
     if (operation.kind === 'context') { const latest = owner.contextDecision(); if (latest.kind === 'BLOCK' || latest.kind === 'CONFIRM_DISCARD' && latest.draftRevision !== operation.contextRevision) return; if (owner.discardContextDrafts()) operation.target?.() }
   }
   function exportTemplate() { if (!s.base || locked || s.proposal || owner.contextDecision().kind !== 'ALLOW') return; owner.patch({ exporting: true }); setExported({ revision: s.base.revision, title: s.base.title, graph: clone(s.graph), layout: clone(s.layout) }) }
-  return <PageChrome title={s.base?.title || '需求流程'} objectKey="object.requirement" actions={<><SkinControl {...props} /><Action action="ui.refresh" target="执行状态" disabled={owner.lockedForUi()} onClick={() => { void owner.refresh() }} /><Action action="ui.refresh" target="需求计划" disabled={owner.locked()} onClick={() => { const decision = owner.canLeave(); if (decision.kind === 'CONFIRM_DISCARD') ask('reload'); else if (decision.kind === 'ALLOW') void owner.load() }} /></>} status={<>
+  return <PageChrome title={s.base?.title || '需求流程'} objectKey="object.requirement" actions={<><PageLink to="/requirements" navigation={props.navigation} aria-label={semanticName('nav.back', '需求任务')}><SemanticIcon semanticKey="nav.back" />需求任务</PageLink><SkinControl {...props} /><Action action="ui.refresh" target="执行状态" disabled={owner.lockedForUi()} onClick={() => { void owner.refresh() }} /><Action action="ui.refresh" target="需求计划" disabled={owner.locked()} onClick={() => { const decision = owner.canLeave(); if (decision.kind === 'CONFIRM_DISCARD') ask('reload'); else if (decision.kind === 'ALLOW') void owner.load() }} /></>} status={<>
     <ReadNotice error={s.error} loading={s.loading || s.refreshing} retry={() => { if (s.command.accepted || owner.locked()) void owner.recover(); else void owner.refresh() }} /><CommandNotice command={s.command} recover={() => { void owner.recover() }} />
-    {s.modelError && <ReadNotice error={s.modelError} loading={s.modelLoading} retry={() => { void owner.initializeModel(true) }} />}{s.dirty && <p role="status">计划有未保存的修改。</p>}{s.notice && <p role="status">{s.notice}</p>}{s.base && <p>{workflowStateLabel(owner.state() ?? s.base.state)} · 计划版本 {s.base.revision}{s.execution?.control.reasonCode && ` · ${workflowReasonLabel(s.execution.control.reasonCode)}`}</p>}
+    {s.modelError && <ReadNotice error={s.modelError} loading={s.modelLoading} retry={() => { void owner.initializeModel(true) }} />}{s.notice && <p role="status">{s.notice}</p>}{s.base && <p>{workflowStateLabel(owner.state() ?? s.base.state)} · 计划版本 {s.base.revision}{s.execution?.control.reasonCode && ` · ${workflowReasonLabel(s.execution.control.reasonCode)}`}{s.dirty && <span role="status"> · 计划有未保存的修改。</span>}</p>}
     {s.planStage && <div className="w5-pending-stages" role="status">{s.graphReceipt ? `计划结构已接受（版本 ${s.graphReceipt.revision}）。` : '计划结构尚待确认。'}{s.layoutReceipt ? `布局已接受（版本 ${s.layoutReceipt.layoutVersion}），正在读取原结果。` : s.planStage === 'layout' ? '布局尚待确认，恢复沿用原布局请求。' : ''}</div>}
+    {s.proposal && <section className="workflow-proposal-banner" role="status"><p>{owner.proposalReadonly() ? '候选计划只读预览，当前生效计划保持不变。' : '候选计划尚未生效，请核对变更后显式应用。'}</p><Action action="ui.close" target="候选预览" disabled={locked} onClick={() => { if (owner.proposalReadonly()) owner.discard(); else ask('discard') }} /></section>}
   </>}>
     <div className="w5-requirement" data-w5-workspace="requirement">
       {!s.base ? <p>读取需求后可查看计划和执行记录。</p> : <>
-        {!exported && <><div className="w5-toolbar">
+        <div className="w5-main-scene" hidden={!!exported} inert={!!exported}><div className="w5-toolbar">
           <Action action="workflow.flowInputs" disabled={owner.contextDecision().kind === 'BLOCK'} onClick={() => context(() => owner.toggle('flow'))} />
           <Action action="workflow.nodeList" disabled={owner.contextDecision().kind === 'BLOCK'} onClick={() => context(() => owner.toggle('nodes'))} />
           {planning && <Action action="workflow.addNode" disabled={locked} onClick={() => context(() => owner.toggle('add'))} />}
           <Action action="workflow.moreTools" disabled={owner.contextDecision().kind === 'BLOCK'} onClick={() => context(() => owner.toggle('tools'))} />
           {planning && <><Action action="workflow.undo" disabled={locked || !s.undo.length} onClick={() => owner.history(true)} /><Action action="workflow.redo" disabled={locked || !s.redo.length} onClick={() => owner.history(false)} /><Action action={s.proposal ? 'workflow.applyCandidate' : 'workflow.savePlanning'} disabled={locked || owner.proposalReadonly() || !sourceReady} busy={s.command.busy} onClick={() => { void owner.save() }} /></>}
+          {!planning && s.dirty && <Action action="workflow.saveLayout" disabled={locked} busy={s.command.busy} onClick={() => { void owner.save() }} />}
           {owner.state() === 'PLANNING' && <Action action="workflow.confirmPlan" disabled={locked || owner.graphDirty()} onClick={() => { void owner.confirm() }} />}
           {dispatchVisible && <Action action="workflow.continuous" disabled={!owner.executable() || s.modelLoading} onClick={() => { void owner.run('CONTINUOUS') }} />}
           {s.execution?.control.configured && ['ACTIVE', 'WAITING'].includes(s.execution.control.state) && <Action action="workflow.pause" disabled={locked} onClick={() => { void owner.pause() }} />}
@@ -89,7 +92,7 @@ export function RequirementPage(props: W2PageProps) {
           <PublicationPanel page={props} parent={owner} controller={publication} revision={s.base.revision} visible={publicationOpen} onClose={() => setPublicationOpen(false)} />
           {s.presets && <UiContextPanel open title="预设工作模块" onClose={() => owner.patch({ presets: false })}><WorkflowPresetPicker graph={s.graph} disabled={locked} onInsert={owner.addPreset} onClose={() => owner.patch({ presets: false })} /></UiContextPanel>}
         </div>
-        {!!s.execution?.control.checkpoints.length && <section aria-label="节点检查点">{s.execution.control.checkpoints.map(point => <Labeled key={point.attemptId} label={`${s.graph.nodes.find(value => value.id === point.nodeKey)?.title ?? '节点'} 已完成，请确认后继续`}><input type="checkbox" checked={s.checked.includes(point.attemptId)} disabled={locked} onChange={event => owner.checkpoint(point.attemptId, event.target.checked)} /></Labeled>)}</section>}</>}
+        {!!s.execution?.control.checkpoints.length && <section aria-label="节点检查点">{s.execution.control.checkpoints.map(point => <Labeled key={point.attemptId} label={`${s.graph.nodes.find(value => value.id === point.nodeKey)?.title ?? '节点'} 已完成，请确认后继续`}><input type="checkbox" checked={s.checked.includes(point.attemptId)} disabled={locked} onChange={event => owner.checkpoint(point.attemptId, event.target.checked)} /></Labeled>)}</section>}</div>
         {exported && <SaveTemplatePanel page={props} parent={owner} captured={exported} onClose={() => { owner.patch({ exporting: false }); setExported(null) }} />}
       </>}
     </div>

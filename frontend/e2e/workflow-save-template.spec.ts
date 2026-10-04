@@ -1,3 +1,4 @@
+import { semanticName } from './w3/semantics'
 import { addWorkflowNode, workflowTool } from './fixtures/workflowNavigation'
 import { expect, test } from '@playwright/test'
 import { requirement, execution } from '../src/components/workflow/workflowRunTestFixtures'
@@ -26,6 +27,7 @@ for (const width of [1600, 390]) test(`另存流程先预览、保留当前步�
       return route.fulfill({ json: { id: 'saved-flow', revision: 1, version: 0, layoutVersion: 0, state: 'ACTIVE' } })
     }
     if (path === '/api/settings') return route.fulfill({ json: { runtime: {}, openCode: {}, limits: {}, retryWait: {}, publication: {} } })
+    if (path === '/api/roles') return route.fulfill({ json: { items: [], nextCursor: null } })
     return route.fulfill({ json: [] })
   })
   await page.setViewportSize({ width, height: 1000 }); await page.goto('/requirements/req')
@@ -44,11 +46,11 @@ for (const width of [1600, 390]) test(`另存流程先预览、保留当前步�
   await expect(dialog.getByLabel('节点设置').getByLabel('名称', { exact: true })).toBeDisabled()
   expect(await page.locator('body').evaluate(el => el.scrollWidth <= innerWidth + 1)).toBe(true)
   await page.screenshot({ path: `${evidence}/workflow-save-template-${width}.png`, fullPage: true })
-  await dialog.getByRole('button', { name: '确认保存为新流程', exact: true }).click()
-  await expect(dialog.getByRole('button', { name: '返回任务画布', exact: true })).toBeDisabled()
-  await dialog.getByRole('button', { name: '重试原保存操作', exact: true }).click()
+  await dialog.getByRole('button', { name: semanticName('workflow.saveTemplateConfirm'), exact: true }).click()
+  await expect(dialog.getByRole('button', { name: semanticName('nav.back'), exact: true })).toBeDisabled()
+  await dialog.getByRole('button', { name: semanticName('receipt.retryOriginal'), exact: true }).click()
   await expect(dialog.getByRole('link', { name: '打开新流程' })).toHaveAttribute('href', '/workflows/saved-flow')
   expect(saves).toHaveLength(2); expect(saves[0]).toEqual(saves[1]); expect(selections.map(value => value.mode)).toEqual(['CURRENT', 'INITIAL', 'CURRENT'])
-  await dialog.getByRole('button', { name: '返回任务画布', exact: true }).click()
-  await expect(page.locator('.workflow-save-state')).toContainText('未保存'); await expect(page.locator('.workflow-node')).toHaveCount(2)
+  await dialog.getByRole('button', { name: semanticName('nav.back'), exact: true }).click()
+  await expect(page.getByRole('status').filter({ hasText: '未保存' })).toContainText('未保存'); await expect(page.locator('.workflow-node')).toHaveCount(2)
 })

@@ -285,13 +285,18 @@ export function createKnowledgeController(options: { routeKey?: string; conversa
     const storageKey = `loopper.knowledge.reply.${id}.${question.id}`
     return command({ endpoint: `/knowledge/conversations/${id}/questions/${question.id}/reply`, method: 'POST', requestKey: body.idempotencyKey, versions: { version: body.version }, body }, {
       label: '回答助手提问', idempotent: true, write: identity => knowledgeApi.reply(id, question.id, identity.body),
-      lookup: async () => { const page = await knowledgeApi.messages(id); const found = page.items.flatMap(message => message.questions ?? []).find(q => q.id === question.id); return found && found.state === 'ANSWERED' && JSON.stringify(found.answers) === JSON.stringify(body.answers) ? { kind: 'ACCEPTED', receipt: found } : { kind: 'UNCONFIRMED' } },
+      lookup: async () => { const page = await knowledgeApi.messages(id); const found = page.items.flatMap(message => message.questions ?? []).find(q => q.id === question.id); return found && found.state === 'ANSWERED' && Number.isInteger(found.version) && found.version > body.version && JSON.stringify(found.answers) === JSON.stringify(body.answers) ? { kind: 'ACCEPTED', receipt: found } : { kind: 'UNCONFIRMED' } },
       read: async (receipt, apply) => {
-        if (receipt.id !== question.id || receipt.state !== 'ANSWERED') throw new Error('回答已接受，但读取回执未确认原问题，请只核对原回答')
-        await requireRefresh(); apply(() => {
+        if (receipt.id !== question.id || !Number.isInteger(receipt.version) || receipt.version <= body.version || JSON.stringify(receipt.answers) !== JSON.stringify(body.answers)) throw new Error('回答已接受，但读取回执未确认原问题，请只核对原回答')
+        // A successful reply normally returns PREPARED. Delivery is authoritative
+        // only when the original conversation's existing REST projection catches up.
+        await requireRefresh()
+        const confirmed = state().messages.flatMap(message => message.questions ?? []).find(q => q.id === question.id)
+        if (!confirmed || confirmed.state !== 'ANSWERED' || !Number.isInteger(confirmed.version) || confirmed.version < receipt.version || JSON.stringify(confirmed.answers) !== JSON.stringify(body.answers)) throw new Error('回答已接受，投递结果仍待核对；请只读取原会话，不会重复提交')
+        apply(() => {
           storageRemove(storageKey); storageRemove(`${storageKey}.draft`)
           const drafts = { ...state().questionDrafts }; delete drafts[question.id]
-          set({ messages: state().messages.map(message => ({ ...message, ...(message.questions ? { questions: message.questions.map(q => q.id === question.id ? receipt as KnowledgeQuestion : q) } : {}) })), questionDrafts: drafts,
+          set({ messages: state().messages.map(message => ({ ...message, ...(message.questions ? { questions: message.questions.map(q => q.id === question.id ? confirmed : q) } : {}) })), questionDrafts: drafts,
             dirty: !!state().text || Object.values(drafts).some(d => d.choices.some(a => a.length) || d.custom.some(Boolean)), error: '' })
         })
       },

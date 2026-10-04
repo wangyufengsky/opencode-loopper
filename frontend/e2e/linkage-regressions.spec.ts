@@ -36,22 +36,23 @@ test('任务 A 的取消确认在浏览器后退到任务 B 后失效', async ({
 
   await page.goto(`/tasks/${waiter.id}`)
   await expect(page.getByRole('heading', { name: waiter.title, exact: true })).toBeVisible()
-  await page.getByRole('button', { name: holder.title, exact: true }).click()
+  await page.getByRole('link', { name: holder.title, exact: true }).click()
   await expect(page).toHaveURL(`/tasks/${holder.id}`)
   await expect(page.getByRole('heading', { name: holder.title, exact: true })).toBeVisible()
   await page.getByRole('button', { name: '取消任务', exact: true }).click()
-  const confirmation = page.locator('.el-message-box')
-  await expect(confirmation).toContainText('取消当前任务？')
+  const confirmation = page.getByRole('dialog',{name:'取消任务',exact:true})
+  await expect(confirmation).toContainText('只有停止得到确认后，任务才进入取消状态')
+  const retiredConfirm=await confirmation.locator('[data-semantic="task.cancel"]').elementHandle()
+  expect(retiredConfirm).not.toBeNull()
 
-  // This is a real history navigation while the real ElementPlus modal remains open.
-  // Vue reuses TaskDetailView for the other :id, which reproduced the incorrect target.
+  // Native history retires A's real React scope. Its old confirmation must never target B.
   await page.goBack()
   await expect(page).toHaveURL(`/tasks/${waiter.id}`)
   await expect(page.getByRole('heading', { name: waiter.title, exact: true })).toBeVisible()
-  await expect(confirmation).toBeVisible()
-  await confirmation.getByRole('button', { name: '取消任务', exact: true }).click()
   await expect(confirmation).toBeHidden()
-  await expect(page.getByRole('heading', { name: '排队状态', exact: true })).toBeVisible()
+  await retiredConfirm!.evaluate(button=>(button as HTMLButtonElement).click())
+  await expect(confirmation).toBeHidden()
+  await expect(page.getByRole('heading', { name: '执行队列', exact: true })).toBeVisible()
   expect(cancelRequests).toEqual([])
 })
 
@@ -88,12 +89,13 @@ test('待处理中心的提交失败在重新核验和自动刷新成功后仍�
 
   await page.goto('/inbox')
   await expect(page.getByRole('heading', { name: '联动验收权限', exact: true })).toBeVisible()
-  await page.getByRole('button', { name: '仅本次允许', exact: true }).click()
-  await expect(page.getByText(failureMessage, { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '选择：联动验收权限', exact: true }).click()
+  await page.locator('[data-semantic="inbox.allowOnce"]').click()
+  await expect(page.getByRole('alert').filter({hasText:failureMessage})).toBeVisible()
   await expect(page.getByText('目前没有待处理项', { exact: true })).toBeVisible()
   expect(submissions).toEqual([{ action: 'ONCE', version: 4 }])
   // First read reconciles the failed command; the second is the real scheduled poll.
   await expect.poll(() => successfulReadsAfterFailure).toBeGreaterThanOrEqual(2)
-  await expect(page.getByText(failureMessage, { exact: true })).toBeVisible()
+  await expect(page.getByRole('alert').filter({hasText:failureMessage})).toBeVisible()
   expect(submissions).toHaveLength(1)
 })

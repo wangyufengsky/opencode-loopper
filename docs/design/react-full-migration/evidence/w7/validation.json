@@ -1,0 +1,235 @@
+{
+  "status": "local release candidate; PM final acceptance pending",
+  "baseline": "1e9161e06c01b5aa76b6a2b19789ac8379423195",
+  "branch": "feat/react-full-migration",
+  "sourceSha256": "d1a38dd1471e5c5d0d23aeafa845c7494d3bc30e2d5875dd37c24e9faded596d",
+  "sourceFiles": 817,
+  "productionBundleSha256": "454f1f79446aa3766bee47efc62919f034e95ae2e1945d1f78df9af7368d0303",
+  "productionBundleFiles": 127,
+  "unit": {
+    "sourceSha256": "d1a38dd1471e5c5d0d23aeafa845c7494d3bc30e2d5875dd37c24e9faded596d",
+    "exitCode": 0,
+    "fileCount": 274,
+    "total": 2384,
+    "passed": 2384,
+    "failed": 0,
+    "pending": 0,
+    "w0": {
+      "total": 111,
+      "passed": 111
+    },
+    "jsonSha256": "9ecfc0c57621900d8c10c188871cf1754165d0bce7b4d1f6abd147b308309d5c",
+    "logSha256": "14b54bf5cab56e571d1fc87ad200e195d07fad2a85dd84d892a16bf3a7b4867f"
+  },
+  "browser": {
+    "ok": true,
+    "baselineRegistered": 566,
+    "baselineUnique": 563,
+    "outOfScope": 54,
+    "desktopBaseline": 512,
+    "finalRegistered": 521,
+    "finalUnique": 518,
+    "duplicateRegistrationExtras": 3,
+    "executionAttempts": 521,
+    "retries": 0
+  },
+  "productionBrowserRegistrations": 261,
+  "legacyDesktopRegistrations": 260,
+  "foundation": {
+    "total": 41,
+    "passed": 41,
+    "failed": 0,
+    "strictExits": 18,
+    "uniqueChecks": 41,
+    "executedChecksAcrossTwoModes": 82,
+    "firstWrongModePassed": 33,
+    "firstWrongModeFailed": 8
+  },
+  "root": {
+    "tests": 6,
+    "strictCycles": 18
+  },
+  "historical11": {
+    "finalDesktopPassed": 6,
+    "narrowOutOfScope": 5,
+    "originalW0EvidenceUnmodified": true,
+    "rootCauses": "8 stale expectations,2 fixture environment,1 composite retired route/actual legal consumer gap"
+  },
+  "screenshots": {
+    "files": 187,
+    "production": 184,
+    "readonlyDevelopment": 3,
+    "distinctByteHashes": 187
+  },
+  "checks": [
+    {
+      "name": "typecheck",
+      "argv": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "startedUtc": "2026-10-04T03:26:02.655435+00:00",
+      "finishedUtc": "2026-10-04T03:26:17.684605+00:00",
+      "exitCode": 0,
+      "logSha256": "6cab69157918d43c531ef3420368573816bcfda39284937b5100914d4e147318"
+    },
+    {
+      "name": "browser-typecheck",
+      "argv": [
+        "npm",
+        "run",
+        "typecheck:w6-browser"
+      ],
+      "startedUtc": "2026-10-04T03:26:17.684981+00:00",
+      "finishedUtc": "2026-10-04T03:26:28.410468+00:00",
+      "exitCode": 0,
+      "logSha256": "799a17e004d2a3338ee80f6d0d538721a141dda15c5be0f66220fe9d499be658"
+    },
+    {
+      "name": "semantic",
+      "argv": [
+        "node",
+        "../scripts/generate-semantic-registry.mjs",
+        "--check"
+      ],
+      "startedUtc": "2026-10-04T03:26:28.410866+00:00",
+      "finishedUtc": "2026-10-04T03:26:28.450559+00:00",
+      "exitCode": 0,
+      "logSha256": "286d99012be8df1a70ae4fb833fadfb03dd24c1abec6e6faef3930897faff22e"
+    },
+    {
+      "name": "icons",
+      "argv": [
+        "node",
+        "../scripts/generate-foundation-icons.mjs",
+        "--check"
+      ],
+      "startedUtc": "2026-10-04T03:26:28.450822+00:00",
+      "finishedUtc": "2026-10-04T03:26:28.489439+00:00",
+      "exitCode": 0,
+      "logSha256": "047a9f3023a2c68bc2ddb38c6ec1f4318b3bb355ef43a6da9e0dee4a356ece30"
+    },
+    {
+      "name": "tooling",
+      "argv": [
+        "npm",
+        "run",
+        "test:tooling"
+      ],
+      "startedUtc": "2026-10-04T03:26:28.489746+00:00",
+      "finishedUtc": "2026-10-04T03:26:29.630263+00:00",
+      "exitCode": 0,
+      "logSha256": "8940dff82992da8e45d540693050d99d97e60239aa13243fc4be08dd9dacc971"
+    },
+    {
+      "name": "accounting",
+      "argv": [
+        "npm",
+        "run",
+        "test:accounting"
+      ],
+      "startedUtc": "2026-10-04T03:26:29.630640+00:00",
+      "finishedUtc": "2026-10-04T03:26:29.866208+00:00",
+      "exitCode": 0,
+      "logSha256": "005c872410da2f0316e5b0fc30e01b244f9a6e47bb53215c41f588569dc909a9"
+    },
+    {
+      "name": "build",
+      "argv": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "startedUtc": "2026-10-04T03:26:29.866627+00:00",
+      "finishedUtc": "2026-10-04T03:26:58.968989+00:00",
+      "exitCode": 0,
+      "logSha256": "69a312c8348fe53fe626a726bcaa06c65eb40f0edb23c1e81bd6800acb583c36"
+    },
+    {
+      "name": "react-only-audit",
+      "argv": [
+        "node",
+        "../scripts/audit-react-only.mjs"
+      ],
+      "startedUtc": "2026-10-04T03:26:58.969413+00:00",
+      "finishedUtc": "2026-10-04T03:27:00.623689+00:00",
+      "exitCode": 0,
+      "logSha256": "7605f0798b4b59caeb9336fbbcc74ca6b43fe5244429811b7ca63d82887d99ef"
+    },
+    {
+      "name": "test-mapping",
+      "argv": [
+        "node",
+        "../scripts/verify-w6-test-mapping.mjs",
+        "/workspace/react-full-w7-evidence/release/unit.json",
+        "/workspace/react-full-w7-evidence/release/test-mapping.json"
+      ],
+      "startedUtc": "2026-10-04T03:27:00.624316+00:00",
+      "finishedUtc": "2026-10-04T03:27:00.675425+00:00",
+      "exitCode": 0,
+      "logSha256": "1a129052a363708db443abf078df0cafde82442a40277bb223a8ae3b96b46dbe"
+    },
+    {
+      "name": "root-fixture-build",
+      "argv": [
+        "npm",
+        "run",
+        "build:w6-root-fixture"
+      ],
+      "startedUtc": "2026-10-04T03:27:00.675822+00:00",
+      "finishedUtc": "2026-10-04T03:27:15.284553+00:00",
+      "exitCode": 0,
+      "logSha256": "4b11257c3e86b4053056890d923067883460e431ee5162c5040fb9da454ff446"
+    },
+    {
+      "name": "foundation-build",
+      "argv": [
+        "node",
+        "node_modules/vite/bin/vite.js",
+        "build",
+        "--config",
+        "e2e/w1/vite.config.ts",
+        "--outDir",
+        "/workspace/react-full-w7-evidence/release/foundation-build",
+        "--emptyOutDir"
+      ],
+      "startedUtc": "2026-10-04T03:27:15.285011+00:00",
+      "finishedUtc": "2026-10-04T03:27:19.095800+00:00",
+      "exitCode": 0,
+      "logSha256": "42888e8d4250a27bccf9b8d41b4d347024e358c634d0b7615d2342bb4f27cb67"
+    },
+    {
+      "name": "source-verify",
+      "argv": [
+        "node",
+        "../scripts/w7-acceptance-evidence.mjs",
+        "verify",
+        "/workspace/react-full-w7-evidence/release/source-freeze.json"
+      ],
+      "startedUtc": "2026-10-04T03:27:19.096284+00:00",
+      "finishedUtc": "2026-10-04T03:27:19.170403+00:00",
+      "exitCode": 0,
+      "logSha256": "bf9d451f0cb95f6ebc1218af8e6e7fcc8aa1ad826fdaf906e92d9dbdd48d8fd0"
+    }
+  ],
+  "backend": {
+    "checkedUtc": "2026-10-04T03:21:30.139011+00:00",
+    "method": "GET",
+    "url": "http://127.0.0.1:8080/actuator/health",
+    "paidModelCalls": 0,
+    "available": false,
+    "errorType": "URLError",
+    "error": "<urlopen error [Errno 111] Connection refused>",
+    "integrationStatus": "NOT_RUN_SERVICE_UNAVAILABLE"
+  },
+  "remaining": [
+    "real Spring human/system integration unavailable: errno111",
+    "paid models not called; real file parsing/database/git publication/stop proof server integration not verified",
+    "54 pure narrow registrations and50 mixed narrow branches out of user scope",
+    "resource ledger target release is not proof all objects are collected; disconnected live samples remain possible",
+    "large production chunks",
+    "two partial recovery screenshots top duplicate notification partially overlapped; complete recovery content/actions visible below"
+  ],
+  "firstFailuresRetained": "first-failures.json + foundation-results.json; no retries within final521; prior diagnostics are not final passes"
+}

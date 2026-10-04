@@ -1,0 +1,142 @@
+{
+  "kind": "A read-only final historical11 consumer mapping; no new browser",
+  "cases": [
+    {
+      "id": "HF-DB-1440",
+      "classification": "STALE_EXPECTATION",
+      "originalFile": "frontend/e2e/database-progress.spec.ts",
+      "release": {
+        "owner": "A",
+        "file": "database-progress.spec.ts",
+        "title": "数据库分区配置与真实步骤投影 1440px",
+        "status": "expected",
+        "attempts": 1,
+        "result": "passed",
+        "retry": 0
+      },
+      "runByA": true,
+      "mappingNote": "original exact title/file"
+    },
+    {
+      "id": "HF-DB-390",
+      "classification": "STALE_EXPECTATION",
+      "release": "OUT_OF_SCOPE_NARROW",
+      "originalTitle": "数据库分区配置与真实步骤投影 390px"
+    },
+    {
+      "id": "HF-DOC-1440",
+      "classification": "FIXTURE_ENV",
+      "originalFile": "frontend/e2e/document-template-tasks.spec.ts",
+      "release": {
+        "owner": "B",
+        "file": "document-template-tasks.spec.ts",
+        "title": "文档评审上传重试、刷新与按需报告 1440px",
+        "status": "expected",
+        "attempts": 1,
+        "result": "passed",
+        "retry": 0
+      },
+      "runByA": false,
+      "mappingNote": "original exact title/file"
+    },
+    {
+      "id": "HF-DOC-390",
+      "classification": "FIXTURE_ENV",
+      "release": "OUT_OF_SCOPE_NARROW",
+      "originalTitle": "文档评审上传重试、刷新与按需报告 390px"
+    },
+    {
+      "id": "HF-AUTOMATIONS",
+      "classification": "STALE_EXPECTATION",
+      "originalFile": "frontend/e2e/read-consistency.spec.ts",
+      "release": {
+        "owner": "B",
+        "file": "read-consistency-contracts.ts",
+        "title": "自动化页面显示检测失败并在服务端恢复后清除旧告警",
+        "status": "expected",
+        "attempts": 1,
+        "result": "passed",
+        "retry": 0
+      },
+      "runByA": false,
+      "mappingNote": "Original spec imports exact registerReadConsistencyContracts; report records defining helper file, same fullName and behavior",
+      "rootCauseDetail": "STALE_ROUTE_EXPECTATION + COMPATIBILITY_CONSUMER_GAP: W0 after stayed FAIL; W3 legal explicit historical read/export consumer closes actual health recovery; alias alone is insufficient"
+    },
+    {
+      "id": "HF-ROLE-spdb-1440",
+      "classification": "STALE_EXPECTATION",
+      "originalFile": "frontend/e2e/roles.spec.ts",
+      "release": {
+        "owner": "lead",
+        "file": "roles.spec.ts",
+        "title": "spdb 1440px 角色权限预估可读且布局不重叠",
+        "status": "expected",
+        "attempts": 1,
+        "result": "passed",
+        "retry": 0
+      },
+      "runByA": false,
+      "mappingNote": "original exact title/file"
+    },
+    {
+      "id": "HF-ROLE-spdb-390",
+      "classification": "STALE_EXPECTATION",
+      "release": "OUT_OF_SCOPE_NARROW",
+      "originalTitle": "spdb 390px 角色权限预估可读且布局不重叠"
+    },
+    {
+      "id": "HF-ROLE-tech-blue-1440",
+      "classification": "STALE_EXPECTATION",
+      "originalFile": "frontend/e2e/roles.spec.ts",
+      "release": {
+        "owner": "lead",
+        "file": "roles.spec.ts",
+        "title": "tech-blue 1440px 角色权限预估可读且布局不重叠",
+        "status": "expected",
+        "attempts": 1,
+        "result": "passed",
+        "retry": 0
+      },
+      "runByA": false,
+      "mappingNote": "original exact title/file"
+    },
+    {
+      "id": "HF-ROLE-tech-blue-390",
+      "classification": "STALE_EXPECTATION",
+      "release": "OUT_OF_SCOPE_NARROW",
+      "originalTitle": "tech-blue 390px 角色权限预估可读且布局不重叠"
+    },
+    {
+      "id": "HF-ROLE-github-white-1440",
+      "classification": "STALE_EXPECTATION",
+      "originalFile": "frontend/e2e/roles.spec.ts",
+      "release": {
+        "owner": "lead",
+        "file": "roles.spec.ts",
+        "title": "github-white 1440px 角色权限预估可读且布局不重叠",
+        "status": "expected",
+        "attempts": 1,
+        "result": "passed",
+        "retry": 0
+      },
+      "runByA": false,
+      "mappingNote": "original exact title/file"
+    },
+    {
+      "id": "HF-ROLE-github-white-390",
+      "classification": "STALE_EXPECTATION",
+      "release": "OUT_OF_SCOPE_NARROW",
+      "originalTitle": "github-white 390px 角色权限预估可读且布局不重叠"
+    }
+  ],
+  "reportSha256": {
+    "A": "5c9dca96f631e354bd2a36f810d981e51b866c3b801576e8c1fc3ee49d99351c",
+    "B": "8d743369edb045b9c4e63a63bcb06acbb9c938e9cf77d1403159d78715670d2f",
+    "C": "6ea6a0a0a529feccf04ec3d6971d0b85ce312ac1a290833cf1d49c36518cacd2",
+    "lead": "716203b2fd2a10278d7237f12d244c3445e4ad42f82d6cd190dbffcd2003dc31"
+  },
+  "desktopActual": 6,
+  "narrowRetainedOutOfScope": 5,
+  "oldW0EvidencePreserved": true,
+  "sourceSha256": "d1a38dd1471e5c5d0d23aeafa845c7494d3bc30e2d5875dd37c24e9faded596d"
+}

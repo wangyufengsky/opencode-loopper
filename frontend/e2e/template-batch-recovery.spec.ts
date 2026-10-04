@@ -37,7 +37,7 @@ for (const width of [1440, 390]) {
     await panel.getByRole('checkbox', { name: '选择已加载批次' }).check()
     await page.screenshot({ path: `/tmp/loopper-batch-selection-${width}.png`, fullPage: true })
     expect(await page.locator('body').evaluate(node => node.scrollWidth <= window.innerWidth)).toBeTruthy()
-    await panel.getByRole('button', { name: '重新触发所选批次（2）' }).click()
+    await panel.getByRole('button', { name: '重试所选失败批次：重新触发所选批次（2）' }).click()
     await expect(panel).toHaveCount(0)
     expect(submitted).toEqual([{ batches: [{ id: 'failed-39', expectedVersion: 7 }, { id: 'failed-42', expectedVersion: 7 }] }])
   })

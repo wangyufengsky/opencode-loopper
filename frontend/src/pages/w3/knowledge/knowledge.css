@@ -3,3 +3,6 @@
 .knowledge-spinner{display:inline-block;width:14px;height:14px;flex:none;border:1.5px solid color-mix(in srgb,var(--color-accent-cyan) 22%,transparent);border-top-color:var(--color-accent-cyan);border-right-color:var(--color-accent-cyan);border-radius:50%;animation:knowledge-spin .85s linear infinite}
 @keyframes knowledge-spin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.knowledge-spinner{animation:none}}
+
+/* Desktop sources occupy their own column; citation overlays keep the chat geometry. */
+.knowledge-react-workspace[data-sources-open=true] .knowledge-chat{margin-left:440px;max-width:calc(100% - 440px)}

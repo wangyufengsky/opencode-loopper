@@ -1,0 +1,243 @@
+{
+  "release": {
+    "manifest": "/workspace/react-full-w7-evidence/release/source-freeze.json",
+    "manifestSha256": "b20e36a9b2bb42938b90bd4270b64d656cafa809d2e4cd55a2467434f75cdb38",
+    "sourceSha256": "d1a38dd1471e5c5d0d23aeafa845c7494d3bc30e2d5875dd37c24e9faded596d",
+    "fileCount": 817,
+    "readOnlyCurrentHashMismatches": []
+  },
+  "independentPpt": {
+    "reviewer": "Original agent A, not B author",
+    "raw": "/workspace/react-full-w7-evidence/A/C-node-B-ppt-independent.json",
+    "rawSha256": "8d6c15c218a60231060c642ca827e84d0f983416bbc2c1cd73ce3bd6ca5a9b98",
+    "verification": "/workspace/react-full-w7-evidence/A/C-node-B-ppt-independent-verification.json",
+    "verificationSha256": "3003a38b2bca01d6110da2903a058992628c7bbdddf1c32f29e50f6d5e602a8f",
+    "wholeBatch": {
+      "total": 94,
+      "passed": 94,
+      "failed": 0,
+      "skipped": 0,
+      "exit": 0
+    },
+    "BSubset": {
+      "total": 18,
+      "passed": 18,
+      "failed": 0,
+      "skipped": 0,
+      "cases": [
+        {
+          "file": "/workspace/opencode-loopper-react-full/frontend/src/views/PptStudioRecovery.spec.tsx",
+          "cases": [
+            {
+              "fullName": "PPT workspace recovery guards with the actual React canvas blocks busy and volatile pending navigation without a property draft until the original request is recovered",
+              "status": "passed"
+            },
+            {
+              "fullName": "PPT workspace recovery guards with the actual React canvas exposes a restored pending retry immediately and pauses restored property autosave",
+              "status": "passed"
+            },
+            {
+              "fullName": "PPT workspace recovery guards with the actual React canvas keeps the original confirmation semantics for an ordinary unsaved property draft",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx",
+          "cases": [
+            {
+              "fullName": "PPT Studio full production React page mounts a real React page and verified scene under root StrictMode without any implicit write",
+              "status": "passed"
+            },
+            {
+              "fullName": "PPT Studio full production React page keeps discussion separate from explicit execution and freezes the document scope",
+              "status": "passed"
+            },
+            {
+              "fullName": "PPT Studio full production React page reopens a readonly plan and autosaves the next explicit audience edit",
+              "status": "passed"
+            },
+            {
+              "fullName": "PPT Studio full production React page holds four-field pending question identity and sends confirmed boolean only for the confirmation card",
+              "status": "passed"
+            },
+            {
+              "fullName": "PPT Studio full production React page preserves ordinary property dirty drafts and pauses invalid autosave with exact baseline",
+              "status": "passed"
+            },
+            {
+              "fullName": "PPT Studio full production React page allows restored unknown property drafts to be viewed while preserving write, finish and leave guards",
+              "status": "passed"
+            },
+            {
+              "fullName": "PPT Studio full production React page uses the real canvas keyboard callback and blocks further input after an unknown result",
+              "status": "passed"
+            },
+            {
+              "fullName": "PPT Studio full production React page keeps the native object menu mounted through pointerdown before the click writes once",
+              "status": "passed"
+            },
+            {
+              "fullName": "PPT Studio full production React page preserves unknown body and DOM across three in-place theme changes without extra subscriptions or writes",
+              "status": "passed"
+            },
+            {
+              "fullName": "PPT Studio full production React page restores unknown state without autosave and exposes explicit read-only recovery after accepted failure",
+              "status": "passed"
+            },
+            {
+              "fullName": "PPT Studio full production React page shows current-only checks and keeps historic scenes readonly while preserving current version",
+              "status": "passed"
+            },
+            {
+              "fullName": "PPT Studio full production React page uses the archive semantic confirmation and defaults to Stay without issuing a write",
+              "status": "passed"
+            },
+            {
+              "fullName": "PPT Studio full production React page retains real question thinking/tool disclosure and sanitizes assistant/source Markdown",
+              "status": "passed"
+            },
+            {
+              "fullName": "PPT Studio full production React page keeps chat history scroll and can explicitly return to newest messages",
+              "status": "passed"
+            },
+            {
+              "fullName": "PPT Studio full production React page cancels the owned assistant resize capture immediately on jsdom window blur (not trusted browser evidence) and root unmount",
+              "status": "passed"
+            }
+          ]
+        }
+      ]
+    },
+    "sourceBeforeAfterEqual": true,
+    "BManifestSha256": "8e6a072c972deb9a5298891700ab5a4ef4ee42806e344fdeab47caac21e3131c",
+    "oldRecoveryThreeCasesByteIdentical": true,
+    "limitation": "B read and checked actual A JSON/manifest; B did not re-execute this A batch. The C76 portion is not added to B author or B independent totals."
+  },
+  "scheduledFinal": [
+    {
+      "batch": "legacy B",
+      "cases": 49,
+      "status": "PASS",
+      "required": [
+        "release utility verify before",
+        "workers1 retries0 original literal multiplicity",
+        "release utility verify after",
+        "actual screenshots and raw no source changes"
+      ],
+      "evidence": "release/legacy/B.json",
+      "verification": "release/legacy/B-verification.json",
+      "passed": 49,
+      "failed": 0,
+      "skipped": 0,
+      "retries": 0,
+      "exit": 0,
+      "errors": 0
+    },
+    {
+      "batch": "W3 production",
+      "cases": 31,
+      "status": "PASS",
+      "required": [
+        "frozen production bundle and sole preview41773",
+        "three skins route/action screenshots",
+        "nine legal GETs and both byte-exact exports",
+        "first-removal resource snapshot with strict zero and owner SSE close",
+        "File/key/body/version/accepted only read"
+      ],
+      "passed": 31,
+      "failed": 0,
+      "skipped": 0,
+      "retries": 0,
+      "errors": 0,
+      "exit": 0,
+      "evidence": "release/w3/browser.json",
+      "verification": "release/w3/B-verification.json",
+      "rawSha256": "c6a94f1c199141da8db6c2ebaa1f916f20c27874d41d3afb1e4250a6b8ae02dc",
+      "strictFirstSnapshots": 69
+    }
+  ],
+  "priorUnifiedLegacy49": {
+    "sourceSha256": "a8821a377da1577b8b3a94de2c1f1f17e056cb66c4a1f91509c96b27c7efd8b8",
+    "result": "49/49 PASS",
+    "raw": "/workspace/react-full-w7-evidence/final/legacy/B.json",
+    "classification": "PRE_FIX_DIAGNOSTIC_NOT_CURRENT_RELEASE"
+  },
+  "historical11": {
+    "source": "docs/design/react-full-migration/evidence/w0/historical-failures.md",
+    "originalBefore": {
+      "passed": 0,
+      "failed": 11
+    },
+    "historicalAfter": {
+      "passed": 10,
+      "failed": 1
+    },
+    "currentDesktop": 6,
+    "narrowOutOfScope": 5,
+    "BMapping": [
+      {
+        "id": "HF-DOC-1440",
+        "oldCause": "/private/tmp screenshot ENOENT after business assertions; FIXTURE_ENV",
+        "literalTitle": "文档评审上传重试、刷新与按需报告 1440px",
+        "currentContract": "Real React catalog to document run: same original key retry and exactly2POST, original metadata/branch, explicit sections1/body1, exact report and zip filename, reload adds no POST/body read",
+        "screenshot": "testInfo.outputPath, real desktop screenshot still required",
+        "currentReleaseStatus": "PASS"
+      },
+      {
+        "id": "HF-DOC-390",
+        "oldCause": "same FIXTURE_ENV",
+        "currentReleaseStatus": "OUT_OF_SCOPE_NARROW",
+        "assertionsRetained": true,
+        "noCurrentPassClaim": true
+      },
+      {
+        "id": "HF-AUTOMATIONS",
+        "oldCause": "STALE_ROUTE_EXPECTATION + COMPATIBILITY_CONSUMER_GAP, actual historical UI absent",
+        "literalTitle": "自动化页面显示检测失败并在服务端恢复后清除旧告警",
+        "source": "frontend/e2e/read-consistency-contracts.ts:35",
+        "currentContract": "Actual explicit archive opens after alias /automations → /template-tasks. Exact ARIA自动化检测状态, FAILED连续2次→CHECKED检测正常 and old Git error gone. Redirect/default zero history request remains separate negative. W3 three skins additionally all nine legal GETs and both original UTF-8 export bytes. No old create/start/rule/import POST",
+        "currentReleaseStatus": "PASS_LEGACY_HEALTH_AND_THREE_SKIN_NINE_GET_TWO_BYTE_EXACT_EXPORTS",
+        "productionEvidence": "release/w3/browser.json"
+      }
+    ],
+    "other8": "DB2 and Roles6 are original other-team scope. Their desktop4 and narrow4 status remains with parent/A; B does not promote their author results or historical narrow PASS."
+  },
+  "nonAuthorImageReviewPlan": {
+    "scope": "Use only parent-provided final release screenshots and raw for A/root/C routes, not B-created Knowledge/PPT/catalog screenshots as independent visual review",
+    "targets": [
+      "Workflow authoring selected node/edge: real styled nodes, transparent edge fill, in-viewport context, zoom/delta evidence",
+      "Designer selected discussion/settings: disclosure and persistent critical error/unknown, Chinese semantics, source/report boundaries",
+      "Task/Recovery/Publication selected panels: explicit authority and original identity, focus/dirty/unknown dialog, no hidden intercepting overlay",
+      "Roles/Database selection: independent local scrolling, actual MCP/permission detail, current-row/version-only probe"
+    ],
+    "threeSkins": [
+      "spdb",
+      "tech-blue",
+      "github-white"
+    ],
+    "status": "COMPLETED_SCOPED: Role3 + W6 default9 + allW5 30 actually viewed; W5 Requirement12 explicitly self-source, no all31-state claim",
+    "methodLimits": [
+      "Screenshots prove shown pixels only; raw behaviour/resources and source hash must support conclusions.",
+      "Do not claim all three skins from a single spdb sample.",
+      "No heap/GC proof from a ledger retaining target/callback identities.",
+      "No new browser case, source edit or server during preparation."
+    ],
+    "evidence": "non-author-release-images.json",
+    "remainingBlockingFindings": [],
+    "nonBlockingPixelException": "Workflow two partial top notices overlap shell toggle first characters; full repeated critical body and recovery buttons remain usable; root confirmed/disclosed without source unfreeze."
+  },
+  "globalAccountingReadOnlyReview": {
+    "raw": "/workspace/react-full-w7-evidence/release/browser-accounting.json",
+    "rawSha256": "0f2cfedf5de1631440115752795c03fbb08af723bc57a1037d42c6ef09330da9",
+    "method": "B read actual parent utility result; did not rerun all global cases",
+    "registered": 521,
+    "unique": 518,
+    "attempts": 521,
+    "retries": 0,
+    "missing": 0,
+    "excess": 0,
+    "failed": 0,
+    "sourceSha256": "d1a38dd1471e5c5d0d23aeafa845c7494d3bc30e2d5875dd37c24e9faded596d"
+  }
+}

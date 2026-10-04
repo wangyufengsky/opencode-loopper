@@ -100,7 +100,8 @@ export function createDesignerController(options: DesignerOptions) {
         } catch (cause) { if (!token.current() || epoch !== readEpoch) return false; patch({ activityError: userFacingError(cause, '当前角色活动暂时无法刷新') }) }
       } else { activityDeltaRelease(); patch({ activity: undefined, activityDelta: 0, activityError: '' }) }
       const taskId = session.taskId || session.autoMode.taskId
-      if (session.autoMode.enabled && taskId && taskId !== autoTaskAttempted && !hasUnsentDraft() && !['SENDING', 'UNKNOWN', 'ACCEPTED_READBACK'].includes(state().command.phase)) { autoTaskAttempted = taskId; void openKnownTask() }
+      const autoTaskStarted = session.autoMode.enabled || session.autoMode.state === 'COMPLETED' && session.autoMode.lastAction === 'TASK_START_REQUESTED'
+      if (autoTaskStarted && taskId && taskId !== autoTaskAttempted && !hasUnsentDraft() && !['SENDING', 'UNKNOWN', 'ACCEPTED_READBACK'].includes(state().command.phase)) { autoTaskAttempted = taskId; void openKnownTask() }
       return true
     } catch (cause) { if (token.current() && epoch === readEpoch) { failures++; patch({ error: userFacingError(cause, '设计会话暂时无法读取，原恢复身份仍保留。'), loading: false }) } return false }
     finally { if (sequence !== refreshSequence) return; if (token.current() && epoch === readEpoch) { refreshing = false; patch({ loading: false }); if (queued) { queued = false; pollRelease = owner.delay(() => { void refresh() }, 100) } else schedule() } else refreshing = false }

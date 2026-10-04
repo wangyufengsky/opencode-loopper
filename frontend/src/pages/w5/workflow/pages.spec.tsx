@@ -81,8 +81,27 @@ it('offscreen locate/reveal is a presentation-only viewport update and keyboard 
 it('builtin context is read-only including document declarations but existing viewport can move without draft dirty', async () => {
   const value = template({ builtin: true }); value.graph.inputs = [{ name: 'documents', title: '需求原文', kind: 'DOCUMENT', required: false }]; calls.get.mockResolvedValue(value); const { view, owner } = await mountEditor()
   fireEvent.click(view.getByRole('button', { name: semanticName('workflow.settings') })); await settle(); expect(view.getByRole('textbox', { name: '流程名称' }).matches(':disabled')).toBe(true); expect((view.getByRole('combobox', { name: '内容类型' }) as HTMLSelectElement).value).toBe('DOCUMENT'); expect(view.container.querySelector('.workflow-port')).toBeNull()
+  const node = view.container.querySelector<HTMLElement>('[data-node-id="review"]')!, positions = JSON.stringify(owner.getSnapshot().draft.layout.positions), graph = JSON.stringify(owner.getSnapshot().draft.graph)
+  act(() => node.focus()); fireEvent.keyDown(node, { key: 'ArrowRight' }); await settle()
+  expect(JSON.stringify(owner.getSnapshot().draft.layout.positions)).toBe(positions)
+  fireEvent.keyDown(node, { key: 'Delete' }); await settle()
+  expect(JSON.stringify(owner.getSnapshot().draft.graph)).toBe(graph); expect(owner.getSnapshot().dirty).toBe(false)
+  expect(view.queryByRole('dialog', { name: '删除节点' })).toBeNull(); expect(calls.revise).not.toHaveBeenCalled(); expect(calls.layout).not.toHaveBeenCalled(); expect(calls.create).not.toHaveBeenCalled()
   fireEvent.click(view.getByRole('button', { name: '放大画布' })); await settle(); expect(owner.getSnapshot().dirty).toBe(false); expect(owner.getSnapshot().draft.layout.zoom).toBeGreaterThan(1)
 })
 it('load failure under real root StrictMode cannot expose stale editable canvas or revive a retired owner', async () => {
   calls.get.mockRejectedValue(new Error('offline')); const { view, owner } = await mountEditor(true); expect(view.container.querySelector('[data-canvas-runtime]')).toBeNull(); expect(owner.getSnapshot().ready).toBe(false); expect(view.getByRole('button', { name: semanticName('workflow.save') }).matches(':disabled')).toBe(true); view.unmount(); for (const dispose of disposers.splice(0)) dispose(); const snapshot = JSON.stringify(owner.getSnapshot()); await owner.load(); expect(JSON.stringify(owner.getSnapshot())).toBe(snapshot)
+})
+
+it('undo and redo remain real disabled actions before any edit and return to disabled after the sole undo without writing', async () => {
+  const { view, owner } = await mountEditor()
+  const undo = view.queryByRole('button', { name: semanticName('workflow.undo') }), redo = view.queryByRole('button', { name: semanticName('workflow.redo') })
+  expect(undo).not.toBeNull(); expect(redo).not.toBeNull()
+  expect(undo!.matches(':disabled')).toBe(true); expect(redo!.matches(':disabled')).toBe(true)
+  const node = view.container.querySelector<HTMLElement>('[data-node-id="review"]')!
+  fireEvent.keyDown(node, { key: 'ArrowRight' }); await settle()
+  expect(undo!.matches(':disabled')).toBe(false); expect(owner.getSnapshot().undoCount).toBe(1)
+  fireEvent.click(undo!); await settle()
+  expect(undo!.matches(':disabled')).toBe(true); expect(redo!.matches(':disabled')).toBe(false)
+  expect(calls.revise).not.toHaveBeenCalled(); expect(calls.layout).not.toHaveBeenCalled()
 })

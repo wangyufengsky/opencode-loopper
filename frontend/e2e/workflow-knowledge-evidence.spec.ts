@@ -1,3 +1,4 @@
+import { semanticName } from './w3/semantics'
 import { selectWorkflowNode } from './fixtures/workflowNavigation'
 import { expect, test } from '@playwright/test'
 import { execution, requirement, attempt } from '../src/components/workflow/workflowRunTestFixtures'
@@ -33,20 +34,21 @@ for (const width of [1600, 390]) test(`节点知识原文按需查看与恢复 $
       return route.fulfill({ json: { ...entry, content: { kind: 'DOCUMENT', name: '业务规范/售后服务/退款申请与订单状态校验规则.md', location: '退款申请与订单状态校验规则.md · 第 1 段', sha256: 'a'.repeat(64), startLine: 1, endLine: 3, text: '# 退款规则\n退款申请需要核对订单状态。\n已关闭的订单应返回明确原因。', collectedAt: entry.createdAt } } })
     }
     if (path === '/api/settings') return route.fulfill({ json: { runtime: {}, openCode: {}, limits: {}, retryWait: {}, publication: {} } })
+    if (path === '/api/roles') return route.fulfill({ json: { items: [], nextCursor: null } })
     return route.fulfill({ json: [] })
   })
   await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 }); await page.goto('/requirements/knowledge-evidence')
   await selectWorkflowNode(page, node.title)
   expect(lists).toBe(0); expect(bodies).toBe(0)
-  await page.getByRole('button', { name: '检索证据', exact: true }).click()
+  await page.getByRole('button', { name: semanticName('workflow.knowledgeEvidence'), exact: true }).click()
   const evidence = page.getByRole('region', { name: '本次检索证据' }); await expect(evidence.locator('li')).toHaveCount(1)
   expect(bodies).toBe(0); await expect(evidence).not.toContainText('private-entry')
-  await evidence.locator('li button').click(); await evidence.getByRole('button', { name: '重试读取正文' }).click()
+  await evidence.locator('li button').click(); await evidence.getByRole('button', { name: semanticName('ui.retry') }).click()
   await expect(evidence).toContainText('退款申请需要核对订单状态'); expect(bodies).toBe(2)
   await evidence.locator('li button').click(); expect(bodies).toBe(2)
-  await evidence.getByRole('button', { name: '更多证据' }).click(); await expect(evidence.locator('li')).toHaveCount(2)
+  await evidence.getByRole('button', { name: semanticName('ui.loadMore', '检索证据') }).click(); await expect(evidence.locator('li')).toHaveCount(2)
   expect(lists).toBe(2); await expect(evidence).toContainText('退款申请需要核对订单状态')
-  await evidence.getByRole('button', { name: '阅读视图' }).click(); await expect(evidence.locator('.markdown-document')).toContainText('已关闭的订单应返回明确原因')
+  await evidence.getByRole('button', { name: semanticName('knowledge.readingView') }).click(); await expect(evidence.locator('.w3-rich-document')).toContainText('已关闭的订单应返回明确原因')
   expect(await page.locator('body').evaluate(el => el.scrollWidth <= innerWidth + 1)).toBe(true)
   await page.screenshot({ path: `test-results/workflow-knowledge-evidence-${width}.png`, fullPage: true })
 })

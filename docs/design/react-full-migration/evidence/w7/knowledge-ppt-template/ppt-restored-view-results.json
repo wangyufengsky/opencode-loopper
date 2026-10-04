@@ -1,0 +1,899 @@
+{
+  "stage": "B W7 v3 restored pending property view fix, after original frozen817 diagnostic",
+  "classification": "REPRODUCED_PRODUCT_FAIL_CLOSED",
+  "rootCause": "Manual entry availability wrongly shared pending/busy/propertyDirty writer guards, preventing readonly restoration view. Entry now retains active/archive/historical guards; finish retains busy/pending/propertyDirty guards. No owner/API/write/resource code changed.",
+  "implementation": {
+    "file": "frontend/src/pages/w3/ppt/PptStudioPage.tsx",
+    "line": 73,
+    "sha256": "3e30323306bc51168d7c629dc77e2301c87f079a3763f4fdcacb3655ba1acc24"
+  },
+  "newRegression": {
+    "file": "frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx",
+    "line": 43,
+    "sha256": "3e84f81d2eec05c11d1f11c81d400a6bf21fab67a37c4dd71552998da0b08927",
+    "assertions": [
+      "restored UNKNOWN original key/body/revision remains unchanged",
+      "readonly restored File-free element draft is visible and unchanged",
+      "fields/save/delete/finish and keyboard writes remain blocked",
+      "same page root and one live SSE remain; no owner recreation",
+      "1200ms does not autosave or create preview",
+      "navigation policy remains BLOCK until original recovery",
+      "one explicit original POST uses exact id/revision/operations/key",
+      "authoritative identical readback settles and enables safe finish; no second POST"
+    ]
+  },
+  "originalRecovery": {
+    "file": "frontend/src/views/PptStudioRecovery.spec.tsx",
+    "sha256": "bbd6a6a5ad2effdff9880fe149e144878925a446350d92436615768b0541ba73",
+    "unchanged": true,
+    "literalNamesAndAssertionsUnchanged": true
+  },
+  "before": {
+    "json": "/workspace/react-full-w7-evidence/B/ppt-recovery-independent-before.json",
+    "sha256": "923e4578a2c3f7659426085b7fb19861b56d00a53f25a063d59514fdbc42034b",
+    "total": 3,
+    "passed": 2,
+    "failed": 1,
+    "skipped": 0,
+    "success": false,
+    "cases": [
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/views/PptStudioRecovery.spec.tsx",
+        "fullName": "PPT workspace recovery guards with the actual React canvas blocks busy and volatile pending navigation without a property draft until the original request is recovered",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/views/PptStudioRecovery.spec.tsx",
+        "fullName": "PPT workspace recovery guards with the actual React canvas exposes a restored pending retry immediately and pauses restored property autosave",
+        "status": "failed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/views/PptStudioRecovery.spec.tsx",
+        "fullName": "PPT workspace recovery guards with the actual React canvas keeps the original confirmation semantics for an ordinary unsaved property draft",
+        "status": "passed"
+      }
+    ]
+  },
+  "focusedAfter": {
+    "json": "/workspace/react-full-w7-evidence/B/ppt-restored-view/after-focused-final.json",
+    "sha256": "e71241356702d454205762f8851429c64dd7d35fb99afda508ca3127b0163f25",
+    "total": 18,
+    "passed": 18,
+    "failed": 0,
+    "skipped": 0,
+    "success": true,
+    "cases": [
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/views/PptStudioRecovery.spec.tsx",
+        "fullName": "PPT workspace recovery guards with the actual React canvas blocks busy and volatile pending navigation without a property draft until the original request is recovered",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/views/PptStudioRecovery.spec.tsx",
+        "fullName": "PPT workspace recovery guards with the actual React canvas exposes a restored pending retry immediately and pauses restored property autosave",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/views/PptStudioRecovery.spec.tsx",
+        "fullName": "PPT workspace recovery guards with the actual React canvas keeps the original confirmation semantics for an ordinary unsaved property draft",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx",
+        "fullName": "PPT Studio full production React page mounts a real React page and verified scene under root StrictMode without any implicit write",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx",
+        "fullName": "PPT Studio full production React page keeps discussion separate from explicit execution and freezes the document scope",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx",
+        "fullName": "PPT Studio full production React page reopens a readonly plan and autosaves the next explicit audience edit",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx",
+        "fullName": "PPT Studio full production React page holds four-field pending question identity and sends confirmed boolean only for the confirmation card",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx",
+        "fullName": "PPT Studio full production React page preserves ordinary property dirty drafts and pauses invalid autosave with exact baseline",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx",
+        "fullName": "PPT Studio full production React page allows restored unknown property drafts to be viewed while preserving write, finish and leave guards",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx",
+        "fullName": "PPT Studio full production React page uses the real canvas keyboard callback and blocks further input after an unknown result",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx",
+        "fullName": "PPT Studio full production React page keeps the native object menu mounted through pointerdown before the click writes once",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx",
+        "fullName": "PPT Studio full production React page preserves unknown body and DOM across three in-place theme changes without extra subscriptions or writes",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx",
+        "fullName": "PPT Studio full production React page restores unknown state without autosave and exposes explicit read-only recovery after accepted failure",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx",
+        "fullName": "PPT Studio full production React page shows current-only checks and keeps historic scenes readonly while preserving current version",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx",
+        "fullName": "PPT Studio full production React page uses the archive semantic confirmation and defaults to Stay without issuing a write",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx",
+        "fullName": "PPT Studio full production React page retains real question thinking/tool disclosure and sanitizes assistant/source Markdown",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx",
+        "fullName": "PPT Studio full production React page keeps chat history scroll and can explicitly return to newest messages",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx",
+        "fullName": "PPT Studio full production React page cancels the owned assistant resize capture immediately on jsdom window blur (not trusted browser evidence) and root unmount",
+        "status": "passed"
+      }
+    ]
+  },
+  "moduleAfter": {
+    "json": "/workspace/react-full-w7-evidence/B/ppt-restored-view/B-module-final.json",
+    "sha256": "40654ca91f2a30d1bc1de2e51b8be8cc4112b8d2155fbd142e2e07afd538fcc3",
+    "total": 138,
+    "passed": 138,
+    "failed": 0,
+    "skipped": 0,
+    "success": true,
+    "cases": [
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/browser.spec.ts",
+        "fullName": "searches only selected READY sources with exact mode and appends pages/coverage",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/browser.spec.ts",
+        "fullName": "changed query/project/closed panel invalidates deferred search without retired projection",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/browser.spec.ts",
+        "fullName": "refuses empty selected scope and never falls back to all project sources",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/browser.spec.ts",
+        "fullName": "conversation scope freezes sources and database result uses original schema/table/offset",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/browser.spec.ts",
+        "fullName": "document reads preserve parsed section/textOffset/hash rather than invented filesystem identity",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/browser.spec.ts",
+        "fullName": "git filters and commit pagination use readonly documented tools and source id",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/controller.spec.ts",
+        "fullName": "single knowledge command/read owner foreign fulfilled creation receipt cannot read/send to a different conversation",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/controller.spec.ts",
+        "fullName": "single knowledge command/read owner foreign fulfilled stop receipt cannot replace or refresh a different conversation",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/controller.spec.ts",
+        "fullName": "single knowledge command/read owner throwing SSE close still clears its pending 180ms timer and all interval resources",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/controller.spec.ts",
+        "fullName": "single knowledge command/read owner uses configured provider/model without waiting for other catalogue choices",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/controller.spec.ts",
+        "fullName": "single knowledge command/read owner a lost message response freezes original text/key and explicit retry uses exactly those fields",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/controller.spec.ts",
+        "fullName": "single knowledge command/read owner restored unknown message never POSTs on mount, and read failure preserves identity and BLOCK",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/controller.spec.ts",
+        "fullName": "single knowledge command/read owner restored acknowledged message permits a new explicit question with a new key",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/controller.spec.ts",
+        "fullName": "single knowledge command/read owner accepted send with failed readback retries only GET, keeps draft and original operation",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/controller.spec.ts",
+        "fullName": "single knowledge command/read owner unknown conversation create uses actual client-id lookup, never a second keyless POST",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/controller.spec.ts",
+        "fullName": "single knowledge command/read owner late conversation A cannot replace B after a safe route change",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/controller.spec.ts",
+        "fullName": "single knowledge command/read owner late mutation receipt after forced retirement never refreshes or projects into a new owner",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/controller.spec.ts",
+        "fullName": "single knowledge command/read owner SSE one-owner leases coalesce bursts and close exactly once immediately on detach",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/controller.spec.ts",
+        "fullName": "single knowledge command/read owner incremental REST merges history, repeats last ordinal safely, and never shrinks token usage",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/controller.spec.ts",
+        "fullName": "single knowledge command/read owner keyless upload UNKNOWN retains original File but offers no invented lookup or write retry",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/controller.spec.ts",
+        "fullName": "single knowledge command/read owner source write accepted but failed source read is readonly recoverable",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/controller.spec.ts",
+        "fullName": "single knowledge command/read owner question unknown freezes exact answers/version/key across explicit retry",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/controller.spec.ts",
+        "fullName": "single knowledge command/read owner restored prepared answer is visibly UNKNOWN, readonly lookup preserves identity until accepted",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/controller.spec.ts",
+        "fullName": "single knowledge command/read owner accepted PREPARED question reply reads the original question until delivery, never POSTs it again",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/controller.spec.ts",
+        "fullName": "single knowledge command/read owner ordinary unsent question draft confirms leave, including optional storage failure",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/pages.spec.tsx",
+        "fullName": "real React knowledge page and retained owner renders catalogue/default provider identity and sends exact selected model through one writer",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/pages.spec.tsx",
+        "fullName": "real React knowledge page and retained owner pending catalogue does not disable default-model send or erase an early typed draft",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/pages.spec.tsx",
+        "fullName": "real React knowledge page and retained owner catalogue failure keeps global model usable and visible retry does not overwrite explicit choice",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/pages.spec.tsx",
+        "fullName": "real React knowledge page and retained owner existing conversation freezes model and sources, reads stream once and preserves native history/project links",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/pages.spec.tsx",
+        "fullName": "real React knowledge page and retained owner real lost response keeps original composer disabled and route BLOCK while local panel close never cancels command",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/pages.spec.tsx",
+        "fullName": "real React knowledge page and retained owner actual question form restores custom/multiple draft and POST captures original answers/version exactly once",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/pages.spec.tsx",
+        "fullName": "real React knowledge page and retained owner source browser is read-only for existing conversations and source checkbox selection stays explicit on new ones",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/pages.spec.tsx",
+        "fullName": "real React knowledge page and retained owner failed empty answer exposes retry draft with zero automatic POST; restored question UNKNOWN is locked",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/pages.spec.tsx",
+        "fullName": "real React knowledge page and retained owner file links are view actions, absent images cannot load external content, and evidence closes locally",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/pages.spec.tsx",
+        "fullName": "real React knowledge page and retained owner StrictMode replays release prior stream, single live owner restores zero late writes on route disposal",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/pages.spec.tsx",
+        "fullName": "React activity/evidence projection parity code evidence with non-one start preserves absolute highlighted lines while Markdown uses relative lines",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/pages.spec.tsx",
+        "fullName": "React activity/evidence projection parity PREPARED empty active turn displays exact waiting feedback",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/pages.spec.tsx",
+        "fullName": "React activity/evidence projection parity CREATING empty active turn displays exact waiting feedback",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/pages.spec.tsx",
+        "fullName": "React activity/evidence projection parity SENDING empty active turn displays exact waiting feedback",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/pages.spec.tsx",
+        "fullName": "React activity/evidence projection parity RUNNING empty active turn displays exact waiting feedback",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/pages.spec.tsx",
+        "fullName": "React activity/evidence projection parity COMPLETED never displays active waiting animation",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/pages.spec.tsx",
+        "fullName": "React activity/evidence projection parity FAILED never displays active waiting animation",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/pages.spec.tsx",
+        "fullName": "React activity/evidence projection parity STOPPED never displays active waiting animation",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/pages.spec.tsx",
+        "fullName": "React activity/evidence projection parity UNKNOWN never displays active waiting animation",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/pages.spec.tsx",
+        "fullName": "React activity/evidence projection parity thinking and tool content remain user-expanded with only last 30 calls and terminal status",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/knowledge/pages.spec.tsx",
+        "fullName": "React activity/evidence projection parity database evidence preserves NULL/rows/range and safe raw result, document toggles actual readonly text and Markdown",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx",
+        "fullName": "PPT Studio full production React page mounts a real React page and verified scene under root StrictMode without any implicit write",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx",
+        "fullName": "PPT Studio full production React page keeps discussion separate from explicit execution and freezes the document scope",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx",
+        "fullName": "PPT Studio full production React page reopens a readonly plan and autosaves the next explicit audience edit",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx",
+        "fullName": "PPT Studio full production React page holds four-field pending question identity and sends confirmed boolean only for the confirmation card",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx",
+        "fullName": "PPT Studio full production React page preserves ordinary property dirty drafts and pauses invalid autosave with exact baseline",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx",
+        "fullName": "PPT Studio full production React page allows restored unknown property drafts to be viewed while preserving write, finish and leave guards",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx",
+        "fullName": "PPT Studio full production React page uses the real canvas keyboard callback and blocks further input after an unknown result",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx",
+        "fullName": "PPT Studio full production React page keeps the native object menu mounted through pointerdown before the click writes once",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx",
+        "fullName": "PPT Studio full production React page preserves unknown body and DOM across three in-place theme changes without extra subscriptions or writes",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx",
+        "fullName": "PPT Studio full production React page restores unknown state without autosave and exposes explicit read-only recovery after accepted failure",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx",
+        "fullName": "PPT Studio full production React page shows current-only checks and keeps historic scenes readonly while preserving current version",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx",
+        "fullName": "PPT Studio full production React page uses the archive semantic confirmation and defaults to Stay without issuing a write",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx",
+        "fullName": "PPT Studio full production React page retains real question thinking/tool disclosure and sanitizes assistant/source Markdown",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx",
+        "fullName": "PPT Studio full production React page keeps chat history scroll and can explicitly return to newest messages",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx",
+        "fullName": "PPT Studio full production React page cancels the owned assistant resize capture immediately on jsdom window blur (not trusted browser evidence) and root unmount",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/controller.spec.ts",
+        "fullName": "PPT React studio single command and projection owner initializes by GET only and detaches its single subscription without stopping server generation",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/controller.spec.ts",
+        "fullName": "PPT React studio single command and projection owner freezes message text, scope, key and revision and explicitly retries identical bytes",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/controller.spec.ts",
+        "fullName": "PPT React studio single command and projection owner reads an exact observed message without POST and rejects same-key different-body receipts",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/controller.spec.ts",
+        "fullName": "PPT React studio single command and projection owner retains accepted readback failure and recovers only by GET, never repeats the POST",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/controller.spec.ts",
+        "fullName": "PPT React studio single command and projection owner restores accepted metadata without implicit writes and only reads on explicit recovery",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/controller.spec.ts",
+        "fullName": "PPT React studio single command and projection owner keeps the acknowledged revision blocked when a successful GET still returns the previous projection",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/controller.spec.ts",
+        "fullName": "PPT React studio single command and projection owner ignores regressing document and message versions from a later old read",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/controller.spec.ts",
+        "fullName": "PPT React studio single command and projection owner restores unknown metadata with same original key but never replays from loading",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/controller.spec.ts",
+        "fullName": "PPT React studio single command and projection owner keeps volatile unknown identity blocked when sessionStorage rejects all writes",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/controller.spec.ts",
+        "fullName": "PPT React studio single command and projection owner preserves a conflicting baseline and issues no automatic merged write",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/controller.spec.ts",
+        "fullName": "PPT React studio single command and projection owner cannot project a retired document read or unlock another owner with a late receipt",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/controller.spec.ts",
+        "fullName": "PPT React studio single command and projection owner bounds stable plan revision disagreement and retains a coherent old snapshot",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/controller.spec.ts",
+        "fullName": "PPT React studio single command and projection owner uses activity reads for unchanged deck and reloads all scene data on revision changes",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/controller.spec.ts",
+        "fullName": "PPT React studio single command and projection owner keeps STOPPING active and keyless uncertain stop cannot be repeated",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/controller.spec.ts",
+        "fullName": "PPT React studio single command and projection owner freezes requirement confirmation question/version/boolean through unknown replay",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/controller.spec.ts",
+        "fullName": "PPT React studio single command and projection owner retains confirmation and resume revisions and never generates from freeform discussion",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/controller.spec.ts",
+        "fullName": "PPT React studio single command and projection owner autosaves only a real dirty edit once, retains custom fields, and pauses stale baselines",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/controller.spec.ts",
+        "fullName": "PPT React studio single command and projection owner restores a stale property draft without autosaving or clearing it on server revision change",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/controller.spec.ts",
+        "fullName": "PPT React studio single command and projection owner retains the exact original File reference and refuses changed-byte reselection",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/controller.spec.ts",
+        "fullName": "PPT React studio single command and projection owner refuses oversized sources before upload and never makes a legacy no-hash claim about same bytes",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/controller.spec.ts",
+        "fullName": "PPT React studio single command and projection owner invalidates earlier project-source reads and check results of an older revision",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/editors.spec.tsx",
+        "fullName": "PPT full React plan and artifact editors exposes all seven complete plan modules without issuing writes from opening tabs",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/editors.spec.tsx",
+        "fullName": "PPT full React plan and artifact editors preserves stale plan input while a changed server revision prevents autosave",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/editors.spec.tsx",
+        "fullName": "PPT full React plan and artifact editors pauses a pending autosave when its editor is closed without discarding the draft",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/editors.spec.tsx",
+        "fullName": "PPT full React plan and artifact editors downloads only the document-owned artifact URL and preserves the existing file after transport failure",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/ppt/editors.spec.tsx",
+        "fullName": "PPT full React plan and artifact editors cancels fetch and revokes owned Blob URLs and their timers immediately on unmount",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/controller.spec.ts",
+        "fullName": "inherits project/output and default local branch with dates and exact scoring catalogue",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/controller.spec.ts",
+        "fullName": "stale folder picker cannot replace changed path/template and cannot write after retirement",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/controller.spec.ts",
+        "fullName": "scope preview is invalidated by source/output/requirements changes and emits supported fields only",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/controller.spec.ts",
+        "fullName": "empty file chooser cancellation preserves native files/order; invalid files block creation",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/controller.spec.ts",
+        "fullName": "default report plus restored document UNKNOWN selects the original existing template without POST",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/controller.spec.ts",
+        "fullName": "history metadata for an absent template stays blocked and reachable through its own original operation",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/creation.spec.ts",
+        "fullName": "production creation identity and route guard active native FileReader fallback is aborted and releases handlers at forced root disposal",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/creation.spec.ts",
+        "fullName": "production creation identity and route guard report blocks real in-flight writes and refuses writes after retirement",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/creation.spec.ts",
+        "fullName": "production creation identity and route guard report retries exact unknown request and File identity without permitting changed intent",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/creation.spec.ts",
+        "fullName": "production creation identity and route guard report preserves accepted receipt when read fails and only retries reads",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/creation.spec.ts",
+        "fullName": "production creation identity and route guard report known rejection permits ordinary draft confirmation, while unknown stays blocked",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/creation.spec.ts",
+        "fullName": "production creation identity and route guard source blocks real in-flight writes and refuses writes after retirement",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/creation.spec.ts",
+        "fullName": "production creation identity and route guard source retries exact unknown request and File identity without permitting changed intent",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/creation.spec.ts",
+        "fullName": "production creation identity and route guard source preserves accepted receipt when read fails and only retries reads",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/creation.spec.ts",
+        "fullName": "production creation identity and route guard source known rejection permits ordinary draft confirmation, while unknown stays blocked",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/creation.spec.ts",
+        "fullName": "production creation identity and route guard document blocks real in-flight writes and refuses writes after retirement",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/creation.spec.ts",
+        "fullName": "production creation identity and route guard document retries exact unknown request and File identity without permitting changed intent",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/creation.spec.ts",
+        "fullName": "production creation identity and route guard document preserves accepted receipt when read fails and only retries reads",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/creation.spec.ts",
+        "fullName": "production creation identity and route guard document known rejection permits ordinary draft confirmation, while unknown stays blocked",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/creation.spec.ts",
+        "fullName": "production creation identity and route guard hash preparation blocks navigation before POST and cannot write after a forced exit",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/creation.spec.ts",
+        "fullName": "production creation identity and route guard restored UNKNOWN document compares actual bytes and order before original-key POST",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/creation.spec.ts",
+        "fullName": "production creation identity and route guard source restored known run reads exact id and permits only its destination",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/creation.spec.ts",
+        "fullName": "production creation identity and route guard document restored known run reads exact id and permits only its destination",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/creation.spec.ts",
+        "fullName": "production creation identity and route guard keyless Start UNKNOWN reads original task before a second explicit same-id Start",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/history.spec.ts",
+        "fullName": "current explicit historical consumer, never a retired writer constructor/default catalogue makes zero historical requests, open issues exactly one workspace GET",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/history.spec.ts",
+        "fullName": "current explicit historical consumer, never a retired writer all nine original endpoints keep method GET and exact route identity",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/history.spec.ts",
+        "fullName": "current explicit historical consumer, never a retired writer frozen contract spec/version/hash/approval survives decoding without compilation or normalization",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/history.spec.ts",
+        "fullName": "current explicit historical consumer, never a retired writer preserves trigger MANUAL and all original approval flags without secret recovery",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/history.spec.ts",
+        "fullName": "current explicit historical consumer, never a retired writer preserves trigger CRON and all original approval flags without secret recovery",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/history.spec.ts",
+        "fullName": "current explicit historical consumer, never a retired writer preserves trigger GIT_HEAD_CHANGED and all original approval flags without secret recovery",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/history.spec.ts",
+        "fullName": "current explicit historical consumer, never a retired writer preserves trigger WEBHOOK and all original approval flags without secret recovery",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/history.spec.ts",
+        "fullName": "current explicit historical consumer, never a retired writer keeps historical DETECTED records with null task binding and original evidence",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/history.spec.ts",
+        "fullName": "current explicit historical consumer, never a retired writer keeps historical REVIEW_REQUIRED records with null task binding and original evidence",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/history.spec.ts",
+        "fullName": "current explicit historical consumer, never a retired writer keeps historical QUEUED records with null task binding and original evidence",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/history.spec.ts",
+        "fullName": "current explicit historical consumer, never a retired writer keeps historical RUNNING records with null task binding and original evidence",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/history.spec.ts",
+        "fullName": "current explicit historical consumer, never a retired writer keeps historical SUCCEEDED records with null task binding and original evidence",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/history.spec.ts",
+        "fullName": "current explicit historical consumer, never a retired writer keeps historical FAILED records with null task binding and original evidence",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/history.spec.ts",
+        "fullName": "current explicit historical consumer, never a retired writer keeps historical SKIPPED records with null task binding and original evidence",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/history.spec.ts",
+        "fullName": "current explicit historical consumer, never a retired writer failed health disappears only after a current server CHECKED read",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/history.spec.ts",
+        "fullName": "current explicit historical consumer, never a retired writer close and retirement invalidate late tab/id reads without hiding original records",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/history.spec.ts",
+        "fullName": "current explicit historical consumer, never a retired writer unreadable linked task leaves frozen run/evidence intact and issues no lifecycle writes",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/history.spec.ts",
+        "fullName": "current explicit historical consumer, never a retired writer export preserves exact server bytes and rejects secrets, runs and unsupported rule fields",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/pages.spec.tsx",
+        "fullName": "archive keyboard focus is local manual activation; busy tabs issue no selection or reads",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/pages.spec.tsx",
+        "fullName": "catalogue shows dynamic template search/categories and exact inherited branch/path/date contract with zero history GET",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/pages.spec.tsx",
+        "fullName": "actual report submit preserves FULL mode/body and navigates only accepted known task",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/pages.spec.tsx",
+        "fullName": "actual UNKNOWN locks business inputs, keeps recovery visible and registered leave guard BLOCK",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/pages.spec.tsx",
+        "fullName": "source template field capabilities and scope preview must complete before create",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/pages.spec.tsx",
+        "fullName": "document native files, chooser cancellation, ordered list and validation stay visible",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/pages.spec.tsx",
+        "fullName": "switch confirmation cannot discard a newer public-owner draft and Stay preserves input",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/pages.spec.tsx",
+        "fullName": "archive is an explicit readonly consumer and CHECKED refresh clears old failure text",
+        "status": "passed"
+      },
+      {
+        "file": "/workspace/opencode-loopper-react-full/frontend/src/pages/w3/templates/catalog/pages.spec.tsx",
+        "fullName": "StrictMode mounting never creates commands or downloads history; pending APIs remain one owner",
+        "status": "passed"
+      }
+    ]
+  },
+  "typecheck": {
+    "command": "./node_modules/.bin/tsc -p tsconfig.app.json --incremental false --noEmit",
+    "cwd": "/workspace/opencode-loopper-react-full/frontend",
+    "exit": 0,
+    "log": "/workspace/react-full-w7-evidence/B/ppt-restored-view/type-app-noemit.log",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "extraFixtureFailure": {
+    "raw": "/workspace/react-full-w7-evidence/B/ppt-restored-view/after-focused.json",
+    "total": 18,
+    "passed": 17,
+    "failed": 1,
+    "classification": "TEST_EXPECTATION_ERROR_NOT_PRODUCT_FAIL",
+    "cause": "New additional post-recovery expectation wrongly demanded dirty confirmation after server projection exactly matched the draft. Existing projectDrafts clears that saved draft; corrected expectation allows leave only after exact authority and original one-POST recovery. Existing ordinary dirty confirmation assertions are unchanged."
+  },
+  "freeze": {
+    "files": 20,
+    "manifest": "/workspace/react-full-w7-evidence/B/B-freeze-source-hashes-v3.json",
+    "sha256": "8e6a072c972deb9a5298891700ab5a4ef4ee42806e344fdeab47caac21e3131c",
+    "changedFromV2": [
+      "frontend/src/pages/w3/ppt/PptStudioPage.tsx",
+      "frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx"
+    ]
+  },
+  "commands": [
+    {
+      "command": "./node_modules/.bin/vitest run src/views/PptStudioRecovery.spec.tsx src/pages/w3/ppt/PptStudioPage.spec.tsx --maxWorkers=1 --reporter=json --outputFile=/workspace/react-full-w7-evidence/B/ppt-restored-view/after-focused-final.json",
+      "exit": 0
+    },
+    {
+      "command": "./node_modules/.bin/vitest run src/pages/w3/knowledge src/pages/w3/templates/catalog src/pages/w3/ppt --maxWorkers=1 --reporter=json --outputFile=/workspace/react-full-w7-evidence/B/ppt-restored-view/B-module-final.json",
+      "exit": 0
+    }
+  ],
+  "limitations": [
+    "All API and SSE are deterministic mocks; no real backend or paid model.",
+    "The 18 focused cases overlap the 138 module cases by 15 Page cases. Do not add counts as unique coverage.",
+    "Previous unified frozen817 legacy49 PASS is pre-fix evidence. New global source freeze, clean gates and full final browser batches must run again; production31 waits parent GO.",
+    "Non-author review delegated to original A; author results do not constitute that independent review."
+  ]
+}

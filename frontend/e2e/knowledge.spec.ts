@@ -20,14 +20,17 @@ test('文件链接在当前页预览并保留气泡头像，失败不跳到 404'
   await expect(page.locator('.knowledge-evidence')).toContainText('check();')
   await expect(page).toHaveURL(`/knowledge/${id}`); expect(page.context().pages()).toHaveLength(1)
   await page.screenshot({ path: 'test-results/knowledge-file-preview.png' })
-  await page.getByRole('button', { name: '关闭引用详情' }).click()
+  await page.getByRole('button', { name: /^关闭面板：(引用详情|文件预览)$/ }).click()
   await page.getByRole('link', { name: '不可用文件' }).click()
-  await expect(page.locator('.knowledge-right [role="alert"]')).toContainText('文件不存在')
+  await expect(page.locator('.knowledge-evidence-drawer aside [role="alert"]')).toContainText('文件不存在')
   await expect(page).toHaveURL(`/knowledge/${id}`)
-  await page.setViewportSize({ width: 390, height: 844 })
-  await page.getByRole('button', { name: '关闭引用详情' }).click()
-  expect(await page.locator('.knowledge-user').evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true)
-  await page.screenshot({ path: 'test-results/knowledge-whale-mobile.png' })
+  // W7 cancels narrow adaptation; retain this historical branch for its original suite.
+  if (test.info().project.name !== 'w7-legacy-desktop-chromium') {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.getByRole('button', { name: /^关闭面板：(引用详情|文件预览)$/ }).click()
+    expect(await page.locator('.knowledge-user').evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true)
+    await page.screenshot({ path: 'test-results/knowledge-whale-mobile.png' })
+  }
 })
 for (const width of [1440, 768]) {
   test(`统一检索分页、来源覆盖与数据库原文 ${width}px`, async ({ page }) => {
@@ -40,30 +43,30 @@ for (const width of [1440, 768]) {
       return route.fulfill({ json: { matches: [next
         ? { sourceId: 'code', sourceName: '项目代码', kind: 'CODE', name: 'Customer.java', path: 'Customer.java', startLine: 10, sha256: 'a'.repeat(64), snippet: 'private String customer_id;', matchType: 'FIELD' }
         : { sourceId: 'database:db', sourceName: '客户数据库', kind: 'DATABASE', name: 'customer_id', path: 'app.customer.customer_id', location: 'app.customer.customer_id', schema: 'app', table: 'customer', column: 'customer_id', sha256: 'b'.repeat(64), snippet: '客户编号 · VARCHAR', matchType: 'FIELD' }],
-        nextCursor: next ? 'next' : null, incomplete: next, limitations: [], coverage: allSources.map(s => ({ sourceId: s.id, name: s.name, kind: s.kind, state: next ? 'PARTIAL' : 'COMPLETE', limited: false, examined: 50, matched: 1 })) } })
+        nextCursor: next ? 'next' : null, incomplete: next, limitations: [], coverage: allSources.map(s => ({ sourceId: s.id, name: s.name, kind: s.kind, state: next ? 'PARTIAL' : 'COMPLETE', limited: false, examined: 50, matched: 1, limitations: [] })) } })
     })
     await page.route('**/api/projects/p/knowledge-sources/database%3Adb/database?**', route => {
       const params = new URL(route.request().url()).searchParams
       expect(params.get('schema')).toBe('app'); expect(params.get('table')).toBe('customer'); expect(params.get('kind')).toBe('columns')
       return route.fulfill({ json: { kind: 'DATABASE', name: '客户数据库', columns: [{ name: 'COLUMN_NAME', type: 'VARCHAR' }, { name: 'REMARKS', type: 'VARCHAR' }], rows: [['customer_id', '客户编号']], nextOffset: -1, collectedAt: '2026-09-18T00:00:00Z' } })
     })
-    await page.goto(`/knowledge/${id}`); await page.getByRole('button', { name: /^来源 / }).click()
-    const panel = page.locator('.knowledge-left')
+    await page.goto(`/knowledge/${id}`); await page.getByRole('button', { name: /^来源：/ }).click()
+    const panel = page.locator('.knowledge-react-workspace > aside:has(.knowledge-source-browser)')
     await panel.getByLabel('来源搜索').fill('customerId'); await panel.getByLabel('检索方式').selectOption('FIELD')
-    await panel.getByRole('button', { name: '搜索', exact: true }).click(); await expect(panel.getByText('待继续检索', { exact: false }).first()).toBeVisible()
-    await panel.getByRole('button', { name: '继续检索', exact: true }).click(); await expect(panel.locator('.knowledge-match')).toHaveCount(2)
+    await panel.getByRole('button', { name: '搜索资料', exact: true }).click(); await expect(panel.getByText('结果未覆盖全部资料', { exact: false }).first()).toBeVisible()
+    await panel.getByRole('button', { name: '加载更多：检索结果', exact: true }).click(); await expect(panel.locator('.knowledge-search-match')).toHaveCount(2)
     expect(requests).toHaveLength(2); expect(requests[1]!.searchParams.get('sourceIds')).toContain('database:db')
     expect(requests[1]!.searchParams.get('mode')).toBe('FIELD'); expect(requests[1]!.searchParams.get('cursor')).toBe('next')
-    await panel.locator('.knowledge-match').last().click(); await expect(panel.locator('.knowledge-browser').getByText('客户编号', { exact: true }).first()).toBeVisible()
-    await panel.locator('.knowledge-browser').scrollIntoViewIfNeeded()
+    await panel.locator('.knowledge-search-match').last().click(); await expect(panel.locator('section[aria-label="当前资料"]').getByText('客户编号', { exact: true }).first()).toBeVisible()
+    await panel.locator('section[aria-label="当前资料"]').scrollIntoViewIfNeeded()
     await expect(panel.getByRole('button', { name: '下一页结构', exact: true })).toHaveCount(0)
     expect(await panel.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true)
     await page.screenshot({ path: `test-results/knowledge-search-${width}.png`, fullPage: true })
-    await panel.getByLabel('来源搜索').fill('另一字段'); await expect(panel.locator('.knowledge-search-results')).toHaveCount(0)
+    await panel.getByLabel('来源搜索').fill('另一字段'); await expect(panel.locator('section[aria-label="检索结果"]')).toHaveCount(0)
   })
 }
 async function fixture(page: Page) {
-  let state = 'IDLE'; let sent = false; let archivedAt: string | null = null; let archiveVersion = 0
+  let state = 'IDLE'; let sent = false; let currentSummary = { ...summary }; let archivedAt: string | null = null; let archiveVersion = 0
   await page.route('http://127.0.0.1:41773/api/**', async route => {
     const url = new URL(route.request().url()), path = url.pathname
     if (path.endsWith('/events')) return route.fulfill({ contentType: 'text/event-stream', body: 'data: {"type":"connected"}\n\n' })
@@ -80,14 +83,16 @@ async function fixture(page: Page) {
       if (route.request().method() === 'POST') { sent = true; state = 'RUNNING'; return route.fulfill({ json: {} }) }
       return route.fulfill({ json: { items: [{ id: 'turn1', ordinal: 1, state: sent && state === 'RUNNING' ? 'RUNNING' : sent ? 'STOPPED' : 'COMPLETED', userText: '付款流程如何工作？', thinking: '先定位付款入口，再核对审批条件。\n\n根据实际读取的代码与文档确认结论。', answer: `付款前必须完成审批，然后保存付款记录。[1](knowledge:${citationId}#L13-L14)\n\n### 实现依据\n\n${'这里是从项目代码读取的流程说明。'.repeat(80)}`, detail: sent && state === 'IDLE' ? '已停止生成，以上为未完成回答' : '', inputTokens: 1200, outputTokens: 450, createdAt: '', citations: [citation], calls: [{ id: 'call', tool: 'read_knowledge_source', state: 'SUCCEEDED', detail: '' }] }], nextCursor: null } })
     }
-    if (path === `/api/knowledge/conversations/${id}`) return route.fulfill({ json: { ...summary, state } })
+    if (path === `/api/knowledge/conversations/${currentSummary.id}`) return route.fulfill({ json: { ...currentSummary, state } })
     if (path === '/api/knowledge/conversations') {
       if (route.request().method() === 'POST' && route.request().postDataJSON().model !== 'local/model')
         return route.fulfill({ status: 400, json: { detail: '所选模型不可用，请刷新模型列表' } })
-      return route.fulfill({ json: route.request().method() === 'POST' ? summary : { items: url.searchParams.get('archive') === 'archived' && !archivedAt || url.searchParams.get('archive') === 'active' && archivedAt ? [] : [{ ...summary, options: { archivedAt, version: archiveVersion } }], nextCursor: null } })
+      if (route.request().method() === 'POST') { const input = route.request().postDataJSON(); currentSummary = { ...summary, id: input.id, projectId: input.projectId, model: input.model }; return route.fulfill({ json: currentSummary }) }
+      return route.fulfill({ json: { items: url.searchParams.get('archive') === 'archived' && !archivedAt || url.searchParams.get('archive') === 'active' && archivedAt ? [] : [{ ...summary, options: { archivedAt, version: archiveVersion } }], nextCursor: null } })
     }
     return route.fulfill({ json: [] })
   })
+  return { get createdId() { return currentSummary.id } }
 }
 for (const width of [1440, 768]) {
   test(`无思考内容时的动态等待与回复切换 ${width}px`, async ({ page }) => {
@@ -125,14 +130,15 @@ for (const width of [1920, 1440, 1280, 768]) {
     const errors: string[] = []; page.on('pageerror', error => errors.push(error.message))
     await fixture(page); await page.setViewportSize({ width, height: 1000 }); await page.goto(`/knowledge/${id}`)
     await expect(page.getByText('付款流程如何工作？', { exact: true })).toBeVisible()
-    const left = page.locator('.knowledge-left'), right = page.locator('.knowledge-right')
+    const left = page.locator('.knowledge-react-workspace > aside:has(.knowledge-source-browser)'), right = page.locator('.knowledge-evidence-drawer aside')
     await expect(left).not.toBeVisible(); await expect(right).not.toBeVisible()
     await page.screenshot({ path: `test-results/knowledge-default-${width}.png`, fullPage: true })
-    const trigger = page.getByRole('button', { name: /^来源 / }); await trigger.click(); await expect(left).toBeVisible()
+    const trigger = page.getByRole('button', { name: /^来源：/ }); await trigger.click(); await expect(left).toBeVisible()
     await left.getByRole('button', { name: /项目代码/ }).click()
     await expect(left.getByRole('button', { name: /很长的项目业务/ })).toBeVisible()
     await left.getByRole('button', { name: /很长的项目业务/ }).click(); await expect(left.getByRole('alert')).toContainText('文件内容已变化')
     if (width < 1100) { await page.keyboard.press('Escape'); await expect(left).not.toBeVisible(); await expect(trigger).toBeFocused() }
+    if (await right.isVisible()) await right.getByRole('button', { name: /^关闭面板：(引用详情|文件预览)$/ }).click()
     const chatBeforeOpen = await page.locator('.knowledge-chat').boundingBox()
     const scrollBeforeOpen = await page.locator('.knowledge-timeline').evaluate(el => el.scrollTop)
     await page.getByRole('link', { name: '1', exact: true }).click()
@@ -141,9 +147,9 @@ for (const width of [1920, 1440, 1280, 768]) {
     if (width < 1100) { await expect(right).toHaveAttribute('aria-modal', 'true'); await page.keyboard.press('Shift+Tab'); expect(await right.evaluate(el => el.contains(document.activeElement))).toBe(true) }
     expect(await page.locator('.knowledge-chat').boundingBox()).toEqual(chatBeforeOpen)
     expect(await page.locator('.knowledge-timeline').evaluate(el => el.scrollTop)).toBe(scrollBeforeOpen)
-    await expect(right.locator('.cm-evidence-highlight')).toHaveCount(2)
-    await expect(right.locator('.cm-lineWrapping')).toBeVisible()
-    expect(await right.locator('.cm-scroller').evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true)
+    await expect(right.locator('.w3-code-line.evidence-highlight')).toHaveCount(2)
+    await expect(right.locator('.w3-code-view.wrap')).toBeVisible()
+    expect(await right.locator('.w3-code-view').evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true)
     if (width >= 1100) {
       const grip = page.getByRole('separator', { name: '调整引用面板宽度' })
       const before = (await right.boundingBox())!.width, chatBefore = (await page.locator('.knowledge-chat').boundingBox())!.width
@@ -156,14 +162,14 @@ for (const width of [1920, 1440, 1280, 768]) {
       await page.keyboard.press('ArrowRight'); await grip.dblclick()
     }
     await page.screenshot({ path: `test-results/knowledge-citation-${width}.png`, fullPage: true })
-    await right.getByRole('button', { name: '关闭引用详情' }).click(); await expect(right).not.toBeVisible()
-    if (width >= 1100) await left.getByRole('button', { name: '关闭来源' }).click()
+    await right.getByRole('button', { name: /^关闭面板：(引用详情|文件预览)$/ }).click(); await expect(right).not.toBeVisible()
+    if (width >= 1100) await left.getByRole('button', { name: '关闭面板：资料来源' }).click()
     expect(await page.locator('body').evaluate(el => el.scrollWidth <= window.innerWidth)).toBe(true)
     await page.getByRole('textbox', { name: '向项目提问' }).fill('继续解释审批流程')
     await page.getByRole('button', { name: '发送', exact: false }).click()
     await expect(page.getByRole('button', { name: '停止生成', exact: true })).toBeVisible()
     const thinking = page.locator('section[aria-label="思考"]'); await expect(thinking.getByRole('button')).toHaveAttribute('aria-expanded', 'false'); await thinking.getByRole('button').click()
-    await expect(thinking.locator('.knowledge-thinking-content')).toBeVisible()
+    await expect(thinking.locator(':scope > div')).toBeVisible()
     await page.screenshot({ path: `test-results/knowledge-thinking-${width}.png`, fullPage: true })
     await page.getByRole('button', { name: '停止生成', exact: true }).click(); await expect(page.getByText('已停止生成，以上为未完成回答')).toBeVisible()
     await expect(page.locator('section[aria-label="工具调用"] .knowledge-spinner')).not.toBeVisible()
@@ -175,9 +181,10 @@ test('新对话默认模型、来源与深层历史路由', async ({ page }) => 
   await expect(page.getByRole('heading', { name: '让项目知识，成为答案' })).toBeVisible()
   await page.getByRole('button', { name: '更换问答模型' }).click()
   await expect(page.getByRole('combobox', { name: '问答模型' })).toHaveValue('local/model')
-  await page.getByRole('button', { name: '关闭模型选择' }).click()
+  await page.getByRole('button', { name: '关闭面板：选择问答模型' }).click()
   await page.getByRole('link', { name: '历史对话', exact: true }).click()
   await page.getByRole('button', { name: /付款流程如何工作.*项目/ }).click()
+  await page.getByRole('complementary', { name: '付款流程如何工作' }).getByRole('button', { name: '查看：付款流程如何工作', exact: true }).click()
   await expect(page).toHaveURL(`/knowledge/${id}`); await expect(page.getByRole('combobox', { name: '选择项目' })).toBeDisabled()
   await page.reload(); await expect(page.getByText('付款流程如何工作？', { exact: true })).toBeVisible()
 })
@@ -185,7 +192,7 @@ test('继承提供方与模型名并发送完整模型标识', async ({ page }) 
   await fixture(page); await page.goto('/knowledge')
   await page.getByRole('button', { name: '更换问答模型' }).click()
   await expect(page.getByRole('combobox', { name: '问答模型' })).toHaveValue('local/model')
-  await page.getByRole('button', { name: '关闭模型选择' }).click()
+  await page.getByRole('button', { name: '关闭面板：选择问答模型' }).click()
   await page.getByRole('textbox', { name: '向项目提问' }).fill('当前项目有几个模块？')
   const creation = page.waitForRequest(request => request.url().endsWith('/api/knowledge/conversations') && request.method() === 'POST')
   await page.getByRole('button', { name: '发送', exact: false }).click()
@@ -203,9 +210,9 @@ test('模型目录挂起不影响进入、输入或默认发送；选择器独�
     await page.getByRole('textbox', { name: '向项目提问' }).fill('无需等模型目录')
     await expect(page.getByRole('button', { name: '发送', exact: false })).toBeEnabled()
     await page.getByRole('button', { name: '更换问答模型' }).click()
-    await expect(page.getByRole('dialog', { name: '选择问答模型' })).toContainText('正在读取其他模型')
+    await expect(page.getByRole('complementary', { name: '选择问答模型' })).toContainText('正在读取模型目录')
     await expect(page.getByRole('combobox', { name: '问答模型' })).toHaveValue('local/model')
-    await page.getByRole('button', { name: '关闭模型选择' }).click()
+    await page.getByRole('button', { name: '关闭面板：选择问答模型' }).click()
     await page.getByRole('button', { name: '发送', exact: false }).click()
     await expect(page.getByRole('button', { name: '停止生成', exact: true })).toBeVisible()
   } finally { release() }
@@ -213,12 +220,12 @@ test('模型目录挂起不影响进入、输入或默认发送；选择器独�
 
 test('引用栏拖动宽度在重新打开和刷新后保持', async ({ page }) => {
   await fixture(page); await page.setViewportSize({ width: 1440, height: 1000 }); await page.goto(`/knowledge/${id}`)
-  const right = page.locator('.knowledge-right')
+  const right = page.locator('.knowledge-evidence-drawer aside')
   await page.getByRole('link', { name: '1', exact: true }).click()
   const grip = page.getByRole('separator', { name: '调整引用面板宽度' })
   await grip.focus(); await page.keyboard.press('ArrowLeft'); await page.keyboard.press('ArrowLeft')
   const resized = (await right.boundingBox())!.width
-  await page.getByRole('button', { name: '关闭引用详情' }).click(); await page.getByRole('link', { name: '1', exact: true }).click()
+  await page.getByRole('button', { name: /^关闭面板：(引用详情|文件预览)$/ }).click(); await page.getByRole('link', { name: '1', exact: true }).click()
   expect((await right.boundingBox())!.width).toBeCloseTo(resized, 0)
   await page.reload(); await page.getByRole('link', { name: '1', exact: true }).click()
   expect((await right.boundingBox())!.width).toBeCloseTo(resized, 0)
@@ -238,7 +245,9 @@ test('侧栏返回正在回答的知识对话、恢复草稿并读取离开期�
   await expect(page.locator('.knowledge-waiting')).toHaveText('正在思考')
   await page.getByRole('textbox', { name: '向项目提问' }).fill('返回后继续问的草稿')
   const navigation = page.getByRole('navigation', { name: '主导航', exact: true })
-  await navigation.getByRole('link', { name: '主页', exact: true }).click(); await expect(page).toHaveURL('/')
+  await navigation.getByRole('link', { name: '主页', exact: true }).click();
+  if (await page.getByRole('dialog', { name: '离开当前页面' }).isVisible()) await page.locator('[data-semantic="ui.discardChanges"]').click();
+  await expect(page).toHaveURL('/')
   const beforeReturn = subscriptions; completed = true
   await navigation.getByRole('link', { name: '知识库', exact: true }).click()
   await expect(page).toHaveURL(`/knowledge/${id}`)
@@ -251,19 +260,23 @@ test('侧栏返回正在回答的知识对话、恢复草稿并读取离开期�
 })
 
 test('侧栏记住新创建的对话，其他页面刷新后仍可返回，主动新建回到首页', async ({ page }) => {
-  await fixture(page); await page.goto('/knowledge')
+  const created = await fixture(page); await page.goto('/knowledge')
   await page.getByRole('textbox', { name: '向项目提问' }).fill('付款流程如何工作？')
   await page.getByRole('button', { name: '发送', exact: true }).click()
-  await expect(page).toHaveURL(`/knowledge/${id}`)
+  await expect(page).toHaveURL(`/knowledge/${created.createdId}`)
   const navigation = page.getByRole('navigation', { name: '主导航', exact: true })
-  await navigation.getByRole('link', { name: '主页', exact: true }).click(); await expect(page).toHaveURL('/')
+  await navigation.getByRole('link', { name: '主页', exact: true }).click();
+  if (await page.getByRole('dialog', { name: '离开当前页面' }).isVisible()) await page.locator('[data-semantic="ui.discardChanges"]').click();
+  await expect(page).toHaveURL('/')
   await page.reload(); await expect(page).toHaveURL('/')
   await navigation.getByRole('link', { name: '知识库', exact: true }).click()
-  await expect(page).toHaveURL(`/knowledge/${id}`)
+  await expect(page).toHaveURL(`/knowledge/${created.createdId}`)
   await expect(page.getByRole('textbox', { name: '向项目提问' })).toBeEnabled()
   await page.getByRole('button', { name: '新建对话', exact: true }).click()
   await expect(page).toHaveURL('/knowledge')
-  await navigation.getByRole('link', { name: '主页', exact: true }).click(); await expect(page).toHaveURL('/')
+  await navigation.getByRole('link', { name: '主页', exact: true }).click();
+  if (await page.getByRole('dialog', { name: '离开当前页面' }).isVisible()) await page.locator('[data-semantic="ui.discardChanges"]').click();
+  await expect(page).toHaveURL('/')
   await navigation.getByRole('link', { name: '知识库', exact: true }).click()
   await expect(page).toHaveURL('/knowledge')
   await expect(page.getByRole('heading', { name: '让项目知识，成为答案' })).toBeVisible()
@@ -275,7 +288,9 @@ test('侧栏返回历史对话页并保留筛选，浏览器后退仍进入原�
   await page.getByRole('textbox', { name: '搜索历史对话' }).fill('审批')
   await expect(page).toHaveURL(/query=%E5%AE%A1%E6%89%B9/)
   const historyUrl = page.url(), navigation = page.getByRole('navigation', { name: '主导航', exact: true })
-  await navigation.getByRole('link', { name: '主页', exact: true }).click(); await expect(page).toHaveURL('/')
+  await navigation.getByRole('link', { name: '主页', exact: true }).click();
+  if (await page.getByRole('dialog', { name: '离开当前页面' }).isVisible()) await page.locator('[data-semantic="ui.discardChanges"]').click();
+  await expect(page).toHaveURL('/')
   await navigation.getByRole('link', { name: '知识库', exact: true }).click()
   await expect(page).toHaveURL(historyUrl)
   await expect(page.getByRole('textbox', { name: '搜索历史对话' })).toHaveValue('审批')
@@ -290,15 +305,19 @@ test('历史独立筛选、归档、恢复和返回草稿', async ({ page }) => 
   await fixture(page); await page.goto(`/knowledge/${id}`)
   await page.getByRole('textbox', { name: '向项目提问' }).fill('仍未发送的草稿')
   await page.getByRole('link', { name: '历史对话', exact: true }).click()
+  if (await page.getByRole('dialog', { name: '离开当前页面' }).isVisible()) await page.locator('[data-semantic="ui.discardChanges"]').click()
   await expect(page.getByRole('heading', { name: '历史对话', exact: true })).toBeVisible()
-  const archive = page.getByRole('button', { name: '归档对话 付款流程如何工作' })
+  await page.getByRole('button', { name: /付款流程如何工作.*项目/ }).click()
+  const archive = page.getByRole('button', { name: '归档对话', exact: true })
   await archive.click(); await expect(archive).not.toBeVisible()
   await page.getByRole('combobox', { name: '归档筛选' }).selectOption('archived')
-  await page.getByRole('button', { name: '恢复对话 付款流程如何工作' }).click()
+  await page.getByRole('button', { name: /付款流程如何工作.*项目/ }).click()
+  await page.getByRole('button', { name: '恢复对话', exact: true }).click()
   await page.getByRole('combobox', { name: '归档筛选' }).selectOption('active')
   const request = page.waitForRequest(r => r.url().includes('/api/knowledge/conversations?') && new URL(r.url()).searchParams.get('query') === '审批')
   await page.getByRole('textbox', { name: '搜索历史对话' }).fill('审批'); await request
   await page.getByRole('button', { name: /付款流程如何工作.*项目/ }).click()
+  await page.getByRole('complementary', { name: '付款流程如何工作' }).getByRole('button', { name: '查看：付款流程如何工作', exact: true }).click()
   await expect(page.getByRole('textbox', { name: '向项目提问' })).toHaveValue('仍未发送的草稿')
 })
 
@@ -306,14 +325,14 @@ test('文档阅读视图和数据库结果的引用范围高亮', async ({ page 
   await fixture(page); await page.goto(`/knowledge/${id}`)
   await page.route(`**/citations/${citationId}`, route => route.fulfill({ json: { citation, body: { kind: 'DOCUMENT', name: '设计文档', startLine: 12, endLine: 15, text: '# 付款设计\n\n审批后才能付款。\n保存记录。' } } }))
   await page.getByRole('link', { name: '1', exact: true }).click()
-  await expect(page.locator('.knowledge-right .cm-evidence-highlight')).toHaveCount(2)
+  await expect(page.locator('.knowledge-evidence-drawer aside .w3-code-line.evidence-highlight')).toHaveCount(2)
   await page.getByRole('button', { name: '阅读视图', exact: true }).click()
-  await expect(page.locator('.knowledge-right .evidence-highlight')).toContainText('审批后才能付款')
-  await page.getByRole('button', { name: '关闭引用详情' }).click()
+  await expect(page.locator('.knowledge-evidence-drawer aside .evidence-highlight')).toContainText('审批后才能付款')
+  await page.getByRole('button', { name: /^关闭面板：(引用详情|文件预览)$/ }).click()
   await page.route(`**/citations/${citationId}`, route => route.fulfill({ json: { citation: { ...citation, kind: 'DATABASE' }, body: { kind: 'DATABASE', columns: ['名称', '状态'], rows: [['订单1','已审批'],['订单2','待审批']], sql: 'SELECT name, state FROM orders' } } }))
   // Bare evidence entry selects the saved result's complete bounded range.
   await page.getByRole('button', { name: /引用详情/ }).click()
-  await expect(page.locator('.knowledge-right tr.is-highlighted')).toHaveCount(2)
+  await expect(page.locator('.knowledge-evidence-drawer aside tr.is-highlighted')).toHaveCount(2)
 })
 
 
@@ -321,7 +340,7 @@ test('助手澄清问题的草稿可刷新恢复且只提交一次', async ({ pa
   await fixture(page)
   let answers: string[][] = []; let submits = 0
   await page.route(`**/conversations/${id}/messages{,/updates}?**`, route => route.fulfill({ json: { items: [{ id: 'turn-q', ordinal: 1, state: 'RUNNING', userText: '张三昨天做了什么？', thinking: '', answer: '', detail: '', inputTokens: null, outputTokens: null, citations: [], calls: [], questions: [{ id: 'q', state: answers.length ? 'ANSWERED' : 'PENDING', version: answers.length ? 1 : 0, answers, questions: [{ question: '你指哪位作者？', header: '作者', multiple: false, custom: true, options: [{ label: '张三 A', description: '研发组' }, { label: '张三 B', description: '测试组' }] }] }] }], nextCursor: null } }))
-  await page.route(`**/conversations/${id}/questions/q/reply`, route => { submits++; answers = route.request().postDataJSON().answers; return route.fulfill({ json: { state: 'PREPARED' } }) })
+  await page.route(`**/conversations/${id}/questions/q/reply`, route => { submits++; answers = route.request().postDataJSON().answers; return route.fulfill({ json: { id: 'q', state: 'PREPARED', version: 1, answers, questions: [{ question: '你指哪位作者？', header: '作者', multiple: false, custom: true, options: [{ label: '张三 A', description: '研发组' }, { label: '张三 B', description: '测试组' }] }] } }) })
   await page.goto(`/knowledge/${id}`)
   await page.getByRole('radio', { name: /张三 A/ }).check()
   await page.reload(); await expect(page.getByRole('radio', { name: /张三 A/ })).toBeChecked()
@@ -339,9 +358,9 @@ test('从正文底部打开引用保留非零滚动位置，关闭后继续阅�
   const scroll = await timeline.evaluate(el => el.scrollTop), bounds = await answer.boundingBox()
   expect(scroll).toBeGreaterThan(0)
   await page.getByRole('button', { name: /引用详情/ }).click()
-  await expect(page.locator('.knowledge-right')).toBeVisible()
+  await expect(page.locator('.knowledge-evidence-drawer aside')).toBeVisible()
   expect(await timeline.evaluate(el => el.scrollTop)).toBe(scroll); expect(await answer.boundingBox()).toEqual(bounds)
-  await page.getByRole('button', { name: '关闭引用详情' }).click()
+  await page.getByRole('button', { name: /^关闭面板：(引用详情|文件预览)$/ }).click()
   expect(await timeline.evaluate(el => el.scrollTop)).toBe(scroll); expect(await answer.boundingBox()).toEqual(bounds)
 })
 

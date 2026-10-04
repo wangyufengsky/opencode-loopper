@@ -40,6 +40,7 @@ export function taskNextAction(task: Task, now: number, deliveryState = '') {
   if (task.status === 'RETRY_WAIT') return `等待${displayLabel(task.retryCause ?? 'SESSION')}重试${task.retryDueAt ? `，剩余 ${Math.max(0, Math.ceil((Date.parse(task.retryDueAt) - now) / 1000))} 秒` : ''}。`
   if (task.status === 'PAUSED') return '任务已暂停，恢复后继续原任务。'
   if (task.status === 'SUPERSEDED') return '已由派生任务接续，原任务证据保留。'
+  if (task.status === 'AWAITING_DECISION' && task.executionResult === 'FAILED') return '任务已终止，不会再创建新会话'
   if (task.status === 'WAITING_INPUT') {
     if (task.waitingReasonCode === 'SOURCE_BRANCH_WORKSPACE_DIRTY') return '检测到未提交文件，请先处理文件；重新检查前不会创建任务分支。'
     if (task.waitingReasonCode === 'GIT_DIFF_SCOPE_APPROVAL_REQUIRED') return '等待核对范围外文件的授权。'

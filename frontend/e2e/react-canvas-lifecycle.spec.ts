@@ -12,7 +12,8 @@ test('同一页面反复进入与离开 React 画布，选择和取消不叠加�
     return identity
   })
   for (let index = 0; index < 3; index++) {
-    await page.getByRole('link', { name: fixture.flow.title, exact: true }).click()
+    await page.getByRole('button', { name: `选择：${fixture.flow.title}`, exact: true }).click()
+    await page.getByRole('link', { name: `查看：${fixture.flow.title}`, exact: true }).click()
     const canvas = page.locator('[data-canvas-runtime="react"][data-canvas-kind="workflow"]')
     await expect(canvas).toHaveCount(1)
     await expect(canvas.locator('.react-flow')).toBeVisible()
@@ -24,7 +25,7 @@ test('同一页面反复进入与离开 React 画布，选择和取消不叠加�
     await expect(page.getByRole('complementary', { name: '节点设置', exact: true })).toHaveCount(1)
     await page.keyboard.press('Escape')
     await expect(page.locator('.workflow-context-panel')).toHaveCount(0)
-    await page.getByRole('link', { name: '返回流程库', exact: true }).click()
+    await page.locator('.w2-heading a[href="/workflows"]').click()
     await expect(page).toHaveURL('/workflows')
     await expect(page.locator('[data-canvas-kind="workflow"]')).toHaveCount(0)
     expect(await oldRoot!.evaluate(element => element.isConnected)).toBe(false)
@@ -38,12 +39,13 @@ test('同一页面反复进入与离开 React 画布，选择和取消不叠加�
 test('内置模板真实 React Flow 只读预览不修改业务图（模拟数据）', async ({ page }) => {
   const fixture = await canvasReviewFixture(page)
   fixture.flow.builtin = true
+  fixture.flow.id = 'builtin.workflow.development'
   fixture.flow.title = '内置交付流程 · 模拟数据'
   await page.setViewportSize({ width: 1600, height: 1000 })
   await page.goto('/workflows/builtin.workflow.development')
   const canvas = page.locator('[data-canvas-runtime="react"][data-canvas-kind="workflow"]')
   await expect(canvas.locator('.react-flow')).toBeVisible()
-  await expect(page.getByRole('button', { name: '复制为自定义流程', exact: true })).toBeEnabled()
+  await expect(page.locator('[data-semantic="workflow.copyDefinition"]')).toBeEnabled()
   await expect(page.getByRole('button', { name: '添加节点', exact: true })).toBeDisabled()
   const node = canvas.locator('.workflow-node').filter({ hasText: '确认需求' })
   await node.click()

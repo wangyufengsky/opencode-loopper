@@ -1,3 +1,4 @@
+import { semanticName } from './w3/semantics'
 import { expect, test, type Page } from '@playwright/test'
 import { canvasReviewFixture } from './fixtures/canvasReview'
 
@@ -29,8 +30,8 @@ test('应用指针连线继续由原业务所有者拒绝重复、循环与自�
   await expect(canvas.locator('.workflow-wire')).toHaveCount(2)
   await pair(page, 'scope', 'scope')
   await expect(canvas.locator('.workflow-wire')).toHaveCount(2)
-  // The unchanged editor renders history controls only after an accepted edit.
-  await expect(page.getByRole('button', { name: '撤销修改', exact: true })).toHaveCount(0)
+  // Rejected graph edits preserve an empty history, with the original undo action disabled.
+  await expect(page.getByRole('button', { name: semanticName('workflow.undo'), exact: true })).toBeDisabled()
   expect(fixture.mutations).toEqual([])
   expect(fixture.errors).toEqual([])
 })
@@ -43,9 +44,9 @@ test('反向端口指针连接只生成一次原方向意图与撤销记录，�
   // Pull from the receiving handle toward the source; the DTO remains source → target.
   await pair(page, 'review', 'scope', true)
   await expect(canvas.locator('.workflow-wire')).toHaveCount(3)
-  await page.getByRole('button', { name: '撤销修改', exact: true }).click()
+  await page.getByRole('button', { name: semanticName('workflow.undo'), exact: true }).click()
   await expect(canvas.locator('.workflow-wire')).toHaveCount(2)
-  await expect(page.getByRole('button', { name: '撤销修改', exact: true })).toBeDisabled()
+  await expect(page.getByRole('button', { name: semanticName('workflow.undo'), exact: true })).toBeDisabled()
   await canvas.locator('[data-node-id="scope"]').focus()
   await page.keyboard.press('Enter')
   await page.getByRole('button', { name: '从确认需求连接后续节点', exact: true }).focus()
@@ -53,9 +54,9 @@ test('反向端口指针连接只生成一次原方向意图与撤销记录，�
   await canvas.locator('[data-node-id="review"]').focus()
   await page.keyboard.press('Enter')
   await expect(canvas.locator('.workflow-wire')).toHaveCount(3)
-  await page.getByRole('button', { name: '撤销修改', exact: true }).click()
+  await page.getByRole('button', { name: semanticName('workflow.undo'), exact: true }).click()
   await expect(canvas.locator('.workflow-wire')).toHaveCount(2)
-  await expect(page.getByRole('button', { name: '撤销修改', exact: true })).toBeDisabled()
+  await expect(page.getByRole('button', { name: semanticName('workflow.undo'), exact: true })).toBeDisabled()
   expect(fixture.mutations).toEqual([])
   expect(fixture.errors).toEqual([])
 })
@@ -93,9 +94,9 @@ for (const reverse of [false, true]) {
     await canvas.locator(`.react-flow__handle.${reverse ? 'source' : 'target'}[data-nodeid="${reverse ? 'scope' : 'review'}"]`).click()
     await expect(canvas.locator('.workflow-wire')).toHaveCount(3)
     await expect(canvas).not.toHaveClass(/workflow-connection-dragging/)
-    await page.getByRole('button', { name: '撤销修改', exact: true }).click()
+    await page.getByRole('button', { name: semanticName('workflow.undo'), exact: true }).click()
     await expect(canvas.locator('.workflow-wire')).toHaveCount(2)
-    await expect(page.getByRole('button', { name: '撤销修改', exact: true })).toBeDisabled()
+    await expect(page.getByRole('button', { name: semanticName('workflow.undo'), exact: true })).toBeDisabled()
     expect(fixture.mutations).toEqual([])
     expect(fixture.errors).toEqual([])
   })
@@ -112,9 +113,9 @@ test('端口点按与原加号连接模式互斥，不保留第二个连接意�
   await page.getByRole('button', { name: '从确认需求连接后续节点', exact: true }).click()
   await canvas.locator('.react-flow__handle.target[data-nodeid="review"]').click()
   await expect(canvas.locator('.workflow-wire')).toHaveCount(3)
-  await page.getByRole('button', { name: '撤销修改', exact: true }).click()
+  await page.getByRole('button', { name: semanticName('workflow.undo'), exact: true }).click()
   await expect(canvas.locator('.workflow-wire')).toHaveCount(2)
-  await expect(page.getByRole('button', { name: '撤销修改', exact: true })).toBeDisabled()
+  await expect(page.getByRole('button', { name: semanticName('workflow.undo'), exact: true })).toBeDisabled()
   expect(fixture.mutations).toEqual([])
   expect(fixture.errors).toEqual([])
 })

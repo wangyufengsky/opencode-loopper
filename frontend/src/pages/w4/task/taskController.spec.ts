@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api, ApiError } from '@/api/client'
 import type { Task, TaskEvent, TaskQueueStatus } from '@/types/domain'
 import { createTaskDetailController } from './taskController'
-import { taskFacts, currentTaskErrors, taskSessionAndVerifierErrors, templatePhaseLabel } from './projections'
+import { taskFacts, currentTaskErrors, taskSessionAndVerifierErrors, templatePhaseLabel, taskNextAction } from './projections'
 import { createW4Owner } from '../shared/core'
 import { deferred, flush, mockReads, taskFixture, pageProps } from './test-support'
 
@@ -15,6 +15,10 @@ afterEach(() => { for (const owner of owners.splice(0)) owner.retire(true); vi.c
 async function mounted(task = taskFixture()) { vi.mocked(api.getTaskOverview).mockResolvedValue(task); const owner = createTaskDetailController(task.id); owners.push(owner); const release = owner.attachView(); await flush(); return { owner, release } }
 
 describe('Task authoritative read and command owner', () => {
+  it('failed awaiting decision never claims that execution or new sessions will continue', () => {
+    expect(taskNextAction(taskFixture('A',{status:'AWAITING_DECISION',executionResult:'FAILED'}),Date.now())).toBe('任务已终止，不会再创建新会话')
+    expect(taskNextAction(taskFixture('A',{status:'RUNNING'}),Date.now())).toBe('系统按服务端状态继续执行。')
+  })
   it('does not synthesize lifecycle from SSE and coalesces only real overview/audit reads', async () => {
     const { owner } = await mounted(taskFixture('A', { status: 'RUNNING' }))
     event({ id: 'one', type: 'task.status', at: 'now', data: { status: 'COMPLETED' } }); event({ id: 'two', type: 'attempt.created', at: 'now', data: {} })

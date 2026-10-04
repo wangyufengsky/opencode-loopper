@@ -1,0 +1,1707 @@
+{
+  "stage": "Final release W3 complete production batch; B executed this batch",
+  "sourceSha256": "d1a38dd1471e5c5d0d23aeafa845c7494d3bc30e2d5875dd37c24e9faded596d",
+  "sourceFiles": 817,
+  "raw": "/workspace/react-full-w7-evidence/release/w3/browser.json",
+  "rawSha256": "c6a94f1c199141da8db6c2ebaa1f916f20c27874d41d3afb1e4250a6b8ae02dc",
+  "log": "/workspace/react-full-w7-evidence/release/w3/browser.log",
+  "logSha256": "4d4aa1d51dc3d2fc2d1a4e9d3257e3759e0743e306376878e4110218e8869c66",
+  "exit": 0,
+  "command": "CANVAS_W3_EVIDENCE_DIR=/workspace/react-full-w7-evidence/release/w3/evidence PLAYWRIGHT_JSON_OUTPUT_NAME=/workspace/react-full-w7-evidence/release/w3/browser.json ./node_modules/.bin/playwright test --config e2e/w3/playwright.config.ts --workers=1 --retries=0 --reporter=list,json --output=/workspace/react-full-w7-evidence/release/w3/results",
+  "cwd": "/workspace/opencode-loopper-react-full/frontend",
+  "stats": {
+    "startTime": "2026-10-04T03:50:09.425Z",
+    "duration": 76176.45899999999,
+    "expected": 31,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "errors": [],
+  "cases": [
+    {
+      "file": "../read-consistency-contracts.ts",
+      "line": 24,
+      "title": "较晚返回的旧筛选响应不能替换当前列表",
+      "project": "w3-production-chromium",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0
+        }
+      ]
+    },
+    {
+      "file": "../read-consistency-contracts.ts",
+      "line": 90,
+      "title": "自动化页面显示检测失败并在服务端恢复后清除旧告警",
+      "project": "w3-production-chromium",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0
+        }
+      ]
+    },
+    {
+      "file": "../read-consistency-contracts.ts",
+      "line": 148,
+      "title": "退役自动化深链和刷新进入模板任务，不读取或重开历史自动化写入口",
+      "project": "w3-production-chromium",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0
+        }
+      ]
+    },
+    {
+      "file": "ppt-studio.spec.ts",
+      "line": 8,
+      "title": "spdb actual PPT studio direct/reload/back three-dimensional page and strict exit",
+      "project": "w3-production-chromium",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0
+        }
+      ]
+    },
+    {
+      "file": "ppt-studio.spec.ts",
+      "line": 82,
+      "title": "spdb PPT actual drag capture immediately clears on SPA exit for three cycles",
+      "project": "w3-production-chromium",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0
+        }
+      ]
+    },
+    {
+      "file": "ppt-studio.spec.ts",
+      "line": 82,
+      "title": "spdb PPT actual resize capture immediately clears on SPA exit for three cycles",
+      "project": "w3-production-chromium",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0
+        }
+      ]
+    },
+    {
+      "file": "ppt-studio.spec.ts",
+      "line": 8,
+      "title": "tech-blue actual PPT studio direct/reload/back three-dimensional page and strict exit",
+      "project": "w3-production-chromium",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0
+        }
+      ]
+    },
+    {
+      "file": "ppt-studio.spec.ts",
+      "line": 82,
+      "title": "tech-blue PPT actual drag capture immediately clears on SPA exit for three cycles",
+      "project": "w3-production-chromium",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0
+        }
+      ]
+    },
+    {
+      "file": "ppt-studio.spec.ts",
+      "line": 82,
+      "title": "tech-blue PPT actual resize capture immediately clears on SPA exit for three cycles",
+      "project": "w3-production-chromium",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0
+        }
+      ]
+    },
+    {
+      "file": "ppt-studio.spec.ts",
+      "line": 8,
+      "title": "github-white actual PPT studio direct/reload/back three-dimensional page and strict exit",
+      "project": "w3-production-chromium",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0
+        }
+      ]
+    },
+    {
+      "file": "ppt-studio.spec.ts",
+      "line": 82,
+      "title": "github-white PPT actual drag capture immediately clears on SPA exit for three cycles",
+      "project": "w3-production-chromium",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0
+        }
+      ]
+    },
+    {
+      "file": "ppt-studio.spec.ts",
+      "line": 82,
+      "title": "github-white PPT actual resize capture immediately clears on SPA exit for three cycles",
+      "project": "w3-production-chromium",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0
+        }
+      ]
+    },
+    {
+      "file": "ppt-studio.spec.ts",
+      "line": 244,
+      "title": "PPT real unknown discussion/body/theme/leave and identical explicit retry",
+      "project": "w3-production-chromium",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0
+        }
+      ]
+    },
+    {
+      "file": "production-routes.spec.ts",
+      "line": 97,
+      "title": "spdb production catalog direct/reload/back and three strict SPA exits",
+      "project": "w3-production-chromium",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0
+        }
+      ]
+    },
+    {
+      "file": "production-routes.spec.ts",
+      "line": 97,
+      "title": "spdb production document direct/reload/back and three strict SPA exits",
+      "project": "w3-production-chromium",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0
+        }
+      ]
+    },
+    {
+      "file": "production-routes.spec.ts",
+      "line": 97,
+      "title": "spdb production source direct/reload/back and three strict SPA exits",
+      "project": "w3-production-chromium",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0
+        }
+      ]
+    },
+    {
+      "file": "production-routes.spec.ts",
+      "line": 97,
+      "title": "spdb production knowledge-new direct/reload/back and three strict SPA exits",
+      "project": "w3-production-chromium",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0
+        }
+      ]
+    },
+    {
+      "file": "production-routes.spec.ts",
+      "line": 97,
+      "title": "spdb production knowledge-existing direct/reload/back and three strict SPA exits",
+      "project": "w3-production-chromium",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0
+        }
+      ]
+    },
+    {
+      "file": "production-routes.spec.ts",
+      "line": 165,
+      "title": "spdb explicit historical consumer reads all nine GETs and preserves both original export bytes",
+      "project": "w3-production-chromium",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0
+        }
+      ]
+    },
+    {
+      "file": "production-routes.spec.ts",
+      "line": 97,
+      "title": "tech-blue production catalog direct/reload/back and three strict SPA exits",
+      "project": "w3-production-chromium",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0
+        }
+      ]
+    },
+    {
+      "file": "production-routes.spec.ts",
+      "line": 97,
+      "title": "tech-blue production document direct/reload/back and three strict SPA exits",
+      "project": "w3-production-chromium",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0
+        }
+      ]
+    },
+    {
+      "file": "production-routes.spec.ts",
+      "line": 97,
+      "title": "tech-blue production source direct/reload/back and three strict SPA exits",
+      "project": "w3-production-chromium",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0
+        }
+      ]
+    },
+    {
+      "file": "production-routes.spec.ts",
+      "line": 97,
+      "title": "tech-blue production knowledge-new direct/reload/back and three strict SPA exits",
+      "project": "w3-production-chromium",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0
+        }
+      ]
+    },
+    {
+      "file": "production-routes.spec.ts",
+      "line": 97,
+      "title": "tech-blue production knowledge-existing direct/reload/back and three strict SPA exits",
+      "project": "w3-production-chromium",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0
+        }
+      ]
+    },
+    {
+      "file": "production-routes.spec.ts",
+      "line": 165,
+      "title": "tech-blue explicit historical consumer reads all nine GETs and preserves both original export bytes",
+      "project": "w3-production-chromium",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0
+        }
+      ]
+    },
+    {
+      "file": "production-routes.spec.ts",
+      "line": 97,
+      "title": "github-white production catalog direct/reload/back and three strict SPA exits",
+      "project": "w3-production-chromium",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0
+        }
+      ]
+    },
+    {
+      "file": "production-routes.spec.ts",
+      "line": 97,
+      "title": "github-white production document direct/reload/back and three strict SPA exits",
+      "project": "w3-production-chromium",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0
+        }
+      ]
+    },
+    {
+      "file": "production-routes.spec.ts",
+      "line": 97,
+      "title": "github-white production source direct/reload/back and three strict SPA exits",
+      "project": "w3-production-chromium",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0
+        }
+      ]
+    },
+    {
+      "file": "production-routes.spec.ts",
+      "line": 97,
+      "title": "github-white production knowledge-new direct/reload/back and three strict SPA exits",
+      "project": "w3-production-chromium",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0
+        }
+      ]
+    },
+    {
+      "file": "production-routes.spec.ts",
+      "line": 97,
+      "title": "github-white production knowledge-existing direct/reload/back and three strict SPA exits",
+      "project": "w3-production-chromium",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0
+        }
+      ]
+    },
+    {
+      "file": "production-routes.spec.ts",
+      "line": 165,
+      "title": "github-white explicit historical consumer reads all nine GETs and preserves both original export bytes",
+      "project": "w3-production-chromium",
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0
+        }
+      ]
+    }
+  ],
+  "literalTitleMultiplicity": {
+    "expected": 31,
+    "actual": 31,
+    "missing": [],
+    "extra": []
+  },
+  "sourceBeforeAfterVerify": {
+    "beforeExit": 0,
+    "afterExit": 0,
+    "beforeLogSha256": "bf9d451f0cb95f6ebc1218af8e6e7fcc8aa1ad826fdaf906e92d9dbdd48d8fd0",
+    "afterLogSha256": "bf9d451f0cb95f6ebc1218af8e6e7fcc8aa1ad826fdaf906e92d9dbdd48d8fd0"
+  },
+  "productionBundle": {
+    "files": 127,
+    "beforeAfterEqual": true,
+    "beforeSha256": "d274a56ac1f5b7554ed5024b90b8c239f8d9802a3d4f1e4453e720fff1ea6e83",
+    "afterSha256": "d274a56ac1f5b7554ed5024b90b8c239f8d9802a3d4f1e4453e720fff1ea6e83",
+    "currentMismatches": []
+  },
+  "resourceFirstSnapshots": [
+    {
+      "file": "github-white-catalog-threecycles.json",
+      "cycle": 0,
+      "rawSha256": "5774887f9bc753c9fea67b8ba2772242890580770d2d1ac87f8dd022b3767e08",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "github-white-catalog-threecycles.json",
+      "cycle": 1,
+      "rawSha256": "5774887f9bc753c9fea67b8ba2772242890580770d2d1ac87f8dd022b3767e08",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "github-white-catalog-threecycles.json",
+      "cycle": 2,
+      "rawSha256": "5774887f9bc753c9fea67b8ba2772242890580770d2d1ac87f8dd022b3767e08",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "github-white-document-threecycles.json",
+      "cycle": 0,
+      "rawSha256": "6bf46d393f35ffb3f969cc01cf2667748a7ee8eb4f74780828065ffd5911fe3f",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "github-white-document-threecycles.json",
+      "cycle": 1,
+      "rawSha256": "6bf46d393f35ffb3f969cc01cf2667748a7ee8eb4f74780828065ffd5911fe3f",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "github-white-document-threecycles.json",
+      "cycle": 2,
+      "rawSha256": "6bf46d393f35ffb3f969cc01cf2667748a7ee8eb4f74780828065ffd5911fe3f",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "github-white-history-archive-exit.json",
+      "cycle": null,
+      "rawSha256": "6ce55b8698953e2654955cb2967ab4e4dc2597a23569c04f54935c0401847b24",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "github-white-knowledge-existing-threecycles.json",
+      "cycle": 0,
+      "rawSha256": "e2a60f8ca286cc8bab77eee9a93c1be9b5f1e6f676f2511cc20629e1db2ec626",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "github-white-knowledge-existing-threecycles.json",
+      "cycle": 1,
+      "rawSha256": "e2a60f8ca286cc8bab77eee9a93c1be9b5f1e6f676f2511cc20629e1db2ec626",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "github-white-knowledge-existing-threecycles.json",
+      "cycle": 2,
+      "rawSha256": "e2a60f8ca286cc8bab77eee9a93c1be9b5f1e6f676f2511cc20629e1db2ec626",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "github-white-knowledge-new-threecycles.json",
+      "cycle": 0,
+      "rawSha256": "a3f06663efd867d4f43c2d7ec5d5bb9d877e98a6b238ec7b26bb32a6734431db",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "github-white-knowledge-new-threecycles.json",
+      "cycle": 1,
+      "rawSha256": "a3f06663efd867d4f43c2d7ec5d5bb9d877e98a6b238ec7b26bb32a6734431db",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "github-white-knowledge-new-threecycles.json",
+      "cycle": 2,
+      "rawSha256": "a3f06663efd867d4f43c2d7ec5d5bb9d877e98a6b238ec7b26bb32a6734431db",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "github-white-ppt-default-exit.json",
+      "cycle": null,
+      "rawSha256": "5e8b9e475d96c3b9a89f5be02c1571ba84c7ec5bc074e034d267d5b61bd6b604",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "github-white-ppt-drag-threecycles.json",
+      "cycle": 0,
+      "rawSha256": "fe644d79d94093fb7eb5f53bf925f4e2e4eea54aaa020019047e0a518915387c",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "github-white-ppt-drag-threecycles.json",
+      "cycle": 1,
+      "rawSha256": "fe644d79d94093fb7eb5f53bf925f4e2e4eea54aaa020019047e0a518915387c",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "github-white-ppt-drag-threecycles.json",
+      "cycle": 2,
+      "rawSha256": "fe644d79d94093fb7eb5f53bf925f4e2e4eea54aaa020019047e0a518915387c",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "github-white-ppt-resize-threecycles.json",
+      "cycle": 0,
+      "rawSha256": "7ac0c17c6608c11d00f1312e71872fd06234b6d98ff5bf7cdcd4183316d55c24",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "github-white-ppt-resize-threecycles.json",
+      "cycle": 1,
+      "rawSha256": "7ac0c17c6608c11d00f1312e71872fd06234b6d98ff5bf7cdcd4183316d55c24",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "github-white-ppt-resize-threecycles.json",
+      "cycle": 2,
+      "rawSha256": "7ac0c17c6608c11d00f1312e71872fd06234b6d98ff5bf7cdcd4183316d55c24",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "github-white-source-threecycles.json",
+      "cycle": 0,
+      "rawSha256": "a03c1efc6279f3a2a79af94aa3d5ef4ac3aa998f9b0d2f2e29ca22b4743555e5",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "github-white-source-threecycles.json",
+      "cycle": 1,
+      "rawSha256": "a03c1efc6279f3a2a79af94aa3d5ef4ac3aa998f9b0d2f2e29ca22b4743555e5",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "github-white-source-threecycles.json",
+      "cycle": 2,
+      "rawSha256": "a03c1efc6279f3a2a79af94aa3d5ef4ac3aa998f9b0d2f2e29ca22b4743555e5",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "spdb-catalog-threecycles.json",
+      "cycle": 0,
+      "rawSha256": "a9bb6b283db12830f3b569cc806822f4bcf30a7e1be0615bb456b6f0292bd94e",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "spdb-catalog-threecycles.json",
+      "cycle": 1,
+      "rawSha256": "a9bb6b283db12830f3b569cc806822f4bcf30a7e1be0615bb456b6f0292bd94e",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "spdb-catalog-threecycles.json",
+      "cycle": 2,
+      "rawSha256": "a9bb6b283db12830f3b569cc806822f4bcf30a7e1be0615bb456b6f0292bd94e",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "spdb-document-threecycles.json",
+      "cycle": 0,
+      "rawSha256": "e7570d54160fd457ca3e47924dc6d3a240b199a9627692befcfc1c1778c48de5",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "spdb-document-threecycles.json",
+      "cycle": 1,
+      "rawSha256": "e7570d54160fd457ca3e47924dc6d3a240b199a9627692befcfc1c1778c48de5",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "spdb-document-threecycles.json",
+      "cycle": 2,
+      "rawSha256": "e7570d54160fd457ca3e47924dc6d3a240b199a9627692befcfc1c1778c48de5",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "spdb-history-archive-exit.json",
+      "cycle": null,
+      "rawSha256": "f70a7b7feac650012895a6a001f549f70fc2c8540ccd7f0ac5282643d5bef517",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "spdb-knowledge-existing-threecycles.json",
+      "cycle": 0,
+      "rawSha256": "8df5f34d8e7029c0cdf3a104802d053bbe718ca90ea36a757238332740229cb7",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "spdb-knowledge-existing-threecycles.json",
+      "cycle": 1,
+      "rawSha256": "8df5f34d8e7029c0cdf3a104802d053bbe718ca90ea36a757238332740229cb7",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 2
+    },
+    {
+      "file": "spdb-knowledge-existing-threecycles.json",
+      "cycle": 2,
+      "rawSha256": "8df5f34d8e7029c0cdf3a104802d053bbe718ca90ea36a757238332740229cb7",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 2
+    },
+    {
+      "file": "spdb-knowledge-new-threecycles.json",
+      "cycle": 0,
+      "rawSha256": "a890689f4d1896ce059249e79fd11ea5b9739e4cde2b0a61e2262e886d935e10",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "spdb-knowledge-new-threecycles.json",
+      "cycle": 1,
+      "rawSha256": "a890689f4d1896ce059249e79fd11ea5b9739e4cde2b0a61e2262e886d935e10",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "spdb-knowledge-new-threecycles.json",
+      "cycle": 2,
+      "rawSha256": "a890689f4d1896ce059249e79fd11ea5b9739e4cde2b0a61e2262e886d935e10",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "spdb-ppt-default-exit.json",
+      "cycle": null,
+      "rawSha256": "4f8ab43be6bc93d6d879d1332dfaeeaa1d042f8df08cb7ccefa2d3c847eb7acc",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "spdb-ppt-drag-threecycles.json",
+      "cycle": 0,
+      "rawSha256": "f249aa0c393a3f468edfc627daec3d0cf81ddc093a69d108d71c351c611df8e7",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "spdb-ppt-drag-threecycles.json",
+      "cycle": 1,
+      "rawSha256": "f249aa0c393a3f468edfc627daec3d0cf81ddc093a69d108d71c351c611df8e7",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "spdb-ppt-drag-threecycles.json",
+      "cycle": 2,
+      "rawSha256": "f249aa0c393a3f468edfc627daec3d0cf81ddc093a69d108d71c351c611df8e7",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "spdb-ppt-resize-threecycles.json",
+      "cycle": 0,
+      "rawSha256": "56077d88fa3cbd25e6b9b9406ed18f2cdaf70b2fdec4aeb58b1e7441c18c8369",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "spdb-ppt-resize-threecycles.json",
+      "cycle": 1,
+      "rawSha256": "56077d88fa3cbd25e6b9b9406ed18f2cdaf70b2fdec4aeb58b1e7441c18c8369",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "spdb-ppt-resize-threecycles.json",
+      "cycle": 2,
+      "rawSha256": "56077d88fa3cbd25e6b9b9406ed18f2cdaf70b2fdec4aeb58b1e7441c18c8369",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "spdb-source-threecycles.json",
+      "cycle": 0,
+      "rawSha256": "b080138bd2f1927a997fd930d3042919fe8599719e7aedbdc0c8212b9982c41f",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "spdb-source-threecycles.json",
+      "cycle": 1,
+      "rawSha256": "b080138bd2f1927a997fd930d3042919fe8599719e7aedbdc0c8212b9982c41f",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "spdb-source-threecycles.json",
+      "cycle": 2,
+      "rawSha256": "b080138bd2f1927a997fd930d3042919fe8599719e7aedbdc0c8212b9982c41f",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "tech-blue-catalog-threecycles.json",
+      "cycle": 0,
+      "rawSha256": "1f62d7c9b3fcf551a55cd4961948d9ec8301aa6db27c100f4ec642c8457d5d33",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "tech-blue-catalog-threecycles.json",
+      "cycle": 1,
+      "rawSha256": "1f62d7c9b3fcf551a55cd4961948d9ec8301aa6db27c100f4ec642c8457d5d33",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "tech-blue-catalog-threecycles.json",
+      "cycle": 2,
+      "rawSha256": "1f62d7c9b3fcf551a55cd4961948d9ec8301aa6db27c100f4ec642c8457d5d33",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "tech-blue-document-threecycles.json",
+      "cycle": 0,
+      "rawSha256": "8545c89e98e2700df1113c6e19a45412e50d12a3072a082a88da8d970c891eb0",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "tech-blue-document-threecycles.json",
+      "cycle": 1,
+      "rawSha256": "8545c89e98e2700df1113c6e19a45412e50d12a3072a082a88da8d970c891eb0",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "tech-blue-document-threecycles.json",
+      "cycle": 2,
+      "rawSha256": "8545c89e98e2700df1113c6e19a45412e50d12a3072a082a88da8d970c891eb0",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "tech-blue-history-archive-exit.json",
+      "cycle": null,
+      "rawSha256": "0dec90837cf4c5f606bf9539e138cc4c5e39ba71a604dd445f4a08383a214733",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "tech-blue-knowledge-existing-threecycles.json",
+      "cycle": 0,
+      "rawSha256": "f6161903a99ec312a4e44376e162ddd79fd16123971dadd6b8f71e2d56f41be3",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "tech-blue-knowledge-existing-threecycles.json",
+      "cycle": 1,
+      "rawSha256": "f6161903a99ec312a4e44376e162ddd79fd16123971dadd6b8f71e2d56f41be3",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 2
+    },
+    {
+      "file": "tech-blue-knowledge-existing-threecycles.json",
+      "cycle": 2,
+      "rawSha256": "f6161903a99ec312a4e44376e162ddd79fd16123971dadd6b8f71e2d56f41be3",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 2
+    },
+    {
+      "file": "tech-blue-knowledge-new-threecycles.json",
+      "cycle": 0,
+      "rawSha256": "afd42c5ef0f2db6834c848bc675c2495812a449baa9479b72692eec3fa63aa63",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "tech-blue-knowledge-new-threecycles.json",
+      "cycle": 1,
+      "rawSha256": "afd42c5ef0f2db6834c848bc675c2495812a449baa9479b72692eec3fa63aa63",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "tech-blue-knowledge-new-threecycles.json",
+      "cycle": 2,
+      "rawSha256": "afd42c5ef0f2db6834c848bc675c2495812a449baa9479b72692eec3fa63aa63",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "tech-blue-ppt-default-exit.json",
+      "cycle": null,
+      "rawSha256": "32ea45a35df08d98be821111fa1b1e83c6e221f14a335ae0070b9233b2e00960",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "tech-blue-ppt-drag-threecycles.json",
+      "cycle": 0,
+      "rawSha256": "71f212c1717789b0c388049d625d21817e4f09d0b458394a09b21b88c1f2b1c9",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "tech-blue-ppt-drag-threecycles.json",
+      "cycle": 1,
+      "rawSha256": "71f212c1717789b0c388049d625d21817e4f09d0b458394a09b21b88c1f2b1c9",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "tech-blue-ppt-drag-threecycles.json",
+      "cycle": 2,
+      "rawSha256": "71f212c1717789b0c388049d625d21817e4f09d0b458394a09b21b88c1f2b1c9",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "tech-blue-ppt-resize-threecycles.json",
+      "cycle": 0,
+      "rawSha256": "2c8d257876d1c5586be3555be961657c82c25457ea6710d31da5b79b6595bd57",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "tech-blue-ppt-resize-threecycles.json",
+      "cycle": 1,
+      "rawSha256": "2c8d257876d1c5586be3555be961657c82c25457ea6710d31da5b79b6595bd57",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "tech-blue-ppt-resize-threecycles.json",
+      "cycle": 2,
+      "rawSha256": "2c8d257876d1c5586be3555be961657c82c25457ea6710d31da5b79b6595bd57",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "tech-blue-source-threecycles.json",
+      "cycle": 0,
+      "rawSha256": "74eb4d6899942bcbdeed5ad35b8179e5ccaa41aa540704bde472a5e9f9d1bada",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "tech-blue-source-threecycles.json",
+      "cycle": 1,
+      "rawSha256": "74eb4d6899942bcbdeed5ad35b8179e5ccaa41aa540704bde472a5e9f9d1bada",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    },
+    {
+      "file": "tech-blue-source-threecycles.json",
+      "cycle": 2,
+      "rawSha256": "74eb4d6899942bcbdeed5ad35b8179e5ccaa41aa540704bde472a5e9f9d1bada",
+      "rootConnected": false,
+      "listeners": 0,
+      "observers": 0,
+      "pendingFrames": 0,
+      "captures": 0,
+      "timers": 0,
+      "cleanupInput": 0,
+      "sentinelPreserved": true,
+      "applicationMediaListenersPreserved": true,
+      "externalTimerCount": 1
+    }
+  ],
+  "resourceFirstSnapshotCount": 69,
+  "images": [
+    {
+      "file": "github-white-catalog-default.png",
+      "sha256": "24e13298dec3904ad870f70e2b26182a741ec5c9ea1612f0ecf8dc7628e67f57",
+      "stabilitySha256": "8a0f3dc60fd16821e6b90861d36d3ef55dcea770d6a8c51e4e845cd58f19fa63",
+      "exactConsecutiveBuffers": true
+    },
+    {
+      "file": "github-white-document-default.png",
+      "sha256": "e36ae1b51af60e33aba710d76b59f6f1ebc8a00cb274ce5a69d25d0186f11f95",
+      "stabilitySha256": "d66c252bfbf2c55fa197c772925fbd280aba455c40b30055b61bdfb45f3dbf6d",
+      "exactConsecutiveBuffers": true
+    },
+    {
+      "file": "github-white-document-selected.png",
+      "sha256": "a480717e488aed32458ce1370f60fae734a89ea861bfb8c611d0d1cf8feffc73",
+      "stabilitySha256": "51818ab6eb72b4bf69dbe9144a1b34bb849aeeb321f0c6f9acfccd0101ff02be",
+      "exactConsecutiveBuffers": true
+    },
+    {
+      "file": "github-white-history-archive-selected.png",
+      "sha256": "51259000cba51fbbe97a95bc48c1e55b200399bee69a91d66b9901513a84d62a",
+      "stabilitySha256": "33b26428af4cc03b6cc2cb3f793f4b1af5e49dd8d25fea4239ca0301a185a75f",
+      "exactConsecutiveBuffers": true
+    },
+    {
+      "file": "github-white-knowledge-existing-default.png",
+      "sha256": "7f84d1f9525170275c58d9a83abccf81c8fd4d11c9f31b18980e44c213282701",
+      "stabilitySha256": "2aa9541c327061bd8f48b7dafcb74ab879caacd09012fc7765b568f7fe80faaa",
+      "exactConsecutiveBuffers": true
+    },
+    {
+      "file": "github-white-knowledge-existing-selected.png",
+      "sha256": "bc4bb3048a6dc06a5595febc3d50c17c934df01cb2ae9a41bd5a154d9d218a30",
+      "stabilitySha256": "1b3a743477ddd3a3a47345338a0f287f25b1c835009aeec5d9460eecf1db5a0a",
+      "exactConsecutiveBuffers": true
+    },
+    {
+      "file": "github-white-knowledge-new-default.png",
+      "sha256": "4e0a1b663f37bb75b3cf4b4b9e93087520c0c6ac6c95dde183bbf4b7077b60fd",
+      "stabilitySha256": "08252c10755df65d05023b5d7851726d409e6e87b6d5832af8d9e6a3b730ec04",
+      "exactConsecutiveBuffers": true
+    },
+    {
+      "file": "github-white-ppt-default.png",
+      "sha256": "a2bf3c550e3dad63dd8c7069d718bb6dd570aedd096109ad474711f6e3587b9d",
+      "stabilitySha256": "53069eb1c6e2a8c40953df5ad5e2706fba896d89467b4b574119f9a8628da6ec",
+      "exactConsecutiveBuffers": true
+    },
+    {
+      "file": "github-white-ppt-selected.png",
+      "sha256": "94118257af115a2d081abf99ede5efb30347ca1ed4af277a7f1f1a190505a297",
+      "stabilitySha256": "e9af6fcc0e6bf9933c2bd7c5fcf7dbffbec1f0bddbe334de7106057e81fe387c",
+      "exactConsecutiveBuffers": true
+    },
+    {
+      "file": "github-white-source-default.png",
+      "sha256": "a8fa295fe58e4e4817a5c4e1d5963d2be9304a9ec72eb606c4c534aa92d271e8",
+      "stabilitySha256": "13176b3e4f850f38258d192c4b39db9e15dc132050ca7afc05511bb58c757cd2",
+      "exactConsecutiveBuffers": true
+    },
+    {
+      "file": "github-white-source-selected.png",
+      "sha256": "38d760313857db2d2280fbc72904540616262d3a2c517d73e721048ee20a7a29",
+      "stabilitySha256": "eb8e1fceb77648bfd94df4de8a8ae0f7ca303ee0defef1020fd1e5d8e15fa109",
+      "exactConsecutiveBuffers": true
+    },
+    {
+      "file": "spdb-catalog-default.png",
+      "sha256": "15bbe5a7282860f6b23ee01df23015c767713e409f78dd019d79576ca7f7999f",
+      "stabilitySha256": "975d807ac2d3777131283845cdb9b67268d1b4edd5a3db55b7c9252c2be0b84d",
+      "exactConsecutiveBuffers": true
+    },
+    {
+      "file": "spdb-document-default.png",
+      "sha256": "f33a6228c0ae04c126079475ef25c103208cc37811a068cfb13a84e2d3efdbee",
+      "stabilitySha256": "3e81d191de19d273b8a6d9dd54937957c4283df3b7263289cb0725baf670b4dd",
+      "exactConsecutiveBuffers": true
+    },
+    {
+      "file": "spdb-document-selected.png",
+      "sha256": "b89962ecbc36d1ca604516cea3717cdc8e6b116c6e45ce74dc1497bca2d2c5e6",
+      "stabilitySha256": "c004c942575da6db44bd2f05b0c67cf1519ccc818a4da5bbc687d1737e0636df",
+      "exactConsecutiveBuffers": true
+    },
+    {
+      "file": "spdb-history-archive-selected.png",
+      "sha256": "9ad401d5b442e7240a74c22ef28f812a8a962b2e85e743352ef90bbc35170dd2",
+      "stabilitySha256": "c8f7eae22f87b5a4dfb6f1dba14d3a2b75dcbe5c0f38be92610467a960b3c70b",
+      "exactConsecutiveBuffers": true
+    },
+    {
+      "file": "spdb-knowledge-existing-default.png",
+      "sha256": "cc766c0a0b2bd7ca166adedf2ee013b3c5a47f68cc9777700b3b93f8e50893b7",
+      "stabilitySha256": "5440ee3dae764489fc5f9f1cd37d1ecc54be8c13a0728e068859121ea574e36e",
+      "exactConsecutiveBuffers": true
+    },
+    {
+      "file": "spdb-knowledge-existing-selected.png",
+      "sha256": "a1f6156ea8fcd5b4334f75ee6380f355ae5f1dee358513ee906b3e99a480b36c",
+      "stabilitySha256": "c9f2dff42cf7cf81c78568e6b0f7b7cce8c8aed401e5826343a848e82344d910",
+      "exactConsecutiveBuffers": true
+    },
+    {
+      "file": "spdb-knowledge-new-default.png",
+      "sha256": "36efc59290b6a32be588e1994fe6ad1820897a19077acdbe6e3be968b21cb755",
+      "stabilitySha256": "a2f4b8a5d1cdcf028e223f643d615413a97b2c4d8f8f361df69dd5831552ec9f",
+      "exactConsecutiveBuffers": true
+    },
+    {
+      "file": "spdb-ppt-default.png",
+      "sha256": "e7a4656fcee1ac6f3db9fb78357bc10d988811426c3f594f7d4f5c64c0b36599",
+      "stabilitySha256": "475ab514ae55db16e57d7da66dbcea6e46d47d631fd0e6f31974a2127b903afd",
+      "exactConsecutiveBuffers": true
+    },
+    {
+      "file": "spdb-ppt-selected.png",
+      "sha256": "b80841238e2d3583409d67d3bf586be5c26d7e3d993f06ed251cbf0d0d69bdec",
+      "stabilitySha256": "1894f1d7fb14fa2cdda365d1f1d9d7c0de1c3da4b0d2c4e368e4bf5fe60f3436",
+      "exactConsecutiveBuffers": true
+    },
+    {
+      "file": "spdb-source-default.png",
+      "sha256": "a9e1c16c5573f087593069774a32c2a059e0ac125b53f7f01aa570d8811b9266",
+      "stabilitySha256": "e1187a5a3727f303d8b106005a315059ea1b4ffa46bc49ac4828545bde7e1833",
+      "exactConsecutiveBuffers": true
+    },
+    {
+      "file": "spdb-source-selected.png",
+      "sha256": "a4f585d467b3f42490e820f671e622b36db2adba2b5994c8f1a05f703b37a69b",
+      "stabilitySha256": "6b7322ba61f97871d1c18d817875e5e1814bda4cd53e6e21db04082a3733fc59",
+      "exactConsecutiveBuffers": true
+    },
+    {
+      "file": "tech-blue-catalog-default.png",
+      "sha256": "2c9e57716509a838acef9c7dab1ca0dd5d42d1ea7e84d9737d4cc929c1f62bba",
+      "stabilitySha256": "3f0bc29c912f824cf36bfd8645b91c8b792ae9310b11b9d27783b99fc2543640",
+      "exactConsecutiveBuffers": true
+    },
+    {
+      "file": "tech-blue-document-default.png",
+      "sha256": "a15f00f8db2ccd2c5f82c50c06677f1664241ba07419870a271f4b385ccb17ea",
+      "stabilitySha256": "ba853f3c23cf87c309ed15634fc483759db63570c14a8e54ac2fbdc171063a88",
+      "exactConsecutiveBuffers": true
+    },
+    {
+      "file": "tech-blue-document-selected.png",
+      "sha256": "2dd6ea2b8c81bca82b0e815959426f7344b807ccd6db9f529cfb6dd87f13edd0",
+      "stabilitySha256": "9d143d77e8c278cf229bca4f66f889e50a6e4481671ebb275ed31bf952ad9fb5",
+      "exactConsecutiveBuffers": true
+    },
+    {
+      "file": "tech-blue-history-archive-selected.png",
+      "sha256": "4bf97fde05ad0a42414302e0340a83f9a4425d539ccf72085dc908a3e9ae21c7",
+      "stabilitySha256": "bb8f4f3a9bc0058238eceb7cadf8cc8a1ea3937c9cf3d124dae219079c41d89c",
+      "exactConsecutiveBuffers": true
+    },
+    {
+      "file": "tech-blue-knowledge-existing-default.png",
+      "sha256": "5a4bde654bf957cbd37da18e1f31ac6a09c6e672f23f48465b6dc6e63911eee4",
+      "stabilitySha256": "1c34954a5c228db3aaa33f3b22d201fc4c94759a988f24c23c8355048a7a5714",
+      "exactConsecutiveBuffers": true
+    },
+    {
+      "file": "tech-blue-knowledge-existing-selected.png",
+      "sha256": "b8de7e17758a2774f3ef5d00b49c111692e555d5db0889808949a844f6dfef50",
+      "stabilitySha256": "18dbeff2c16618f52bf810c40cfa7a3e2c465fdddda998bb9ce511f40289913e",
+      "exactConsecutiveBuffers": true
+    },
+    {
+      "file": "tech-blue-knowledge-new-default.png",
+      "sha256": "1ed3bc7bfa453c4d62c899b4b5b6b01836230a799b98e31739ae59325caf3537",
+      "stabilitySha256": "3e52800f7b040b55e625786e75fe4af270488385bf4c599458fd47f8a76cf7be",
+      "exactConsecutiveBuffers": true
+    },
+    {
+      "file": "tech-blue-ppt-default.png",
+      "sha256": "41c9e0506f16bd1f34613749e12143db9a57174f5e1094194fae103fc21645ed",
+      "stabilitySha256": "9786aea29db64465a801fd565ebb5bd318a0954d67bcc4b193b0377594610404",
+      "exactConsecutiveBuffers": true
+    },
+    {
+      "file": "tech-blue-ppt-selected.png",
+      "sha256": "d438674177cc68fb6e0a299568d0be261c1cef2c5d2b1fdd9dbad1297e3fa11e",
+      "stabilitySha256": "ede4a1faaae735864040c930fb36c03d1845cd19caf19ba816b2697a319fd49b",
+      "exactConsecutiveBuffers": true
+    },
+    {
+      "file": "tech-blue-source-default.png",
+      "sha256": "68142f080adbda59d7a41ed17ff503f21a6fbaa5a7de495519aefe0a16c3e93f",
+      "stabilitySha256": "308531238e4dbfb36ff9fbf88d0ff50db9201fa5342b75a5d6b8f29e9b75de6b",
+      "exactConsecutiveBuffers": true
+    },
+    {
+      "file": "tech-blue-source-selected.png",
+      "sha256": "1798ed52b55d53b5572e0d26d377dab8c7fe616edb82ed9c6a8ea1ba3cbc40cd",
+      "stabilitySha256": "1a858e05963094e8465a776ef79dc81096e2eca37d0f1a8eefd1384d3de11c28",
+      "exactConsecutiveBuffers": true
+    }
+  ],
+  "imageCount": 33,
+  "historicalConsumer": {
+    "skins": [
+      "spdb",
+      "tech-blue",
+      "github-white"
+    ],
+    "actualConsumer": "/template-tasks -> explicit automation.readArchive",
+    "distinctLegalGetPathsPerSkin": 9,
+    "safeExportsPerSkin": 2,
+    "byteAssertion": "downloaded UTF-8 bytes exactly equal original latestExport and workspaceExport fixtures; no import/create/start/rule/webhook write",
+    "sourceAssertions": "frontend/e2e/w3/production-routes.spec.ts:80",
+    "legacyHealthRegisteredAlsoHere": "frontend/e2e/read-consistency-contracts.ts:35",
+    "defaultAndAliasZeroHistoryRequests": "separate negative contract, not consumer positive"
+  },
+  "limitations": [
+    "Actual fixed mock transport, no paid model or real backend executed.",
+    "69 is the number of recorded strict first-removal snapshots, not additional Playwright cases; they overlap the 31 case definitions.",
+    "Application-level media listeners and independently verified Ant Modal module timers remain visible in raw accounting; page-owned listener/observer/frame/capture/timer arrays must remain strictly empty. No global delete or wait-to-clean was used.",
+    "Ledger deliberately retains resource references for identity accounting; this is not heap/GC reclamation evidence.",
+    "B authored Knowledge/PPT/catalog deltas and does not claim this own execution or own screenshots as non-author review; C provides separate independent review.",
+    "Pure narrow layouts remain OUT_OF_SCOPE; historical DOC390 is not claimed as rerun green."
+  ],
+  "caseLineProvenance": "cases.line is Playwright reported source-map location; physical frozen source anchors are separately cited under sourceAssertions/contract documents."
+}

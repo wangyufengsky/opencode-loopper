@@ -1,0 +1,86 @@
+{
+  "baseline": "1e9161e06c01b5aa76b6a2b19789ac8379423195",
+  "stage": "B W7 source/test frozen candidate before final desktop 49",
+  "files": [
+    {
+      "path": "frontend/src/pages/w3/knowledge/KnowledgePage.tsx",
+      "sha256": "546a7e4b0b32949bd721c6ce11e9cabc89349d3fcab6682442bac02d53e62cdb"
+    },
+    {
+      "path": "frontend/src/pages/w3/knowledge/knowledge.css",
+      "sha256": "345a0ee649083b4b37e572068c5ecbdfc98125bbc029c2e845cee17693c52fec"
+    },
+    {
+      "path": "frontend/src/pages/w3/knowledge/controller.ts",
+      "sha256": "5effbdfcdea991a997cf17522d11d76641422fcd50dbfac6ab32e121e672989e"
+    },
+    {
+      "path": "frontend/src/pages/w3/knowledge/controller.spec.ts",
+      "sha256": "ffbb67b42fecd8dafce4bdd2cdd5f09f036f8d645461638455d98e8ca7e96f4d"
+    },
+    {
+      "path": "frontend/src/pages/w3/ppt/PptStudioPage.tsx",
+      "sha256": "9908253fb9fd977fac0da62f9df8858627071bcfb7f0314ad625085665ce708e"
+    },
+    {
+      "path": "frontend/src/pages/w3/ppt/PptStudioPage.spec.tsx",
+      "sha256": "b2e603093307cf2a7b9308a70a85b7341c73a9547781057b50707007704e20d4"
+    },
+    {
+      "path": "frontend/src/pages/w3/templates/catalog/TemplateTasksPage.tsx",
+      "sha256": "2f4071ad532c2ede31f595cd6b3f82a8d3a36ca7dafd1bdedf116dec1536899b"
+    },
+    {
+      "path": "frontend/src/pages/w3/templates/catalog/catalog.css",
+      "sha256": "50fc86ec7f3c193a27881176e1245f381b292b2e0308fa2b04c577437449b696"
+    },
+    {
+      "path": "frontend/src/pages/w3/templates/catalog/pages.spec.tsx",
+      "sha256": "1630f4a423433d62080a09416a15e112599abf2594692f751753475e936b86bd"
+    },
+    {
+      "path": "frontend/e2e/knowledge.spec.ts",
+      "sha256": "3781112af6770cd071fe0caa1c46a9da22553d3501f09aee64fe62af7a7b66d0"
+    },
+    {
+      "path": "frontend/e2e/ppt.spec.ts",
+      "sha256": "1f410335cc4e1c1719bfa00d30a69be9e10de7891482f7d02b5cbdb74fb74e56"
+    },
+    {
+      "path": "frontend/e2e/document-template-tasks.spec.ts",
+      "sha256": "e3c0701be72cfb3fe7d7e5b335a8a49f6b28a189cf08a3ff656a719fc6ccc7f2"
+    },
+    {
+      "path": "frontend/e2e/source-template-form.spec.ts",
+      "sha256": "f49b3d8846ea69380d012b115a56f28e4b0fa3ccb0907b95e70a3569f2b2f6f4"
+    },
+    {
+      "path": "frontend/e2e/template-tasks.spec.ts",
+      "sha256": "c026dcad83556c8cdaa56b88d7b993f3f45f91926063bc329fd7c951e2710fe6"
+    },
+    {
+      "path": "frontend/e2e/template-batch-recovery.spec.ts",
+      "sha256": "578a44d0ba5a3521e0411f9bd2a490933c8cfb992c624c1a8c4cf417ea62de48"
+    },
+    {
+      "path": "frontend/e2e/template-batch-resilience.spec.ts",
+      "sha256": "cc79f1cdf9a4ba60515fcce344d2efe71e89aa942f67b4eefcc8d5293020ac3f"
+    },
+    {
+      "path": "frontend/e2e/template-reports.spec.ts",
+      "sha256": "85180dbe2ede402593efad409d49a5bd073c0a03b07b0c12bd31fdee2178a9c6"
+    },
+    {
+      "path": "frontend/e2e/template-session-diagnostics.spec.ts",
+      "sha256": "9264b4693a1150d838dd1f87305e0635416bebd176cbacc3fecf6aee4d38acbb"
+    },
+    {
+      "path": "frontend/e2e/read-consistency.spec.ts",
+      "sha256": "e0a8eaa64be3c3f32ebc431c8d8a2e12c77f3496c8effff877a5727be7345faa"
+    },
+    {
+      "path": "frontend/e2e/read-consistency-contracts.ts",
+      "sha256": "b2fbffb73282696ed9494866e2e1fb0c9c5c7c5aa20a20d5c5790d1c3dffdd12"
+    }
+  ]
+}

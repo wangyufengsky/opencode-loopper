@@ -2,6 +2,7 @@ import { mountApplicationHarness } from '@/test/applicationHarness'
 import { navigationHarness } from '@/test/navigationHarness'
 import { flushPromises } from '@/test/async'
 import { ReactDOMQuery } from '@/pages/w6-tests/workflow/react-test-root'
+import { createElement } from 'react'
 import { applicationRoutes } from '@/router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 let wrapper: (ReactDOMQuery & {unmount():void}) | undefined
@@ -14,6 +15,17 @@ const knowledgeLink = () => wrapper!.findAll('a').find(link => link.text() === '
 describe('侧栏知识库返回位置', () => {
   beforeEach(() => { sessionStorage.clear() })
   afterEach(() => { wrapper?.unmount(); wrapper = undefined; vi.restoreAllMocks() })
+
+  it('skip link focuses the mounted content without changing URL, scope or a pending owner', async () => {
+    const retired=vi.fn(), owner={file:new File(['bytes'],'original.txt'),key:'original-key',body:'original-body'}
+    const page=await mountApplicationHarness({initialEntries:['/tasks?original=1#evidence'],shell:true,routes:[{path:'/tasks',Component:()=>createElement('main',{id:'main-content',tabIndex:-1},createElement('input',{defaultValue:'原草稿'}))}]})
+    wrapper=Object.assign(new ReactDOMQuery(page.element),{unmount:page.unmount});await flushPromises()
+    const scope=page.application.current!;scope.lifecycle.retain(owner,retired);scope.navigation.registerGuard(()=>({kind:'BLOCK',reason:'原请求待核对',recoveryAction:'原身份恢复'}))
+    const route=page.router.state.location, input=page.element.querySelector('input')!, file=owner.file
+    await wrapper.get('.skip-link').trigger('click');await flushPromises()
+    expect(document.activeElement).toBe(page.element.querySelector('#main-content'));expect(page.router.state.location).toBe(route);expect(page.application.current).toBe(scope)
+    expect(owner.file).toBe(file);expect(owner).toMatchObject({key:'original-key',body:'original-body'});expect(page.element.querySelector('input')).toBe(input);expect(retired).not.toHaveBeenCalled()
+  })
 
   it('places role management directly in system navigation', async () => {
     const router = await render()

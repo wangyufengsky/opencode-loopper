@@ -1,0 +1,56 @@
+{
+  "sourceSha256": "d1a38dd1471e5c5d0d23aeafa845c7494d3bc30e2d5875dd37c24e9faded596d",
+  "tests": 6,
+  "strictCycles": 18,
+  "rows": [
+    {
+      "route": "/projects",
+      "file": "-projects-root.json",
+      "cycles": 3,
+      "zeroOwnedResourcesFirstSample": true,
+      "sha256": "c56037677f86122a8f944edce4978e23f0bc2177becf31d16542b68e23727a93",
+      "mtimeUtc": "2026-10-04T03:49:27.636752+00:00"
+    },
+    {
+      "route": "/tasks/w4-task",
+      "file": "-tasks-w4-task-root.json",
+      "cycles": 3,
+      "zeroOwnedResourcesFirstSample": true,
+      "sha256": "5630d2756d2b5157a79608a77d9375687ffb5048d801ea86c8c8e92920c31b7b",
+      "mtimeUtc": "2026-10-04T03:49:29.404737+00:00"
+    },
+    {
+      "route": "/knowledge/w3-knowledge",
+      "file": "-knowledge-w3-knowledge-root.json",
+      "cycles": 3,
+      "zeroOwnedResourcesFirstSample": true,
+      "sha256": "69fa429f777586daffcbb9beb423f235a9d4dbb69944a245c8cd828e6706b197",
+      "mtimeUtc": "2026-10-04T03:49:31.208721+00:00"
+    },
+    {
+      "route": "/ppt/w3-ppt",
+      "file": "-ppt-w3-ppt-root.json",
+      "cycles": 3,
+      "zeroOwnedResourcesFirstSample": true,
+      "sha256": "2cc9067c654b4cd343d45fdff57915354756b9f9f84175db7b6f967f0a4a2ee2",
+      "mtimeUtc": "2026-10-04T03:49:32.860706+00:00"
+    },
+    {
+      "route": "/workflows/w5-flow",
+      "file": "-workflows-w5-flow-root.json",
+      "cycles": 3,
+      "zeroOwnedResourcesFirstSample": true,
+      "sha256": "e517f9cafdb36f8e83a9163811166334eb36a54c03ff6a4d18ec9798c47df6fa",
+      "mtimeUtc": "2026-10-04T03:49:34.420692+00:00"
+    },
+    {
+      "route": "/designer",
+      "file": "-designer-root.json",
+      "cycles": 3,
+      "zeroOwnedResourcesFirstSample": true,
+      "sha256": "fc348cc0fe690159fee60520917dcacc52c7c586b77202e2b9477cdaba4f443c",
+      "mtimeUtc": "2026-10-04T03:49:35.968678+00:00"
+    }
+  ],
+  "actualRawOutput": "/tmp/w6-root-evidence (config reads CANVAS_W6_EVIDENCE_DIR; initial other variable unused); six matching fresh records copied, no rerun counted"
+}

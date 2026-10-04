@@ -9,6 +9,33 @@ afterEach(() => { cleanup.forEach(f => f()); cleanup = []; vi.useRealTimers(); v
 beforeEach(() => { sessionStorage.clear() })
 async function mount(value = session(), options: { initial?: boolean; focus?: () => void } = {}) { mockDesigner(value); const navigation = pageProps().props.navigation; const owner = createDesignerController({ sessionId: options.initial ? undefined : value.id, historyOnly: !options.initial, navigation, focusComposer: options.focus }); const detach = owner.attachView(); cleanup.push(() => { detach(); owner.retire(true) }); await flush(); return { owner, navigation, detach } }
 describe('Designer pure single owner', () => {
+  it('completed historical auto receipt opens the exact started task through GET only', async () => {
+    const value = session('A', { autoMode: { enabled: false, state: 'COMPLETED', lastAction: 'TASK_START_REQUESTED', taskId: 'auto-original', version: 7 } })
+    mockDesigner(value)
+    vi.spyOn(api, 'getTaskOverview').mockResolvedValue(taskFixture('auto-original'))
+    vi.spyOn(api, 'getTaskAudit').mockResolvedValue({ attempts: [], errors: [], judges: [], artifacts: [] })
+    const navigation = pageProps().props.navigation, owner = createDesignerController({ sessionId: value.id, historyOnly: true, navigation })
+    const detach = owner.attachView(); cleanup.push(() => { detach(); owner.retire(true) }); await flush()
+    expect(api.getTaskOverview).toHaveBeenCalledWith('auto-original'); expect(api.getTaskAudit).toHaveBeenCalledWith('auto-original')
+    expect(navigation.go).toHaveBeenCalledWith('/tasks/auto-original')
+    expect(api.createDraft).not.toHaveBeenCalled(); expect(api.createDesignerSession).not.toHaveBeenCalled(); expect(api.createDesignerContextTurn).not.toHaveBeenCalled()
+  })
+  it.each(['dirty', 'unknown'] as const)('completed historical auto receipt retains %s composer and never hands off that protected owner', async phase => {
+    const { owner, navigation } = await mount()
+    owner.setMessage('原消息')
+    if (phase === 'unknown') { owner.stageFiles([new File(['original bytes'], 'original.txt')]); vi.mocked(api.sendDesignerContextTurn).mockRejectedValueOnce(new Error('unknown')); await owner.send() }
+    const original = owner.getSnapshot().command, files = owner.fileRefs().followup
+    vi.spyOn(api, 'getTaskOverview').mockResolvedValue(taskFixture('auto-original')); vi.spyOn(api, 'getTaskAudit').mockResolvedValue({ attempts: [], errors: [], judges: [], artifacts: [] })
+    vi.mocked(api.getDesignerSession).mockResolvedValue(session('A', { autoMode: { enabled: false, state: 'COMPLETED', lastAction: 'TASK_START_REQUESTED', taskId: 'auto-original', version: 7 } }))
+    await owner.refresh(); await flush()
+    expect(navigation.go).not.toHaveBeenCalled(); expect(api.getTaskOverview).not.toHaveBeenCalled(); expect(api.getTaskAudit).not.toHaveBeenCalled()
+    expect(owner.getSnapshot().message).toBe('原消息'); expect(owner.fileRefs().followup).toEqual(files)
+    // The task already exists: its unfinished handoff remains protected even
+    // when the only local input is an ordinary unsent message.
+    expect(owner.canLeave().kind).toBe('BLOCK')
+    if (phase === 'unknown') { expect(owner.getSnapshot().command).toEqual(original); expect(api.sendDesignerContextTurn).toHaveBeenCalledOnce() }
+    else expect(api.sendRequirementMessage).not.toHaveBeenCalled()
+  })
   it('attaches reads only and keeps saved READ_ONLY design editable', async () => { const { owner } = await mount(); expect(owner.canLeave().kind).toBe('ALLOW'); owner.setMessage('未发送'); expect(owner.canLeave().kind).toBe('CONFIRM_DISCARD'); expect(api.createDesignerSession).not.toHaveBeenCalled(); expect(subscribeDesignerEvents).toHaveBeenCalledOnce() })
   it.each(['initial', 'followup'])('keeps %s ordered real File refs and exact operation body in UNKNOWN', async channel => { const { owner } = await mount(session(), { initial: channel === 'initial' }); const file = new File(['original'], 'original.txt'), extra = new File(['later'], 'extra.txt'); owner.stageFiles([file]); if (channel === 'initial') { owner.setPrompt('原目标'); vi.mocked(api.createDesignerContextTurn).mockRejectedValueOnce(new Error('unknown')); await owner.initialSubmit() } else { owner.setMessage('原消息'); vi.mocked(api.sendDesignerContextTurn).mockRejectedValueOnce(new Error('unknown')); await owner.send() }
     expect(owner.canLeave().kind).toBe('BLOCK'); expect(owner.getSnapshot().command.phase).toBe('UNKNOWN'); const original = channel === 'initial' ? vi.mocked(api.createDesignerContextTurn).mock.calls[0]! : vi.mocked(api.sendDesignerContextTurn).mock.calls[0]!

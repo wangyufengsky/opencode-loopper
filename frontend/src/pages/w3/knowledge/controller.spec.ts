@@ -6,7 +6,7 @@ import { defaultSettings } from '@/pages/w2/core/settingsController'
 import { deferred } from '@/pages/w2/core/coreTestHelpers'
 import { createKnowledgeController } from './controller'
 import { conversationFixture,messageFixture,questionFixture,sourceFixture } from './fixtures'
-import type { KnowledgeConversation } from '@/types/domain'
+import type { KnowledgeConversation, KnowledgeQuestion } from '@/types/domain'
 const owners:ReturnType<typeof createKnowledgeController>[]=[]
 const streams:{close:ReturnType<typeof vi.fn>;onmessage:any;onopen:any;onerror:any}[]=[]
 function owner(id='conversation'){const o=createKnowledgeController({conversationId:id});owners.push(o);return o}
@@ -35,5 +35,32 @@ describe('single knowledge command/read owner',()=>{
   it('source write accepted but failed source read is readonly recoverable',async()=>{vi.spyOn(knowledgeApi,'directory').mockResolvedValue({...sourceFixture,kind:'DIRECTORY'});const o=owner('');await o.initialize();vi.mocked(knowledgeApi.sources).mockRejectedValueOnce(new Error('read'));await o.sourceMutation('directory','/docs');expect(o.getSnapshot().mutation.phase).toBe('ACCEPTED_READBACK');await o.recover();expect(knowledgeApi.directory).toHaveBeenCalledTimes(1);expect(o.getSnapshot().mutation.phase).toBe('SETTLED')})
   it('question unknown freezes exact answers/version/key across explicit retry',async()=>{vi.mocked(knowledgeApi.messages).mockResolvedValue({items:[{...messageFixture(),questions:[questionFixture]}],facets:{}});const reply=vi.spyOn(knowledgeApi,'reply').mockRejectedValueOnce(new Error('lost')).mockResolvedValue({...questionFixture,state:'ANSWERED'});const o=owner();await o.initialize();o.editQuestion(questionFixture,{choices:[['代码']],custom:['附加']});await o.reply(questionFixture);const first=reply.mock.calls[0]![2];expect(first.answers).toEqual([['代码','附加']]);expect(first.version).toBe(7);expect(o.canLeave().kind).toBe('BLOCK');await o.retryOriginal();expect(reply.mock.calls[1]![2]).toEqual(first)})
   it('restored prepared answer is visibly UNKNOWN, readonly lookup preserves identity until accepted',async()=>{sessionStorage.setItem('loopper.knowledge.reply.conversation.question',JSON.stringify({idempotencyKey:'question-key',version:7,answers:[['文档']]}));vi.mocked(knowledgeApi.messages).mockResolvedValue({items:[{...messageFixture(),questions:[questionFixture]}],facets:{}});const reply=vi.spyOn(knowledgeApi,'reply').mockResolvedValue({...questionFixture,state:'ANSWERED'});const o=owner();await o.initialize();expect(o.canLeave().kind).toBe('BLOCK');expect(o.getSnapshot().mutation.phase).toBe('UNKNOWN');expect(reply).not.toHaveBeenCalled();await o.retryOriginal();expect(reply).toHaveBeenCalledWith('conversation','question',{idempotencyKey:'question-key',version:7,answers:[['文档']]})})
+  it('accepted PREPARED question reply reads the original question until delivery, never POSTs it again',async()=>{
+    const answers=[['代码','附加']],prepared:KnowledgeQuestion={...questionFixture,state:'PREPARED',version:8,answers}
+    vi.mocked(knowledgeApi.messages).mockResolvedValue({items:[{...messageFixture(),questions:[questionFixture]}],facets:{}})
+    const reply=vi.spyOn(knowledgeApi,'reply').mockResolvedValue(prepared),o=owner()
+    await o.initialize();o.editQuestion(questionFixture,{choices:[['代码']],custom:['附加']})
+    vi.mocked(knowledgeApi.updates).mockResolvedValue({items:[{...messageFixture(),questions:[prepared]}],facets:{}})
+    await o.reply(questionFixture)
+    const original=o.originalIdentity(),readsBefore=vi.mocked(knowledgeApi.updates).mock.calls.length
+    expect.soft(readsBefore).toBeGreaterThan(0)
+    expect(o.getSnapshot().mutation.phase).toBe('ACCEPTED_READBACK');expect(o.canLeave().kind).toBe('BLOCK')
+    expect(original).toEqual(expect.objectContaining({requestKey:reply.mock.calls[0]![2].idempotencyKey,body:reply.mock.calls[0]![2]}))
+    expect(o.getSnapshot().questionDrafts[questionFixture.id]).toEqual({choices:[['代码']],custom:['附加']})
+    for(const invalid of [{...prepared,state:'ANSWERED',version:7},{...prepared,state:'ANSWERED',version:10,answers:[['文档']]},{...prepared,id:'foreign',state:'ANSWERED',version:10}] satisfies KnowledgeQuestion[]) {
+      vi.mocked(knowledgeApi.updates).mockResolvedValue({items:[{...messageFixture(),questions:[invalid]}],facets:{}})
+      await o.recover();expect(o.getSnapshot().mutation.phase).toBe('ACCEPTED_READBACK');expect(o.canLeave().kind).toBe('BLOCK')
+      expect(o.originalIdentity()).toBe(original);expect(reply).toHaveBeenCalledTimes(1)
+    }
+    const answered:KnowledgeQuestion={...prepared,state:'ANSWERED',version:10}
+    vi.mocked(knowledgeApi.updates).mockResolvedValue({items:[{...messageFixture(),questions:[answered]}],facets:{}})
+    await o.recover()
+    expect.soft(vi.mocked(knowledgeApi.updates).mock.calls.length).toBeGreaterThan(readsBefore)
+    expect.soft(o.getSnapshot().mutation.phase).toBe('SETTLED')
+    expect.soft(o.getSnapshot().messages[0]!.questions![0]).toEqual(answered)
+    expect.soft(o.getSnapshot().questionDrafts[questionFixture.id]).toBeUndefined()
+    expect.soft(o.canLeave().kind).toBe('ALLOW');expect(reply).toHaveBeenCalledTimes(1)
+    expect(o.originalIdentity()).toBe(original)
+  })
   it('ordinary unsent question draft confirms leave, including optional storage failure',async()=>{const o=owner();await o.initialize();o.editText('未提交');expect(o.canLeave().kind).toBe('CONFIRM_DISCARD');expect(knowledgeApi.send).not.toHaveBeenCalled()})
 })

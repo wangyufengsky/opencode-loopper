@@ -91,7 +91,7 @@ export function createNodeController(requirement: string, initial: { version: nu
       read: async (_receipt, read) => { await refresh(true, read.apply); if (read.isCurrent()) await owner.refreshParent() },
     })
   }
-  owner.setStart(() => { void list(); if (!owner.getSnapshot().selected && context.summary?.latestAttemptId) void choose(context.summary.latestAttemptId); else if (owner.getSnapshot().selected) void refresh() })
+  owner.setStart(() => { owner.patch({ loading: false }); void list(); if (!owner.getSnapshot().selected && context.summary?.latestAttemptId) void choose(context.summary.latestAttemptId); else if (owner.getSnapshot().selected) void refresh() })
   return Object.assign(owner, { requirement, nodeId: initial.node.id, list, refresh, choose, loadBody, complete, process, details, human, current, terminal,
     discardDraft() { if (!owner.locked()) owner.patch({ humanSummary: '', outcome: '', values: {}, dirty: false, draftRevision: owner.getSnapshot().draftRevision + 1 }) },
     updateContext(value: typeof initial) { if (value.node.id !== initial.node.id) return; const previous = context.summary?.latestAttemptId; context = value; if (!owner.active() || owner.locked()) return; if (value.summary?.latestAttemptId && (!owner.getSnapshot().selected || owner.getSnapshot().selected === previous) && owner.canLeave().kind === 'ALLOW') void choose(value.summary.latestAttemptId); void list() },

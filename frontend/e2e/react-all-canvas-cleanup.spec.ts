@@ -29,11 +29,12 @@ async function panePoint(canvas: Locator) {
 
 for (const skin of ['spdb', 'tech-blue', 'github-white']) {
   for (const kind of ['stages', 'template-progress', 'roles'] as const) {
-    test(`${skin} readonly ${kind} 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）`, async ({ page }, info) => {
+  for (const width of [390,1440]) {
+    test(`${skin} readonly ${kind} ${width}px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）`, async ({ page }, info) => {
       const fixture = await allCanvasReviewFixture(page, kind)
       await observeAllCanvasResources(page)
       await page.addInitScript(({ key, skin }) => localStorage.setItem(key, skin), { key: SKIN_STORAGE_KEY, skin })
-      await page.setViewportSize({ width: 390, height: 844 }); await page.emulateMedia({ reducedMotion: 'reduce' })
+      await page.setViewportSize({ width, height: width===390?844:1000 }); await page.emulateMedia({ reducedMotion: 'reduce' })
       await page.goto('/tasks')
       await observeCanvasRAFProvenance(page)
       const canvas = await enter(page, kind, fixture.task.title), nodes = canvas.locator('.react-flow__node')
@@ -112,7 +113,7 @@ for (const skin of ['spdb', 'tech-blue', 'github-white']) {
         await canvas.getByRole('button', { name: '放大流程图', exact: true }).focus()
         await page.keyboard.press('Shift+Tab'); await expect(last).toBeFocused()
         await recordAllCanvas(info, `${skin}-${kind}-normal`, { ended, viewport: await viewport(canvas), streams: originalStreams })
-        await page.screenshot({ path: `${allCanvasEvidence}/${skin}-${kind}-390-keyboard.png`, fullPage: true })
+        await page.screenshot({ path: `${allCanvasEvidence}/${skin}-${kind}-${width}-keyboard.png`, fullPage: true })
       }
       await page.evaluate(() => window.__allCanvasResources.arm())
       await leave(page, kind); await expect(canvas).toHaveCount(0)
@@ -123,18 +124,19 @@ for (const skin of ['spdb', 'tech-blue', 'github-white']) {
       expect(fixture.errors).toEqual([]); expect(fixture.mutations).toEqual([])
     })
   }
+  }
 }
 async function enter(page: Page, kind: ReadonlyKind, title: string) {
   if (kind === 'roles') {
     await page.locator('a[href="/roles"]').first().evaluate(element => (element as HTMLElement).click())
-    await page.locator('.role-item').first().click()
-  } else await page.getByRole('link', { name: title, exact: true }).click()
+    await page.getByRole('list',{name:'角色',exact:true}).getByRole('button').first().click()
+  } else { await page.getByRole('link', { name: title, exact: true }).click();await page.getByRole('button',{name:'选择：执行进度',exact:true}).click() }
   const canvas = page.locator(`.readonly-diagram[data-canvas-kind="${kind}"]`)
   await expect(canvas.locator('.react-flow__node')).toHaveCount(kind === 'roles' ? 3 : 20)
   return canvas
 }
 async function leave(page: Page, kind: ReadonlyKind) {
-  const control = kind === 'roles' ? page.locator('a[href="/tasks"]').first() : page.getByRole('button', { name: '全部任务', exact: true })
+  const control = kind === 'roles' ? page.locator('a[href="/tasks"]').first() : page.locator('.w2-heading a[href="/tasks"]')
   // Activate the real SPA navigation control without resetting the held physical pointer.
   await control.evaluate(element => (element as HTMLElement).click())
   await expect(page).toHaveURL('/tasks')

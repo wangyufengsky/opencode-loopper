@@ -1,3 +1,4 @@
+import { semanticName } from './w3/semantics'
 import { selectWorkflowNode } from './fixtures/workflowNavigation'
 import { expect, test } from '@playwright/test'
 import { execution, requirement, attempt } from '../src/components/workflow/workflowRunTestFixtures'
@@ -27,29 +28,30 @@ for (const width of [1600, 390]) test(`固定知识交付及后继输入 ${width
     if (path.endsWith(`/attempts/${node.id}-attempt`)) return route.fulfill({ json: run })
     if (path.endsWith('/definition')) return route.fulfill({ json: node })
     if (path.endsWith('/result')) { results++; return route.fulfill({ json: { attemptId: run.id, state: run.state, sha256: 'fixed-delivery', delivery: { summary: '交付退款规则及原文依据', outputs: { result: { kind: 'TEXT', content: '依据保存的原文，退款前须核对订单状态。' }, evidence: { kind: 'JSON', content: bundle } } } } }) }
-    if (path.endsWith('/inputs')) return route.fulfill({ json: { objective: req.objective, values: [{ name: 'evidence', kind: 'JSON', source: 'NODE', sourceId: 'research', outputName: 'evidence', attemptId: 'research-attempt', sha256: 'fixed-delivery', content: null, reference: { version: 1, contentSha256: 'fixed-body', sizeBytes: text.length } }] } })
+    if (path.endsWith('/inputs')) return route.fulfill({ json: { version: 2, requirementId: req.id, nodeId: node.id, planRevision: req.revision, objective: req.objective, values: [{ name: 'evidence', kind: 'JSON', source: 'NODE', sourceId: 'research', outputName: 'evidence', attemptId: 'research-attempt', sha256: 'fixed-delivery', content: null, reference: { version: 1, contentSha256: 'fixed-body', sizeBytes: text.length } }] } })
     if (path.endsWith('/inputs/evidence/content')) {
       inputReads++; const offset = Number(url.searchParams.get('offset'))
       return route.fulfill({ json: { name: 'evidence', kind: 'JSON', sha256: 'fixed-delivery', offset, text: offset ? text.slice(split) : text.slice(0, split), nextOffset: offset ? null : split, totalLength: text.length } })
     }
     if (path.includes('/knowledge')) { privateReads++; return route.fulfill({ json: { items: [], nextCursor: null } }) }
     if (path === '/api/settings') return route.fulfill({ json: { runtime: {}, openCode: {}, limits: {}, retryWait: {}, publication: {} } })
+    if (path === '/api/roles') return route.fulfill({ json: { items: [], nextCursor: null } })
     return route.fulfill({ json: [] })
   })
   await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 }); await page.goto('/requirements/knowledge-handoff')
   await selectWorkflowNode(page, research.title); expect(results).toBe(0)
-  await page.getByRole('button', { name: '交付物', exact: true }).click()
+  await page.getByRole('button', { name: semanticName('workflow.deliverables'), exact: true }).click()
   let evidence = page.getByRole('region', { name: '交付的来源证据' })
   await expect(evidence).toContainText('尚未查询历史提交'); await expect(evidence).not.toContainText('private-')
   await evidence.getByRole('button').click(); await expect(evidence).toContainText('退款申请需要核对订单状态')
   await selectWorkflowNode(page, summary.title)
-  await page.getByRole('button', { name: '固定输入', exact: true }).click(); expect(inputReads).toBe(0)
-  await page.getByRole('button', { name: '查看固定版本正文' }).click(); await expect(page.getByRole('status').filter({ hasText: '正文尚未读完' })).toBeVisible()
+  await page.getByRole('button', { name: semanticName('workflow.fixedInput'), exact: true }).click(); expect(inputReads).toBe(0)
+  await page.getByRole('button', { name: semanticName('workflow.inputContent') }).click(); await expect(page.getByRole('status').filter({ hasText: '正文尚未读完' })).toBeVisible()
   await expect(page.getByRole('region', { name: '交付的来源证据' })).toHaveCount(0)
-  await page.getByRole('button', { name: '继续读取正文' }).click()
+  await page.getByRole('button', { name: semanticName('ui.loadMore', '固定输入正文') }).click()
   evidence = page.getByRole('region', { name: '交付的来源证据' }); await expect(evidence).not.toContainText('private-')
   await evidence.getByRole('button').click(); await expect(evidence).toContainText('退款申请需要核对订单状态')
-  await evidence.getByRole('button', { name: '阅读视图' }).click(); await expect(evidence.locator('.markdown-document')).toContainText('核对订单状态')
+  await evidence.getByRole('button', { name: semanticName('knowledge.readingView') }).click(); await expect(evidence.locator('.w3-rich-document')).toContainText('核对订单状态')
   expect(inputReads).toBe(2); expect(privateReads).toBe(0); expect(results).toBe(1)
   expect(await page.locator('body').evaluate(el => el.scrollWidth <= innerWidth + 1)).toBe(true)
   await page.screenshot({ path: `test-results/workflow-knowledge-handoff-${width}.png`, fullPage: true })

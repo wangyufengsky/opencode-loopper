@@ -1,0 +1,222 @@
+{
+  "mechanism": "frontend postinstall → scripts/patch-xyflow-react.mjs apply; version/hash mismatch exits nonzero",
+  "cleanInstall": {
+    "fromNoNodeModulesAndDist": true,
+    "npmCiExit": 0,
+    "installedPackages": 369,
+    "logSha256": "6dcfcfb23f217e5a83e837b940c998ed08ba6291555d4db1507cf6bd8af78ef0",
+    "startEvidence": {
+      "startedUtc": "2026-10-04T03:19:00.876124+00:00",
+      "cwd": "/workspace/opencode-loopper-react-full/frontend",
+      "rebuildablePaths": [
+        {
+          "path": "/workspace/opencode-loopper-react-full/frontend/node_modules",
+          "existedBefore": true,
+          "existsAfter": false
+        },
+        {
+          "path": "/workspace/opencode-loopper-react-full/frontend/dist",
+          "existedBefore": true,
+          "existsAfter": false
+        }
+      ]
+    }
+  },
+  "installed": {
+    "packages": [
+      {
+        "packageName": "@xyflow/react",
+        "version": "12.12.0"
+      },
+      {
+        "packageName": "@xyflow/system",
+        "version": "0.0.83"
+      }
+    ],
+    "state": "patched",
+    "changed": false,
+    "files": [
+      {
+        "packageName": "@xyflow/react",
+        "path": "dist/esm/index.mjs",
+        "sha256": "aab15420c38879ce7053591065c58a5e73e090507c3429010ca5f238be49c2a3"
+      },
+      {
+        "packageName": "@xyflow/react",
+        "path": "dist/esm/index.js",
+        "sha256": "aab15420c38879ce7053591065c58a5e73e090507c3429010ca5f238be49c2a3"
+      },
+      {
+        "packageName": "@xyflow/react",
+        "path": "dist/umd/index.js",
+        "sha256": "d26b3dbd2e88c7fc6a036cd5c9838d197876a4261906c000f9a42d9fe243a806"
+      },
+      {
+        "packageName": "@xyflow/system",
+        "path": "dist/esm/index.mjs",
+        "sha256": "babf80196985150328e1cd50a720e134848f3c0ba8f4faf589ab62a5b0244d68"
+      },
+      {
+        "packageName": "@xyflow/system",
+        "path": "dist/esm/index.js",
+        "sha256": "babf80196985150328e1cd50a720e134848f3c0ba8f4faf589ab62a5b0244d68"
+      },
+      {
+        "packageName": "@xyflow/system",
+        "path": "dist/umd/index.js",
+        "sha256": "be625475b0cf01e58b129a5b0fb283bbdc86cb3c5e2f3d5647a86faefd5c990a"
+      }
+    ]
+  },
+  "manifests": {
+    "xyflow-react-12.12.0-resize-cleanup.json": {
+      "manifestSHA256": "2253d8b0a3b57fc8d50a5784837ce81d8c7f0a8e7017001fe4362fc55dc4c802",
+      "manifest": {
+        "id": "xyflow-react-renderer-resize-cleanup",
+        "packageName": "@xyflow/react",
+        "version": "12.12.0",
+        "resolved": "https://registry.npmjs.org/@xyflow/react/-/react-12.12.0.tgz",
+        "integrity": "sha512-74oXI0Rgm1Eu33cHQAd74J6oVgCH9mbFyTVQbsGgp2kmWwh0HdtBr2VP04z8mbPD+M/xO69nqG5dDEt7/EN2rQ==",
+        "packageJsonSha256": "92d35db4281bb51c2b755b26b9d479957273d48e8c17e5d7faceab704aee58cb",
+        "upstreamSource": "https://github.com/xyflow/xyflow/blob/%40xyflow%2Freact%4012.12.0/packages/react/src/hooks/useResizeHandler.ts",
+        "reason": "The renderer ref is cleared before effect cleanup. Disconnect the ResizeObserver owned by this effect without depending on the cleared ref; retain window.resize listener removal. The UMD/CJS distribution also inlines XYPanZoom, so its returned final destroy releases the inlined extent observer while retaining the lexical selection pause. W2 also unbinds the same final instance pane .zoom listeners using the documented D3 selection.on API; the inlined selection variable is p, while lexical selection pause stays unchanged.",
+        "files": [
+          {
+            "path": "dist/esm/index.mjs",
+            "originalSha256": "f3dbde0ca152903c841ca95fe40360fea3f4cee9589adcfd01d3a9bc08b4c955",
+            "patchedSha256": "aab15420c38879ce7053591065c58a5e73e090507c3429010ca5f238be49c2a3",
+            "replacements": [
+              {
+                "before": "                if (resizeObserver && domNode.current) {\n                    resizeObserver.unobserve(domNode.current);\n                }",
+                "after": "                resizeObserver.disconnect();"
+              }
+            ]
+          },
+          {
+            "path": "dist/esm/index.js",
+            "originalSha256": "f3dbde0ca152903c841ca95fe40360fea3f4cee9589adcfd01d3a9bc08b4c955",
+            "patchedSha256": "aab15420c38879ce7053591065c58a5e73e090507c3429010ca5f238be49c2a3",
+            "replacements": [
+              {
+                "before": "                if (resizeObserver && domNode.current) {\n                    resizeObserver.unobserve(domNode.current);\n                }",
+                "after": "                resizeObserver.disconnect();"
+              }
+            ]
+          },
+          {
+            "path": "dist/umd/index.js",
+            "originalSha256": "c418896c3d0cc63498e724df7ed9698532c58523c04d30ebcd3ff7fa0bf3ecff",
+            "patchedSha256": "d26b3dbd2e88c7fc6a036cd5c9838d197876a4261906c000f9a42d9fe243a806",
+            "replacements": [
+              {
+                "before": "window.removeEventListener(\"resize\",n),t&&e.current&&t.unobserve(e.current)",
+                "after": "window.removeEventListener(\"resize\",n),t.disconnect()"
+              },
+              {
+                "before": "destroy:x,setViewport:async function",
+                "after": "destroy:()=>{x();p.on(\".zoom\",null);f?.disconnect()},setViewport:async function"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "xyflow-system-0.0.83-resize-cleanup.json": {
+      "manifestSHA256": "47a935ef5a8cd603bcf16b9723cf31573d072699bef49c9d3db18f2b826b2981",
+      "manifest": {
+        "id": "xyflow-system-renderer-resize-cleanup",
+        "packageName": "@xyflow/system",
+        "parentPackage": "@xyflow/react",
+        "version": "0.0.83",
+        "resolved": "https://registry.npmjs.org/@xyflow/system/-/system-0.0.83.tgz",
+        "integrity": "sha512-a//eDjez3WZF47aaPTfVUDD0OINOq+WVwBZCRTqG+m0a5euX8EwlJ4jMY1Wxz0Ocj4xOeekJ70V22Pq0ll8RJw==",
+        "packageJsonSha256": "d93a60ac2e8c633349515a84f576a9629a40de4f501508dda026f4c43c91533b",
+        "upstreamSource": "https://github.com/xyflow/xyflow/blob/%40xyflow%2Fsystem%400.0.83/packages/system/src/xypanzoom/XYPanZoom.ts",
+        "reason": "Final public instance destruction disconnects its extent ResizeObserver and unbinds only its own pane .zoom listeners through the documented D3 selection.on API. Keep lexical destroy used by update/user selection pause unchanged, preserving live extent and zoom behavior. No global events, foreign listeners or private runtime state are changed.",
+        "files": [
+          {
+            "path": "dist/esm/index.mjs",
+            "originalSha256": "ba3932f6ceab1529c9f3587695b43bdae84e31d356eb153473df5f5c38e6bd5c",
+            "patchedSha256": "babf80196985150328e1cd50a720e134848f3c0ba8f4faf589ab62a5b0244d68",
+            "replacements": [
+              {
+                "before": "        update,\n        destroy,\n        setViewport,",
+                "after": "        update,\n        destroy: () => {\n            destroy();\n            d3Selection.on('.zoom', null);\n            extentResizeObserver?.disconnect();\n        },\n        setViewport,"
+              }
+            ]
+          },
+          {
+            "path": "dist/esm/index.js",
+            "originalSha256": "ba3932f6ceab1529c9f3587695b43bdae84e31d356eb153473df5f5c38e6bd5c",
+            "patchedSha256": "babf80196985150328e1cd50a720e134848f3c0ba8f4faf589ab62a5b0244d68",
+            "replacements": [
+              {
+                "before": "        update,\n        destroy,\n        setViewport,",
+                "after": "        update,\n        destroy: () => {\n            destroy();\n            d3Selection.on('.zoom', null);\n            extentResizeObserver?.disconnect();\n        },\n        setViewport,"
+              }
+            ]
+          },
+          {
+            "path": "dist/umd/index.js",
+            "originalSha256": "9b497bee5404b095145a776b23f18cb7649f886a68c7a9c5aedea81eba1f5ac5",
+            "patchedSha256": "be625475b0cf01e58b129a5b0fb283bbdc86cb3c5e2f3d5647a86faefd5c990a",
+            "replacements": [
+              {
+                "before": "destroy:w,setViewport:async function",
+                "after": "destroy:()=>{w();g.on(\".zoom\",null);f?.disconnect()},setViewport:async function"
+              }
+            ]
+          }
+        ],
+        "supportedCleanupApi": "https://d3js.org/d3-zoom#zoom_selection"
+      }
+    }
+  },
+  "sourceSha256": "d1a38dd1471e5c5d0d23aeafa845c7494d3bc30e2d5875dd37c24e9faded596d",
+  "check": {
+    "packages": [
+      {
+        "packageName": "@xyflow/react",
+        "version": "12.12.0"
+      },
+      {
+        "packageName": "@xyflow/system",
+        "version": "0.0.83"
+      }
+    ],
+    "state": "patched",
+    "changed": false,
+    "files": [
+      {
+        "packageName": "@xyflow/react",
+        "path": "dist/esm/index.mjs",
+        "sha256": "aab15420c38879ce7053591065c58a5e73e090507c3429010ca5f238be49c2a3"
+      },
+      {
+        "packageName": "@xyflow/react",
+        "path": "dist/esm/index.js",
+        "sha256": "aab15420c38879ce7053591065c58a5e73e090507c3429010ca5f238be49c2a3"
+      },
+      {
+        "packageName": "@xyflow/react",
+        "path": "dist/umd/index.js",
+        "sha256": "d26b3dbd2e88c7fc6a036cd5c9838d197876a4261906c000f9a42d9fe243a806"
+      },
+      {
+        "packageName": "@xyflow/system",
+        "path": "dist/esm/index.mjs",
+        "sha256": "babf80196985150328e1cd50a720e134848f3c0ba8f4faf589ab62a5b0244d68"
+      },
+      {
+        "packageName": "@xyflow/system",
+        "path": "dist/esm/index.js",
+        "sha256": "babf80196985150328e1cd50a720e134848f3c0ba8f4faf589ab62a5b0244d68"
+      },
+      {
+        "packageName": "@xyflow/system",
+        "path": "dist/umd/index.js",
+        "sha256": "be625475b0cf01e58b129a5b0fb283bbdc86cb3c5e2f3d5647a86faefd5c990a"
+      }
+    ]
+  }
+}

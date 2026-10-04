@@ -46,11 +46,11 @@ for (const width of [1440, 390]) {
     await expect(diagnostics).toContainText('本轮自动重试已用 1/3 次')
     await expect(diagnostics).toContainText('连续 2 次未能完成检查')
     await diagnostics.getByRole('button', { name: '重新检查会话' }).click()
-    await expect(diagnostics).toContainText('已请求重新检查原会话')
+    await expect(diagnostics).toContainText('恢复请求已记录，正在核对原会话与停止状态。')
     await page.screenshot({ path: `/tmp/loopper-batch-resilience-${width}.png`, fullPage: true })
     expect(await page.locator('body').evaluate(node => node.scrollWidth <= innerWidth)).toBeTruthy()
-    await recovery.getByRole('button', { name: '重新检查并恢复原批次' }).click()
-    await expect(recovery.getByRole('button', { name: '重新检查并恢复原批次' })).toHaveCount(0)
+    await recovery.getByRole('button', { name: '重试读取：重新检查并恢复原批次' }).click()
+    await expect(recovery.getByRole('button', { name: '重试读取：重新检查并恢复原批次' })).toHaveCount(0)
     expect(posted).toEqual([
       { path: '/api/tasks/fixture/session-diagnostics/unfinished-11/check', body: { expectedVersion: 9 } },
       { path: '/api/template-tasks/fixture/recheck', body: { expectedVersion: 21 } },

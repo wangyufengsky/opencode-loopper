@@ -1,0 +1,667 @@
+{
+  "scope": "W7 final unified 817 source, legacy B49",
+  "sourceSha256": "a8821a377da1577b8b3a94de2c1f1f17e056cb66c4a1f91509c96b27c7efd8b8",
+  "sourceFiles": 817,
+  "beforeVerify": {
+    "ok": true,
+    "sourceSha256": "a8821a377da1577b8b3a94de2c1f1f17e056cb66c4a1f91509c96b27c7efd8b8",
+    "files": 817
+  },
+  "afterVerify": {
+    "ok": true,
+    "sourceSha256": "a8821a377da1577b8b3a94de2c1f1f17e056cb66c4a1f91509c96b27c7efd8b8",
+    "files": 817
+  },
+  "counts": {
+    "passed": 49,
+    "failed": 0,
+    "skipped": 0,
+    "retries": 0,
+    "out_of_scope_narrow": 14
+  },
+  "json_sha256": "24b34c1c04cf6f5c5b5f7a7d8eb934b8bc1b906476d7cf914ada6e3800c1e5b7",
+  "log_sha256": "4bacf704ad3735aafa0f44fada500cb6ec8558ad1b0c877b98fe1ad4dc3ddd00",
+  "exit": 0,
+  "missing_titles": [],
+  "extra_titles": [],
+  "cases": [
+    {
+      "title": "文档评审上传重试、刷新与按需报告 1440px",
+      "file": "document-template-tasks.spec.ts",
+      "line": 3,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 21990
+        }
+      ]
+    },
+    {
+      "title": "文件链接在当前页预览并保留气泡头像，失败不跳到 404",
+      "file": "knowledge.spec.ts",
+      "line": 38,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 12330
+        }
+      ]
+    },
+    {
+      "title": "统一检索分页、来源覆盖与数据库原文 1440px",
+      "file": "knowledge.spec.ts",
+      "line": 129,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 9780
+        }
+      ]
+    },
+    {
+      "title": "无思考内容时的动态等待与回复切换 1440px",
+      "file": "knowledge.spec.ts",
+      "line": 450,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 22367
+        }
+      ]
+    },
+    {
+      "title": "知识问答来源与引用面板 1920px",
+      "file": "knowledge.spec.ts",
+      "line": 535,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 18256
+        }
+      ]
+    },
+    {
+      "title": "知识问答来源与引用面板 1440px",
+      "file": "knowledge.spec.ts",
+      "line": 535,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 23513
+        }
+      ]
+    },
+    {
+      "title": "知识问答来源与引用面板 1280px",
+      "file": "knowledge.spec.ts",
+      "line": 535,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 20058
+        }
+      ]
+    },
+    {
+      "title": "新对话默认模型、来源与深层历史路由",
+      "file": "knowledge.spec.ts",
+      "line": 664,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 13427
+        }
+      ]
+    },
+    {
+      "title": "继承提供方与模型名并发送完整模型标识",
+      "file": "knowledge.spec.ts",
+      "line": 703,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 13805
+        }
+      ]
+    },
+    {
+      "title": "模型目录挂起不影响进入、输入或默认发送；选择器独立显示等待",
+      "file": "knowledge.spec.ts",
+      "line": 731,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 13806
+        }
+      ]
+    },
+    {
+      "title": "引用栏拖动宽度在重新打开和刷新后保持",
+      "file": "knowledge.spec.ts",
+      "line": 783,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 12641
+        }
+      ]
+    },
+    {
+      "title": "侧栏返回正在回答的知识对话、恢复草稿并读取离开期间的结果",
+      "file": "knowledge.spec.ts",
+      "line": 819,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 10016
+        }
+      ]
+    },
+    {
+      "title": "侧栏记住新创建的对话，其他页面刷新后仍可返回，主动新建回到首页",
+      "file": "knowledge.spec.ts",
+      "line": 902,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 22376
+        }
+      ]
+    },
+    {
+      "title": "侧栏返回历史对话页并保留筛选，浏览器后退仍进入原对话",
+      "file": "knowledge.spec.ts",
+      "line": 959,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 13435
+        }
+      ]
+    },
+    {
+      "title": "历史独立筛选、归档、恢复和返回草稿",
+      "file": "knowledge.spec.ts",
+      "line": 1007,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 13227
+        }
+      ]
+    },
+    {
+      "title": "文档阅读视图和数据库结果的引用范围高亮",
+      "file": "knowledge.spec.ts",
+      "line": 1066,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 8756
+        }
+      ]
+    },
+    {
+      "title": "助手澄清问题的草稿可刷新恢复且只提交一次",
+      "file": "knowledge.spec.ts",
+      "line": 1116,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 17624
+        }
+      ]
+    },
+    {
+      "title": "从正文底部打开引用保留非零滚动位置，关闭后继续阅读",
+      "file": "knowledge.spec.ts",
+      "line": 1202,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 8723
+        }
+      ]
+    },
+    {
+      "title": "空回答失败可以恢复原问题且不会自动重发",
+      "file": "knowledge.spec.ts",
+      "line": 1234,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 7278
+        }
+      ]
+    },
+    {
+      "title": "PPT 助手显示真实思考和调用，展开状态随更新保留",
+      "file": "ppt.spec.ts",
+      "line": 485,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 13833
+        }
+      ]
+    },
+    {
+      "title": "选择项目后自由讨论并保留草稿，明确确认后才开始设计",
+      "file": "ppt.spec.ts",
+      "line": 535,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 15854
+        }
+      ]
+    },
+    {
+      "title": "历史生成授权继续兼容提问与需求确认，补充意见不冒充确认",
+      "file": "ppt.spec.ts",
+      "line": 627,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 11797
+        }
+      ]
+    },
+    {
+      "title": "完成后默认预览与修改意见，选择对象限定修改，自动更新文件",
+      "file": "ppt.spec.ts",
+      "line": 678,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 14624
+        }
+      ]
+    },
+    {
+      "title": "手动编辑可选开启，对象键盘移动保存真实坐标与版本",
+      "file": "ppt.spec.ts",
+      "line": 753,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 16010
+        }
+      ]
+    },
+    {
+      "title": "安全暂停保持阻断，证明停止后显示继续制作且沿原工作流恢复",
+      "file": "ppt.spec.ts",
+      "line": 814,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 8866
+        }
+      ]
+    },
+    {
+      "title": "详细方案移入更多入口，七模块修改自动保存且不偷偷开始制作",
+      "file": "ppt.spec.ts",
+      "line": 861,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 10232
+        }
+      ]
+    },
+    {
+      "title": "spdb 画布按需展开、键盘缩放和取消选择（模拟数据）",
+      "file": "ppt.spec.ts",
+      "line": 949,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 11079
+        }
+      ]
+    },
+    {
+      "title": "tech-blue 画布按需展开、键盘缩放和取消选择（模拟数据）",
+      "file": "ppt.spec.ts",
+      "line": 949,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 11351
+        }
+      ]
+    },
+    {
+      "title": "github-white 画布按需展开、键盘缩放和取消选择（模拟数据）",
+      "file": "ppt.spec.ts",
+      "line": 949,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 11898
+        }
+      ]
+    },
+    {
+      "title": "手动拖拽和缩放使用稳定画布坐标，取消拖动不提交",
+      "file": "ppt.spec.ts",
+      "line": 1107,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 7302
+        }
+      ]
+    },
+    {
+      "title": "未知保存回执阻止离开，原身份恢复后安全回退（模拟数据）",
+      "file": "ppt.spec.ts",
+      "line": 1161,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 12300
+        }
+      ]
+    },
+    {
+      "title": "React 属性自动保存遇到409保留输入和基线，禁止旧修订继续写入（模拟数据）",
+      "file": "ppt.spec.ts",
+      "line": 1275,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 8009
+        }
+      ]
+    },
+    {
+      "title": "存储不可写且无属性草稿时，未知键盘操作阻止回退直到原操作恢复（模拟数据）",
+      "file": "ppt.spec.ts",
+      "line": 1344,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 8674
+        }
+      ]
+    },
+    {
+      "title": "PPT drag 活动中三次SPA退出首采样零监听RAF捕获RO且无迟到保存（模拟数据）",
+      "file": "ppt.spec.ts",
+      "line": 1412,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 10872
+        }
+      ]
+    },
+    {
+      "title": "PPT resize 活动中三次SPA退出首采样零监听RAF捕获RO且无迟到保存（模拟数据）",
+      "file": "ppt.spec.ts",
+      "line": 1412,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 11173
+        }
+      ]
+    },
+    {
+      "title": "较晚返回的旧筛选响应不能替换当前列表",
+      "file": "read-consistency-contracts.ts",
+      "line": 24,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 4961
+        }
+      ]
+    },
+    {
+      "title": "自动化页面显示检测失败并在服务端恢复后清除旧告警",
+      "file": "read-consistency-contracts.ts",
+      "line": 90,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 7120
+        }
+      ]
+    },
+    {
+      "title": "退役自动化深链和刷新进入模板任务，不读取或重开历史自动化写入口",
+      "file": "read-consistency-contracts.ts",
+      "line": 148,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 5447
+        }
+      ]
+    },
+    {
+      "title": "spdb 源码表单 1440px 紧凑布局、预检和模板切换",
+      "file": "source-template-form.spec.ts",
+      "line": 56,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 9597
+        }
+      ]
+    },
+    {
+      "title": "github-white 源码表单 1440px 紧凑布局、预检和模板切换",
+      "file": "source-template-form.spec.ts",
+      "line": 56,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 9887
+        }
+      ]
+    },
+    {
+      "title": "tech-blue 源码表单 1440px 紧凑布局、预检和模板切换",
+      "file": "source-template-form.spec.ts",
+      "line": 56,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 11528
+        }
+      ]
+    },
+    {
+      "title": "第39批失败后继续后续批次，结束后统一选择重新触发 1440px",
+      "file": "template-batch-recovery.spec.ts",
+      "line": 3,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 11917
+        }
+      ]
+    },
+    {
+      "title": "等待任务显示失败清单、原批次恢复与独立重查 1440px",
+      "file": "template-batch-resilience.spec.ts",
+      "line": 3,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 7987
+        }
+      ]
+    },
+    {
+      "title": "代码审查主子报告跳转、命名下载与1440px布局",
+      "file": "template-reports.spec.ts",
+      "line": 6,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 6825
+        }
+      ]
+    },
+    {
+      "title": "项目贡献周报主子报告跳转、命名下载与1440px布局",
+      "file": "template-reports.spec.ts",
+      "line": 6,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 7807
+        }
+      ]
+    },
+    {
+      "title": "已接受但忙碌的批次可独立收尾，未知请求复用命令标识 1440px",
+      "file": "template-session-diagnostics.spec.ts",
+      "line": 3,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 15766
+        }
+      ]
+    },
+    {
+      "title": "模板参数继承项目路径、可选择分支，结束日期校验阻止错误提交",
+      "file": "template-tasks.spec.ts",
+      "line": 120,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 9329
+        }
+      ]
+    },
+    {
+      "title": "模板任务 1440px 布局与评分说明",
+      "file": "template-tasks.spec.ts",
+      "line": 224,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 4849
+        }
+      ]
+    },
+    {
+      "title": "目录可容纳后续模板，搜索后能选择，执行记录只从历史任务入口查看",
+      "file": "template-tasks.spec.ts",
+      "line": 244,
+      "status": "expected",
+      "attempts": [
+        {
+          "status": "passed",
+          "retry": 0,
+          "duration": 5510
+        }
+      ]
+    }
+  ],
+  "blocking_other_validation": "Independent original PptStudioRecovery 3 cases: 2PASS/1FAIL; restored pending read-only properties cannot open. Source remains frozen; fix not yet authorized."
+}

@@ -1,0 +1,1371 @@
+{
+  "sourceSha256": "d1a38dd1471e5c5d0d23aeafa845c7494d3bc30e2d5875dd37c24e9faded596d",
+  "pureRegistrationsExcluded": [
+    {
+      "file": "connection-management.spec.ts",
+      "title": "连接管理工作区与统一 Git 入口 768px",
+      "line": 39,
+      "titlePath": [
+        "连接管理工作区与统一 Git 入口 768px"
+      ],
+      "project": "local-chrome",
+      "id": "376604b72b7b39f0f7d6-5f09ea3fce2f7d4f1e3c",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "connection-management.spec.ts :: 连接管理工作区与统一 Git 入口 768px",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "connection-management.spec.ts",
+      "title": "连接管理工作区与统一 Git 入口 390px",
+      "line": 39,
+      "titlePath": [
+        "连接管理工作区与统一 Git 入口 390px"
+      ],
+      "project": "local-chrome",
+      "id": "376604b72b7b39f0f7d6-6e3ddd8d946a949db9d0",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "connection-management.spec.ts :: 连接管理工作区与统一 Git 入口 390px",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "database-driver-upgrade.spec.ts",
+      "title": "openGauss 驱动升级与认证反馈 390px",
+      "line": 3,
+      "titlePath": [
+        "openGauss 驱动升级与认证反馈 390px"
+      ],
+      "project": "local-chrome",
+      "id": "5521d32c7adbaa75356b-3ecf8e160e4e2ce1fa5c",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "database-driver-upgrade.spec.ts :: openGauss 驱动升级与认证反馈 390px",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "database-driver-upgrade.spec.ts",
+      "title": "新增 GaussDB 并独立传递密码 390px",
+      "line": 121,
+      "titlePath": [
+        "新增 GaussDB 并独立传递密码 390px"
+      ],
+      "project": "local-chrome",
+      "id": "5521d32c7adbaa75356b-2da5dac85359db3ac0a2",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "database-driver-upgrade.spec.ts :: 新增 GaussDB 并独立传递密码 390px",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "database-driver-upgrade.spec.ts",
+      "title": "新增 Oracle 并独立传递密码 390px",
+      "line": 121,
+      "titlePath": [
+        "新增 Oracle 并独立传递密码 390px"
+      ],
+      "project": "local-chrome",
+      "id": "5521d32c7adbaa75356b-89b86f1033891a35dd6e",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "database-driver-upgrade.spec.ts :: 新增 Oracle 并独立传递密码 390px",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "database-driver-upgrade.spec.ts",
+      "title": "新增 SQL Server 并独立传递密码 390px",
+      "line": 121,
+      "titlePath": [
+        "新增 SQL Server 并独立传递密码 390px"
+      ],
+      "project": "local-chrome",
+      "id": "5521d32c7adbaa75356b-81dad696e2fcefc1fa39",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "database-driver-upgrade.spec.ts :: 新增 SQL Server 并独立传递密码 390px",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "database-driver-upgrade.spec.ts",
+      "title": "新增 DB2 并独立传递密码 390px",
+      "line": 121,
+      "titlePath": [
+        "新增 DB2 并独立传递密码 390px"
+      ],
+      "project": "local-chrome",
+      "id": "5521d32c7adbaa75356b-71cee9d391232780abcc",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "database-driver-upgrade.spec.ts :: 新增 DB2 并独立传递密码 390px",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "database-progress.spec.ts",
+      "title": "数据库分区配置与真实步骤投影 390px",
+      "line": 34,
+      "titlePath": [
+        "数据库分区配置与真实步骤投影 390px"
+      ],
+      "project": "local-chrome",
+      "id": "57e9b73139d80948db71-31f943fd8d843a01622d",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "database-progress.spec.ts :: 数据库分区配置与真实步骤投影 390px",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "document-template-tasks.spec.ts",
+      "title": "文档评审上传重试、刷新与按需报告 390px",
+      "line": 3,
+      "titlePath": [
+        "文档评审上传重试、刷新与按需报告 390px"
+      ],
+      "project": "local-chrome",
+      "id": "92e45aca05e65dfee754-f84425bc7e53227990d0",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "document-template-tasks.spec.ts :: 文档评审上传重试、刷新与按需报告 390px",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "home.spec.ts",
+      "title": "主页在 390px 下无水平溢出且图片离线可用",
+      "line": 94,
+      "titlePath": [
+        "主页在 390px 下无水平溢出且图片离线可用"
+      ],
+      "project": "local-chrome",
+      "id": "d318381359a9b96acb1e-6c9f4c7bf9d08174111a",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "home.spec.ts :: 主页在 390px 下无水平溢出且图片离线可用",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "knowledge.spec.ts",
+      "title": "统一检索分页、来源覆盖与数据库原文 768px",
+      "line": 126,
+      "titlePath": [
+        "统一检索分页、来源覆盖与数据库原文 768px"
+      ],
+      "project": "local-chrome",
+      "id": "0828a03cd0e93ee0ce1b-617c715060e65a7a073a",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "knowledge.spec.ts :: 统一检索分页、来源覆盖与数据库原文 768px",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "knowledge.spec.ts",
+      "title": "无思考内容时的动态等待与回复切换 768px",
+      "line": 426,
+      "titlePath": [
+        "无思考内容时的动态等待与回复切换 768px"
+      ],
+      "project": "local-chrome",
+      "id": "0828a03cd0e93ee0ce1b-56c2e7d5af153aaccc5a",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "knowledge.spec.ts :: 无思考内容时的动态等待与回复切换 768px",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "knowledge.spec.ts",
+      "title": "知识问答来源与引用面板 768px",
+      "line": 511,
+      "titlePath": [
+        "知识问答来源与引用面板 768px"
+      ],
+      "project": "local-chrome",
+      "id": "0828a03cd0e93ee0ce1b-db9b584940b1184f165c",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "knowledge.spec.ts :: 知识问答来源与引用面板 768px",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "ppt.spec.ts",
+      "title": "窄屏预览和助手分层呈现，无横向溢出，深链刷新保留作品",
+      "line": 902,
+      "titlePath": [
+        "窄屏预览和助手分层呈现，无横向溢出，深链刷新保留作品"
+      ],
+      "project": "local-chrome",
+      "id": "27aee58645abfcf2e22e-b72b0c4f7b6d737e3feb",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "ppt.spec.ts :: 窄屏预览和助手分层呈现，无横向溢出，深链刷新保留作品",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "spdb readonly stages 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "line": 38,
+      "titlePath": [
+        "spdb readonly stages 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）"
+      ],
+      "project": "local-chrome",
+      "id": "63c684c6617133c39ac1-b8fdb71a88f34a6604d2",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "react-all-canvas-cleanup.spec.ts :: spdb readonly stages 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "spdb readonly template-progress 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "line": 38,
+      "titlePath": [
+        "spdb readonly template-progress 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）"
+      ],
+      "project": "local-chrome",
+      "id": "63c684c6617133c39ac1-63f19bb13a477dda27fd",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "react-all-canvas-cleanup.spec.ts :: spdb readonly template-progress 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "spdb readonly roles 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "line": 38,
+      "titlePath": [
+        "spdb readonly roles 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）"
+      ],
+      "project": "local-chrome",
+      "id": "63c684c6617133c39ac1-3016fb476c52287b465c",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "react-all-canvas-cleanup.spec.ts :: spdb readonly roles 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "tech-blue readonly stages 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "line": 38,
+      "titlePath": [
+        "tech-blue readonly stages 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）"
+      ],
+      "project": "local-chrome",
+      "id": "63c684c6617133c39ac1-852bfd47c8983dcd1138",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "react-all-canvas-cleanup.spec.ts :: tech-blue readonly stages 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "tech-blue readonly template-progress 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "line": 38,
+      "titlePath": [
+        "tech-blue readonly template-progress 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）"
+      ],
+      "project": "local-chrome",
+      "id": "63c684c6617133c39ac1-e1d182aed8a13c5c77a6",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "react-all-canvas-cleanup.spec.ts :: tech-blue readonly template-progress 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "tech-blue readonly roles 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "line": 38,
+      "titlePath": [
+        "tech-blue readonly roles 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）"
+      ],
+      "project": "local-chrome",
+      "id": "63c684c6617133c39ac1-5008e7b34d4457a864b1",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "react-all-canvas-cleanup.spec.ts :: tech-blue readonly roles 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "github-white readonly stages 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "line": 38,
+      "titlePath": [
+        "github-white readonly stages 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）"
+      ],
+      "project": "local-chrome",
+      "id": "63c684c6617133c39ac1-ffba7da94e814ccbcc92",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "react-all-canvas-cleanup.spec.ts :: github-white readonly stages 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "github-white readonly template-progress 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "line": 38,
+      "titlePath": [
+        "github-white readonly template-progress 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）"
+      ],
+      "project": "local-chrome",
+      "id": "63c684c6617133c39ac1-23fe432c3896847aa8fe",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "react-all-canvas-cleanup.spec.ts :: github-white readonly template-progress 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "react-all-canvas-cleanup.spec.ts",
+      "title": "github-white readonly roles 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "line": 38,
+      "titlePath": [
+        "github-white readonly roles 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）"
+      ],
+      "project": "local-chrome",
+      "id": "63c684c6617133c39ac1-ba52eb619ee2701204e0",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "react-all-canvas-cleanup.spec.ts :: github-white readonly roles 390px 正常pan缩放键盘定位与文字选择保持订阅（模拟数据）",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "react-canvas-narrow.spec.ts",
+      "title": "spdb React流程画布窄屏选择、键盘取消和上下文关闭（模拟数据）",
+      "line": 6,
+      "titlePath": [
+        "spdb React流程画布窄屏选择、键盘取消和上下文关闭（模拟数据）"
+      ],
+      "project": "local-chrome",
+      "id": "b7c0563df628366304cf-8ca90e9e2735abd634cd",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "react-canvas-narrow.spec.ts :: spdb React流程画布窄屏选择、键盘取消和上下文关闭（模拟数据）",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "react-canvas-narrow.spec.ts",
+      "title": "tech-blue React流程画布窄屏选择、键盘取消和上下文关闭（模拟数据）",
+      "line": 6,
+      "titlePath": [
+        "tech-blue React流程画布窄屏选择、键盘取消和上下文关闭（模拟数据）"
+      ],
+      "project": "local-chrome",
+      "id": "b7c0563df628366304cf-97c85e932e3344d38ad0",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "react-canvas-narrow.spec.ts :: tech-blue React流程画布窄屏选择、键盘取消和上下文关闭（模拟数据）",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "react-canvas-narrow.spec.ts",
+      "title": "github-white React流程画布窄屏选择、键盘取消和上下文关闭（模拟数据）",
+      "line": 6,
+      "titlePath": [
+        "github-white React流程画布窄屏选择、键盘取消和上下文关闭（模拟数据）"
+      ],
+      "project": "local-chrome",
+      "id": "b7c0563df628366304cf-58792918dc05741e310a",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "react-canvas-narrow.spec.ts :: github-white React流程画布窄屏选择、键盘取消和上下文关闭（模拟数据）",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "react-canvas-pointer-lifecycle.spec.ts",
+      "title": "spdb 390px活动指针拖动与退出清理（模拟数据）",
+      "line": 571,
+      "titlePath": [
+        "spdb 390px活动指针拖动与退出清理（模拟数据）"
+      ],
+      "project": "local-chrome",
+      "id": "430b9d1b919731f70e72-83bcdf8d43592a9a849c",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "react-canvas-pointer-lifecycle.spec.ts :: spdb 390px活动指针拖动与退出清理（模拟数据）",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "react-canvas-pointer-lifecycle.spec.ts",
+      "title": "tech-blue 390px活动指针拖动与退出清理（模拟数据）",
+      "line": 571,
+      "titlePath": [
+        "tech-blue 390px活动指针拖动与退出清理（模拟数据）"
+      ],
+      "project": "local-chrome",
+      "id": "430b9d1b919731f70e72-b8c5f30615e6c7dd65f7",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "react-canvas-pointer-lifecycle.spec.ts :: tech-blue 390px活动指针拖动与退出清理（模拟数据）",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "react-canvas-pointer-lifecycle.spec.ts",
+      "title": "github-white 390px活动指针拖动与退出清理（模拟数据）",
+      "line": 571,
+      "titlePath": [
+        "github-white 390px活动指针拖动与退出清理（模拟数据）"
+      ],
+      "project": "local-chrome",
+      "id": "430b9d1b919731f70e72-74224ca4a35774d81579",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "react-canvas-pointer-lifecycle.spec.ts :: github-white 390px活动指针拖动与退出清理（模拟数据）",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "react-diagram-accessibility.spec.ts",
+      "title": "spdb 320px 任务阶段长序列Tab定位与原生文字选择不重建订阅（模拟数据）",
+      "line": 138,
+      "titlePath": [
+        "spdb 320px 任务阶段长序列Tab定位与原生文字选择不重建订阅（模拟数据）"
+      ],
+      "project": "local-chrome",
+      "id": "87a800b3bf5b0df8ac83-78a9e80339cdf208db0c",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "react-diagram-accessibility.spec.ts :: spdb 320px 任务阶段长序列Tab定位与原生文字选择不重建订阅（模拟数据）",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "react-diagram-accessibility.spec.ts",
+      "title": "spdb 320px 模板步骤长序列Tab定位与原生文字选择不重建订阅（模拟数据）",
+      "line": 138,
+      "titlePath": [
+        "spdb 320px 模板步骤长序列Tab定位与原生文字选择不重建订阅（模拟数据）"
+      ],
+      "project": "local-chrome",
+      "id": "87a800b3bf5b0df8ac83-5039f736de91aea2862d",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "react-diagram-accessibility.spec.ts :: spdb 320px 模板步骤长序列Tab定位与原生文字选择不重建订阅（模拟数据）",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "react-diagram-accessibility.spec.ts",
+      "title": "tech-blue 320px 任务阶段长序列Tab定位与原生文字选择不重建订阅（模拟数据）",
+      "line": 138,
+      "titlePath": [
+        "tech-blue 320px 任务阶段长序列Tab定位与原生文字选择不重建订阅（模拟数据）"
+      ],
+      "project": "local-chrome",
+      "id": "87a800b3bf5b0df8ac83-f437f4a099d7f7ae2704",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "react-diagram-accessibility.spec.ts :: tech-blue 320px 任务阶段长序列Tab定位与原生文字选择不重建订阅（模拟数据）",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "react-diagram-accessibility.spec.ts",
+      "title": "tech-blue 320px 模板步骤长序列Tab定位与原生文字选择不重建订阅（模拟数据）",
+      "line": 138,
+      "titlePath": [
+        "tech-blue 320px 模板步骤长序列Tab定位与原生文字选择不重建订阅（模拟数据）"
+      ],
+      "project": "local-chrome",
+      "id": "87a800b3bf5b0df8ac83-bac1a4bda70086dd2a7c",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "react-diagram-accessibility.spec.ts :: tech-blue 320px 模板步骤长序列Tab定位与原生文字选择不重建订阅（模拟数据）",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "react-diagram-accessibility.spec.ts",
+      "title": "github-white 320px 任务阶段长序列Tab定位与原生文字选择不重建订阅（模拟数据）",
+      "line": 138,
+      "titlePath": [
+        "github-white 320px 任务阶段长序列Tab定位与原生文字选择不重建订阅（模拟数据）"
+      ],
+      "project": "local-chrome",
+      "id": "87a800b3bf5b0df8ac83-aae172f47f980ebd3471",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "react-diagram-accessibility.spec.ts :: github-white 320px 任务阶段长序列Tab定位与原生文字选择不重建订阅（模拟数据）",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "react-diagram-accessibility.spec.ts",
+      "title": "github-white 320px 模板步骤长序列Tab定位与原生文字选择不重建订阅（模拟数据）",
+      "line": 138,
+      "titlePath": [
+        "github-white 320px 模板步骤长序列Tab定位与原生文字选择不重建订阅（模拟数据）"
+      ],
+      "project": "local-chrome",
+      "id": "87a800b3bf5b0df8ac83-c7d4aa4c7e7b1cabd913",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "react-diagram-accessibility.spec.ts :: github-white 320px 模板步骤长序列Tab定位与原生文字选择不重建订阅（模拟数据）",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "roles.spec.ts",
+      "title": "spdb 390px 角色权限预估可读且布局不重叠",
+      "line": 295,
+      "titlePath": [
+        "spdb 390px 角色权限预估可读且布局不重叠"
+      ],
+      "project": "local-chrome",
+      "id": "7a25b8aaa0fcc60dba5a-9e32f46f5d80198f15bd",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "roles.spec.ts :: spdb 390px 角色权限预估可读且布局不重叠",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "roles.spec.ts",
+      "title": "tech-blue 390px 角色权限预估可读且布局不重叠",
+      "line": 295,
+      "titlePath": [
+        "tech-blue 390px 角色权限预估可读且布局不重叠"
+      ],
+      "project": "local-chrome",
+      "id": "7a25b8aaa0fcc60dba5a-1f03b746c1d1bfc50dbb",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "roles.spec.ts :: tech-blue 390px 角色权限预估可读且布局不重叠",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "roles.spec.ts",
+      "title": "github-white 390px 角色权限预估可读且布局不重叠",
+      "line": 295,
+      "titlePath": [
+        "github-white 390px 角色权限预估可读且布局不重叠"
+      ],
+      "project": "local-chrome",
+      "id": "7a25b8aaa0fcc60dba5a-723ec5ea191ea8a7f278",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "roles.spec.ts :: github-white 390px 角色权限预估可读且布局不重叠",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "skins.spec.ts",
+      "title": "spdb 主页 390px 皮肤与离线布局",
+      "line": 107,
+      "titlePath": [
+        "spdb 主页 390px 皮肤与离线布局"
+      ],
+      "project": "local-chrome",
+      "id": "27a2e631fca2cef591c5-6d50f17bf8a2a0a854fd",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "skins.spec.ts :: spdb 主页 390px 皮肤与离线布局",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "skins.spec.ts",
+      "title": "tech-blue 主页 390px 皮肤与离线布局",
+      "line": 107,
+      "titlePath": [
+        "tech-blue 主页 390px 皮肤与离线布局"
+      ],
+      "project": "local-chrome",
+      "id": "27a2e631fca2cef591c5-e6d771e7542dbed6d9a4",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "skins.spec.ts :: tech-blue 主页 390px 皮肤与离线布局",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "skins.spec.ts",
+      "title": "github-white 主页 390px 皮肤与离线布局",
+      "line": 107,
+      "titlePath": [
+        "github-white 主页 390px 皮肤与离线布局"
+      ],
+      "project": "local-chrome",
+      "id": "27a2e631fca2cef591c5-a1fb45ef25bed186c8c0",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "skins.spec.ts :: github-white 主页 390px 皮肤与离线布局",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "source-template-form.spec.ts",
+      "title": "spdb 源码表单 390px 紧凑布局、预检和模板切换",
+      "line": 56,
+      "titlePath": [
+        "spdb 源码表单 390px 紧凑布局、预检和模板切换"
+      ],
+      "project": "local-chrome",
+      "id": "9ba9eb89302d1161b039-a38907034e02c9357e23",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "source-template-form.spec.ts :: spdb 源码表单 390px 紧凑布局、预检和模板切换",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "source-template-form.spec.ts",
+      "title": "github-white 源码表单 390px 紧凑布局、预检和模板切换",
+      "line": 56,
+      "titlePath": [
+        "github-white 源码表单 390px 紧凑布局、预检和模板切换"
+      ],
+      "project": "local-chrome",
+      "id": "9ba9eb89302d1161b039-450da89598ca136c34ed",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "source-template-form.spec.ts :: github-white 源码表单 390px 紧凑布局、预检和模板切换",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "source-template-form.spec.ts",
+      "title": "tech-blue 源码表单 390px 紧凑布局、预检和模板切换",
+      "line": 56,
+      "titlePath": [
+        "tech-blue 源码表单 390px 紧凑布局、预检和模板切换"
+      ],
+      "project": "local-chrome",
+      "id": "9ba9eb89302d1161b039-d1a9b7c2fbadbd1b13cc",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "source-template-form.spec.ts :: tech-blue 源码表单 390px 紧凑布局、预检和模板切换",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "template-batch-recovery.spec.ts",
+      "title": "第39批失败后继续后续批次，结束后统一选择重新触发 390px",
+      "line": 3,
+      "titlePath": [
+        "第39批失败后继续后续批次，结束后统一选择重新触发 390px"
+      ],
+      "project": "local-chrome",
+      "id": "fa14ea8e69729e3ec4d2-0b8c51ca56fa7de78e75",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "template-batch-recovery.spec.ts :: 第39批失败后继续后续批次，结束后统一选择重新触发 390px",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "template-batch-resilience.spec.ts",
+      "title": "等待任务显示失败清单、原批次恢复与独立重查 390px",
+      "line": 3,
+      "titlePath": [
+        "等待任务显示失败清单、原批次恢复与独立重查 390px"
+      ],
+      "project": "local-chrome",
+      "id": "d9bf11be94c3e3570c73-b322eff8e4f3daa3fcbd",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "template-batch-resilience.spec.ts :: 等待任务显示失败清单、原批次恢复与独立重查 390px",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "template-reports.spec.ts",
+      "title": "代码审查主子报告跳转、命名下载与390px布局",
+      "line": 6,
+      "titlePath": [
+        "代码审查主子报告跳转、命名下载与390px布局"
+      ],
+      "project": "local-chrome",
+      "id": "1da3a2148f122d08bab0-ff4f91da96f4f6de7eaa",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "template-reports.spec.ts :: 代码审查主子报告跳转、命名下载与390px布局",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "template-reports.spec.ts",
+      "title": "项目贡献周报主子报告跳转、命名下载与390px布局",
+      "line": 6,
+      "titlePath": [
+        "项目贡献周报主子报告跳转、命名下载与390px布局"
+      ],
+      "project": "local-chrome",
+      "id": "1da3a2148f122d08bab0-b8947fd1bbe08551ee98",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "template-reports.spec.ts :: 项目贡献周报主子报告跳转、命名下载与390px布局",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "template-session-diagnostics.spec.ts",
+      "title": "已接受但忙碌的批次可独立收尾，未知请求复用命令标识 390px",
+      "line": 3,
+      "titlePath": [
+        "已接受但忙碌的批次可独立收尾，未知请求复用命令标识 390px"
+      ],
+      "project": "local-chrome",
+      "id": "b5cdee55c7015654e464-4addf735d1429f969865",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "template-session-diagnostics.spec.ts :: 已接受但忙碌的批次可独立收尾，未知请求复用命令标识 390px",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "template-tasks.spec.ts",
+      "title": "模板任务 390px 布局与评分说明",
+      "line": 218,
+      "titlePath": [
+        "模板任务 390px 布局与评分说明"
+      ],
+      "project": "local-chrome",
+      "id": "fe37672e278904dac32d-0e97c67bb7831e1c8b94",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "template-tasks.spec.ts :: 模板任务 390px 布局与评分说明",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "workflow-code-changes.spec.ts",
+      "title": "固定代码的累计改动和删除文件 390",
+      "line": 5,
+      "titlePath": [
+        "固定代码的累计改动和删除文件 390"
+      ],
+      "project": "local-chrome",
+      "id": "d643b0786afc73aa7941-35917d152ff7b32ec8ea",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "workflow-code-changes.spec.ts :: 固定代码的累计改动和删除文件 390",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "workflow-knowledge-evidence.spec.ts",
+      "title": "节点知识原文按需查看与恢复 390",
+      "line": 5,
+      "titlePath": [
+        "节点知识原文按需查看与恢复 390"
+      ],
+      "project": "local-chrome",
+      "id": "e62b0dee9c079baee2a0-13eafb3c1caec53b17f6",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "workflow-knowledge-evidence.spec.ts :: 节点知识原文按需查看与恢复 390",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "workflow-knowledge-handoff.spec.ts",
+      "title": "固定知识交付及后继输入 390",
+      "line": 5,
+      "titlePath": [
+        "固定知识交付及后继输入 390"
+      ],
+      "project": "local-chrome",
+      "id": "9b7add8ebc601593aa1e-4416aeb8c1ad12bcad0d",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "workflow-knowledge-handoff.spec.ts :: 固定知识交付及后继输入 390",
+      "executionKind": "LEGACY_CONTRACT"
+    },
+    {
+      "file": "workflow-save-template.spec.ts",
+      "title": "另存流程先预览、保留当前步骤及未知回执 390",
+      "line": 8,
+      "titlePath": [
+        "另存流程先预览、保留当前步骤及未知回执 390"
+      ],
+      "project": "local-chrome",
+      "id": "c1f47c324683701528c3-9fc248531a96de57a480",
+      "scope": "OUT_OF_SCOPE_NARROW",
+      "uniqueKey": "workflow-save-template.spec.ts :: 另存流程先预览、保留当前步骤及未知回执 390",
+      "executionKind": "LEGACY_CONTRACT"
+    }
+  ],
+  "mixedBranches": [
+    {
+      "file": "designer-discussion.spec.ts",
+      "line": 209,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "历史设计继续需求提问与逐包讨论，再确认为 PENDING_START 任务",
+        "附件设计投递失败时展示具体原因并在刷新后保留附件历史",
+        "已开启全自动的历史设计继续原冻结流程进入已启动任务",
+        "document 制品确认保留断言与冻结执行身份",
+        "table 制品确认保留断言与冻结执行身份",
+        "spdb 历史Designer中的Mermaid由React渲染并保持主题与窄屏（模拟数据）",
+        "tech-blue 历史Designer中的Mermaid由React渲染并保持主题与窄屏（模拟数据）",
+        "github-white 历史Designer中的Mermaid由React渲染并保持主题与窄屏（模拟数据）",
+        "历史Designer静态Mermaid三次真实SPA退出清理SVG渲染残留与观察器（模拟数据）"
+      ]
+    },
+    {
+      "file": "designer-discussion.spec.ts",
+      "line": 355,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "历史设计继续需求提问与逐包讨论，再确认为 PENDING_START 任务",
+        "附件设计投递失败时展示具体原因并在刷新后保留附件历史",
+        "已开启全自动的历史设计继续原冻结流程进入已启动任务",
+        "document 制品确认保留断言与冻结执行身份",
+        "table 制品确认保留断言与冻结执行身份",
+        "spdb 历史Designer中的Mermaid由React渲染并保持主题与窄屏（模拟数据）",
+        "tech-blue 历史Designer中的Mermaid由React渲染并保持主题与窄屏（模拟数据）",
+        "github-white 历史Designer中的Mermaid由React渲染并保持主题与窄屏（模拟数据）",
+        "历史Designer静态Mermaid三次真实SPA退出清理SVG渲染残留与观察器（模拟数据）"
+      ]
+    },
+    {
+      "file": "designer-discussion.spec.ts",
+      "line": 386,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "历史设计继续需求提问与逐包讨论，再确认为 PENDING_START 任务",
+        "附件设计投递失败时展示具体原因并在刷新后保留附件历史",
+        "已开启全自动的历史设计继续原冻结流程进入已启动任务",
+        "document 制品确认保留断言与冻结执行身份",
+        "table 制品确认保留断言与冻结执行身份",
+        "spdb 历史Designer中的Mermaid由React渲染并保持主题与窄屏（模拟数据）",
+        "tech-blue 历史Designer中的Mermaid由React渲染并保持主题与窄屏（模拟数据）",
+        "github-white 历史Designer中的Mermaid由React渲染并保持主题与窄屏（模拟数据）",
+        "历史Designer静态Mermaid三次真实SPA退出清理SVG渲染残留与观察器（模拟数据）"
+      ]
+    },
+    {
+      "file": "knowledge.spec.ts",
+      "line": 28,
+      "condition": "test.info().project.name !== 'w7-legacy-desktop-chromium'",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "文件链接在当前页预览并保留气泡头像，失败不跳到 404",
+        "统一检索分页、来源覆盖与数据库原文 1440px",
+        "无思考内容时的动态等待与回复切换 1440px",
+        "知识问答来源与引用面板 1920px",
+        "知识问答来源与引用面板 1440px",
+        "知识问答来源与引用面板 1280px",
+        "新对话默认模型、来源与深层历史路由",
+        "继承提供方与模型名并发送完整模型标识",
+        "模型目录挂起不影响进入、输入或默认发送；选择器独立显示等待",
+        "引用栏拖动宽度在重新打开和刷新后保持",
+        "侧栏返回正在回答的知识对话、恢复草稿并读取离开期间的结果",
+        "侧栏记住新创建的对话，其他页面刷新后仍可返回，主动新建回到首页",
+        "侧栏返回历史对话页并保留筛选，浏览器后退仍进入原对话",
+        "历史独立筛选、归档、恢复和返回草稿",
+        "文档阅读视图和数据库结果的引用范围高亮",
+        "助手澄清问题的草稿可刷新恢复且只提交一次",
+        "从正文底部打开引用保留非零滚动位置，关闭后继续阅读",
+        "空回答失败可以恢复原问题且不会自动重发"
+      ]
+    },
+    {
+      "file": "ppt.spec.ts",
+      "line": 612,
+      "condition": "test.info().project.name !== 'w7-legacy-desktop-chromium'",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "PPT 助手显示真实思考和调用，展开状态随更新保留",
+        "选择项目后自由讨论并保留草稿，明确确认后才开始设计",
+        "历史生成授权继续兼容提问与需求确认，补充意见不冒充确认",
+        "完成后默认预览与修改意见，选择对象限定修改，自动更新文件",
+        "手动编辑可选开启，对象键盘移动保存真实坐标与版本",
+        "安全暂停保持阻断，证明停止后显示继续制作且沿原工作流恢复",
+        "详细方案移入更多入口，七模块修改自动保存且不偷偷开始制作",
+        "spdb 画布按需展开、键盘缩放和取消选择（模拟数据）",
+        "tech-blue 画布按需展开、键盘缩放和取消选择（模拟数据）",
+        "github-white 画布按需展开、键盘缩放和取消选择（模拟数据）",
+        "手动拖拽和缩放使用稳定画布坐标，取消拖动不提交",
+        "未知保存回执阻止离开，原身份恢复后安全回退（模拟数据）",
+        "React 属性自动保存遇到409保留输入和基线，禁止旧修订继续写入（模拟数据）",
+        "存储不可写且无属性草稿时，未知键盘操作阻止回退直到原操作恢复（模拟数据）",
+        "PPT drag 活动中三次SPA退出首采样零监听RAF捕获RO且无迟到保存（模拟数据）",
+        "PPT resize 活动中三次SPA退出首采样零监听RAF捕获RO且无迟到保存（模拟数据）"
+      ]
+    },
+    {
+      "file": "workflow-authoring.spec.ts",
+      "line": 78,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "创建、连接、拖动、保存并重新打开流程；三种皮肤和窄屏可用",
+        "在画布上拒绝循环连接，并保留已有节点和连接",
+        "内置流程允许点击查看节点，但不能拖动修改",
+        "预设选择固定角色版本，绑定上游后添加节点并保存为可编辑流程",
+        "程序检查绑定固定代码，保存检查内容并重开，支持窄屏配置",
+        "命令预设支持独立参数、固定代码输入、保存重开及窄屏配置",
+        "冻结源码预设绑定路径，保存采集用途并保留完整采集规则",
+        "专业编写、复核和文档汇总绑定同版源码，自定义规则保存重开"
+      ]
+    },
+    {
+      "file": "workflow-authoring.spec.ts",
+      "line": 114,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "创建、连接、拖动、保存并重新打开流程；三种皮肤和窄屏可用",
+        "在画布上拒绝循环连接，并保留已有节点和连接",
+        "内置流程允许点击查看节点，但不能拖动修改",
+        "预设选择固定角色版本，绑定上游后添加节点并保存为可编辑流程",
+        "程序检查绑定固定代码，保存检查内容并重开，支持窄屏配置",
+        "命令预设支持独立参数、固定代码输入、保存重开及窄屏配置",
+        "冻结源码预设绑定路径，保存采集用途并保留完整采集规则",
+        "专业编写、复核和文档汇总绑定同版源码，自定义规则保存重开"
+      ]
+    },
+    {
+      "file": "workflow-authoring.spec.ts",
+      "line": 149,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "创建、连接、拖动、保存并重新打开流程；三种皮肤和窄屏可用",
+        "在画布上拒绝循环连接，并保留已有节点和连接",
+        "内置流程允许点击查看节点，但不能拖动修改",
+        "预设选择固定角色版本，绑定上游后添加节点并保存为可编辑流程",
+        "程序检查绑定固定代码，保存检查内容并重开，支持窄屏配置",
+        "命令预设支持独立参数、固定代码输入、保存重开及窄屏配置",
+        "冻结源码预设绑定路径，保存采集用途并保留完整采集规则",
+        "专业编写、复核和文档汇总绑定同版源码，自定义规则保存重开"
+      ]
+    },
+    {
+      "file": "workflow-authoring.spec.ts",
+      "line": 170,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "创建、连接、拖动、保存并重新打开流程；三种皮肤和窄屏可用",
+        "在画布上拒绝循环连接，并保留已有节点和连接",
+        "内置流程允许点击查看节点，但不能拖动修改",
+        "预设选择固定角色版本，绑定上游后添加节点并保存为可编辑流程",
+        "程序检查绑定固定代码，保存检查内容并重开，支持窄屏配置",
+        "命令预设支持独立参数、固定代码输入、保存重开及窄屏配置",
+        "冻结源码预设绑定路径，保存采集用途并保留完整采集规则",
+        "专业编写、复核和文档汇总绑定同版源码，自定义规则保存重开"
+      ]
+    },
+    {
+      "file": "workflow-authoring.spec.ts",
+      "line": 229,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "创建、连接、拖动、保存并重新打开流程；三种皮肤和窄屏可用",
+        "在画布上拒绝循环连接，并保留已有节点和连接",
+        "内置流程允许点击查看节点，但不能拖动修改",
+        "预设选择固定角色版本，绑定上游后添加节点并保存为可编辑流程",
+        "程序检查绑定固定代码，保存检查内容并重开，支持窄屏配置",
+        "命令预设支持独立参数、固定代码输入、保存重开及窄屏配置",
+        "冻结源码预设绑定路径，保存采集用途并保留完整采集规则",
+        "专业编写、复核和文档汇总绑定同版源码，自定义规则保存重开"
+      ]
+    },
+    {
+      "file": "workflow-canvas-focus.spec.ts",
+      "line": 147,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "spdb 流程画布默认留白，选择、切换、连线和取消形成完整循环",
+        "spdb 需求规划与执行均按选择展示详情，资料与辅助操作仍可达",
+        "tech-blue 流程画布默认留白，选择、切换、连线和取消形成完整循环",
+        "tech-blue 需求规划与执行均按选择展示详情，资料与辅助操作仍可达",
+        "github-white 流程画布默认留白，选择、切换、连线和取消形成完整循环",
+        "github-white 需求规划与执行均按选择展示详情，资料与辅助操作仍可达",
+        "spdb 流程库、需求列表和新建需求的入口与视觉一致",
+        "tech-blue 流程库、需求列表和新建需求的入口与视觉一致",
+        "github-white 流程库、需求列表和新建需求的入口与视觉一致",
+        "跨标签换肤不丢失选中草稿，刷新恢复皮肤，窄屏面板可以关闭",
+        "导航键盘闭环、搜索画布外节点与高级设置保持可达且不造成布局修改",
+        "不展开需求与资料也会使用配置的默认模型，且不预读模型目录"
+      ]
+    },
+    {
+      "file": "workflow-command.spec.ts",
+      "line": 60,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "原命令恢复后可查看失败报告和执行记录，按需读取且不显示模型操作",
+        "命令停止回执未知时重放原操作，收到回执后保持等待停止确认",
+        "依赖准备失败单独显示，检查命令未启动且输出可展开"
+      ]
+    },
+    {
+      "file": "workflow-command.spec.ts",
+      "line": 84,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "原命令恢复后可查看失败报告和执行记录，按需读取且不显示模型操作",
+        "命令停止回执未知时重放原操作，收到回执后保持等待停止确认",
+        "依赖准备失败单独显示，检查命令未启动且输出可展开"
+      ]
+    },
+    {
+      "file": "workflow-default.spec.ts",
+      "line": 70,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "内置默认流程显示八个模块，新需求读取默认流程版本",
+        "验收报告显示同批通过且窄屏可读",
+        "验收报告保留阻断意见且窄屏可读"
+      ]
+    },
+    {
+      "file": "workflow-document-combination.spec.ts",
+      "line": 43,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "完整原文流程 plan 结果可读且不虚构执行事实",
+        "完整原文流程 reviewed 结果可读且不虚构执行事实",
+        "完整原文流程 unreviewed 结果可读且不虚构执行事实",
+        "完整原文流程 local-review 结果可读且不虚构执行事实"
+      ]
+    },
+    {
+      "file": "workflow-document-review.spec.ts",
+      "line": 43,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "需求代码评审 assessment 在画布按需读取，保留真实意见",
+        "需求代码评审 pass 在画布按需读取，保留真实意见",
+        "需求代码评审 revise 在画布按需读取，保留真实意见"
+      ]
+    },
+    {
+      "file": "workflow-document.spec.ts",
+      "line": 68,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "文档汇总 reviewed 展示真实状态与固定下载",
+        "文档汇总 unreviewed 展示真实状态与固定下载",
+        "文档汇总 incomplete 展示真实状态与固定下载"
+      ]
+    },
+    {
+      "file": "workflow-finish.spec.ts",
+      "line": 64,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "画布明确确认人工成功，停止未知时仍可查看原节点并在重开后恢复结束记录",
+        "结束回执丢失后重试同一操作，用户决定不会重复应用"
+      ]
+    },
+    {
+      "file": "workflow-history-analysis.spec.ts",
+      "line": 45,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "历史代码审查交付按需展开且窄屏可读",
+        "历史贡献评价交付按需展开且窄屏可读"
+      ]
+    },
+    {
+      "file": "workflow-history-report.spec.ts",
+      "line": 48,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "完整历史报告按需预览、明细跳转、返回缓存及桌面窄屏显示"
+      ]
+    },
+    {
+      "file": "workflow-history.spec.ts",
+      "line": 37,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "开始前显式选择分支，启动请求保持完整来源身份",
+        "分支采集固定文件可读取且窄屏可读",
+        "分支采集未完成可恢复且窄屏可读"
+      ]
+    },
+    {
+      "file": "workflow-history.spec.ts",
+      "line": 80,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "开始前显式选择分支，启动请求保持完整来源身份",
+        "分支采集固定文件可读取且窄屏可读",
+        "分支采集未完成可恢复且窄屏可读"
+      ]
+    },
+    {
+      "file": "workflow-history.spec.ts",
+      "line": 87,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "开始前显式选择分支，启动请求保持完整来源身份",
+        "分支采集固定文件可读取且窄屏可读",
+        "分支采集未完成可恢复且窄屏可读"
+      ]
+    },
+    {
+      "file": "workflow-input-reference.spec.ts",
+      "line": 50,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "固定正文按需分页、断线重读、历史内联输入与窄屏显示"
+      ]
+    },
+    {
+      "file": "workflow-native-test.spec.ts",
+      "line": 65,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "原生单测 passed",
+        "原生单测 failed",
+        "原生单测 input-changed",
+        "原生单测 final-passed",
+        "原生单测 final-failed"
+      ]
+    },
+    {
+      "file": "workflow-plan-review.spec.ts",
+      "line": 50,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "候选先查看、编辑后确认、历史预览和手动后续调整"
+      ]
+    },
+    {
+      "file": "workflow-publication-commit.spec.ts",
+      "line": 57,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "确认固定成果后恢复同一本地提交，并在重新打开画布后保留记录"
+      ]
+    },
+    {
+      "file": "workflow-publication-preview.spec.ts",
+      "line": 37,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "从需求画布选择固定代码成果、查看真实失败状态和累计改动"
+      ]
+    },
+    {
+      "file": "workflow-publication-push.spec.ts",
+      "line": 53,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "用户核对远端后明确推送，未知回执重试原请求并在刷新后恢复记录"
+      ]
+    },
+    {
+      "file": "workflow-repository.spec.ts",
+      "line": 36,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "开始前显式选择分支，启动请求保持完整来源身份",
+        "分支采集固定文件可读取且窄屏可读",
+        "分支采集未完成可恢复且窄屏可读"
+      ]
+    },
+    {
+      "file": "workflow-repository.spec.ts",
+      "line": 82,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "开始前显式选择分支，启动请求保持完整来源身份",
+        "分支采集固定文件可读取且窄屏可读",
+        "分支采集未完成可恢复且窄屏可读"
+      ]
+    },
+    {
+      "file": "workflow-requirement.spec.ts",
+      "line": 64,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "创建需求、确认计划、单步人工执行、读取交付物与保存布局",
+        "重新打开检查点仍需明确确认交付物后才可继续",
+        "需求规划从预设添加任务、保存并重开，不自动确认或执行",
+        "失败的程序检查保留报告和重试入口，不显示仍在收尾或模型操作"
+      ]
+    },
+    {
+      "file": "workflow-review-source.spec.ts",
+      "line": 37,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "开始前显式选择分支，启动请求保持完整来源身份",
+        "分支采集固定文件可读取且窄屏可读",
+        "分支采集未完成可恢复且窄屏可读",
+        "切换版本审查范围同步公共日期并保存配置"
+      ]
+    },
+    {
+      "file": "workflow-review-source.spec.ts",
+      "line": 80,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "开始前显式选择分支，启动请求保持完整来源身份",
+        "分支采集固定文件可读取且窄屏可读",
+        "分支采集未完成可恢复且窄屏可读",
+        "切换版本审查范围同步公共日期并保存配置"
+      ]
+    },
+    {
+      "file": "workflow-review-source.spec.ts",
+      "line": 87,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "开始前显式选择分支，启动请求保持完整来源身份",
+        "分支采集固定文件可读取且窄屏可读",
+        "分支采集未完成可恢复且窄屏可读",
+        "切换版本审查范围同步公共日期并保存配置"
+      ]
+    },
+    {
+      "file": "workflow-review-source.spec.ts",
+      "line": 126,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "开始前显式选择分支，启动请求保持完整来源身份",
+        "分支采集固定文件可读取且窄屏可读",
+        "分支采集未完成可恢复且窄屏可读",
+        "切换版本审查范围同步公共日期并保存配置"
+      ]
+    },
+    {
+      "file": "workflow-snapshot-analysis.spec.ts",
+      "line": 48,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "版本代码分析交付按需展开且窄屏可读",
+        "版本问题复核交付按需展开且窄屏可读",
+        "版本复用来源交付按需展开且窄屏可读"
+      ]
+    },
+    {
+      "file": "workflow-snapshot-flow-report.spec.ts",
+      "line": 48,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "完整版本报告按需预览、明细跳转、返回缓存及桌面窄屏显示"
+      ]
+    },
+    {
+      "file": "workflow-snapshot-partial-report.spec.ts",
+      "line": 44,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "取消后按需读取阶段报告、刷新下载及桌面窄屏"
+      ]
+    },
+    {
+      "file": "workflow-source-design.spec.ts",
+      "line": 45,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "专业设计 design 按需读取交付和依据，窄屏可读",
+        "专业设计 pass 按需读取交付和依据，窄屏可读",
+        "专业设计 revise 按需读取交付和依据，窄屏可读"
+      ]
+    },
+    {
+      "file": "workflow-source-plan.spec.ts",
+      "line": 68,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "源码分批先查看批次再确认且不自动启动",
+        "源码分批超限保留原计划"
+      ]
+    },
+    {
+      "file": "workflow-source.spec.ts",
+      "line": 47,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "源码采集固定文件可读取且窄屏可读",
+        "源码采集未完成可恢复且窄屏可读"
+      ]
+    },
+    {
+      "file": "workflow-test-design.spec.ts",
+      "line": 50,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "单测场景步骤期望和源码依据可查看",
+        "单测场景损坏格式明确提示"
+      ]
+    },
+    {
+      "file": "workflow-test-profile.spec.ts",
+      "line": 53,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "测试配置固定范围和命令按需查看且不冒充测试通过",
+        "测试配置缺失原因按需查看且不冒充测试通过"
+      ]
+    },
+    {
+      "file": "workflow-test-review.spec.ts",
+      "line": 43,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "场景复核展示独立意见和固定断言",
+        "场景复核保留未执行及缺失"
+      ]
+    },
+    {
+      "file": "workflow-test-summary.spec.ts",
+      "line": 50,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "完整单测汇总 passed",
+        "完整单测汇总 none",
+        "完整单测汇总 failed"
+      ]
+    },
+    {
+      "file": "workflow-test-write.spec.ts",
+      "line": 55,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "单测编写范围通过与测试结果分开",
+        "单测编写失败原因和固定成果仍可查看"
+      ]
+    },
+    {
+      "file": "workflow-upload.spec.ts",
+      "line": 47,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "上传固定原文、预览并将其绑定到执行请求",
+        "上传失败后刷新页面，选择原记录补传并保留幂等身份",
+        "上传回执未知时拒绝关闭、Escape与离页，并按原身份重试"
+      ]
+    },
+    {
+      "file": "workflow-writeback-preview.spec.ts",
+      "line": 61,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "普通目录成果先检查冲突，明确确认后支持未知回执、阻断恢复和刷新完成"
+      ]
+    },
+    {
+      "file": "workflow-writeback-preview.spec.ts",
+      "line": 83,
+      "condition": "narrowLayoutInScope",
+      "scope": "OUT_OF_SCOPE_NARROW_BRANCH",
+      "retainedSource": true,
+      "desktopTests": [
+        "普通目录成果先检查冲突，明确确认后支持未知回执、阻断恢复和刷新完成"
+      ]
+    }
+  ],
+  "mixedBranchCount": 50,
+  "note": "用户取消窄屏。纯注册项54不执行；混合用例中的这些窄屏分支保留源码但本轮不执行，所属桌面测试仍完整执行。分支数不是新增/跳过的注册测试数；desktopTests为同文件桌面清单，不表示每项都包含该分支。"
+}

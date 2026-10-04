@@ -119,6 +119,20 @@ describe('W2 secondary pages render their real React paths', () => {
     const f = props('/databases'), check = deferred<Awaited<ReturnType<typeof api.testDatabaseDraft>>>(), test = vi.spyOn(api, 'testDatabaseDraft').mockReturnValue(check.promise), save = vi.spyOn(api, 'saveDatabaseConnection')
     render(frame(<DatabasePage {...f.value} />)); fireEvent.click(await screen.findByRole('button', { name: /财务库/ })); click('database.edit'); click('database.test'); await waitFor(() => expect(test).toHaveBeenCalledTimes(1)); fireEvent.change(screen.getByLabelText('连接名称'), { target: { value: '已修改' } }); await act(async () => check.resolve({ connected: true, sessionReadOnly: true, compatibilityVerified: false, serverProduct: 'stale-result', serverVersion: '', driverVersion: '', driverSha256: '', detail: '' })); expect(screen.queryByText(/stale-result/)).toBeNull(); expect(save).not.toHaveBeenCalled(); expect(f.policy()?.kind).toBe('CONFIRM_DISCARD')
   })
+  it('Database restores each versioned connection probe and keeps another connection error scoped', async () => {
+    const other = { ...connection, id: 'db-2', name: '归档测试库', archived: true, enabled: false }
+    vi.mocked(api.getDatabaseConnections).mockResolvedValue({items:[connection,other],facets:{}})
+    const result = {connected:true,sessionReadOnly:false,readOnlyEnforced:true,compatibilityVerified:false,serverProduct:'SQL Server',serverVersion:'2022',driverVersion:'',driverSha256:'',detail:'原连接检查结果'}
+    const probe=vi.spyOn(api,'testDatabaseConnection').mockResolvedValueOnce(result).mockRejectedValueOnce(new Error('另一连接检查失败'))
+    const f=props('/databases');render(frame(<DatabasePage {...f.value}/>))
+    fireEvent.click(await screen.findByRole('button',{name:/财务库/}));click('database.test');await screen.findByText('原连接检查结果')
+    fireEvent.click(screen.getByRole('button',{name:/归档测试库/}));click('database.test');await screen.findByRole('alert')
+    fireEvent.click(screen.getByRole('button',{name:/财务库/}));expect(screen.getByText('原连接检查结果')).toBeTruthy();expect(screen.queryByRole('alert')).toBeNull()
+    fireEvent.click(screen.getByRole('button',{name:/归档测试库/}));expect(screen.getByRole('alert').textContent).toContain('另一连接检查失败');expect(screen.queryByText('原连接检查结果')).toBeNull()
+    expect(probe.mock.calls).toEqual([['db-1'],['db-2']])
+    vi.mocked(api.getDatabaseConnections).mockResolvedValue({items:[{...connection,version:5},other],facets:{}});click('ui.refresh')
+    await waitFor(()=>expect(api.getDatabaseConnections).toHaveBeenCalledTimes(2));fireEvent.click(screen.getByRole('button',{name:/财务库/}));expect(screen.queryByText('原连接检查结果')).toBeNull();expect(probe).toHaveBeenCalledTimes(2)
+  })
   it('Database accepted but failed list read retains password/draft and recovery does not PUT twice', async () => {
     const f = props('/databases'), write = vi.spyOn(api, 'saveDatabaseConnection').mockResolvedValue({ ...connection, version: 5 }); render(frame(<DatabasePage {...f.value} />)); fireEvent.click(await screen.findByRole('button', { name: /财务库/ })); click('database.edit'); fireEvent.change(screen.getByLabelText('新密码'), { target: { value: ' secret ' } }); vi.mocked(api.getDatabaseConnections).mockRejectedValueOnce(new Error('list failed')); click('ui.save')
     await waitFor(() => expect(f.policy()?.kind).toBe('BLOCK')); expect((screen.getByLabelText('新密码') as HTMLInputElement).value).toBe(' secret '); expect(screen.getByRole('complementary')).toBeTruthy(); click('receipt.readOriginal'); await waitFor(() => expect(f.policy()?.kind).toBe('ALLOW')); expect(write).toHaveBeenCalledTimes(1); expect(write.mock.calls[0]![1].password).toBe(' secret '); expect(screen.queryByLabelText('新密码')).toBeNull()
