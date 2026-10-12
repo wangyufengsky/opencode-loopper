@@ -25,7 +25,7 @@ class WorkflowMigrationTest {
         migration.migrate(); migration.validate();
         try (var db=DriverManager.getConnection(url); var sql=db.createStatement()) {
             var after = schema(sql);
-            before.forEach((key, value) -> assertThat(MigrationTestSchema.withoutWorkflowLeaseOwner(key,after.get(key))).as(key).isEqualTo(value));
+            before.forEach((key, value) -> assertThat(MigrationTestSchema.withoutLaterAdditions(key,after.get(key))).as(key).isEqualTo(value));
             try (var rows=sql.executeQuery("SELECT content FROM designer_message WHERE id='m'")) {
                 assertThat(rows.next()).isTrue(); assertThat(rows.getString(1)).isEqualTo("历史需求");
             }
@@ -57,7 +57,7 @@ class WorkflowMigrationTest {
         }
         var migration = Flyway.configure().dataSource(url,null,null).load(); migration.migrate(); migration.validate();
         try (var db=DriverManager.getConnection(url); var sql=db.createStatement()) {
-            var after = schema(sql); before.forEach((key,value) -> assertThat(MigrationTestSchema.withoutWorkflowLeaseOwner(key,after.get(key))).as(key).isEqualTo(value));
+            var after = schema(sql); before.forEach((key,value) -> assertThat(MigrationTestSchema.withoutLaterAdditions(key,after.get(key))).as(key).isEqualTo(value));
             try (var rows=sql.executeQuery("SELECT r.state,p.definition_json,p.sha256 FROM workflow_requirement r JOIN workflow_plan_revision p ON p.requirement_id=r.id")) {
                 assertThat(rows.next()).isTrue(); assertThat(rows.getString(1)).isEqualTo("PENDING_START");
                 assertThat(rows.getString(2)).isEqualTo(definition); assertThat(rows.getString(3)).isEqualTo(sha);

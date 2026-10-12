@@ -47,7 +47,7 @@ class RoleConfigurationMigrationTest {
                     while (rows.next()) {
                         String key = rows.getString(1) + ":" + rows.getString(2);
                         String actual = rows.getString(3);
-                        actual = MigrationTestSchema.withoutWorkflowLeaseOwner(key,actual);
+                        actual = MigrationTestSchema.withoutLaterAdditions(key,actual);
                         if (key.equals("table:ai_candidate_submission_run")) {
                             // V141 adds only this frozen output-storage marker; every prior constraint remains.
                             String addition = ", result_storage_version INTEGER NOT NULL DEFAULT 0 CHECK (result_storage_version IN (0,1))";
