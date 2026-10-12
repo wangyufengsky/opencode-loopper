@@ -13,6 +13,7 @@ public final class BundledDatabaseDrivers {
         new Profile(DatabaseConfig.Type.GAUSSDB,"GaussDB","gaussdb-opengauss-3.1.0","org.postgresql.Driver",5432,gauss310()),
         new Profile(DatabaseConfig.Type.OPENGAUSS,"openGauss","opengauss-3.1.0","org.postgresql.Driver",5432,gauss310()),
         new Profile(DatabaseConfig.Type.ORACLE,"Oracle","oracle-23.7.0.25.01","oracle.jdbc.OracleDriver",1521,List.of(new Binary("ojdbc11-23.7.0.25.01.jar","ec8b7f2020b03b19f572e1bc34f94330610e86d3113ffe1e1f0474b8f5ce88ed"))),
+        new Profile(DatabaseConfig.Type.SQLSERVER,"SQL Server","sqlserver-7.4.1.jre8","com.microsoft.sqlserver.jdbc.SQLServerDriver",1433,List.of(new Binary("mssql-jdbc-7.4.1.jre8.jar","00a6eaf49184dbffd89c4baf21d08a471797ead9bf48ca38faf7f9fe4244e391"))),
         new Profile(DatabaseConfig.Type.SQLSERVER,"SQL Server","sqlserver-13.4.0.jre11","com.microsoft.sqlserver.jdbc.SQLServerDriver",1433,List.of(new Binary("mssql-jdbc-13.4.0.jre11.jar","e36f5237c1267983e5b88dc2169f6b9d7e50eceec6dc1ca31018e3877e14af66"))),
         new Profile(DatabaseConfig.Type.DB2,"DB2","db2-12.1.0.0","com.ibm.db2.jcc.DB2Driver",50000,List.of(new Binary("jcc-12.1.0.0.jar","29a514dd740a20661d6a22f67a3a118e2c11dc14fa4056e4faeb08afb1738fd8"))),
         new Profile(DatabaseConfig.Type.OPENGAUSS,"openGauss","opengauss-7.0.0-RC3-og","org.opengauss.Driver",5432,List.of(new Binary("opengauss-jdbc-7.0.0-RC3-og.jar","a80bc5b50b8af012d8f99d20546885aa218673dab9c44aa64833abed65745a69"))),

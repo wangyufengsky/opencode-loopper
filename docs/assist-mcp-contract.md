@@ -36,7 +36,7 @@
 
 页面 `/databases`、REST `/api/database-connections` 支持创建、编辑、项目绑定、测试、启停和归档；不提供网页 SQL 编辑器。密码不回显，所有修改及连接测试要求本地 UI 标识。分页使用时间加 ID 游标；名称／主机搜索、类型和启用／停用／归档筛选在服务端执行。页面采用连接目录与详情工作区，集中显示连接信息、项目授权、范围、限额及逐连接测试结果；窄屏按上下顺序展示，新增只列已具备内置驱动的类型，自动选择驱动；高级设置提供受控字段，不接收任意 JSON。`POST /api/database-connections/test` 测试草稿，不写入 SQLite 或密码密文，沿用有界执行器；编辑已保存连接时校验版本并可沿用原凭据。输入变更后前端丢弃旧测试结果，测试成功不自动保存。
 
-新建支持 MySQL、GaussDB、openGauss、Oracle、DB2、SQL Server 和达梦，覆盖 MCP-database 的五类产品并保留独立 openGauss 类型。服务端 `/types` 持有默认端口与固定驱动：MySQL Connector/J 8.0.33、GaussDB/openGauss 的 openGauss JDBC 3.1.0、Oracle ojdbc11 23.7.0.25.01、DB2 jcc 12.1.0.0、DmJdbcDriver18 8.1.3.140。GaussDB、Oracle、DB2 驱动坐标与 MCP-database 对齐；GaussDB 在此指该项目采用的 openGauss JDBC 连接路径，不将包内驱动可加载等同于所有华为 GaussDB 版本已联调。SQL Server 使用 Microsoft JDBC 13.4.0.jre11，默认端口 1433。驱动版本、SHA 与来源见随包 NOTICE。
+新建支持 MySQL、GaussDB、openGauss、Oracle、DB2、SQL Server 和达梦，覆盖 MCP-database 的五类产品并保留独立 openGauss 类型。服务端 `/types` 持有默认端口与固定驱动：MySQL Connector/J 8.0.33、GaussDB/openGauss 的 openGauss JDBC 3.1.0、Oracle ojdbc11 23.7.0.25.01、DB2 jcc 12.1.0.0、DmJdbcDriver18 8.1.3.140。GaussDB、Oracle、DB2 驱动坐标与 MCP-database 对齐；GaussDB 在此指该项目采用的 openGauss JDBC 连接路径，不将包内驱动可加载等同于所有华为 GaussDB 版本已联调。SQL Server 新连接使用 Microsoft JDBC 7.4.1.jre8，默认端口 1433；历史 13.4.0.jre11 profile 保留用于冻结连接恢复。驱动版本、SHA 与来源见随包 NOTICE。
 
 驱动及必要依赖在构建时复制进 JAR 的 `jdbc-bundled` 资源，不进入应用依赖 classpath，避免干扰 SQLite。运行时在 `LOOPPER_DATA_DIR/jdbc-bundled/<profile>` 原子提取并校验 SHA，拒绝符号链接、篡改和缺件，不在线下载或覆盖损坏文件；按不可变 profile 使用平台父加载器隔离驱动及依赖，最多 64 个加载版本，单文件 64 MiB。无需依赖 IDE 或在运行环境扫描 Maven 仓库。
 

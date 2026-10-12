@@ -14,4 +14,5 @@ MySQL: GPLv2 + Universal FOSS Exception; protobuf: BSD 3-Clause; openGauss: BSD 
 
 Oracle、IBM DB2 的许可和版权以各原始 JAR 内的 LICENSE/NOTICE 及同坐标 POM 为准；保留原文件，未重新打包驱动。GaussDB 支持采用 MCP-database 的 openGauss 3.1.0 连接路径，具体服务端认证、方言和账号权限仍需现场验收。
 
-- `com.microsoft.sqlserver:mssql-jdbc:13.4.0.jre11` — Microsoft JDBC Driver for SQL Server，MIT，原始 JAR 保留 LICENSE。SHA-256 `e36f5237c1267983e5b88dc2169f6b9d7e50eceec6dc1ca31018e3877e14af66`。来源：https://github.com/microsoft/mssql-jdbc/releases/tag/v13.4.0
+- `com.microsoft.sqlserver:mssql-jdbc:7.4.1.jre8` — Microsoft JDBC Driver for SQL Server，新连接默认，MIT，原始 JAR 保留 LICENSE。SHA-256 `00a6eaf49184dbffd89c4baf21d08a471797ead9bf48ca38faf7f9fe4244e391`。来源：https://repo.maven.apache.org/maven2/com/microsoft/sqlserver/mssql-jdbc/7.4.1.jre8/
+- `com.microsoft.sqlserver:mssql-jdbc:13.4.0.jre11` — Microsoft JDBC Driver for SQL Server，历史冻结连接恢复，MIT，原始 JAR 保留 LICENSE。SHA-256 `e36f5237c1267983e5b88dc2169f6b9d7e50eceec6dc1ca31018e3877e14af66`。来源：https://github.com/microsoft/mssql-jdbc/releases/tag/v13.4.0

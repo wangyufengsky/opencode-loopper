@@ -15,7 +15,9 @@ class SqlServerSupportTest {
         var c=config("jdbc:sqlserver://db:1433;databaseName=app;encrypt=true;trustServerCertificate=false;");
         var dialect=DatabaseDialect.forType(c.type());
         assertThat(c.driverClass()).isEqualTo("com.microsoft.sqlserver.jdbc.SQLServerDriver");
-        assertThat(c.driverProfile()).isEqualTo("sqlserver-13.4.0.jre11");
+        assertThat(c.driverProfile()).isEqualTo("sqlserver-7.4.1.jre8");
+        assertThat(BundledDatabaseDrivers.profile("sqlserver-13.4.0.jre11").binaries().getFirst().filename())
+                .isEqualTo("mssql-jdbc-13.4.0.jre11.jar");
         assertThat(c.port()).isEqualTo(1433);
         assertThat(dialect.url(c)).isEqualTo("jdbc:sqlserver://db:1433;databaseName=app");
         assertThat(dialect.properties(c," secret+&= ")).containsEntry("password"," secret+&= ")
